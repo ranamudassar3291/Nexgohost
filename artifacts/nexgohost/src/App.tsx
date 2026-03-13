@@ -44,6 +44,8 @@ import AdminReports from "@/pages/admin/Reports";
 import CancellationRequests from "@/pages/admin/CancellationRequests";
 import ProductGroups from "@/pages/admin/ProductGroups";
 import EmailTemplates from "@/pages/admin/EmailTemplates";
+import FraudLogs from "@/pages/admin/FraudLogs";
+import CronLogs from "@/pages/admin/CronLogs";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -189,6 +191,12 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/email-templates">
         <AdminPage><EmailTemplates /></AdminPage>
+      </Route>
+      <Route path="/admin/fraud-logs">
+        <AdminPage><FraudLogs /></AdminPage>
+      </Route>
+      <Route path="/admin/cron-logs">
+        <AdminPage><CronLogs /></AdminPage>
       </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>

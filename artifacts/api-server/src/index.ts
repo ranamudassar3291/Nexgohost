@@ -1,5 +1,6 @@
 import app from "./app";
 import { refreshExchangeRates } from "./routes/currencies.js";
+import { runAllCronTasks } from "./lib/cron.js";
 
 const rawPort = process.env["PORT"];
 
@@ -35,4 +36,13 @@ app.listen(port, async () => {
 
   runRefresh();
   setInterval(runRefresh, 60 * 60 * 1000);
+
+  // Run cron every 5 minutes
+  const runCron = async () => {
+    try { await runAllCronTasks(); } catch (err: any) {
+      console.warn("[CRON] Task runner error:", err.message);
+    }
+  };
+  runCron();
+  setInterval(runCron, 5 * 60 * 1000);
 });

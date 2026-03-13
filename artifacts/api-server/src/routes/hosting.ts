@@ -242,6 +242,28 @@ router.post("/admin/hosting/:id/cancel", authenticate, requireAdmin, async (req:
 });
 
 // Client: get my hosting
+router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const [service] = await db.select().from(hostingServicesTable)
+    .where(eq(hostingServicesTable.id, id)).limit(1);
+  if (!service || service.clientId !== req.user!.userId) {
+    return res.status(404).json({ error: "Service not found" });
+  }
+  if (service.status !== "active") {
+    return res.status(400).json({ error: "Service must be active to reinstall SSL" });
+  }
+  await db.update(hostingServicesTable)
+    .set({ sslStatus: "installing", updatedAt: new Date() })
+    .where(eq(hostingServicesTable.id, id));
+  // In production this would call the server module API — simulate completion after 2s
+  setTimeout(async () => {
+    await db.update(hostingServicesTable)
+      .set({ sslStatus: "installed", updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+  }, 2000);
+  res.json({ success: true, message: "SSL reinstall initiated" });
+});
+
 router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
   try {
     const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.clientId, req.user!.userId));

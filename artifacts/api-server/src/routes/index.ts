@@ -19,6 +19,8 @@ import currenciesRouter from "./currencies.js";
 import serversRouter from "./servers.js";
 import productGroupsRouter from "./product-groups.js";
 import emailTemplatesRouter from "./email-templates.js";
+import fraudRouter from "./fraud.js";
+import cronLogsRouter from "./cron-logs.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +48,7 @@ router.use(currenciesRouter);
 router.use(serversRouter);
 router.use(productGroupsRouter);
 router.use(emailTemplatesRouter);
+router.use(fraudRouter);
+router.use(cronLogsRouter);
 
 export default router;

@@ -1,0 +1,290 @@
+PROJECT:
+Add automation and domain pricing management to a WHMCS-like hosting billing panel.
+
+--------------------------------------------------
+
+1. CRON BILLING AUTOMATION
+
+Create a cron job that runs every 5 minutes.
+
+Cron tasks:
+
+• Check all services
+• Check due dates
+• Generate invoices automatically
+
+Logic:
+
+If today = service.next_due_date
+Generate invoice.
+
+Invoice amount = package price
+
+Update service.next_due_date according to billing cycle.
+
+Example:
+
+Monthly → +30 days
+Yearly → +365 days
+
+Cron command example:
+
+*/5 * * * * php /var/www/billing/cron.php
+
+Database tables used:
+
+services
+invoices
+clients
+packages
+
+--------------------------------------------------
+
+2. AUTO SUSPEND OVERDUE HOSTING
+
+Cron must check unpaid invoices.
+
+If:
+
+invoice.status = unpaid
+AND
+invoice.due_date + 3 days passed
+
+Then:
+
+Suspend hosting account automatically.
+
+Use module API.
+
+For cPanel / WHM:
+
+WHM API
+
+suspendacct
+
+Parameters:
+
+username
+reason = "Overdue Invoice"
+
+Update service status:
+
+status = Suspended
+
+--------------------------------------------------
+
+3. AUTO DOMAIN RENEWAL
+
+Cron must check domain expiry.
+
+If domain expires in 7 days:
+
+Check client credit or auto-renew enabled.
+
+If auto-renew = ON
+
+Then:
+
+Call registrar API to renew domain.
+
+Update:
+
+domain expiry date
+create renewal invoice if needed.
+
+Database table:
+
+domains
+
+fields:
+
+expiry_date
+auto_renew
+status
+
+--------------------------------------------------
+
+4. EMAIL INVOICE REMINDERS
+
+System must send automatic emails.
+
+Schedule:
+
+7 days before due date
+3 days before due date
+on due date
+3 days overdue
+
+Email templates:
+
+Invoice Reminder
+Invoice Overdue Notice
+
+Use SMTP mail system.
+
+Database:
+
+email_logs
+
+fields:
+
+client_id
+email_type
+sent_at
+
+--------------------------------------------------
+
+5. FRAUD PROTECTION
+
+When new order is placed:
+
+Run fraud checks.
+
+Checks:
+
+IP location
+Multiple orders from same IP
+Disposable email detection
+
+If risk score high:
+
+Order status = Fraud
+
+Admin must review before activation.
+
+Create table:
+
+fraud_logs
+
+fields:
+
+order_id
+ip_address
+risk_score
+status
+
+--------------------------------------------------
+
+6. CLIENT AREA SERVICE MANAGEMENT
+
+Client dashboard must allow service management.
+
+Client → Services page
+
+Features:
+
+View hosting details
+View username
+View server
+View next due date
+
+Action buttons:
+
+Login to cPanel
+Login to Webmail
+Reinstall SSL
+Request cancellation
+
+Module actions:
+
+Suspend
+Unsuspend
+Terminate
+
+These must call module API.
+
+--------------------------------------------------
+
+7. DOMAIN EXTENSIONS MANAGEMENT PAGE
+
+Create admin page:
+
+Admin → Domain Extensions
+
+Admin can add domain TLD pricing.
+
+Fields:
+
+Extension
+Register Price
+Renew Price
+Transfer Price
+Status
+
+Example:
+
+.com
+Register = $10
+Renew = $9
+Transfer = $8
+
+Database table:
+
+domain_extensions
+
+fields:
+
+id
+extension
+register_price
+renew_price
+transfer_price
+status
+
+--------------------------------------------------
+
+8. DOMAIN ORDER PRICING
+
+When client searches domain:
+
+System reads prices from domain_extensions table.
+
+Example:
+
+.com = $10
+.net = $9
+
+Show price in search results.
+
+Example UI:
+
+example.com
+Available
+Register Price: $10
+
+--------------------------------------------------
+
+9. CRON LOGGING SYSTEM
+
+Create table:
+
+cron_logs
+
+fields:
+
+task
+status
+message
+executed_at
+
+Log every cron activity:
+
+invoice generation
+hosting suspension
+domain renewal
+email reminders
+
+--------------------------------------------------
+
+10. ADMIN DASHBOARD AUTOMATION STATS
+
+Admin dashboard must show:
+
+Total Services
+Active Services
+Suspended Services
+Domains
+Invoices Due
+Fraud Orders
+
+--------------------------------------------------

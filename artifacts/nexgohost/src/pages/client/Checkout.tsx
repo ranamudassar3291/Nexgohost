@@ -70,6 +70,21 @@ export default function Checkout() {
     queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(r => r.json()),
   });
 
+  const { data: domainExtensions = [] } = useQuery<Array<{ extension: string; registerPrice: string; renewalPrice: string }>>({
+    queryKey: ["domain-extensions-public"],
+    queryFn: () => fetch("/api/domain-extensions").then(r => r.json()),
+  });
+
+  const getDomainPrice = (domain: string): { register: number; renew: number } | null => {
+    if (!domain || !domain.includes(".")) return null;
+    const parts = domain.split(".");
+    const longTld = `.${parts.slice(-2).join(".")}`;
+    const shortTld = `.${parts[parts.length - 1]}`;
+    const ext = domainExtensions.find(e => e.extension === longTld) || domainExtensions.find(e => e.extension === shortTld);
+    if (!ext) return null;
+    return { register: Number(ext.registerPrice), renew: Number(ext.renewalPrice) };
+  };
+
   const { data: myDomains = [] } = useQuery<any[]>({
     queryKey: ["client-domains"],
     queryFn: () => apiFetch("/api/domains"),
@@ -307,9 +322,23 @@ export default function Checkout() {
                     </p>
                   )}
                   {domainAvailability === "available" && !checkingDomain && (
-                    <p className="text-xs text-green-400 flex items-center gap-1.5">
-                      <CheckCircle size={12} /> <strong>{existingDomain}</strong> is available to register!
-                    </p>
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-green-400 flex items-center gap-1.5">
+                        <CheckCircle size={12} /> <strong>{existingDomain}</strong> is available to register!
+                      </p>
+                      {(() => {
+                        const price = getDomainPrice(existingDomain);
+                        return price ? (
+                          <div className="flex items-center gap-3 text-xs bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
+                            <span className="text-green-400 font-medium">Register: {formatPrice(price.register)}/yr</span>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="text-muted-foreground">Renew: {formatPrice(price.renew)}/yr</span>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Domain pricing available at checkout.</p>
+                        );
+                      })()}
+                    </div>
                   )}
                   {domainAvailability === "taken" && !checkingDomain && (
                     <p className="text-xs text-red-400 flex items-center gap-1.5">

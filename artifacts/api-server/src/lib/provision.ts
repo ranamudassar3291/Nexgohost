@@ -1,3 +1,19 @@
+import { db as _db } from "@workspace/db";
+import { serversTable as _serversTable } from "@workspace/db/schema";
+import { eq as _eq } from "drizzle-orm";
+import { cpanelSuspend } from "./cpanel.js";
+
+export async function suspendHostingAccount(username: string, serverId: string | null, reason = "Admin action"): Promise<void> {
+  if (!serverId) return;
+  const [server] = await _db.select().from(_serversTable).where(_eq(_serversTable.id, serverId)).limit(1);
+  if (!server || !server.apiUsername || !server.apiToken) return;
+  await cpanelSuspend(
+    { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername, apiToken: server.apiToken },
+    username,
+    reason,
+  );
+}
+
 /**
  * Hosting Provisioning Service
  * Called when invoice is paid or admin manually provisions.

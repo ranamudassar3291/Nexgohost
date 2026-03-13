@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import {
   Server, ExternalLink, HardDrive, Activity, Shield, ShieldCheck, ShieldX,
   Calendar, ArrowUpCircle, ArrowDownCircle, XCircle, Globe, Loader2, AlertTriangle, X,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,22 @@ export default function ClientHosting() {
   const [cancelModal, setCancelModal] = useState<{ id: string; domain: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [reinstallingSSL, setReinstallingSSL] = useState<string | null>(null);
+
+  const handleReinstallSSL = async (serviceId: string, domain: string) => {
+    setReinstallingSSL(serviceId);
+    try {
+      await apiFetch(`/api/client/hosting/${serviceId}/reinstall-ssl`, { method: "POST" });
+      toast({ title: "SSL Reinstall Initiated", description: `Reinstalling SSL for ${domain}. This may take a moment.` });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
+        setReinstallingSSL(null);
+      }, 3000);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+      setReinstallingSSL(null);
+    }
+  };
 
   const { data: services = [], isLoading } = useQuery<HostingService[]>({
     queryKey: ["client-hosting"],
@@ -257,6 +274,15 @@ export default function ClientHosting() {
                   disabled={service.status !== "active"}
                 >
                   <ExternalLink size={15} /> Login to Webmail
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleReinstallSSL(service.id, service.domain || service.planName)}
+                  className="gap-2"
+                  disabled={service.status !== "active" || reinstallingSSL === service.id}
+                >
+                  {reinstallingSSL === service.id ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
+                  {reinstallingSSL === service.id ? "Reinstalling..." : "Reinstall SSL"}
                 </Button>
                 <Button
                   variant="outline"

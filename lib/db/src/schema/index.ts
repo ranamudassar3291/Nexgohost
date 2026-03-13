@@ -13,3 +13,6 @@ export * from "./servers";
 export * from "./server-groups";
 export * from "./product-groups";
 export * from "./email-templates";
+export * from "./cron-logs";
+export * from "./fraud-logs";
+export * from "./email-logs";

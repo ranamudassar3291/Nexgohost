@@ -2,9 +2,9 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
-  promoCodesTable, paymentMethodsTable, usersTable,
+  promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable,
 } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailInvoiceCreated, emailOrderCreated } from "../lib/email.js";
 
@@ -119,6 +119,51 @@ async function handleCheckout(req: AuthRequest, res: any) {
         total: finalAmount,
       }],
     }).returning();
+
+    // 3.5 Fraud detection (async, non-blocking — flags order if risky)
+    const clientIp = (req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || "").split(",")[0]?.trim() || "";
+    (async () => {
+      try {
+        const reasons: string[] = [];
+        let riskScore = 0;
+
+        // Check: multiple orders from same IP in last 24h
+        if (clientIp) {
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const recentFrauds = await db.select().from(fraudLogsTable)
+            .where(sql`ip_address = ${clientIp} AND created_at >= ${oneDayAgo}`);
+          if (recentFrauds.length >= 3) {
+            reasons.push(`Multiple orders from IP ${clientIp} in 24h`);
+            riskScore += 40;
+          }
+        }
+
+        // Check: disposable email domains
+        const DISPOSABLE_DOMAINS = ["mailinator.com", "guerrillamail.com", "tempmail.com", "throwaway.email", "yopmail.com", "sharklasers.com", "trashmail.com", "fakeinbox.com"];
+        const emailDomain = user.email.split("@")[1]?.toLowerCase() || "";
+        if (DISPOSABLE_DOMAINS.includes(emailDomain)) {
+          reasons.push(`Disposable email domain: ${emailDomain}`);
+          riskScore += 60;
+        }
+
+        // Only log if any risk found
+        if (riskScore > 0) {
+          await db.insert(fraudLogsTable).values({
+            orderId: order.id,
+            clientId: req.user!.userId,
+            ipAddress: clientIp || null,
+            email: user.email,
+            riskScore: String(riskScore),
+            reasons,
+            status: "flagged",
+          });
+
+          if (riskScore >= 50) {
+            await db.update(ordersTable).set({ status: "fraud" }).where(eq(ordersTable.id, order.id));
+          }
+        }
+      } catch { /* fraud checks are non-fatal */ }
+    })();
 
     // 4. Send order confirmation + invoice emails (async, don't block response)
     const dueFormatted = dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
