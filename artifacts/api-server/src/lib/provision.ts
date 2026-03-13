@@ -162,9 +162,19 @@ export async function provisionHostingService(
     webmailUrl = `https://${domain}/webmail`;
   }
 
-  // Update the hosting service in DB
+  // Update the hosting service in DB — due date based on billing cycle
   const nextDueDate = new Date();
-  nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+  const cycle = (service.billingCycle || plan?.billingCycle || "monthly").toLowerCase();
+  if (cycle === "yearly" || cycle === "annual") {
+    nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+  } else if (cycle === "quarterly") {
+    nextDueDate.setMonth(nextDueDate.getMonth() + 3);
+  } else if (cycle === "semi_annual" || cycle === "biannual") {
+    nextDueDate.setMonth(nextDueDate.getMonth() + 6);
+  } else {
+    // monthly (default)
+    nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+  }
 
   await db.update(hostingServicesTable).set({
     status: "active",

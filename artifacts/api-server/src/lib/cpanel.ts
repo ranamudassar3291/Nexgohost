@@ -84,3 +84,13 @@ export async function cpanelTestConnection(server: ServerConfig): Promise<{ succ
 export async function cpanelGetAccountInfo(server: ServerConfig, username: string) {
   return whmRequest(server, "accountsummary", { user: username });
 }
+
+export async function cpanelListPackages(server: ServerConfig): Promise<{ name: string }[]> {
+  const data = await whmRequest(server, "listpkgs");
+  const pkgs = data?.data?.pkg || data?.pkg || [];
+  return pkgs.map((p: any) => ({ name: p.name || p }));
+}
+
+export async function cpanelInstallSSL(server: ServerConfig, domain: string): Promise<any> {
+  return whmRequest(server, "installssl", { domain });
+}

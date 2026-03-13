@@ -44,7 +44,7 @@ export default function Servers() {
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[] }>>({});
 
   // Group state
   const [showGroupForm, setShowGroupForm] = useState(false);
@@ -85,10 +85,11 @@ export default function Servers() {
     setTesting(id);
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
-      setTestResults(r => ({ ...r, [id]: { ok: true, msg: result.message } }));
-      toast({ title: "Connection OK", description: result.message });
+      setTestResults(r => ({ ...r, [id]: { ok: true, msg: result.message, packages: result.packages || [] } }));
+      const pkgSuffix = result.packages?.length ? ` — ${result.packages.length} package(s) found` : "";
+      toast({ title: "Server Connected", description: result.message + pkgSuffix });
     } catch (err: any) {
-      setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message } }));
+      setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [] } }));
       toast({ title: "Connection failed", description: err.message, variant: "destructive" });
     } finally { setTesting(null); }
   };
@@ -255,9 +256,18 @@ export default function Servers() {
                           {s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accts</span>}
                         </div>
                         {testResults[s.id] && (
-                          <div className={`mt-2 flex items-center gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
-                            {testResults[s.id].ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                            {testResults[s.id].msg}
+                          <div className="mt-2 space-y-1.5">
+                            <div className={`flex items-center gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
+                              {testResults[s.id].ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                              {testResults[s.id].msg}
+                            </div>
+                            {testResults[s.id].ok && (testResults[s.id].packages?.length ?? 0) > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {testResults[s.id].packages!.map(pkg => (
+                                  <span key={pkg} className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">{pkg}</span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

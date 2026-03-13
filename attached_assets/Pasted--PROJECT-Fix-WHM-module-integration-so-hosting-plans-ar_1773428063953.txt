@@ -1,0 +1,237 @@
+
+PROJECT:
+Fix WHM module integration so hosting plans are fetched directly from WHM server instead of local database plans.
+
+--------------------------------------------------
+
+PROBLEM
+
+Current system is showing local plans created in billing panel.
+
+Example:
+
+Starter - $5
+Geek - $10
+
+But these plans DO NOT exist in WHM server.
+
+Because of this mismatch:
+
+WHM account creation fails.
+
+--------------------------------------------------
+
+SOLUTION
+
+When admin selects module = cPanel/WHM
+
+System must fetch plans directly from WHM server using API.
+
+WHM API:
+
+listpkgs
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/listpkgs
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+--------------------------------------------------
+
+STEP 1
+Fetch WHM packages.
+
+Example API response:
+
+{
+ "data": {
+  "pkg": [
+   {
+    "name": "starter"
+   },
+   {
+    "name": "business"
+   },
+   {
+    "name": "pro"
+   }
+  ]
+ }
+}
+
+--------------------------------------------------
+
+STEP 2
+Populate plan dropdown dynamically.
+
+Package page OR order page must show:
+
+Starter
+Business
+Pro
+
+These must come from WHM server.
+
+NOT from local database.
+
+--------------------------------------------------
+
+STEP 3
+Remove local fake plans.
+
+Local packages table must only store:
+
+package name
+price
+billing cycle
+server group
+module type
+
+But module_plan must match WHM plan name exactly.
+
+Example:
+
+packages table:
+
+name = Basic Hosting
+module_plan = starter
+
+--------------------------------------------------
+
+STEP 4
+Order activation must use WHM plan name.
+
+WHM API:
+
+createacct
+
+Request example:
+
+https://SERVER-IP:2087/json-api/createacct
+
+Parameters:
+
+username
+password
+domain
+plan
+contactemail
+
+Example:
+
+plan = starter
+
+NOT Basic Hosting.
+
+--------------------------------------------------
+
+STEP 5
+Activation workflow
+
+Admin clicks ACTIVATE ORDER.
+
+System must do:
+
+1 Fetch server from server group
+2 Fetch WHM plan name
+3 Send createacct API request
+4 Save hosting credentials
+5 Set service status active
+6 Set due date
+7 Mark invoice paid
+
+--------------------------------------------------
+
+STEP 6
+Auto set due date.
+
+If billing cycle = Monthly
+
+next_due_date = today + 30 days
+
+If yearly
+
+next_due_date = today + 365 days
+
+Save in services table.
+
+--------------------------------------------------
+
+STEP 7
+Mark invoice paid automatically.
+
+After successful activation:
+
+UPDATE invoices
+SET status = 'Paid',
+paid_date = NOW()
+WHERE order_id = ?
+
+--------------------------------------------------
+
+STEP 8
+Save hosting credentials.
+
+services table fields:
+
+username
+password
+server_id
+status
+next_due_date
+
+--------------------------------------------------
+
+STEP 9
+Client dashboard buttons.
+
+If service status = Active
+
+Show:
+
+Login to cPanel
+
+https://domain.com:2083
+
+Webmail login
+
+https://domain.com/webmail
+
+Activate SSL
+
+Use AutoSSL API.
+
+--------------------------------------------------
+
+STEP 10
+Add server test button.
+
+Admin → Servers → Test Connection
+
+Test:
+
+WHM login
+API token
+Package list
+
+Show:
+
+Server Connected
+Packages Found
+
+--------------------------------------------------
+
+ERROR HANDLING
+
+If WHM API returns error:
+
+Show message:
+
+"WHM Package Not Found"
+
+Log API response.
+
+--------------------------------------------------
