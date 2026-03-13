@@ -10,6 +10,8 @@ export const invoicesTable = pgTable("invoices", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   invoiceNumber: text("invoice_number").notNull().unique(),
   clientId: text("client_id").notNull(),
+  orderId: text("order_id"),
+  serviceId: text("service_id"),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   tax: numeric("tax", { precision: 10, scale: 2 }).default("0"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),

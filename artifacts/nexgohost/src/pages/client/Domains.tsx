@@ -1,20 +1,32 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
-import { useGetMyDomains } from "@workspace/api-client-react";
 import {
   useSearchDomainAvailability,
   useRegisterDomain,
   type DomainTldResult,
   type DomainRegisterResponse,
 } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Globe, Search, ShoppingCart, CheckCircle2, XCircle, AlertCircle,
-  Loader2, Trash2, ExternalLink, RefreshCw, ChevronRight, X, BadgeCheck,
+  Loader2, Trash2, ExternalLink, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+
+interface MyDomain {
+  id: string; name: string; tld: string; status: string; registrationDate: string | null;
+  expiryDate: string | null; autoRenew: boolean; nameservers: string[] | null;
+}
+
+async function apiFetch(url: string, opts?: RequestInit) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
+  if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
+  return res.json();
+}
 
 const TLD_ICONS: Record<string, string> = {
   ".com": "🌐", ".net": "🔗", ".org": "🏛️", ".co": "🏢", ".io": "💻", ".uk": "🇬🇧",
@@ -47,10 +59,24 @@ export default function ClientDomains() {
   const [orderingDomain, setOrderingDomain] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: myDomains = [], isLoading: domainsLoading } = useGetMyDomains();
+  const queryClient = useQueryClient();
+  const { data: myDomains = [], isLoading: domainsLoading } = useQuery<MyDomain[]>({
+    queryKey: ["my-domains"],
+    queryFn: () => apiFetch("/api/domains"),
+  });
   const { data: searchData, isLoading: searching, error: searchError } = useSearchDomainAvailability(searchQuery);
   const registerMutation = useRegisterDomain();
   const { toast } = useToast();
+
+  const toggleAutoRenew = async (domainId: string, current: boolean) => {
+    try {
+      await apiFetch(`/api/domains/${domainId}/auto-renew`, { method: "PUT", body: JSON.stringify({ autoRenew: !current }) });
+      queryClient.invalidateQueries({ queryKey: ["my-domains"] });
+      toast({ title: `Auto-renew ${!current ? "enabled" : "disabled"}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
 
   const handleSearch = () => {
     const val = searchInput.trim().toLowerCase().split(".")[0];
@@ -316,9 +342,15 @@ export default function ClientDomains() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Auto Renew</p>
-                      <p className={`text-sm font-medium ${domain.autoRenew ? "text-green-400" : "text-red-400"}`}>
+                      <button
+                        onClick={() => toggleAutoRenew(domain.id, domain.autoRenew)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer hover:opacity-80 ${
+                          domain.autoRenew ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
+                        }`}
+                      >
+                        <RotateCcw size={11} />
                         {domain.autoRenew ? "Enabled" : "Disabled"}
-                      </p>
+                      </button>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Nameservers</p>

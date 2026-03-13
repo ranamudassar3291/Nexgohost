@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle } from "lucide-react";
+import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -57,9 +57,15 @@ export default function AdminHosting() {
 
   const action = async (id: string, endpoint: string, label: string) => {
     try {
-      await apiFetch(`/api/admin/hosting/${id}/${endpoint}`, { method: "POST" });
+      const result = await apiFetch(`/api/admin/hosting/${id}/${endpoint}`, { method: "POST" });
       queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
       toast({ title: `Service ${label}` });
+      if (result.credentials) {
+        toast({
+          title: "Credentials Created",
+          description: `Username: ${result.credentials.username} | Password: ${result.credentials.password}`,
+        });
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -183,6 +189,12 @@ export default function AdminHosting() {
                           <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-green-400 border-green-500/30 hover:bg-green-500/10"
                             onClick={() => action(s.id, "unsuspend", "unsuspended")}>
                             <PlayCircle size={13} /> Unsuspend
+                          </Button>
+                        )}
+                        {s.status === "pending" && (
+                          <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                            onClick={() => action(s.id, "provision", "provisioned")}>
+                            <Zap size={13} /> Create Account
                           </Button>
                         )}
                         {s.status !== "terminated" && (

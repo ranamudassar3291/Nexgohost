@@ -263,6 +263,18 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
   }
 });
 
+// Client: toggle auto-renew on own domain
+router.put("/domains/:id/auto-renew", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Not found" }); return; }
+    if (domain.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { autoRenew } = req.body;
+    const [updated] = await db.update(domainsTable).set({ autoRenew: autoRenew ?? !domain.autoRenew }).where(eq(domainsTable.id, req.params.id)).returning();
+    res.json(formatDomain(updated, ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Client: get my domains
 router.get("/domains", authenticate, async (req: AuthRequest, res) => {
   try {

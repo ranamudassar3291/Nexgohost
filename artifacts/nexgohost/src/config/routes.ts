@@ -69,10 +69,11 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/domains",     label: "My Domains",  icon: Globe,           inNav: true  },
   { path: "/client/invoices",    label: "Invoices",    icon: FileText,        inNav: true  },
   { path: "/client/invoices/:id", label: "Invoice",   icon: FileText,        inNav: false },
+  { path: "/client/orders",      label: "Orders",      icon: ShoppingCart,    inNav: true  },
   { path: "/client/tickets",     label: "Support",     icon: Ticket,          inNav: true  },
   { path: "/client/tickets/:id", label: "Ticket",      icon: Ticket,          inNav: false },
   { path: "/client/migrations",  label: "Migrations",  icon: ArrowRightLeft,  inNav: true  },
-  { path: "/client/orders/new",  label: "New Order",   icon: ShoppingCart,    inNav: true  },
+  { path: "/client/orders/new",  label: "New Order",   icon: ShoppingCart,    inNav: false },
   { path: "/client/checkout",    label: "Checkout",    icon: CreditCard,      inNav: false },
   { path: "/client/account",     label: "Account",     icon: UserIcon,        inNav: true  },
 ];

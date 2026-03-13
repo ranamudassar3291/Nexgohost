@@ -1,0 +1,205 @@
+You are working on an existing hosting billing system similar to WHMCS.
+
+The system already contains many modules but they are not fully connected.
+
+Your job is to **connect the entire system together** and ensure all admin and client dashboard links work properly.
+
+Do NOT create a new project. Modify and complete the existing system.
+
+---
+
+# ADMIN DASHBOARD INTEGRATION
+
+Admin dashboard must contain working navigation links to all sections:
+
+/admin/dashboard
+/admin/clients
+/admin/products
+/admin/product-groups
+/admin/orders
+/admin/invoices
+/admin/domains
+/admin/domain-extensions
+/admin/servers
+/admin/modules
+/admin/currencies
+/admin/payments
+/admin/promos
+/admin/email-templates
+/admin/tickets
+
+Every page must include:
+
+Add button
+Edit button
+Delete button
+Status controls
+
+---
+
+# CLIENT DASHBOARD INTEGRATION
+
+Client dashboard must show:
+
+Active Services
+Domains
+Unpaid Invoices
+Recent Tickets
+
+Routes:
+
+/client/dashboard
+/client/services
+/client/domains
+/client/invoices
+/client/orders
+/client/tickets
+/client/profile
+
+---
+
+# CLIENT SERVICE PAGE
+
+Each hosting service must include buttons:
+
+Login to cPanel
+Login to Webmail
+Upgrade Plan
+Downgrade Plan
+Cancel Service
+
+Service details must show:
+
+Domain
+Server
+Package
+Next Due Date
+Billing Cycle
+Status
+SSL Status
+
+---
+
+# DOMAIN PAGE
+
+Client domain page must allow:
+
+View domain
+Check expiry date
+Enable auto renew
+
+---
+
+# ORDER SYSTEM CONNECTION
+
+When client places order:
+
+System must automatically:
+
+Create Order
+Create Invoice
+Assign client
+Set order status = Pending
+
+---
+
+# PAYMENT FLOW
+
+When payment is completed:
+
+System must automatically:
+
+Mark invoice = Paid
+Change order status = Active
+Create hosting account on server (cPanel or 20i)
+Send welcome email
+
+---
+
+# SERVER MODULE CONNECTION
+
+If product module = cPanel
+
+System must:
+
+Create hosting account via cPanel API
+
+If module = 20i
+
+System must:
+
+Create hosting account via 20i API
+
+---
+
+# ADMIN SERVER ACTIONS
+
+Admin must have buttons:
+
+Create Account
+Suspend Account
+Unsuspend Account
+Terminate Account
+
+---
+
+# EMAIL SYSTEM
+
+All system actions must send emails:
+
+Order Confirmation
+Invoice Created
+Payment Confirmation
+Hosting Account Created
+Support Ticket Reply
+
+Emails must use templates from:
+
+/admin/email-templates
+
+---
+
+# CHECKOUT FLOW CONNECTION
+
+Checkout must follow these steps:
+
+1 Select Hosting Plan
+2 Select Domain
+3 Choose Billing Cycle
+4 Configure Options
+5 Order Summary
+6 Create Account or Login
+7 Select Payment Method
+8 Generate Invoice
+9 Complete Payment
+
+---
+
+# FINAL SYSTEM REQUIREMENTS
+
+The system must function like a real hosting billing platform similar to WHMCS.
+
+All buttons, links and dashboards must work properly.
+
+Admin must be able to fully manage:
+
+Clients
+Hosting Plans
+Servers
+Domains
+Orders
+Invoices
+Tickets
+Email Templates
+Payments
+Currencies
+
+Client must be able to manage:
+
+Hosting Services
+Domains
+Invoices
+Orders
+Support Tickets
+
+Ensure the entire system works together as one connected platform.

@@ -55,6 +55,7 @@ import ClientAccount from "@/pages/client/Account";
 import NewOrder from "@/pages/client/NewOrder";
 import Checkout from "@/pages/client/Checkout";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
+import ClientOrders from "@/pages/client/Orders";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -216,11 +217,33 @@ function RouterRoot() {
       <Route path="/client/orders/new">
         <ClientPage><NewOrder /></ClientPage>
       </Route>
+      <Route path="/client/orders">
+        <ClientPage><ClientOrders /></ClientPage>
+      </Route>
       <Route path="/client/checkout">
         <ClientPage><Checkout /></ClientPage>
       </Route>
       <Route path="/client/account">
         <ClientPage><ClientAccount /></ClientPage>
+      </Route>
+      {/* ── Route aliases ── */}
+      <Route path="/client/services">
+        <ClientPage><ClientHosting /></ClientPage>
+      </Route>
+      <Route path="/client/profile">
+        <ClientPage><ClientAccount /></ClientPage>
+      </Route>
+      <Route path="/admin/products">
+        <AdminPage><AdminPackages /></AdminPage>
+      </Route>
+      <Route path="/admin/payments">
+        <AdminPage><AdminPaymentMethods /></AdminPage>
+      </Route>
+      <Route path="/admin/promos">
+        <AdminPage><AdminPromoCodes /></AdminPage>
+      </Route>
+      <Route path="/admin/domain-extensions">
+        <AdminPage><DomainExtensions /></AdminPage>
       </Route>
 
       {/* Root redirect */}

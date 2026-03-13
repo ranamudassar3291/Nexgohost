@@ -3,6 +3,8 @@ import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { provisionHostingService } from "../lib/provision.js";
+import { emailServiceSuspended } from "../lib/email.js";
 
 const router = Router();
 
@@ -190,6 +192,17 @@ router.put("/admin/hosting/:id", authenticate, requireAdmin, async (req: AuthReq
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatService(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: manually provision hosting account on server
+router.post("/admin/hosting/:id/provision", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await provisionHostingService(req.params.id);
+    if (!result.success) { res.status(400).json({ error: result.message }); return; }
+    const [updated] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated!.clientId)).limit(1);
+    res.json({ ...formatService(updated!, user ? `${user.firstName} ${user.lastName}` : ""), credentials: result.credentials });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

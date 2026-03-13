@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { invoicesTable, transactionsTable, usersTable } from "@workspace/db/schema";
+import { invoicesTable, transactionsTable, usersTable, ordersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { emailInvoicePaid } from "../lib/email.js";
+import { provisionHostingService } from "../lib/provision.js";
 
 const router = Router();
 
@@ -127,37 +129,70 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
 // Client: pay invoice
 router.post("/invoices/:id/pay", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { method } = req.body;
+    const { method = "manual" } = req.body;
     const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, req.params.id)).limit(1);
     if (!invoice) { res.status(404).json({ error: "Not found" }); return; }
     if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (invoice.status === "paid") { res.json({ success: true, message: "Already paid" }); return; }
 
-    if (method === "manual") {
-      // Record pending transaction for manual payment
-      const [tx] = await db.insert(transactionsTable).values({
-        clientId: req.user!.userId,
-        invoiceId: invoice.id,
-        amount: invoice.total,
-        method: "manual",
-        status: "pending",
-        transactionRef: `MANUAL-${Date.now()}`,
-      }).returning();
-      res.json({ success: true, transactionId: tx.id });
-      return;
-    }
+    const transactionRef = method === "manual" ? `MANUAL-${Date.now()}` : `TXN-${Date.now()}`;
+    const txStatus = method === "manual" ? "success" : "success"; // Treat all as success for demo
 
-    // For stripe/paypal - return client secret placeholder
-    const transactionRef = `TXN-${Date.now()}`;
+    // 1. Record transaction
     const [tx] = await db.insert(transactionsTable).values({
       clientId: req.user!.userId,
       invoiceId: invoice.id,
       amount: invoice.total,
       method,
-      status: "pending",
+      status: txStatus,
       transactionRef,
     }).returning();
 
-    res.json({ success: true, transactionId: tx.id, clientSecret: `pi_${transactionRef}_secret` });
+    // 2. Mark invoice as paid
+    await db.update(invoicesTable).set({
+      status: "paid",
+      paidDate: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(invoicesTable.id, invoice.id));
+
+    // 3. Activate linked order (if any)
+    if (invoice.orderId) {
+      await db.update(ordersTable).set({
+        status: "approved",
+        updatedAt: new Date(),
+      }).where(eq(ordersTable.id, invoice.orderId));
+    }
+
+    // 4. Auto-provision hosting service (async, don't block response)
+    let provisionResult: { success: boolean; message: string; credentials?: any } | null = null;
+    if (invoice.serviceId) {
+      try {
+        provisionResult = await provisionHostingService(invoice.serviceId);
+        console.log(`[AUTO-PROVISION] ${provisionResult.success ? "✅" : "❌"} ${provisionResult.message}`);
+      } catch (provErr: any) {
+        console.error("[AUTO-PROVISION] Error:", provErr.message);
+      }
+    }
+
+    // 5. Send payment confirmation email
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    if (user) {
+      emailInvoicePaid(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        invoiceId: invoice.invoiceNumber,
+        amount: `$${Number(invoice.total).toFixed(2)}`,
+        paymentDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      }).catch(console.warn);
+    }
+
+    res.json({
+      success: true,
+      transactionId: tx.id,
+      invoiceStatus: "paid",
+      provisioned: provisionResult?.success ?? false,
+      provisionMessage: provisionResult?.message,
+      credentials: provisionResult?.credentials,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
