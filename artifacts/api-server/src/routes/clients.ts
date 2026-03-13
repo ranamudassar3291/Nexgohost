@@ -177,6 +177,16 @@ router.post("/admin/clients/:id/activate", authenticate, requireAdmin, async (re
   }
 });
 
+router.delete("/admin/clients/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    await db.delete(usersTable).where(eq(usersTable.id, req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.post("/admin/clients/:id/reset-password", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { newPassword } = req.body;

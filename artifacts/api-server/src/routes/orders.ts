@@ -85,6 +85,34 @@ router.get("/admin/orders", authenticate, requireAdmin, async (_req, res) => {
   }
 });
 
+// Admin: create order manually
+router.post("/admin/orders", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clientId, type, itemId, itemName, amount, notes, status } = req.body;
+    if (!clientId || !type || !itemName || amount === undefined) {
+      res.status(400).json({ error: "clientId, type, itemName, amount are required" });
+      return;
+    }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    if (!user) { res.status(404).json({ error: "Client not found" }); return; }
+
+    const [order] = await db.insert(ordersTable).values({
+      clientId,
+      type: type || "hosting",
+      itemId: itemId || null,
+      itemName,
+      amount: String(Number(amount).toFixed(2)),
+      status: status || "pending",
+      notes: notes || null,
+    }).returning();
+
+    res.status(201).json(formatOrder(order, `${user.firstName} ${user.lastName}`));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Admin: approve order
 router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
@@ -115,6 +143,56 @@ router.post("/admin/orders/:id/cancel", authenticate, requireAdmin, async (req: 
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// Admin: suspend order
+router.post("/admin/orders/:id/suspend", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(ordersTable)
+      .set({ status: "suspended", updatedAt: new Date() })
+      .where(eq(ordersTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: mark order as fraud
+router.post("/admin/orders/:id/fraud", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(ordersTable)
+      .set({ status: "fraud", updatedAt: new Date() })
+      .where(eq(ordersTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: terminate order
+router.post("/admin/orders/:id/terminate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(ordersTable)
+      .set({ status: "terminated", updatedAt: new Date() })
+      .where(eq(ordersTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: update order status (generic)
+router.put("/admin/orders/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { status, notes } = req.body;
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (status) updates.status = status;
+    if (notes !== undefined) updates.notes = notes;
+    const [updated] = await db.update(ordersTable).set(updates).where(eq(ordersTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
 export default router;

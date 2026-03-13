@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, numeric, jsonb, pgEnum } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const invoiceStatusEnum = pgEnum("invoice_status", ["unpaid", "paid", "cancelled", "overdue"]);
+export const invoiceStatusEnum = pgEnum("invoice_status", ["unpaid", "paid", "cancelled", "overdue", "refunded", "collections"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "paypal", "manual"]);
 export const transactionStatusEnum = pgEnum("transaction_status", ["success", "failed", "pending", "refunded"]);
 

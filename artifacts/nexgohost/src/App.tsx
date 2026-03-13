@@ -19,18 +19,26 @@ import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
 import AddClient from "@/pages/admin/AddClient";
+import EditClient from "@/pages/admin/EditClient";
 import AdminHosting from "@/pages/admin/Hosting";
 import AdminDomains from "@/pages/admin/Domains";
 import AdminPackages from "@/pages/admin/Packages";
 import AddPackage from "@/pages/admin/AddPackage";
+import EditPackage from "@/pages/admin/EditPackage";
 import AdminOrders from "@/pages/admin/Orders";
+import AddOrder from "@/pages/admin/AddOrder";
 import AdminInvoices from "@/pages/admin/Invoices";
+import AddInvoice from "@/pages/admin/AddInvoice";
 import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminMigrations from "@/pages/admin/Migrations";
 import AdminSettings from "@/pages/admin/Settings";
 import AdminPromoCodes from "@/pages/admin/PromoCodes";
 import AdminPaymentMethods from "@/pages/admin/PaymentMethods";
+import DomainExtensions from "@/pages/admin/DomainExtensions";
+import Currencies from "@/pages/admin/Currencies";
+import Servers from "@/pages/admin/Servers";
+import Modules from "@/pages/admin/Modules";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -103,6 +111,9 @@ function RouterRoot() {
       <Route path="/admin/clients/add">
         <AdminPage><AddClient /></AdminPage>
       </Route>
+      <Route path="/admin/clients/:id/edit">
+        <AdminPage><EditClient /></AdminPage>
+      </Route>
       <Route path="/admin/clients/:id">
         <AdminPage><AdminClientDetail /></AdminPage>
       </Route>
@@ -119,13 +130,19 @@ function RouterRoot() {
         <AdminPage><AddPackage /></AdminPage>
       </Route>
       <Route path="/admin/packages/:id/edit">
-        <AdminPage><AddPackage /></AdminPage>
+        <AdminPage><EditPackage /></AdminPage>
       </Route>
       <Route path="/admin/packages">
         <AdminPage><AdminPackages /></AdminPage>
       </Route>
+      <Route path="/admin/orders/add">
+        <AdminPage><AddOrder /></AdminPage>
+      </Route>
       <Route path="/admin/orders">
         <AdminPage><AdminOrders /></AdminPage>
+      </Route>
+      <Route path="/admin/invoices/add">
+        <AdminPage><AddInvoice /></AdminPage>
       </Route>
       <Route path="/admin/invoices">
         <AdminPage><AdminInvoices /></AdminPage>
@@ -144,6 +161,18 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/payment-methods">
         <AdminPage><AdminPaymentMethods /></AdminPage>
+      </Route>
+      <Route path="/admin/domains/extensions">
+        <AdminPage><DomainExtensions /></AdminPage>
+      </Route>
+      <Route path="/admin/currencies">
+        <AdminPage><Currencies /></AdminPage>
+      </Route>
+      <Route path="/admin/servers">
+        <AdminPage><Servers /></AdminPage>
+      </Route>
+      <Route path="/admin/modules">
+        <AdminPage><Modules /></AdminPage>
       </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>

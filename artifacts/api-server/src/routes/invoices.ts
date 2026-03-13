@@ -80,6 +80,22 @@ router.post("/admin/invoices", authenticate, requireAdmin, async (req: AuthReque
   }
 });
 
+// Admin: cancel invoice
+router.post("/admin/invoices/:id/cancel", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(invoicesTable)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(invoicesTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Admin: mark invoice paid
 router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {

@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const orderTypeEnum = pgEnum("order_type", ["hosting", "domain", "upgrade", "renewal"]);
-export const orderStatusEnum = pgEnum("order_status", ["pending", "approved", "cancelled", "completed"]);
+export const orderStatusEnum = pgEnum("order_status", ["pending", "approved", "cancelled", "completed", "suspended", "fraud", "terminated"]);
 
 export const ordersTable = pgTable("orders", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

@@ -1,20 +1,26 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useGetAllOrders, useApproveOrder, useCancelOrder } from "@workspace/api-client-react";
-import { ShoppingCart, CheckCircle, XCircle, Clock, Search, Filter } from "lucide-react";
+import { ShoppingCart, CheckCircle, XCircle, Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  approved: "bg-green-500/10 text-green-400 border-green-500/20",
-  cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
-  completed: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  pending:    "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  approved:   "bg-green-500/10 text-green-400 border-green-500/20",
+  completed:  "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  cancelled:  "bg-red-500/10 text-red-400 border-red-500/20",
+  suspended:  "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  fraud:      "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  terminated: "bg-red-800/10 text-red-600 border-red-800/20",
 };
 
+const filterTabs = ["all", "pending", "approved", "suspended", "cancelled", "fraud", "terminated"];
+
 export default function AdminOrders() {
+  const [, setLocation] = useLocation();
   const { data: orders = [], isLoading, refetch } = useGetAllOrders();
   const approveOrder = useApproveOrder();
   const cancelOrder = useCancelOrder();
@@ -42,6 +48,21 @@ export default function AdminOrders() {
     });
   };
 
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/orders/${id}/${newStatus}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: `Order marked as ${newStatus}` });
+      refetch();
+    } catch {
+      toast({ title: `Failed to update order`, variant: "destructive" });
+    }
+  };
+
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
@@ -53,6 +74,9 @@ export default function AdminOrders() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{orders.filter(o => o.status === "pending").length} pending</span>
+          <Button onClick={() => setLocation("/admin/orders/add")} className="bg-primary hover:bg-primary/90 h-10 rounded-xl">
+            <Plus size={16} className="mr-2" /> Create Order
+          </Button>
         </div>
       </div>
 
@@ -61,10 +85,10 @@ export default function AdminOrders() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input className="pl-9 bg-card border-border" placeholder="Search orders..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="flex gap-2">
-          {["all", "pending", "approved", "cancelled"].map(f => (
+        <div className="flex gap-1.5 flex-wrap">
+          {filterTabs.map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-2 text-sm rounded-lg border capitalize transition-all ${filter === f ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+              className={`px-3 py-1.5 text-xs rounded-lg border capitalize transition-all ${filter === f ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
               {f}
             </button>
           ))}
@@ -94,20 +118,39 @@ export default function AdminOrders() {
                 </td>
                 <td className="px-6 py-4 text-sm font-semibold text-foreground">${order.amount.toFixed(2)}</td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[order.status]}`}>{order.status}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[order.status] || "bg-secondary text-secondary-foreground border-border"}`}>
+                    {order.status}
+                  </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">{format(new Date(order.createdAt), "MMM d, yyyy")}</td>
                 <td className="px-6 py-4">
-                  {order.status === "pending" && (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="default" className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApprove(order.id)}>
-                        <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                  <div className="flex gap-1.5 flex-wrap">
+                    {order.status === "pending" && (
+                      <>
+                        <Button size="sm" className="h-7 px-2.5 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApprove(order.id)}>
+                          <CheckCircle className="w-3 h-3 mr-1" /> Approve
+                        </Button>
+                        <Button size="sm" variant="destructive" className="h-7 px-2.5 text-xs" onClick={() => handleCancel(order.id)}>
+                          <XCircle className="w-3 h-3 mr-1" /> Cancel
+                        </Button>
+                      </>
+                    )}
+                    {order.status === "approved" && (
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={() => handleStatusChange(order.id, "suspend")}>
+                        Suspend
                       </Button>
-                      <Button size="sm" variant="destructive" className="h-7 px-3 text-xs" onClick={() => handleCancel(order.id)}>
-                        <XCircle className="w-3 h-3 mr-1" /> Cancel
+                    )}
+                    {order.status === "suspended" && (
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={() => handleApprove(order.id)}>
+                        Unsuspend
                       </Button>
-                    </div>
-                  )}
+                    )}
+                    {["pending", "approved", "suspended"].includes(order.status) && (
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleStatusChange(order.id, "terminate")}>
+                        Terminate
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

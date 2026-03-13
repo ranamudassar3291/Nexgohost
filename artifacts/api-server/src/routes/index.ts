@@ -14,6 +14,9 @@ import dashboardRouter from "./dashboard.js";
 import promoCodesRouter from "./promo-codes.js";
 import paymentMethodsRouter from "./payment-methods.js";
 import checkoutRouter from "./checkout.js";
+import domainExtensionsRouter from "./domain-extensions.js";
+import currenciesRouter from "./currencies.js";
+import serversRouter from "./servers.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +39,8 @@ router.use(dashboardRouter);
 router.use(promoCodesRouter);
 router.use(paymentMethodsRouter);
 router.use(checkoutRouter);
+router.use(domainExtensionsRouter);
+router.use(currenciesRouter);
+router.use(serversRouter);
 
 export default router;

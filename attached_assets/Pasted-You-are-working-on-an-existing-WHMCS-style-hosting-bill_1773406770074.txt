@@ -1,0 +1,268 @@
+You are working on an existing WHMCS-style hosting billing panel project on Replit.
+
+The current admin panel is incomplete. Many required management buttons and systems are missing.
+
+Do NOT create a new project. Instead **analyze the current project and fix it**.
+
+Add missing features and update the admin interface.
+
+---
+
+# FIX THE ADMIN PANEL
+
+The admin panel must include these sections with visible buttons and working routes.
+
+## Clients
+
+Admin must be able to:
+
+Add Client
+Edit Client
+Delete Client
+View Client Profile
+
+Routes:
+
+/admin/clients
+/admin/clients/add
+/admin/clients/edit/:id
+/admin/clients/delete/:id
+
+Add **Add Client button** on client list page.
+
+---
+
+# PRODUCTS / PACKAGES
+
+Admin must be able to:
+
+Add Package
+Edit Package
+Delete Package
+
+Routes:
+
+/admin/products
+/admin/products/add
+/admin/products/edit/:id
+
+Add **Create Package button**.
+
+---
+
+# DOMAIN EXTENSIONS
+
+Currently missing.
+
+Create domain extension management.
+
+Admin must be able to:
+
+Add Domain Extension
+Edit Extension
+Delete Extension
+
+Example extensions:
+
+.com
+.net
+.org
+.pk
+
+Routes:
+
+/admin/domains/extensions
+/admin/domains/extensions/add
+/admin/domains/extensions/edit/:id
+
+---
+
+# ORDERS
+
+Add full order management.
+
+Admin must be able to:
+
+Create Order
+Edit Order
+Activate Order
+Suspend Order
+Terminate Order
+
+Add **Add Order button**
+
+Routes:
+
+/admin/orders
+/admin/orders/add
+/admin/orders/edit/:id
+
+Order Status must include:
+
+Pending
+Active
+Suspended
+Cancelled
+Fraud
+Terminated
+
+---
+
+# INVOICES
+
+Add full invoice system.
+
+Admin must be able to:
+
+Create Invoice
+Edit Invoice
+Mark Paid
+Cancel Invoice
+
+Routes:
+
+/admin/invoices
+/admin/invoices/add
+/admin/invoices/edit/:id
+
+Invoice status:
+
+Unpaid
+Paid
+Cancelled
+Refunded
+Collections
+
+---
+
+# CURRENCY SYSTEM
+
+Add currency management.
+
+Default currency must be **PKR**
+
+Supported currencies:
+
+PKR
+USD
+GBP
+EUR
+
+Routes:
+
+/admin/currencies
+
+Automatically detect client country and show correct currency.
+
+---
+
+# PAYMENT METHODS
+
+Add payment gateway management.
+
+Routes:
+
+/admin/payments
+
+Admin must be able to add:
+
+Stripe
+PayPal
+Bank Transfer
+Crypto
+
+---
+
+# PROMO CODE SYSTEM
+
+Add promo codes.
+
+Routes:
+
+/admin/promos
+/admin/promos/add
+
+Fields:
+
+Code
+Discount %
+Expiry Date
+Usage Limit
+
+---
+
+# MODULE SYSTEM
+
+Add hosting modules system.
+
+Routes:
+
+/admin/modules
+
+Modules:
+
+cPanel
+DirectAdmin
+Plesk
+
+---
+
+# CPANEL MODULE
+
+Add cPanel server configuration.
+
+Routes:
+
+/admin/servers/add
+
+Fields:
+
+Server Name
+Hostname
+API Username
+API Token
+Nameservers
+
+Functions:
+
+Create Account
+Suspend Account
+Unsuspend Account
+Terminate Account
+
+---
+
+# CLIENT AREA
+
+Client area must include:
+
+/client/dashboard
+/client/orders
+/client/invoices
+/client/domains
+/client/tickets
+
+---
+
+# ORDER CHECKOUT FLOW
+
+Client order process:
+
+Choose Product
+Enter Domain
+Apply Promo Code
+Checkout
+Choose Payment Method
+Invoice Generated
+Payment Complete
+Order Activated
+
+---
+
+# IMPORTANT
+
+1. Update both **backend routes and frontend buttons**
+2. Ensure all admin buttons are visible
+3. Connect UI forms with backend APIs
+4. Do not remove existing code — extend it
+5. Make admin panel fully functional like WHMCS

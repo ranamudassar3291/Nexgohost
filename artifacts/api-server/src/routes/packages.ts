@@ -49,6 +49,18 @@ router.get("/admin/packages", authenticate, requireAdmin, async (_req, res) => {
   }
 });
 
+// Admin: get single package
+router.get("/admin/packages/:id", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, _req.params.id)).limit(1);
+    if (!plan) return res.status(404).json({ error: "Not found" });
+    res.json(formatPlan(plan));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Admin: create package
 router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
