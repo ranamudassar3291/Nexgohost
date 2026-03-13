@@ -120,7 +120,7 @@ export default function ClientTickets() {
                     <span>•</span>
                     <span>{ticket.department}</span>
                     <span>•</span>
-                    <span>Updated {format(new Date(ticket.updatedAt || ticket.createdAt), 'MMM d, yyyy')}</span>
+                    <span>Updated {format(new Date(ticket.lastReply || ticket.createdAt), 'MMM d, yyyy')}</span>
                   </div>
                 </div>
               </div>

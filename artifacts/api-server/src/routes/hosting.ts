@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { hostingPlansTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
+import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
@@ -157,39 +157,49 @@ router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
 router.get("/client/dashboard", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
-    const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.clientId, clientId));
-    const domains = await db.select().from(db._.schema!["domainsTable" as never] as never).where(sql`client_id = ${clientId}`).catch(() => []);
 
-    const invoicesMod = await import("@workspace/db");
-    const { invoicesTable, domainsTable, ticketsTable } = invoicesMod;
-
-    const invoices = await db.select().from(invoicesTable).where(eq(invoicesTable.clientId, clientId)).orderBy(sql`created_at DESC`).limit(5);
-    const tickets = await db.select().from(ticketsTable).where(eq(ticketsTable.clientId, clientId)).orderBy(sql`created_at DESC`).limit(5);
-    const allDomains = await db.select().from(domainsTable).where(eq(domainsTable.clientId, clientId));
-    const allInvoices = await db.select().from(invoicesTable).where(eq(invoicesTable.clientId, clientId));
+    const [services, allDomains, allInvoices, recentInvoices, recentTickets] = await Promise.all([
+      db.select().from(hostingServicesTable).where(eq(hostingServicesTable.clientId, clientId)),
+      db.select().from(domainsTable).where(eq(domainsTable.clientId, clientId)),
+      db.select().from(invoicesTable).where(eq(invoicesTable.clientId, clientId)),
+      db.select().from(invoicesTable).where(eq(invoicesTable.clientId, clientId)).orderBy(sql`created_at DESC`).limit(5),
+      db.select().from(ticketsTable).where(eq(ticketsTable.clientId, clientId)).orderBy(sql`created_at DESC`).limit(5),
+    ]);
 
     const unpaidInvoices = allInvoices.filter(i => i.status === "unpaid").length;
-    const openTickets = tickets.filter(t => t.status === "open" || t.status === "pending").length;
+    const openTickets = recentTickets.filter(t => t.status === "open" || t.status === "pending").length;
 
     res.json({
       activeServices: services.filter(s => s.status === "active").length,
       activeDomains: allDomains.filter(d => d.status === "active").length,
       unpaidInvoices,
       openTickets,
-      recentInvoices: invoices.map(i => ({
-        ...i,
+      recentInvoices: recentInvoices.map(i => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        clientId: i.clientId,
+        clientName: "",
+        amount: Number(i.amount),
+        tax: Number(i.tax),
+        total: Number(i.total),
+        status: i.status,
         dueDate: i.dueDate.toISOString(),
-        paidDate: i.paidDate?.toISOString(),
+        paidDate: i.paidDate?.toISOString() ?? null,
+        items: i.items || [],
         createdAt: i.createdAt.toISOString(),
-        updatedAt: i.updatedAt.toISOString(),
-        clientName: "",
       })),
-      recentTickets: tickets.map(t => ({
-        ...t,
-        lastReply: t.lastReply?.toISOString(),
-        createdAt: t.createdAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
+      recentTickets: recentTickets.map(t => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        clientId: t.clientId,
         clientName: "",
+        subject: t.subject,
+        status: t.status,
+        priority: t.priority,
+        department: t.department,
+        messagesCount: t.messagesCount,
+        lastReply: t.lastReply?.toISOString() ?? null,
+        createdAt: t.createdAt.toISOString(),
       })),
     });
   } catch (err) {

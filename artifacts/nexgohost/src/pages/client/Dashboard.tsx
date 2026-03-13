@@ -1,11 +1,12 @@
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
 import { Server, Globe, FileText, Ticket } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
 export default function ClientDashboard() {
   const { data: stats, isLoading } = useGetClientDashboard();
   const { data: user } = useGetMe();
+  const [, navigate] = useLocation();
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   if (!stats) return null;
@@ -88,7 +89,7 @@ export default function ClientDashboard() {
             <table className="w-full text-left">
               <tbody>
                 {stats.recentTickets?.map(ticket => (
-                  <tr key={ticket.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 cursor-pointer" onClick={() => window.location.href = `/client/tickets/${ticket.id}`}>
+                  <tr key={ticket.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 cursor-pointer" onClick={() => navigate(`/client/tickets/${ticket.id}`)}>
                     <td className="p-4">
                       <p className="font-medium text-foreground truncate max-w-[200px]">{ticket.subject}</p>
                       <p className="text-xs text-muted-foreground">#{ticket.ticketNumber}</p>
