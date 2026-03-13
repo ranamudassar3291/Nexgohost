@@ -2,12 +2,9 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  LayoutDashboard, Users, Server, Globe, ShoppingCart, 
-  FileText, Ticket, Send, Settings, LogOut, Menu, X,
-  User as UserIcon, ShieldAlert, Cpu, ArrowRightLeft
-} from "lucide-react";
+import { LogOut, Menu, X, ShieldAlert, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { routesByRole } from "@/config/routes";
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,28 +16,12 @@ export function AppLayout({ children, role }: LayoutProps) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const adminLinks = [
-    { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-    { name: "Clients", href: "/admin/clients", icon: Users },
-    { name: "Hosting", href: "/admin/hosting", icon: Server },
-    { name: "Domains", href: "/admin/domains", icon: Globe },
-    { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
-    { name: "Invoices", href: "/admin/invoices", icon: FileText },
-    { name: "Tickets", href: "/admin/tickets", icon: Ticket },
-    { name: "Migrations", href: "/admin/migrations", icon: Send },
-  ];
-
-  const clientLinks = [
-    { name: "Dashboard", href: "/client/dashboard", icon: LayoutDashboard },
-    { name: "My Hosting", href: "/client/hosting", icon: Server },
-    { name: "My Domains", href: "/client/domains", icon: Globe },
-    { name: "Invoices", href: "/client/invoices", icon: FileText },
-    { name: "Support", href: "/client/tickets", icon: Ticket },
-    { name: "Migrations", href: "/client/migrations", icon: ArrowRightLeft },
-    { name: "Account", href: "/client/account", icon: UserIcon },
-  ];
-
-  const links = role === "admin" ? adminLinks : clientLinks;
+  // Nav links are derived from the centralized route config.
+  // Only routes with inNav: true are shown in the sidebar.
+  // To add or remove a sidebar item, edit src/config/routes.ts.
+  const links = routesByRole[role]
+    .filter((r) => r.inNav)
+    .map((r) => ({ name: r.label, href: r.path, icon: r.icon }));
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row font-sans">

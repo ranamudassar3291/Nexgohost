@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { routeLogger } from "../lib/auth.js";
 import healthRouter from "./health.js";
 import authRouter from "./auth.js";
 import clientsRouter from "./clients.js";
@@ -12,6 +13,14 @@ import dashboardRouter from "./dashboard.js";
 
 const router: IRouter = Router();
 
+// ─── Global Route Logger ──────────────────────────────────────────────────────
+// Logs every request: method, path, user, role, status code, timing.
+// Applied before all routes so every hit is captured automatically.
+router.use(routeLogger);
+
+// ─── Route Modules ────────────────────────────────────────────────────────────
+// Each module owns its own path prefix and role guards internally.
+// To add a new section: create a router file, import it here, then router.use() it.
 router.use(healthRouter);
 router.use(authRouter);
 router.use(clientsRouter);

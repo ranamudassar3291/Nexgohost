@@ -4,8 +4,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
 import { useAuth } from "@/hooks/use-auth";
+import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
 import NotFound from "@/pages/not-found";
+import Forbidden from "@/pages/errors/Forbidden";
 
 // Auth pages
 import Login from "@/pages/auth/Login";
@@ -40,9 +42,24 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: "admin" | "client" }) {
+// ─── ProtectedRoute ───────────────────────────────────────────────────────────
+// Guards a subtree by authentication and optional role.
+//
+// Behaviors:
+//   • No token / not logged in  → redirect to /login
+//   • Logged in, wrong role     → show 403 Forbidden page (not a silent bounce)
+//   • Logged in, correct role   → render children
+//
+// The 403 page receives the attempted path and required role for context.
+function ProtectedRoute({
+  children,
+  role,
+}: {
+  children: React.ReactNode;
+  role?: "admin" | "client";
+}) {
   const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -57,68 +74,78 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
   }
 
   if (role && user.role !== role) {
-    return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
+    return <Forbidden requiredRole={role} attemptedPath={location} />;
   }
 
   return <>{children}</>;
 }
 
+// ─── Admin Route Tree ─────────────────────────────────────────────────────────
 function AdminRoutes() {
   return (
     <AppLayout role="admin">
       <Switch>
-        <Route path="/admin/dashboard" component={AdminDashboard} />
-        <Route path="/admin/clients/:id" component={AdminClientDetail} />
-        <Route path="/admin/clients" component={AdminClients} />
-        <Route path="/admin/hosting" component={AdminHosting} />
-        <Route path="/admin/domains" component={AdminDomains} />
-        <Route path="/admin/orders" component={AdminOrders} />
-        <Route path="/admin/invoices" component={AdminInvoices} />
-        <Route path="/admin/tickets/:id" component={AdminTicketDetail} />
-        <Route path="/admin/tickets" component={AdminTickets} />
-        <Route path="/admin/migrations" component={AdminMigrations} />
-        <Route path="/admin/settings" component={AdminSettings} />
+        <Route path="/admin/dashboard"    component={AdminDashboard}    />
+        <Route path="/admin/clients/:id"  component={AdminClientDetail} />
+        <Route path="/admin/clients"      component={AdminClients}      />
+        <Route path="/admin/hosting"      component={AdminHosting}      />
+        <Route path="/admin/domains"      component={AdminDomains}      />
+        <Route path="/admin/orders"       component={AdminOrders}       />
+        <Route path="/admin/invoices"     component={AdminInvoices}     />
+        <Route path="/admin/tickets/:id"  component={AdminTicketDetail} />
+        <Route path="/admin/tickets"      component={AdminTickets}      />
+        <Route path="/admin/migrations"   component={AdminMigrations}   />
+        <Route path="/admin/settings"     component={AdminSettings}     />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
   );
 }
 
+// ─── Client Route Tree ────────────────────────────────────────────────────────
 function ClientRoutes() {
   return (
     <AppLayout role="client">
       <Switch>
-        <Route path="/client/dashboard" component={ClientDashboard} />
-        <Route path="/client/hosting" component={ClientHosting} />
-        <Route path="/client/domains" component={ClientDomains} />
-        <Route path="/client/invoices" component={ClientInvoices} />
-        <Route path="/client/tickets/:id" component={ClientTicketDetail} />
-        <Route path="/client/tickets" component={ClientTickets} />
-        <Route path="/client/migrations" component={ClientMigrations} />
-        <Route path="/client/account" component={ClientAccount} />
+        <Route path="/client/dashboard"    component={ClientDashboard}    />
+        <Route path="/client/hosting"      component={ClientHosting}      />
+        <Route path="/client/domains"      component={ClientDomains}      />
+        <Route path="/client/invoices"     component={ClientInvoices}     />
+        <Route path="/client/tickets/:id"  component={ClientTicketDetail} />
+        <Route path="/client/tickets"      component={ClientTickets}      />
+        <Route path="/client/migrations"   component={ClientMigrations}   />
+        <Route path="/client/account"      component={ClientAccount}      />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
   );
 }
 
+// ─── Router Root ──────────────────────────────────────────────────────────────
 function RouterRoot() {
   const { user, isLoading } = useAuth();
 
+  // Log every route change to the browser console for debugging
+  useRouteLogger();
+
   return (
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login"    component={Login}    />
       <Route path="/register" component={Register} />
+
       <Route path="/admin/:rest*">
         <ProtectedRoute role="admin">
           <AdminRoutes />
         </ProtectedRoute>
       </Route>
+
       <Route path="/client/:rest*">
         <ProtectedRoute role="client">
           <ClientRoutes />
         </ProtectedRoute>
       </Route>
+
+      {/* Root redirect: send authenticated users to their dashboard */}
       <Route path="/">
         {!isLoading && user ? (
           <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
@@ -130,11 +157,13 @@ function RouterRoot() {
           </div>
         )}
       </Route>
+
       <Route component={NotFound} />
     </Switch>
   );
 }
 
+// ─── App Root ─────────────────────────────────────────────────────────────────
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
