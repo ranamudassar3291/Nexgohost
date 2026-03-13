@@ -110,15 +110,27 @@ The client portal has a full domain ordering workflow:
 - `POST /api/admin/domains` — Add domain manually (admin)
 - `PUT /api/admin/domains/:id` — Edit domain (admin, fields: registrar/status/autoRenew/expiryDate/nextDueDate)
 - `DELETE /api/admin/domains/:id` — Delete domain
+- `GET /api/admin/email-templates` — All email templates (auto-seeds 8 defaults on first load)
+- `GET /api/admin/email-templates/:id` — Single email template
+- `POST /api/admin/email-templates` — Create email template
+- `PUT /api/admin/email-templates/:id` — Update email template (incl. isActive toggle)
+- `DELETE /api/admin/email-templates/:id` — Delete email template
+- `POST /api/admin/hosting/:id/suspend` — Suspend hosting service
+- `POST /api/admin/hosting/:id/unsuspend` — Unsuspend hosting service
+- `POST /api/admin/hosting/:id/terminate` — Terminate hosting service
+- `POST /api/admin/hosting/:id/cancel` — Approve client cancellation request
+- `PUT /api/admin/hosting/:id` — General update (status/cancelRequested/nextDueDate/billingCycle/sslStatus/etc.)
 
 ### Client
 - `GET /api/packages` — Public list of active hosting packages
 - `GET /api/payment-methods` — Active payment methods (no secrets)
 - `GET /api/promo-codes/validate?code=X&amount=Y` — Validate promo + compute discount
 - `POST /api/client/checkout` — Place order + generate invoice (with promo support)
-- `GET /api/my/hosting` — Client's hosting services
+- `GET /api/client/hosting` — Client's hosting services (direct fetch — no api-client-react)
+- `POST /api/client/hosting/:id/cancel-request` — Submit cancellation request
 - `GET /api/my/domains` — Client's domains
-- `GET /api/my/invoices` — Client's invoices
+- `GET /api/invoices` — Client's invoices
+- `GET /api/my/invoices/:id` — Single invoice detail for client
 - `POST /api/invoices/:id/pay` — Pay invoice
 - `GET /api/client/dashboard` — Dashboard stats
 - `GET /api/account` — Get account info
@@ -163,13 +175,16 @@ The client portal has a full domain ordering workflow:
 - `/admin/currencies` — Multi-currency management (PKR default + USD/GBP/EUR seeded)
 - `/admin/servers` — Server management (cPanel/DirectAdmin/Plesk, connection test)
 - `/admin/modules` — Modules listing with configure actions
+- `/admin/product-groups` — Product group management
+- `/admin/email-templates` — Email template CRUD with inline editor, variable detection, and preview mode (8 templates seeded by default)
 - `/admin/settings` — Settings page
 
 ### Client Portal (`/client/*`)
 - `/client/dashboard` — Welcome + stats overview
-- `/client/hosting` — Active hosting services
+- `/client/hosting` — Hosting service cards with cPanel/Webmail login buttons, SSL status, disk/bandwidth usage bars, billing cycle, next due date, and cancel service request
 - `/client/domains` — Registered domains + Order New Domain (with RDAP search, cart, checkout)
-- `/client/invoices` — Invoice list with pay action
+- `/client/invoices` — Invoice list (clickable rows) with View + Pay buttons
+- `/client/invoices/:id` — Professional invoice detail page: company header, line items table, totals, payment instructions (bank/PayPal/manual), print support
 - `/client/tickets` — Support tickets
 - `/client/tickets/:id` — Ticket detail with reply
 - `/client/migrations` — Migration requests
@@ -185,7 +200,9 @@ The client portal has a full domain ordering workflow:
 
 ## Database Schema
 
-Tables: `users`, `hosting_plans`, `hosting_services`, `domains`, `domain_pricing`, `orders`, `invoices`, `transactions`, `tickets`, `ticket_messages`, `migrations_requests`, `promo_codes`, `payment_methods`, `domain_extensions`, `currencies`, `servers`
+Tables: `users`, `hosting_plans`, `hosting_services`, `domains`, `domain_pricing`, `orders`, `invoices`, `transactions`, `tickets`, `ticket_messages`, `migrations_requests`, `promo_codes`, `payment_methods`, `domain_extensions`, `currencies`, `servers`, `product_groups`, `email_templates`
+
+**hosting_services extended fields**: `password`, `serverId`, `billingCycle`, `nextDueDate`, `sslStatus`, `webmailUrl`, `cancelRequested`, `cancelReason`, `cancelRequestedAt`
 
 **Order statuses**: pending, approved, completed, cancelled, suspended, fraud, terminated
 **Invoice statuses**: unpaid, paid, cancelled, overdue, refunded, collections

@@ -11,3 +11,4 @@ export * from "./domain-extensions";
 export * from "./currencies";
 export * from "./servers";
 export * from "./product-groups";
+export * from "./email-templates";

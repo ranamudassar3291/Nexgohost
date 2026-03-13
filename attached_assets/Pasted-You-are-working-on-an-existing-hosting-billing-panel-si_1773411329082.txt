@@ -1,0 +1,269 @@
+You are working on an existing hosting billing panel similar to WHMCS.
+
+Do NOT create a new project.
+Extend the existing system and add missing advanced hosting automation features.
+
+The system must become a professional hosting billing platform.
+
+---
+
+# SERVER MANAGEMENT
+
+Admin must be able to add hosting servers.
+
+Route:
+/admin/servers
+
+Fields:
+
+Server Name
+Hostname
+IP Address
+Module Type (cPanel / 20i)
+API Username
+API Token / Password
+Nameserver 1
+Nameserver 2
+
+Add a button:
+
+TEST CONNECTION
+
+When clicked it must:
+
+Attempt API connection with the server.
+
+If successful show:
+
+Connection Successful
+
+If failed show:
+
+Connection Failed
+
+---
+
+# CPANEL MODULE
+
+Add full cPanel module automation.
+
+Functions:
+
+Create Account
+Suspend Account
+Unsuspend Account
+Terminate Account
+
+Hosting service page must include buttons:
+
+Login to cPanel
+Login to Webmail
+Suspend Account
+Unsuspend Account
+Terminate Account
+
+Also show:
+
+SSL Status
+Disk Usage
+Bandwidth Usage
+
+---
+
+# 20I HOSTING MODULE
+
+Add module for 20i hosting API.
+
+Fields when adding server:
+
+Stack User
+API Key
+Package ID
+
+Functions:
+
+Create Hosting Account
+Suspend Hosting
+Unsuspend Hosting
+Delete Hosting
+
+---
+
+# DOMAIN EXTENSION MANAGER
+
+Create page:
+
+/admin/domain-extensions
+
+Admin must be able to:
+
+Add Extension
+Edit Extension
+Delete Extension
+
+Fields:
+
+Extension (.com .net .org .pk)
+
+Register Price
+Renew Price
+Transfer Price
+
+Enable Free Domain Privacy option.
+
+---
+
+# DOMAIN MANAGEMENT
+
+Route:
+
+/admin/domains
+
+Admin must be able to:
+
+Edit Domain
+Change Status
+Change Due Date
+Enable Auto Renew
+
+Status options:
+
+Active
+Expired
+Pending
+Cancelled
+Suspended
+
+---
+
+# EMAIL TEMPLATE SYSTEM
+
+Create page:
+
+/admin/email-templates
+
+Admin must be able to:
+
+View all system emails
+Edit email template
+Create new email template
+
+Templates include:
+
+Invoice Created
+Invoice Payment Confirmation
+New Order Confirmation
+Hosting Account Created
+Password Reset
+Support Ticket Reply
+
+Templates must support variables like:
+
+{client_name}
+{invoice_id}
+{domain}
+{service_name}
+
+---
+
+# PROFESSIONAL INVOICE TEMPLATE
+
+Create modern invoice template.
+
+Invoice must show:
+
+Company Logo
+Client Details
+Invoice ID
+Invoice Date
+Due Date
+
+Invoice Items
+
+Hosting Plan
+Domain
+Addons
+
+Payment Method Details
+
+Bank Transfer Instructions
+PayPal Email
+Crypto Address
+
+Invoice Status:
+
+Paid
+Unpaid
+Cancelled
+Refunded
+
+---
+
+# HOSTING SERVICE MANAGEMENT
+
+Client service page must include buttons:
+
+Login to cPanel
+Login to Webmail
+Upgrade Plan
+Downgrade Plan
+Cancel Service
+
+Also show:
+
+Domain
+Server
+Package
+Next Due Date
+Billing Cycle
+Status
+
+---
+
+# SSL STATUS
+
+Hosting service page must display:
+
+SSL Activated / Not Installed
+
+---
+
+# ORDER AUTOMATION
+
+When invoice is paid:
+
+System must automatically:
+
+Activate Order
+Create Hosting Account on Server
+Send Welcome Email
+
+---
+
+# CANCELLATION REQUEST SYSTEM
+
+Clients must be able to request cancellation.
+
+Admin must approve cancellation.
+
+---
+
+# IMPORTANT
+
+All buttons must perform real actions using API.
+
+Do not create dummy buttons.
+
+System must be able to connect to real servers.
+
+---
+
+# FINAL RESULT
+
+The system must function like a real hosting automation platform similar to:
+
+WHMCS
+Hostinger
+20i Panel
+
+Admin must be able to fully manage hosting, domains, invoices, servers and email templates.

@@ -41,6 +41,7 @@ import Currencies from "@/pages/admin/Currencies";
 import Servers from "@/pages/admin/Servers";
 import Modules from "@/pages/admin/Modules";
 import ProductGroups from "@/pages/admin/ProductGroups";
+import EmailTemplates from "@/pages/admin/EmailTemplates";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -53,6 +54,7 @@ import ClientMigrations from "@/pages/client/Migrations";
 import ClientAccount from "@/pages/client/Account";
 import NewOrder from "@/pages/client/NewOrder";
 import Checkout from "@/pages/client/Checkout";
+import InvoiceDetail from "@/pages/client/InvoiceDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -179,6 +181,9 @@ function RouterRoot() {
       <Route path="/admin/product-groups">
         <AdminPage><ProductGroups /></AdminPage>
       </Route>
+      <Route path="/admin/email-templates">
+        <AdminPage><EmailTemplates /></AdminPage>
+      </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>
       </Route>
@@ -192,6 +197,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/domains">
         <ClientPage><ClientDomains /></ClientPage>
+      </Route>
+      <Route path="/client/invoices/:id">
+        <ClientPage><InvoiceDetail /></ClientPage>
       </Route>
       <Route path="/client/invoices">
         <ClientPage><ClientInvoices /></ClientPage>

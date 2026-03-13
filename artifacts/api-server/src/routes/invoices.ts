@@ -25,6 +25,18 @@ function formatInvoice(i: typeof invoicesTable.$inferSelect, clientName?: string
   };
 }
 
+// Client: get single invoice
+router.get("/my/invoices/:id", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [invoice] = await db.select().from(invoicesTable)
+      .where(eq(invoicesTable.id, req.params.id)).limit(1);
+    if (!invoice) { res.status(404).json({ error: "Not found" }); return; }
+    if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    res.json(formatInvoice(invoice, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Client: get my invoices
 router.get("/invoices", authenticate, async (req: AuthRequest, res) => {
   try {

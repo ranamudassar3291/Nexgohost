@@ -17,6 +17,7 @@ import {
   DollarSign,
   Puzzle,
   Layers,
+  Mail,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -57,6 +58,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/servers",               label: "Servers",            icon: Server,       inNav: true  },
   { path: "/admin/modules",               label: "Modules",            icon: Puzzle,       inNav: true  },
   { path: "/admin/product-groups",        label: "Product Groups",     icon: Layers,       inNav: true  },
+  { path: "/admin/email-templates",       label: "Email Templates",    icon: Mail,         inNav: true  },
   { path: "/admin/settings",              label: "Settings",           icon: Settings,     inNav: true  },
 ];
 
@@ -66,6 +68,7 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/hosting",     label: "My Hosting",  icon: Server,          inNav: true  },
   { path: "/client/domains",     label: "My Domains",  icon: Globe,           inNav: true  },
   { path: "/client/invoices",    label: "Invoices",    icon: FileText,        inNav: true  },
+  { path: "/client/invoices/:id", label: "Invoice",   icon: FileText,        inNav: false },
   { path: "/client/tickets",     label: "Support",     icon: Ticket,          inNav: true  },
   { path: "/client/tickets/:id", label: "Ticket",      icon: Ticket,          inNav: false },
   { path: "/client/migrations",  label: "Migrations",  icon: ArrowRightLeft,  inNav: true  },

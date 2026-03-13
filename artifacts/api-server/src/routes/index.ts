@@ -18,6 +18,7 @@ import domainExtensionsRouter from "./domain-extensions.js";
 import currenciesRouter from "./currencies.js";
 import serversRouter from "./servers.js";
 import productGroupsRouter from "./product-groups.js";
+import emailTemplatesRouter from "./email-templates.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(domainExtensionsRouter);
 router.use(currenciesRouter);
 router.use(serversRouter);
 router.use(productGroupsRouter);
+router.use(emailTemplatesRouter);
 
 export default router;

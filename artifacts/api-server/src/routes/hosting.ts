@@ -33,13 +33,22 @@ function formatService(s: typeof hostingServicesTable.$inferSelect, clientName?:
     planName: s.planName,
     domain: s.domain,
     username: s.username,
+    serverId: s.serverId,
     serverIp: s.serverIp,
     status: s.status,
+    billingCycle: s.billingCycle,
+    nextDueDate: s.nextDueDate?.toISOString(),
+    sslStatus: s.sslStatus || "not_installed",
     startDate: s.startDate?.toISOString(),
     expiryDate: s.expiryDate?.toISOString(),
     diskUsed: s.diskUsed,
     bandwidthUsed: s.bandwidthUsed,
     cpanelUrl: s.cpanelUrl,
+    webmailUrl: s.webmailUrl,
+    cancelRequested: s.cancelRequested,
+    cancelReason: s.cancelReason,
+    cancelRequestedAt: s.cancelRequestedAt?.toISOString(),
+    createdAt: s.createdAt.toISOString(),
   };
 }
 
@@ -126,6 +135,18 @@ router.post("/admin/hosting/:id/suspend", authenticate, requireAdmin, async (req
   }
 });
 
+// Admin: unsuspend hosting
+router.post("/admin/hosting/:id/unsuspend", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(hostingServicesTable)
+      .set({ status: "active", updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(formatService(updated));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Admin: terminate hosting
 router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
@@ -139,6 +160,49 @@ router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (r
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// Client: request cancellation
+router.post("/client/hosting/:id/cancel-request", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { reason } = req.body;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (!service) { res.status(404).json({ error: "Not found" }); return; }
+    if (service.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [updated] = await db.update(hostingServicesTable)
+      .set({ cancelRequested: true, cancelReason: reason || "Requested by client", cancelRequestedAt: new Date(), updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, req.params.id))
+      .returning();
+    res.json(formatService(updated));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: update hosting service (general)
+router.put("/admin/hosting/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const allowed = ["status", "cancelRequested", "nextDueDate", "billingCycle", "sslStatus", "username", "domain", "serverId", "serverIp", "cpanelUrl", "webmailUrl"];
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+    const [updated] = await db.update(hostingServicesTable).set(updates).where(eq(hostingServicesTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatService(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: approve cancellation
+router.post("/admin/hosting/:id/cancel", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(hostingServicesTable)
+      .set({ status: "terminated", cancelRequested: false, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(formatService(updated));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
 // Client: get my hosting
