@@ -120,6 +120,13 @@ export async function emailServiceSuspended(to: string, vars: {
   });
 }
 
+export async function emailGeneric(to: string, subject: string, clientName: string, message: string) {
+  return sendTemplatedEmail("welcome", to, {
+    company_name: COMPANY, client_name: clientName, subject, message,
+    custom_message: message,
+  });
+}
+
 export async function emailCancellationConfirmed(to: string, vars: {
   clientName: string; domain: string; serviceName: string; cancelDate: string;
 }) {

@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, hostingServicesTable, domainsTable, invoicesTable, ticketsTable } from "@workspace/db/schema";
+import { usersTable, hostingServicesTable, domainsTable, invoicesTable, ticketsTable, ordersTable } from "@workspace/db/schema";
 import { eq, ilike, or, count, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
+import { emailGeneric } from "../lib/email.js";
 
 const router = Router();
 
@@ -14,6 +15,8 @@ function formatUser(user: typeof usersTable.$inferSelect, extras?: { servicesCou
     email: user.email,
     company: user.company,
     phone: user.phone,
+    country: (user as any).country ?? null,
+    currency: (user as any).currency ?? null,
     role: user.role,
     status: user.status,
     createdAt: user.createdAt.toISOString(),
@@ -94,6 +97,7 @@ router.get("/admin/clients/:id", authenticate, requireAdmin, async (req: AuthReq
     const domains = await db.select().from(domainsTable).where(eq(domainsTable.clientId, user.id));
     const invoices = await db.select().from(invoicesTable).where(eq(invoicesTable.clientId, user.id));
     const tickets = await db.select().from(ticketsTable).where(eq(ticketsTable.clientId, user.id));
+    const orders = await db.select().from(ordersTable).where(eq(ordersTable.clientId, user.id));
 
     res.json({
       ...formatUser(user, { servicesCount: hosting.length, domainsCount: domains.length }),
@@ -126,6 +130,12 @@ router.get("/admin/clients/:id", authenticate, requireAdmin, async (req: AuthReq
         lastReply: t.lastReply?.toISOString(),
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
+      })),
+      orders: orders.map(o => ({
+        ...o,
+        amount: o.amount,
+        createdAt: o.createdAt.toISOString(),
+        updatedAt: o.updatedAt.toISOString(),
       })),
     });
   } catch (err) {
@@ -185,6 +195,17 @@ router.delete("/admin/clients/:id", authenticate, requireAdmin, async (req: Auth
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// Admin: send email to client
+router.post("/admin/clients/:id/send-email", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
+    if (!user) { res.status(404).json({ error: "Client not found" }); return; }
+    const { subject = "Message from Nexgohost", message = "Thank you for being our client." } = req.body;
+    await emailGeneric(user.email, subject, `${user.firstName} ${user.lastName}`, message).catch(console.warn);
+    res.json({ success: true, message: "Email sent successfully" });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
 router.post("/admin/clients/:id/reset-password", authenticate, requireAdmin, async (req: AuthRequest, res) => {

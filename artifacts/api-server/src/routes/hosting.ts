@@ -195,6 +195,29 @@ router.put("/admin/hosting/:id", authenticate, requireAdmin, async (req: AuthReq
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
+// Admin: list all cancellation requests
+router.get("/admin/hosting/cancellation-requests", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.cancelRequested, true));
+    const result = await Promise.all(services.map(async s => {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, s.clientId)).limit(1);
+      return { ...formatService(s, user ? `${user.firstName} ${user.lastName}` : "") };
+    }));
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: reject cancellation request
+router.post("/admin/hosting/:id/reject-cancel", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(hostingServicesTable)
+      .set({ cancelRequested: false, cancelReason: null, cancelRequestedAt: null, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ success: true, message: "Cancellation request rejected", ...formatService(updated) });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Admin: manually provision hosting account on server
 router.post("/admin/hosting/:id/provision", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {

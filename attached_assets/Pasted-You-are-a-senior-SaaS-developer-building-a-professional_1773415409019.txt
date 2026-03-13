@@ -1,0 +1,325 @@
+You are a senior SaaS developer building a professional hosting automation system similar to WHMCS.
+
+Fix and complete the current system. Do not break existing functionality. Build a complete hosting billing platform with a professional Admin Panel and Client Area.
+
+IMPORTANT RULES
+
+Return JSON from APIs only.
+Never return HTML in API responses.
+Use structured responses.
+
+Example success:
+
+{
+"success": true,
+"message": "Action completed"
+}
+
+Example error:
+
+{
+"success": false,
+"error": "Reason here"
+}
+
+---
+
+ADMIN PANEL MASTER CLIENT MANAGEMENT PAGE
+
+Create a full WHMCS-style client management page.
+
+Admin must be able to open a single client profile page that includes tabs or sections:
+
+Client Summary
+Products / Services
+Domains
+Invoices
+Tickets
+Orders
+Modules
+
+This page should behave exactly like WHMCS client profile.
+
+---
+
+CLIENT PROFILE INFORMATION
+
+Display:
+
+Client Name
+Email
+Phone
+Country
+Currency
+Registration Date
+Account Status
+
+Buttons:
+
+Edit Client
+Delete Client
+Suspend Client
+Send Email
+
+---
+
+PRODUCTS / SERVICES MANAGEMENT
+
+Inside the client profile create a section:
+
+Products / Services
+
+Show all hosting services owned by that client.
+
+Columns:
+
+Service ID
+Product Name
+Domain
+Billing Cycle
+Price
+Status
+
+When admin clicks a service it opens the **Service Management Panel**.
+
+---
+
+HOSTING SERVICE MANAGEMENT PANEL
+
+This page must contain buttons like WHMCS:
+
+Login to cPanel
+Login to Webmail
+Change Password
+Suspend Account
+Unsuspend Account
+Terminate Account
+Activate SSL
+Upgrade Plan
+Downgrade Plan
+Cancel Service
+
+All buttons must connect to the hosting module (cPanel or other).
+
+Show:
+
+Server
+Package Name
+Domain
+Next Due Date
+Status
+
+---
+
+DOMAIN MANAGEMENT SECTION
+
+Inside the client page create a Domains tab.
+
+Admin can:
+
+Add Domain
+Edit Domain
+Change Nameservers
+Get EPP Code
+Change Status
+Update Due Date
+
+Show columns:
+
+Domain
+Status
+Registrar
+Expiry Date
+Auto Renew
+
+---
+
+ORDER MANAGEMENT
+
+Inside client page admin can:
+
+Add New Order
+
+Order form should allow:
+
+Select Product
+Select Domain
+Choose Billing Cycle
+Assign Server
+Generate Invoice automatically
+
+---
+
+INVOICE MANAGEMENT
+
+Admin can:
+
+Create Invoice
+Edit Invoice
+Mark Paid
+Cancel Invoice
+
+Invoice must show:
+
+Client
+Products
+Domains
+Payment Method
+Status
+Due Date
+
+---
+
+SUPPORT TICKET SYSTEM
+
+Clients must be able to create tickets.
+
+Ticket fields:
+
+Subject
+Department
+Priority
+Message
+File Attachment
+Screenshot Upload
+
+Admin panel ticket features:
+
+Reply
+Close Ticket
+Change Status
+Assign Staff
+
+Statuses:
+
+Open
+Answered
+Customer Reply
+Closed
+
+---
+
+CANCELLATION REQUEST SYSTEM
+
+Client dashboard must include:
+
+Request Cancellation button.
+
+Client must provide:
+
+Cancellation Type
+Immediate / End of Billing Cycle
+
+Reason field.
+
+Admin panel must have a **Cancellation Requests page** showing:
+
+Client Name
+Service
+Reason
+Status
+
+Admin can:
+
+Approve Cancellation
+Reject Cancellation
+
+---
+
+CLIENT DASHBOARD
+
+Create a professional client dashboard.
+
+Sections:
+
+My Hosting
+My Domains
+My Invoices
+Support Tickets
+
+---
+
+CLIENT HOSTING MANAGEMENT PAGE
+
+Client can click active hosting and open a management panel.
+
+Show buttons:
+
+Login to cPanel
+Login to Webmail
+Activate SSL
+Upgrade Hosting
+Downgrade Hosting
+Request Cancellation
+
+Also show:
+
+Disk Usage
+Bandwidth
+Status
+Next Billing Date
+
+---
+
+CLIENT DOMAIN MANAGEMENT
+
+Client can:
+
+Manage DNS
+Change Nameservers
+Request EPP Code
+Renew Domain
+
+---
+
+FILE ATTACHMENTS
+
+Ticket system must support:
+
+File upload
+Image upload
+Screenshot upload
+
+Allowed formats:
+
+jpg
+png
+pdf
+zip
+
+---
+
+MODULE SYSTEM
+
+Hosting services must connect to modules.
+
+Support:
+
+cPanel module
+20i module
+
+Service buttons must trigger module API actions.
+
+Example:
+
+Suspend → suspend account on server
+Terminate → delete hosting account
+Create → create hosting account automatically
+
+---
+
+FINAL REQUIREMENTS
+
+Ensure:
+
+All admin pages exist
+All buttons work
+All links work
+Client dashboard works
+Hosting management works
+Ticket attachments work
+Cancellation requests appear in admin panel
+Invoices generate automatically
+Orders create hosting automatically
+
+The system must behave like a professional WHMCS-style hosting automation platform.
