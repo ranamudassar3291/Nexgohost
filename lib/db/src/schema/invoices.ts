@@ -1,0 +1,41 @@
+import { pgTable, text, timestamp, numeric, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const invoiceStatusEnum = pgEnum("invoice_status", ["unpaid", "paid", "cancelled", "overdue"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "paypal", "manual"]);
+export const transactionStatusEnum = pgEnum("transaction_status", ["success", "failed", "pending", "refunded"]);
+
+export const invoicesTable = pgTable("invoices", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  clientId: text("client_id").notNull(),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  tax: numeric("tax", { precision: 10, scale: 2 }).default("0"),
+  total: numeric("total", { precision: 10, scale: 2 }).notNull(),
+  status: invoiceStatusEnum("status").notNull().default("unpaid"),
+  dueDate: timestamp("due_date").notNull(),
+  paidDate: timestamp("paid_date"),
+  items: jsonb("items").notNull().default([]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const transactionsTable = pgTable("transactions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  clientId: text("client_id").notNull(),
+  invoiceId: text("invoice_id"),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  method: paymentMethodEnum("method").notNull(),
+  status: transactionStatusEnum("status").notNull().default("pending"),
+  transactionRef: text("transaction_ref"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertInvoiceSchema = createInsertSchema(invoicesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type Invoice = typeof invoicesTable.$inferSelect;
+
+export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({ id: true, createdAt: true });
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Transaction = typeof transactionsTable.$inferSelect;

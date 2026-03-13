@@ -1,22 +1,40 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Nexgohost Billing & Client Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: admin-dashboard
+    description: Admin dashboard statistics
+  - name: clients
+    description: Client management
+  - name: hosting
+    description: Hosting plan management
+  - name: domains
+    description: Domain management
+  - name: orders
+    description: Order management
+  - name: invoices
+    description: Invoice and billing management
+  - name: tickets
+    description: Support ticket system
+  - name: migrations
+    description: 20i website migrations
+  - name: payments
+    description: Payment gateway
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +42,973 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register new client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      tags: [admin-dashboard]
+      summary: Get admin dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDashboardStats"
+
+  /admin/clients:
+    get:
+      operationId: getClients
+      tags: [clients]
+      summary: List all clients
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientListResponse"
+
+  /admin/clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get client details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientDetail"
+    put:
+      operationId: updateClient
+      tags: [clients]
+      summary: Update client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClientRequest"
+      responses:
+        "200":
+          description: Updated client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /admin/clients/{id}/suspend:
+    post:
+      operationId: suspendClient
+      tags: [clients]
+      summary: Suspend client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Client suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /admin/clients/{id}/activate:
+    post:
+      operationId: activateClient
+      tags: [clients]
+      summary: Activate client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Client activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /admin/clients/{id}/reset-password:
+    post:
+      operationId: resetClientPassword
+      tags: [clients]
+      summary: Reset client password
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /hosting/plans:
+    get:
+      operationId: getHostingPlans
+      tags: [hosting]
+      summary: List hosting plans
+      responses:
+        "200":
+          description: List of hosting plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HostingPlan"
+    post:
+      operationId: createHostingPlan
+      tags: [hosting]
+      summary: Create hosting plan (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHostingPlanRequest"
+      responses:
+        "201":
+          description: Created hosting plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostingPlan"
+
+  /hosting/plans/{id}:
+    put:
+      operationId: updateHostingPlan
+      tags: [hosting]
+      summary: Update hosting plan (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHostingPlanRequest"
+      responses:
+        "200":
+          description: Updated hosting plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostingPlan"
+    delete:
+      operationId: deleteHostingPlan
+      tags: [hosting]
+      summary: Delete hosting plan (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/hosting:
+    get:
+      operationId: getAllHostingServices
+      tags: [hosting]
+      summary: List all hosting services (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All hosting services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HostingService"
+
+  /admin/hosting/{id}/suspend:
+    post:
+      operationId: suspendHosting
+      tags: [hosting]
+      summary: Suspend hosting service
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Hosting suspended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostingService"
+
+  /admin/hosting/{id}/terminate:
+    post:
+      operationId: terminateHosting
+      tags: [hosting]
+      summary: Terminate hosting service
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Hosting terminated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostingService"
+
+  /client/hosting:
+    get:
+      operationId: getMyHosting
+      tags: [hosting]
+      summary: Get my hosting services
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My hosting services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HostingService"
+
+  /domains:
+    get:
+      operationId: getMyDomains
+      tags: [domains]
+      summary: Get my domains
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My domains
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Domain"
+
+  /admin/domains:
+    get:
+      operationId: getAllDomains
+      tags: [domains]
+      summary: List all domains (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All domains
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Domain"
+
+  /admin/domains/pricing:
+    get:
+      operationId: getDomainPricing
+      tags: [domains]
+      summary: Get domain pricing (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Domain pricing
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DomainPricing"
+    post:
+      operationId: setDomainPricing
+      tags: [domains]
+      summary: Set domain pricing (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DomainPricingRequest"
+      responses:
+        "200":
+          description: Domain pricing updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainPricing"
+
+  /admin/domains/{id}/renew:
+    post:
+      operationId: renewDomain
+      tags: [domains]
+      summary: Renew domain (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Domain renewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Domain"
+
+  /orders:
+    get:
+      operationId: getMyOrders
+      tags: [orders]
+      summary: Get my orders
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /admin/orders:
+    get:
+      operationId: getAllOrders
+      tags: [orders]
+      summary: List all orders (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+  /admin/orders/{id}/approve:
+    post:
+      operationId: approveOrder
+      tags: [orders]
+      summary: Approve order (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /admin/orders/{id}/cancel:
+    post:
+      operationId: cancelOrder
+      tags: [orders]
+      summary: Cancel order (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /invoices:
+    get:
+      operationId: getMyInvoices
+      tags: [invoices]
+      summary: Get my invoices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+
+  /admin/invoices:
+    get:
+      operationId: getAllInvoices
+      tags: [invoices]
+      summary: List all invoices (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+    post:
+      operationId: createInvoice
+      tags: [invoices]
+      summary: Create invoice (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvoiceRequest"
+      responses:
+        "201":
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /admin/invoices/{id}/mark-paid:
+    post:
+      operationId: markInvoicePaid
+      tags: [invoices]
+      summary: Mark invoice as paid (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invoice marked paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /invoices/{id}/pay:
+    post:
+      operationId: payInvoice
+      tags: [invoices]
+      summary: Pay invoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayInvoiceRequest"
+      responses:
+        "200":
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+
+  /tickets:
+    get:
+      operationId: getMyTickets
+      tags: [tickets]
+      summary: Get my support tickets
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+    post:
+      operationId: createTicket
+      tags: [tickets]
+      summary: Create support ticket
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRequest"
+      responses:
+        "201":
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /tickets/{id}:
+    get:
+      operationId: getTicket
+      tags: [tickets]
+      summary: Get ticket details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketDetail"
+
+  /tickets/{id}/reply:
+    post:
+      operationId: replyToTicket
+      tags: [tickets]
+      summary: Reply to ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketReplyRequest"
+      responses:
+        "201":
+          description: Reply added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketMessage"
+
+  /admin/tickets:
+    get:
+      operationId: getAllTickets
+      tags: [tickets]
+      summary: List all tickets (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+
+  /admin/tickets/{id}/close:
+    post:
+      operationId: closeTicket
+      tags: [tickets]
+      summary: Close ticket (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /migrations:
+    get:
+      operationId: getMyMigrations
+      tags: [migrations]
+      summary: Get my migrations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: My migrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Migration"
+    post:
+      operationId: requestMigration
+      tags: [migrations]
+      summary: Request website migration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MigrationRequest"
+      responses:
+        "201":
+          description: Migration requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Migration"
+
+  /admin/migrations:
+    get:
+      operationId: getAllMigrations
+      tags: [migrations]
+      summary: List all migrations (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All migrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Migration"
+
+  /admin/migrations/{id}/status:
+    put:
+      operationId: updateMigrationStatus
+      tags: [migrations]
+      summary: Update migration status (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMigrationStatusRequest"
+      responses:
+        "200":
+          description: Migration status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Migration"
+
+  /payments/stripe/create-intent:
+    post:
+      operationId: createStripePaymentIntent
+      tags: [payments]
+      summary: Create Stripe payment intent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripePaymentIntentRequest"
+      responses:
+        "200":
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripePaymentIntentResponse"
+
+  /payments/transactions:
+    get:
+      operationId: getTransactions
+      tags: [payments]
+      summary: Get transaction log
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+
+  /client/dashboard:
+    get:
+      operationId: getClientDashboard
+      tags: [admin-dashboard]
+      summary: Get client dashboard data
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Client dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientDashboardData"
+
+  /account:
+    get:
+      operationId: getAccount
+      tags: [auth]
+      summary: Get account settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    put:
+      operationId: updateAccount
+      tags: [auth]
+      summary: Update account settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountRequest"
+      responses:
+        "200":
+          description: Account updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +1018,830 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    RegisterRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        company:
+          type: string
+        phone:
+          type: string
+      required:
+        - firstName
+        - lastName
+        - email
+        - password
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [admin, client]
+        status:
+          type: string
+          enum: [active, suspended]
+        createdAt:
+          type: string
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+        - role
+        - status
+        - createdAt
+
+    UpdateAccountRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        company:
+          type: string
+        phone:
+          type: string
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+
+    UpdateClientRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        newPassword:
+          type: string
+      required:
+        - newPassword
+
+    AdminDashboardStats:
+      type: object
+      properties:
+        totalClients:
+          type: number
+        activeHosting:
+          type: number
+        totalDomains:
+          type: number
+        pendingOrders:
+          type: number
+        monthlyRevenue:
+          type: number
+        totalRevenue:
+          type: number
+        openTickets:
+          type: number
+        activeMigrations:
+          type: number
+        recentOrders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        recentClients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Client"
+      required:
+        - totalClients
+        - activeHosting
+        - totalDomains
+        - pendingOrders
+        - monthlyRevenue
+        - totalRevenue
+        - openTickets
+        - activeMigrations
+        - recentOrders
+        - recentClients
+
+    ClientDashboardData:
+      type: object
+      properties:
+        activeServices:
+          type: number
+        activeDomains:
+          type: number
+        unpaidInvoices:
+          type: number
+        openTickets:
+          type: number
+        recentInvoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        recentTickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ticket"
+      required:
+        - activeServices
+        - activeDomains
+        - unpaidInvoices
+        - openTickets
+        - recentInvoices
+        - recentTickets
+
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        createdAt:
+          type: string
+        servicesCount:
+          type: number
+        domainsCount:
+          type: number
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+        - status
+        - createdAt
+
+    ClientDetail:
+      allOf:
+        - $ref: "#/components/schemas/Client"
+        - type: object
+          properties:
+            hosting:
+              type: array
+              items:
+                $ref: "#/components/schemas/HostingService"
+            domains:
+              type: array
+              items:
+                $ref: "#/components/schemas/Domain"
+            invoices:
+              type: array
+              items:
+                $ref: "#/components/schemas/Invoice"
+            tickets:
+              type: array
+              items:
+                $ref: "#/components/schemas/Ticket"
+
+    ClientListResponse:
+      type: object
+      properties:
+        clients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Client"
+        total:
+          type: number
+        page:
+          type: number
+        limit:
+          type: number
+      required:
+        - clients
+        - total
+        - page
+        - limit
+
+    HostingPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        diskSpace:
+          type: string
+        bandwidth:
+          type: string
+        emailAccounts:
+          type: number
+        databases:
+          type: number
+        subdomains:
+          type: number
+        ftpAccounts:
+          type: number
+        isActive:
+          type: boolean
+        features:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - price
+        - billingCycle
+        - diskSpace
+        - bandwidth
+        - isActive
+
+    CreateHostingPlanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        billingCycle:
+          type: string
+          enum: [monthly, yearly]
+        diskSpace:
+          type: string
+        bandwidth:
+          type: string
+        emailAccounts:
+          type: number
+        databases:
+          type: number
+        subdomains:
+          type: number
+        ftpAccounts:
+          type: number
+        features:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - price
+        - billingCycle
+        - diskSpace
+        - bandwidth
+
+    HostingService:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        planId:
+          type: string
+        planName:
+          type: string
+        domain:
+          type: string
+        username:
+          type: string
+        serverIp:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended, terminated, pending]
+        startDate:
+          type: string
+        expiryDate:
+          type: string
+        diskUsed:
+          type: string
+        bandwidthUsed:
+          type: string
+        cpanelUrl:
+          type: string
+      required:
+        - id
+        - clientId
+        - planId
+        - planName
+        - status
+
+    Domain:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        name:
+          type: string
+        tld:
+          type: string
+        registrationDate:
+          type: string
+        expiryDate:
+          type: string
+        status:
+          type: string
+          enum: [active, expired, pending, transferred]
+        autoRenew:
+          type: boolean
+        nameservers:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - clientId
+        - name
+        - tld
+        - status
+
+    DomainPricing:
+      type: object
+      properties:
+        id:
+          type: string
+        tld:
+          type: string
+        registrationPrice:
+          type: number
+        renewalPrice:
+          type: number
+        transferPrice:
+          type: number
+      required:
+        - id
+        - tld
+        - registrationPrice
+        - renewalPrice
+
+    DomainPricingRequest:
+      type: object
+      properties:
+        tld:
+          type: string
+        registrationPrice:
+          type: number
+        renewalPrice:
+          type: number
+        transferPrice:
+          type: number
+      required:
+        - tld
+        - registrationPrice
+        - renewalPrice
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        type:
+          type: string
+          enum: [hosting, domain, upgrade, renewal]
+        itemName:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, approved, cancelled, completed]
+        notes:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - clientId
+        - type
+        - itemName
+        - amount
+        - status
+        - createdAt
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [hosting, domain, upgrade, renewal]
+        itemId:
+          type: string
+        notes:
+          type: string
+      required:
+        - type
+        - itemId
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+        invoiceNumber:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        amount:
+          type: number
+        tax:
+          type: number
+        total:
+          type: number
+        status:
+          type: string
+          enum: [unpaid, paid, cancelled, overdue]
+        dueDate:
+          type: string
+        paidDate:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+        createdAt:
+          type: string
+      required:
+        - id
+        - invoiceNumber
+        - clientId
+        - amount
+        - total
+        - status
+        - dueDate
+        - createdAt
+
+    InvoiceItem:
+      type: object
+      properties:
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        total:
+          type: number
+      required:
+        - description
+        - quantity
+        - unitPrice
+        - total
+
+    CreateInvoiceRequest:
+      type: object
+      properties:
+        clientId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+        dueDate:
+          type: string
+        tax:
+          type: number
+      required:
+        - clientId
+        - items
+        - dueDate
+
+    PayInvoiceRequest:
+      type: object
+      properties:
+        method:
+          type: string
+          enum: [stripe, paypal, manual]
+        paymentMethodId:
+          type: string
+      required:
+        - method
+
+    PaymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        transactionId:
+          type: string
+        redirectUrl:
+          type: string
+        clientSecret:
+          type: string
+      required:
+        - success
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+        ticketNumber:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [open, closed, pending, answered]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        department:
+          type: string
+        lastReply:
+          type: string
+        messagesCount:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - ticketNumber
+        - clientId
+        - subject
+        - status
+        - priority
+        - createdAt
+
+    TicketDetail:
+      allOf:
+        - $ref: "#/components/schemas/Ticket"
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/TicketMessage"
+
+    TicketMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        ticketId:
+          type: string
+        senderId:
+          type: string
+        senderName:
+          type: string
+        senderRole:
+          type: string
+          enum: [admin, client]
+        message:
+          type: string
+        attachments:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - ticketId
+        - senderId
+        - senderName
+        - senderRole
+        - message
+        - createdAt
+
+    CreateTicketRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+        message:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        department:
+          type: string
+      required:
+        - subject
+        - message
+        - priority
+
+    TicketReplyRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    Migration:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        domain:
+          type: string
+        oldHostingProvider:
+          type: string
+        oldCpanelHost:
+          type: string
+        oldCpanelUsername:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+        progress:
+          type: number
+        notes:
+          type: string
+        requestedAt:
+          type: string
+        completedAt:
+          type: string
+      required:
+        - id
+        - clientId
+        - domain
+        - status
+        - progress
+        - requestedAt
+
+    MigrationRequest:
+      type: object
+      properties:
+        domain:
+          type: string
+        oldHostingProvider:
+          type: string
+        oldCpanelHost:
+          type: string
+        oldCpanelUsername:
+          type: string
+        oldCpanelPassword:
+          type: string
+        notes:
+          type: string
+      required:
+        - domain
+        - oldCpanelHost
+        - oldCpanelUsername
+        - oldCpanelPassword
+
+    UpdateMigrationStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+        progress:
+          type: number
+        notes:
+          type: string
+      required:
+        - status
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        clientId:
+          type: string
+        clientName:
+          type: string
+        invoiceId:
+          type: string
+        amount:
+          type: number
+        method:
+          type: string
+          enum: [stripe, paypal, manual]
+        status:
+          type: string
+          enum: [success, failed, pending, refunded]
+        transactionRef:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - clientId
+        - amount
+        - method
+        - status
+        - createdAt
+
+    StripePaymentIntentRequest:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+        amount:
+          type: number
+      required:
+        - invoiceId
+        - amount
+
+    StripePaymentIntentResponse:
+      type: object
+      properties:
+        clientSecret:
+          type: string
+        paymentIntentId:
+          type: string
+      required:
+        - clientSecret
+        - paymentIntentId

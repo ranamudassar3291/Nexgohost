@@ -1,0 +1,184 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { invoicesTable, transactionsTable, usersTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+
+const router = Router();
+
+let invoiceCounter = 1000;
+
+function formatInvoice(i: typeof invoicesTable.$inferSelect, clientName?: string) {
+  return {
+    id: i.id,
+    invoiceNumber: i.invoiceNumber,
+    clientId: i.clientId,
+    clientName: clientName || "",
+    amount: Number(i.amount),
+    tax: Number(i.tax),
+    total: Number(i.total),
+    status: i.status,
+    dueDate: i.dueDate.toISOString(),
+    paidDate: i.paidDate?.toISOString(),
+    items: i.items as Array<{ description: string; quantity: number; unitPrice: number; total: number }>,
+    createdAt: i.createdAt.toISOString(),
+  };
+}
+
+// Client: get my invoices
+router.get("/invoices", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const invoices = await db.select().from(invoicesTable).where(eq(invoicesTable.clientId, req.user!.userId)).orderBy(sql`created_at DESC`);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    res.json(invoices.map(i => formatInvoice(i, user ? `${user.firstName} ${user.lastName}` : "")));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: get all invoices
+router.get("/admin/invoices", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const invoices = await db.select().from(invoicesTable).orderBy(sql`created_at DESC`);
+    const result = await Promise.all(invoices.map(async (i) => {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, i.clientId)).limit(1);
+      return formatInvoice(i, user ? `${user.firstName} ${user.lastName}` : "");
+    }));
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: create invoice
+router.post("/admin/invoices", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clientId, items, dueDate, tax = 0 } = req.body;
+    const amount = items.reduce((sum: number, item: { total: number }) => sum + item.total, 0);
+    const total = amount + tax;
+    invoiceCounter++;
+    const invoiceNumber = `INV-${Date.now()}-${invoiceCounter}`;
+
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber,
+      clientId,
+      amount: String(amount),
+      tax: String(tax),
+      total: String(total),
+      status: "unpaid",
+      dueDate: new Date(dueDate),
+      items: items,
+    }).returning();
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    res.status(201).json(formatInvoice(invoice, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: mark invoice paid
+router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [updated] = await db.update(invoicesTable)
+      .set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+      .where(eq(invoicesTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: pay invoice
+router.post("/invoices/:id/pay", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { method } = req.body;
+    const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, req.params.id)).limit(1);
+    if (!invoice) { res.status(404).json({ error: "Not found" }); return; }
+    if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    if (method === "manual") {
+      // Record pending transaction for manual payment
+      const [tx] = await db.insert(transactionsTable).values({
+        clientId: req.user!.userId,
+        invoiceId: invoice.id,
+        amount: invoice.total,
+        method: "manual",
+        status: "pending",
+        transactionRef: `MANUAL-${Date.now()}`,
+      }).returning();
+      res.json({ success: true, transactionId: tx.id });
+      return;
+    }
+
+    // For stripe/paypal - return client secret placeholder
+    const transactionRef = `TXN-${Date.now()}`;
+    const [tx] = await db.insert(transactionsTable).values({
+      clientId: req.user!.userId,
+      invoiceId: invoice.id,
+      amount: invoice.total,
+      method,
+      status: "pending",
+      transactionRef,
+    }).returning();
+
+    res.json({ success: true, transactionId: tx.id, clientSecret: `pi_${transactionRef}_secret` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Get transactions
+router.get("/payments/transactions", authenticate, async (req: AuthRequest, res) => {
+  try {
+    let transactions;
+    if (req.user!.role === "admin") {
+      transactions = await db.select().from(transactionsTable).orderBy(sql`created_at DESC`);
+    } else {
+      transactions = await db.select().from(transactionsTable).where(eq(transactionsTable.clientId, req.user!.userId)).orderBy(sql`created_at DESC`);
+    }
+    const result = await Promise.all(transactions.map(async (t) => {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, t.clientId)).limit(1);
+      return {
+        id: t.id,
+        clientId: t.clientId,
+        clientName: user ? `${user.firstName} ${user.lastName}` : "",
+        invoiceId: t.invoiceId,
+        amount: Number(t.amount),
+        method: t.method,
+        status: t.status,
+        transactionRef: t.transactionRef,
+        createdAt: t.createdAt.toISOString(),
+      };
+    }));
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Stripe payment intent (placeholder)
+router.post("/payments/stripe/create-intent", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { invoiceId, amount } = req.body;
+    const paymentIntentId = `pi_${Date.now()}`;
+    res.json({
+      clientSecret: `${paymentIntentId}_secret_${Math.random().toString(36).slice(2)}`,
+      paymentIntentId,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+export default router;
