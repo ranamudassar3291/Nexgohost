@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Package, ArrowLeft, Loader2, Plus, X } from "lucide-react";
@@ -7,13 +7,26 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
+interface ProductGroup { id: string; name: string; slug: string; }
+
+const MODULES = ["none", "cpanel", "directadmin", "plesk", "vestacp", "cyberpanel"];
+
+async function apiFetch(url: string, opts?: RequestInit) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
+  if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
+  return res.json();
+}
+
 export default function AddPackage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [groups, setGroups] = useState<ProductGroup[]>([]);
 
   const [form, setForm] = useState({
-    name: "", description: "", price: "", billingCycle: "monthly",
+    name: "", description: "", price: "", yearlyPrice: "", billingCycle: "monthly",
+    groupId: "", module: "none",
     diskSpace: "10 GB", bandwidth: "100 GB",
     emailAccounts: "10", databases: "5", subdomains: "10", ftpAccounts: "5",
   });
@@ -21,6 +34,10 @@ export default function AddPackage() {
   const [featureInput, setFeatureInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    apiFetch("/api/admin/product-groups").then(setGroups).catch(() => {});
+  }, []);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -37,7 +54,7 @@ export default function AddPackage() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = "Package name is required";
-    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0) e.price = "Valid price is required";
+    if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0) e.price = "Valid monthly price is required";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -47,13 +64,13 @@ export default function AddPackage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/packages", {
+      await apiFetch("/api/admin/packages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...form,
           price: Number(form.price),
+          yearlyPrice: form.yearlyPrice ? Number(form.yearlyPrice) : null,
+          groupId: form.groupId || null,
           emailAccounts: parseInt(form.emailAccounts),
           databases: parseInt(form.databases),
           subdomains: parseInt(form.subdomains),
@@ -61,8 +78,6 @@ export default function AddPackage() {
           features,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create package");
       queryClient.invalidateQueries({ queryKey: ["admin-packages"] });
       toast({ title: "Package created", description: `${form.name} is now available.` });
       setLocation("/admin/packages");
@@ -98,27 +113,42 @@ export default function AddPackage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Name + Price */}
+            {/* Name */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Package Name *</label>
+              <Input value={form.name} onChange={set("name")} placeholder="Starter Plan" className={errors.name ? "border-destructive" : ""} />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            </div>
+
+            {/* Product Group + Module */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Package Name *</label>
-                <Input value={form.name} onChange={set("name")} placeholder="Starter Plan" className={errors.name ? "border-destructive" : ""} />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+                <label className="text-sm font-medium text-foreground/80">Product Group</label>
+                <select value={form.groupId} onChange={set("groupId")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <option value="">No group</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Price ($) *</label>
-                <Input type="number" step="0.01" min="0" value={form.price} onChange={set("price")} placeholder="9.99" className={errors.price ? "border-destructive" : ""} />
-                {errors.price && <p className="text-xs text-destructive">{errors.price}</p>}
+                <label className="text-sm font-medium text-foreground/80">Module</label>
+                <select value={form.module} onChange={set("module")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  {MODULES.map(m => <option key={m} value={m} className="capitalize">{m === "none" ? "None" : m}</option>)}
+                </select>
               </div>
             </div>
 
-            {/* Billing Cycle */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Billing Cycle</label>
-              <select value={form.billingCycle} onChange={set("billingCycle")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-              </select>
+            {/* Monthly Price + Yearly Price */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">Monthly Price ($) *</label>
+                <Input type="number" step="0.01" min="0" value={form.price} onChange={set("price")} placeholder="9.99" className={errors.price ? "border-destructive" : ""} />
+                {errors.price && <p className="text-xs text-destructive">{errors.price}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">Yearly Price ($)</label>
+                <Input type="number" step="0.01" min="0" value={form.yearlyPrice} onChange={set("yearlyPrice")} placeholder="99.99 (optional)" />
+                <p className="text-xs text-muted-foreground">Leave blank to use monthly × 12</p>
+              </div>
             </div>
 
             {/* Description */}
@@ -128,7 +158,7 @@ export default function AddPackage() {
                 value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Brief description of this package..."
-                rows={3}
+                rows={2}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
               />
             </div>

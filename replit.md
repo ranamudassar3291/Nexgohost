@@ -102,6 +102,14 @@ The client portal has a full domain ordering workflow:
 - `PUT /api/admin/servers/:id` — Update server
 - `DELETE /api/admin/servers/:id` — Delete server
 - `POST /api/admin/servers/:id/test` — Test server connection
+- `GET /api/admin/product-groups` — All product groups
+- `POST /api/admin/product-groups` — Create product group
+- `PUT /api/admin/product-groups/:id` — Update product group
+- `DELETE /api/admin/product-groups/:id` — Delete product group
+- `GET /api/product-groups` — Public: active product groups
+- `POST /api/admin/domains` — Add domain manually (admin)
+- `PUT /api/admin/domains/:id` — Edit domain (admin, fields: registrar/status/autoRenew/expiryDate/nextDueDate)
+- `DELETE /api/admin/domains/:id` — Delete domain
 
 ### Client
 - `GET /api/packages` — Public list of active hosting packages

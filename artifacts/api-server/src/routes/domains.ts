@@ -63,8 +63,10 @@ function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) 
     clientName: clientName || "",
     name: d.name,
     tld: d.tld,
+    registrar: d.registrar || "",
     registrationDate: d.registrationDate?.toISOString(),
     expiryDate: d.expiryDate?.toISOString(),
+    nextDueDate: d.nextDueDate?.toISOString(),
     status: d.status,
     autoRenew: d.autoRenew,
     nameservers: d.nameservers || [],
@@ -333,6 +335,64 @@ router.post("/admin/domains/pricing", authenticate, requireAdmin, async (req: Au
       renewalPrice: Number(result.renewalPrice),
       transferPrice: Number(result.transferPrice),
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: add domain manually
+router.post("/admin/domains", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clientId, name, tld, registrar, registrationDate, expiryDate, nextDueDate, status = "active", autoRenew = true } = req.body;
+    if (!clientId || !name || !tld) { res.status(400).json({ error: "clientId, name, tld are required" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    if (!user) { res.status(404).json({ error: "Client not found" }); return; }
+    const [domain] = await db.insert(domainsTable).values({
+      clientId,
+      name: name.trim().toLowerCase(),
+      tld: tld.trim().toLowerCase(),
+      registrar: registrar || "",
+      registrationDate: registrationDate ? new Date(registrationDate) : new Date(),
+      expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+      nextDueDate: nextDueDate ? new Date(nextDueDate) : undefined,
+      status,
+      autoRenew,
+      nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+    }).returning();
+    res.status(201).json(formatDomain(domain, `${user.firstName} ${user.lastName}`));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: edit domain
+router.put("/admin/domains/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clientId, registrar, expiryDate, nextDueDate, status, autoRenew } = req.body;
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (clientId !== undefined) updates.clientId = clientId;
+    if (registrar !== undefined) updates.registrar = registrar;
+    if (expiryDate !== undefined) updates.expiryDate = expiryDate ? new Date(expiryDate) : null;
+    if (nextDueDate !== undefined) updates.nextDueDate = nextDueDate ? new Date(nextDueDate) : null;
+    if (status !== undefined) updates.status = status;
+    if (autoRenew !== undefined) updates.autoRenew = autoRenew;
+    const [updated] = await db.update(domainsTable).set(updates).where(eq(domainsTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatDomain(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: delete domain
+router.delete("/admin/domains/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    await db.delete(domainsTable).where(eq(domainsTable.id, req.params.id));
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

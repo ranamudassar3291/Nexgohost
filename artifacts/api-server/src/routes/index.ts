@@ -17,6 +17,7 @@ import checkoutRouter from "./checkout.js";
 import domainExtensionsRouter from "./domain-extensions.js";
 import currenciesRouter from "./currencies.js";
 import serversRouter from "./servers.js";
+import productGroupsRouter from "./product-groups.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(checkoutRouter);
 router.use(domainExtensionsRouter);
 router.use(currenciesRouter);
 router.use(serversRouter);
+router.use(productGroupsRouter);
 
 export default router;

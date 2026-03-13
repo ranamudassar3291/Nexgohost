@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, numeric, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, numeric, boolean, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const domainExtensionsTable = pgTable("domain_extensions", {
   registerPrice: numeric("register_price", { precision: 10, scale: 2 }).notNull(),
   renewalPrice: numeric("renewal_price", { precision: 10, scale: 2 }).notNull(),
   transferPrice: numeric("transfer_price", { precision: 10, scale: 2 }).notNull(),
+  privacyEnabled: boolean("privacy_enabled").notNull().default(true),
   status: extensionStatusEnum("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -16,6 +16,7 @@ import {
   UserPlus,
   DollarSign,
   Puzzle,
+  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -55,6 +56,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/currencies",            label: "Currencies",         icon: DollarSign,   inNav: true  },
   { path: "/admin/servers",               label: "Servers",            icon: Server,       inNav: true  },
   { path: "/admin/modules",               label: "Modules",            icon: Puzzle,       inNav: true  },
+  { path: "/admin/product-groups",        label: "Product Groups",     icon: Layers,       inNav: true  },
   { path: "/admin/settings",              label: "Settings",           icon: Settings,     inNav: true  },
 ];
 

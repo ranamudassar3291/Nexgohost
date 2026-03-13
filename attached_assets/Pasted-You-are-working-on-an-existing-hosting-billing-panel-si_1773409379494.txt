@@ -1,0 +1,310 @@
+You are working on an existing hosting billing panel similar to WHMCS.
+Do NOT create a new project. Analyze and modify the current system.
+
+Fix missing features and complete the hosting billing system.
+
+---
+
+# CURRENCY FIX
+
+Default system currency must be:
+
+PKR
+
+Admin can manage currencies from:
+
+/admin/currencies
+
+Supported currencies:
+
+PKR (Default)
+USD
+GBP
+EUR
+
+Client currency must automatically change based on country.
+
+Example:
+
+Pakistan → PKR
+USA → USD
+UK → GBP
+
+All invoices, orders and checkout must use the correct currency.
+
+---
+
+# DOMAIN MANAGEMENT FIX
+
+There are currently two domain pages. Merge and improve them.
+
+Admin must have a **Domain Management page**:
+
+/admin/domains
+
+Admin must be able to:
+
+View domains
+Edit domain
+Set due date
+Change domain status
+Assign domain to client
+
+Domain status options:
+
+Active
+Pending
+Expired
+Suspended
+Cancelled
+
+Domain fields:
+
+Domain Name
+Client
+Registrar
+Registration Date
+Expiry Date
+Next Due Date
+Status
+Auto Renew
+
+Add buttons:
+
+Add Domain
+Edit Domain
+Delete Domain
+
+---
+
+# DOMAIN EXTENSION MANAGER
+
+Create a new page:
+
+/admin/domain-extensions
+
+Admin must be able to:
+
+Add extension
+Edit extension
+Delete extension
+
+Fields:
+
+Extension (.com .net .org .pk etc)
+
+Register Price
+Renew Price
+Transfer Price
+
+Enable Domain Privacy
+
+Domain privacy should be **free option like Hostinger**.
+
+Example:
+
+.com
+Register Price: 12$
+Renew Price: 13$
+Transfer Price: 11$
+
+---
+
+# PRODUCT GROUP SYSTEM
+
+Add product groups like WHMCS.
+
+Example groups:
+
+Shared Hosting
+WordPress Hosting
+Reseller Hosting
+VPS Hosting
+
+Routes:
+
+/admin/product-groups
+/admin/product-groups/add
+
+Each group contains multiple hosting plans.
+
+---
+
+# HOSTING PLANS
+
+Each product must include:
+
+Product Name
+Product Group
+Description
+Monthly Price
+Yearly Price
+Module (cPanel etc)
+
+Admin must be able to:
+
+Add plan
+Edit plan
+Delete plan
+
+---
+
+# FULL ORDER CHECKOUT PROCESS
+
+Create a professional **multi-step checkout flow**.
+
+Step 1:
+
+Choose Hosting Plan
+
+---
+
+Step 2:
+
+Choose Domain Option
+
+Register New Domain
+Transfer Domain
+Use Existing Domain
+
+---
+
+Step 3:
+
+Select Billing Cycle
+
+Monthly
+Quarterly
+Yearly
+
+---
+
+Step 4:
+
+Configure Options
+
+Domain Privacy (Free)
+
+---
+
+Step 5:
+
+Order Summary
+
+Show:
+
+Hosting Plan
+Domain
+Billing Cycle
+Total Price
+Currency
+
+---
+
+Step 6:
+
+Account Step
+
+If user not logged in:
+
+Create Account Form
+
+Fields:
+
+First Name
+Last Name
+Email
+Password
+Country
+Phone
+
+If user already has account:
+
+Login form
+
+---
+
+Step 7:
+
+Payment Method
+
+Show available methods:
+
+Stripe
+PayPal
+Bank Transfer
+
+---
+
+Step 8:
+
+Invoice Creation
+
+System must automatically:
+
+Create invoice
+Assign to client
+Set invoice status = Unpaid
+
+---
+
+Step 9:
+
+Payment Complete
+
+After payment:
+
+Invoice → Paid
+Order → Active
+Hosting account → created (if module enabled)
+
+---
+
+# ORDER STATUS SYSTEM
+
+Orders must support statuses:
+
+Pending
+Active
+Suspended
+Cancelled
+Fraud
+Terminated
+
+Admin must be able to change status manually.
+
+---
+
+# INVOICE SYSTEM
+
+Invoices must support:
+
+Unpaid
+Paid
+Cancelled
+Refunded
+Collections
+
+Admin must be able to:
+
+Create invoice
+Edit invoice
+Mark paid
+Send invoice email
+
+---
+
+# IMPORTANT
+
+You must:
+
+Fix missing admin buttons
+Fix currency default
+Add domain extension manager
+Add domain due date management
+Add product group system
+Build full checkout flow
+
+The result must behave like a **professional hosting billing platform similar to WHMCS or Hostinger panel**.
+
+Do not remove existing code — extend and improve the system.

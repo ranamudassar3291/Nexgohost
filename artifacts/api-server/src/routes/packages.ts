@@ -12,7 +12,10 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
     name: p.name,
     description: p.description,
     price: Number(p.price),
+    yearlyPrice: p.yearlyPrice ? Number(p.yearlyPrice) : null,
     billingCycle: p.billingCycle,
+    groupId: p.groupId ?? null,
+    module: p.module ?? "none",
     diskSpace: p.diskSpace,
     bandwidth: p.bandwidth,
     emailAccounts: p.emailAccounts,
@@ -65,7 +68,8 @@ router.get("/admin/packages/:id", authenticate, requireAdmin, async (_req, res) 
 router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
-      name, description, price, billingCycle = "monthly",
+      name, description, price, yearlyPrice, billingCycle = "monthly",
+      groupId, module = "none",
       diskSpace = "10 GB", bandwidth = "100 GB",
       emailAccounts = 10, databases = 5, subdomains = 10, ftpAccounts = 5,
       features = [],
@@ -77,7 +81,9 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
     }
 
     const [plan] = await db.insert(hostingPlansTable).values({
-      name, description, price: String(price), billingCycle,
+      name, description, price: String(price),
+      yearlyPrice: yearlyPrice ? String(yearlyPrice) : null,
+      billingCycle, groupId: groupId || null, module,
       diskSpace, bandwidth, emailAccounts, databases, subdomains, ftpAccounts,
       isActive: true, features,
     }).returning();
@@ -96,6 +102,8 @@ router.put("/admin/packages/:id", authenticate, requireAdmin, async (req: AuthRe
     const updates = req.body;
 
     if (updates.price !== undefined) updates.price = String(updates.price);
+    if (updates.yearlyPrice !== undefined) updates.yearlyPrice = updates.yearlyPrice ? String(updates.yearlyPrice) : null;
+    if (updates.groupId !== undefined) updates.groupId = updates.groupId || null;
 
     const [plan] = await db.update(hostingPlansTable)
       .set(updates)

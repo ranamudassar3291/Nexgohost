@@ -1,133 +1,293 @@
 import { useState } from "react";
-import { useGetAllDomains, useRenewDomain, useGetDomainPricing } from "@workspace/api-client-react";
-import { Globe, Search, RefreshCw, DollarSign } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+
+interface Domain {
+  id: string; clientId: string; clientName: string;
+  name: string; tld: string; registrar: string;
+  registrationDate?: string; expiryDate?: string; nextDueDate?: string;
+  status: string; autoRenew: boolean; nameservers: string[];
+}
+
+interface Client { id: string; firstName: string; lastName: string; email: string; }
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
   expired: "bg-red-500/10 text-red-400 border-red-500/20",
   pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   transferred: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  suspended: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  cancelled: "bg-red-800/10 text-red-600 border-red-800/20",
 };
 
+const STATUS_OPTIONS = ["active", "pending", "expired", "suspended", "transferred", "cancelled"];
+
+async function apiFetch(url: string, opts?: RequestInit) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
+  if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
+  return res.json();
+}
+
+const EMPTY_FORM = { clientId: "", name: "", tld: ".com", registrar: "", registrationDate: "", expiryDate: "", nextDueDate: "", status: "active", autoRenew: true };
+
 export default function AdminDomains() {
-  const { data: domains = [], isLoading, refetch } = useGetAllDomains();
-  const { data: pricing = [] } = useGetDomainPricing();
-  const renewDomain = useRenewDomain();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"domains" | "pricing">("domains");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editDomain, setEditDomain] = useState<Domain | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
 
-  const filtered = domains.filter(d =>
-    (d.name + d.tld).toLowerCase().includes(search.toLowerCase()) ||
-    d.clientName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const { data: domains = [], isLoading } = useQuery<Domain[]>({
+    queryKey: ["admin-domains"],
+    queryFn: () => apiFetch("/api/admin/domains"),
+  });
 
-  const handleRenew = (id: string) => {
-    renewDomain.mutate({ id }, {
-      onSuccess: () => { toast({ title: "Domain renewed" }); refetch(); },
-      onError: () => toast({ title: "Failed to renew", variant: "destructive" }),
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ["admin-clients-simple"],
+    queryFn: () => apiFetch("/api/admin/clients?limit=100").then((r: any) => r.clients || r),
+  });
+
+  const filtered = domains.filter(d => {
+    const matchSearch = (d.name + d.tld).toLowerCase().includes(search.toLowerCase()) ||
+      d.clientName?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || d.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.clientId || !form.name || !form.tld) {
+      toast({ title: "Error", description: "Client, name, and TLD are required", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      await apiFetch("/api/admin/domains", { method: "POST", body: JSON.stringify(form) });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      toast({ title: "Domain added" });
+      setShowAddModal(false); setForm(EMPTY_FORM);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editDomain) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/api/admin/domains/${editDomain.id}`, { method: "PUT", body: JSON.stringify(form) });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      toast({ title: "Domain updated" });
+      setEditDomain(null); setForm(EMPTY_FORM);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: string, domainName: string) => {
+    if (!confirm(`Delete domain "${domainName}"? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/admin/domains/${id}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      toast({ title: "Domain deleted" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleRenew = async (id: string) => {
+    try {
+      await apiFetch(`/api/admin/domains/${id}/renew`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      toast({ title: "Domain renewed" });
+    } catch {
+      toast({ title: "Failed to renew", variant: "destructive" });
+    }
+  };
+
+  const openEdit = (d: Domain) => {
+    setEditDomain(d);
+    setForm({
+      clientId: d.clientId, name: d.name, tld: d.tld, registrar: d.registrar || "",
+      registrationDate: d.registrationDate ? d.registrationDate.slice(0, 10) : "",
+      expiryDate: d.expiryDate ? d.expiryDate.slice(0, 10) : "",
+      nextDueDate: d.nextDueDate ? d.nextDueDate.slice(0, 10) : "",
+      status: d.status, autoRenew: d.autoRenew,
     });
   };
+
+  const DomainForm = ({ onSubmit, title, isEdit }: { onSubmit: (e: React.FormEvent) => void; title: string; isEdit?: boolean }) => (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="font-semibold text-lg text-foreground">{title}</h2>
+          <Button variant="ghost" size="icon" onClick={() => { setShowAddModal(false); setEditDomain(null); setForm(EMPTY_FORM); }}>
+            <X size={18} />
+          </Button>
+        </div>
+        <form onSubmit={onSubmit} className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Client *</label>
+            <select value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}
+              className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">Select client...</option>
+              {clients.map((c: Client) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>)}
+            </select>
+          </div>
+          {!isEdit && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">Domain Name *</label>
+                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="example" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">TLD *</label>
+                <Input value={form.tld} onChange={e => setForm(f => ({ ...f, tld: e.target.value }))} placeholder=".com" />
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Registrar</label>
+              <Input value={form.registrar} onChange={e => setForm(f => ({ ...f, registrar: e.target.value }))} placeholder="GoDaddy, Namecheap..." />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Status</label>
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {STATUS_OPTIONS.map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { field: "registrationDate", label: "Registration Date" },
+              { field: "expiryDate", label: "Expiry Date" },
+              { field: "nextDueDate", label: "Next Due Date" },
+            ].map(({ field, label }) => (
+              <div key={field} className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">{label}</label>
+                <Input type="date" value={form[field as keyof typeof form] as string}
+                  onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-foreground/80">Auto Renew</label>
+            <button type="button" onClick={() => setForm(f => ({ ...f, autoRenew: !f.autoRenew }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.autoRenew ? "bg-primary" : "bg-muted"}`}>
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.autoRenew ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+            <span className="text-sm text-muted-foreground">{form.autoRenew ? "Enabled" : "Disabled"}</span>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
+              {saving ? "Saving..." : (isEdit ? "Save Changes" : "Add Domain")}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => { setShowAddModal(false); setEditDomain(null); setForm(EMPTY_FORM); }}>Cancel</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground">Domain Management</h2>
-        <p className="text-muted-foreground mt-1">Manage client domains and pricing</p>
-      </div>
+      {showAddModal && <DomainForm onSubmit={handleAdd} title="Add Domain" />}
+      {editDomain && <DomainForm onSubmit={handleEdit} title={`Edit: ${editDomain.name}${editDomain.tld}`} isEdit />}
 
-      <div className="flex gap-2 border-b border-border">
-        <button onClick={() => setTab("domains")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "domains" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-          All Domains ({domains.length})
-        </button>
-        <button onClick={() => setTab("pricing")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "pricing" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-          Pricing ({pricing.length} TLDs)
-        </button>
-      </div>
-
-      {tab === "domains" && (
-        <>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9 bg-card border-border max-w-md" placeholder="Search domains..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Domain</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Client</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Expiry</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Auto Renew</th>
-                  <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(domain => (
-                  <tr key={domain.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-foreground">{domain.name}{domain.tld}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">{domain.clientName}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[domain.status]}`}>{domain.status}</span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {domain.expiryDate ? format(new Date(domain.expiryDate), "MMM d, yyyy") : "N/A"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs ${domain.autoRenew ? "bg-green-500/10 text-green-400" : "bg-gray-500/10 text-gray-400"}`}>
-                        {domain.autoRenew ? "Yes" : "No"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => handleRenew(domain.id)}>
-                        <RefreshCw className="w-3 h-3" /> Renew
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {tab === "pricing" && (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">TLD</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Registration</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Renewal</th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Transfer</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pricing.map(p => (
-                <tr key={p.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                  <td className="px-6 py-4 text-sm font-bold text-primary">{p.tld}</td>
-                  <td className="px-6 py-4 text-sm text-foreground">${p.registrationPrice.toFixed(2)}/yr</td>
-                  <td className="px-6 py-4 text-sm text-foreground">${p.renewalPrice.toFixed(2)}/yr</td>
-                  <td className="px-6 py-4 text-sm text-foreground">${(p.transferPrice || 0).toFixed(2)}</td>
-                </tr>
-              ))}
-              {pricing.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">No pricing configured</td></tr>
-              )}
-            </tbody>
-          </table>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">Domain Management</h2>
+          <p className="text-muted-foreground mt-1">Manage client domains and registrations</p>
         </div>
-      )}
+        <Button onClick={() => setShowAddModal(true)} className="bg-primary hover:bg-primary/90 h-10 rounded-xl">
+          <Plus size={16} className="mr-2" /> Add Domain
+        </Button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-9 bg-card border-border" placeholder="Search domains or clients..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {["all", ...STATUS_OPTIONS].map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 text-xs rounded-lg border capitalize transition-all ${statusFilter === s ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Domain</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Client</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Registrar</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Status</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Expiry</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Next Due</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Auto Renew</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(domain => (
+              <tr key={domain.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                <td className="px-6 py-4 text-sm font-semibold text-foreground">{domain.name}{domain.tld}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">{domain.clientName}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">{domain.registrar || "—"}</td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[domain.status] || "bg-secondary border-border text-muted-foreground"}`}>
+                    {domain.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">
+                  {domain.expiryDate ? format(new Date(domain.expiryDate), "MMM d, yyyy") : "—"}
+                </td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">
+                  {domain.nextDueDate ? format(new Date(domain.nextDueDate), "MMM d, yyyy") : "—"}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs ${domain.autoRenew ? "bg-green-500/10 text-green-400" : "bg-gray-500/10 text-gray-400"}`}>
+                    {domain.autoRenew ? "Yes" : "No"}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => handleRenew(domain.id)}>
+                      <RefreshCw className="w-3 h-3" /> Renew
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => openEdit(domain)}>
+                      <Pencil className="w-3 h-3" /> Edit
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(domain.id, domain.name + domain.tld)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

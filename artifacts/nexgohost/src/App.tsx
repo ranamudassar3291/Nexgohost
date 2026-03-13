@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
+import { CurrencyProvider } from "@/context/CurrencyProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -39,6 +40,7 @@ import DomainExtensions from "@/pages/admin/DomainExtensions";
 import Currencies from "@/pages/admin/Currencies";
 import Servers from "@/pages/admin/Servers";
 import Modules from "@/pages/admin/Modules";
+import ProductGroups from "@/pages/admin/ProductGroups";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -174,6 +176,9 @@ function RouterRoot() {
       <Route path="/admin/modules">
         <AdminPage><Modules /></AdminPage>
       </Route>
+      <Route path="/admin/product-groups">
+        <AdminPage><ProductGroups /></AdminPage>
+      </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>
       </Route>
@@ -235,7 +240,9 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthProvider>
-            <RouterRoot />
+            <CurrencyProvider>
+              <RouterRoot />
+            </CurrencyProvider>
           </AuthProvider>
         </WouterRouter>
         <Toaster />

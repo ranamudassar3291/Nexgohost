@@ -2,19 +2,22 @@ import { pgTable, text, timestamp, numeric, boolean, pgEnum } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const domainStatusEnum = pgEnum("domain_status", ["active", "expired", "pending", "transferred"]);
+export const domainStatusEnum = pgEnum("domain_status", ["active", "expired", "pending", "transferred", "suspended", "cancelled"]);
 
 export const domainsTable = pgTable("domains", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   clientId: text("client_id").notNull(),
   name: text("name").notNull(),
   tld: text("tld").notNull(),
+  registrar: text("registrar").default(""),
   registrationDate: timestamp("registration_date").defaultNow(),
   expiryDate: timestamp("expiry_date"),
+  nextDueDate: timestamp("next_due_date"),
   status: domainStatusEnum("status").notNull().default("pending"),
   autoRenew: boolean("auto_renew").default(true),
   nameservers: text("nameservers").array().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const domainPricingTable = pgTable("domain_pricing", {
