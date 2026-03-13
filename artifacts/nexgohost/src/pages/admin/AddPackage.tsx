@@ -98,9 +98,14 @@ export default function AddPackage() {
       const data = await apiFetch(`/api/admin/servers/${serverId}/plans`);
       const planList: Plan[] = data.plans || [];
       setPlans(planList);
-      if (planList.length === 0) setPlansError("No plans found on this server.");
+      // Use API-level error message (e.g. WHM not reachable, no packages found)
+      if (data.error) {
+        setPlansError(data.error);
+      } else if (planList.length === 0) {
+        setPlansError("No packages found on this server.");
+      }
     } catch (err: any) {
-      setPlansError(err.message || "Failed to fetch plans from module API.");
+      setPlansError(err.message || "Failed to fetch packages from server.");
       setPlans([]);
     } finally { setLoadingPlans(false); }
   };
@@ -117,12 +122,15 @@ export default function AddPackage() {
     setSelectedPlan(plan);
     setModulePlanId(plan.id);
     setModulePlanName(plan.name);
-    setForm(f => ({
-      ...f,
-      price: String(plan.monthlyPrice),
-      yearlyPrice: String(plan.yearlyPrice),
-    }));
-    setPricingFrom("module");
+    // WHM packages have no pricing — only auto-fill for non-cpanel modules that return real prices
+    if (moduleType !== "cpanel" && plan.monthlyPrice > 0) {
+      setForm(f => ({
+        ...f,
+        price: String(plan.monthlyPrice),
+        yearlyPrice: String(plan.yearlyPrice),
+      }));
+      setPricingFrom("module");
+    }
     setErrors(e => ({ ...e, price: "" }));
   };
 
@@ -307,51 +315,76 @@ export default function AddPackage() {
                         </button>
                       </div>
 
-                      {plansError ? (
-                        <div className="flex items-center gap-2 px-3 py-2.5 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
-                          <AlertCircle size={14} /> {plansError}
+                      {plansError && plans.length === 0 ? (
+                        <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
+                          <AlertCircle size={14} className="mt-0.5 shrink-0" /> {plansError}
                         </div>
                       ) : plans.length === 0 && !loadingPlans ? (
                         <div className="px-3 py-2.5 bg-secondary/50 border border-border rounded-xl text-sm text-muted-foreground text-center">
-                          No plans available on this server
+                          No packages available on this server
                         </div>
                       ) : (
-                        <div className="grid gap-2">
-                          {plans.map(plan => (
-                            <button key={plan.id} type="button" onClick={() => handlePlanSelect(plan.id)}
-                              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
-                                modulePlanId === plan.id
-                                  ? "bg-primary/10 border-primary/40"
-                                  : "bg-background border-border hover:border-primary/30"
-                              }`}>
-                              <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${modulePlanId === plan.id ? "bg-primary border-primary" : "border-border"}`} />
-                              <div className="flex-1">
-                                <p className={`text-sm font-medium ${modulePlanId === plan.id ? "text-primary" : "text-foreground"}`}>{plan.name}</p>
-                                <p className="text-xs text-muted-foreground">{plan.id}</p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <p className="text-sm font-semibold text-foreground">${plan.monthlyPrice.toFixed(2)}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
-                                <p className="text-xs text-muted-foreground">${plan.yearlyPrice.toFixed(2)}/yr</p>
-                              </div>
-                              {modulePlanId === plan.id && <CheckCircle size={15} className="text-primary shrink-0" />}
-                            </button>
-                          ))}
+                        <div className="space-y-2">
+                          {moduleType === "cpanel" && plans.length > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/5 border border-orange-500/20 rounded-xl text-xs text-orange-400">
+                              <AlertCircle size={12} className="shrink-0" />
+                              WHM packages have no pricing — set your billing price in the Pricing section below.
+                            </div>
+                          )}
+                          {plansError && plans.length > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/5 border border-yellow-500/20 rounded-xl text-xs text-yellow-400">
+                              <AlertCircle size={12} className="shrink-0" /> {plansError}
+                            </div>
+                          )}
+                          <div className="grid gap-2">
+                            {plans.map(plan => (
+                              <button key={plan.id} type="button" onClick={() => handlePlanSelect(plan.id)}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                                  modulePlanId === plan.id
+                                    ? "bg-primary/10 border-primary/40"
+                                    : "bg-background border-border hover:border-primary/30"
+                                }`}>
+                                <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${modulePlanId === plan.id ? "bg-primary border-primary" : "border-border"}`} />
+                                <div className="flex-1">
+                                  <p className={`text-sm font-medium ${modulePlanId === plan.id ? "text-primary" : "text-foreground"}`}>{plan.name}</p>
+                                  <p className="text-xs text-muted-foreground font-mono">{plan.id}</p>
+                                </div>
+                                {moduleType !== "cpanel" && plan.monthlyPrice > 0 && (
+                                  <div className="text-right shrink-0">
+                                    <p className="text-sm font-semibold text-foreground">${plan.monthlyPrice.toFixed(2)}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                                    <p className="text-xs text-muted-foreground">${plan.yearlyPrice.toFixed(2)}/yr</p>
+                                  </div>
+                                )}
+                                {modulePlanId === plan.id && <CheckCircle size={15} className="text-primary shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                {/* Pricing auto-filled notice */}
+                {/* WHM package selected notice */}
                 <AnimatePresence>
-                  {selectedPlan && pricingFrom === "module" && (
+                  {selectedPlan && moduleType === "cpanel" && (
+                    <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="flex items-start gap-2.5 px-4 py-3 bg-orange-500/5 border border-orange-500/20 rounded-xl text-sm text-orange-400">
+                      <CheckCircle size={15} className="mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium">WHM package "<strong>{selectedPlan.name}</strong>" selected</p>
+                        <p className="text-xs text-orange-400/70 mt-0.5">Enter your billing price below — WHM packages have no pricing data.</p>
+                      </div>
+                    </motion.div>
+                  )}
+                  {selectedPlan && pricingFrom === "module" && moduleType !== "cpanel" && (
                     <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                       className="flex items-start gap-2.5 px-4 py-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-sm text-emerald-400">
                       <CheckCircle size={15} className="mt-0.5 shrink-0" />
                       <div>
                         <p className="font-medium">Plan prices auto-filled from {selectedModuleOption?.label} API</p>
                         <p className="text-xs text-emerald-400/70 mt-0.5">
-                          <strong>{selectedPlan.name}</strong>: ${selectedPlan.monthlyPrice}/mo · ${selectedPlan.yearlyPrice}/yr — you can adjust below
+                          <strong>{selectedPlan.name}</strong>: ${selectedPlan.monthlyPrice}/mo · ${selectedPlan.yearlyPrice}/yr — adjust below if needed
                         </p>
                       </div>
                     </motion.div>
@@ -371,7 +404,11 @@ export default function AddPackage() {
             <div>
               <h2 className="font-semibold text-foreground">Pricing</h2>
               <p className="text-xs text-muted-foreground">
-                {pricingFrom === "module" ? "Auto-filled from module API — edit to override" : "Set your monthly and yearly prices"}
+                {moduleType === "cpanel"
+                  ? "WHM packages have no pricing — enter your billing prices here"
+                  : pricingFrom === "module"
+                    ? "Auto-filled from module API — edit to override"
+                    : "Set your monthly and yearly prices"}
               </p>
             </div>
           </div>

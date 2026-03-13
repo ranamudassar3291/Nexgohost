@@ -204,37 +204,44 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
     ] as Plan[] }); return;
   }
 
-  // cPanel / WHM: try WHM listpkgs API, fall back to mock
+  // cPanel / WHM: fetch packages directly from WHM — NO mock fallback
   if (server.type === "cpanel") {
-    if (server.apiToken && server.hostname) {
-      try {
-        const fetch = (await import("node-fetch")).default;
-        const port = server.apiPort || 2087;
-        const resp = await (fetch as any)(
-          `https://${server.hostname}:${port}/json-api/listpkgs?api.version=1`,
-          { headers: { Authorization: `whm ${server.apiUsername}:${server.apiToken}` }, signal: AbortSignal.timeout(5000) }
-        );
-        if (resp.ok) {
-          const data: any = await resp.json();
-          const pkgs = data?.data?.pkg ?? [];
-          if (pkgs.length > 0) {
-            const plans: Plan[] = pkgs.map((p: any) => ({
-              id: p.name, name: p.name,
-              monthlyPrice: Number(p.QUOTA) > 0 ? 4.99 : 2.99,
-              yearlyPrice: Number(p.QUOTA) > 0 ? 49.99 : 29.99,
-            }));
-            res.json({ plans }); return;
-          }
-        }
-      } catch (_e) { /* fall through */ }
+    if (!server.apiToken || !server.hostname) {
+      res.json({ plans: [], fromWHM: false, error: "WHM API credentials not configured for this server" });
+      return;
     }
-    res.json({ plans: [
-      { id: "starter",   name: "Starter",   monthlyPrice: 2.99,  yearlyPrice: 29.99  },
-      { id: "basic",     name: "Basic",     monthlyPrice: 4.99,  yearlyPrice: 49.99  },
-      { id: "business",  name: "Business",  monthlyPrice: 9.99,  yearlyPrice: 99.99  },
-      { id: "pro",       name: "Pro",       monthlyPrice: 19.99, yearlyPrice: 199.99 },
-      { id: "unlimited", name: "Unlimited", monthlyPrice: 29.99, yearlyPrice: 299.99 },
-    ] as Plan[] }); return;
+    try {
+      const port = server.apiPort || 2087;
+      const url = `https://${server.hostname}:${port}/json-api/listpkgs?api.version=1`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `whm ${server.apiUsername}:${server.apiToken}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!resp.ok) {
+        res.json({ plans: [], fromWHM: false, error: `WHM server returned HTTP ${resp.status}` });
+        return;
+      }
+      const data: any = await resp.json();
+      const pkgs: any[] = data?.data?.pkg ?? data?.pkg ?? [];
+      if (pkgs.length === 0) {
+        res.json({ plans: [], fromWHM: true, error: "No WHM packages found on this server — create packages in WHM first" });
+        return;
+      }
+      // WHM packages have no pricing — price comes from billing panel
+      const plans: Plan[] = pkgs.map((p: any) => ({
+        id: p.name,
+        name: p.name,
+        monthlyPrice: 0,
+        yearlyPrice: 0,
+      }));
+      res.json({ plans, fromWHM: true, error: null });
+    } catch (err: any) {
+      const msg = err.message?.includes("fetch") || err.code === "ECONNREFUSED"
+        ? `Cannot connect to WHM at ${server.hostname}:${server.apiPort || 2087}`
+        : `WHM Package Not Found: ${err.message}`;
+      res.json({ plans: [], fromWHM: false, error: msg });
+    }
+    return;
   }
 
   // DirectAdmin

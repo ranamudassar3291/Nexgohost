@@ -1,0 +1,202 @@
+PROJECT:
+Fix WHM package fetching so system shows real packages from WHM server
+instead of locally created plans.
+
+--------------------------------------------------
+
+STEP 1
+Disable local plan loading.
+
+Current problem:
+
+Package page loads plans from database table:
+
+packages
+
+This must be changed.
+
+Plans must be fetched from WHM API.
+
+--------------------------------------------------
+
+STEP 2
+Fetch plans from WHM API.
+
+API endpoint:
+
+https://SERVER-IP:2087/json-api/listpkgs
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Example request:
+
+GET /json-api/listpkgs
+
+--------------------------------------------------
+
+STEP 3
+Parse WHM response.
+
+Example WHM response:
+
+{
+ "data": {
+  "pkg": [
+   {
+    "name": "starter"
+   },
+   {
+    "name": "business"
+   },
+   {
+    "name": "pro"
+   }
+  ]
+ }
+}
+
+--------------------------------------------------
+
+STEP 4
+Populate plan dropdown.
+
+When admin selects:
+
+Module = cPanel
+
+System must:
+
+Call WHM API
+Fetch packages
+Show packages in dropdown
+
+Example UI:
+
+Select WHM Package:
+
+starter
+business
+pro
+
+--------------------------------------------------
+
+STEP 5
+Remove old fake plans.
+
+Clear cached plans.
+
+Delete local plan mapping.
+
+Example SQL:
+
+UPDATE packages
+SET module_plan_id = NULL
+
+Or remove plan list cache.
+
+--------------------------------------------------
+
+STEP 6
+Save WHM package name.
+
+When admin saves hosting product:
+
+Store:
+
+module_type = cpanel
+module_plan_id = starter
+
+Example DB:
+
+packages table
+
+name = Basic Hosting
+price = 5
+module_type = cpanel
+module_plan_id = starter
+
+--------------------------------------------------
+
+STEP 7
+Order activation must use WHM plan.
+
+WHM API:
+
+createacct
+
+Example:
+
+https://SERVER-IP:2087/json-api/createacct
+
+Parameters:
+
+username
+password
+domain
+plan
+contactemail
+
+Example:
+
+plan = starter
+
+--------------------------------------------------
+
+STEP 8
+Add "Refresh WHM Packages" button.
+
+Admin → Servers page
+
+Button:
+
+Fetch WHM Packages
+
+When clicked:
+
+System calls listpkgs API
+Updates dropdown options.
+
+--------------------------------------------------
+
+STEP 9
+Fix pricing display.
+
+WHM packages DO NOT contain price.
+
+Price must come from billing panel.
+
+Example:
+
+WHM package = starter
+Panel price = $5/month
+
+So UI should show:
+
+Starter Plan
+$5/month
+
+--------------------------------------------------
+
+STEP 10
+Add WHM package test tool.
+
+Admin → Servers → Test WHM Packages
+
+Show result:
+
+Server Connected
+Packages Found:
+
+starter
+business
+pro
+
+If empty:
+
+Show error:
+
+"No WHM packages found"
+
+--------------------------------------------------
