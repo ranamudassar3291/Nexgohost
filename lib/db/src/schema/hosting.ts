@@ -14,6 +14,7 @@ export const hostingPlansTable = pgTable("hosting_plans", {
   billingCycle: billingCycleEnum("billing_cycle").notNull().default("monthly"),
   groupId: text("group_id"),
   module: text("module").default("none"),
+  moduleServerId: text("module_server_id"),
   modulePlanId: text("module_plan_id"),
   modulePlanName: text("module_plan_name"),
   diskSpace: text("disk_space").notNull(),

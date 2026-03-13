@@ -160,6 +160,7 @@ export default function AddPackage() {
           yearlyPrice: form.yearlyPrice ? Number(form.yearlyPrice) : null,
           groupId: form.groupId || null,
           module: moduleType,
+          moduleServerId: selectedServerId || null,
           modulePlanId: modulePlanId || null,
           modulePlanName: modulePlanName || null,
           emailAccounts: parseInt(form.emailAccounts),

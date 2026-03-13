@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -72,10 +72,13 @@ export default function EditPackage() {
   const [modulePlanName, setModulePlanName] = useState("");
   const [pricingFrom, setPricingFrom] = useState<"module" | "manual">("manual");
 
-  // Load existing package
+  // Ref to restore the server selection after initial load
+  const restoredServerId = useRef<string>("");
+
+  // Load existing package — also pre-loads servers + plans
   useEffect(() => {
     apiFetch(`/api/admin/packages/${id}`)
-      .then(data => {
+      .then(async data => {
         setForm({
           name: data.name || "",
           description: data.description || "",
@@ -91,30 +94,72 @@ export default function EditPackage() {
           ftpAccounts: String(data.ftpAccounts || ""),
         });
         setFeatures(data.features || []);
+
         const mod = data.module || "none";
+        const savedServerId: string = data.moduleServerId || "";
+        const savedPlanId: string = data.modulePlanId || "";
+        const savedPlanName: string = data.modulePlanName || savedPlanId;
+
         setModuleType(mod);
-        if (data.modulePlanId) {
-          setModulePlanId(data.modulePlanId);
-          setModulePlanName(data.modulePlanName || data.modulePlanId);
+        if (savedPlanId) {
+          setModulePlanId(savedPlanId);
+          setModulePlanName(savedPlanName);
+        }
+
+        // Pre-load servers and plans if a module was previously configured
+        if (mod !== "none") {
+          restoredServerId.current = savedServerId;
+          try {
+            setLoadingServers(true);
+            const serverData = await apiFetch(`/api/admin/servers?type=${mod}`);
+            const active = (serverData as ServerRecord[]).filter(s => s.status === "active");
+            setServers(active);
+
+            // Pre-select the saved server
+            if (savedServerId && active.find(s => s.id === savedServerId)) {
+              setSelectedServerId(savedServerId);
+              // Pre-load plans for this server
+              if (savedPlanId) {
+                try {
+                  setLoadingPlans(true);
+                  const planData = await apiFetch(`/api/admin/servers/${savedServerId}/plans`);
+                  const planList: Plan[] = planData.plans || [];
+                  setPlans(planList);
+                  const existing = planList.find(p => p.id === savedPlanId);
+                  if (existing) setSelectedPlan(existing);
+                } catch {
+                  setPlans([]);
+                } finally {
+                  setLoadingPlans(false);
+                }
+              }
+            }
+          } catch {
+            setServers([]);
+          } finally {
+            setLoadingServers(false);
+          }
         }
       })
       .catch(() => toast({ title: "Error", description: "Could not load package", variant: "destructive" }))
       .finally(() => setFetching(false));
   }, [id]);
 
-  // Fetch servers when module type changes
-  useEffect(() => {
-    if (moduleType === "none") {
-      setServers([]); setSelectedServerId(""); setPlans([]); setSelectedPlan(null);
-      return;
-    }
+  // Fetch servers when module type is manually changed by the user
+  // (not on initial load — that is handled above)
+  const handleModuleTypeChange = (newType: string) => {
+    setModuleType(newType);
+    setSelectedServerId("");
+    setPlans([]);
+    setSelectedPlan(null);
+    setPlansError("");
+    if (newType === "none") { setServers([]); return; }
     setLoadingServers(true);
-    setSelectedServerId(""); setPlans([]); setSelectedPlan(null); setPlansError("");
-    apiFetch(`/api/admin/servers?type=${moduleType}`)
-      .then(data => setServers(data.filter((s: ServerRecord) => s.status === "active")))
+    apiFetch(`/api/admin/servers?type=${newType}`)
+      .then(data => setServers((data as ServerRecord[]).filter(s => s.status === "active")))
       .catch(() => setServers([]))
       .finally(() => setLoadingServers(false));
-  }, [moduleType]);
+  };
 
   const fetchPlans = async (serverId: string) => {
     if (!serverId) { setPlans([]); setSelectedPlan(null); return; }
@@ -190,6 +235,7 @@ export default function EditPackage() {
           yearlyPrice: form.yearlyPrice ? Number(form.yearlyPrice) : null,
           groupId: form.groupId || null,
           module: moduleType,
+          moduleServerId: selectedServerId || null,
           modulePlanId: modulePlanId || null,
           modulePlanName: modulePlanName || null,
           emailAccounts: parseInt(form.emailAccounts) || 10,
@@ -273,8 +319,8 @@ export default function EditPackage() {
             </div>
           </div>
 
-          {/* Current plan badge */}
-          {modulePlanId && moduleType === "none" && (
+          {/* Current plan badge — shows when a plan is saved but not currently being selected from a list */}
+          {modulePlanId && !selectedPlan && (
             <div className="flex items-center gap-2 px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-xl text-sm">
               <CheckCircle size={14} className="text-primary" />
               <span className="text-primary font-medium">Linked plan:</span>
@@ -292,7 +338,7 @@ export default function EditPackage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {MODULE_OPTIONS.map(opt => (
                 <button key={opt.value} type="button"
-                  onClick={() => setModuleType(opt.value)}
+                  onClick={() => handleModuleTypeChange(opt.value)}
                   className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                     moduleType === opt.value
                       ? "bg-primary/10 border-primary/40 text-primary"

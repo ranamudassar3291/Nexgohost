@@ -323,6 +323,9 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
     const clientName = user ? `${user.firstName} ${user.lastName}` : "";
 
+    // Accept admin-provided credentials (will auto-generate if not provided)
+    const { username: overrideUsername, password: overridePassword } = req.body || {};
+
     let provisionResult = null;
     let serviceId: string | null = null;
 
@@ -353,11 +356,18 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
         serviceId = newService.id;
       }
 
-      // Provision the service
+      // Provision the service with optional admin credentials
       if (serviceId) {
-        provisionResult = await provisionHostingService(serviceId);
+        provisionResult = await provisionHostingService(serviceId, {
+          username: overrideUsername || undefined,
+          password: overridePassword || undefined,
+        });
         if (!provisionResult.success) {
           console.warn("[ACTIVATE] Provisioning issue (non-fatal):", provisionResult.message);
+        }
+        // If WHM returned an error, surface it in the response but continue
+        if (provisionResult.whmError) {
+          console.warn("[ACTIVATE] WHM error:", provisionResult.whmError);
         }
       }
     }
@@ -387,10 +397,12 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
     res.json({
       order: formatOrder(updated, clientName),
       provision: provisionResult,
+      whmError: provisionResult?.whmError || null,
       service: service ? {
         id: service.id,
         status: service.status,
         username: service.username,
+        password: provisionResult?.credentials?.password || null,
         cpanelUrl: service.cpanelUrl,
         webmailUrl: service.webmailUrl,
         domain: service.domain,

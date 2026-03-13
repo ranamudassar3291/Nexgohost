@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ShoppingCart, CheckCircle, XCircle, Search, Plus, FileText,
   ChevronDown, Loader2, RefreshCw, AlertTriangle, StopCircle,
-  Terminal, Mail, Zap, ExternalLink,
+  Terminal, Mail, Zap, ExternalLink, Eye, EyeOff, Copy, User, Lock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,28 @@ const filterTabs = ["all", "pending", "approved", "suspended", "cancelled", "fra
 
 interface ActivateResult {
   orderId: string;
-  service: { cpanelUrl: string; webmailUrl: string; username: string; domain: string } | null;
+  service: { cpanelUrl: string | null; webmailUrl: string | null; username: string | null; password: string | null; domain: string | null } | null;
+  whmError: string | null;
+}
+
+interface PreActivateModal {
+  orderId: string;
+  domain: string;
+  clientName: string;
+  itemName: string;
+  moduleType: string;
+  modulePlanName: string | null;
+  username: string;
+  password: string;
+}
+
+function generatePassword() {
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+  return Array.from({ length: 14 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+function generateUsername(domain: string) {
+  return (domain.split(".")[0] || "user").replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8) || "user";
 }
 
 export default function AdminOrders() {
@@ -73,6 +94,8 @@ export default function AdminOrders() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
+  const [preActivate, setPreActivate] = useState<PreActivateModal | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { data: orders = [], isLoading, refetch } = useQuery<Order[]>({
     queryKey: ["admin-orders"],
@@ -107,18 +130,47 @@ export default function AdminOrders() {
     } finally { setLoadingId(null); }
   };
 
-  const activateOrder = async (id: string) => {
-    setLoadingId(id);
+  // Step 1: open pre-activation modal with auto-generated credentials
+  const openActivateModal = (order: Order) => {
     setOpenMenuId(null);
+    setShowPassword(false);
+    const domain = order.domain || "";
+    setPreActivate({
+      orderId: order.id,
+      domain,
+      clientName: order.clientName,
+      itemName: order.itemName,
+      moduleType: order.moduleType || "none",
+      modulePlanName: order.modulePlanName || null,
+      username: generateUsername(domain),
+      password: generatePassword(),
+    });
+  };
+
+  // Step 2: submit activation with credentials
+  const submitActivate = async () => {
+    if (!preActivate) return;
+    setLoadingId(preActivate.orderId);
     try {
-      const data = await apiFetch(`/api/admin/orders/${id}/activate`, { method: "POST" });
+      const data = await apiFetch(`/api/admin/orders/${preActivate.orderId}/activate`, {
+        method: "POST",
+        body: JSON.stringify({
+          username: preActivate.username,
+          password: preActivate.password,
+        }),
+      });
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
       refetch();
-      if (data.service?.cpanelUrl) {
-        setActivateResult({ orderId: id, service: data.service });
-        toast({ title: "Service Activated!", description: `Account provisioned for ${data.service.domain || "the domain"}` });
+      setPreActivate(null);
+      setActivateResult({
+        orderId: preActivate.orderId,
+        service: data.service || null,
+        whmError: data.whmError || null,
+      });
+      if (data.whmError) {
+        toast({ title: "Activated (WHM warning)", description: `Saved in DB. WHM: ${data.whmError}`, variant: "destructive" });
       } else {
-        toast({ title: "Order Activated", description: data.provision?.message || "Invoice marked paid" });
+        toast({ title: "Service Activated!", description: `Account provisioned for ${data.service?.domain || "the domain"}` });
       }
     } catch (err: any) {
       toast({ title: "Activation failed", description: err.message, variant: "destructive" });
@@ -146,42 +198,147 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
+      {/* Pre-Activation Modal — credentials form */}
+      {preActivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPreActivate(null)}>
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                <Zap size={20} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground text-lg">Activate Order</h3>
+                <p className="text-sm text-muted-foreground">{preActivate.clientName}</p>
+              </div>
+            </div>
+
+            {/* Order info */}
+            <div className="bg-secondary/40 border border-border rounded-xl p-3 mb-4 space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Domain</span>
+                <span className="text-foreground font-medium">{preActivate.domain || "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Package</span>
+                <span className="text-foreground">{preActivate.itemName}</span>
+              </div>
+              {preActivate.moduleType !== "none" && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Module</span>
+                  <span className="text-foreground capitalize">{preActivate.moduleType}{preActivate.modulePlanName ? ` / ${preActivate.modulePlanName}` : ""}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Hosting credentials */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hosting Credentials</p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5"><User size={13} /> Username</label>
+                <Input
+                  value={preActivate.username}
+                  onChange={e => setPreActivate(p => p ? { ...p, username: e.target.value } : p)}
+                  placeholder="Auto-generated from domain"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">Leave blank to auto-generate from domain name</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5"><Lock size={13} /> Password</label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={preActivate.password}
+                    onChange={e => setPreActivate(p => p ? { ...p, password: e.target.value } : p)}
+                    placeholder="Auto-generated strong password"
+                    className="font-mono pr-10"
+                  />
+                  <button type="button" onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">Leave blank to auto-generate a strong password</p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <Button onClick={submitActivate} disabled={!!loadingId}
+                className="flex-1 bg-primary hover:bg-primary/90">
+                {loadingId ? <Loader2 size={15} className="animate-spin mr-2" /> : <Zap size={15} className="mr-2" />}
+                {loadingId ? "Activating…" : "Activate Order"}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setPreActivate(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Activate success modal */}
-      {activateResult?.service && (
+      {activateResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setActivateResult(null)}>
           <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                <Zap size={20} className="text-green-400" />
+              <div className={`w-10 h-10 rounded-full ${activateResult.whmError ? "bg-yellow-500/20" : "bg-green-500/20"} flex items-center justify-center`}>
+                <Zap size={20} className={activateResult.whmError ? "text-yellow-400" : "text-green-400"} />
               </div>
               <div>
-                <h3 className="font-bold text-foreground text-lg">Service Activated!</h3>
-                <p className="text-sm text-muted-foreground">{activateResult.service.domain}</p>
+                <h3 className="font-bold text-foreground text-lg">
+                  {activateResult.whmError ? "Activated (with warnings)" : "Service Activated!"}
+                </h3>
+                <p className="text-sm text-muted-foreground">{activateResult.service?.domain || "Hosting provisioned"}</p>
               </div>
             </div>
-            <div className="space-y-3">
-              <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2 font-mono text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Username</span>
-                  <span className="text-foreground font-medium">{activateResult.service.username}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">cPanel</span>
-                  <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer"
-                    className="text-primary hover:underline text-xs truncate max-w-[200px]">{activateResult.service.cpanelUrl}</a>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Webmail</span>
-                  <a href={activateResult.service.webmailUrl} target="_blank" rel="noreferrer"
-                    className="text-primary hover:underline text-xs truncate max-w-[200px]">{activateResult.service.webmailUrl}</a>
+
+            {activateResult.whmError && (
+              <div className="mb-4 flex items-start gap-2 px-3 py-2.5 bg-yellow-500/5 border border-yellow-500/20 rounded-xl text-sm text-yellow-400">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">WHM API warning</p>
+                  <p className="text-xs text-yellow-400/70 mt-0.5">{activateResult.whmError}</p>
+                  <p className="text-xs text-yellow-400/70">Service saved to database. Check server credentials and try again if needed.</p>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">A welcome email with credentials has been sent to the client.</p>
-            </div>
+            )}
+
+            {activateResult.service && (
+              <div className="space-y-3">
+                <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2 font-mono text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Username</span>
+                    <span className="text-foreground font-medium">{activateResult.service.username || "—"}</span>
+                  </div>
+                  {activateResult.service.password && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Password</span>
+                      <span className="text-foreground font-medium">{activateResult.service.password}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">cPanel</span>
+                    {activateResult.service.cpanelUrl ? (
+                      <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer"
+                        className="text-primary hover:underline text-xs truncate max-w-[180px]">{activateResult.service.cpanelUrl}</a>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Webmail</span>
+                    {activateResult.service.webmailUrl ? (
+                      <a href={activateResult.service.webmailUrl} target="_blank" rel="noreferrer"
+                        className="text-primary hover:underline text-xs truncate max-w-[180px]">{activateResult.service.webmailUrl}</a>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">A welcome email with credentials has been sent to the client.</p>
+              </div>
+            )}
+
             <div className="mt-5 flex gap-3">
-              <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer" className="flex-1">
-                <Button className="w-full bg-orange-600 hover:bg-orange-700"><Terminal size={14} className="mr-2" /> Open cPanel</Button>
-              </a>
+              {activateResult.service?.cpanelUrl && (
+                <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer" className="flex-1">
+                  <Button className="w-full bg-orange-600 hover:bg-orange-700"><Terminal size={14} className="mr-2" /> Open cPanel</Button>
+                </a>
+              )}
               <Button variant="outline" className="flex-1" onClick={() => setActivateResult(null)}>Close</Button>
             </div>
           </div>
@@ -336,7 +493,7 @@ export default function AdminOrders() {
                       <Button size="sm"
                         className="h-7 px-2.5 text-xs bg-purple-600 hover:bg-purple-700 whitespace-nowrap"
                         disabled={loadingId === order.id}
-                        onClick={() => activateOrder(order.id)}>
+                        onClick={() => openActivateModal(order)}>
                         {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
                         Activate
                       </Button>

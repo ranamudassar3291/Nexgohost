@@ -1,0 +1,199 @@
+TASK: Fix hosting module configuration and order activation system in WHMCS-like panel.
+
+There are 3 major issues that must be fixed.
+
+--------------------------------------------------
+
+ISSUE 1
+Package module resets to "None" after saving.
+
+Current problem:
+Admin selects:
+
+Server Group
+Module = cPanel or 20i
+Plan
+
+Clicks Save.
+
+When admin opens Edit page again,
+Module shows "None".
+
+Because module_type is not saved correctly in database.
+
+FIX:
+
+Database table: packages
+
+Ensure these fields exist and save correctly.
+
+module_type
+server_group_id
+module_plan_id
+
+When admin saves package:
+
+INSERT OR UPDATE
+
+module_type = selected module
+server_group_id = selected server group
+module_plan_id = selected plan id
+
+Edit page must load values from database and pre-select them.
+
+Example:
+
+SELECT module_type, server_group_id, module_plan_id
+FROM packages
+WHERE id = ?
+
+Then populate dropdowns.
+
+Result:
+Module must stay selected after editing.
+
+--------------------------------------------------
+
+ISSUE 2
+Order activation page missing username and password fields.
+
+Admin → Orders → Activate
+
+Must show fields:
+
+Username
+Password
+
+These values will be used for hosting account creation.
+
+Add fields in order activation form:
+
+username (input text)
+password (input password)
+
+If empty:
+Auto generate username from domain.
+
+Example:
+
+domain = example.com
+username = example
+
+Password:
+Generate strong password automatically if admin leaves blank.
+
+--------------------------------------------------
+
+ISSUE 3
+WHM account not creating because credentials not passed.
+
+When admin clicks ACTIVATE ORDER
+
+System must send API request to WHM server.
+
+Use WHM API:
+
+createacct
+
+Required parameters:
+
+domain
+username
+password
+plan
+contactemail
+
+Example request:
+
+https://SERVER-IP:2087/json-api/createacct
+?username=example
+&domain=example.com
+&password=securepassword
+&plan=starter
+&contactemail=user@email.com
+
+Authentication:
+
+WHM API Token
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+If success:
+
+Service status → Active
+
+Save in database:
+
+services table
+
+fields:
+
+username
+password
+server_id
+status
+
+--------------------------------------------------
+
+ADMIN ORDER PAGE REQUIREMENTS
+
+Order activate page must show:
+
+Client
+Domain
+Package
+Server Group
+Module
+Plan
+
+Hosting credentials:
+
+Username
+Password
+
+Buttons:
+
+Activate Order
+Suspend
+Unsuspend
+Terminate
+
+--------------------------------------------------
+
+CLIENT DASHBOARD AFTER ACTIVATION
+
+Client must see:
+
+Service Status = Active
+
+Buttons:
+
+Login to cPanel
+Login to Webmail
+Activate SSL
+
+cPanel login link:
+
+https://domain.com:2083
+
+Webmail login:
+
+https://domain.com/webmail
+
+--------------------------------------------------
+
+ERROR HANDLING
+
+If WHM API fails:
+
+Show error message to admin.
+
+Example:
+
+"Account creation failed: Plan not found"
+
+Log errors in server_logs table.
+
+--------------------------------------------------
