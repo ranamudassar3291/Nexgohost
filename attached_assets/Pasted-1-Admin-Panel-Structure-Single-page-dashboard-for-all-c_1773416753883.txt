@@ -1,0 +1,185 @@
+1. Admin Panel Structure
+
+Single-page dashboard for all client & service management
+
+Sections:
+
+Client Summary: View all clients, active/inactive, orders, invoices, tickets, services, domains
+
+Client Management: Add/edit/delete clients, login as client, reset password
+
+Order Management: Approve, cancel, refund, mark as fraud, manage payment status
+
+Service Management:
+
+View all services (hosting, VPS, SSL, domain)
+
+Options per service:
+
+Login to cPanel/WHM panel
+
+Suspend / Unsuspend
+
+Terminate / Cancel (connected to client cancelation approval)
+
+Activate SSL
+
+Custom module actions (20i, etc.)
+
+Module connection shows in service page
+
+Server & Plan Management:
+
+Add/edit/delete servers
+
+Group servers
+
+Assign plans/packages to server group
+
+Show which plan is using which module/server
+
+Domain Management:
+
+Connect to registrar APIs (add, renew, transfer)
+
+Status management
+
+Auto-sync with service cancellation
+
+Ticket Management
+
+View, reply, close tickets
+
+Assign tickets to admin/staff
+
+Invoice Management
+
+Generate invoices automatically per package
+
+Approve payment manually if needed
+
+Refund or cancel invoice
+
+Reports & Logs
+
+Server test logs
+
+Client actions log
+
+Payment and refund history
+
+Module Integration
+
+20i API module fully functional
+
+Ability to test server connection, module sync, package activation
+
+2. Database Tables (example core tables)
+
+clients (id, name, email, password, status, created_at)
+
+orders (id, client_id, service_id, status, payment_status, created_at)
+
+services (id, client_id, plan_id, server_id, status, module, created_at)
+
+plans (id, name, group_id, module, price, billing_cycle)
+
+servers (id, name, ip, group_id, module_type, status)
+
+server_groups (id, name, description)
+
+domains (id, client_id, domain, registrar, status, expiry_date)
+
+tickets (id, client_id, subject, status, priority, created_at)
+
+invoices (id, client_id, order_id, amount, status, created_at)
+
+module_actions (id, service_id, action_name, status, executed_at)
+
+Logs tables for activity, server tests, payment actions
+
+(Is structure ke zariye aap client, orders, services, invoices, domains, tickets sab control kar sakte ho.)
+
+3. Hosting Automation & Module Logic
+
+Each service connects to a module (WHM, 20i, etc.)
+
+Actions (Suspend, Unsuspend, Terminate, Cancel, SSL activate) call module API
+
+Server test function: verify connection, check available packages
+
+Orders approval workflow:
+
+Admin approves → triggers module provisioning
+
+Cancelation approval → triggers module termination
+
+20i module:
+
+Add server credentials (API key)
+
+Create plan mapping
+
+Automated provisioning of hosting on 20i
+
+4. Workflow Examples
+
+Client cancelation:
+
+Client requests cancelation
+
+Admin views request on Cancelation Page
+
+Admin clicks Approve
+
+Service status updated to canceled
+
+Module API called to terminate hosting
+
+Invoice marked as canceled/refunded
+
+Service Activation:
+
+Admin approves order
+
+Module API triggers provisioning
+
+Service status updated to active
+
+Client receives email notification
+
+Server Testing:
+
+Ping server
+
+Check module connection
+
+Validate available plans
+
+Log results in server_test_logs
+
+5. UI/UX Requirements
+
+Single-page admin dashboard
+
+Sidebar navigation for: Clients, Orders, Services, Domains, Tickets, Invoices, Servers, Reports
+
+Action buttons appear dynamically based on selected service
+
+Modal confirmations for Cancel/Terminate/Refund actions
+
+Server & module connection test button
+
+Responsive design
+
+6. Extra Notes
+
+Must support multiple modules (WHM, 20i, etc.)
+
+Full automation with API calls
+
+Logs for every critical action
+
+All modules configurable per plan/package
+
+Ready for multi-server environment
