@@ -1,0 +1,414 @@
+Build a complete **professional WHMCS-style hosting billing panel** with full Admin Panel and Client Area. The system must be production-ready and structured like WHMCS.
+
+Use **Node.js + Express backend** and **MySQL or JSON database**, with modern responsive frontend (Bootstrap or Tailwind).
+
+---
+
+# 1️⃣ ADMIN PANEL (/admin)
+
+Create a full admin control panel with these sections and buttons:
+
+### Dashboard
+
+Route: /admin/dashboard
+Show statistics:
+
+* Total Clients
+* Active Orders
+* Pending Orders
+* Paid Invoices
+* Unpaid Invoices
+* Tickets Open
+* Monthly Revenue
+
+---
+
+# 2️⃣ CLIENT MANAGEMENT
+
+Routes:
+
+* /admin/clients
+* /admin/clients/add
+* /admin/clients/edit/:id
+* /admin/clients/delete/:id
+
+Features:
+
+* Add Client button
+* Edit Client button
+* Delete Client
+* Client profile page
+* Client services list
+* Client invoices list
+* Client tickets list
+
+Client fields:
+
+* First Name
+* Last Name
+* Email
+* Password
+* Phone
+* Address
+* Country
+* Currency
+* Status
+
+---
+
+# 3️⃣ PRODUCTS / PACKAGES
+
+Routes:
+
+* /admin/products
+* /admin/products/add
+* /admin/products/edit/:id
+
+Fields:
+
+* Product Name
+* Description
+* Price
+* Billing Cycle (Monthly / Annually)
+* Module Type (None / cPanel)
+* Server
+* Status
+
+Buttons:
+
+* Add Product
+* Edit Product
+* Delete Product
+
+---
+
+# 4️⃣ DOMAIN SYSTEM
+
+Routes:
+
+* /admin/domains/extensions
+* /admin/domains/extensions/add
+* /admin/domains/extensions/edit/:id
+
+Features:
+Admin must be able to:
+
+Add Domain Extension
+Example:
+
+.com
+.net
+.org
+.pk
+
+Fields:
+
+* Extension
+* Register Price
+* Transfer Price
+* Renewal Price
+* Status
+
+Buttons:
+
+* Add Extension
+* Edit Extension
+* Delete Extension
+
+---
+
+# 5️⃣ ORDER MANAGEMENT
+
+Routes:
+
+* /admin/orders
+* /admin/orders/add
+* /admin/orders/edit/:id
+
+Add Order button must exist.
+
+Order fields:
+
+* Client
+* Product
+* Domain
+* Billing Cycle
+* Price
+
+Order Status options:
+
+* Pending
+* Active
+* Suspended
+* Cancelled
+* Fraud
+* Terminated
+
+Admin must be able to:
+
+* Create Order
+* Edit Order
+* Activate Order
+* Suspend Order
+* Terminate Order
+
+---
+
+# 6️⃣ INVOICE SYSTEM
+
+Routes:
+
+* /admin/invoices
+* /admin/invoices/add
+* /admin/invoices/edit/:id
+
+Invoice fields:
+
+* Client
+* Order
+* Amount
+* Currency
+* Payment Method
+* Status
+
+Invoice Status:
+
+* Unpaid
+* Paid
+* Cancelled
+* Refunded
+* Collections
+
+Buttons:
+
+* Create Invoice
+* Edit Invoice
+* Mark Paid
+* Send Invoice
+* Delete Invoice
+
+---
+
+# 7️⃣ PROMO CODE SYSTEM
+
+Routes:
+
+* /admin/promos
+* /admin/promos/add
+
+Fields:
+
+* Code
+* Discount %
+* Applies to Products
+* Expiry Date
+* Usage Limit
+
+---
+
+# 8️⃣ PAYMENT METHODS
+
+Routes:
+
+* /admin/payments
+
+Admin must be able to add payment methods:
+
+Examples:
+
+* Stripe
+* PayPal
+* Bank Transfer
+* Crypto
+
+Fields:
+
+* Name
+* API Keys
+* Status
+
+---
+
+# 9️⃣ CURRENCY SYSTEM
+
+Routes:
+
+* /admin/currencies
+
+Requirements:
+
+Default Currency:
+PKR
+
+Supported currencies example:
+
+* PKR
+* USD
+* GBP
+* EUR
+
+System must detect client country and automatically show correct currency.
+
+Example:
+Pakistan → PKR
+UK → GBP
+USA → USD
+
+---
+
+# 🔟 SUPPORT TICKET SYSTEM
+
+Routes:
+
+* /admin/tickets
+* /admin/tickets/view/:id
+
+Features:
+
+* Open Ticket
+* Reply Ticket
+* Close Ticket
+* Ticket status
+
+Ticket Status:
+
+* Open
+* Answered
+* Customer Reply
+* Closed
+
+---
+
+# 11️⃣ MODULE SYSTEM
+
+Routes:
+
+* /admin/modules
+
+Admin must be able to install hosting modules.
+
+Example modules:
+
+* cPanel
+* DirectAdmin
+* Plesk
+
+---
+
+# 12️⃣ CPANEL MODULE
+
+Add full cPanel integration module.
+
+Fields:
+
+* Server Hostname
+* API Username
+* API Token
+* Nameservers
+
+Functions:
+
+Create Account
+Suspend Account
+Unsuspend Account
+Terminate Account
+
+---
+
+# 13️⃣ CLIENT AREA (/client)
+
+Routes:
+
+/client/login
+/client/dashboard
+/client/orders
+/client/invoices
+/client/domains
+/client/tickets
+
+Client must be able to:
+
+* View Services
+* Order New Hosting
+* Register Domain
+* View Invoices
+* Pay Invoice
+* Open Support Ticket
+
+---
+
+# 14️⃣ ORDER PROCESS FLOW
+
+Client order process:
+
+Step 1 → Choose Product
+Step 2 → Enter Domain
+Step 3 → Apply Promo Code
+Step 4 → Checkout
+Step 5 → Select Payment Method
+Step 6 → Invoice Generated
+Step 7 → Payment Completed
+Step 8 → Order Activated
+
+---
+
+# 15️⃣ SECURITY
+
+Add role based login system.
+
+Admin login:
+/admin/login
+
+Client login:
+/client/login
+
+Unauthorized users must not access admin routes.
+
+---
+
+# 16️⃣ DATABASE TABLES
+
+Create tables:
+
+clients
+products
+orders
+invoices
+domains
+tickets
+currencies
+payment_methods
+promo_codes
+modules
+servers
+
+---
+
+# 17️⃣ UI REQUIREMENTS
+
+Admin UI must include:
+
+Tables
+Add Buttons
+Edit Buttons
+Delete Buttons
+Status badges
+
+Professional dashboard design like WHMCS.
+
+---
+
+# 18️⃣ FINAL RESULT
+
+The system must be a **fully functional WHMCS-style hosting billing platform** including:
+
+✔ Admin Panel
+✔ Client Area
+✔ Domain Management
+✔ Order Management
+✔ Invoice System
+✔ Promo Codes
+✔ Currency Detection
+✔ Payment Methods
+✔ Ticket System
+✔ cPanel Module Integration
