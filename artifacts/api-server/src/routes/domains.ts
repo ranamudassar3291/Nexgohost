@@ -70,6 +70,7 @@ function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) 
     status: d.status,
     autoRenew: d.autoRenew,
     nameservers: d.nameservers || [],
+    moduleServerId: (d as any).moduleServerId ?? null,
   };
 }
 
@@ -263,6 +264,23 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
   }
 });
 
+// Client: update nameservers on own domain
+router.put("/domains/:id/nameservers", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Not found" }); return; }
+    if (domain.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { nameservers } = req.body;
+    if (!Array.isArray(nameservers) || nameservers.length < 2) {
+      res.status(400).json({ error: "At least 2 nameservers required" }); return;
+    }
+    const cleaned = nameservers.map((ns: string) => ns.trim().toLowerCase()).filter(Boolean);
+    const [updated] = await db.update(domainsTable).set({ nameservers: cleaned, updatedAt: new Date() })
+      .where(eq(domainsTable.id, req.params.id)).returning();
+    res.json(formatDomain(updated, ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Client: toggle auto-renew on own domain
 router.put("/domains/:id/auto-renew", authenticate, async (req: AuthRequest, res) => {
   try {
@@ -382,7 +400,7 @@ router.post("/admin/domains", authenticate, requireAdmin, async (req: AuthReques
 // Admin: edit domain
 router.put("/admin/domains/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { clientId, registrar, expiryDate, nextDueDate, status, autoRenew } = req.body;
+    const { clientId, registrar, expiryDate, nextDueDate, status, autoRenew, moduleServerId, nameservers } = req.body;
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (clientId !== undefined) updates.clientId = clientId;
     if (registrar !== undefined) updates.registrar = registrar;
@@ -390,6 +408,8 @@ router.put("/admin/domains/:id", authenticate, requireAdmin, async (req: AuthReq
     if (nextDueDate !== undefined) updates.nextDueDate = nextDueDate ? new Date(nextDueDate) : null;
     if (status !== undefined) updates.status = status;
     if (autoRenew !== undefined) updates.autoRenew = autoRenew;
+    if (moduleServerId !== undefined) updates.moduleServerId = moduleServerId || null;
+    if (nameservers !== undefined && Array.isArray(nameservers)) updates.nameservers = nameservers;
     const [updated] = await db.update(domainsTable).set(updates).where(eq(domainsTable.id, req.params.id)).returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
@@ -432,6 +452,44 @@ router.post("/admin/domains/:id/renew", authenticate, requireAdmin, async (req: 
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// Admin: 20i domain sync — attempt to sync nameservers/status from 20i API
+router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Not found" }); return; }
+    const moduleServerId = (domain as any).moduleServerId;
+    if (!moduleServerId) { res.json({ success: false, message: "No module server assigned to this domain" }); return; }
+
+    // Fetch server credentials
+    const { serversTable } = await import("@workspace/db/schema");
+    const [server] = await db.select().from(serversTable).where(eq(serversTable.id, moduleServerId)).limit(1);
+    if (!server) { res.json({ success: false, message: "Module server not found" }); return; }
+
+    if (server.type === "20i" && server.apiToken) {
+      try {
+        const fetch = (await import("node-fetch")).default;
+        const fullDomain = `${domain.name}${domain.tld}`;
+        const resp = await (fetch as any)(`https://api.20i.com/domain/${fullDomain}`, {
+          headers: { Authorization: `Bearer ${server.apiToken}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.ok) {
+          const data: any = await resp.json();
+          const ns = data?.nameservers || data?.nameServerGroup?.nameServers;
+          const updates: Record<string, unknown> = { updatedAt: new Date() };
+          if (ns && Array.isArray(ns) && ns.length > 0) {
+            updates.nameservers = ns.map((n: any) => typeof n === "string" ? n : n.name || n.host || "");
+          }
+          const [updated] = await db.update(domainsTable).set(updates).where(eq(domainsTable.id, domain.id)).returning();
+          const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+          res.json({ success: true, message: `Synced from 20i API`, domain: formatDomain(updated, user ? `${user.firstName} ${user.lastName}` : "") }); return;
+        }
+      } catch (_e) { /* fall through */ }
+    }
+    res.json({ success: false, message: `Could not sync with ${server.type} API — check credentials` });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
 export default router;

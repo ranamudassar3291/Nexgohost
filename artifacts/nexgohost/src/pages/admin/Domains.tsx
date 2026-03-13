@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,7 @@ interface Domain {
   name: string; tld: string; registrar: string;
   registrationDate?: string; expiryDate?: string; nextDueDate?: string;
   status: string; autoRenew: boolean; nameservers: string[];
+  moduleServerId?: string | null;
 }
 
 interface Client { id: string; firstName: string; lastName: string; email: string; }
@@ -33,7 +34,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return res.json();
 }
 
-const EMPTY_FORM = { clientId: "", name: "", tld: ".com", registrar: "", registrationDate: "", expiryDate: "", nextDueDate: "", status: "active", autoRenew: true };
+const EMPTY_FORM = { clientId: "", name: "", tld: ".com", registrar: "", registrationDate: "", expiryDate: "", nextDueDate: "", status: "active", autoRenew: true, moduleServerId: "" };
 
 export default function AdminDomains() {
   const { toast } = useToast();
@@ -44,6 +45,7 @@ export default function AdminDomains() {
   const [editDomain, setEditDomain] = useState<Domain | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const { data: domains = [], isLoading } = useQuery<Domain[]>({
     queryKey: ["admin-domains"],
@@ -113,6 +115,21 @@ export default function AdminDomains() {
     }
   };
 
+  const handleSyncModule = async (id: string) => {
+    setSyncingId(id);
+    try {
+      const data = await apiFetch(`/api/admin/domains/${id}/sync-module`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      toast({
+        title: data.success ? "Module synced" : "Sync unavailable",
+        description: data.message || (data.success ? "Nameservers updated from module" : "Could not connect to module"),
+        variant: data.success ? "default" : "destructive",
+      });
+    } catch (err: any) {
+      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    } finally { setSyncingId(null); }
+  };
+
   const openEdit = (d: Domain) => {
     setEditDomain(d);
     setForm({
@@ -120,7 +137,7 @@ export default function AdminDomains() {
       registrationDate: d.registrationDate ? d.registrationDate.slice(0, 10) : "",
       expiryDate: d.expiryDate ? d.expiryDate.slice(0, 10) : "",
       nextDueDate: d.nextDueDate ? d.nextDueDate.slice(0, 10) : "",
-      status: d.status, autoRenew: d.autoRenew,
+      status: d.status, autoRenew: d.autoRenew, moduleServerId: d.moduleServerId || "",
     });
   };
 
@@ -179,6 +196,12 @@ export default function AdminDomains() {
                   onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
               </div>
             ))}
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Module Server ID (20i/cPanel)</label>
+            <Input value={form.moduleServerId} onChange={e => setForm(f => ({ ...f, moduleServerId: e.target.value }))}
+              placeholder="Optional — server ID for API sync" className="font-mono text-sm" />
+            <p className="text-xs text-muted-foreground">Link to a server for automatic nameserver sync via the Sync button</p>
           </div>
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-foreground/80">Auto Renew</label>
@@ -268,12 +291,18 @@ export default function AdminDomains() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 flex-wrap">
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => handleRenew(domain.id)}>
                       <RefreshCw className="w-3 h-3" /> Renew
                     </Button>
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => openEdit(domain)}>
                       <Pencil className="w-3 h-3" /> Edit
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
+                      disabled={syncingId === domain.id}
+                      onClick={() => handleSyncModule(domain.id)}>
+                      {syncingId === domain.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                      Sync
                     </Button>
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(domain.id, domain.name + domain.tld)}>
                       <Trash2 className="w-3 h-3" />

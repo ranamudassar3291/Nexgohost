@@ -1,0 +1,91 @@
+Task: Implement Full WHMCS-Style Order, Invoice, Module & Domain Management Page
+
+Requirements:
+
+1. **Order Management Page (Admin Panel)**
+   - Admin selects Client
+   - Admin selects Service/Package
+       - Module dropdown: cPanel / WHM / 20i
+       - Plan dropdown: fetched from module API (Starter, Geek, Pro)
+   - Set Order Details:
+       - Billing Cycle (Monthly/Yearly)
+       - Due Date
+       - Payment Status (Paid / Unpaid)
+       - Order Notes
+   - Actions:
+       - Approve Order → activates service via module API
+       - Generate Invoice → auto-populate with selected plan pricing
+       - Mark Invoice Paid → update client account & dashboard
+   - After Save:
+       - Order appears on Client Profile (Admin + Client view)
+       - Service status updated (Active / Pending / Suspended)
+       - Due date stored in DB
+
+2. **Client Dashboard Updates**
+   - Orders section shows active services with module plan, status, due date
+   - Invoice section shows paid/unpaid invoices
+   - Service module action buttons work (Suspend / Unsuspend / Terminate / SSL activate)
+   - Domain Management:
+       - Auto-renew works
+       - DNS management options available (Add/Update nameservers)
+       - Sync domain status with registrar API
+       - 20i module fields fully functional for domains if added via server config
+
+3. **Server & Module Integration**
+   - Servers added to groups
+   - Module Type (cPanel/WHM/20i) selectable per plan
+   - Plan dropdown fetches module plans dynamically via API
+   - Pricing (monthly/yearly) displayed
+   - 20i module:
+       - Server credentials configured
+       - Field mapping for 20i plan IDs
+       - Auto provisioning, suspension, termination works
+
+4. **Database Updates**
+   - Tables:
+       - `orders`: client_id, service_id, module_type, module_plan_id, due_date, billing_cycle, status
+       - `invoices`: client_id, order_id, amount, status, paid_date
+       - `services`: client_id, plan_id, server_id, module_type, module_plan_id, status
+       - `domains`: client_id, domain, registrar, auto_renew, dns, module_server_id
+   - Ensure all foreign keys correct to link client → order → service → invoice
+
+5. **UI Requirements**
+   - Order Page:
+       - Client selector
+       - Package selector
+       - Module & Plan dropdowns
+       - Due Date picker
+       - Billing cycle selector
+       - Payment status selector
+       - Approve / Save buttons
+   - Client Profile & Dashboard:
+       - List all orders & invoices
+       - Service status & module actions
+       - Domain list with auto-renew & DNS options
+   - Domain Page:
+       - Show all domains
+       - Allow DNS updates (nameservers)
+       - Auto-renew toggle
+       - Module sync (20i) if server assigned
+
+6. **Logic Flow**
+   1. Admin selects client + package + module + plan + billing cycle + due date
+   2. Admin clicks Approve → system:
+       - Saves order
+       - Creates service linked to module & plan
+       - Calls module API to provision service
+   3. System generates invoice automatically with plan pricing
+   4. Admin can mark invoice as Paid → updates client account
+   5. Client dashboard & profile auto-updates with new service & invoice
+   6. Domain page fetches registrar status & DNS records via API
+   7. 20i module actions available for service & domain if server configured
+
+7. **Error Handling**
+   - API failures → show error messages
+   - Missing plan → disable save & show warning
+   - Domain DNS/API errors → show logs for admin
+
+8. **Security**
+   - Validate all inputs before saving to DB
+   - Protect API credentials
+   - Only admin can approve orders or mark invoices paid

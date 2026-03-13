@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Globe, Search, ShoppingCart, CheckCircle2, XCircle, AlertCircle,
   Loader2, Trash2, ExternalLink, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
+  Server, Plus, Minus, Save,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export default function ClientDomains() {
   const [showCart, setShowCart] = useState(false);
   const [successResult, setSuccessResult] = useState<DomainRegisterResponse | null>(null);
   const [orderingDomain, setOrderingDomain] = useState<string | null>(null);
+  const [dnsModal, setDnsModal] = useState<MyDomain | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -318,8 +320,8 @@ export default function ClientDomains() {
                       <Button variant="outline" size="sm" className="gap-1 text-xs h-8">
                         <RefreshCw size={12} /> Renew
                       </Button>
-                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8">
-                        <ExternalLink size={12} /> Manage DNS
+                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => setDnsModal(domain)}>
+                        <Server size={12} /> Nameservers
                       </Button>
                     </div>
                   </div>
@@ -374,6 +376,17 @@ export default function ClientDomains() {
           isLoading={registerMutation.isPending}
           orderingDomain={orderingDomain}
           total={cartTotal}
+        />
+      )}
+
+      {dnsModal && (
+        <DnsModal
+          domain={dnsModal}
+          onClose={() => setDnsModal(null)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["my-domains"] });
+            setDnsModal(null);
+          }}
         />
       )}
     </div>
@@ -607,6 +620,108 @@ function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRe
           <Button onClick={onPayInvoice} className="bg-primary hover:bg-primary/90 text-white gap-2">
             Pay Invoice <ChevronRight size={16} />
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DnsModal({ domain, onClose, onSaved }: {
+  domain: MyDomain;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const defaultNs = domain.nameservers?.length
+    ? [...domain.nameservers, "", ""].slice(0, Math.max(domain.nameservers.length + 1, 4))
+    : ["ns1.nexgohost.com", "ns2.nexgohost.com", "", ""];
+
+  const [nameservers, setNameservers] = useState<string[]>(defaultNs);
+  const [saving, setSaving] = useState(false);
+
+  const update = (idx: number, val: string) => setNameservers(ns => ns.map((n, i) => i === idx ? val : n));
+  const addRow = () => setNameservers(ns => [...ns, ""]);
+  const removeRow = (idx: number) => setNameservers(ns => ns.filter((_, i) => i !== idx));
+
+  const handleSave = async () => {
+    const cleaned = nameservers.map(s => s.trim()).filter(Boolean);
+    if (cleaned.length < 2) {
+      toast({ title: "At least 2 nameservers required", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/domains/${domain.id}/nameservers`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nameservers: cleaned }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed"); }
+      toast({ title: "Nameservers updated", description: `${domain.name}${domain.tld} nameservers saved` });
+      onSaved();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-500/10 rounded-xl flex items-center justify-center">
+              <Server size={18} className="text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground">Nameservers</h3>
+              <p className="text-xs text-muted-foreground font-mono">{domain.name}{domain.tld}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <p className="text-sm text-muted-foreground">Update the nameservers for your domain. Changes may take up to 48 hours to propagate.</p>
+
+          <div className="space-y-2">
+            {nameservers.map((ns, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <span className="text-xs font-medium text-muted-foreground w-6 text-right shrink-0">{idx + 1}</span>
+                <Input
+                  value={ns}
+                  onChange={e => update(idx, e.target.value)}
+                  placeholder={`ns${idx + 1}.example.com`}
+                  className="font-mono text-sm flex-1"
+                />
+                {idx >= 2 && (
+                  <button onClick={() => removeRow(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
+                    <Minus size={15} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {nameservers.length < 6 && (
+            <button onClick={addRow} className="flex items-center gap-1.5 text-xs text-primary hover:underline mt-1">
+              <Plus size={13} /> Add nameserver
+            </button>
+          )}
+
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-300 flex gap-2 mt-4">
+            <AlertCircle size={14} className="shrink-0 mt-0.5 text-blue-400" />
+            <span>DNS propagation can take up to 48 hours. During this time your domain may be temporarily unavailable.</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3 p-5 border-t border-border">
+          <Button onClick={handleSave} disabled={saving} className="flex-1 bg-primary hover:bg-primary/90 gap-2">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Save Nameservers
+          </Button>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
         </div>
       </div>
     </div>

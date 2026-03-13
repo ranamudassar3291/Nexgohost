@@ -1,10 +1,26 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, usersTable, hostingPlansTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import {
+  ordersTable, usersTable, hostingPlansTable, hostingServicesTable,
+  invoicesTable, serversTable,
+} from "@workspace/db/schema";
+import { eq, sql, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
+
+async function generateInvoiceNumber(): Promise<string> {
+  const year = new Date().getFullYear();
+  const [latest] = await db.select({ num: invoicesTable.invoiceNumber })
+    .from(invoicesTable).orderBy(desc(invoicesTable.createdAt)).limit(1);
+  let seq = 1;
+  if (latest?.num) {
+    const parts = latest.num.split("-");
+    const lastNum = parseInt(parts[parts.length - 1] || "0", 10);
+    seq = isNaN(lastNum) ? 1 : lastNum + 1;
+  }
+  return `INV-${year}-${String(seq).padStart(4, "0")}`;
+}
 
 function formatOrder(o: typeof ordersTable.$inferSelect, clientName?: string) {
   return {
@@ -12,18 +28,55 @@ function formatOrder(o: typeof ordersTable.$inferSelect, clientName?: string) {
     clientId: o.clientId,
     clientName: clientName || "",
     type: o.type,
+    itemId: o.itemId ?? null,
     itemName: o.itemName,
+    domain: o.domain ?? null,
     amount: Number(o.amount),
+    billingCycle: o.billingCycle ?? "monthly",
+    dueDate: o.dueDate?.toISOString() ?? null,
+    moduleType: o.moduleType ?? "none",
+    modulePlanId: o.modulePlanId ?? null,
+    modulePlanName: o.modulePlanName ?? null,
+    moduleServerId: o.moduleServerId ?? null,
+    paymentStatus: o.paymentStatus ?? "unpaid",
+    invoiceId: o.invoiceId ?? null,
     status: o.status,
     notes: o.notes,
     createdAt: o.createdAt.toISOString(),
+    updatedAt: o.updatedAt?.toISOString() ?? o.createdAt.toISOString(),
   };
+}
+
+async function createInvoiceForOrder(order: typeof ordersTable.$inferSelect, clientName: string) {
+  const invoiceNumber = await generateInvoiceNumber();
+  const dueDate = order.dueDate || (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d; })();
+  const billingLabel = (order.billingCycle === "yearly") ? "Annual" : "Monthly";
+  const [invoice] = await db.insert(invoicesTable).values({
+    invoiceNumber,
+    clientId: order.clientId,
+    orderId: order.id,
+    amount: order.amount,
+    tax: "0",
+    total: order.amount,
+    status: "unpaid",
+    dueDate,
+    items: [{
+      description: `${order.itemName} — ${billingLabel} Hosting Plan${order.modulePlanName ? ` (${order.modulePlanName})` : ""}`,
+      quantity: 1,
+      unitPrice: Number(order.amount),
+      total: Number(order.amount),
+    }],
+  }).returning();
+  // Link invoice back to order
+  await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+  return invoice;
 }
 
 // Client: get my orders
 router.get("/orders", authenticate, async (req: AuthRequest, res) => {
   try {
-    const orders = await db.select().from(ordersTable).where(eq(ordersTable.clientId, req.user!.userId)).orderBy(sql`created_at DESC`);
+    const orders = await db.select().from(ordersTable)
+      .where(eq(ordersTable.clientId, req.user!.userId)).orderBy(sql`created_at DESC`);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     res.json(orders.map(o => formatOrder(o, user ? `${user.firstName} ${user.lastName}` : "")));
   } catch (err) {
@@ -44,10 +97,7 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
 
     if (type === "hosting" && itemId) {
       const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, itemId)).limit(1);
-      if (plan) {
-        itemName = plan.name;
-        amount = Number(plan.price);
-      }
+      if (plan) { itemName = plan.name; amount = Number(plan.price); }
     } else if (type === "domain") {
       itemName = itemId || "Domain registration";
       amount = 12.99;
@@ -85,10 +135,25 @@ router.get("/admin/orders", authenticate, requireAdmin, async (_req, res) => {
   }
 });
 
+// Admin: get single order
+router.get("/admin/orders/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, req.params.id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
+    res.json(formatOrder(order, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Admin: create order manually
 router.post("/admin/orders", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { clientId, type, itemId, itemName, amount, notes, status } = req.body;
+    const {
+      clientId, type, itemId, itemName, amount, notes, status,
+      billingCycle, dueDate, moduleType, modulePlanId, modulePlanName,
+      moduleServerId, paymentStatus, domain, generateInvoice,
+    } = req.body;
+
     if (!clientId || !type || !itemName || amount === undefined) {
       res.status(400).json({ error: "clientId, type, itemName, amount are required" });
       return;
@@ -101,19 +166,79 @@ router.post("/admin/orders", authenticate, requireAdmin, async (req: AuthRequest
       type: type || "hosting",
       itemId: itemId || null,
       itemName,
+      domain: domain || null,
       amount: String(Number(amount).toFixed(2)),
+      billingCycle: billingCycle || "monthly",
+      dueDate: dueDate ? new Date(dueDate) : null,
+      moduleType: moduleType || "none",
+      modulePlanId: modulePlanId || null,
+      modulePlanName: modulePlanName || null,
+      moduleServerId: moduleServerId || null,
+      paymentStatus: paymentStatus || "unpaid",
       status: status || "pending",
       notes: notes || null,
     }).returning();
 
-    res.status(201).json(formatOrder(order, `${user.firstName} ${user.lastName}`));
+    const clientName = `${user.firstName} ${user.lastName}`;
+    let invoice = null;
+
+    // Auto-generate invoice if requested
+    if (generateInvoice) {
+      invoice = await createInvoiceForOrder(order, clientName);
+      // If payment status is "paid", mark invoice paid
+      if (paymentStatus === "paid") {
+        await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+          .where(eq(invoicesTable.id, invoice.id));
+        await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+          .where(eq(ordersTable.id, order.id));
+      }
+    }
+
+    // Re-fetch updated order
+    const [finalOrder] = await db.select().from(ordersTable).where(eq(ordersTable.id, order.id)).limit(1);
+    res.status(201).json({
+      order: formatOrder(finalOrder, clientName),
+      invoice: invoice ? { id: invoice.id, invoiceNumber: invoice.invoiceNumber, total: Number(invoice.total), status: invoice.status } : null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// Admin: approve order
+// Admin: generate invoice for an order
+router.post("/admin/orders/:id/generate-invoice", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, req.params.id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Check if invoice already exists
+    if (order.invoiceId) {
+      const [existing] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, order.invoiceId)).limit(1);
+      if (existing) {
+        res.json({ message: "Invoice already exists", invoiceId: existing.id, invoiceNumber: existing.invoiceNumber });
+        return;
+      }
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
+    const clientName = user ? `${user.firstName} ${user.lastName}` : "";
+    const invoice = await createInvoiceForOrder(order, clientName);
+
+    res.status(201).json({
+      message: "Invoice generated",
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      total: Number(invoice.total),
+      status: invoice.status,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: approve order → create service + invoice if needed
 router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const [updated] = await db.update(ordersTable)
@@ -122,7 +247,49 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
-    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+    const clientName = user ? `${user.firstName} ${user.lastName}` : "";
+
+    // Auto-create hosting service if it's a hosting order with a package
+    if (updated.type === "hosting" && updated.itemId && !updated.invoiceId) {
+      try {
+        const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, updated.itemId)).limit(1);
+        if (plan) {
+          // Find server if module assigned
+          let serverId: string | null = updated.moduleServerId || null;
+          if (!serverId && updated.moduleType && updated.moduleType !== "none") {
+            const [server] = await db.select({ id: serversTable.id }).from(serversTable)
+              .where(eq(serversTable.type, updated.moduleType as any)).limit(1);
+            serverId = server?.id || null;
+          }
+          const nextDue = new Date();
+          nextDue.setMonth(nextDue.getMonth() + (updated.billingCycle === "yearly" ? 12 : 1));
+
+          await db.insert(hostingServicesTable).values({
+            clientId: updated.clientId,
+            planId: updated.itemId,
+            planName: updated.itemName,
+            domain: updated.domain || null,
+            serverId,
+            status: "active",
+            billingCycle: updated.billingCycle || "monthly",
+            nextDueDate: updated.dueDate || nextDue,
+          });
+        }
+      } catch (svcErr: any) {
+        console.warn("[ORDER APPROVE] Could not create service:", svcErr.message);
+      }
+    }
+
+    // Generate invoice if none exists
+    let invoice = null;
+    if (!updated.invoiceId) {
+      invoice = await createInvoiceForOrder(updated, clientName);
+    }
+
+    res.json({
+      order: formatOrder(updated, clientName),
+      invoice: invoice ? { id: invoice.id, invoiceNumber: invoice.invoiceNumber } : null,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -134,15 +301,11 @@ router.post("/admin/orders/:id/cancel", authenticate, requireAdmin, async (req: 
   try {
     const [updated] = await db.update(ordersTable)
       .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(ordersTable.id, req.params.id))
-      .returning();
+      .where(eq(ordersTable.id, req.params.id)).returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
 // Admin: suspend order
@@ -157,7 +320,7 @@ router.post("/admin/orders/:id/suspend", authenticate, requireAdmin, async (req:
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// Admin: mark order as fraud
+// Admin: mark fraud
 router.post("/admin/orders/:id/fraud", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const [updated] = await db.update(ordersTable)
@@ -184,10 +347,13 @@ router.post("/admin/orders/:id/terminate", authenticate, requireAdmin, async (re
 // Admin: update order status (generic)
 router.put("/admin/orders/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { status, notes } = req.body;
+    const { status, notes, billingCycle, dueDate, paymentStatus } = req.body;
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (status) updates.status = status;
     if (notes !== undefined) updates.notes = notes;
+    if (billingCycle) updates.billingCycle = billingCycle;
+    if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
+    if (paymentStatus) updates.paymentStatus = paymentStatus;
     const [updated] = await db.update(ordersTable).set(updates).where(eq(ordersTable.id, req.params.id)).returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);

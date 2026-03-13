@@ -16,6 +16,7 @@ export const domainsTable = pgTable("domains", {
   status: domainStatusEnum("status").notNull().default("pending"),
   autoRenew: boolean("auto_renew").default(true),
   nameservers: text("nameservers").array().default([]),
+  moduleServerId: text("module_server_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
