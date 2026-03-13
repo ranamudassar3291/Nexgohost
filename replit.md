@@ -46,51 +46,82 @@ The client portal has a full domain ordering workflow:
 
 ## API Routes (all prefixed with /api)
 
+### Auth
 - `POST /api/auth/register` — Register new client
 - `POST /api/auth/login` — Login, returns JWT
 - `GET /api/auth/me` — Get current user
-- `GET /api/admin/dashboard` — Admin stats (admin only)
-- `GET /api/admin/clients` — All clients (admin only)
-- `GET /api/admin/clients/:id` — Client detail (admin only)
-- `GET /api/admin/hosting` — All hosting services (admin only)
-- `GET /api/admin/domains` — All domains (admin only)
-- `GET /api/admin/orders` — All orders (admin only)
-- `PUT /api/admin/orders/:id/approve` — Approve order (admin only)
-- `PUT /api/admin/orders/:id/cancel` — Cancel order (admin only)
-- `GET /api/admin/invoices` — All invoices (admin only)
-- `PUT /api/admin/invoices/:id/paid` — Mark invoice paid (admin only)
-- `GET /api/tickets` — Tickets (admin gets all, client gets own)
+
+### Admin (admin role required)
+- `GET /api/admin/dashboard` — Stats overview
+- `GET /api/admin/clients` — All clients (filterable)
+- `POST /api/admin/clients` — Create new client account
+- `GET /api/admin/clients/:id` — Client detail
+- `GET /api/admin/hosting` — All hosting services
+- `GET /api/admin/domains` — All domains
+- `GET /api/admin/packages` — All hosting packages (incl. inactive)
+- `POST /api/admin/packages` — Create hosting package
+- `PUT /api/admin/packages/:id` — Update package
+- `POST /api/admin/packages/:id/toggle` — Toggle active/inactive
+- `DELETE /api/admin/packages/:id` — Delete package
+- `GET /api/admin/orders` — All orders
+- `PUT /api/admin/orders/:id/approve` — Approve order
+- `PUT /api/admin/orders/:id/cancel` — Cancel order
+- `GET /api/admin/invoices` — All invoices
+- `PUT /api/admin/invoices/:id/paid` — Mark invoice paid
+- `GET /api/admin/promo-codes` — All promo codes
+- `POST /api/admin/promo-codes` — Create promo code
+- `POST /api/admin/promo-codes/:id/toggle` — Toggle active
+- `DELETE /api/admin/promo-codes/:id` — Delete promo code
+- `GET /api/admin/payment-methods` — All payment methods (with settings)
+- `POST /api/admin/payment-methods` — Add payment method
+- `PUT /api/admin/payment-methods/:id` — Update payment method
+- `POST /api/admin/payment-methods/:id/toggle` — Toggle active
+- `DELETE /api/admin/payment-methods/:id` — Delete payment method
+
+### Client
+- `GET /api/packages` — Public list of active hosting packages
+- `GET /api/payment-methods` — Active payment methods (no secrets)
+- `GET /api/promo-codes/validate?code=X&amount=Y` — Validate promo + compute discount
+- `POST /api/client/checkout` — Place order + generate invoice (with promo support)
+- `GET /api/my/hosting` — Client's hosting services
+- `GET /api/my/domains` — Client's domains
+- `GET /api/my/invoices` — Client's invoices
+- `POST /api/invoices/:id/pay` — Pay invoice
+- `GET /api/client/dashboard` — Dashboard stats
+- `GET /api/account` — Get account info
+- `PUT /api/account` — Update account
+
+### Support / Shared
+- `GET /api/tickets` — Tickets (admin: all, client: own)
 - `GET /api/tickets/:id` — Ticket detail with messages
 - `POST /api/tickets` — Create ticket (client)
 - `POST /api/tickets/:id/reply` — Reply to ticket
 - `PUT /api/tickets/:id/close` — Close ticket
-- `GET /api/migrations` — Migrations (admin gets all, client gets own)
+- `GET /api/migrations` — Migrations (admin: all, client: own)
 - `POST /api/migrations` — Request migration (client)
-- `PUT /api/admin/migrations/:id/status` — Update migration status (admin)
-- `GET /api/my/hosting` — Client's hosting services
-- `GET /api/my/domains` — Client's domains
-- `GET /api/my/invoices` — Client's invoices
-- `POST /api/invoices/:id/pay` — Pay invoice (client)
-- `GET /api/client/dashboard` — Client dashboard stats
-- `GET /api/account` — Get account info
-- `PUT /api/account` — Update account
+- `PUT /api/admin/migrations/:id/status` — Update migration status
 - `GET /api/domains/pricing` — Public TLD pricing list
-- `GET /api/domains/availability?domain=X` — RDAP-based real-time availability check (authenticated)
-- `POST /api/domains/register` — Register domain, creates order + invoice atomically (authenticated)
+- `GET /api/domains/availability?domain=X` — RDAP availability check
+- `POST /api/domains/register` — Register domain (order + invoice)
 
 ## Frontend Pages
 
 ### Admin Panel (`/admin/*`)
 - `/admin/dashboard` — Stats overview with chart
 - `/admin/clients` — Client list with search
+- `/admin/clients/add` — Add new client form
 - `/admin/clients/:id` — Client detail (services, domains, invoices, tickets tabs)
 - `/admin/hosting` — All hosting services
 - `/admin/domains` — Domain management + pricing table
+- `/admin/packages` — Hosting packages management (cards with toggle/delete)
+- `/admin/packages/add` — Create new hosting package
 - `/admin/orders` — Order management with approve/cancel
 - `/admin/invoices` — Invoice management with mark-paid
 - `/admin/tickets` — Support tickets list
 - `/admin/tickets/:id` — Ticket detail with reply
 - `/admin/migrations` — Migration management
+- `/admin/promo-codes` — Promo code management (create/toggle/delete)
+- `/admin/payment-methods` — Payment method management (stripe/paypal/bank/crypto/manual)
 - `/admin/settings` — Settings page
 
 ### Client Portal (`/client/*`)
@@ -101,6 +132,8 @@ The client portal has a full domain ordering workflow:
 - `/client/tickets` — Support tickets
 - `/client/tickets/:id` — Ticket detail with reply
 - `/client/migrations` — Migration requests
+- `/client/orders/new` — Browse hosting packages and place an order
+- `/client/checkout` — Checkout with promo code, payment method, and order confirmation
 - `/client/account` — Account settings + password change
 
 ### Auth Pages
@@ -111,14 +144,17 @@ The client portal has a full domain ordering workflow:
 
 ## Database Schema
 
-Tables: `users`, `hosting_plans`, `hosting_services`, `domains`, `domain_pricing`, `orders`, `invoices`, `transactions`, `tickets`, `ticket_messages`, `migrations_requests`
+Tables: `users`, `hosting_plans`, `hosting_services`, `domains`, `domain_pricing`, `orders`, `invoices`, `transactions`, `tickets`, `ticket_messages`, `migrations_requests`, `promo_codes`, `payment_methods`
 
 ## Key Technical Notes
 
 - **Auth token injection**: `lib/api-client-react/src/custom-fetch.ts` automatically reads JWT from localStorage and adds `Authorization: Bearer <token>` header to all requests
 - **Auth context split**: `AuthProvider` lives in `artifacts/nexgohost/src/context/AuthProvider.tsx`; `useAuth` hook in `artifacts/nexgohost/src/hooks/use-auth.tsx` — split to prevent Vite HMR incompatibility
 - **Vite proxy**: `/api` requests from the frontend are proxied to `http://localhost:8080` during development
-- **Route protection**: `ProtectedRoute` component redirects unauthenticated users to `/login`, wrong-role users to their appropriate dashboard
+- **Route protection**: `AdminPage`/`ClientPage` inline guards in `App.tsx` — each route independently guards without wildcard Switch nesting (Wouter v3 strips prefix in nested Switches with wildcards)
+- **Flat route tree**: All admin and client routes live in a single flat `<Switch>` to avoid Wouter v3 nested routing context bugs. No `<Route path="/admin/:rest*">` wildcards
+- **Invoice numbers**: Auto-generated as `INV-YYYYMMDD-XXXXXX` in `checkout.ts`
+- **Promo code validation**: `GET /api/promo-codes/validate?code=X&amount=Y` — checks active/limit/expiry, returns discount breakdown. Checkout atomically increments `usedCount`
 - **JWT secret**: Stored in `JWT_SECRET` environment variable (defaults to a hardcoded dev value if not set)
 
 ## Development Commands

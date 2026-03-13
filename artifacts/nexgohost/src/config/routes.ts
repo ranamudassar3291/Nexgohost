@@ -10,6 +10,10 @@ import {
   Settings,
   UserIcon,
   ArrowRightLeft,
+  Package,
+  CreditCard,
+  Tag,
+  UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -26,17 +30,23 @@ export interface RouteDefinition {
 
 // ─── Admin Routes ─────────────────────────────────────────────────────────────
 export const adminRoutes: RouteDefinition[] = [
-  { path: "/admin/dashboard",   label: "Dashboard",   icon: LayoutDashboard, inNav: true  },
-  { path: "/admin/clients",     label: "Clients",     icon: Users,           inNav: true  },
-  { path: "/admin/clients/:id", label: "Client",      icon: Users,           inNav: false },
-  { path: "/admin/hosting",     label: "Hosting",     icon: Server,          inNav: true  },
-  { path: "/admin/domains",     label: "Domains",     icon: Globe,           inNav: true  },
-  { path: "/admin/orders",      label: "Orders",      icon: ShoppingCart,    inNav: true  },
-  { path: "/admin/invoices",    label: "Invoices",    icon: FileText,        inNav: true  },
-  { path: "/admin/tickets",     label: "Tickets",     icon: Ticket,          inNav: true  },
-  { path: "/admin/tickets/:id", label: "Ticket",      icon: Ticket,          inNav: false },
-  { path: "/admin/migrations",  label: "Migrations",  icon: Send,            inNav: true  },
-  { path: "/admin/settings",    label: "Settings",    icon: Settings,        inNav: true  },
+  { path: "/admin/dashboard",          label: "Dashboard",       icon: LayoutDashboard, inNav: true  },
+  { path: "/admin/clients",            label: "Clients",         icon: Users,           inNav: true  },
+  { path: "/admin/clients/add",        label: "Add Client",      icon: UserPlus,        inNav: false },
+  { path: "/admin/clients/:id",        label: "Client",          icon: Users,           inNav: false },
+  { path: "/admin/hosting",            label: "Hosting",         icon: Server,          inNav: true  },
+  { path: "/admin/domains",            label: "Domains",         icon: Globe,           inNav: true  },
+  { path: "/admin/packages",           label: "Packages",        icon: Package,         inNav: true  },
+  { path: "/admin/packages/add",       label: "Add Package",     icon: Package,         inNav: false },
+  { path: "/admin/packages/:id/edit",  label: "Edit Package",    icon: Package,         inNav: false },
+  { path: "/admin/orders",             label: "Orders",          icon: ShoppingCart,    inNav: true  },
+  { path: "/admin/invoices",           label: "Invoices",        icon: FileText,        inNav: true  },
+  { path: "/admin/tickets",            label: "Tickets",         icon: Ticket,          inNav: true  },
+  { path: "/admin/tickets/:id",        label: "Ticket",          icon: Ticket,          inNav: false },
+  { path: "/admin/migrations",         label: "Migrations",      icon: Send,            inNav: true  },
+  { path: "/admin/promo-codes",        label: "Promo Codes",     icon: Tag,             inNav: true  },
+  { path: "/admin/payment-methods",    label: "Payment Methods", icon: CreditCard,      inNav: true  },
+  { path: "/admin/settings",           label: "Settings",        icon: Settings,        inNav: true  },
 ];
 
 // ─── Client Routes ────────────────────────────────────────────────────────────
@@ -48,6 +58,8 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/tickets",     label: "Support",     icon: Ticket,          inNav: true  },
   { path: "/client/tickets/:id", label: "Ticket",      icon: Ticket,          inNav: false },
   { path: "/client/migrations",  label: "Migrations",  icon: ArrowRightLeft,  inNav: true  },
+  { path: "/client/orders/new",  label: "New Order",   icon: ShoppingCart,    inNav: true  },
+  { path: "/client/checkout",    label: "Checkout",    icon: CreditCard,      inNav: false },
   { path: "/client/account",     label: "Account",     icon: UserIcon,        inNav: true  },
 ];
 

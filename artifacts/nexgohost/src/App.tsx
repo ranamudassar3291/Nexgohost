@@ -18,14 +18,19 @@ import Register from "@/pages/auth/Register";
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
+import AddClient from "@/pages/admin/AddClient";
 import AdminHosting from "@/pages/admin/Hosting";
 import AdminDomains from "@/pages/admin/Domains";
+import AdminPackages from "@/pages/admin/Packages";
+import AddPackage from "@/pages/admin/AddPackage";
 import AdminOrders from "@/pages/admin/Orders";
 import AdminInvoices from "@/pages/admin/Invoices";
 import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminMigrations from "@/pages/admin/Migrations";
 import AdminSettings from "@/pages/admin/Settings";
+import AdminPromoCodes from "@/pages/admin/PromoCodes";
+import AdminPaymentMethods from "@/pages/admin/PaymentMethods";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -36,6 +41,8 @@ import ClientTickets from "@/pages/client/Tickets";
 import ClientTicketDetail from "@/pages/client/TicketDetail";
 import ClientMigrations from "@/pages/client/Migrations";
 import ClientAccount from "@/pages/client/Account";
+import NewOrder from "@/pages/client/NewOrder";
+import Checkout from "@/pages/client/Checkout";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,101 +50,44 @@ const queryClient = new QueryClient({
   },
 });
 
-// ─── ProtectedRoute ───────────────────────────────────────────────────────────
-// Guards a subtree by authentication and optional role.
-//
-// Behaviors:
-//   • Not logged in + attempting /admin/* → redirect to /admin/login
-//   • Not logged in + attempting /client/* → redirect to /client/login
-//   • Not logged in + other              → redirect to /client/login (default)
-//   • Logged in, wrong role              → show 403 Forbidden page
-//   • Logged in, correct role            → render children
-function ProtectedRoute({
-  children,
-  role,
-}: {
-  children: React.ReactNode;
-  role?: "admin" | "client";
-}) {
+// ─── Auth Guard Helpers ───────────────────────────────────────────────────────
+// Used inline per-route to avoid nested Switch context issues in Wouter v3.
+// Each route wraps its page component directly in AdminPage or ClientPage.
+
+function AdminPage({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    // Send the user to the login page that matches the section they tried to reach
-    const loginPath =
-      location.startsWith("/admin") ? "/admin/login" : "/client/login";
-    return <Redirect to={loginPath} />;
-  }
-
-  if (role && user.role !== role) {
-    return <Forbidden requiredRole={role} attemptedPath={location} />;
-  }
-
-  return <>{children}</>;
+  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
+  if (!user) return <Redirect to="/admin/login" />;
+  if (user.role !== "admin") return <Forbidden requiredRole="admin" attemptedPath={location} />;
+  return <AppLayout role="admin">{children}</AppLayout>;
 }
 
-// ─── Admin Route Tree ─────────────────────────────────────────────────────────
-function AdminRoutes() {
-  return (
-    <AppLayout role="admin">
-      <Switch>
-        <Route path="/admin/dashboard"    component={AdminDashboard}    />
-        <Route path="/admin/clients/:id"  component={AdminClientDetail} />
-        <Route path="/admin/clients"      component={AdminClients}      />
-        <Route path="/admin/hosting"      component={AdminHosting}      />
-        <Route path="/admin/domains"      component={AdminDomains}      />
-        <Route path="/admin/orders"       component={AdminOrders}       />
-        <Route path="/admin/invoices"     component={AdminInvoices}     />
-        <Route path="/admin/tickets/:id"  component={AdminTicketDetail} />
-        <Route path="/admin/tickets"      component={AdminTickets}      />
-        <Route path="/admin/migrations"   component={AdminMigrations}   />
-        <Route path="/admin/settings"     component={AdminSettings}     />
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
-  );
-}
-
-// ─── Client Route Tree ────────────────────────────────────────────────────────
-function ClientRoutes() {
-  return (
-    <AppLayout role="client">
-      <Switch>
-        <Route path="/client/dashboard"    component={ClientDashboard}    />
-        <Route path="/client/hosting"      component={ClientHosting}      />
-        <Route path="/client/domains"      component={ClientDomains}      />
-        <Route path="/client/invoices"     component={ClientInvoices}     />
-        <Route path="/client/tickets/:id"  component={ClientTicketDetail} />
-        <Route path="/client/tickets"      component={ClientTickets}      />
-        <Route path="/client/migrations"   component={ClientMigrations}   />
-        <Route path="/client/account"      component={ClientAccount}      />
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
-  );
+function ClientPage({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const [location] = useLocation();
+  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
+  if (!user) return <Redirect to="/client/login" />;
+  if (user.role !== "client") return <Forbidden requiredRole="client" attemptedPath={location} />;
+  return <AppLayout role="client">{children}</AppLayout>;
 }
 
 // ─── Router Root ──────────────────────────────────────────────────────────────
+// FLAT route tree — no nested Switch wildcards.
+// Wouter v3 strips the matched prefix in nested Switches (wildcard routes),
+// causing multi-segment paths like /admin/packages/add to match incorrectly.
+// Solution: all routes live in one flat Switch, each guarded inline.
 function RouterRoot() {
   const { user, isLoading } = useAuth();
   useRouteLogger();
 
   return (
     <Switch>
-      {/* ── Portal login pages ── */}
+      {/* ── Auth pages ── */}
       <Route path="/admin/login"  component={AdminLogin}  />
       <Route path="/client/login" component={ClientLogin} />
       <Route path="/register"     component={Register}    />
 
-      {/* Legacy /login → redirect to the appropriate portal */}
       <Route path="/login">
         {!isLoading && user ? (
           <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
@@ -146,20 +96,92 @@ function RouterRoot() {
         )}
       </Route>
 
-      {/* ── Protected sections ── */}
-      <Route path="/admin/:rest*">
-        <ProtectedRoute role="admin">
-          <AdminRoutes />
-        </ProtectedRoute>
+      {/* ── Admin routes (each individually guarded) ── */}
+      <Route path="/admin/dashboard">
+        <AdminPage><AdminDashboard /></AdminPage>
+      </Route>
+      <Route path="/admin/clients/add">
+        <AdminPage><AddClient /></AdminPage>
+      </Route>
+      <Route path="/admin/clients/:id">
+        <AdminPage><AdminClientDetail /></AdminPage>
+      </Route>
+      <Route path="/admin/clients">
+        <AdminPage><AdminClients /></AdminPage>
+      </Route>
+      <Route path="/admin/hosting">
+        <AdminPage><AdminHosting /></AdminPage>
+      </Route>
+      <Route path="/admin/domains">
+        <AdminPage><AdminDomains /></AdminPage>
+      </Route>
+      <Route path="/admin/packages/add">
+        <AdminPage><AddPackage /></AdminPage>
+      </Route>
+      <Route path="/admin/packages/:id/edit">
+        <AdminPage><AddPackage /></AdminPage>
+      </Route>
+      <Route path="/admin/packages">
+        <AdminPage><AdminPackages /></AdminPage>
+      </Route>
+      <Route path="/admin/orders">
+        <AdminPage><AdminOrders /></AdminPage>
+      </Route>
+      <Route path="/admin/invoices">
+        <AdminPage><AdminInvoices /></AdminPage>
+      </Route>
+      <Route path="/admin/tickets/:id">
+        <AdminPage><AdminTicketDetail /></AdminPage>
+      </Route>
+      <Route path="/admin/tickets">
+        <AdminPage><AdminTickets /></AdminPage>
+      </Route>
+      <Route path="/admin/migrations">
+        <AdminPage><AdminMigrations /></AdminPage>
+      </Route>
+      <Route path="/admin/promo-codes">
+        <AdminPage><AdminPromoCodes /></AdminPage>
+      </Route>
+      <Route path="/admin/payment-methods">
+        <AdminPage><AdminPaymentMethods /></AdminPage>
+      </Route>
+      <Route path="/admin/settings">
+        <AdminPage><AdminSettings /></AdminPage>
       </Route>
 
-      <Route path="/client/:rest*">
-        <ProtectedRoute role="client">
-          <ClientRoutes />
-        </ProtectedRoute>
+      {/* ── Client routes (each individually guarded) ── */}
+      <Route path="/client/dashboard">
+        <ClientPage><ClientDashboard /></ClientPage>
+      </Route>
+      <Route path="/client/hosting">
+        <ClientPage><ClientHosting /></ClientPage>
+      </Route>
+      <Route path="/client/domains">
+        <ClientPage><ClientDomains /></ClientPage>
+      </Route>
+      <Route path="/client/invoices">
+        <ClientPage><ClientInvoices /></ClientPage>
+      </Route>
+      <Route path="/client/tickets/:id">
+        <ClientPage><ClientTicketDetail /></ClientPage>
+      </Route>
+      <Route path="/client/tickets">
+        <ClientPage><ClientTickets /></ClientPage>
+      </Route>
+      <Route path="/client/migrations">
+        <ClientPage><ClientMigrations /></ClientPage>
+      </Route>
+      <Route path="/client/orders/new">
+        <ClientPage><NewOrder /></ClientPage>
+      </Route>
+      <Route path="/client/checkout">
+        <ClientPage><Checkout /></ClientPage>
+      </Route>
+      <Route path="/client/account">
+        <ClientPage><ClientAccount /></ClientPage>
       </Route>
 
-      {/* Root redirect → send authenticated users to their dashboard */}
+      {/* Root redirect */}
       <Route path="/">
         {!isLoading && user ? (
           <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />

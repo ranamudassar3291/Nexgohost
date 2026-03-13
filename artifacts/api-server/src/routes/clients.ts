@@ -22,6 +22,38 @@ function formatUser(user: typeof usersTable.$inferSelect, extras?: { servicesCou
   };
 }
 
+// Admin: create a new client account
+router.post("/admin/clients", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { firstName, lastName, email, password, company, phone } = req.body;
+    if (!firstName || !lastName || !email || !password) {
+      res.status(400).json({ error: "firstName, lastName, email, and password are required" });
+      return;
+    }
+
+    const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({ error: "A user with this email already exists" });
+      return;
+    }
+
+    const hashed = await hashPassword(password);
+    const [user] = await db.insert(usersTable).values({
+      firstName, lastName, email,
+      passwordHash: hashed,
+      company: company || null,
+      phone: phone || null,
+      role: "client",
+      status: "active",
+    }).returning();
+
+    res.status(201).json(formatUser(user));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.get("/admin/clients", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { search, status, page = "1", limit = "20" } = req.query as Record<string, string>;

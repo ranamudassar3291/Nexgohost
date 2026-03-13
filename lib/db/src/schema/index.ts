@@ -5,3 +5,5 @@ export * from "./orders";
 export * from "./invoices";
 export * from "./tickets";
 export * from "./migrations";
+export * from "./promo-codes";
+export * from "./payment-methods";

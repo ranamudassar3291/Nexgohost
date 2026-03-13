@@ -5,31 +5,36 @@ import authRouter from "./auth.js";
 import clientsRouter from "./clients.js";
 import hostingRouter from "./hosting.js";
 import domainsRouter from "./domains.js";
+import packagesRouter from "./packages.js";
 import ordersRouter from "./orders.js";
 import invoicesRouter from "./invoices.js";
 import ticketsRouter from "./tickets.js";
 import migrationsRouter from "./migrations.js";
 import dashboardRouter from "./dashboard.js";
+import promoCodesRouter from "./promo-codes.js";
+import paymentMethodsRouter from "./payment-methods.js";
+import checkoutRouter from "./checkout.js";
 
 const router: IRouter = Router();
 
 // ─── Global Route Logger ──────────────────────────────────────────────────────
-// Logs every request: method, path, user, role, status code, timing.
-// Applied before all routes so every hit is captured automatically.
 router.use(routeLogger);
 
 // ─── Route Modules ────────────────────────────────────────────────────────────
-// Each module owns its own path prefix and role guards internally.
-// To add a new section: create a router file, import it here, then router.use() it.
+// To add a new section: create a router file, import it here, add router.use().
 router.use(healthRouter);
 router.use(authRouter);
 router.use(clientsRouter);
 router.use(hostingRouter);
 router.use(domainsRouter);
+router.use(packagesRouter);
 router.use(ordersRouter);
 router.use(invoicesRouter);
 router.use(ticketsRouter);
 router.use(migrationsRouter);
 router.use(dashboardRouter);
+router.use(promoCodesRouter);
+router.use(paymentMethodsRouter);
+router.use(checkoutRouter);
 
 export default router;
