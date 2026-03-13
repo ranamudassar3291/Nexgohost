@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion } from "framer-motion";
-import { Package, ArrowLeft, Loader2, Plus, X } from "lucide-react";
+import { Package, ArrowLeft, Loader2, Plus, X, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+
+async function apiFetch(url: string, opts?: RequestInit) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
 
 export default function EditPackage() {
   const { id } = useParams<{ id: string }>();
@@ -22,11 +30,27 @@ export default function EditPackage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedServerId, setSelectedServerId] = useState("");
+  const [modulePlanId, setModulePlanId] = useState("");
+  const [modulePlanName, setModulePlanName] = useState("");
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [serverPlans, setServerPlans] = useState<{ id: string; name: string }[]>([]);
+
+  const { data: servers = [] } = useQuery<{ id: string; name: string; type: string }[]>({
+    queryKey: ["admin-servers"], queryFn: () => apiFetch("/api/admin/servers"),
+  });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    fetch(`/api/admin/packages/${id}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+    if (!selectedServerId) { setServerPlans([]); return; }
+    setLoadingPlans(true);
+    apiFetch(`/api/admin/servers/${selectedServerId}/plans`)
+      .then(data => setServerPlans(data.plans || []))
+      .catch(() => setServerPlans([]))
+      .finally(() => setLoadingPlans(false));
+  }, [selectedServerId]);
+
+  useEffect(() => {
+    apiFetch(`/api/admin/packages/${id}`)
       .then(data => {
         setForm({
           name: data.name || "",
@@ -41,6 +65,8 @@ export default function EditPackage() {
           ftpAccounts: String(data.ftpAccounts || ""),
         });
         setFeatures(data.features || []);
+        if (data.modulePlanId) setModulePlanId(data.modulePlanId);
+        if (data.modulePlanName) setModulePlanName(data.modulePlanName);
       })
       .catch(() => toast({ title: "Error", description: "Could not load package", variant: "destructive" }))
       .finally(() => setFetching(false));
@@ -83,6 +109,8 @@ export default function EditPackage() {
           subdomains: parseInt(form.subdomains) || 10,
           ftpAccounts: parseInt(form.ftpAccounts) || 5,
           features,
+          modulePlanId: modulePlanId || null,
+          modulePlanName: modulePlanName || null,
         }),
       });
       const data = await res.json();
@@ -143,6 +171,53 @@ export default function EditPackage() {
                 <option value="monthly">Monthly</option>
                 <option value="yearly">Yearly</option>
               </select>
+            </div>
+
+            <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-secondary/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Server size={15} className="text-primary" />
+                <label className="text-sm font-medium text-foreground/80">Module Plan Assignment</label>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">Link this package to a specific server plan for automated provisioning</p>
+
+              {modulePlanId && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-lg text-sm">
+                  <span className="text-primary font-medium">Current Plan:</span>
+                  <span className="text-foreground">{modulePlanName || modulePlanId}</span>
+                  <button type="button" onClick={() => { setModulePlanId(""); setModulePlanName(""); }}
+                    className="ml-auto text-muted-foreground hover:text-destructive"><X size={14} /></button>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">Select Server to load plans</label>
+                <select value={selectedServerId} onChange={e => setSelectedServerId(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <option value="">— Choose a Server —</option>
+                  {servers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
+                </select>
+              </div>
+
+              {selectedServerId && (
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">
+                    Server Plans {loadingPlans && <span className="ml-1 text-primary">(loading…)</span>}
+                  </label>
+                  <select value={modulePlanId} disabled={loadingPlans}
+                    onChange={e => {
+                      const plan = serverPlans.find(p => p.id === e.target.value);
+                      setModulePlanId(e.target.value);
+                      setModulePlanName(plan?.name || "");
+                    }}
+                    className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50">
+                    <option value="">— No plan selected —</option>
+                    {serverPlans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  {serverPlans.length === 0 && !loadingPlans && selectedServerId && (
+                    <p className="text-xs text-muted-foreground">No plans found for this server (API credentials may be required)</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">

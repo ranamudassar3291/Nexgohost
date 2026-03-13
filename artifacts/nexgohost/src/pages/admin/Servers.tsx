@@ -1,27 +1,10 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, CheckCircle, XCircle, Loader2, Shield } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-
-interface ServerRecord {
-  id: string;
-  name: string;
-  hostname: string;
-  ipAddress: string | null;
-  type: "cpanel" | "directadmin" | "plesk" | "none";
-  apiUsername: string | null;
-  apiPort: number | null;
-  ns1: string | null;
-  ns2: string | null;
-  maxAccounts: number | null;
-  status: "active" | "inactive" | "maintenance";
-  isDefault: boolean;
-  createdAt: string;
-}
 
 async function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token");
@@ -30,46 +13,69 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return res.json();
 }
 
-const EMPTY = {
-  name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "",
-  apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500",
+interface ServerGroup { id: string; name: string; description: string | null; }
+interface ServerRecord {
+  id: string; name: string; hostname: string; ipAddress: string | null;
+  type: "cpanel" | "directadmin" | "plesk" | "20i" | "none";
+  apiUsername: string | null; apiPort: number | null;
+  ns1: string | null; ns2: string | null; maxAccounts: number | null;
+  status: "active" | "inactive" | "maintenance"; groupId: string | null; isDefault: boolean;
+}
+
+const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
+const EMPTY_GROUP = { name: "", description: "" };
+
+const TYPE_LABELS: Record<string, string> = { cpanel: "cPanel", directadmin: "DirectAdmin", plesk: "Plesk", "20i": "20i", none: "None" };
+const STATUS_COLORS: Record<string, string> = {
+  active: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+  inactive: "bg-secondary text-muted-foreground border-border",
+  maintenance: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
 };
 
 export default function Servers() {
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState(EMPTY);
+  const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"servers" | "groups">("servers");
+
+  // Server state
+  const [showServerForm, setShowServerForm] = useState(false);
+  const [editServerId, setEditServerId] = useState<string | null>(null);
+  const [serverForm, setServerForm] = useState(EMPTY_SERVER);
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
 
-  const { data: servers = [], isLoading } = useQuery<ServerRecord[]>({
-    queryKey: ["admin-servers"],
-    queryFn: () => apiFetch("/api/admin/servers"),
+  // Group state
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editGroupId, setEditGroupId] = useState<string | null>(null);
+  const [groupForm, setGroupForm] = useState(EMPTY_GROUP);
+  const [savingGroup, setSavingGroup] = useState(false);
+
+  const { data: servers = [], isLoading: loadingServers } = useQuery<ServerRecord[]>({
+    queryKey: ["admin-servers"], queryFn: () => apiFetch("/api/admin/servers"),
+  });
+  const { data: groups = [], isLoading: loadingGroups } = useQuery<ServerGroup[]>({
+    queryKey: ["admin-server-groups"], queryFn: () => apiFetch("/api/admin/server-groups"),
   });
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [field]: e.target.value }));
+  const setS = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setServerForm(s => ({ ...s, [f]: e.target.value }));
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSaveServer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.hostname) {
-      toast({ title: "Error", description: "Server name and hostname are required", variant: "destructive" }); return;
-    }
+    if (!serverForm.name || !serverForm.hostname) { toast({ title: "Name and hostname required", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      if (editId) {
-        await apiFetch(`/api/admin/servers/${editId}`, { method: "PUT", body: JSON.stringify({ ...form, isDefault }) });
+      const body = { ...serverForm, isDefault };
+      if (editServerId) {
+        await apiFetch(`/api/admin/servers/${editServerId}`, { method: "PUT", body: JSON.stringify(body) });
         toast({ title: "Server updated" });
       } else {
-        await apiFetch("/api/admin/servers", { method: "POST", body: JSON.stringify({ ...form, isDefault }) });
-        toast({ title: "Server added", description: `${form.name} has been configured.` });
+        await apiFetch("/api/admin/servers", { method: "POST", body: JSON.stringify(body) });
+        toast({ title: "Server added" });
       }
-      queryClient.invalidateQueries({ queryKey: ["admin-servers"] });
-      setForm(EMPTY); setShowForm(false); setEditId(null); setIsDefault(false);
+      qc.invalidateQueries({ queryKey: ["admin-servers"] });
+      setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER); setIsDefault(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally { setSaving(false); }
@@ -79,179 +85,279 @@ export default function Servers() {
     setTesting(id);
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
-      toast({ title: "Connection test", description: result.message });
+      setTestResults(r => ({ ...r, [id]: { ok: true, msg: result.message } }));
+      toast({ title: "Connection OK", description: result.message });
     } catch (err: any) {
+      setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message } }));
       toast({ title: "Connection failed", description: err.message, variant: "destructive" });
     } finally { setTesting(null); }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteServer = async (id: string) => {
     if (!confirm("Delete this server?")) return;
     try {
       await apiFetch(`/api/admin/servers/${id}`, { method: "DELETE" });
-      queryClient.invalidateQueries({ queryKey: ["admin-servers"] });
+      qc.invalidateQueries({ queryKey: ["admin-servers"] });
       toast({ title: "Server deleted" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  };
+
+  const handleSaveGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupForm.name) { toast({ title: "Group name required", variant: "destructive" }); return; }
+    setSavingGroup(true);
+    try {
+      if (editGroupId) {
+        await apiFetch(`/api/admin/server-groups/${editGroupId}`, { method: "PUT", body: JSON.stringify(groupForm) });
+        toast({ title: "Group updated" });
+      } else {
+        await apiFetch("/api/admin/server-groups", { method: "POST", body: JSON.stringify(groupForm) });
+        toast({ title: "Group created" });
+      }
+      qc.invalidateQueries({ queryKey: ["admin-server-groups"] });
+      setShowGroupForm(false); setEditGroupId(null); setGroupForm(EMPTY_GROUP);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+    } finally { setSavingGroup(false); }
   };
 
-  const statusColors: Record<string, string> = {
-    active: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-    inactive: "bg-secondary text-muted-foreground border-border",
-    maintenance: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+  const handleDeleteGroup = async (id: string) => {
+    if (!confirm("Delete this group? Servers in this group will be ungrouped.")) return;
+    try {
+      await apiFetch(`/api/admin/server-groups/${id}`, { method: "DELETE" });
+      qc.invalidateQueries({ queryKey: ["admin-server-groups"] });
+      toast({ title: "Group deleted" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
-  const typeLabels: Record<string, string> = {
-    cpanel: "cPanel", directadmin: "DirectAdmin", plesk: "Plesk", none: "None",
-  };
+  const groupMap = Object.fromEntries(groups.map(g => [g.id, g.name]));
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">Servers</h1>
-          <p className="text-muted-foreground text-sm">Manage hosting servers and control panel integrations</p>
+          <p className="text-muted-foreground text-sm">Manage hosting servers, groups, and module integrations</p>
         </div>
-        <Button onClick={() => { setEditId(null); setForm(EMPTY); setIsDefault(false); setShowForm(true); }} className="bg-primary hover:bg-primary/90">
-          <Plus size={16} className="mr-2" /> Add Server
+        <Button onClick={() => activeTab === "servers" ? (setEditServerId(null), setServerForm(EMPTY_SERVER), setIsDefault(false), setShowServerForm(true)) : (setEditGroupId(null), setGroupForm(EMPTY_GROUP), setShowGroupForm(true))}
+          className="bg-primary hover:bg-primary/90">
+          <Plus size={16} className="mr-2" /> {activeTab === "servers" ? "Add Server" : "Add Group"}
         </Button>
       </div>
 
-      {showForm && (
-        <div className="bg-card border border-border rounded-2xl p-6 max-w-2xl">
-          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-border/50">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Server size={18} className="text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold">{editId ? "Edit Server" : "Add Server"}</h2>
-              <p className="text-xs text-muted-foreground">Configure server connection and API credentials</p>
-            </div>
-          </div>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Server Name *</label>
-                <Input value={form.name} onChange={set("name")} placeholder="US Server 01" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Hostname *</label>
-                <Input value={form.hostname} onChange={set("hostname")} placeholder="server01.nexgohost.com" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">IP Address</label>
-                <Input value={form.ipAddress} onChange={set("ipAddress")} placeholder="192.168.1.1" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Module Type</label>
-                <select value={form.type} onChange={set("type")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                  <option value="cpanel">cPanel</option>
-                  <option value="directadmin">DirectAdmin</option>
-                  <option value="plesk">Plesk</option>
-                  <option value="none">None</option>
-                </select>
-              </div>
-            </div>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-secondary/50 border border-border rounded-xl p-1 w-fit">
+        {[{ key: "servers", icon: Server, label: "Servers" }, { key: "groups", icon: Layers, label: "Server Groups" }].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key as any)}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeTab === t.key ? "bg-primary text-white" : "text-muted-foreground hover:text-foreground"}`}>
+            <t.icon size={14} /> {t.label}
+          </button>
+        ))}
+      </div>
 
-            <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground/80">API Username</label>
-                  <Input value={form.apiUsername} onChange={set("apiUsername")} placeholder="root" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground/80">API Token</label>
-                  <Input type="password" value={form.apiToken} onChange={set("apiToken")} placeholder="••••••••••••" />
+      {/* ── Servers Tab ── */}
+      {activeTab === "servers" && (
+        <>
+          {showServerForm && (
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-2xl">
+              <div className="flex items-center gap-3 mb-5 pb-4 border-b border-border/50">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center"><Server size={18} className="text-primary" /></div>
+                <div>
+                  <h2 className="font-semibold">{editServerId ? "Edit Server" : "Add Server"}</h2>
+                  <p className="text-xs text-muted-foreground">Configure connection and API credentials</p>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">API Port</label>
-                <Input type="number" value={form.apiPort} onChange={set("apiPort")} placeholder="2087" className="w-32" />
-              </div>
+              <form onSubmit={handleSaveServer} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">Server Name *</label><Input value={serverForm.name} onChange={setS("name")} placeholder="US Server 01" /></div>
+                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">Hostname *</label><Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.nexgohost.com" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">IP Address</label><Input value={serverForm.ipAddress} onChange={setS("ipAddress")} placeholder="192.168.1.1" /></div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground/80">Module Type</label>
+                    <select value={serverForm.type} onChange={setS("type")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                      <option value="cpanel">cPanel / WHM</option>
+                      <option value="directadmin">DirectAdmin</option>
+                      <option value="plesk">Plesk</option>
+                      <option value="20i">20i</option>
+                      <option value="none">None</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground/80">Server Group</label>
+                  <select value={serverForm.groupId} onChange={setS("groupId")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">No Group</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Username</label><Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" /></div>
+                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Token / Key</label><Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")} placeholder="••••••••••••" /></div>
+                  </div>
+                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Port</label><Input type="number" value={serverForm.apiPort} onChange={setS("apiPort")} className="w-32" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" /></div>
+                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" /></div>
+                </div>
+                <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">Max Accounts</label><Input type="number" value={serverForm.maxAccounts} onChange={setS("maxAccounts")} className="w-32" /></div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} className="rounded" />
+                  <span className="text-sm text-foreground/80">Set as default server</span>
+                </label>
+                <div className="flex gap-3 pt-2">
+                  <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
+                    {saving && <Loader2 size={16} className="animate-spin mr-2" />} {editServerId ? "Save Changes" : "Add Server"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => { setShowServerForm(false); setEditServerId(null); }}>Cancel</Button>
+                </div>
+              </form>
             </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Nameserver 1</label>
-                <Input value={form.ns1} onChange={set("ns1")} placeholder="ns1.nexgohost.com" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Nameserver 2</label>
-                <Input value={form.ns2} onChange={set("ns2")} placeholder="ns2.nexgohost.com" />
-              </div>
+          {loadingServers ? (
+            <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-primary" /></div>
+          ) : servers.length === 0 && !showServerForm ? (
+            <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
+              <Server size={40} className="mx-auto text-muted-foreground mb-4" />
+              <h3 className="font-semibold mb-2">No servers configured</h3>
+              <p className="text-muted-foreground text-sm mb-4">Add a hosting server to start provisioning accounts.</p>
+              <Button onClick={() => setShowServerForm(true)} className="bg-primary hover:bg-primary/90"><Plus size={16} className="mr-2" />Add First Server</Button>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Max Accounts</label>
-              <Input type="number" value={form.maxAccounts} onChange={set("maxAccounts")} placeholder="500" className="w-32" />
+          ) : (
+            <div className="grid gap-4">
+              {servers.map(s => (
+                <div key={s.id} className="bg-card border border-border rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${s.status === "active" ? "bg-primary/10" : "bg-secondary"}`}>
+                        <Server size={22} className={s.status === "active" ? "text-primary" : "text-muted-foreground"} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-foreground">{s.name}</h3>
+                          {s.isDefault && <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full">Default</span>}
+                          <span className={`text-xs px-2 py-0.5 border rounded-full ${STATUS_COLORS[s.status]}`}>{s.status}</span>
+                          {s.groupId && groupMap[s.groupId] && (
+                            <span className="text-xs px-2 py-0.5 bg-secondary text-muted-foreground border border-border rounded-full flex items-center gap-1">
+                              <Layers size={10} /> {groupMap[s.groupId]}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{s.hostname}{s.ipAddress ? ` · ${s.ipAddress}` : ""}</p>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <span className="text-xs text-muted-foreground font-medium">{TYPE_LABELS[s.type]}</span>
+                          {s.ns1 && <span className="text-xs text-muted-foreground">NS: {s.ns1}</span>}
+                          {s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accts</span>}
+                        </div>
+                        {testResults[s.id] && (
+                          <div className={`mt-2 flex items-center gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
+                            {testResults[s.id].ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                            {testResults[s.id].msg}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs" onClick={() => handleTest(s.id)} disabled={testing === s.id}>
+                        {testing === s.id ? <Loader2 size={13} className="animate-spin mr-1" /> : <Shield size={13} className="mr-1" />} Test
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => {
+                        setEditServerId(s.id);
+                        setServerForm({ name: s.name, hostname: s.hostname, ipAddress: s.ipAddress || "", type: s.type, apiUsername: s.apiUsername || "", apiToken: "", apiPort: String(s.apiPort || 2087), ns1: s.ns1 || "", ns2: s.ns2 || "", maxAccounts: String(s.maxAccounts || 500), groupId: s.groupId || "" });
+                        setIsDefault(s.isDefault);
+                        setShowServerForm(true);
+                      }}><Pencil size={15} className="text-muted-foreground" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDeleteServer(s.id)}><Trash2 size={15} className="text-destructive" /></Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} className="rounded" />
-              <span className="text-sm text-foreground/80">Set as default server</span>
-            </label>
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
-                {saving && <Loader2 size={16} className="animate-spin mr-2" />}
-                {editId ? "Save Changes" : "Add Server"}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditId(null); }}>Cancel</Button>
-            </div>
-          </form>
-        </div>
+          )}
+        </>
       )}
 
-      {servers.length === 0 && !isLoading && !showForm ? (
-        <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
-          <Server size={40} className="mx-auto text-muted-foreground mb-4" />
-          <h3 className="font-semibold text-foreground mb-2">No servers configured</h3>
-          <p className="text-muted-foreground text-sm mb-4">Add a hosting server to start provisioning accounts.</p>
-          <Button onClick={() => setShowForm(true)} className="bg-primary hover:bg-primary/90"><Plus size={16} className="mr-2" />Add First Server</Button>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {servers.map(s => (
-            <div key={s.id} className="bg-card border border-border rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${s.status === "active" ? "bg-primary/10" : "bg-secondary"}`}>
-                    <Server size={22} className={s.status === "active" ? "text-primary" : "text-muted-foreground"} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-foreground">{s.name}</h3>
-                      {s.isDefault && <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full">Default</span>}
-                      <span className={`text-xs px-2 py-0.5 border rounded-full ${statusColors[s.status]}`}>{s.status}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{s.hostname}{s.ipAddress ? ` · ${s.ipAddress}` : ""}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-muted-foreground">{typeLabels[s.type]}</span>
-                      {s.ns1 && <span className="text-xs text-muted-foreground">NS: {s.ns1}</span>}
-                      {s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accounts</span>}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs" onClick={() => handleTest(s.id)} disabled={testing === s.id}>
-                    {testing === s.id ? <Loader2 size={13} className="animate-spin mr-1" /> : <Shield size={13} className="mr-1" />}
-                    Test
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => {
-                    setEditId(s.id);
-                    setForm({ name: s.name, hostname: s.hostname, ipAddress: s.ipAddress || "", type: s.type, apiUsername: s.apiUsername || "", apiToken: "", apiPort: String(s.apiPort || 2087), ns1: s.ns1 || "", ns2: s.ns2 || "", maxAccounts: String(s.maxAccounts || 500) });
-                    setIsDefault(s.isDefault);
-                    setShowForm(true);
-                  }}><Pencil size={15} className="text-muted-foreground" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDelete(s.id)}>
-                    <Trash2 size={15} className="text-destructive" />
-                  </Button>
-                </div>
+      {/* ── Server Groups Tab ── */}
+      {activeTab === "groups" && (
+        <>
+          {showGroupForm && (
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-lg">
+              <div className="flex items-center gap-3 mb-5 pb-4 border-b border-border/50">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center"><Layers size={18} className="text-primary" /></div>
+                <h2 className="font-semibold">{editGroupId ? "Edit Group" : "Create Server Group"}</h2>
               </div>
+              <form onSubmit={handleSaveGroup} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground/80">Group Name *</label>
+                  <Input value={groupForm.name} onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))} placeholder="US East Cluster" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground/80">Description</label>
+                  <Input value={groupForm.description} onChange={e => setGroupForm(f => ({ ...f, description: e.target.value }))} placeholder="Primary US East region servers" />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button type="submit" disabled={savingGroup} className="bg-primary hover:bg-primary/90">
+                    {savingGroup && <Loader2 size={15} className="animate-spin mr-2" />} {editGroupId ? "Save Changes" : "Create Group"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => { setShowGroupForm(false); setEditGroupId(null); }}>Cancel</Button>
+                </div>
+              </form>
             </div>
-          ))}
-        </div>
+          )}
+
+          {loadingGroups ? (
+            <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-primary" /></div>
+          ) : groups.length === 0 && !showGroupForm ? (
+            <div className="bg-card border border-dashed border-border rounded-2xl p-12 text-center">
+              <Layers size={40} className="mx-auto text-muted-foreground mb-4" />
+              <h3 className="font-semibold mb-2">No server groups</h3>
+              <p className="text-muted-foreground text-sm mb-4">Group servers by region or purpose. Plans can be assigned to a group for flexible provisioning.</p>
+              <Button onClick={() => setShowGroupForm(true)} className="bg-primary hover:bg-primary/90"><Plus size={16} className="mr-2" />Create First Group</Button>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {groups.map(g => {
+                const count = servers.filter(s => s.groupId === g.id).length;
+                return (
+                  <div key={g.id} className="bg-card border border-border rounded-2xl p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Layers size={18} className="text-primary" /></div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{g.name}</h3>
+                          {g.description && <p className="text-xs text-muted-foreground">{g.description}</p>}
+                          <p className="text-xs text-muted-foreground mt-0.5">{count} server{count !== 1 ? "s" : ""}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { setEditGroupId(g.id); setGroupForm({ name: g.name, description: g.description || "" }); setShowGroupForm(true); }}>
+                          <Pencil size={14} className="text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDeleteGroup(g.id)}>
+                          <Trash2 size={14} className="text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                    {count > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border/50 flex flex-wrap gap-2">
+                        {servers.filter(s => s.groupId === g.id).map(s => (
+                          <span key={s.id} className="text-xs px-2 py-0.5 bg-secondary/70 border border-border rounded-full flex items-center gap-1">
+                            <Server size={10} className="text-muted-foreground" /> {s.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </motion.div>
   );

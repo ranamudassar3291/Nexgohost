@@ -10,5 +10,6 @@ export * from "./payment-methods";
 export * from "./domain-extensions";
 export * from "./currencies";
 export * from "./servers";
+export * from "./server-groups";
 export * from "./product-groups";
 export * from "./email-templates";

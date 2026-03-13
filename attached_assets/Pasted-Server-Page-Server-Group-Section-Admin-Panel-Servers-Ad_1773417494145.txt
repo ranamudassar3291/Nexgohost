@@ -1,0 +1,139 @@
+Server Page & Server Group Section
+
+Admin Panel → Servers → Add Server / Server Groups
+
+Add Server Section:
+
+Fields: Name, IP, Hostname, Module Type (cPanel, WHM, 20i), API Key, Group
+
+On Save/Update:
+
+Validate API connection automatically
+
+Test server connection (ping + module authentication)
+
+Show status: Active / Inactive / Failed
+
+Fix issue where updating API doesn’t persist:
+
+Ensure DB update transaction completes before confirmation
+
+Refresh module data immediately after save
+
+Server Group Section:
+
+Create / Edit / Delete groups
+
+Assign servers to groups
+
+When a group is selected in a plan, all servers in the group appear as options for provisioning
+
+2. Package Module Section
+
+Admin Panel → Packages / Plans → Module Section
+
+For each package:
+
+Select Module Type (cPanel, WHM, 20i)
+
+List available plans from module automatically via API
+
+Dropdown to select which plan to assign
+
+On save:
+
+Store module type & plan ID in DB
+
+Test connection to ensure plan exists
+
+WHM/20i integration:
+
+Fetch list of plans from WHM/20i server via API
+
+Show in dropdown
+
+On save → auto-sync for provisioning
+
+3. Security: Google Authenticator & Email Verification
+
+Google Authenticator (2FA):
+
+Admin Panel → Settings → Enable 2FA
+
+QR Code generation for account
+
+Login requires OTP from Google Authenticator
+
+Backup codes available
+
+Email Verification / Account Creation:
+
+On new account creation:
+
+Generate 6-digit code
+
+Send code via email
+
+Code expires after 10 minutes
+
+Verify code before activating account
+
+Email Page:
+
+Shows verification form for user input
+
+Resend code option
+
+Countdown timer for expiration
+
+4. Workflow Summary
+
+Server Add / Update
+
+Input API → Save → Auto Test → Status shows active
+
+Assign to group → Plan can use this group
+
+Package Creation
+
+Select module type → Fetch plans → Select plan → Save
+
+Sync module automatically
+
+Security
+
+Admin can enable Google Authenticator
+
+New users receive email verification
+
+Code expires after 10 minutes → cannot reuse
+
+Order / Service Management
+
+Connects to selected module and plan
+
+Admin actions (Suspend/Unsuspend/Terminate/Cancel) trigger module API
+
+Cancelation requests handled with approval workflow
+
+5. Database & Table Updates Needed
+
+servers → add group_id, module_type, api_key, status
+
+server_groups → id, name, description
+
+packages → add module_type, module_plan_id
+
+users → add 2fa_secret, email_verified, verification_code, verification_expires_at
+
+6. UI Requirements
+
+Server Page: Add / Edit / Group / API Test
+
+Package Page: Module section with plan dropdown
+
+Settings Page: Google Authenticator enable / disable
+
+Email Verification Page: Code input + resend + countdown timer
+
+Status indicators for servers and packages

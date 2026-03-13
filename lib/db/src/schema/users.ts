@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,11 @@ export const usersTable = pgTable("users", {
   phone: text("phone"),
   role: userRoleEnum("role").notNull().default("client"),
   status: userStatusEnum("status").notNull().default("active"),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  verificationCode: text("verification_code"),
+  verificationExpiresAt: timestamp("verification_expires_at"),
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

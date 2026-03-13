@@ -120,6 +120,20 @@ export async function emailServiceSuspended(to: string, vars: {
   });
 }
 
+export async function emailVerificationCode(to: string, clientName: string, code: string) {
+  return sendEmail({
+    to,
+    subject: `${COMPANY} — Your Verification Code`,
+    html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#0f0a1f;color:#fff;border-radius:12px">
+      <h2 style="color:#a855f7;margin-bottom:8px">${COMPANY}</h2>
+      <p style="color:#ccc">Hi ${clientName},</p>
+      <p style="color:#ccc">Your email verification code is:</p>
+      <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#fff;background:#1e1033;border:1px solid #6d28d9;border-radius:8px;padding:16px 24px;margin:16px 0;text-align:center">${code}</div>
+      <p style="color:#999;font-size:13px">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+    </div>`,
+  });
+}
+
 export async function emailGeneric(to: string, subject: string, clientName: string, message: string) {
   return sendTemplatedEmail("welcome", to, {
     company_name: COMPANY, client_name: clientName, subject, message,

@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, pgEnum, boolean, integer } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const serverTypeEnum = pgEnum("server_type", ["cpanel", "directadmin", "plesk", "none"]);
+export const serverTypeEnum = pgEnum("server_type", ["cpanel", "directadmin", "plesk", "20i", "none"]);
 export const serverStatusEnum = pgEnum("server_status", ["active", "inactive", "maintenance"]);
 
 export const serversTable = pgTable("servers", {
@@ -18,6 +18,7 @@ export const serversTable = pgTable("servers", {
   ns2: text("ns2"),
   maxAccounts: integer("max_accounts").default(500),
   status: serverStatusEnum("status").notNull().default("active"),
+  groupId: text("group_id"),
   isDefault: boolean("is_default").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -47,9 +47,15 @@ The client portal has a full domain ordering workflow:
 ## API Routes (all prefixed with /api)
 
 ### Auth
-- `POST /api/auth/register` — Register new client
-- `POST /api/auth/login` — Login, returns JWT
-- `GET /api/auth/me` — Get current user
+- `POST /api/auth/register` — Register new client (sends email verification code)
+- `POST /api/auth/login` — Login; returns `requires2FA: true` + `tempToken` if 2FA is enabled
+- `GET /api/auth/me` — Get current user (includes `emailVerified`, `twoFactorEnabled`)
+- `POST /api/auth/verify-email` — Verify email with 6-digit code
+- `POST /api/auth/resend-verification` — Resend email verification code
+- `POST /api/auth/2fa/setup` — Generate TOTP secret + QR code data URI
+- `POST /api/auth/2fa/enable` — Enable 2FA after verifying first TOTP code
+- `POST /api/auth/2fa/disable` — Disable 2FA
+- `POST /api/auth/2fa/verify` — Verify TOTP during login (uses tempToken → returns final JWT)
 
 ### Admin (admin role required)
 - `GET /api/admin/dashboard` — Stats overview
