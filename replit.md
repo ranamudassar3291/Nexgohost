@@ -35,6 +35,15 @@ lib/
 └── db/                 # Drizzle ORM schema + DB connection
 ```
 
+## Domain Ordering System
+
+The client portal has a full domain ordering workflow:
+- **Real availability checking** via RDAP (Registration Data Access Protocol) — no API key required. RDAP servers queried per TLD: Verisign (.com/.net), PublicInterestRegistry (.org), etc.
+- **Cart** — clients add multiple TLDs to cart, select 1–3 year registration periods
+- **Checkout** — creates domain record (status: active), order (status: approved), and invoice (status: unpaid) atomically
+- **Dashboard sync** — domain count updates immediately after registration
+- **API hooks**: `useSearchDomainAvailability`, `useRegisterDomain` in `lib/api-client-react/src/domain-order.ts`
+
 ## API Routes (all prefixed with /api)
 
 - `POST /api/auth/register` — Register new client
@@ -65,6 +74,9 @@ lib/
 - `GET /api/client/dashboard` — Client dashboard stats
 - `GET /api/account` — Get account info
 - `PUT /api/account` — Update account
+- `GET /api/domains/pricing` — Public TLD pricing list
+- `GET /api/domains/availability?domain=X` — RDAP-based real-time availability check (authenticated)
+- `POST /api/domains/register` — Register domain, creates order + invoice atomically (authenticated)
 
 ## Frontend Pages
 
@@ -84,7 +96,7 @@ lib/
 ### Client Portal (`/client/*`)
 - `/client/dashboard` — Welcome + stats overview
 - `/client/hosting` — Active hosting services
-- `/client/domains` — Registered domains
+- `/client/domains` — Registered domains + Order New Domain (with RDAP search, cart, checkout)
 - `/client/invoices` — Invoice list with pay action
 - `/client/tickets` — Support tickets
 - `/client/tickets/:id` — Ticket detail with reply
@@ -102,6 +114,7 @@ Tables: `users`, `hosting_plans`, `hosting_services`, `domains`, `domain_pricing
 ## Key Technical Notes
 
 - **Auth token injection**: `lib/api-client-react/src/custom-fetch.ts` automatically reads JWT from localStorage and adds `Authorization: Bearer <token>` header to all requests
+- **Auth context split**: `AuthProvider` lives in `artifacts/nexgohost/src/context/AuthProvider.tsx`; `useAuth` hook in `artifacts/nexgohost/src/hooks/use-auth.tsx` — split to prevent Vite HMR incompatibility
 - **Vite proxy**: `/api` requests from the frontend are proxied to `http://localhost:8080` during development
 - **Route protection**: `ProtectedRoute` component redirects unauthenticated users to `/login`, wrong-role users to their appropriate dashboard
 - **JWT secret**: Stored in `JWT_SECRET` environment variable (defaults to a hardcoded dev value if not set)
