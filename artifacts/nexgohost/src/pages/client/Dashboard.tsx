@@ -1,5 +1,5 @@
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, CheckCircle2, DollarSign } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,12 @@ import { format } from "date-fns";
 interface Order {
   id: string; itemName: string; amount: number; billingCycle: string;
   status: string; paymentStatus: string; createdAt: string; type: string; domain: string | null;
+}
+
+interface HostingService {
+  id: string; planName: string; domain: string | null; status: string;
+  cpanelUrl: string | null; webmailUrl: string | null; username: string | null;
+  nextDueDate: string | null; billingCycle: string;
 }
 
 async function apiFetch(url: string) {
@@ -32,6 +38,13 @@ export default function ClientDashboard() {
   const { data: recentOrders = [] } = useQuery<Order[]>({
     queryKey: ["my-orders-dashboard"],
     queryFn: () => apiFetch("/api/orders").then(d => (d || []).slice(0, 5)),
+  });
+
+  const { data: activeServices = [] } = useQuery<HostingService[]>({
+    queryKey: ["client-services-dashboard"],
+    queryFn: () => apiFetch("/api/client/hosting").then(d =>
+      (d || []).filter((s: HostingService) => s.status === "active")
+    ),
   });
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
@@ -87,6 +100,61 @@ export default function ClientDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Active Hosting Services Quick Access */}
+      {activeServices.length > 0 && (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-lg shadow-black/5">
+          <div className="p-5 border-b border-border flex justify-between items-center bg-secondary/30">
+            <div className="flex items-center gap-2">
+              <Server size={16} className="text-blue-400" />
+              <h3 className="font-display font-bold text-lg">Quick Access — Active Services</h3>
+            </div>
+            <Link href="/client/hosting" className="text-xs text-primary hover:underline">Manage All</Link>
+          </div>
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeServices.map(svc => {
+              const cpanelHref = svc.cpanelUrl || (svc.webmailUrl ? svc.webmailUrl.replace("/webmail", ":2083") : null);
+              const webmailHref = svc.webmailUrl || (svc.cpanelUrl ? svc.cpanelUrl.replace(":2083", "/webmail") : null);
+              return (
+                <div key={svc.id} className="bg-secondary/20 border border-border/60 rounded-xl p-4 space-y-3">
+                  <div>
+                    <p className="font-semibold text-foreground text-sm truncate">{svc.domain || svc.planName}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{svc.planName} · {svc.billingCycle}</p>
+                    {svc.nextDueDate && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Due: {format(new Date(svc.nextDueDate), "MMM d, yyyy")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {cpanelHref && (
+                      <a href={cpanelHref} target="_blank" rel="noreferrer" className="flex-1">
+                        <Button size="sm" variant="outline"
+                          className="w-full h-8 text-xs gap-1.5 border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300">
+                          <Terminal size={12} /> cPanel
+                        </Button>
+                      </a>
+                    )}
+                    {webmailHref && (
+                      <a href={webmailHref} target="_blank" rel="noreferrer" className="flex-1">
+                        <Button size="sm" variant="outline"
+                          className="w-full h-8 text-xs gap-1.5 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300">
+                          <Mail size={12} /> Webmail
+                        </Button>
+                      </a>
+                    )}
+                    {!cpanelHref && !webmailHref && (
+                      <Button asChild size="sm" variant="outline" className="flex-1 h-8 text-xs">
+                        <Link href="/client/hosting"><ExternalLink size={12} className="mr-1" /> Details</Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Recent Orders + Recent Invoices */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

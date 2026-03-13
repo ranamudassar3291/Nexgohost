@@ -1,5 +1,5 @@
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
@@ -59,11 +59,7 @@ import Checkout from "@/pages/client/Checkout";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import ClientOrders from "@/pages/client/Orders";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30000 },
-  },
-});
+import { queryClient } from "@/lib/query-client";
 
 // ─── Auth Guard Helpers ───────────────────────────────────────────────────────
 // Used inline per-route to avoid nested Switch context issues in Wouter v3.

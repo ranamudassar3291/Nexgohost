@@ -1,0 +1,92 @@
+Task: Implement Full WHMCS-Like SaaS Platform Features
+
+Requirements:
+
+1. **Sign Out / Session Fix**
+   - Admin Panel & Client Dashboard logout must clear session and redirect to login
+   - Ensure tokens/cookies invalidated on logout
+   - Prevent dashboard access after sign-out
+
+2. **Hosting Order Workflow**
+   - Client selects hosting package
+   - **Register Domain Section** visible during order
+       - Check **Cloudflare availability in real-time**
+       - Auto-suggest available domains if desired domain is taken
+   - Collect required domain & hosting info
+   - On order submission:
+       - Admin Order Manage Page:
+           - Select client
+           - Select module/server group
+           - Select module type (cPanel/WHM/20i)
+           - Select plan (fetch from module API)
+           - Approve order → triggers:
+               1. Service creation via module API
+               2. Domain registration via registrar/Cloudflare API
+               3. Auto-set due dates (hosting + domain)
+               4. Generate invoice with plan pricing → mark paid automatically
+
+3. **Order Manage Page (Admin)**
+   - Columns: Client, Package, Module, Plan, Status, Due Date, Invoice
+   - Actions per order:
+       - Approve → creates service & domain
+       - Activate → sets service & domain active, sets due date
+       - Invoice auto-generated & marked paid
+       - Buttons visible for: Login to cPanel, Webmail, SSL activate
+   - Module plan fetched dynamically from server via API
+   - Pricing (monthly/yearly) displayed
+
+4. **Server & Module Integration**
+   - Servers assigned to groups
+   - Module API connection validated
+   - 20i module fully functional:
+       - Server config stored
+       - Field mapping for plan IDs
+       - Hosting account created on approval
+       - Client can login to cPanel / Webmail
+       - SSL activate button works
+
+5. **Client Dashboard**
+   - Shows all active services with:
+       - Module type & plan
+       - Status
+       - Login buttons: cPanel, Webmail
+       - SSL activate button
+   - Domains section:
+       - Auto-renew toggle
+       - DNS management working
+       - Real-time availability check via Cloudflare API
+   - Orders & invoices section:
+       - Paid/unpaid invoices
+       - Service due dates
+       - Action buttons reflect module status
+
+6. **Database Updates**
+   - `orders`: client_id, service_id, module_type, module_plan_id, due_date, billing_cycle, status
+   - `services`: client_id, plan_id, server_id, module_type, module_plan_id, status, login_links
+   - `domains`: client_id, domain, registrar, auto_renew, dns_records, status
+   - `invoices`: client_id, order_id, amount, status, paid_date, due_date
+   - `servers` & `server_groups` as before
+   - `users` table to track sessions for login/logout
+
+7. **UI Requirements**
+   - **Admin Order Manage Page**: client selector, package selector, module/plan dropdown, server group selector, approve/activate buttons, due date display, invoice display
+   - **Client Dashboard**: service list with login/SSL buttons, domain list with DNS/auto-renew, invoices with status & due date
+   - **Real-time domain availability check** in order page
+   - **Auto due date** set for hosting & domain upon order approval
+   - **Invoice marked paid automatically**
+
+8. **Workflow Summary**
+   1. Client places hosting order → domain section visible
+   2. Admin selects client, module, plan, server group → clicks Approve
+   3. System creates service via module API
+   4. Domain registered via API → auto-renew enabled
+   5. Due dates set automatically
+   6. Invoice generated & marked paid
+   7. Service & domain appear in client dashboard → login buttons & SSL activate visible
+   8. Sign-out works → prevents unauthorized dashboard access
+
+9. **Error Handling**
+   - Module API failure → show error
+   - Domain already registered → suggest alternatives
+   - Invalid server group or module → block approval
+   - Logging for admin actions & API calls

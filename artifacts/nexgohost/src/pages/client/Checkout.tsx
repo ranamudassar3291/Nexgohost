@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingCart, Tag, CreditCard, CheckCircle, Loader2, AlertCircle,
   ArrowLeft, ArrowRight, Package, Globe, Receipt, Check, DollarSign,
+  Search as SearchIcon, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,9 @@ export default function Checkout() {
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
   const [domainChoice, setDomainChoice] = useState<"existing" | "new" | "skip">("skip");
   const [existingDomain, setExistingDomain] = useState("");
+  const [domainAvailability, setDomainAvailability] = useState<"available" | "taken" | "invalid" | null>(null);
+  const [checkingDomain, setCheckingDomain] = useState(false);
+  const domainCheckTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [promoResult, setPromoResult] = useState<PromoResult | null>(null);
   const [promoError, setPromoError] = useState("");
@@ -75,6 +79,46 @@ export default function Checkout() {
   const baseAmount = billingPeriod === "monthly" ? baseAmountMonthly : yearlyPrice;
   const discount = promoResult ? promoResult.discountAmount : 0;
   const finalAmount = Math.max(0, baseAmount - discount);
+
+  const checkDomainAvailability = async (domain: string) => {
+    const trimmed = domain.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes(".")) {
+      setDomainAvailability(null);
+      return;
+    }
+    const parts = trimmed.split(".");
+    if (parts.length < 2 || !parts[0] || !parts[parts.length - 1]) {
+      setDomainAvailability(null);
+      return;
+    }
+    const nameOnly = parts[0];
+    const tld = "." + parts.slice(1).join(".");
+    setCheckingDomain(true);
+    setDomainAvailability(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/domains/availability?domain=${encodeURIComponent(nameOnly)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data?.results && Array.isArray(data.results)) {
+        const match = data.results.find((r: any) => r.tld === tld);
+        if (match) {
+          setDomainAvailability(match.available ? "available" : "taken");
+        } else if (data.results.length > 0) {
+          setDomainAvailability(data.results[0].available ? "available" : "taken");
+        } else {
+          setDomainAvailability(null);
+        }
+      } else {
+        setDomainAvailability(null);
+      }
+    } catch {
+      setDomainAvailability(null);
+    } finally {
+      setCheckingDomain(false);
+    }
+  };
 
   const handlePromo = async () => {
     if (!promoCode.trim()) return;
@@ -235,9 +279,43 @@ export default function Checkout() {
               )}
 
               {domainChoice === "new" && (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground/80">Domain name</label>
-                  <Input value={existingDomain} onChange={e => setExistingDomain(e.target.value)} placeholder="yourdomain.com" />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        value={existingDomain}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setExistingDomain(val);
+                          setDomainAvailability(null);
+                          if (domainCheckTimeout.current) clearTimeout(domainCheckTimeout.current);
+                          domainCheckTimeout.current = setTimeout(() => checkDomainAvailability(val), 800);
+                        }}
+                        placeholder="yourdomain.com"
+                        className={domainAvailability === "available" ? "border-green-500/50 focus-visible:ring-green-500/30" : domainAvailability === "taken" ? "border-red-500/50 focus-visible:ring-red-500/30" : ""}
+                      />
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="h-10 px-3"
+                      onClick={() => checkDomainAvailability(existingDomain)} disabled={checkingDomain || !existingDomain}>
+                      {checkingDomain ? <Loader2 size={14} className="animate-spin" /> : <SearchIcon size={14} />}
+                    </Button>
+                  </div>
+                  {checkingDomain && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" /> Checking availability via RDAP...
+                    </p>
+                  )}
+                  {domainAvailability === "available" && !checkingDomain && (
+                    <p className="text-xs text-green-400 flex items-center gap-1.5">
+                      <CheckCircle size={12} /> <strong>{existingDomain}</strong> is available to register!
+                    </p>
+                  )}
+                  {domainAvailability === "taken" && !checkingDomain && (
+                    <p className="text-xs text-red-400 flex items-center gap-1.5">
+                      <XCircle size={12} /> <strong>{existingDomain}</strong> is already registered. You can still use it if you own it.
+                    </p>
+                  )}
                 </div>
               )}
 

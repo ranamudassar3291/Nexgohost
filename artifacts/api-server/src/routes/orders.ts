@@ -6,6 +6,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { provisionHostingService } from "../lib/provision.js";
 
 const router = Router();
 
@@ -22,7 +23,11 @@ async function generateInvoiceNumber(): Promise<string> {
   return `INV-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-function formatOrder(o: typeof ordersTable.$inferSelect, clientName?: string) {
+function formatOrder(
+  o: typeof ordersTable.$inferSelect,
+  clientName?: string,
+  service?: { cpanelUrl: string | null; webmailUrl: string | null; status: string; id: string } | null,
+) {
   return {
     id: o.id,
     clientId: o.clientId,
@@ -44,7 +49,19 @@ function formatOrder(o: typeof ordersTable.$inferSelect, clientName?: string) {
     notes: o.notes,
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt?.toISOString() ?? o.createdAt.toISOString(),
+    // Service quick-access
+    serviceId: service?.id ?? null,
+    serviceStatus: service?.status ?? null,
+    cpanelUrl: service?.cpanelUrl ?? null,
+    webmailUrl: service?.webmailUrl ?? null,
   };
+}
+
+async function findServiceForOrder(order: typeof ordersTable.$inferSelect) {
+  if (order.type !== "hosting" || !order.itemId) return null;
+  const services = await db.select().from(hostingServicesTable)
+    .where(eq(hostingServicesTable.clientId, order.clientId));
+  return services.find(s => s.planId === order.itemId || (order.domain && s.domain === order.domain)) || null;
 }
 
 async function createInvoiceForOrder(order: typeof ordersTable.$inferSelect, clientName: string) {
@@ -126,7 +143,8 @@ router.get("/admin/orders", authenticate, requireAdmin, async (_req, res) => {
     const orders = await db.select().from(ordersTable).orderBy(sql`created_at DESC`);
     const result = await Promise.all(orders.map(async (o) => {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, o.clientId)).limit(1);
-      return formatOrder(o, user ? `${user.firstName} ${user.lastName}` : "");
+      const service = await findServiceForOrder(o);
+      return formatOrder(o, user ? `${user.firstName} ${user.lastName}` : "", service);
     }));
     res.json(result);
   } catch (err) {
@@ -289,6 +307,95 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
     res.json({
       order: formatOrder(updated, clientName),
       invoice: invoice ? { id: invoice.id, invoiceNumber: invoice.invoiceNumber } : null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: activate order → provision service, mark invoice paid, set due dates
+router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, req.params.id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Not found" }); return; }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
+    const clientName = user ? `${user.firstName} ${user.lastName}` : "";
+
+    let provisionResult = null;
+    let serviceId: string | null = null;
+
+    // Find or create the hosting service
+    if (order.type === "hosting") {
+      const existingServices = await db.select().from(hostingServicesTable)
+        .where(eq(hostingServicesTable.clientId, order.clientId));
+      const matchingService = existingServices.find(s =>
+        s.planId === order.itemId || (order.domain && s.domain === order.domain)
+      );
+
+      if (matchingService) {
+        serviceId = matchingService.id;
+      } else if (order.itemId) {
+        // Create the service first
+        const nextDue = new Date();
+        nextDue.setMonth(nextDue.getMonth() + (order.billingCycle === "yearly" ? 12 : 1));
+        const [newService] = await db.insert(hostingServicesTable).values({
+          clientId: order.clientId,
+          planId: order.itemId,
+          planName: order.itemName,
+          domain: order.domain || null,
+          serverId: order.moduleServerId || null,
+          status: "pending" as any,
+          billingCycle: order.billingCycle || "monthly",
+          nextDueDate: order.dueDate || nextDue,
+        }).returning();
+        serviceId = newService.id;
+      }
+
+      // Provision the service
+      if (serviceId) {
+        provisionResult = await provisionHostingService(serviceId);
+        if (!provisionResult.success) {
+          console.warn("[ACTIVATE] Provisioning issue (non-fatal):", provisionResult.message);
+        }
+      }
+    }
+
+    // Mark invoice as paid
+    let invoiceId = order.invoiceId;
+    if (!invoiceId) {
+      const invoice = await createInvoiceForOrder(order, clientName);
+      invoiceId = invoice.id;
+    }
+    await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+      .where(eq(invoicesTable.id, invoiceId!));
+
+    // Update order
+    const [updated] = await db.update(ordersTable).set({
+      status: "approved",
+      paymentStatus: "paid",
+      invoiceId,
+      updatedAt: new Date(),
+    }).where(eq(ordersTable.id, order.id)).returning();
+
+    // Fetch the service for response
+    const service = serviceId
+      ? await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, serviceId)).limit(1).then(r => r[0])
+      : null;
+
+    res.json({
+      order: formatOrder(updated, clientName),
+      provision: provisionResult,
+      service: service ? {
+        id: service.id,
+        status: service.status,
+        username: service.username,
+        cpanelUrl: service.cpanelUrl,
+        webmailUrl: service.webmailUrl,
+        domain: service.domain,
+      } : null,
+      invoicePaid: true,
     });
   } catch (err) {
     console.error(err);

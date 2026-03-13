@@ -1,5 +1,13 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 4)
+- **Logout fix**: `queryClient.clear()` is now called on logout to immediately purge all cached auth data
+- **Admin Orders: Activate button**: `POST /admin/orders/:id/activate` provisions the hosting service, creates a service record if missing, marks invoice paid, updates order to approved+paid — shows modal with cPanel/Webmail credentials
+- **Admin Orders: Quick Access column**: cPanel (orange) and Webmail (blue) quick-login links appear inline for approved hosting orders with active services
+- **Client Dashboard: Active Services section**: Shows active hosting services with cPanel and Webmail quick-access buttons (fetched from `/api/client/hosting`)
+- **Checkout Step 2: RDAP domain availability**: Typing a domain auto-triggers availability check (800ms debounce) via `/api/domains/availability`; shows green "available" or red "already registered" status; also has manual search button
+- **queryClient extracted**: Moved to `artifacts/nexgohost/src/lib/query-client.ts` so AuthProvider can call `queryClient.clear()` on logout
+
 ## Overview
 
 A complete WHMCS-style hosting and client management platform built on a pnpm workspace monorepo using TypeScript.

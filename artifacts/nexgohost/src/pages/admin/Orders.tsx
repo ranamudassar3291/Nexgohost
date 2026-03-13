@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ShoppingCart, CheckCircle, XCircle, Search, Plus, FileText,
   ChevronDown, Loader2, RefreshCw, AlertTriangle, StopCircle,
+  Terminal, Mail, Zap, ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ interface Order {
   moduleType: string; modulePlanId: string | null; modulePlanName: string | null;
   paymentStatus: string; invoiceId: string | null;
   status: string; notes: string | null; createdAt: string; updatedAt: string;
+  serviceId: string | null; serviceStatus: string | null;
+  cpanelUrl: string | null; webmailUrl: string | null;
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -56,6 +59,11 @@ const MODULE_COLORS: Record<string, string> = {
 
 const filterTabs = ["all", "pending", "approved", "suspended", "cancelled", "fraud", "terminated"];
 
+interface ActivateResult {
+  orderId: string;
+  service: { cpanelUrl: string; webmailUrl: string; username: string; domain: string } | null;
+}
+
 export default function AdminOrders() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -64,6 +72,7 @@ export default function AdminOrders() {
   const [filter, setFilter] = useState("all");
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
 
   const { data: orders = [], isLoading, refetch } = useQuery<Order[]>({
     queryKey: ["admin-orders"],
@@ -98,6 +107,24 @@ export default function AdminOrders() {
     } finally { setLoadingId(null); }
   };
 
+  const activateOrder = async (id: string) => {
+    setLoadingId(id);
+    setOpenMenuId(null);
+    try {
+      const data = await apiFetch(`/api/admin/orders/${id}/activate`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      refetch();
+      if (data.service?.cpanelUrl) {
+        setActivateResult({ orderId: id, service: data.service });
+        toast({ title: "Service Activated!", description: `Account provisioned for ${data.service.domain || "the domain"}` });
+      } else {
+        toast({ title: "Order Activated", description: data.provision?.message || "Invoice marked paid" });
+      }
+    } catch (err: any) {
+      toast({ title: "Activation failed", description: err.message, variant: "destructive" });
+    } finally { setLoadingId(null); }
+  };
+
   const generateInvoice = async (id: string) => {
     setLoadingId(id);
     setOpenMenuId(null);
@@ -119,6 +146,48 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
+      {/* Activate success modal */}
+      {activateResult?.service && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setActivateResult(null)}>
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                <Zap size={20} className="text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground text-lg">Service Activated!</h3>
+                <p className="text-sm text-muted-foreground">{activateResult.service.domain}</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2 font-mono text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Username</span>
+                  <span className="text-foreground font-medium">{activateResult.service.username}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">cPanel</span>
+                  <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer"
+                    className="text-primary hover:underline text-xs truncate max-w-[200px]">{activateResult.service.cpanelUrl}</a>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Webmail</span>
+                  <a href={activateResult.service.webmailUrl} target="_blank" rel="noreferrer"
+                    className="text-primary hover:underline text-xs truncate max-w-[200px]">{activateResult.service.webmailUrl}</a>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">A welcome email with credentials has been sent to the client.</p>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer" className="flex-1">
+                <Button className="w-full bg-orange-600 hover:bg-orange-700"><Terminal size={14} className="mr-2" /> Open cPanel</Button>
+              </a>
+              <Button variant="outline" className="flex-1" onClick={() => setActivateResult(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-foreground">Orders</h2>
@@ -148,7 +217,7 @@ export default function AdminOrders() {
       </div>
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden overflow-x-auto">
-        <table className="w-full min-w-[900px]">
+        <table className="w-full min-w-[1000px]">
           <thead>
             <tr className="border-b border-border bg-muted/30">
               <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Client</th>
@@ -159,6 +228,7 @@ export default function AdminOrders() {
               <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
               <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payment</th>
               <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Invoice</th>
+              <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Quick Access</th>
               <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
               <th className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</th>
             </tr>
@@ -221,6 +291,27 @@ export default function AdminOrders() {
                     </button>
                   )}
                 </td>
+                {/* Quick Access: cPanel + Webmail for active hosting services */}
+                <td className="px-5 py-4">
+                  {order.type === "hosting" && order.serviceStatus === "active" && (order.cpanelUrl || order.webmailUrl) ? (
+                    <div className="flex flex-col gap-1">
+                      {order.cpanelUrl && (
+                        <a href={order.cpanelUrl} target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1 text-[10px] text-orange-400 hover:text-orange-300 whitespace-nowrap">
+                          <Terminal size={11} /> cPanel
+                        </a>
+                      )}
+                      {order.webmailUrl && (
+                        <a href={order.webmailUrl} target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 whitespace-nowrap">
+                          <Mail size={11} /> Webmail
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </td>
                 <td className="px-5 py-4 text-xs text-muted-foreground whitespace-nowrap">
                   {format(new Date(order.createdAt), "MMM d, yyyy")}
                 </td>
@@ -239,6 +330,16 @@ export default function AdminOrders() {
                           <XCircle className="w-3 h-3" />
                         </Button>
                       </>
+                    )}
+                    {/* Activate button: for hosting orders not yet active */}
+                    {order.type === "hosting" && order.serviceStatus !== "active" && order.status !== "cancelled" && order.status !== "terminated" && order.status !== "fraud" && (
+                      <Button size="sm"
+                        className="h-7 px-2.5 text-xs bg-purple-600 hover:bg-purple-700 whitespace-nowrap"
+                        disabled={loadingId === order.id}
+                        onClick={() => activateOrder(order.id)}>
+                        {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+                        Activate
+                      </Button>
                     )}
                     <div className="relative">
                       <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1"
@@ -281,7 +382,7 @@ export default function AdminOrders() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">No orders found</td></tr>
+              <tr><td colSpan={11} className="px-6 py-12 text-center text-muted-foreground">No orders found</td></tr>
             )}
           </tbody>
         </table>

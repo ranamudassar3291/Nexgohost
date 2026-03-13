@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useGetMe } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { AuthContext } from "./auth-context";
+import { queryClient } from "@/lib/query-client";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
@@ -34,10 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    // Capture role before clearing token so we can redirect to the right portal
     const role = user?.role;
     setToken(null);
     localStorage.removeItem("token");
+    queryClient.clear();
     setLocation(role === "admin" ? "/admin/login" : "/client/login");
   };
 

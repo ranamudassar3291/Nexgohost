@@ -1,0 +1,266 @@
+PROJECT: Build and Fix Full WHMCS-Like Hosting SaaS Panel
+
+OBJECTIVE
+Create a professional hosting billing platform similar to WHMCS with working:
+currency conversion, domain pricing management, order automation,
+public homepage, and client dashboard improvements.
+
+--------------------------------------------------
+
+1. FIX CURRENCY AUTO CONVERSION
+
+Admin sets base currency (USD).
+
+System must automatically convert all prices using real-time exchange rate API.
+
+Example:
+Admin sets hosting plan price = $1 USD
+
+System automatically displays:
+
+USD = $1
+PKR = 280
+EUR = converted value
+GBP = converted value
+
+Use live exchange API like:
+- exchangerate-api
+- openexchangerates
+- fixer API
+
+Database table:
+currencies
+
+fields:
+id
+code (USD, PKR, EUR)
+symbol
+rate
+is_default
+
+Features:
+• Admin can add currencies
+• Rates auto update every hour via API
+• Client dashboard currency selector
+• All pricing auto converted in real time
+
+--------------------------------------------------
+
+2. DOMAIN EXTENSIONS MANAGEMENT PAGE
+
+Admin Panel → Domain Extensions
+
+Create a new page where admin can add domain TLD pricing.
+
+Fields:
+
+Extension (.com .net .org .pk etc)
+
+Register Price
+Renew Price
+Transfer Price
+
+Status (enabled / disabled)
+
+Example:
+
+.com
+register = $10
+renew = $9
+transfer = $8
+
+Database table:
+
+domain_extensions
+
+fields:
+id
+extension
+register_price
+renew_price
+transfer_price
+status
+
+These prices must be used on:
+• order page
+• domain search page
+• client dashboard
+
+--------------------------------------------------
+
+3. DOMAIN SEARCH + REAL TIME AVAILABILITY
+
+Order page must include domain search.
+
+User can:
+
+Register domain
+Transfer domain
+Use existing domain
+
+Use **Cloudflare API** for real-time domain availability.
+
+Features:
+• instant domain search
+• show available / taken
+• show price
+• suggest alternatives
+
+Example UI:
+
+example.com   Available   $10
+example.net   Available   $9
+example.org   Taken
+
+--------------------------------------------------
+
+4. PUBLIC HOMEPAGE (WITHOUT LOGIN)
+
+Currently system redirects to login page.
+
+Create a **professional homepage** like hosting companies.
+
+URL:
+
+/home
+
+Homepage must include:
+
+Hero section
+Domain search bar
+Hosting plans
+Features
+Why choose us
+Client login button
+Register button
+Footer
+
+Header menu:
+
+Home
+Hosting
+Domains
+Pricing
+Login
+Register
+
+Design must look like modern hosting website.
+
+--------------------------------------------------
+
+5. CLIENT DASHBOARD FIX
+
+After login user must go to:
+
+/client/dashboard
+
+Not login page again.
+
+Dashboard sections:
+
+Home
+Services
+Domains
+Invoices
+Tickets
+Profile
+
+Dashboard home must show:
+
+Active services
+Domains
+Invoices
+Due dates
+Quick actions
+
+--------------------------------------------------
+
+6. CURRENCY SELECTOR (CLIENT SIDE)
+
+Add dropdown in header:
+
+Currency:
+
+USD
+PKR
+EUR
+GBP
+
+When client selects currency:
+
+All prices change instantly.
+
+Save selection in session or cookie.
+
+--------------------------------------------------
+
+7. DOMAIN MANAGEMENT (CLIENT AREA)
+
+Client dashboard → Domains page
+
+Features:
+
+Auto Renew toggle
+DNS Management
+Nameserver change
+Transfer lock
+Domain expiry date
+
+If server module exists (20i or registrar API),
+DNS records must update via API.
+
+--------------------------------------------------
+
+8. PROFESSIONAL UI REQUIREMENTS
+
+Design must be clean and modern.
+
+Use:
+
+sidebar navigation (admin)
+top header menu (client)
+cards for services
+status badges
+tables for orders and domains
+
+Homepage must look like real hosting companies.
+
+--------------------------------------------------
+
+9. SECURITY
+
+Validate all inputs
+Protect API keys
+Use authentication sessions
+CSRF protection
+Prevent unauthorized access
+
+--------------------------------------------------
+
+10. SYSTEM WORKFLOW
+
+Visitor → Homepage
+Search domain
+Order hosting
+
+Admin approves order
+
+System automatically:
+
+creates hosting account
+registers domain
+sets due date
+creates invoice
+marks invoice paid (if manual approval)
+
+Client dashboard shows:
+
+Hosting service
+Domain
+Invoice
+Due date
+cPanel login
+Webmail login
+SSL activate
+
+--------------------------------------------------
