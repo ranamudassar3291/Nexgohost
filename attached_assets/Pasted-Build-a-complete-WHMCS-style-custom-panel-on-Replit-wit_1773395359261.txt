@@ -1,0 +1,68 @@
+Build a complete WHMCS-style custom panel on Replit with the following requirements:
+
+1. **Admin Panel Features (/admin)**:
+   - Dashboard: /admin/dashboard → overview of clients, orders, invoices, tickets
+   - Add Client: /admin/clients/add → form to add client info
+   - Manage Clients: /admin/clients → list/edit/delete clients
+   - Create Package: /admin/packages/add → define product/package with price, description
+   - Manage Packages: /admin/packages → edit/enable/disable packages
+   - Create Invoice: /admin/invoices/add → generate invoice for client
+   - Manage Invoices: /admin/invoices → view/edit/mark paid
+   - Add Order: /admin/orders/add → assign package to client
+   - Manage Orders: /admin/orders → view active/pending orders
+   - New Ticket: /admin/tickets/add → create support ticket for client
+   - Manage Tickets: /admin/tickets → view/respond tickets
+   - Payment Methods: /admin/payment-methods → add/manage Stripe, PayPal, etc.
+   - Only accessible to admin users; use session-based login/authentication
+
+2. **Client Panel Features (/client)**:
+   - Dashboard: /client/dashboard → overview of own orders, invoices, tickets
+   - Place New Order: /client/orders/new → choose package
+   - Checkout: /client/checkout → full flow: cart → payment → confirmation
+   - Apply Promo Code: /client/checkout → validate promo code and calculate discount
+   - View Invoices: /client/invoices → paid/unpaid
+   - View Tickets: /client/tickets → open/support tickets
+   - Only accessible to logged-in clients; redirect unauthorized users to /client/login
+
+3. **Login System**:
+   - Separate login pages:
+     - Admin login: /admin/login → redirects to /admin/dashboard after login
+     - Client login: /client/login → redirects to /client/dashboard after login
+   - Role-based middleware to protect routes
+   - Persist session securely using cookies or session
+   - Show 403 forbidden if user tries to access wrong role page
+
+4. **Order & Checkout Flow**:
+   - Admin can create packages, assign to client orders, generate invoice
+   - Client can select package, add promo code, choose payment method, checkout
+   - Apply promo code validation for discounts
+   - Backend calculates final amount and creates invoice automatically
+   - Order status updates after payment
+
+5. **Database / Storage (can be dummy or simple JSON)**:
+   - Clients: id, name, email, password, role
+   - Packages: id, name, description, price
+   - Orders: id, client_id, package_id, status
+   - Invoices: id, client_id, order_id, amount, status, payment_method
+   - Tickets: id, client_id, subject, message, status
+   - Promo Codes: code, discount %
+
+6. **Frontend**:
+   - Use HTML/CSS/JS (or a template library) for professional WHMCS-style UI
+   - Admin panel: tables, buttons for add/edit/delete
+   - Client panel: order selection, checkout, invoice display
+   - Forms for login, add client, add package, add invoice, add ticket
+   - Cart & checkout flow for client orders
+
+7. **Additional Requirements**:
+   - Logging of route access with user role for debugging
+   - Handle errors gracefully and show user-friendly messages
+   - Fully extendable to add more features later
+
+**Deliverable**:
+- Ready-to-use Node.js/Express (or preferred backend) project structure
+- Frontend + backend fully integrated
+- Session-based login, role protection, order → invoice → payment flow
+- Promo code system
+- Payment method integration ready (Stripe/PayPal sandbox)
+- Admin & Client dashboards fully functional

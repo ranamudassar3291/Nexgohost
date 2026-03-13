@@ -104,7 +104,9 @@ The client portal has a full domain ordering workflow:
 - `/client/account` — Account settings + password change
 
 ### Auth Pages
-- `/login` — Login form
+- `/admin/login` — Admin Portal login (branded for administrators, role-validated)
+- `/client/login` — Client Portal login (branded for clients, role-validated)
+- `/login` — Legacy redirect → `/client/login`
 - `/register` — Registration form
 
 ## Database Schema

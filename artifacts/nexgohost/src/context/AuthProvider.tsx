@@ -34,9 +34,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Capture role before clearing token so we can redirect to the right portal
+    const role = user?.role;
     setToken(null);
     localStorage.removeItem("token");
-    setLocation("/login");
+    setLocation(role === "admin" ? "/admin/login" : "/client/login");
   };
 
   return (

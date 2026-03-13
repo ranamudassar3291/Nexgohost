@@ -10,7 +10,8 @@ import NotFound from "@/pages/not-found";
 import Forbidden from "@/pages/errors/Forbidden";
 
 // Auth pages
-import Login from "@/pages/auth/Login";
+import AdminLogin from "@/pages/auth/AdminLogin";
+import ClientLogin from "@/pages/auth/ClientLogin";
 import Register from "@/pages/auth/Register";
 
 // Admin pages
@@ -46,11 +47,11 @@ const queryClient = new QueryClient({
 // Guards a subtree by authentication and optional role.
 //
 // Behaviors:
-//   • No token / not logged in  → redirect to /login
-//   • Logged in, wrong role     → show 403 Forbidden page (not a silent bounce)
-//   • Logged in, correct role   → render children
-//
-// The 403 page receives the attempted path and required role for context.
+//   • Not logged in + attempting /admin/* → redirect to /admin/login
+//   • Not logged in + attempting /client/* → redirect to /client/login
+//   • Not logged in + other              → redirect to /client/login (default)
+//   • Logged in, wrong role              → show 403 Forbidden page
+//   • Logged in, correct role            → render children
 function ProtectedRoute({
   children,
   role,
@@ -70,7 +71,10 @@ function ProtectedRoute({
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    // Send the user to the login page that matches the section they tried to reach
+    const loginPath =
+      location.startsWith("/admin") ? "/admin/login" : "/client/login";
+    return <Redirect to={loginPath} />;
   }
 
   if (role && user.role !== role) {
@@ -124,15 +128,25 @@ function ClientRoutes() {
 // ─── Router Root ──────────────────────────────────────────────────────────────
 function RouterRoot() {
   const { user, isLoading } = useAuth();
-
-  // Log every route change to the browser console for debugging
   useRouteLogger();
 
   return (
     <Switch>
-      <Route path="/login"    component={Login}    />
-      <Route path="/register" component={Register} />
+      {/* ── Portal login pages ── */}
+      <Route path="/admin/login"  component={AdminLogin}  />
+      <Route path="/client/login" component={ClientLogin} />
+      <Route path="/register"     component={Register}    />
 
+      {/* Legacy /login → redirect to the appropriate portal */}
+      <Route path="/login">
+        {!isLoading && user ? (
+          <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
+        ) : (
+          <Redirect to="/client/login" />
+        )}
+      </Route>
+
+      {/* ── Protected sections ── */}
       <Route path="/admin/:rest*">
         <ProtectedRoute role="admin">
           <AdminRoutes />
@@ -145,12 +159,12 @@ function RouterRoot() {
         </ProtectedRoute>
       </Route>
 
-      {/* Root redirect: send authenticated users to their dashboard */}
+      {/* Root redirect → send authenticated users to their dashboard */}
       <Route path="/">
         {!isLoading && user ? (
           <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
         ) : !isLoading ? (
-          <Redirect to="/login" />
+          <Redirect to="/client/login" />
         ) : (
           <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
