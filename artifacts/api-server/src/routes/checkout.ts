@@ -10,10 +10,8 @@ import { emailInvoiceCreated, emailOrderCreated } from "../lib/email.js";
 
 const router = Router();
 
-// POST /api/client/checkout
-// Body: { packageId, domain?, promoCode?, paymentMethodId, billingPeriod? }
-// Creates an order (pending) + hosting service (pending) + invoice (unpaid), returns details.
-router.post("/client/checkout", authenticate, async (req: AuthRequest, res) => {
+// POST /api/checkout or /api/client/checkout — same handler
+async function handleCheckout(req: AuthRequest, res: any) {
   try {
     const { packageId, domain, promoCode, paymentMethodId, billingPeriod = 1 } = req.body;
 
@@ -154,6 +152,10 @@ router.post("/client/checkout", authenticate, async (req: AuthRequest, res) => {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
-});
+}
+
+// Register both URL paths — frontend may call either
+router.post("/checkout", authenticate, handleCheckout);
+router.post("/client/checkout", authenticate, handleCheckout);
 
 export default router;

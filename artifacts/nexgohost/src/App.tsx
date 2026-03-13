@@ -40,6 +40,7 @@ import DomainExtensions from "@/pages/admin/DomainExtensions";
 import Currencies from "@/pages/admin/Currencies";
 import Servers from "@/pages/admin/Servers";
 import Modules from "@/pages/admin/Modules";
+import AdminReports from "@/pages/admin/Reports";
 import ProductGroups from "@/pages/admin/ProductGroups";
 import EmailTemplates from "@/pages/admin/EmailTemplates";
 
@@ -178,6 +179,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/modules">
         <AdminPage><Modules /></AdminPage>
+      </Route>
+      <Route path="/admin/reports">
+        <AdminPage><AdminReports /></AdminPage>
       </Route>
       <Route path="/admin/product-groups">
         <AdminPage><ProductGroups /></AdminPage>

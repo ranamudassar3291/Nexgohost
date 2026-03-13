@@ -1,0 +1,396 @@
+You are a senior SaaS architect and WHMCS-level billing system developer.
+
+Fix and complete my custom hosting billing system so it works like a professional hosting automation platform. The system must be stable, secure, and production-ready.
+
+IMPORTANT:
+Fix all current errors first before adding features.
+
+CURRENT ERROR TO FIX:
+The order process fails with:
+
+Failed to execute JSON on response
+Unexpected token '<', "<!DOCTYPE" is not valid JSON
+
+Fix this by ensuring all API endpoints return valid JSON responses only and never HTML.
+Add proper error handling and headers:
+
+* `Content-Type: application/json`
+* Proper try/catch handling
+* Return structured responses like:
+
+```
+{ "success": true, "message": "Order created", "order_id": 123 }
+```
+
+If errors occur, return:
+
+```
+{ "success": false, "error": "reason" }
+```
+
+Never output HTML from API endpoints.
+
+---
+
+GLOBAL SYSTEM REQUIREMENTS
+
+Create a complete hosting billing system similar to WHMCS with:
+
+Admin Panel
+Client Area
+Order System
+Hosting Automation
+Domain Management
+Invoice System
+Support Tickets
+Email Templates
+Payment System
+Server Modules
+
+---
+
+ADMIN PANEL FEATURES
+
+Create a professional admin dashboard with working menu links:
+
+Dashboard
+Clients
+Orders
+Invoices
+Products / Plans
+Servers
+Domains
+Domain Extensions
+Promotions
+Payment Methods
+Support Tickets
+Email Templates
+System Modules
+Currencies
+Reports
+
+All buttons must exist and work.
+
+---
+
+CLIENT MANAGEMENT
+
+Admin must be able to:
+
+Add Client
+Edit Client
+Delete Client
+Suspend Client
+View Client Orders
+View Client Invoices
+View Client Tickets
+
+Client profile must include:
+
+Name
+Email
+Phone
+Country
+Currency
+Password
+Status
+
+---
+
+CURRENCY SYSTEM
+
+Default currency = PKR
+
+Auto currency detection based on client country.
+
+Example:
+
+Pakistan → PKR
+USA → USD
+UK → GBP
+Europe → EUR
+
+Allow admin to add/edit currencies.
+
+---
+
+PRODUCT / HOSTING PLANS
+
+Admin must be able to create hosting plans with:
+
+Plan Name
+Plan Group (Shared Hosting / WordPress / Reseller etc)
+Price Monthly
+Price Yearly
+Setup Fee
+Disk Space
+Bandwidth
+Email Accounts
+Databases
+Addon Domains
+Subdomains
+
+Server assignment option.
+
+---
+
+SERVER MANAGEMENT
+
+Admin must be able to add servers.
+
+Server fields:
+
+Name
+Hostname
+IP Address
+Username
+API Key
+Type (cPanel / 20i)
+
+Add **TEST CONNECTION button**.
+
+Show:
+
+Connection successful
+Connection failed
+
+---
+
+CPANEL MODULE FEATURES
+
+When hosting becomes active automatically allow client to:
+
+Login to cPanel
+Login to Webmail
+Change Password
+Upgrade Plan
+Downgrade Plan
+Request Cancellation
+
+Admin must be able to:
+
+Suspend Account
+Unsuspend Account
+Terminate Account
+
+---
+
+20i MODULE SUPPORT
+
+Add module configuration fields:
+
+Stack User
+Package ID
+
+Allow automatic provisioning from the module.
+
+---
+
+DOMAIN MANAGEMENT SYSTEM
+
+Create a full domain management system.
+
+Admin must be able to:
+
+Add Domain
+Edit Domain
+Set Due Date
+Set Status
+Assign to Client
+
+Statuses:
+
+Active
+Pending
+Expired
+Cancelled
+Transferred
+
+---
+
+DOMAIN EXTENSIONS PAGE
+
+Create a page where admin can add domain TLDs.
+
+Fields:
+
+Extension (.com .net .org etc)
+
+Register Price
+Renew Price
+Transfer Price
+
+Enable / Disable
+
+Privacy Protection option (Free or Paid)
+
+---
+
+CLIENT DOMAIN CONTROL PANEL
+
+Client must be able to manage domains including:
+
+DNS Management
+Nameserver Change
+Domain Lock / Unlock
+Get EPP Code
+Renew Domain
+View Expiry Date
+
+---
+
+ORDER SYSTEM
+
+Create a professional order process like WHMCS.
+
+STEP 1
+Domain selection
+
+Register new domain
+Transfer domain
+Use existing domain
+
+STEP 2
+Select hosting plan
+
+Monthly / Yearly pricing
+
+STEP 3
+Order summary
+
+STEP 4
+Account login or registration
+
+STEP 5
+Payment method
+
+STEP 6
+Order confirmation
+
+---
+
+PROMO CODE SYSTEM
+
+Admin can create promo codes.
+
+Fields:
+
+Code
+Discount percentage or fixed
+Applicable products
+Expiry date
+Usage limit
+
+---
+
+INVOICE SYSTEM
+
+Create a professional invoice template.
+
+Invoice must show:
+
+Invoice ID
+Client details
+Products
+Domain charges
+Taxes
+Payment method instructions
+Status (Paid / Unpaid / Cancelled)
+Due date
+
+Admin can:
+
+Create invoice
+Mark paid
+Cancel invoice
+
+---
+
+PAYMENT METHODS
+
+Admin can add payment methods including:
+
+Manual bank transfer
+Stripe
+PayPal
+
+Each payment method must have configuration fields.
+
+---
+
+SUPPORT TICKET SYSTEM
+
+Clients can:
+
+Open ticket
+Reply to ticket
+Upload attachments
+
+Admin can:
+
+Reply
+Close ticket
+Assign department
+
+---
+
+EMAIL TEMPLATE SYSTEM
+
+Create hosting email templates.
+
+Examples:
+
+Welcome Email
+Invoice Created
+Invoice Paid
+Hosting Activated
+Password Reset
+Support Ticket Reply
+
+Admin must be able to:
+
+Edit template
+Create template
+
+---
+
+CHECKOUT FIX
+
+Fix checkout so it never returns HTML.
+
+Always return JSON response.
+
+Example success:
+
+```
+{
+"success": true,
+"order_id": 1045,
+"redirect": "/clientarea/orders/1045"
+}
+```
+
+Example error:
+
+```
+{
+"success": false,
+"error": "Product not found"
+}
+```
+
+---
+
+FINAL REQUIREMENTS
+
+Ensure:
+
+All admin buttons work
+All pages exist
+All links connect correctly
+API responses are JSON
+Order creation works
+Invoices generate automatically
+Client dashboard loads correctly
+
+System must behave like a real WHMCS-style hosting automation platform.

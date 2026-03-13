@@ -122,7 +122,7 @@ export default function Checkout() {
         <div className="bg-card border border-border rounded-2xl p-6 text-left space-y-3">
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Package</span><span className="font-medium">{success.summary?.packageName}</span></div>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Invoice</span><span className="font-medium text-primary">#{success.invoice?.invoiceNumber}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount Due</span><span className="font-medium">{formatPrice(success.invoice?.total || 0)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount Due</span><span className="font-medium">{formatPrice(success.invoice?.amount || success.summary?.finalAmount || 0)}</span></div>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Status</span><span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Pending Payment</span></div>
         </div>
         <div className="flex gap-3">
