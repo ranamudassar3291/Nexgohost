@@ -362,12 +362,14 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
           username: overrideUsername || undefined,
           password: overridePassword || undefined,
         });
-        if (!provisionResult.success) {
-          console.warn("[ACTIVATE] Provisioning issue (non-fatal):", provisionResult.message);
+        // Hard failures (missing required params, server config incomplete) → stop and surface error
+        if (!provisionResult.success && !provisionResult.whmError) {
+          res.status(400).json({ error: provisionResult.message });
+          return;
         }
-        // If WHM returned an error, surface it in the response but continue
+        // WHM API errors are soft failures — log but continue (service saved in DB)
         if (provisionResult.whmError) {
-          console.warn("[ACTIVATE] WHM error:", provisionResult.whmError);
+          console.warn("[ACTIVATE] WHM error (soft failure):", provisionResult.whmError);
         }
       }
     }

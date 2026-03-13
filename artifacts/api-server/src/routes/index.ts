@@ -21,6 +21,7 @@ import productGroupsRouter from "./product-groups.js";
 import emailTemplatesRouter from "./email-templates.js";
 import fraudRouter from "./fraud.js";
 import cronLogsRouter from "./cron-logs.js";
+import serverLogsRouter from "./server-logs.js";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(productGroupsRouter);
 router.use(emailTemplatesRouter);
 router.use(fraudRouter);
 router.use(cronLogsRouter);
+router.use(serverLogsRouter);
 
 export default router;

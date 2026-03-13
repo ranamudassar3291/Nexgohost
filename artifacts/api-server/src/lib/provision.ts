@@ -21,8 +21,8 @@ export async function suspendHostingAccount(username: string, serverId: string |
  * creates the account, and returns credentials.
  */
 import { db } from "@workspace/db";
-import { hostingServicesTable, hostingPlansTable, serversTable, usersTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serverLogsTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 import { cpanelCreateAccount } from "./cpanel.js";
 import { twentyiCreateHosting } from "./twenty-i.js";
 import { emailHostingCreated } from "./email.js";
@@ -32,14 +32,45 @@ function generatePassword(): string {
   return Array.from({ length: 14 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+/** Generate a WHM-valid username: max 8 chars, lowercase alphanumeric only */
 export function generateUsername(domain: string, existingUsernames: string[] = []): string {
   const base = domain.split(".")[0]!.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8) || "user";
   let candidate = base;
   let i = 1;
   while (existingUsernames.includes(candidate)) {
-    candidate = `${base}${i++}`;
+    candidate = `${base.substring(0, 7)}${i++}`;
   }
   return candidate;
+}
+
+/** Sanitize an admin-supplied username to WHM requirements (max 8, alphanumeric) */
+function sanitizeUsername(raw: string): string {
+  return raw.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8);
+}
+
+/** Log WHM API call to server_logs table (non-fatal) */
+async function logServerAction(opts: {
+  serviceId?: string;
+  serverId?: string;
+  action: string;
+  status: "success" | "failed";
+  request?: Record<string, string>;
+  response?: string;
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    await db.insert(serverLogsTable).values({
+      serviceId: opts.serviceId ?? null,
+      serverId: opts.serverId ?? null,
+      action: opts.action,
+      status: opts.status,
+      request: opts.request ? JSON.stringify(opts.request) : null,
+      response: opts.response ?? null,
+      errorMessage: opts.errorMessage ?? null,
+    });
+  } catch (e) {
+    console.warn("[PROVISION] Failed to write server log:", e);
+  }
 }
 
 export interface ProvisionOverrides {
@@ -63,7 +94,7 @@ export async function provisionHostingService(
   serviceId: string,
   overrides?: ProvisionOverrides,
 ): Promise<ProvisionResult> {
-  // Load service + plan + server + user
+  // ── Load service + plan + user ─────────────────────────────────────────────
   const [service] = await db.select().from(hostingServicesTable)
     .where(eq(hostingServicesTable.id, serviceId)).limit(1);
   if (!service) return { success: false, message: "Service not found" };
@@ -76,30 +107,35 @@ export async function provisionHostingService(
   if (!user) return { success: false, message: "Client not found" };
 
   const module = plan?.module || "none";
-  const domain = service.domain || `${user.firstName?.toLowerCase()}${user.lastName?.toLowerCase()}.hosted.com`;
+  const domain = service.domain || `${(user.firstName || "user").toLowerCase()}${(user.lastName || "host").toLowerCase()}.hosted.com`;
 
-  // Determine username and password — admin can override, otherwise auto-generate
-  const username = (overrides?.username?.trim()) || generateUsername(domain);
-  const password = (overrides?.password?.trim()) || generatePassword();
+  // ── Username and password ──────────────────────────────────────────────────
+  const rawUsername = overrides?.username?.trim()
+    ? sanitizeUsername(overrides.username.trim())
+    : generateUsername(domain);
+  const username = rawUsername || generateUsername(domain);
+  const password = overrides?.password?.trim() || generatePassword();
 
-  // Find server: prefer plan's linked server, then any default active server of matching type
+  // ── Required field validation for cPanel ──────────────────────────────────
+  if (module === "cpanel") {
+    if (!domain) return { success: false, message: "Missing required hosting parameters: domain" };
+    if (!username) return { success: false, message: "Missing required hosting parameters: username" };
+    if (!password) return { success: false, message: "Missing required hosting parameters: password" };
+  }
+
+  // ── Resolve server ─────────────────────────────────────────────────────────
   let server: typeof serversTable.$inferSelect | null = null;
 
-  // Try plan's linked server first
   if (plan?.moduleServerId) {
     const [linkedServer] = await db.select().from(serversTable)
       .where(eq(serversTable.id, plan.moduleServerId)).limit(1);
     if (linkedServer?.status === "active") server = linkedServer;
   }
-
-  // Also try service's serverId
   if (!server && service.serverId) {
     const [svcServer] = await db.select().from(serversTable)
       .where(eq(serversTable.id, service.serverId)).limit(1);
     if (svcServer?.status === "active") server = svcServer;
   }
-
-  // Fall back to any active default server of the right type
   if (!server) {
     const allServers = await db.select().from(serversTable)
       .where(eq(serversTable.status, "active"));
@@ -109,60 +145,84 @@ export async function provisionHostingService(
       || null;
   }
 
-  let cpanelUrl = "";
-  let webmailUrl = "";
+  // ── Server configuration validation ───────────────────────────────────────
+  if (module === "cpanel" && server) {
+    if (!server.hostname) {
+      return { success: false, message: "Server configuration incomplete: hostname is missing" };
+    }
+    if (!server.apiToken) {
+      return { success: false, message: "Server configuration incomplete: API token is missing" };
+    }
+  }
+
   let finalServerId = service.serverId;
   let finalServerIp = service.serverIp || "";
   let whmError: string | undefined;
 
+  // ── cPanel/Webmail URLs use DOMAIN (not server hostname) ──────────────────
+  // Client cPanel always uses port 2083; WHM admin uses 2087 (server.apiPort)
+  const cpanelUrl = `https://${domain}:2083`;
+  const webmailUrl = `https://${domain}/webmail`;
+  const webmailAlt = `https://${domain}:2096`;
+
+  // ── Provision on the actual panel ─────────────────────────────────────────
   if (server) {
     finalServerId = server.id;
     finalServerIp = server.ipAddress || server.hostname;
-    cpanelUrl = `https://${server.hostname}:${server.apiPort || 2083}`;
-    webmailUrl = `https://${server.hostname}/webmail`;
 
-    // Attempt real provisioning
     if (module === "cpanel" && server.apiUsername && server.apiToken) {
+      const whmPlan = plan?.modulePlanName || plan?.modulePlanId || "default";
+      const whmPort = server.apiPort || 2087;
+
+      const requestParams = {
+        username,
+        domain,
+        password: "***",
+        plan: whmPlan,
+        contactemail: user.email,
+      };
+
+      console.log(`[PROVISION] WHM createacct: domain=${domain} user=${username} plan=${whmPlan} server=${server.hostname}:${whmPort}`);
+
       try {
-        const whmPlan = plan?.modulePlanName || plan?.modulePlanId || "default";
-        console.log(`[PROVISION] WHM createacct: domain=${domain} user=${username} plan=${whmPlan} server=${server.hostname}`);
-        await cpanelCreateAccount(
-          {
-            hostname: server.hostname,
-            port: server.apiPort || 2087,
-            username: server.apiUsername,
-            apiToken: server.apiToken,
-          },
-          {
-            username,
-            domain,
-            password,
-            email: user.email,
-            plan: whmPlan,
-            contactemail: user.email,
-          }
+        const result = await cpanelCreateAccount(
+          { hostname: server.hostname, port: whmPort, username: server.apiUsername, apiToken: server.apiToken },
+          { username, domain, password, email: user.email, plan: whmPlan, contactemail: user.email },
         );
         console.log(`[PROVISION] WHM account created successfully: ${username}@${domain}`);
+        await logServerAction({
+          serviceId,
+          serverId: server.id,
+          action: "createacct",
+          status: "success",
+          request: requestParams,
+          response: JSON.stringify(result),
+        });
       } catch (err: any) {
         whmError = err.message;
         console.warn(`[PROVISION] WHM createacct failed: ${err.message}`);
+        await logServerAction({
+          serviceId,
+          serverId: server.id,
+          action: "createacct",
+          status: "failed",
+          request: requestParams,
+          errorMessage: err.message,
+        });
       }
     } else if (module === "20i" && server.apiToken) {
       try {
         await twentyiCreateHosting({ apiKey: server.apiToken }, domain, user.email);
+        await logServerAction({ serviceId, serverId: server.id, action: "create_hosting_20i", status: "success" });
       } catch (err: any) {
         whmError = err.message;
         console.warn(`[PROVISION] 20i create hosting failed: ${err.message}`);
+        await logServerAction({ serviceId, serverId: server.id, action: "create_hosting_20i", status: "failed", errorMessage: err.message });
       }
     }
-  } else {
-    // No server found — still provision in DB but note it
-    finalServerIp = "127.0.0.1";
-    cpanelUrl = `https://${domain}:2083`;
-    webmailUrl = `https://${domain}/webmail`;
   }
 
-  // Update the hosting service in DB — due date based on billing cycle
+  // ── Compute next due date from billing cycle ───────────────────────────────
   const nextDueDate = new Date();
   const cycle = (service.billingCycle || plan?.billingCycle || "monthly").toLowerCase();
   if (cycle === "yearly" || cycle === "annual") {
@@ -172,10 +232,10 @@ export async function provisionHostingService(
   } else if (cycle === "semi_annual" || cycle === "biannual") {
     nextDueDate.setMonth(nextDueDate.getMonth() + 6);
   } else {
-    // monthly (default)
     nextDueDate.setMonth(nextDueDate.getMonth() + 1);
   }
 
+  // ── Persist service state ──────────────────────────────────────────────────
   await db.update(hostingServicesTable).set({
     status: "active",
     username,
@@ -183,23 +243,23 @@ export async function provisionHostingService(
     domain: service.domain || domain,
     serverId: finalServerId,
     serverIp: finalServerIp,
-    cpanelUrl: cpanelUrl || `https://${finalServerIp}:2083`,
-    webmailUrl: webmailUrl || `https://${finalServerIp}/webmail`,
+    cpanelUrl,
+    webmailUrl,
     nextDueDate,
     updatedAt: new Date(),
   }).where(eq(hostingServicesTable.id, serviceId));
 
-  // Send welcome email
+  // ── Send welcome email ─────────────────────────────────────────────────────
   try {
     await emailHostingCreated(user.email, {
       clientName: `${user.firstName} ${user.lastName}`,
       domain: service.domain || domain,
       username,
       password,
-      cpanelUrl: cpanelUrl || `https://${finalServerIp}:2083`,
+      cpanelUrl,
       ns1: server?.ns1 || "ns1.nexgohost.com",
       ns2: server?.ns2 || "ns2.nexgohost.com",
-      webmailUrl: webmailUrl || `https://${finalServerIp}/webmail`,
+      webmailUrl,
     });
   } catch (emailErr: any) {
     console.warn("[PROVISION] Failed to send welcome email:", emailErr.message);
@@ -208,14 +268,9 @@ export async function provisionHostingService(
   return {
     success: true,
     message: whmError
-      ? `Provisioned in DB (WHM error: ${whmError})`
-      : `Hosting provisioned for ${domain}`,
+      ? `Service provisioned (WHM warning: ${whmError})`
+      : `Hosting activated for ${domain}`,
     whmError,
-    credentials: {
-      username,
-      password,
-      cpanelUrl: cpanelUrl || `https://${finalServerIp}:2083`,
-      webmailUrl: webmailUrl || `https://${finalServerIp}/webmail`,
-    },
+    credentials: { username, password, cpanelUrl, webmailUrl },
   };
 }

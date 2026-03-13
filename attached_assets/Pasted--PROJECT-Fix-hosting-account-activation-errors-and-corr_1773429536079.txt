@@ -1,0 +1,216 @@
+
+PROJECT:
+Fix hosting account activation errors and correct client dashboard login links
+for cPanel and Webmail in a WHMCS-like hosting billing system.
+
+--------------------------------------------------
+
+ISSUE 1
+Order approval / account creation returning "Server Error".
+
+FIX:
+
+Before sending WHM API request validate all required fields.
+
+Required fields:
+
+domain
+username
+password
+plan
+server_id
+client_email
+
+If any missing:
+
+Return error:
+
+"Missing required hosting parameters"
+
+--------------------------------------------------
+
+ISSUE 2
+WHM API request incorrect.
+
+Use correct API endpoint.
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/createacct
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Parameters required:
+
+username
+domain
+password
+plan
+contactemail
+
+Example request:
+
+createacct?username=testuser
+&domain=testdomain.com
+&password=StrongPass123
+&plan=starter
+&contactemail=user@email.com
+
+--------------------------------------------------
+
+ISSUE 3
+Username validation.
+
+WHM requires:
+
+Max length = 8 characters
+Allowed characters = letters + numbers
+
+Auto generate username from domain.
+
+Example:
+
+exampledomain.com → exampled
+
+If longer than 8 characters truncate automatically.
+
+--------------------------------------------------
+
+ISSUE 4
+Fix order activation workflow.
+
+When admin clicks:
+
+Activate Order
+
+System must perform these actions in order:
+
+1 Create WHM account via API
+2 If success → update service status Active
+3 Save username/password
+4 Set next due date
+5 Mark invoice paid
+6 Show service in client dashboard
+
+--------------------------------------------------
+
+ISSUE 5
+Auto set hosting due date.
+
+If billing cycle = Monthly
+
+next_due_date = today + 30 days
+
+If yearly
+
+next_due_date = today + 365 days
+
+Save in services table.
+
+--------------------------------------------------
+
+ISSUE 6
+Mark invoice paid automatically.
+
+UPDATE invoices
+SET status = "Paid",
+paid_date = NOW()
+WHERE order_id = ?
+
+--------------------------------------------------
+
+ISSUE 7
+Fix cPanel login button.
+
+Current problem:
+
+Login to cPanel opens WHM login page.
+
+Correct link must be:
+
+https://domain.com:2083
+
+OR
+
+https://server-ip:2083
+
+Example button action:
+
+Login to cPanel → redirect to:
+
+https://domain.com:2083
+
+--------------------------------------------------
+
+ISSUE 8
+Fix Webmail login button.
+
+Correct webmail URL:
+
+https://domain.com/webmail
+
+OR
+
+https://domain.com:2096
+
+Example:
+
+https://example.com/webmail
+
+--------------------------------------------------
+
+ISSUE 9
+Client dashboard service actions.
+
+If service status = Active show buttons:
+
+Login to cPanel
+Login to Webmail
+Activate SSL
+
+SSL activation should call AutoSSL API.
+
+--------------------------------------------------
+
+ISSUE 10
+Improve error logging.
+
+Create table:
+
+server_logs
+
+Fields:
+
+id
+service_id
+action
+response
+created_at
+
+Log WHM API responses.
+
+Example log entry:
+
+action = createacct
+response = API response JSON
+
+--------------------------------------------------
+
+ISSUE 11
+Server configuration validation.
+
+Before activation check server settings:
+
+server_ip
+api_token
+port = 2087
+
+If missing:
+
+Show admin error:
+
+"Server configuration incomplete"
+
+--------------------------------------------------
