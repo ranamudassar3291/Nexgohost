@@ -16,6 +16,8 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
     billingCycle: p.billingCycle,
     groupId: p.groupId ?? null,
     module: p.module ?? "none",
+    modulePlanId: p.modulePlanId ?? null,
+    modulePlanName: p.modulePlanName ?? null,
     diskSpace: p.diskSpace,
     bandwidth: p.bandwidth,
     emailAccounts: p.emailAccounts,
@@ -69,7 +71,7 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
   try {
     const {
       name, description, price, yearlyPrice, billingCycle = "monthly",
-      groupId, module = "none",
+      groupId, module = "none", modulePlanId, modulePlanName,
       diskSpace = "10 GB", bandwidth = "100 GB",
       emailAccounts = 10, databases = 5, subdomains = 10, ftpAccounts = 5,
       features = [],
@@ -84,6 +86,8 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
       name, description, price: String(price),
       yearlyPrice: yearlyPrice ? String(yearlyPrice) : null,
       billingCycle, groupId: groupId || null, module,
+      modulePlanId: modulePlanId || null,
+      modulePlanName: modulePlanName || null,
       diskSpace, bandwidth, emailAccounts, databases, subdomains, ftpAccounts,
       isActive: true, features,
     }).returning();

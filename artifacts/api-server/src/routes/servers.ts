@@ -37,8 +37,9 @@ router.delete("/admin/server-groups/:id", authenticate, requireAdmin, async (req
 
 // ─── Servers ──────────────────────────────────────────────────────────────────
 
-router.get("/admin/servers", authenticate, requireAdmin, async (_req, res) => {
-  const servers = await db.select({
+router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
+  const { type } = req.query as { type?: string };
+  let query = db.select({
     id: serversTable.id,
     name: serversTable.name,
     hostname: serversTable.hostname,
@@ -53,7 +54,9 @@ router.get("/admin/servers", authenticate, requireAdmin, async (_req, res) => {
     groupId: serversTable.groupId,
     isDefault: serversTable.isDefault,
     createdAt: serversTable.createdAt,
-  }).from(serversTable).orderBy(serversTable.name);
+  }).from(serversTable).orderBy(serversTable.name).$dynamic();
+  if (type) query = query.where(eq(serversTable.type, type as any));
+  const servers = await query;
   res.json(servers);
 });
 
@@ -130,44 +133,97 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   }
 });
 
-// GET /api/admin/servers/:id/plans — fetch available plans from module
+// GET /api/admin/servers/:id/plans — fetch available plans + pricing from module
 router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, res) => {
   const [server] = await db.select().from(serversTable).where(eq(serversTable.id, req.params.id));
   if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  if (!server.apiToken) { res.status(400).json({ error: "API credentials not configured" }); return; }
 
-  // For 20i servers, attempt to call their API
+  type Plan = { id: string; name: string; monthlyPrice: number; yearlyPrice: number; };
+
+  // 20i: try real API, fall back to mock with pricing
   if (server.type === "20i") {
-    try {
-      const fetch = (await import("node-fetch")).default;
-      const resp = await (fetch as any)("https://api.20i.com/package", {
-        headers: { Authorization: `Bearer ${server.apiToken}` },
-      });
-      if (resp.ok) {
-        const data: any = await resp.json();
-        const plans = Array.isArray(data) ? data.map((p: any) => ({ id: p.id || p.name, name: p.name || p.id })) : [];
-        res.json(plans); return;
-      }
-    } catch (_e) { /* fall through to mock */ }
-    // Return mock plans if API not reachable
-    res.json([
-      { id: "starter", name: "Starter Hosting" },
-      { id: "pro", name: "Pro Hosting" },
-      { id: "business", name: "Business Hosting" },
-    ]); return;
+    if (server.apiToken) {
+      try {
+        const fetch = (await import("node-fetch")).default;
+        const resp = await (fetch as any)("https://api.20i.com/package", {
+          headers: { Authorization: `Bearer ${server.apiToken}` },
+        });
+        if (resp.ok) {
+          const data: any = await resp.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const plans: Plan[] = data.map((p: any) => ({
+              id: String(p.id || p.name),
+              name: p.name || String(p.id),
+              monthlyPrice: Number(p.monthly_price ?? p.monthlyPrice ?? p.price ?? 0),
+              yearlyPrice: Number(p.yearly_price ?? p.yearlyPrice ?? p.annual_price ?? 0),
+            }));
+            res.json({ plans }); return;
+          }
+        }
+      } catch (_e) { /* fall through to mock */ }
+    }
+    // Mock 20i plans with pricing
+    res.json({ plans: [
+      { id: "starter", name: "Starter", monthlyPrice: 3.99, yearlyPrice: 39.99 },
+      { id: "geek",    name: "Geek",    monthlyPrice: 9.99, yearlyPrice: 99.99 },
+      { id: "pro",     name: "Pro",     monthlyPrice: 14.99, yearlyPrice: 149.99 },
+      { id: "super",   name: "Super",   monthlyPrice: 24.99, yearlyPrice: 249.99 },
+    ] as Plan[] }); return;
   }
 
-  // cPanel/WHM: return typical cPanel packages
-  if (server.type === "cpanel" || server.type === "directadmin") {
-    res.json([
-      { id: "default", name: "default" },
-      { id: "starter", name: "starter" },
-      { id: "business", name: "business" },
-      { id: "unlimited", name: "unlimited" },
-    ]); return;
+  // cPanel / WHM: try WHM listpkgs API, fall back to mock
+  if (server.type === "cpanel") {
+    if (server.apiToken && server.hostname) {
+      try {
+        const fetch = (await import("node-fetch")).default;
+        const port = server.apiPort || 2087;
+        const resp = await (fetch as any)(
+          `https://${server.hostname}:${port}/json-api/listpkgs?api.version=1`,
+          { headers: { Authorization: `whm ${server.apiUsername}:${server.apiToken}` }, signal: AbortSignal.timeout(5000) }
+        );
+        if (resp.ok) {
+          const data: any = await resp.json();
+          const pkgs = data?.data?.pkg ?? [];
+          if (pkgs.length > 0) {
+            const plans: Plan[] = pkgs.map((p: any) => ({
+              id: p.name, name: p.name,
+              monthlyPrice: Number(p.QUOTA) > 0 ? 4.99 : 2.99,
+              yearlyPrice: Number(p.QUOTA) > 0 ? 49.99 : 29.99,
+            }));
+            res.json({ plans }); return;
+          }
+        }
+      } catch (_e) { /* fall through */ }
+    }
+    res.json({ plans: [
+      { id: "starter",   name: "Starter",   monthlyPrice: 2.99,  yearlyPrice: 29.99  },
+      { id: "basic",     name: "Basic",     monthlyPrice: 4.99,  yearlyPrice: 49.99  },
+      { id: "business",  name: "Business",  monthlyPrice: 9.99,  yearlyPrice: 99.99  },
+      { id: "pro",       name: "Pro",       monthlyPrice: 19.99, yearlyPrice: 199.99 },
+      { id: "unlimited", name: "Unlimited", monthlyPrice: 29.99, yearlyPrice: 299.99 },
+    ] as Plan[] }); return;
   }
 
-  res.json([{ id: "default", name: "Default Package" }]);
+  // DirectAdmin
+  if (server.type === "directadmin") {
+    res.json({ plans: [
+      { id: "starter",  name: "Starter",  monthlyPrice: 3.99,  yearlyPrice: 39.99  },
+      { id: "standard", name: "Standard", monthlyPrice: 7.99,  yearlyPrice: 79.99  },
+      { id: "business", name: "Business", monthlyPrice: 14.99, yearlyPrice: 149.99 },
+      { id: "reseller", name: "Reseller", monthlyPrice: 24.99, yearlyPrice: 249.99 },
+    ] as Plan[] }); return;
+  }
+
+  // Plesk
+  if (server.type === "plesk") {
+    res.json({ plans: [
+      { id: "web-admin", name: "Web Admin",    monthlyPrice: 9.99,  yearlyPrice: 99.99  },
+      { id: "web-pro",   name: "Web Pro",      monthlyPrice: 19.99, yearlyPrice: 199.99 },
+      { id: "web-host",  name: "Web Host",     monthlyPrice: 39.99, yearlyPrice: 399.99 },
+    ] as Plan[] }); return;
+  }
+
+  res.json({ plans: [{ id: "default", name: "Default Package", monthlyPrice: 4.99, yearlyPrice: 49.99 }] as Plan[] });
 });
 
 export default router;
