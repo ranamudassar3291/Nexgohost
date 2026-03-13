@@ -1,4 +1,5 @@
 import app from "./app";
+import { refreshExchangeRates } from "./routes/currencies.js";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +15,24 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
+
+  // Auto-refresh exchange rates on startup and every hour
+  const runRefresh = async () => {
+    try {
+      const result = await refreshExchangeRates();
+      if (result.updated > 0) {
+        console.log(`[CURRENCIES] Auto-refreshed ${result.updated} exchange rates`);
+      }
+      if (result.errors.length > 0) {
+        console.warn("[CURRENCIES] Rate refresh warnings:", result.errors.join(", "));
+      }
+    } catch (err: any) {
+      console.warn("[CURRENCIES] Rate refresh failed (non-fatal):", err.message);
+    }
+  };
+
+  runRefresh();
+  setInterval(runRefresh, 60 * 60 * 1000);
 });

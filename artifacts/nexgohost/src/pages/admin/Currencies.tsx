@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, Plus, Pencil, Trash2, Star, Loader2 } from "lucide-react";
+import { DollarSign, Plus, Pencil, Trash2, Star, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,7 @@ export default function Currencies() {
   const [form, setForm] = useState(EMPTY);
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: currencies = [], isLoading } = useQuery<Currency[]>({
     queryKey: ["admin-currencies"],
@@ -81,6 +82,20 @@ export default function Currencies() {
     }
   };
 
+  const handleRefreshRates = async () => {
+    setRefreshing(true);
+    try {
+      const data = await apiFetch("/api/admin/currencies/refresh-rates", { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["admin-currencies"] });
+      const msg = data.errors?.length
+        ? `Updated ${data.updated} rates. Warnings: ${data.errors.join(", ")}`
+        : `Successfully updated ${data.updated} exchange rates from open.er-api.com`;
+      toast({ title: "Exchange rates refreshed", description: msg });
+    } catch (err: any) {
+      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
+    } finally { setRefreshing(false); }
+  };
+
   const setDefault = async (c: Currency) => {
     try {
       await apiFetch(`/api/admin/currencies/${c.id}`, { method: "PUT", body: JSON.stringify({ isDefault: true }) });
@@ -98,9 +113,16 @@ export default function Currencies() {
           <h1 className="text-2xl font-display font-bold text-foreground">Currencies</h1>
           <p className="text-muted-foreground text-sm">Manage supported currencies and exchange rates</p>
         </div>
-        <Button onClick={() => { setEditId(null); setForm(EMPTY); setIsDefault(false); setShowForm(true); }} className="bg-primary hover:bg-primary/90">
-          <Plus size={16} className="mr-2" /> Add Currency
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleRefreshRates} disabled={refreshing}
+            className="gap-2 border-green-500/30 text-green-400 hover:bg-green-500/10">
+            {refreshing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+            {refreshing ? "Refreshing..." : "Refresh Rates"}
+          </Button>
+          <Button onClick={() => { setEditId(null); setForm(EMPTY); setIsDefault(false); setShowForm(true); }} className="bg-primary hover:bg-primary/90">
+            <Plus size={16} className="mr-2" /> Add Currency
+          </Button>
+        </div>
       </div>
 
       {showForm && (

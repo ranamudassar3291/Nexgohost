@@ -58,6 +58,7 @@ import NewOrder from "@/pages/client/NewOrder";
 import Checkout from "@/pages/client/Checkout";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import ClientOrders from "@/pages/client/Orders";
+import Homepage from "@/pages/public/Homepage";
 
 import { queryClient } from "@/lib/query-client";
 
@@ -250,16 +251,16 @@ function RouterRoot() {
         <AdminPage><DomainExtensions /></AdminPage>
       </Route>
 
-      {/* Root redirect */}
+      {/* Root: Homepage for guests, dashboard for logged-in users */}
       <Route path="/">
-        {!isLoading && user ? (
-          <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
-        ) : !isLoading ? (
-          <Redirect to="/client/login" />
-        ) : (
+        {isLoading ? (
           <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
           </div>
+        ) : user ? (
+          <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
+        ) : (
+          <Homepage />
         )}
       </Route>
 
