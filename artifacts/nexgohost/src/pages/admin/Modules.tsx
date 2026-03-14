@@ -5,15 +5,35 @@ import { Button } from "@/components/ui/button";
 
 const modules = [
   {
+    id: "20i",
+    name: "20i",
+    description: "UK-based web hosting reseller platform with full API integration. Manage hosting accounts, SSL, and packages directly via the 20i reseller API.",
+    logo: "20i",
+    color: "from-purple-500/20 to-purple-600/10",
+    badge: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    features: [
+      "Automated hosting account creation",
+      "Account suspend / unsuspend via API",
+      "Account termination via API",
+      "Let's Encrypt free SSL activation",
+      "Fetch packages from reseller portal",
+      "StackCP control panel login link",
+      "Webmail access link",
+      "Full provisioning on order activation",
+    ],
+    docsUrl: "https://my.20i.com/reseller/apidoc",
+    status: "active",
+  },
+  {
     id: "cpanel",
     name: "cPanel",
-    description: "Industry-standard web hosting control panel. Create, suspend, unsuspend, and terminate hosting accounts automatically.",
+    description: "Industry-standard web hosting control panel. Create, suspend, unsuspend, and terminate hosting accounts automatically via WHM API.",
     logo: "cP",
     color: "from-orange-500/20 to-orange-600/10",
     badge: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-    features: ["Automated account provisioning", "Account suspension / unsuspension", "Disk usage monitoring", "Email account management", "MySQL database management"],
+    features: ["Automated account provisioning", "SSO (Single Sign-On) login", "Account suspension / unsuspension", "SSL certificate automation", "Disk usage monitoring", "MySQL database management"],
     docsUrl: "https://docs.cpanel.net/",
-    status: "available",
+    status: "active",
   },
   {
     id: "directadmin",
@@ -69,7 +89,9 @@ export default function Modules() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <h2 className="text-lg font-bold text-foreground">{mod.name}</h2>
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${mod.badge}`}>Available</span>
+                  <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${mod.badge}`}>
+                    {mod.status === "active" ? "Integrated" : "Available"}
+                  </span>
                 </div>
                 <p className="text-sm text-muted-foreground">{mod.description}</p>
               </div>

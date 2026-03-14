@@ -281,7 +281,7 @@ export default function ClientHosting() {
                   {ssoLoading[service.id] === "cpanel"
                     ? <Loader2 size={15} className="animate-spin" />
                     : <ExternalLink size={15} />}
-                  {ssoLoading[service.id] === "cpanel" ? "Logging in..." : "Login to cPanel"}
+                  {ssoLoading[service.id] === "cpanel" ? "Logging in..." : "Control Panel"}
                 </Button>
                 <Button
                   variant="outline"

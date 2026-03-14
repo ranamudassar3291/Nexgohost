@@ -3,58 +3,118 @@
  * https://my.20i.com/reseller/apidoc
  */
 
-interface TwentyIConfig {
-  apiKey: string;
-  stackUser?: string;
-  packageId?: string;
-}
-
 async function twentyiRequest(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
   const url = `https://api.20i.com${path}`;
   const res = await fetch(url, {
     method,
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(20000),
   });
-  if (!res.ok) throw new Error(`20i API error ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`20i API error ${res.status}: ${text}`);
+  }
   return res.json();
 }
 
-export async function twentyiTestConnection(config: TwentyIConfig) {
+// ─── Connection test ─────────────────────────────────────────────────────────
+
+export async function twentyiTestConnection(apiKey: string): Promise<{ success: boolean; message: string; packageCount?: number }> {
   try {
-    const data = await twentyiRequest(config.apiKey, "GET", "/reseller/packages");
-    return { success: true, message: `Connected to 20i API. Packages: ${data?.length ?? 0}` };
+    const data = await twentyiRequest(apiKey, "GET", "/reseller/packages");
+    const count = Array.isArray(data) ? data.length : 0;
+    return { success: true, message: `Connected to 20i API successfully. ${count} package(s) available.`, packageCount: count };
   } catch (err: any) {
     return { success: false, message: err.message || "20i connection failed" };
   }
 }
 
-export async function twentyiCreateHosting(config: TwentyIConfig, domain: string, email: string) {
-  return twentyiRequest(config.apiKey, "POST", "/reseller/addWeb", {
+// ─── Packages ────────────────────────────────────────────────────────────────
+
+export interface TwentyIPackage {
+  id: string;
+  name: string;
+  diskSpaceMb?: number;
+  bandwidthGb?: number;
+  emailBoxes?: number;
+  databases?: number;
+  subdomains?: number;
+}
+
+export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage[]> {
+  const data = await twentyiRequest(apiKey, "GET", "/reseller/packages");
+  if (!Array.isArray(data)) return [];
+  return data.map((pkg: any) => ({
+    id: String(pkg.id ?? pkg.name ?? ""),
+    name: String(pkg.label ?? pkg.name ?? pkg.id ?? "Unknown Package"),
+    diskSpaceMb: pkg.diskSpaceMb ?? pkg.diskSpace,
+    bandwidthGb: pkg.monthlyBandwidthGb ?? pkg.bandwidth,
+    emailBoxes: pkg.emailBoxes,
+    databases: pkg.mySQLDatabases ?? pkg.databases,
+    subdomains: pkg.subDomains ?? pkg.subdomains,
+  }));
+}
+
+// ─── Create hosting account ──────────────────────────────────────────────────
+
+export interface TwentyICreateResult {
+  siteId: string | null;
+  cpanelUrl: string;
+  webmailUrl: string;
+}
+
+export async function twentyiCreateHosting(
+  apiKey: string,
+  domain: string,
+  email: string,
+  packageId?: string,
+  stackUser?: string,
+): Promise<TwentyICreateResult> {
+  const result = await twentyiRequest(apiKey, "POST", "/reseller/addWeb", {
     domain_name: domain,
     extra_domain_names: [],
-    package_id: config.packageId,
-    username: config.stackUser,
+    ...(packageId ? { package_id: packageId } : {}),
+    ...(stackUser ? { username: stackUser } : {}),
     contact_email: email,
   });
+  const siteId: string | null = result?.id ?? result?.web_name ?? result?.name ?? null;
+  const cpanelUrl = siteId ? `https://my.20i.com/cp/${siteId}` : "";
+  const webmailUrl = domain ? `https://webmail.${domain}` : "";
+  return { siteId, cpanelUrl, webmailUrl };
 }
 
-export async function twentyiSuspend(config: TwentyIConfig, siteId: string) {
-  return twentyiRequest(config.apiKey, "POST", `/userHosting/${siteId}/updateSubscription`, {
-    status: 0,
-  });
+// ─── Suspend / Unsuspend / Delete ────────────────────────────────────────────
+
+export async function twentyiSuspend(apiKey: string, siteId: string): Promise<void> {
+  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/updateSubscription`, { status: 0 });
 }
 
-export async function twentyiUnsuspend(config: TwentyIConfig, siteId: string) {
-  return twentyiRequest(config.apiKey, "POST", `/userHosting/${siteId}/updateSubscription`, {
-    status: 1,
-  });
+export async function twentyiUnsuspend(apiKey: string, siteId: string): Promise<void> {
+  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/updateSubscription`, { status: 1 });
 }
 
-export async function twentyiDelete(config: TwentyIConfig, siteId: string) {
-  return twentyiRequest(config.apiKey, "DELETE", `/userHosting/${siteId}`);
+export async function twentyiDelete(apiKey: string, siteId: string): Promise<void> {
+  await twentyiRequest(apiKey, "DELETE", `/userHosting/${siteId}`);
+}
+
+// ─── SSL (Let's Encrypt free SSL) ────────────────────────────────────────────
+
+export async function twentyiInstallSSL(apiKey: string, siteId: string, domain: string): Promise<void> {
+  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/freeSSL`, { domains: [domain] });
+}
+
+// ─── Site info ───────────────────────────────────────────────────────────────
+
+export async function twentyiGetSiteInfo(apiKey: string, siteId: string): Promise<any> {
+  return twentyiRequest(apiKey, "GET", `/userHosting/${siteId}`);
+}
+
+// ─── StackCP URL helper ───────────────────────────────────────────────────────
+
+export function twentyiStackCPUrl(siteId: string): string {
+  return `https://my.20i.com/cp/${siteId}`;
 }

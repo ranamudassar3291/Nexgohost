@@ -35,6 +35,7 @@ import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serv
 import { eq } from "drizzle-orm";
 import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
 import { twentyiCreateHosting } from "./twenty-i.js";
+import type { TwentyICreateResult } from "./twenty-i.js";
 import { emailHostingCreated, emailVerificationCode } from "./email.js";
 
 function generatePassword(): string {
@@ -209,8 +210,8 @@ export async function provisionHostingService(
   // domain's DNS may not be pointing yet when the account is first created.
   // cPanel client port: 2083 | WHM admin port: 2087 | Webmail port: 2096
   const cpanelHost = server?.hostname || domain;
-  const cpanelUrl = `https://${cpanelHost}:2083`;
-  const webmailUrl = `https://${cpanelHost}:2096`;
+  let cpanelUrl = `https://${cpanelHost}:2083`;
+  let webmailUrl = `https://${cpanelHost}:2096`;
 
   // ── Provision on the actual panel ─────────────────────────────────────────
   if (server) {
@@ -277,12 +278,35 @@ export async function provisionHostingService(
       }
     } else if (module === "20i" && server.apiToken) {
       try {
-        await twentyiCreateHosting({ apiKey: server.apiToken }, domain, user.email);
-        await logServerAction({ serviceId, serverId: server.id, action: "create_hosting_20i", status: "success" });
+        const twentyiResult: TwentyICreateResult = await twentyiCreateHosting(
+          server.apiToken,
+          domain,
+          user.email,
+          plan?.modulePlanId ?? undefined,
+        );
+        if (twentyiResult.siteId) {
+          username = twentyiResult.siteId;
+        }
+        if (twentyiResult.cpanelUrl) cpanelUrl = twentyiResult.cpanelUrl;
+        if (twentyiResult.webmailUrl) webmailUrl = twentyiResult.webmailUrl;
+        console.log(`[PROVISION] 20i hosting created: siteId=${twentyiResult.siteId} domain=${domain}`);
+        await logServerAction({
+          serviceId,
+          serverId: server.id,
+          action: "create_hosting_20i",
+          status: "success",
+          response: JSON.stringify(twentyiResult),
+        });
       } catch (err: any) {
         whmError = err.message;
         console.warn(`[PROVISION] 20i create hosting failed: ${err.message}`);
-        await logServerAction({ serviceId, serverId: server.id, action: "create_hosting_20i", status: "failed", errorMessage: err.message });
+        await logServerAction({
+          serviceId,
+          serverId: server.id,
+          action: "create_hosting_20i",
+          status: "failed",
+          errorMessage: err.message,
+        });
       }
     }
   }

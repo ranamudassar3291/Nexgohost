@@ -1,0 +1,110 @@
+
+TASK:
+Add and fully integrate 20i module into hosting panel, similar to WHMCS module system, with all API-driven functionality.
+
+GOAL:
+- Admin can configure 20i API credentials and settings
+- Module fields from 20i API displayed correctly in panel
+- Order activation via 20i API works
+- SSL activation works via 20i API
+- Client dashboard shows:
+    - cPanel login / Webmail login
+    - SSL status & activation button
+    - Service status (Active / Suspended / Terminated)
+- Admin panel shows module configuration:
+    - Add 20i server
+    - Select module options (WHM package equivalent)
+    - Test API connection
+- Integrate with existing order workflow
+
+--------------------------------------------------
+
+STEP 1: 20i Module Configuration Page
+
+- Admin fields:
+  - API Key
+  - API Secret / Token
+  - Server name / hostname
+  - Default package selection
+- Test Connection button → verify API responds
+- Save configuration in `modules_20i` table
+
+--------------------------------------------------
+
+STEP 2: Fetch 20i API Fields
+
+- Use 20i API endpoints to fetch:
+  - Hosting plans / packages
+  - Available resources (disk, bandwidth, SSL options)
+- Store module fields in DB for admin selection
+- Show fields on **order creation page**:
+  - Select plan
+  - Assign SSL (Yes/No)
+  - Select server group if multiple servers
+
+--------------------------------------------------
+
+STEP 3: Order Activation Workflow
+
+- On order activation:
+  1. Check selected 20i package / server / SSL option
+  2. Call 20i API to **create account**:
+     - Send username, domain, package, SSL option
+     - Get credentials (username, password, cPanel URL)
+  3. Save credentials in services table
+  4. Generate auto-login URL for cPanel / Webmail
+  5. Send Welcome email via SMTP with credentials & login links
+  6. Update service status → Active
+  7. Log all actions in `server_logs`
+
+--------------------------------------------------
+
+STEP 4: Client Dashboard Integration
+
+- Show:
+  - **cPanel login** (auto-login URL)
+  - **Webmail login** (auto-login URL)
+  - **SSL status** → Activate button (calls 20i API)
+  - Service status: Active / Suspended / Terminated
+  - Suspend / Unsuspend / Terminate buttons → call 20i API + update DB
+- Auto refresh status after API calls
+
+--------------------------------------------------
+
+STEP 5: Admin Panel Order Management
+
+- On Order Management page:
+  - Approve / Activate / Suspend / Unsuspend / Terminate orders
+  - Select 20i package, server, SSL options
+  - WHM / 20i fields show correctly
+- Button clicks → API calls first → update DB → feedback to admin
+
+--------------------------------------------------
+
+STEP 6: Error Handling & Logging
+
+- 20i API failures → log in `server_logs`
+- Retry failed actions up to 3 times
+- Notify admin of persistent errors
+- Maintain full trace of order, SSL activation, and credentials
+
+--------------------------------------------------
+
+STEP 7: Automation / Cron (Optional)
+
+- Auto suspend overdue orders via 20i API
+- Auto SSL renewal via API (if supported)
+- Email invoice reminders
+
+--------------------------------------------------
+
+FINAL RESULT:
+
+✅ 20i module fully configured in admin panel  
+✅ Admin can configure API credentials & server options  
+✅ Package / plan / SSL options fetched from 20i API  
+✅ Order activation via 20i API fully functional  
+✅ Client dashboard shows cPanel, Webmail, SSL, and status  
+✅ Suspend / Unsuspend / Terminate work via 20i API  
+✅ Logs maintained for all 20i actions  
+✅ Integrated with existing WHMCS-style workflow, auto-login, and email notifications

@@ -5,6 +5,7 @@ import { serversTable, serverGroupsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq } from "drizzle-orm";
 import { cpanelTestConnection } from "../lib/cpanel.js";
+import { twentyiTestConnection, twentyiGetPackages } from "../lib/twenty-i.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
@@ -179,7 +180,12 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   }
 
   if (server.type === "20i") {
-    res.json({ success: true, message: `20i API credentials saved for ${server.hostname}`, packages: [], connected: true });
+    const result = await twentyiTestConnection(server.apiToken);
+    if (!result.success) {
+      res.status(400).json({ error: result.message, success: false });
+      return;
+    }
+    res.json({ success: true, connected: true, message: result.message, packages: [] });
     return;
   }
 
@@ -193,34 +199,29 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
 
   type Plan = { id: string; name: string; monthlyPrice: number; yearlyPrice: number; };
 
-  // 20i: try real API, fall back to mock with pricing
+  // 20i: fetch real packages from reseller API
   if (server.type === "20i") {
-    if (server.apiToken) {
-      try {
-        const resp = await fetch("https://api.20i.com/package", {
-          headers: { Authorization: `Bearer ${server.apiToken}` },
-        });
-        if (resp.ok) {
-          const data: any = await resp.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const plans: Plan[] = data.map((p: any) => ({
-              id: String(p.id || p.name),
-              name: p.name || String(p.id),
-              monthlyPrice: Number(p.monthly_price ?? p.monthlyPrice ?? p.price ?? 0),
-              yearlyPrice: Number(p.yearly_price ?? p.yearlyPrice ?? p.annual_price ?? 0),
-            }));
-            res.json({ plans }); return;
-          }
-        }
-      } catch (_e) { /* fall through to mock */ }
+    if (!server.apiToken) {
+      res.json({ plans: [], error: "No API key configured for this 20i server" });
+      return;
     }
-    // Mock 20i plans with pricing
-    res.json({ plans: [
-      { id: "starter", name: "Starter", monthlyPrice: 3.99, yearlyPrice: 39.99 },
-      { id: "geek",    name: "Geek",    monthlyPrice: 9.99, yearlyPrice: 99.99 },
-      { id: "pro",     name: "Pro",     monthlyPrice: 14.99, yearlyPrice: 149.99 },
-      { id: "super",   name: "Super",   monthlyPrice: 24.99, yearlyPrice: 249.99 },
-    ] as Plan[] }); return;
+    try {
+      const pkgs = await twentyiGetPackages(server.apiToken);
+      if (pkgs.length > 0) {
+        const plans: Plan[] = pkgs.map(p => ({
+          id: p.id,
+          name: p.name,
+          monthlyPrice: 0,
+          yearlyPrice: 0,
+        }));
+        res.json({ plans, from20i: true }); return;
+      }
+      // No packages returned — return empty with info
+      res.json({ plans: [], from20i: true, error: "No packages found on this 20i account — create packages in your 20i reseller portal first" });
+    } catch (err: any) {
+      res.json({ plans: [], from20i: false, error: `20i API error: ${err.message}` });
+    }
+    return;
   }
 
   // cPanel / WHM: fetch packages directly from WHM — NO mock fallback

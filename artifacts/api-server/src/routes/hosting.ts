@@ -6,6 +6,7 @@ import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL } from "../lib/cpanel.js";
+import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 
 const router = Router();
 
@@ -169,28 +170,31 @@ router.post("/admin/hosting/:id/suspend", authenticate, requireAdmin, async (req
     const server = service.username ? await resolveServerForService(service) : null;
 
     if (server && service.username) {
+      const reason = (req.body?.reason as string) || "Suspended by admin";
       try {
-        const reason = (req.body?.reason as string) || "Suspended by admin";
-        await cpanelSuspend(toServerCfg(server), service.username, reason);
+        if (server.type === "20i") {
+          await twentyiSuspend(server.apiToken!, service.username);
+        } else {
+          await cpanelSuspend(toServerCfg(server), service.username, reason);
+        }
         await logServerAction({
           serviceId: service.id, serverId: server.id,
           action: "suspendacct",
           status: "success",
-          request: { user: service.username, reason },
+          request: { user: service.username, reason, module: server.type },
         });
       } catch (whmErr: any) {
-        whmNote = ` (WHM warning: ${whmErr.message})`;
+        whmNote = ` (${server.type} warning: ${whmErr.message})`;
         await logServerAction({
           serviceId: service.id, serverId: server?.id,
           action: "suspendacct", status: "failed",
-          request: { user: service.username },
+          request: { user: service.username, module: server.type },
           errorMessage: whmErr.message,
         });
-        console.warn(`[WHM] suspend failed for ${service.username}: ${whmErr.message}`);
-        // Still update DB — admin intent overrides WHM failure
+        console.warn(`[${server.type}] suspend failed for ${service.username}: ${whmErr.message}`);
       }
     } else {
-      whmNote = " (no WHM server resolved — DB only)";
+      whmNote = " (no server resolved — DB only)";
     }
 
     const [updated] = await db.update(hostingServicesTable)
@@ -230,24 +234,28 @@ router.post("/admin/hosting/:id/unsuspend", authenticate, requireAdmin, async (r
 
     if (server && service.username) {
       try {
-        await cpanelUnsuspend(toServerCfg(server), service.username);
+        if (server.type === "20i") {
+          await twentyiUnsuspend(server.apiToken!, service.username);
+        } else {
+          await cpanelUnsuspend(toServerCfg(server), service.username);
+        }
         await logServerAction({
           serviceId: service.id, serverId: server.id,
           action: "unsuspendacct", status: "success",
-          request: { user: service.username },
+          request: { user: service.username, module: server.type },
         });
       } catch (whmErr: any) {
-        whmNote = ` (WHM warning: ${whmErr.message})`;
+        whmNote = ` (${server.type} warning: ${whmErr.message})`;
         await logServerAction({
           serviceId: service.id, serverId: server?.id,
           action: "unsuspendacct", status: "failed",
-          request: { user: service.username },
+          request: { user: service.username, module: server.type },
           errorMessage: whmErr.message,
         });
-        console.warn(`[WHM] unsuspend failed for ${service.username}: ${whmErr.message}`);
+        console.warn(`[${server.type}] unsuspend failed for ${service.username}: ${whmErr.message}`);
       }
     } else {
-      whmNote = " (no WHM server resolved — DB only)";
+      whmNote = " (no server resolved — DB only)";
     }
 
     const [updated] = await db.update(hostingServicesTable)
@@ -274,24 +282,28 @@ router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (r
 
     if (server && service.username) {
       try {
-        await cpanelTerminate(toServerCfg(server), service.username);
+        if (server.type === "20i") {
+          await twentyiDelete(server.apiToken!, service.username);
+        } else {
+          await cpanelTerminate(toServerCfg(server), service.username);
+        }
         await logServerAction({
           serviceId: service.id, serverId: server.id,
           action: "removeacct", status: "success",
-          request: { user: service.username },
+          request: { user: service.username, module: server.type },
         });
       } catch (whmErr: any) {
-        whmNote = ` (WHM warning: ${whmErr.message})`;
+        whmNote = ` (${server.type} warning: ${whmErr.message})`;
         await logServerAction({
           serviceId: service.id, serverId: server?.id,
           action: "removeacct", status: "failed",
-          request: { user: service.username },
+          request: { user: service.username, module: server.type },
           errorMessage: whmErr.message,
         });
-        console.warn(`[WHM] terminate failed for ${service.username}: ${whmErr.message}`);
+        console.warn(`[${server.type}] terminate failed for ${service.username}: ${whmErr.message}`);
       }
     } else {
-      whmNote = " (no WHM server resolved — DB only)";
+      whmNote = " (no server resolved — DB only)";
     }
 
     const [updated] = await db.update(hostingServicesTable)
@@ -429,19 +441,23 @@ router.post("/admin/hosting/:id/cancel", authenticate, requireAdmin, async (req:
     const server = service.username ? await resolveServerForService(service) : null;
     if (server && service.username) {
       try {
-        await cpanelTerminate(toServerCfg(server), service.username);
+        if (server.type === "20i") {
+          await twentyiDelete(server.apiToken!, service.username);
+        } else {
+          await cpanelTerminate(toServerCfg(server), service.username);
+        }
         await logServerAction({
           serviceId: service.id, serverId: server.id,
           action: "removeacct (cancel approved)", status: "success",
-          request: { user: service.username },
+          request: { user: service.username, module: server.type },
         });
       } catch (whmErr: any) {
         await logServerAction({
           serviceId: service.id, serverId: server?.id,
           action: "removeacct (cancel approved)", status: "failed",
-          request: { user: service.username }, errorMessage: whmErr.message,
+          request: { user: service.username, module: server.type }, errorMessage: whmErr.message,
         });
-        console.warn(`[WHM] cancel/terminate failed for ${service.username}: ${whmErr.message}`);
+        console.warn(`[${server.type}] cancel/terminate failed for ${service.username}: ${whmErr.message}`);
       }
     }
 
@@ -471,7 +487,26 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
   await db.update(hostingServicesTable)
     .set({ sslStatus: "installing", updatedAt: new Date() })
     .where(eq(hostingServicesTable.id, id));
-  // In production this would call the server module API — simulate completion after 2s
+
+  const server = await resolveServerForService(service);
+  if (server?.type === "20i" && server.apiToken && service.username && service.domain) {
+    try {
+      await twentyiInstallSSL(server.apiToken, service.username, service.domain);
+      await db.update(hostingServicesTable)
+        .set({ sslStatus: "installed", updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, id));
+      await logServerAction({ serviceId: service.id, serverId: server.id, action: "install_ssl_20i", status: "success", request: { domain: service.domain } });
+      return res.json({ success: true, message: "SSL installed via 20i API" });
+    } catch (sslErr: any) {
+      await db.update(hostingServicesTable)
+        .set({ sslStatus: "failed", updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, id));
+      await logServerAction({ serviceId: service.id, serverId: server.id, action: "install_ssl_20i", status: "failed", errorMessage: sslErr.message });
+      return res.status(500).json({ error: `20i SSL install failed: ${sslErr.message}` });
+    }
+  }
+
+  // Fallback: simulate completion after 2s (for non-20i or no server)
   setTimeout(async () => {
     await db.update(hostingServicesTable)
       .set({ sslStatus: "installed", updatedAt: new Date() })
@@ -497,11 +532,15 @@ router.post("/admin/hosting/:id/activate-ssl", authenticate, requireAdmin, async
     const server = await resolveServerForService(service);
     if (server && service.username) {
       try {
-        await cpanelInstallSSL(toServerCfg(server), service.domain);
+        if (server.type === "20i") {
+          await twentyiInstallSSL(server.apiToken!, service.username, service.domain);
+        } else {
+          await cpanelInstallSSL(toServerCfg(server), service.domain);
+        }
         await logServerAction({
           serviceId: service.id, serverId: server.id,
           action: "installssl", status: "success",
-          request: { domain: service.domain },
+          request: { domain: service.domain, module: server.type },
         });
         await db.update(hostingServicesTable)
           .set({ sslStatus: "installed", updatedAt: new Date() })
@@ -511,13 +550,12 @@ router.post("/admin/hosting/:id/activate-ssl", authenticate, requireAdmin, async
         await logServerAction({
           serviceId: service.id, serverId: server?.id,
           action: "installssl", status: "failed",
-          request: { domain: service.domain }, errorMessage: whmErr.message,
+          request: { domain: service.domain, module: server.type }, errorMessage: whmErr.message,
         });
-        // Revert status on failure
         await db.update(hostingServicesTable)
           .set({ sslStatus: "failed", updatedAt: new Date() })
           .where(eq(hostingServicesTable.id, id));
-        return res.status(500).json({ error: `WHM SSL install failed: ${whmErr.message}` });
+        return res.status(500).json({ error: `SSL install failed: ${whmErr.message}` });
       }
     } else {
       // No server — mark as installing (simulated for demo without WHM)
@@ -606,7 +644,19 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
     // Resolve server (works for old services with no serverId)
     const server = await resolveServerForService(service);
     if (!server) {
-      return res.status(400).json({ error: "No WHM server found. Add an active cPanel server in Admin → Servers." });
+      // Fallback: return stored URL if available
+      if (service_name === "cpaneld" && service.cpanelUrl) return res.json({ url: service.cpanelUrl });
+      if (service_name === "webmaild" && service.webmailUrl) return res.json({ url: service.webmailUrl });
+      return res.status(400).json({ error: "No server found. Contact support or add an active server in Admin → Servers." });
+    }
+
+    // 20i: StackCP uses direct URLs — no SSO token needed
+    if (server.type === "20i") {
+      const stackCPUrl = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
+      const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
+      const url = service_name === "webmaild" ? webmailUrl : stackCPUrl;
+      if (!url) return res.status(400).json({ error: "No 20i control panel URL found for this service." });
+      return res.json({ url });
     }
 
     const serverCfg = {
@@ -620,7 +670,7 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
     return res.json({ url: loginUrl });
   } catch (err: any) {
     const msg: string = err.message || "SSO login failed";
-    console.warn(`[WHM SSO] ${service_name} login failed for service ${req.params.id}: ${msg}`);
+    console.warn(`[SSO] ${service_name} login failed for service ${req.params.id}: ${msg}`);
     return res.status(500).json({ error: msg });
   }
 }
@@ -647,7 +697,17 @@ async function adminSsoLogin(req: AuthRequest, res: any, service_name: "cpaneld"
 
     const server = await resolveServerForService(service);
     if (!server) {
-      return res.status(400).json({ error: "No WHM server found. Add an active cPanel server in Admin → Servers." });
+      if (service_name === "cpaneld" && service.cpanelUrl) return res.json({ url: service.cpanelUrl });
+      if (service_name === "webmaild" && service.webmailUrl) return res.json({ url: service.webmailUrl });
+      return res.status(400).json({ error: "No server found. Add an active server in Admin → Servers." });
+    }
+
+    if (server.type === "20i") {
+      const stackCPUrl = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
+      const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
+      const url = service_name === "webmaild" ? webmailUrl : stackCPUrl;
+      if (!url) return res.status(400).json({ error: "No 20i control panel URL found for this service." });
+      return res.json({ url });
     }
 
     const serverCfg = {
@@ -661,7 +721,7 @@ async function adminSsoLogin(req: AuthRequest, res: any, service_name: "cpaneld"
     return res.json({ url: loginUrl });
   } catch (err: any) {
     const msg: string = err.message || "SSO login failed";
-    console.warn(`[WHM ADMIN SSO] ${service_name} login failed for service ${req.params.id}: ${msg}`);
+    console.warn(`[ADMIN SSO] ${service_name} login failed for service ${req.params.id}: ${msg}`);
     return res.status(500).json({ error: msg });
   }
 }
@@ -673,6 +733,42 @@ router.post("/admin/hosting/:id/cpanel-login", authenticate, requireAdmin, (req:
 router.post("/admin/hosting/:id/webmail-login", authenticate, requireAdmin, (req: AuthRequest, res) =>
   adminSsoLogin(req, res, "webmaild"),
 );
+
+// ── 20i: fetch packages list for a given 20i server ──────────────────────────
+router.get("/admin/servers/:id/twentyi-packages", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [server] = await db.select().from(serversTable)
+      .where(eq(serversTable.id, req.params.id)).limit(1);
+    if (!server) return res.status(404).json({ error: "Server not found" });
+    if (server.type !== "20i") return res.status(400).json({ error: "Server is not a 20i server" });
+    if (!server.apiToken) return res.status(400).json({ error: "Server has no API key configured" });
+
+    const packages = await twentyiGetPackages(server.apiToken);
+    return res.json({ packages });
+  } catch (err: any) {
+    console.error("[20i] fetch packages error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── 20i: test API connection for a given 20i server ──────────────────────────
+router.post("/admin/servers/:id/twentyi-test", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [server] = await db.select().from(serversTable)
+      .where(eq(serversTable.id, req.params.id)).limit(1);
+    if (!server) return res.status(404).json({ error: "Server not found" });
+    if (server.type !== "20i") return res.status(400).json({ error: "Server is not a 20i server" });
+
+    const apiKey = (req.body?.apiKey as string) || server.apiToken;
+    if (!apiKey) return res.status(400).json({ error: "No API key provided" });
+
+    const { twentyiTestConnection } = await import("../lib/twenty-i.js");
+    const result = await twentyiTestConnection(apiKey);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // ── Admin: bulk-link all services without a server to the best available server ─
 // Covers old orders that were created before server assignment was automated.
