@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ArrowRight, ShieldCheck, AlertCircle, User, Smartphone } from "lucide-react";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -27,6 +28,14 @@ export default function AdminLogin() {
   const [tempToken, setTempToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/google/config")
+      .then(r => r.json())
+      .then(d => setGoogleEnabled(!!d.clientId))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
 
   if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
 
@@ -63,6 +72,15 @@ export default function AdminLogin() {
     } catch (err: any) {
       setInlineError(err.message || "Invalid code. Please try again.");
     } finally { setLoading(false); }
+  };
+
+  const handleGoogleSuccess = (_token: string, gUser: { role: string }) => {
+    if (gUser.role !== "admin") {
+      setInlineError("Your Google account is not an admin account. Please sign in with email/password instead.");
+      return;
+    }
+    login(_token);
+    setLocation("/admin/dashboard");
   };
 
   return (
@@ -102,23 +120,37 @@ export default function AdminLogin() {
 
           <AnimatePresence mode="wait">
             {step === "password" ? (
-              <motion.form key="pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                onSubmit={handleSubmit} className="relative z-10 space-y-5">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-foreground/80 ml-1">Admin Email</label>
-                  <Input type="email" required value={email} onChange={e => { setEmail(e.target.value); setInlineError(null); }} placeholder="admin@nexgohost.com"
-                    className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-foreground/80 ml-1">Password</label>
-                  <Input type="password" required value={password} onChange={e => { setPassword(e.target.value); setInlineError(null); }} placeholder="••••••••"
-                    className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
-                </div>
-                <Button type="submit" disabled={loading}
-                  className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25">
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In to Admin Panel <ArrowRight className="w-4 h-4" /></span>}
-                </Button>
-              </motion.form>
+              <motion.div key="pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative z-10 space-y-4">
+                {googleEnabled && (
+                  <>
+                    <GoogleSignInButton
+                      onSuccess={handleGoogleSuccess}
+                      onError={(msg) => setInlineError(msg)}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-white/10" />
+                      <span className="text-xs text-muted-foreground">or sign in with email</span>
+                      <div className="flex-1 h-px bg-white/10" />
+                    </div>
+                  </>
+                )}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground/80 ml-1">Admin Email</label>
+                    <Input type="email" required value={email} onChange={e => { setEmail(e.target.value); setInlineError(null); }} placeholder="admin@nexgohost.com"
+                      className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground/80 ml-1">Password</label>
+                    <Input type="password" required value={password} onChange={e => { setPassword(e.target.value); setInlineError(null); }} placeholder="••••••••"
+                      className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
+                  </div>
+                  <Button type="submit" disabled={loading}
+                    className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25">
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In to Admin Panel <ArrowRight className="w-4 h-4" /></span>}
+                  </Button>
+                </form>
+              </motion.div>
             ) : (
               <motion.form key="2fa" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                 onSubmit={handle2FA} className="relative z-10 space-y-5">

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ArrowRight, ShieldCheck, AlertCircle, UserCheck, Smartphone, RefreshCw, MailCheck } from "lucide-react";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -32,6 +33,14 @@ export default function ClientLogin() {
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/google/config")
+      .then(r => r.json())
+      .then(d => setGoogleEnabled(!!d.clientId))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
 
   if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
 
@@ -58,12 +67,9 @@ export default function ClientLogin() {
         setLocation("/client/dashboard");
       }
     } catch (err: any) {
-      // Server returns 403 with requiresVerification when email not yet verified
       let raw: any = {};
       try { raw = JSON.parse(err.message); } catch { /* not json */ }
       if (raw?.requiresVerification || err.message?.includes("verify")) {
-        // Try to parse tempToken from the response — we need a separate fetch here
-        // because apiFetch throws on non-ok responses
         try {
           const res2 = await fetch("/api/auth/login", {
             method: "POST",
@@ -78,7 +84,7 @@ export default function ClientLogin() {
             setInlineError(null);
             return;
           }
-        } catch { /* fall through to show original error */ }
+        } catch { /* fall through */ }
       }
       setInlineError(err.message || "Invalid email or password. Please try again.");
     } finally { setLoading(false); }
@@ -103,7 +109,6 @@ export default function ClientLogin() {
     setLoading(true);
     try {
       await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
-      // Verification succeeded — now log the user in properly
       const loginData = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
       login(loginData.token);
       setLocation("/client/dashboard");
@@ -121,6 +126,15 @@ export default function ClientLogin() {
     } catch (err: any) {
       setInlineError(err.message || "Failed to resend code.");
     } finally { setResending(false); }
+  };
+
+  const handleGoogleSuccess = (token: string, gUser: { role: string }) => {
+    if (gUser.role !== "client") {
+      setInlineError("This portal is for clients only. Please use the Admin Portal to sign in.");
+      return;
+    }
+    login(token);
+    setLocation("/client/dashboard");
   };
 
   return (
@@ -168,23 +182,37 @@ export default function ClientLogin() {
 
           <AnimatePresence mode="wait">
             {step === "password" && (
-              <motion.form key="pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                onSubmit={handleSubmit} className="relative z-10 space-y-5">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-foreground/80 ml-1">Email Address</label>
-                  <Input type="email" required value={email} onChange={e => { setEmail(e.target.value); setInlineError(null); }} placeholder="john@example.com"
-                    className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-foreground/80 ml-1">Password</label>
-                  <Input type="password" required value={password} onChange={e => { setPassword(e.target.value); setInlineError(null); }} placeholder="••••••••"
-                    className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
-                </div>
-                <Button type="submit" disabled={loading}
-                  className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25">
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In <ArrowRight className="w-4 h-4" /></span>}
-                </Button>
-              </motion.form>
+              <motion.div key="pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative z-10 space-y-4">
+                {googleEnabled && (
+                  <>
+                    <GoogleSignInButton
+                      onSuccess={handleGoogleSuccess}
+                      onError={(msg) => setInlineError(msg)}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-white/10" />
+                      <span className="text-xs text-muted-foreground">or sign in with email</span>
+                      <div className="flex-1 h-px bg-white/10" />
+                    </div>
+                  </>
+                )}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground/80 ml-1">Email Address</label>
+                    <Input type="email" required value={email} onChange={e => { setEmail(e.target.value); setInlineError(null); }} placeholder="john@example.com"
+                      className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground/80 ml-1">Password</label>
+                    <Input type="password" required value={password} onChange={e => { setPassword(e.target.value); setInlineError(null); }} placeholder="••••••••"
+                      className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
+                  </div>
+                  <Button type="submit" disabled={loading}
+                    className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25">
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In <ArrowRight className="w-4 h-4" /></span>}
+                  </Button>
+                </form>
+              </motion.div>
             )}
 
             {step === "2fa" && (

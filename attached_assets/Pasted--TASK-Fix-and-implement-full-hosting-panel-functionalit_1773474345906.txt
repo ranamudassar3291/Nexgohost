@@ -1,0 +1,55 @@
+
+TASK:
+Fix and implement full hosting panel functionality:
+
+1. SMTP email system fully working:
+   - Account verification / OTP
+   - Welcome email with cPanel/Webmail credentials
+   - Works even if DNS / MX not pointed
+   - Admin can configure SMTP settings (host, port, username, password, encryption)
+   - Test email button works
+2. Sign-In and Register pages with **Google OAuth login**:
+   - Buttons added on both pages
+   - WHMCS-style professional layout
+   - Works with existing admin/user authentication
+   - New admin/user auto-created if not exist
+   - Session management implemented
+3. Buttons & dashboard integration:
+   - cPanel / Webmail auto login working
+   - Suspend / Unsuspend / Terminate buttons fully functional (client profile, order page, hosting manager)
+   - Real-time status updates after WHM API calls
+4. Workflow integration:
+   - On account creation or order activation:
+       - Generate OTP / temporary login URL
+       - Send OTP & Welcome emails via SMTP
+       - WHM account provisioning fully automated
+   - Old orders: regenerate auto login URLs + resend emails if needed
+5. Logging:
+   - All email sends logged in `email_logs` table
+   - All WHM actions (suspend/unsuspend/terminate) logged in `server_logs`
+   - All Google login attempts logged in `admin_logs`
+6. Error handling:
+   - SMTP failures retried 3x, logged if persistent
+   - WHM API failures retried, errors shown to admin
+   - Google login errors handled properly
+7. UI / UX:
+   - Sign-In / Register page professional, responsive, WHMCS-style
+   - Google button prominent, hover effect, mobile-friendly
+   - Secondary login with email/password optional
+   - OTP input page for account verification
+8. Security:
+   - WHM API tokens secured
+   - Google OAuth sessions stored securely
+   - Temp login URLs expire correctly (30–60 sec)
+   - Session cookies HttpOnly, Secure, SameSite
+
+FINAL RESULT:
+
+✅ SMTP email fully functional for all account workflows  
+✅ Welcome and OTP emails sent automatically  
+✅ Sign-In and Register pages have Google OAuth buttons working  
+✅ Client dashboard buttons fully WHM synced (cPanel/Webmail auto login, suspend/unsuspend/terminate)  
+✅ Old and new accounts handled  
+✅ Professional UI for login and register pages  
+✅ Full WHMCS-style provisioning panel functional  
+✅ Logs maintained for emails, WHM actions, and Google logins  

@@ -20,6 +20,7 @@ export const usersTable = pgTable("users", {
   verificationExpiresAt: timestamp("verification_expires_at"),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  googleId: text("google_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

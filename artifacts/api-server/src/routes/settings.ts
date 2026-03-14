@@ -23,6 +23,8 @@ router.get("/admin/settings", authenticate, requireAdmin, async (_req, res) => {
       smtp_from_name:  map["smtp_from_name"]   ?? "",
       smtp_encryption: map["smtp_encryption"]  ?? "tls",
       smtp_configured: !!(map["smtp_host"] && map["smtp_user"]),
+      google_client_id: map["google_client_id"] ?? "",
+      google_configured: !!map["google_client_id"],
     });
   } catch (err) {
     console.error(err);
@@ -35,7 +37,7 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
   try {
     const {
       mailer_type, smtp_host, smtp_port, smtp_user, smtp_pass,
-      smtp_from, smtp_from_name, smtp_encryption,
+      smtp_from, smtp_from_name, smtp_encryption, google_client_id,
     } = req.body;
 
     const pairs: { key: string; value: string }[] = [];
@@ -49,6 +51,7 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
     if (smtp_pass !== undefined && smtp_pass !== "••••••••" && smtp_pass !== "") {
       pairs.push({ key: "smtp_pass", value: smtp_pass });
     }
+    if (google_client_id !== undefined) pairs.push({ key: "google_client_id", value: google_client_id });
 
     for (const pair of pairs) {
       await db

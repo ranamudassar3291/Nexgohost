@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
+import { usersTable, settingsTable, adminLogsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailVerificationCode } from "../lib/email.js";
@@ -8,6 +8,7 @@ import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const { authenticator } = _require("otplib") as typeof import("otplib");
 import QRCode from "qrcode";
+import { OAuth2Client } from "google-auth-library";
 
 const router = Router();
 
@@ -231,6 +232,134 @@ router.put("/account", authenticate, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── Google OAuth helpers ───────────────────────────────────────────────────
+
+async function getGoogleClientId(): Promise<string> {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) if (r.key && r.value) map[r.key] = r.value;
+    return map["google_client_id"] || process.env.GOOGLE_CLIENT_ID || "";
+  } catch {
+    return process.env.GOOGLE_CLIENT_ID || "";
+  }
+}
+
+async function logAuthEvent(opts: {
+  userId?: string; email: string; action: string;
+  method: string; status: string; ipAddress?: string; userAgent?: string; details?: string;
+}) {
+  try {
+    await db.insert(adminLogsTable).values({
+      userId: opts.userId ?? null,
+      email: opts.email,
+      action: opts.action,
+      method: opts.method,
+      status: opts.status,
+      ipAddress: opts.ipAddress ?? null,
+      userAgent: opts.userAgent ?? null,
+      details: opts.details ?? null,
+    });
+  } catch { /* non-fatal */ }
+}
+
+// GET /api/auth/google/config — return Google Client ID so the frontend can initialise GIS
+router.get("/auth/google/config", async (_req, res) => {
+  const clientId = await getGoogleClientId();
+  res.json({ clientId: clientId || null, configured: !!clientId });
+});
+
+// POST /api/auth/google — verify Google ID token, find or create user, return JWT
+router.post("/auth/google", async (req, res) => {
+  const ip = req.headers["x-forwarded-for"]?.toString() || req.socket.remoteAddress || "";
+  const ua = req.headers["user-agent"] || "";
+  const { credential, role: requestedRole } = req.body;
+
+  if (!credential) {
+    res.status(400).json({ error: "Google credential is required" });
+    return;
+  }
+
+  const clientId = await getGoogleClientId();
+  if (!clientId) {
+    res.status(503).json({ error: "Google Sign-In is not configured. Please contact the administrator." });
+    return;
+  }
+
+  const { credential: credential2, access_token: accessToken } = req.body;
+  const tokenToVerify = credential2 || credential;
+
+  let googleUser: { sub: string; email: string; name: string; given_name?: string; family_name?: string; picture?: string };
+  try {
+    if (accessToken) {
+      // Implicit flow: verify access_token via Google's userinfo endpoint
+      const resp = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!resp.ok) throw new Error("Failed to fetch user info from Google");
+      const info = await resp.json() as any;
+      if (!info.email) throw new Error("Google did not return an email");
+      googleUser = { sub: info.id, email: info.email, name: info.name || info.email, given_name: info.given_name, family_name: info.family_name, picture: info.picture };
+    } else if (tokenToVerify) {
+      // ID token flow (GoogleLogin component): verify with OAuth2Client
+      const oauthClient = new OAuth2Client(clientId);
+      const ticket = await oauthClient.verifyIdToken({ idToken: tokenToVerify, audience: clientId });
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) throw new Error("Invalid token payload");
+      googleUser = { sub: payload.sub, email: payload.email, name: payload.name || payload.email, given_name: payload.given_name, family_name: payload.family_name, picture: payload.picture };
+    } else {
+      throw new Error("No Google token provided");
+    }
+  } catch (err: any) {
+    await logAuthEvent({ email: "unknown", action: "google_login", method: "google", status: "failed", ipAddress: ip, userAgent: ua, details: err.message });
+    res.status(401).json({ error: "Invalid Google token. Please try again." });
+    return;
+  }
+
+  try {
+    // Find existing user by email
+    let [user] = await db.select().from(usersTable).where(eq(usersTable.email, googleUser.email)).limit(1);
+
+    if (!user) {
+      // Create new client account — Google has already verified the email
+      const [newUser] = await db.insert(usersTable).values({
+        email: googleUser.email,
+        firstName: googleUser.given_name || googleUser.name.split(" ")[0] || "User",
+        lastName: googleUser.family_name || googleUser.name.split(" ").slice(1).join(" ") || "",
+        passwordHash: await hashPassword(crypto.randomUUID()), // unusable password — login via Google
+        role: requestedRole === "admin" ? "client" : "client", // Google users always start as clients
+        status: "active",
+        emailVerified: true, // Google already verified the email
+        googleId: googleUser.sub,
+      }).returning();
+      user = newUser;
+      console.log(`[AUTH] New Google user created: ${user.email}`);
+    } else if (!user.googleId) {
+      // Link Google account to existing user
+      await db.update(usersTable).set({ googleId: googleUser.sub, emailVerified: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+      user = { ...user, googleId: googleUser.sub, emailVerified: true };
+    }
+
+    if (user.status === "suspended" || user.status === "banned") {
+      await logAuthEvent({ userId: user.id, email: user.email, action: "google_login", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: `Account ${user.status}` });
+      res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+      return;
+    }
+
+    const token = signToken({ userId: user.id, role: user.role });
+    await logAuthEvent({ userId: user.id, email: user.email, action: "google_login", method: "google", status: "success", ipAddress: ip, userAgent: ua });
+
+    res.json({
+      token,
+      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role },
+    });
+  } catch (err: any) {
+    console.error("[AUTH] Google login error:", err.message);
+    await logAuthEvent({ email: googleUser.email, action: "google_login", method: "google", status: "error", ipAddress: ip, userAgent: ua, details: err.message });
+    res.status(500).json({ error: "Server error during sign-in. Please try again." });
   }
 });
 

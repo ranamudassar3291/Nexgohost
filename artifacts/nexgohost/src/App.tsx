@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
 import { CurrencyProvider } from "@/context/CurrencyProvider";
+import { GoogleOAuthProvider } from "@react-oauth/google";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -285,17 +287,39 @@ function RouterRoot() {
   );
 }
 
+// ─── Google OAuth Dynamic Wrapper ─────────────────────────────────────────────
+// Fetches the Google Client ID from the backend settings, so admins can
+// configure it without touching env vars. Falls back gracefully if not set.
+function GoogleWrapper({ children }: { children: React.ReactNode }) {
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/google/config")
+      .then(r => r.json())
+      .then(d => { setClientId(d.clientId || null); })
+      .catch(() => { setClientId(null); })
+      .finally(() => setChecked(true));
+  }, []);
+
+  if (!checked) return <>{children}</>;
+  if (!clientId) return <>{children}</>;
+  return <GoogleOAuthProvider clientId={clientId}>{children}</GoogleOAuthProvider>;
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────────
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthProvider>
-            <CurrencyProvider>
-              <RouterRoot />
-            </CurrencyProvider>
-          </AuthProvider>
+          <GoogleWrapper>
+            <AuthProvider>
+              <CurrencyProvider>
+                <RouterRoot />
+              </CurrencyProvider>
+            </AuthProvider>
+          </GoogleWrapper>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

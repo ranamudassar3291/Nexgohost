@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, UserPlus, ShieldCheck, RefreshCw } from "lucide-react";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 async function apiFetch(url: string, token: string | null, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -29,6 +30,14 @@ export default function Register() {
   const [code, setCode] = useState("");
   const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/google/config")
+      .then(r => r.json())
+      .then(d => setGoogleEnabled(!!d.clientId))
+      .catch(() => setGoogleEnabled(false));
+  }, []);
 
   const startCountdown = () => {
     setCountdown(60);
@@ -81,18 +90,24 @@ export default function Register() {
     } finally { setResending(false); }
   };
 
+  const handleGoogleSuccess = (token: string) => {
+    login(token);
+    toast({ title: "Welcome to Nexgohost!", description: "You've been signed in with Google." });
+    setLocation("/client/dashboard");
+  };
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background py-12">
       <div className="absolute inset-0 z-0">
-        <img 
-          src={`${import.meta.env.BASE_URL}images/auth-bg.png`} 
-          alt="Abstract Background" 
+        <img
+          src={`${import.meta.env.BASE_URL}images/auth-bg.png`}
+          alt="Abstract Background"
           className="w-full h-full object-cover opacity-30"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-background/50 via-background/90 to-background" />
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -100,7 +115,7 @@ export default function Register() {
       >
         <div className="glass-card p-8 md:p-10 rounded-3xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px]" />
-          
+
           <AnimatePresence mode="wait">
             {step === "form" ? (
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative z-10">
@@ -108,6 +123,22 @@ export default function Register() {
                   <h1 className="text-3xl font-display font-bold text-foreground">Create Account</h1>
                   <p className="text-muted-foreground mt-2">Join Nexgohost to deploy and manage your infrastructure.</p>
                 </div>
+
+                {googleEnabled && (
+                  <div className="mb-6">
+                    <GoogleSignInButton
+                      label="Sign up with Google"
+                      onSuccess={handleGoogleSuccess}
+                      onError={(msg) => toast({ title: "Google sign-in failed", description: msg, variant: "destructive" })}
+                    />
+                    <div className="flex items-center gap-3 mt-5">
+                      <div className="flex-1 h-px bg-white/10" />
+                      <span className="text-xs text-muted-foreground">or register with email</span>
+                      <div className="flex-1 h-px bg-white/10" />
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleRegister} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-1.5">
