@@ -49,6 +49,7 @@ export default function ClientHosting() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [reinstallingSSL, setReinstallingSSL] = useState<string | null>(null);
+  const [ssoLoading, setSsoLoading] = useState<Record<string, "cpanel" | "webmail" | null>>({});
 
   const handleReinstallSSL = async (serviceId: string, domain: string) => {
     setReinstallingSSL(serviceId);
@@ -70,23 +71,35 @@ export default function ClientHosting() {
     queryFn: () => apiFetch("/api/client/hosting"),
   });
 
-  const handleCpanelLogin = (service: HostingService) => {
-    if (service.cpanelUrl) {
-      window.open(service.cpanelUrl, "_blank");
-    } else if (service.serverIp) {
-      window.open(`https://${service.serverIp}:2083`, "_blank");
-    } else {
-      toast({ title: "cPanel URL not configured", variant: "destructive" });
+  const handleCpanelLogin = async (service: HostingService) => {
+    setSsoLoading(prev => ({ ...prev, [service.id]: "cpanel" }));
+    try {
+      const result = await apiFetch(`/api/client/hosting/${service.id}/cpanel-login`, { method: "POST" });
+      if (result.url) {
+        window.open(result.url, "_blank");
+      } else {
+        throw new Error("No login URL returned");
+      }
+    } catch (err: any) {
+      toast({ title: "cPanel Login Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSsoLoading(prev => ({ ...prev, [service.id]: null }));
     }
   };
 
-  const handleWebmailLogin = (service: HostingService) => {
-    if (service.webmailUrl) {
-      window.open(service.webmailUrl, "_blank");
-    } else if (service.serverIp) {
-      window.open(`https://${service.serverIp}/webmail`, "_blank");
-    } else {
-      toast({ title: "Webmail URL not configured", variant: "destructive" });
+  const handleWebmailLogin = async (service: HostingService) => {
+    setSsoLoading(prev => ({ ...prev, [service.id]: "webmail" }));
+    try {
+      const result = await apiFetch(`/api/client/hosting/${service.id}/webmail-login`, { method: "POST" });
+      if (result.url) {
+        window.open(result.url, "_blank");
+      } else {
+        throw new Error("No login URL returned");
+      }
+    } catch (err: any) {
+      toast({ title: "Webmail Login Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSsoLoading(prev => ({ ...prev, [service.id]: null }));
     }
   };
 
@@ -263,17 +276,23 @@ export default function ClientHosting() {
                 <Button
                   onClick={() => handleCpanelLogin(service)}
                   className="gap-2 bg-primary hover:bg-primary/90"
-                  disabled={service.status !== "active"}
+                  disabled={service.status !== "active" || !!ssoLoading[service.id]}
                 >
-                  <ExternalLink size={15} /> Login to cPanel
+                  {ssoLoading[service.id] === "cpanel"
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <ExternalLink size={15} />}
+                  {ssoLoading[service.id] === "cpanel" ? "Logging in..." : "Login to cPanel"}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleWebmailLogin(service)}
                   className="gap-2"
-                  disabled={service.status !== "active"}
+                  disabled={service.status !== "active" || !!ssoLoading[service.id]}
                 >
-                  <ExternalLink size={15} /> Login to Webmail
+                  {ssoLoading[service.id] === "webmail"
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : <ExternalLink size={15} />}
+                  {ssoLoading[service.id] === "webmail" ? "Logging in..." : "Login to Webmail"}
                 </Button>
                 <Button
                   variant="outline"

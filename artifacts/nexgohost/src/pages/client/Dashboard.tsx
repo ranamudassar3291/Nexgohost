@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 interface Order {
@@ -16,10 +18,10 @@ interface HostingService {
   nextDueDate: string | null; billingCycle: string;
 }
 
-async function apiFetch(url: string) {
+async function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token");
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error("Failed to fetch");
+  const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Request failed"); }
   return res.json();
 }
 
@@ -34,6 +36,27 @@ export default function ClientDashboard() {
   const { data: stats, isLoading } = useGetClientDashboard();
   const { data: user } = useGetMe();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [ssoLoading, setSsoLoading] = useState<Record<string, "cpanel" | "webmail" | null>>({});
+
+  const handleSsoLogin = async (serviceId: string, type: "cpanel" | "webmail") => {
+    setSsoLoading(prev => ({ ...prev, [serviceId]: type }));
+    try {
+      const endpoint = type === "cpanel"
+        ? `/api/client/hosting/${serviceId}/cpanel-login`
+        : `/api/client/hosting/${serviceId}/webmail-login`;
+      const result = await apiFetch(endpoint, { method: "POST" });
+      if (result.url) {
+        window.open(result.url, "_blank");
+      } else {
+        throw new Error("No login URL returned");
+      }
+    } catch (err: any) {
+      toast({ title: `${type === "cpanel" ? "cPanel" : "Webmail"} Login Failed`, description: err.message, variant: "destructive" });
+    } finally {
+      setSsoLoading(prev => ({ ...prev, [serviceId]: null }));
+    }
+  };
 
   const { data: recentOrders = [] } = useQuery<Order[]>({
     queryKey: ["my-orders-dashboard"],
@@ -113,8 +136,10 @@ export default function ClientDashboard() {
           </div>
           <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {activeServices.map(svc => {
-              const cpanelHref = svc.cpanelUrl || (svc.webmailUrl ? svc.webmailUrl.replace("/webmail", ":2083") : null);
-              const webmailHref = svc.webmailUrl || (svc.cpanelUrl ? svc.cpanelUrl.replace(":2083", "/webmail") : null);
+              const isActive = svc.status === "active";
+              const cpanelBusy = ssoLoading[svc.id] === "cpanel";
+              const webmailBusy = ssoLoading[svc.id] === "webmail";
+              const anyBusy = !!ssoLoading[svc.id];
               return (
                 <div key={svc.id} className="bg-secondary/20 border border-border/60 rounded-xl p-4 space-y-3">
                   <div>
@@ -127,23 +152,23 @@ export default function ClientDashboard() {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    {cpanelHref && (
-                      <a href={cpanelHref} target="_blank" rel="noreferrer" className="flex-1">
-                        <Button size="sm" variant="outline"
-                          className="w-full h-8 text-xs gap-1.5 border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300">
-                          <Terminal size={12} /> cPanel
-                        </Button>
-                      </a>
+                    {isActive && (
+                      <Button size="sm" variant="outline" onClick={() => handleSsoLogin(svc.id, "cpanel")}
+                        disabled={anyBusy}
+                        className="flex-1 h-8 text-xs gap-1.5 border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300">
+                        {cpanelBusy ? <Loader2 size={12} className="animate-spin" /> : <Terminal size={12} />}
+                        cPanel
+                      </Button>
                     )}
-                    {webmailHref && (
-                      <a href={webmailHref} target="_blank" rel="noreferrer" className="flex-1">
-                        <Button size="sm" variant="outline"
-                          className="w-full h-8 text-xs gap-1.5 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300">
-                          <Mail size={12} /> Webmail
-                        </Button>
-                      </a>
+                    {isActive && (
+                      <Button size="sm" variant="outline" onClick={() => handleSsoLogin(svc.id, "webmail")}
+                        disabled={anyBusy}
+                        className="flex-1 h-8 text-xs gap-1.5 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300">
+                        {webmailBusy ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+                        Webmail
+                      </Button>
                     )}
-                    {!cpanelHref && !webmailHref && (
+                    {!isActive && (
                       <Button asChild size="sm" variant="outline" className="flex-1 h-8 text-xs">
                         <Link href="/client/hosting"><ExternalLink size={12} className="mr-1" /> Details</Link>
                       </Button>

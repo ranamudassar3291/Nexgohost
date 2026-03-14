@@ -23,7 +23,7 @@ export async function suspendHostingAccount(username: string, serverId: string |
 import { db } from "@workspace/db";
 import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serverLogsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { cpanelCreateAccount } from "./cpanel.js";
+import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
 import { twentyiCreateHosting } from "./twenty-i.js";
 import { emailHostingCreated } from "./email.js";
 
@@ -115,7 +115,7 @@ export async function provisionHostingService(
   const rawUsername = overrides?.username?.trim()
     ? sanitizeUsername(overrides.username.trim())
     : generateUsername(domain);
-  const username = rawUsername || generateUsername(domain);
+  let username = rawUsername || generateUsername(domain);
   const password = overrides?.password?.trim() || generatePassword();
 
   // ── Required field validation for cPanel ──────────────────────────────────
@@ -192,44 +192,62 @@ export async function provisionHostingService(
     finalServerIp = server.ipAddress || server.hostname;
 
     if (module === "cpanel" && server.apiUsername && server.apiToken) {
-      const whmPlan = plan?.modulePlanName || plan?.modulePlanId || "default";
+      const whmPlan = plan?.modulePlanName || plan?.modulePlanId || "";
       const whmPort = server.apiPort || 2087;
+      const serverCfg = { hostname: server.hostname, port: whmPort, username: server.apiUsername, apiToken: server.apiToken };
 
-      const requestParams = {
-        username,
-        domain,
-        password: "***",
-        plan: whmPlan,
-        contactemail: user.email,
-      };
+      // ── Step 1: check if domain already exists to avoid "domain already in userdata" error
+      const { exists: domainExists, username: existingUsername } = await cpanelCheckDomainExists(serverCfg, domain);
 
-      console.log(`[PROVISION] WHM createacct: domain=${domain} user=${username} plan=${whmPlan} server=${server.hostname}:${whmPort}`);
-
-      try {
-        const result = await cpanelCreateAccount(
-          { hostname: server.hostname, port: whmPort, username: server.apiUsername, apiToken: server.apiToken },
-          { username, domain, password, email: user.email, plan: whmPlan, contactemail: user.email },
-        );
-        console.log(`[PROVISION] WHM account created successfully: ${username}@${domain}`);
+      if (domainExists && existingUsername) {
+        // Domain already on this server — attach service to existing account instead of creating a new one
+        console.log(`[PROVISION] Domain "${domain}" already exists on WHM with username "${existingUsername}" — attaching service`);
+        // Use the existing WHM username; keep the newly generated password in DB
+        // (admin can reset the password in cPanel if needed)
+        username = existingUsername;
         await logServerAction({
           serviceId,
           serverId: server.id,
-          action: "createacct",
+          action: "attach_existing",
           status: "success",
-          request: requestParams,
-          response: JSON.stringify(result),
+          request: { domain, existingUsername },
+          response: "Domain already existed; service attached to existing WHM account",
         });
-      } catch (err: any) {
-        whmError = err.message;
-        console.warn(`[PROVISION] WHM createacct failed: ${err.message}`);
-        await logServerAction({
-          serviceId,
-          serverId: server.id,
-          action: "createacct",
-          status: "failed",
-          request: requestParams,
-          errorMessage: err.message,
-        });
+      } else {
+        // Domain does not exist — proceed with account creation
+        const requestParams = {
+          username,
+          domain,
+          password: "***",
+          plan: whmPlan || "(default)",
+          contactemail: user.email,
+        };
+
+        console.log(`[PROVISION] WHM createacct: domain=${domain} user=${username} plan=${whmPlan || "(default)"} server=${server.hostname}:${whmPort}`);
+
+        try {
+          const result = await cpanelCreateAccount(serverCfg, { username, domain, password, email: user.email, plan: whmPlan, contactemail: user.email });
+          console.log(`[PROVISION] WHM account created successfully: ${username}@${domain}`);
+          await logServerAction({
+            serviceId,
+            serverId: server.id,
+            action: "createacct",
+            status: "success",
+            request: requestParams,
+            response: JSON.stringify(result),
+          });
+        } catch (err: any) {
+          whmError = err.message;
+          console.warn(`[PROVISION] WHM createacct failed: ${err.message}`);
+          await logServerAction({
+            serviceId,
+            serverId: server.id,
+            action: "createacct",
+            status: "failed",
+            request: requestParams,
+            errorMessage: err.message,
+          });
+        }
       }
     } else if (module === "20i" && server.apiToken) {
       try {

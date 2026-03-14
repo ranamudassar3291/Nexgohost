@@ -1,0 +1,187 @@
+
+TASK:
+Fix WHM account activation issues in the hosting billing system.
+
+Current issues:
+
+1) WHM error:
+"The domain already exists in userdata"
+
+2) cPanel auto login without password does not work.
+
+3) WHM package specifications are not applied correctly.
+
+--------------------------------------------------
+
+ISSUE 1
+Domain already exists in WHM.
+
+Error:
+
+(XID) The domain already exists in userdata.
+
+CAUSE:
+
+System tries to create an account even if the domain already exists on the server.
+
+--------------------------------------------------
+
+FIX
+
+Before calling WHM createacct API, check if the domain already exists.
+
+Use WHM API:
+
+/json-api/domainuserdata?api.version=1&domain=DOMAIN
+
+If domain exists:
+
+Do NOT call createacct again.
+
+Instead:
+
+Attach service to existing account.
+
+Save username and server in services table.
+
+--------------------------------------------------
+
+ISSUE 2
+Fix WHM package specifications.
+
+Accounts must be created using WHM package.
+
+WHM API:
+
+/json-api/createacct?api.version=1
+
+Required parameters:
+
+username
+domain
+password
+plan
+contactemail
+
+IMPORTANT:
+
+plan must match exact WHM package name.
+
+Example:
+
+starter
+business
+pro
+
+WHM automatically applies limits like:
+
+disk
+bandwidth
+email accounts
+databases
+
+Do NOT override limits manually.
+
+--------------------------------------------------
+
+ISSUE 3
+Implement cPanel Single Sign-On (Auto Login)
+
+Client dashboard must allow login without password.
+
+Use WHM API:
+
+/json-api/create_user_session
+
+Endpoint:
+
+https://SERVER:2087/json-api/create_user_session?api.version=1&user=USERNAME&service=cpaneld
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Response returns a login URL.
+
+Example response:
+
+{
+ "data": {
+  "url": "https://server:2083/cpsessXXXX/login/?session=XXXX"
+ }
+}
+
+Redirect client to that URL.
+
+This logs the client into cPanel automatically.
+
+--------------------------------------------------
+
+ISSUE 4
+Fix Webmail auto login.
+
+Use same API:
+
+service=webmaild
+
+Endpoint:
+
+/json-api/create_user_session?api.version=1&user=USERNAME&service=webmaild
+
+--------------------------------------------------
+
+ISSUE 5
+Correct client dashboard buttons.
+
+Replace static links.
+
+Old:
+
+https://server:2083
+
+New:
+
+Call WHM API
+Generate login session
+Redirect client automatically.
+
+--------------------------------------------------
+
+ISSUE 6
+Improve activation workflow.
+
+When admin clicks Activate Order:
+
+1 check if domain exists
+2 if not → create WHM account
+3 if exists → attach service
+4 apply correct WHM package
+5 save username/password
+6 show login buttons
+7 send welcome email
+
+--------------------------------------------------
+
+ISSUE 7
+Add WHM API error handling.
+
+If WHM returns error:
+
+Show exact message to admin.
+
+Example:
+
+Domain already exists
+Invalid package
+Invalid username
+
+--------------------------------------------------
+
+FINAL RESULT
+
+After fixing:
+
+Account creation errors disappear
+WHM package limits apply correctly
+Client can login to cPanel without password
+System handles existing domains correctly

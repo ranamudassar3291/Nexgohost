@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable } from "@workspace/db/schema";
+import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended } from "../lib/email.js";
+import { cpanelCreateUserSession } from "../lib/cpanel.js";
 
 const router = Router();
 
@@ -263,6 +264,55 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
   }, 2000);
   res.json({ success: true, message: "SSL reinstall initiated" });
 });
+
+// ── cPanel SSO login (generate session, redirect client to cPanel) ────────────
+async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "webmaild") {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service || service.clientId !== req.user!.userId) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status !== "active") {
+      return res.status(400).json({ error: "Service must be active to login" });
+    }
+    if (!service.username) {
+      return res.status(400).json({ error: "No cPanel username linked to this service" });
+    }
+    if (!service.serverId) {
+      return res.status(400).json({ error: "No server assigned to this service" });
+    }
+
+    const [server] = await db.select().from(serversTable)
+      .where(eq(serversTable.id, service.serverId)).limit(1);
+    if (!server || !server.apiToken || !server.hostname) {
+      return res.status(400).json({ error: "Server is not configured for WHM API access" });
+    }
+
+    const serverCfg = {
+      hostname: server.hostname,
+      port: server.apiPort || 2087,
+      username: server.apiUsername || "root",
+      apiToken: server.apiToken,
+    };
+
+    const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, service_name);
+    return res.json({ url: loginUrl });
+  } catch (err: any) {
+    const msg: string = err.message || "SSO login failed";
+    console.warn(`[WHM SSO] ${service_name} login failed: ${msg}`);
+    return res.status(500).json({ error: msg });
+  }
+}
+
+router.post("/client/hosting/:id/cpanel-login", authenticate, (req: AuthRequest, res) =>
+  ssoLogin(req, res, "cpaneld"),
+);
+
+router.post("/client/hosting/:id/webmail-login", authenticate, (req: AuthRequest, res) =>
+  ssoLogin(req, res, "webmaild"),
+);
 
 router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
   try {

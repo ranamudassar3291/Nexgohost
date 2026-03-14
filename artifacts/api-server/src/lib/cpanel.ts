@@ -161,3 +161,51 @@ export async function cpanelListPackages(server: ServerConfig): Promise<{ name: 
 export async function cpanelInstallSSL(server: ServerConfig, domain: string): Promise<any> {
   return whmRequest(server, "installssl", { domain });
 }
+
+/**
+ * Check if a domain already exists in WHM userdata.
+ * Uses /json-api/domainuserdata?api.version=1&domain=DOMAIN
+ * Returns { exists: boolean, username: string | null }
+ */
+export async function cpanelCheckDomainExists(
+  server: ServerConfig,
+  domain: string,
+): Promise<{ exists: boolean; username: string | null }> {
+  try {
+    const query = new URLSearchParams({ domain, "api.version": "1" });
+    const port = server.port || 2087;
+    const url = `https://${server.hostname}:${port}/json-api/domainuserdata?${query}`;
+    const authUser = server.username || "root";
+    const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+    const data = JSON.parse(body);
+    // WHM returns metadata.result=1 and data.userdata.user when domain exists
+    const username: string | null = data?.data?.userdata?.user || data?.userdata?.user || null;
+    const exists = !!username;
+    return { exists, username };
+  } catch {
+    // If the API call itself fails, assume domain does not exist and let createacct proceed
+    return { exists: false, username: null };
+  }
+}
+
+/**
+ * Create a WHM user session for cPanel Single Sign-On (SSO).
+ * Uses /json-api/create_user_session?api.version=1&user=USERNAME&service=SERVICE
+ * service = "cpaneld" for cPanel, "webmaild" for Webmail
+ * Returns the login URL to redirect the client to.
+ */
+export async function cpanelCreateUserSession(
+  server: ServerConfig,
+  username: string,
+  service: "cpaneld" | "webmaild",
+): Promise<string> {
+  const data = await whmRequest(server, "create_user_session", { user: username, service });
+  const loginUrl: string | undefined =
+    data?.data?.url ||
+    data?.result?.[0]?.data?.url ||
+    data?.url;
+  if (!loginUrl) {
+    throw new Error("WHM did not return a login URL for SSO session");
+  }
+  return loginUrl;
+}
