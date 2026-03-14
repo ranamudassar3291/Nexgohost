@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ interface ServerRecord {
   status: "active" | "inactive" | "maintenance"; groupId: string | null; isDefault: boolean;
   hasApiToken?: boolean;
 }
+interface TwentyIPkg { id: string; name: string; }
 
 const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
 const EMPTY_GROUP = { name: "", description: "" };
@@ -48,6 +49,12 @@ export default function Servers() {
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[] }>>({});
 
+  // 20i in-form test state
+  const [testingForm, setTestingForm] = useState(false);
+  const [formTestResult, setFormTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [twentyiPkgs, setTwentyiPkgs] = useState<TwentyIPkg[]>([]);
+  const [twentyiDefaultPkg, setTwentyiDefaultPkg] = useState("");
+
   // Group state
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editGroupId, setEditGroupId] = useState<string | null>(null);
@@ -63,12 +70,56 @@ export default function Servers() {
 
   const setS = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setServerForm(s => ({ ...s, [f]: e.target.value }));
 
+  const is20i = serverForm.type === "20i";
+
+  const resetFormState = () => {
+    setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER);
+    setIsDefault(false); setApiTokenSaved(false);
+    setFormTestResult(null); setTwentyiPkgs([]); setTwentyiDefaultPkg("");
+  };
+
+  // ── In-form 20i connection test ──────────────────────────────────────────
+  const handleFormTest = async () => {
+    if (!serverForm.apiToken) { toast({ title: "Enter your 20i API Key first", variant: "destructive" }); return; }
+    setTestingForm(true); setFormTestResult(null); setTwentyiPkgs([]);
+    try {
+      const result = await apiFetch("/api/admin/servers/test-api-key", {
+        method: "POST",
+        body: JSON.stringify({ apiKey: serverForm.apiToken, type: "20i" }),
+      });
+      setFormTestResult({ ok: true, msg: result.message });
+      if (result.packages && result.packages.length > 0) {
+        setTwentyiPkgs(result.packages);
+        if (!twentyiDefaultPkg) setTwentyiDefaultPkg(result.packages[0].id);
+      }
+      toast({ title: "Connection successful", description: result.message });
+    } catch (err: any) {
+      setFormTestResult({ ok: false, msg: err.message });
+      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
+    } finally { setTestingForm(false); }
+  };
+
+  // ── Save server ──────────────────────────────────────────────────────────
   const handleSaveServer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!serverForm.name || !serverForm.hostname) { toast({ title: "Name and hostname required", variant: "destructive" }); return; }
+    if (!serverForm.name) { toast({ title: "Server name is required", variant: "destructive" }); return; }
+    if (is20i) {
+      if (!serverForm.apiToken && !apiTokenSaved) {
+        toast({ title: "API Key is required", description: "Enter your 20i API Key and test the connection.", variant: "destructive" }); return;
+      }
+    } else {
+      if (!serverForm.hostname) { toast({ title: "Hostname is required", variant: "destructive" }); return; }
+    }
     setSaving(true);
     try {
-      const body = { ...serverForm, isDefault };
+      const body = {
+        ...serverForm,
+        hostname: is20i ? "api.20i.com" : serverForm.hostname,
+        apiUsername: is20i ? null : (serverForm.apiUsername || null),
+        apiPort: is20i ? null : parseInt(serverForm.apiPort),
+        isDefault,
+        ...(is20i && twentyiDefaultPkg ? { defaultPackageId: twentyiDefaultPkg } : {}),
+      };
       if (editServerId) {
         await apiFetch(`/api/admin/servers/${editServerId}`, { method: "PUT", body: JSON.stringify(body) });
         toast({ title: "Server updated" });
@@ -77,12 +128,13 @@ export default function Servers() {
         toast({ title: "Server added" });
       }
       qc.invalidateQueries({ queryKey: ["admin-servers"] });
-      setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER); setIsDefault(false); setApiTokenSaved(false);
+      resetFormState();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally { setSaving(false); }
   };
 
+  // ── Post-save test (from server card) ───────────────────────────────────
   const handleTest = async (id: string) => {
     setTesting(id);
     try {
@@ -142,7 +194,9 @@ export default function Servers() {
           <h1 className="text-2xl font-display font-bold text-foreground">Servers</h1>
           <p className="text-muted-foreground text-sm">Manage hosting servers, groups, and module integrations</p>
         </div>
-        <Button onClick={() => activeTab === "servers" ? (setEditServerId(null), setServerForm(EMPTY_SERVER), setIsDefault(false), setApiTokenSaved(false), setShowServerForm(true)) : (setEditGroupId(null), setGroupForm(EMPTY_GROUP), setShowGroupForm(true))}
+        <Button onClick={() => activeTab === "servers"
+          ? (resetFormState(), setShowServerForm(true))
+          : (setEditGroupId(null), setGroupForm(EMPTY_GROUP), setShowGroupForm(true))}
           className="bg-primary hover:bg-primary/90">
           <Plus size={16} className="mr-2" /> {activeTab === "servers" ? "Add Server" : "Add Group"}
         </Button>
@@ -171,15 +225,17 @@ export default function Servers() {
                 </div>
               </div>
               <form onSubmit={handleSaveServer} className="space-y-4">
+
+                {/* Common: Name + Module Type */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">Server Name *</label><Input value={serverForm.name} onChange={setS("name")} placeholder="US Server 01" /></div>
-                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">Hostname *</label><Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.nexgohost.com" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">IP Address</label><Input value={serverForm.ipAddress} onChange={setS("ipAddress")} placeholder="192.168.1.1" /></div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground/80">Server Name *</label>
+                    <Input value={serverForm.name} onChange={setS("name")} placeholder={is20i ? "20i Reseller" : "US Server 01"} />
+                  </div>
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground/80">Module Type</label>
-                    <select value={serverForm.type} onChange={setS("type")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <select value={serverForm.type} onChange={e => { setS("type")(e); setFormTestResult(null); setTwentyiPkgs([]); setTwentyiDefaultPkg(""); }}
+                      className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                       <option value="cpanel">cPanel / WHM</option>
                       <option value="directadmin">DirectAdmin</option>
                       <option value="plesk">Plesk</option>
@@ -188,6 +244,127 @@ export default function Servers() {
                     </select>
                   </div>
                 </div>
+
+                {/* ── 20i-specific fields ── */}
+                {is20i ? (
+                  <div className="border border-violet-500/20 rounded-xl p-4 space-y-4 bg-violet-500/5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-5 h-5 rounded-md bg-violet-500/20 flex items-center justify-center">
+                        <span className="text-xs font-bold text-violet-400">20</span>
+                      </div>
+                      <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">20i Reseller API</p>
+                    </div>
+
+                    {/* API Key */}
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">API Key *</label>
+                      <Input
+                        type="password"
+                        value={serverForm.apiToken}
+                        onChange={e => { setS("apiToken")(e); setFormTestResult(null); }}
+                        placeholder={apiTokenSaved ? "Key saved — enter new to replace" : "Paste your 20i reseller API key"}
+                      />
+                      {editServerId && apiTokenSaved && !serverForm.apiToken && (
+                        <p className="text-xs text-emerald-400">✓ API key is saved — leave blank to keep existing</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Find your API key in{" "}
+                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline">
+                          my.20i.com → API Key
+                        </a>
+                      </p>
+                    </div>
+
+                    {/* Test Connection button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                      onClick={handleFormTest}
+                      disabled={testingForm || (!serverForm.apiToken && apiTokenSaved)}
+                    >
+                      {testingForm ? <Loader2 size={14} className="animate-spin mr-2" /> : <Wifi size={14} className="mr-2" />}
+                      {testingForm ? "Testing…" : "Test Connection"}
+                    </Button>
+
+                    {/* Test result */}
+                    {formTestResult && (
+                      <div className={`flex items-start gap-2 text-xs p-3 rounded-lg border ${formTestResult.ok ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400" : "border-red-500/20 bg-red-500/5 text-red-400"}`}>
+                        {formTestResult.ok ? <CheckCircle size={13} className="mt-0.5 shrink-0" /> : <XCircle size={13} className="mt-0.5 shrink-0" />}
+                        <span>{formTestResult.msg}</span>
+                      </div>
+                    )}
+
+                    {/* Default Package (only after a successful test that returns packages) */}
+                    {twentyiPkgs.length > 0 && (
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/80 flex items-center gap-2">
+                          <Package size={13} className="text-violet-400" /> Default Package
+                        </label>
+                        <select
+                          value={twentyiDefaultPkg}
+                          onChange={e => setTwentyiDefaultPkg(e.target.value)}
+                          className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          {twentyiPkgs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <p className="text-xs text-muted-foreground">Used when provisioning new hosting accounts with no explicit plan package.</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ── WHM/other fields ── */
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/80">Hostname *</label>
+                        <Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.nexgohost.com" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/80">IP Address</label>
+                        <Input value={serverForm.ipAddress} onChange={setS("ipAddress")} placeholder="192.168.1.1" />
+                      </div>
+                    </div>
+
+                    <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium text-foreground/80">API Username</label>
+                          <Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" />
+                          <p className="text-xs text-muted-foreground">Leave as "root" for WHM API token auth</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium text-foreground/80">API Token / Key</label>
+                          <Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")}
+                            placeholder={apiTokenSaved ? "Token saved — enter new to change" : "Paste WHM API token here"} />
+                          {editServerId && apiTokenSaved && !serverForm.apiToken && (
+                            <p className="text-xs text-emerald-400">✓ API token is saved — leave blank to keep it</p>
+                          )}
+                          {editServerId && !apiTokenSaved && (
+                            <p className="text-xs text-yellow-400">No token saved — enter your WHM API token</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/80">API Port</label>
+                        <Input type="number" value={serverForm.apiPort} onChange={setS("apiPort")} className="w-32" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" /></div>
+                      <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" /></div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">Max Accounts</label>
+                      <Input type="number" value={serverForm.maxAccounts} onChange={setS("maxAccounts")} className="w-32" />
+                    </div>
+                  </>
+                )}
+
+                {/* Server Group */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">Server Group</label>
                   <select value={serverForm.groupId} onChange={setS("groupId")} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
@@ -195,41 +372,17 @@ export default function Servers() {
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
-                <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground/80">API Username</label>
-                      <Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" />
-                      <p className="text-xs text-muted-foreground">Leave as "root" for standard WHM API token auth</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground/80">API Token / Key</label>
-                      <Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")} placeholder={apiTokenSaved ? "Token saved — enter new to change" : "Paste WHM API token here"} />
-                      {editServerId && apiTokenSaved && !serverForm.apiToken && (
-                        <p className="text-xs text-emerald-400">✓ API token is saved — leave blank to keep it</p>
-                      )}
-                      {editServerId && !apiTokenSaved && (
-                        <p className="text-xs text-yellow-400">No token saved — enter your WHM API token</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Port</label><Input type="number" value={serverForm.apiPort} onChange={setS("apiPort")} className="w-32" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" /></div>
-                  <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" /></div>
-                </div>
-                <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">Max Accounts</label><Input type="number" value={serverForm.maxAccounts} onChange={setS("maxAccounts")} className="w-32" /></div>
+
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} className="rounded" />
                   <span className="text-sm text-foreground/80">Set as default server</span>
                 </label>
+
                 <div className="flex gap-3 pt-2">
                   <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                     {saving && <Loader2 size={16} className="animate-spin mr-2" />} {editServerId ? "Save Changes" : "Add Server"}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => { setShowServerForm(false); setEditServerId(null); setApiTokenSaved(false); }}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={resetFormState}>Cancel</Button>
                 </div>
               </form>
             </div>
@@ -251,7 +404,9 @@ export default function Servers() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-4">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${s.status === "active" ? "bg-primary/10" : "bg-secondary"}`}>
-                        <Server size={22} className={s.status === "active" ? "text-primary" : "text-muted-foreground"} />
+                        {s.type === "20i"
+                          ? <span className={`text-sm font-bold ${s.status === "active" ? "text-violet-400" : "text-muted-foreground"}`}>20i</span>
+                          : <Server size={22} className={s.status === "active" ? "text-primary" : "text-muted-foreground"} />}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -264,11 +419,14 @@ export default function Servers() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{s.hostname}{s.ipAddress ? ` · ${s.ipAddress}` : ""}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {s.type === "20i" ? "api.20i.com (SaaS)" : `${s.hostname}${s.ipAddress ? ` · ${s.ipAddress}` : ""}`}
+                        </p>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                           <span className="text-xs text-muted-foreground font-medium">{TYPE_LABELS[s.type]}</span>
-                          {s.ns1 && <span className="text-xs text-muted-foreground">NS: {s.ns1}</span>}
-                          {s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accts</span>}
+                          {s.type !== "20i" && s.ns1 && <span className="text-xs text-muted-foreground">NS: {s.ns1}</span>}
+                          {s.type !== "20i" && s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accts</span>}
+                          {s.hasApiToken && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> API key set</span>}
                         </div>
                         {testResults[s.id] && (
                           <div className="mt-2 space-y-1.5">
@@ -294,7 +452,20 @@ export default function Servers() {
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => {
                         setEditServerId(s.id);
                         setApiTokenSaved(!!s.hasApiToken);
-                        setServerForm({ name: s.name, hostname: s.hostname, ipAddress: s.ipAddress || "", type: s.type, apiUsername: s.apiUsername || "root", apiToken: "", apiPort: String(s.apiPort || 2087), ns1: s.ns1 || "", ns2: s.ns2 || "", maxAccounts: String(s.maxAccounts || 500), groupId: s.groupId || "" });
+                        setFormTestResult(null); setTwentyiPkgs([]); setTwentyiDefaultPkg("");
+                        setServerForm({
+                          name: s.name,
+                          hostname: s.type === "20i" ? "" : s.hostname,
+                          ipAddress: s.ipAddress || "",
+                          type: s.type,
+                          apiUsername: s.apiUsername || "root",
+                          apiToken: "",
+                          apiPort: String(s.apiPort || 2087),
+                          ns1: s.ns1 || "",
+                          ns2: s.ns2 || "",
+                          maxAccounts: String(s.maxAccounts || 500),
+                          groupId: s.groupId || "",
+                        });
                         setIsDefault(s.isDefault);
                         setShowServerForm(true);
                       }}><Pencil size={15} className="text-muted-foreground" /></Button>

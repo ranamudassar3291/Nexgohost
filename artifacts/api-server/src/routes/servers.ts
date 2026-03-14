@@ -97,20 +97,43 @@ router.get("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   res.json(server);
 });
 
+// POST /api/admin/servers/test-api-key — pre-save credential test (no saved server required)
+router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (req, res) => {
+  const { apiKey, type } = req.body;
+  if (!apiKey) { res.status(400).json({ error: "apiKey is required" }); return; }
+  if (type === "20i") {
+    const result = await twentyiTestConnection(apiKey);
+    if (!result.success) { res.status(400).json({ error: result.message, success: false }); return; }
+    // Also fetch packages so the form can populate the dropdown
+    try {
+      const pkgs = await twentyiGetPackages(apiKey);
+      res.json({ success: true, message: result.message, packages: pkgs });
+    } catch {
+      res.json({ success: true, message: result.message, packages: [] });
+    }
+    return;
+  }
+  res.status(400).json({ error: "Pre-save testing is only supported for 20i servers" });
+});
+
 router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
   const { name, hostname, ipAddress, type, apiUsername, apiToken, apiPort, ns1, ns2, maxAccounts, groupId, isDefault } = req.body;
-  if (!name || !hostname) { res.status(400).json({ error: "name and hostname are required" }); return; }
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  // For 20i servers, hostname is always api.20i.com — not user-supplied
+  if (type !== "20i" && !hostname) { res.status(400).json({ error: "hostname is required" }); return; }
   if (isDefault) { await db.update(serversTable).set({ isDefault: false }); }
+  const resolvedHostname = (type === "20i") ? "api.20i.com" : hostname;
   const [record] = await db.insert(serversTable).values({
-    name, hostname,
+    name,
+    hostname: resolvedHostname,
     ipAddress: ipAddress || null,
     type: type || "cpanel",
-    apiUsername: apiUsername || null,
+    apiUsername: (type === "20i") ? null : (apiUsername || null),
     apiToken: apiToken || null,
-    apiPort: apiPort ? parseInt(apiPort) : 2087,
+    apiPort: (type === "20i") ? null : (apiPort ? parseInt(apiPort) : 2087),
     ns1: ns1 || null,
     ns2: ns2 || null,
-    maxAccounts: maxAccounts ? parseInt(maxAccounts) : 500,
+    maxAccounts: (type === "20i") ? null : (maxAccounts ? parseInt(maxAccounts) : 500),
     groupId: groupId || null,
     isDefault: isDefault ?? false,
     status: "active",

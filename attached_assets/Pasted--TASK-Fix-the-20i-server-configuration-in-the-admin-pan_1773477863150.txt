@@ -1,0 +1,106 @@
+
+TASK:
+Fix the 20i server configuration in the admin panel so that:
+
+1. Admin can save 20i server configuration without blanking out
+2. 20i API calls work correctly (no 404)
+3. Required fields are displayed correctly in the configuration page
+4. Order activation, SSL activation, and client dashboard integration work using 20i API
+
+GOAL:
+- Admin adds 20i server → server saved in DB
+- API credentials properly validated
+- API endpoints correct → no 404
+- Order activation uses 20i API to create account
+- SSL activation via 20i API works
+- Dashboard buttons functional (cPanel/Webmail/SSL/Suspend/Unsuspend/Terminate)
+- Logs maintained for all 20i API actions
+
+--------------------------------------------------
+
+STEP 1: Admin Panel Server Configuration
+
+- Fields:
+  - Server Name / Hostname
+  - API Key
+  - API Secret / Token
+  - Default Package / Plan
+  - Test Connection button
+- Backend:
+  - Validate required fields
+  - Call 20i API **test endpoint** to verify credentials
+  - Return proper success / failure message
+  - Save configuration to `servers_20i` table only if test passes
+
+--------------------------------------------------
+
+STEP 2: 20i API Endpoint Fix
+
+- Correct endpoint URLs from 20i API documentation
+- Ensure HTTP method matches API spec (GET / POST / PUT)
+- Send required headers:
+  - Authorization: Bearer {API_KEY}
+  - Content-Type: application/json
+- Handle API errors gracefully:
+  - 404 → show “Endpoint Not Found. Check Hostname / API Key.”
+  - 401 → show “Unauthorized. Check API credentials.”
+
+--------------------------------------------------
+
+STEP 3: Save / Update Workflow
+
+- When admin clicks **Save**:
+  1. Validate all fields
+  2. Call 20i test API endpoint
+  3. If success → save to DB
+  4. If failure → show error message, do not clear form
+- Ensure frontend form fields **retain values** if API call fails
+- Use AJAX / proper form submission to prevent blanking
+
+--------------------------------------------------
+
+STEP 4: Integration with Orders / Dashboard
+
+- On order activation:
+  - Use selected 20i server & package
+  - Call 20i API to create account
+  - Fetch credentials → save to DB
+  - Generate auto-login URLs (cPanel/Webmail)
+  - Send Welcome email via SMTP (if enabled)
+- Dashboard:
+  - Show cPanel login / Webmail login
+  - SSL status → Activate button
+  - Suspend / Unsuspend / Terminate buttons → call 20i API + update DB
+- Logs maintained in `server_logs`
+
+--------------------------------------------------
+
+STEP 5: Error Handling & Logging
+
+- Log all API calls, responses, and errors
+- Retry failed calls up to 3 times
+- Notify admin of persistent issues
+- Do not allow saving invalid server configuration
+
+--------------------------------------------------
+
+STEP 6: Testing / Validation
+
+- Add new 20i server → save → test connection → success
+- Form should **not blank** if API fails
+- Create test order → account created via 20i API
+- SSL activation test → works
+- Dashboard buttons → functional
+- Logs show correct entries
+
+--------------------------------------------------
+
+FINAL RESULT:
+
+✅ 20i server configuration page fully functional  
+✅ Admin can save / update servers without form blanking  
+✅ API credentials validated before saving  
+✅ 20i API calls (create account, SSL, suspend/unsuspend) fully functional  
+✅ Dashboard buttons integrated with 20i API  
+✅ Logging for all 20i actions implemented  
+✅ Error handling shows descriptive messages, no blank forms

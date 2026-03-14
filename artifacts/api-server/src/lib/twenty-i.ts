@@ -3,7 +3,7 @@
  * https://my.20i.com/reseller/apidoc
  */
 
-async function twentyiRequest(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
+async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
   const url = `https://api.20i.com${path}`;
   const res = await fetch(url, {
     method,
@@ -14,11 +14,37 @@ async function twentyiRequest(apiKey: string, method: string, path: string, body
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(20000),
   });
+
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`20i API error ${res.status}: ${text}`);
+    if (res.status === 401) throw new Error("Unauthorized — check your 20i API Key (401)");
+    if (res.status === 403) throw new Error("Forbidden — your API key lacks permission for this action (403)");
+    if (res.status === 404) throw new Error(`Endpoint not found — check API Key / path: ${path} (404)`);
+    if (res.status === 429) throw new Error("Rate limited — too many requests to 20i API (429)");
+    throw new Error(`20i API error ${res.status}: ${text.substring(0, 300)}`);
   }
   return res.json();
+}
+
+/** Retry up to 3 times with exponential backoff on transient errors */
+async function twentyiRequest(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
+  const maxAttempts = 3;
+  let lastErr: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await twentyiRequestRaw(apiKey, method, path, body);
+    } catch (err: any) {
+      lastErr = err;
+      // Don't retry auth / permission / not-found errors
+      if (err.message?.includes("401") || err.message?.includes("403") || err.message?.includes("404")) throw err;
+      if (attempt < maxAttempts) {
+        const delay = attempt * 1200;
+        console.warn(`[20i] attempt ${attempt} failed (${err.message}), retrying in ${delay}ms…`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastErr!;
 }
 
 // ─── Connection test ─────────────────────────────────────────────────────────
