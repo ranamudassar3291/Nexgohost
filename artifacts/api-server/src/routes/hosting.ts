@@ -5,7 +5,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL } from "../lib/cpanel.js";
 
 const router = Router();
 
@@ -198,7 +198,18 @@ router.post("/admin/hosting/:id/suspend", authenticate, requireAdmin, async (req
       .where(eq(hostingServicesTable.id, service.id))
       .returning();
 
-    await emailServiceSuspended(service.clientId, service.domain || service.planName || "your hosting account").catch(() => {});
+    // Email suspended client with proper variables
+    db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1)
+      .then(([user]) => {
+        if (user) {
+          const reason = (req.body?.reason as string) || "Suspended by admin";
+          emailServiceSuspended(user.email, {
+            clientName: `${user.firstName} ${user.lastName}`.trim() || user.email,
+            domain: service.domain || service.planName || "your hosting account",
+            reason,
+          }).catch(() => {});
+        }
+      }).catch(() => {});
 
     res.json({ ...formatService(updated!), whmNote });
   } catch (err: any) {
@@ -419,6 +430,60 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
       .where(eq(hostingServicesTable.id, id));
   }, 2000);
   res.json({ success: true, message: "SSL reinstall initiated" });
+});
+
+// Admin: activate / reinstall SSL via WHM
+router.post("/admin/hosting/:id/activate-ssl", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain configured" });
+
+    // Set status to installing immediately
+    await db.update(hostingServicesTable)
+      .set({ sslStatus: "installing", updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+
+    const server = await resolveServerForService(service);
+    if (server && service.username) {
+      try {
+        await cpanelInstallSSL(toServerCfg(server), service.domain);
+        await logServerAction({
+          serviceId: service.id, serverId: server.id,
+          action: "installssl", status: "success",
+          request: { domain: service.domain },
+        });
+        await db.update(hostingServicesTable)
+          .set({ sslStatus: "installed", updatedAt: new Date() })
+          .where(eq(hostingServicesTable.id, id));
+        return res.json({ success: true, message: `SSL installed for ${service.domain}` });
+      } catch (whmErr: any) {
+        await logServerAction({
+          serviceId: service.id, serverId: server?.id,
+          action: "installssl", status: "failed",
+          request: { domain: service.domain }, errorMessage: whmErr.message,
+        });
+        // Revert status on failure
+        await db.update(hostingServicesTable)
+          .set({ sslStatus: "failed", updatedAt: new Date() })
+          .where(eq(hostingServicesTable.id, id));
+        return res.status(500).json({ error: `WHM SSL install failed: ${whmErr.message}` });
+      }
+    } else {
+      // No server — mark as installing (simulated for demo without WHM)
+      setTimeout(async () => {
+        await db.update(hostingServicesTable)
+          .set({ sslStatus: "installed", updatedAt: new Date() })
+          .where(eq(hostingServicesTable.id, id));
+      }, 3000);
+      return res.json({ success: true, message: "SSL install initiated (no WHM server — simulated)" });
+    }
+  } catch (err: any) {
+    console.error("[ADMIN] activate-ssl error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
