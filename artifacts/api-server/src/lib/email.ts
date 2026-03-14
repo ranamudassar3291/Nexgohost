@@ -5,10 +5,17 @@
  * Variable syntax:
  *   {{variable_name}}  — recommended (matches Hostinger-style templates)
  *   {variable_name}    — also supported for legacy plain-text templates
+ *
+ * Features:
+ *   - Encryption support: none / ssl / tls
+ *   - From name support (smtp_from_name)
+ *   - Email logging to email_logs table
+ *   - Retry logic: 3 attempts, 2s delay between attempts
+ *   - 10s connection timeout
  */
 import nodemailer from "nodemailer";
 import { db } from "@workspace/db";
-import { emailTemplatesTable, settingsTable } from "@workspace/db/schema";
+import { emailTemplatesTable, settingsTable, emailLogsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -36,74 +43,184 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-/** Load SMTP settings from the DB settings table into process.env */
-async function loadSmtpFromDb(): Promise<void> {
+interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+  fromName: string;
+  encryption: "none" | "ssl" | "tls";
+  mailerType: "smtp" | "php_mail";
+}
+
+let _smtpConfig: SmtpConfig | null = null;
+let _smtpLoadedAt = 0;
+const CACHE_TTL_MS = 30_000; // re-read DB at most every 30s
+
+/** Load SMTP settings from the DB settings table. Cached for 30s. */
+async function getSmtpConfig(): Promise<SmtpConfig> {
+  const now = Date.now();
+  if (_smtpConfig && now - _smtpLoadedAt < CACHE_TTL_MS) return _smtpConfig;
+
+  const map: Record<string, string> = {};
   try {
     const rows = await db.select().from(settingsTable);
-    const map: Record<string, string> = {};
     for (const r of rows) {
       if (r.key && r.value !== null && r.value !== undefined) map[r.key] = r.value;
     }
-    if (map["smtp_host"]) process.env.SMTP_HOST = map["smtp_host"];
-    if (map["smtp_port"]) process.env.SMTP_PORT = map["smtp_port"];
-    if (map["smtp_user"]) process.env.SMTP_USER = map["smtp_user"];
-    if (map["smtp_pass"]) process.env.SMTP_PASS = map["smtp_pass"];
-    if (map["smtp_from"]) process.env.SMTP_FROM = map["smtp_from"];
   } catch {
-    // DB not ready yet — fall through and use env vars directly
+    // DB not ready yet — fall through and use env vars / defaults
+  }
+
+  _smtpConfig = {
+    host:        map["smtp_host"]      || process.env.SMTP_HOST || "",
+    port:        Number(map["smtp_port"] || process.env.SMTP_PORT || "587"),
+    user:        map["smtp_user"]      || process.env.SMTP_USER || "",
+    pass:        map["smtp_pass"]      || process.env.SMTP_PASS || "",
+    from:        map["smtp_from"]      || process.env.SMTP_FROM || "noreply@nexgohost.com",
+    fromName:    map["smtp_from_name"] || process.env.SMTP_FROM_NAME || "Nexgohost",
+    encryption:  (map["smtp_encryption"] || "tls") as SmtpConfig["encryption"],
+    mailerType:  (map["mailer_type"]     || "smtp") as SmtpConfig["mailerType"],
+  };
+  _smtpLoadedAt = now;
+  return _smtpConfig;
+}
+
+/** Force-clear the config cache so next send re-reads from DB. */
+export function clearSmtpCache(): void {
+  _smtpConfig = null;
+  _smtpLoadedAt = 0;
+}
+
+/** Legacy shim: still used by callers that expected loadSmtpFromDb() */
+export async function loadSmtpFromDb(): Promise<void> {
+  await getSmtpConfig();
+}
+
+function buildTransportOptions(cfg: SmtpConfig): nodemailer.TransportOptions {
+  const base = {
+    host: cfg.host,
+    port: cfg.port,
+    auth: { user: cfg.user, pass: cfg.pass },
+    connectionTimeout: 10_000,
+    greetingTimeout:   10_000,
+    socketTimeout:     10_000,
+  } as any;
+
+  if (cfg.encryption === "ssl") {
+    base.secure = true;
+  } else if (cfg.encryption === "tls") {
+    base.secure = false;
+    base.requireTLS = true;
+  } else {
+    base.secure = false;
+  }
+
+  return base;
+}
+
+function createTransport(cfg: SmtpConfig): nodemailer.Transporter | null {
+  if (!cfg.host || !cfg.user) return null;
+  return nodemailer.createTransport(buildTransportOptions(cfg));
+}
+
+function buildFromAddress(cfg: SmtpConfig): string {
+  const name = cfg.fromName || "Nexgohost";
+  const addr = cfg.from || "noreply@nexgohost.com";
+  return `${name} <${addr}>`;
+}
+
+async function writeLog(opts: {
+  email: string;
+  emailType: string;
+  subject: string;
+  status: "success" | "failed";
+  errorMessage?: string;
+  clientId?: string;
+  referenceId?: string;
+}): Promise<void> {
+  try {
+    await db.insert(emailLogsTable).values({
+      email: opts.email,
+      emailType: opts.emailType,
+      subject: opts.subject,
+      status: opts.status,
+      errorMessage: opts.errorMessage ?? null,
+      clientId: opts.clientId ?? null,
+      referenceId: opts.referenceId ?? null,
+    });
+  } catch {
+    // Log failures are non-fatal
   }
 }
 
-function createTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_USER) {
-    return null;
-  }
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT ? Number(SMTP_PORT) : 587,
-    secure: SMTP_PORT === "465",
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
+/** Attempt to send once. Returns true on success, throws on failure. */
+async function trySend(
+  transport: nodemailer.Transporter,
+  mail: { from: string; to: string; subject: string; html: string; text: string },
+): Promise<void> {
+  await transport.sendMail(mail);
 }
 
 /**
  * Low-level email send — raw subject + html body, no template lookup.
+ * Retries up to 3 times with a 2s delay between attempts.
  */
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  emailType?: string;
+  clientId?: string;
+  referenceId?: string;
 }): Promise<{ sent: boolean; message: string }> {
-  try {
-    await loadSmtpFromDb();
+  const cfg = await getSmtpConfig();
+  const transport = createTransport(cfg);
+  const emailType = opts.emailType || "system";
 
-    const transport = createTransport();
-    const from = process.env.SMTP_FROM || "noreply@nexgohost.com";
-
-    if (!transport) {
-      console.log(`\n[EMAIL LOG] ─────────────────────────────────────────`);
-      console.log(`[EMAIL] To: ${opts.to}`);
-      console.log(`[EMAIL] Subject: ${opts.subject}`);
-      console.log(`[EMAIL] (SMTP not configured — email not sent, logged only)`);
-      console.log(`[EMAIL] ─────────────────────────────────────────────\n`);
-      return { sent: false, message: "SMTP not configured — email logged to console" };
-    }
-
-    const text = stripHtml(opts.html);
-    await transport.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html, text });
-    console.log(`[EMAIL] Sent "${opts.subject}" to ${opts.to}`);
-    return { sent: true, message: "Email sent" };
-  } catch (err: any) {
-    console.error(`[EMAIL] Failed to send to ${opts.to}:`, err.message);
-    return { sent: false, message: err.message };
+  if (!transport) {
+    console.log(`\n[EMAIL LOG] ─────────────────────────────────────────`);
+    console.log(`[EMAIL] To: ${opts.to}`);
+    console.log(`[EMAIL] Subject: ${opts.subject}`);
+    console.log(`[EMAIL] (SMTP not configured — email not sent, logged only)`);
+    console.log(`[EMAIL] ─────────────────────────────────────────────\n`);
+    await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "failed", errorMessage: "SMTP not configured" });
+    return { sent: false, message: "SMTP not configured — email logged to console" };
   }
+
+  const text = stripHtml(opts.html);
+  const from = buildFromAddress(cfg);
+  const mail  = { from, to: opts.to, subject: opts.subject, html: opts.html, text };
+
+  const MAX_ATTEMPTS = 3;
+  let lastError = "";
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await trySend(transport, mail);
+      console.log(`[EMAIL] Sent "${opts.subject}" to ${opts.to} (attempt ${attempt})`);
+      await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "success", clientId: opts.clientId, referenceId: opts.referenceId });
+      return { sent: true, message: "Email sent" };
+    } catch (err: any) {
+      lastError = err.message || String(err);
+      console.warn(`[EMAIL] Attempt ${attempt}/${MAX_ATTEMPTS} failed for "${opts.subject}" to ${opts.to}: ${lastError}`);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, 2_000));
+      }
+    }
+  }
+
+  console.error(`[EMAIL] All attempts exhausted for "${opts.subject}" to ${opts.to}`);
+  await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "failed", errorMessage: lastError, clientId: opts.clientId, referenceId: opts.referenceId });
+  return { sent: false, message: lastError };
 }
 
 export async function sendTemplatedEmail(
   slug: string,
   to: string,
   variables: Record<string, string>,
+  meta?: { clientId?: string; referenceId?: string },
 ): Promise<{ sent: boolean; message: string }> {
   try {
     const [template] = await db
@@ -128,25 +245,15 @@ export async function sendTemplatedEmail(
     // Detect if body is HTML (starts with a tag) or plain text
     const isHtml = body.trimStart().startsWith("<");
     const html = isHtml ? body : body.replace(/\n/g, "<br>");
-    const text = isHtml ? stripHtml(body) : body;
 
-    await loadSmtpFromDb();
-    const transport = createTransport();
-    const from = process.env.SMTP_FROM || "noreply@nexgohost.com";
-
-    if (!transport) {
-      console.log(`\n[EMAIL LOG] ─────────────────────────────────────────`);
-      console.log(`[EMAIL] Template: ${slug}`);
-      console.log(`[EMAIL] To: ${to}`);
-      console.log(`[EMAIL] Subject: ${subject}`);
-      console.log(`[EMAIL] Body (preview):\n${text.substring(0, 300)}${text.length > 300 ? "…" : ""}`);
-      console.log(`[EMAIL] ─────────────────────────────────────────────\n`);
-      return { sent: true, message: "Logged (SMTP not configured)" };
-    }
-
-    await transport.sendMail({ from, to, subject, html, text });
-    console.log(`[EMAIL] Sent "${slug}" to ${to}`);
-    return { sent: true, message: "Email sent" };
+    return sendEmail({
+      to,
+      subject,
+      html,
+      emailType: slug,
+      clientId: meta?.clientId,
+      referenceId: meta?.referenceId,
+    });
   } catch (err: any) {
     console.error(`[EMAIL] Failed to send "${slug}" to ${to}:`, err.message);
     return { sent: false, message: err.message };

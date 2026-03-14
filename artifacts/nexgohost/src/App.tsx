@@ -34,6 +34,7 @@ import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminMigrations from "@/pages/admin/Migrations";
 import AdminSettings from "@/pages/admin/Settings";
+import EmailConfiguration from "@/pages/admin/EmailConfiguration";
 import AdminPromoCodes from "@/pages/admin/PromoCodes";
 import AdminPaymentMethods from "@/pages/admin/PaymentMethods";
 import DomainExtensions from "@/pages/admin/DomainExtensions";
@@ -201,6 +202,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/cron-logs">
         <AdminPage><CronLogs /></AdminPage>
+      </Route>
+      <Route path="/admin/settings/email">
+        <AdminPage><EmailConfiguration /></AdminPage>
       </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>

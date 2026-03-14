@@ -69,6 +69,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/server-logs",           label: "Server Logs",        icon: Server,       inNav: true  },
   { path: "/admin/cron-logs",             label: "Automation",         icon: Clock,        inNav: true  },
   { path: "/admin/settings",              label: "Settings",           icon: Settings,     inNav: true  },
+  { path: "/admin/settings/email",        label: "Email Configuration", icon: Mail,         inNav: false },
 ];
 
 // ─── Client Routes ────────────────────────────────────────────────────────────

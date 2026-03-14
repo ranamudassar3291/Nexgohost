@@ -4,11 +4,13 @@ import { z } from "zod/v4";
 
 export const emailLogsTable = pgTable("email_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  clientId: text("client_id").notNull(),
+  clientId: text("client_id"),
   email: text("email").notNull(),
-  emailType: text("email_type").notNull(),
+  emailType: text("email_type").notNull().default("system"),
   subject: text("subject"),
   referenceId: text("reference_id"),
+  status: text("status").notNull().default("success"),
+  errorMessage: text("error_message"),
   sentAt: timestamp("sent_at").defaultNow().notNull(),
 });
 

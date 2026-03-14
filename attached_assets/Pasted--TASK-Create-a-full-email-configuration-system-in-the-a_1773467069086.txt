@@ -1,0 +1,221 @@
+
+TASK:
+Create a full email configuration system in the admin panel
+so that all system emails (verification, invoices, password reset,
+hosting welcome emails) are sent using SMTP.
+
+Currently email templates exist but emails are not sent.
+
+Implement a WHMCS-style email configuration system.
+
+--------------------------------------------------
+
+STEP 1
+Create email_settings table.
+
+Fields:
+
+id
+mailer_type
+smtp_host
+smtp_port
+smtp_username
+smtp_password
+smtp_encryption
+from_email
+from_name
+created_at
+
+--------------------------------------------------
+
+STEP 2
+Create admin page:
+
+Admin → Settings → Email Configuration
+
+Fields required:
+
+Mailer Type
+
+SMTP
+PHP Mail
+
+SMTP Host
+
+SMTP Port
+
+SMTP Username
+
+SMTP Password
+
+Encryption
+
+None
+SSL
+TLS
+
+From Email
+
+From Name
+
+--------------------------------------------------
+
+STEP 3
+Add Save Configuration button.
+
+When admin saves settings:
+
+UPDATE email_settings
+SET
+mailer_type = :mailer,
+smtp_host = :host,
+smtp_port = :port,
+smtp_username = :username,
+smtp_password = :password,
+smtp_encryption = :encryption,
+from_email = :from_email,
+from_name = :from_name
+
+--------------------------------------------------
+
+STEP 4
+Create Test Connection button.
+
+Admin clicks "Test SMTP Connection"
+
+System must:
+
+Attempt SMTP connection
+Return result in real time.
+
+Example result:
+
+SMTP Connected Successfully
+
+or
+
+SMTP Connection Failed
+
+--------------------------------------------------
+
+STEP 5
+Create Send Test Email feature.
+
+Admin enters test email address.
+
+System sends test email.
+
+Example:
+
+Subject:
+
+SMTP Test Email
+
+Body:
+
+This is a test email from the billing system.
+
+If admin receives email → SMTP working.
+
+--------------------------------------------------
+
+STEP 6
+Use SMTP for all system emails.
+
+Emails include:
+
+Client verification email
+Password reset email
+Invoice emails
+Hosting welcome email
+Ticket notifications
+
+--------------------------------------------------
+
+STEP 7
+Implement mail sending function.
+
+Load SMTP settings from database.
+
+Example fields:
+
+smtp_host
+smtp_port
+smtp_username
+smtp_password
+smtp_encryption
+
+Use these credentials to send email.
+
+--------------------------------------------------
+
+STEP 8
+Add email debug logs.
+
+Create table:
+
+email_logs
+
+Fields:
+
+id
+recipient
+subject
+status
+error_message
+created_at
+
+Log success or failure.
+
+--------------------------------------------------
+
+STEP 9
+Add SMTP timeout settings.
+
+Connection timeout = 10 seconds
+
+Retry attempts = 3
+
+--------------------------------------------------
+
+STEP 10
+Add secure password storage.
+
+Encrypt SMTP password before saving.
+
+--------------------------------------------------
+
+STEP 11
+Add email queue system.
+
+If email fails:
+
+Retry automatically.
+
+--------------------------------------------------
+
+STEP 12
+Add test email template.
+
+Subject:
+
+Test Email from Billing System
+
+Body:
+
+Hello,
+
+This is a test email to verify SMTP configuration.
+
+If you received this email, the system is working correctly.
+
+--------------------------------------------------
+
+FINAL RESULT
+
+Admin configures SMTP in panel.
+Admin tests connection.
+Admin sends test email.
+All system emails send successfully.
+
+System works when deployed on real hosting server.

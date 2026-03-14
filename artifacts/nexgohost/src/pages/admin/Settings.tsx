@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, Send, Server, AlertCircle } from "lucide-react";
+import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -15,14 +16,10 @@ async function apiFetch(url: string, opts?: RequestInit) {
 }
 
 interface Me { twoFactorEnabled: boolean; emailVerified: boolean; email: string; }
-interface SmtpSettings {
-  smtp_host: string; smtp_port: string; smtp_user: string;
-  smtp_pass: string; smtp_from: string; smtp_configured: boolean;
-}
 
 export default function AdminSettings() {
   const { toast } = useToast();
-  const qc = useQueryClient();
+  const [, setLocation] = useLocation();
 
   // ── 2FA ──────────────────────────────────────────────────────────────────
   const [twoFAStep, setTwoFAStep] = useState<"idle" | "setup" | "verify" | "enabled">("idle");
@@ -32,26 +29,10 @@ export default function AdminSettings() {
   const [showSecret, setShowSecret] = useState(false);
   const [loading2FA, setLoading2FA] = useState(false);
 
-  // ── SMTP ─────────────────────────────────────────────────────────────────
-  const [smtpForm, setSmtpForm] = useState<SmtpSettings | null>(null);
-  const [savingSmtp, setSavingSmtp] = useState(false);
-  const [testingSmtp, setTestingSmtp] = useState(false);
-  const [showSmtpPass, setShowSmtpPass] = useState(false);
-
   const { data: me, refetch: refetchMe } = useQuery<Me>({
     queryKey: ["auth-me"],
     queryFn: () => apiFetch("/api/auth/me"),
   });
-
-  const { data: smtpData } = useQuery<SmtpSettings>({
-    queryKey: ["admin-settings-smtp"],
-    queryFn: () => apiFetch("/api/admin/settings"),
-    onSuccess: (d) => { if (!smtpForm) setSmtpForm(d); },
-  });
-
-  const smtp = smtpForm ?? smtpData ?? { smtp_host: "", smtp_port: "587", smtp_user: "", smtp_pass: "", smtp_from: "", smtp_configured: false };
-  const setS = (k: keyof SmtpSettings) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setSmtpForm(prev => ({ ...(prev ?? smtp), [k]: e.target.value }));
 
   // ── 2FA handlers ─────────────────────────────────────────────────────────
   const handle2FASetup = async () => {
@@ -85,27 +66,6 @@ export default function AdminSettings() {
     finally { setLoading2FA(false); }
   };
 
-  // ── SMTP handlers ─────────────────────────────────────────────────────────
-  const handleSaveSmtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingSmtp(true);
-    try {
-      await apiFetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(smtp) });
-      toast({ title: "SMTP saved", description: "Email configuration updated successfully." });
-      qc.invalidateQueries({ queryKey: ["admin-settings-smtp"] });
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-    finally { setSavingSmtp(false); }
-  };
-
-  const handleTestSmtp = async () => {
-    setTestingSmtp(true);
-    try {
-      const result = await apiFetch("/api/admin/settings/smtp/test", { method: "POST" });
-      toast({ title: result.success ? "Test email sent!" : "Test failed", description: result.message, variant: result.success ? "default" : "destructive" });
-    } catch (err: any) { toast({ title: "SMTP test failed", description: err.message, variant: "destructive" }); }
-    finally { setTestingSmtp(false); }
-  };
-
   const is2FAEnabled = me?.twoFactorEnabled;
 
   return (
@@ -132,72 +92,19 @@ export default function AdminSettings() {
           <Button className="mt-4">Save Changes</Button>
         </div>
 
-        {/* SMTP Email Configuration */}
+        {/* Email Configuration — link to dedicated page */}
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="p-2 bg-blue-500/10 rounded-lg"><Server className="w-5 h-5 text-blue-400" /></div>
-            <div>
-              <h3 className="font-semibold text-foreground">SMTP Email Configuration</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Required for sending verification codes, invoices, and system notifications</p>
+          <button onClick={() => setLocation("/admin/settings/email")}
+            className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/40 hover:bg-primary/5 transition-all group text-left">
+            <div className="p-2.5 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+              <Mail className="w-5 h-5 text-blue-400" />
             </div>
-            {smtp.smtp_configured && (
-              <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/20 rounded-full px-2.5 py-1 shrink-0">
-                <CheckCircle size={11} /> Configured
-              </span>
-            )}
-          </div>
-
-          {!smtp.smtp_configured && (
-            <div className="flex items-start gap-2 mt-3 mb-4 p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-xl text-xs text-yellow-400">
-              <AlertCircle size={14} className="mt-0.5 shrink-0" />
-              SMTP is not configured. Verification emails and system notifications will not be sent until you save valid SMTP credentials below.
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-foreground">Email Configuration</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Configure SMTP, test connections, view delivery logs</p>
             </div>
-          )}
-
-          <form onSubmit={handleSaveSmtp} className="mt-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm text-muted-foreground">SMTP Host</label>
-                <Input value={smtp.smtp_host} onChange={setS("smtp_host")} placeholder="smtp.gmail.com" className="bg-background border-border" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm text-muted-foreground">SMTP Port</label>
-                <Input value={smtp.smtp_port} onChange={setS("smtp_port")} placeholder="587" className="bg-background border-border" />
-                <p className="text-xs text-muted-foreground">587 = TLS/STARTTLS &nbsp;·&nbsp; 465 = SSL</p>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm text-muted-foreground">SMTP Username</label>
-                <Input value={smtp.smtp_user} onChange={setS("smtp_user")} placeholder="you@gmail.com" className="bg-background border-border" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm text-muted-foreground">SMTP Password</label>
-                <div className="relative">
-                  <Input type={showSmtpPass ? "text" : "password"} value={smtp.smtp_pass} onChange={setS("smtp_pass")}
-                    placeholder={smtp.smtp_configured ? "••••••••  (saved)" : "App password or SMTP key"}
-                    className="bg-background border-border pr-9" />
-                  <button type="button" onClick={() => setShowSmtpPass(v => !v)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showSmtpPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-sm text-muted-foreground">From Address</label>
-                <Input value={smtp.smtp_from} onChange={setS("smtp_from")} placeholder="Nexgohost <noreply@nexgohost.com>" className="bg-background border-border" />
-                <p className="text-xs text-muted-foreground">Displayed in the "From" field of all outgoing emails</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 pt-1">
-              <Button type="submit" disabled={savingSmtp} className="gap-2">
-                {savingSmtp ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                Save SMTP Settings
-              </Button>
-              <Button type="button" variant="outline" disabled={testingSmtp || !smtp.smtp_configured} onClick={handleTestSmtp} className="gap-2">
-                {testingSmtp ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                Send Test Email
-              </Button>
-            </div>
-          </form>
+            <ChevronRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+          </button>
         </div>
 
         {/* Email Notifications */}
