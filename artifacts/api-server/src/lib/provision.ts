@@ -32,20 +32,36 @@ function generatePassword(): string {
   return Array.from({ length: 14 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-/** Generate a WHM-valid username: max 8 chars, lowercase alphanumeric only */
+/**
+ * WHM reserved usernames that must never be used for hosting accounts.
+ * WHM will reject these with "invalid username" on createacct.
+ */
+const RESERVED_USERNAMES = new Set([
+  "root", "admin", "administrator", "test", "user", "support",
+  "webmaster", "hostmaster", "postmaster", "abuse", "info",
+  "mail", "email", "ftp", "cpanel", "whm", "mysql", "nobody",
+  "apache", "nginx", "www", "web", "host", "server", "service",
+]);
+
+/** Generate a WHM-valid username: max 8 chars, lowercase alphanumeric only.
+ *  Skips reserved names and any already taken usernames. */
 export function generateUsername(domain: string, existingUsernames: string[] = []): string {
-  const base = domain.split(".")[0]!.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8) || "user";
-  let candidate = base;
+  const base = domain.split(".")[0]!.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8) || "host";
+  // If base itself is reserved or too short, prefix with "h"
+  const safeBase = (RESERVED_USERNAMES.has(base) || base.length < 2) ? `h${base}`.substring(0, 8) : base;
+  let candidate = safeBase;
   let i = 1;
-  while (existingUsernames.includes(candidate)) {
-    candidate = `${base.substring(0, 7)}${i++}`;
+  while (existingUsernames.includes(candidate) || RESERVED_USERNAMES.has(candidate)) {
+    candidate = `${safeBase.substring(0, 7)}${i++}`;
   }
   return candidate;
 }
 
-/** Sanitize an admin-supplied username to WHM requirements (max 8, alphanumeric) */
+/** Sanitize an admin-supplied username to WHM requirements (max 8, alphanumeric).
+ *  Rejects reserved names and returns empty string so the caller falls back to auto-generate. */
 function sanitizeUsername(raw: string): string {
-  return raw.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8);
+  const clean = raw.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8);
+  return RESERVED_USERNAMES.has(clean) ? "" : clean;
 }
 
 /** Log WHM API call to server_logs table (non-fatal) */

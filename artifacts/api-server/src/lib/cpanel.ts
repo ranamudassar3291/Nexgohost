@@ -26,10 +26,10 @@ interface CpanelAccount {
 
 /**
  * Low-level HTTPS GET using node:https so we can bypass self-signed certs.
- * Default timeout is 60s — WHM createacct can legitimately take 20-40 seconds
- * while it provisions DNS, creates the home directory, and sets up the account.
+ * Default timeout is 90s — WHM createacct can legitimately take 20-60 seconds
+ * on busy servers while it provisions DNS, creates the home directory, etc.
  */
-function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 60000): Promise<string> {
+function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 90000): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers,
@@ -49,9 +49,51 @@ function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 6000
     });
     req.on("timeout", () => {
       req.destroy();
-      reject(new Error(`WHM API timed out after ${Math.round(timeoutMs / 1000)}s — account creation can take up to 60 seconds on busy servers`));
+      reject(new Error(`WHM API timed out after ${Math.round(timeoutMs / 1000)}s — account creation can take up to 90 seconds on busy servers`));
     });
     req.on("error", (err) => reject(new Error(`WHM connection failed: ${err.message}`)));
+  });
+}
+
+/**
+ * Low-level HTTPS POST using node:https (same SSL bypass).
+ * Used for create_user_session which WHM recommends calling via POST.
+ */
+function httpsPost(url: string, headers: Record<string, string>, body = "", timeoutMs = 30000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const options: https.RequestOptions = {
+      hostname: urlObj.hostname,
+      port: Number(urlObj.port) || 443,
+      path: urlObj.pathname + urlObj.search,
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(body),
+      },
+      rejectUnauthorized: false,
+      timeout: timeoutMs,
+    };
+    const req = https.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => {
+        const responseBody = Buffer.concat(chunks).toString("utf-8");
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`WHM API error: HTTP ${res.statusCode} — ${responseBody.substring(0, 200)}`));
+        } else {
+          resolve(responseBody);
+        }
+      });
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error(`WHM API timed out after ${Math.round(timeoutMs / 1000)}s`));
+    });
+    req.on("error", (err) => reject(new Error(`WHM connection failed: ${err.message}`)));
+    req.write(body);
+    req.end();
   });
 }
 
@@ -190,22 +232,42 @@ export async function cpanelCheckDomainExists(
 
 /**
  * Create a WHM user session for cPanel Single Sign-On (SSO).
- * Uses /json-api/create_user_session?api.version=1&user=USERNAME&service=SERVICE
+ * Uses POST /json-api/create_user_session?api.version=1 with body params.
  * service = "cpaneld" for cPanel, "webmaild" for Webmail
- * Returns the login URL to redirect the client to.
+ * Returns the temporary login URL to redirect the client to.
+ * Example response URL: https://server:2083/cpsessXXXX/login/?session=XXXX
  */
 export async function cpanelCreateUserSession(
   server: ServerConfig,
   username: string,
   service: "cpaneld" | "webmaild",
 ): Promise<string> {
-  const data = await whmRequest(server, "create_user_session", { user: username, service });
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const url = `https://${server.hostname}:${port}/json-api/create_user_session?api.version=1`;
+  const bodyParams = new URLSearchParams({ user: username, service }).toString();
+
+  const rawBody = await httpsPost(url, { "Authorization": `whm ${authUser}:${server.apiToken}` }, bodyParams, 30000);
+
+  let data: any;
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    throw new Error(`WHM returned non-JSON for create_user_session: ${rawBody.substring(0, 200)}`);
+  }
+
+  // WHM API v1 error detection
+  if (data.metadata?.result === 0) {
+    throw new Error(data.metadata?.reason || "WHM create_user_session failed");
+  }
+
   const loginUrl: string | undefined =
     data?.data?.url ||
     data?.result?.[0]?.data?.url ||
     data?.url;
+
   if (!loginUrl) {
-    throw new Error("WHM did not return a login URL for SSO session");
+    throw new Error(`WHM did not return a login URL. Response: ${JSON.stringify(data).substring(0, 300)}`);
   }
   return loginUrl;
 }
