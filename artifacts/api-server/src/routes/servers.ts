@@ -10,7 +10,7 @@ import { cpanelTestConnection } from "../lib/cpanel.js";
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
-      headers: { Authorization: authHeader, "Content-Type": "application/json" },
+      headers: { Authorization: authHeader },
       rejectUnauthorized: false,
       timeout: timeoutMs,
     }, (res) => {

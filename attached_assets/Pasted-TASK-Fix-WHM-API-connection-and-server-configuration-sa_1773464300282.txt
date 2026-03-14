@@ -1,0 +1,171 @@
+TASK: Fix WHM API connection and server configuration saving.
+
+We have two issues in the hosting billing panel:
+
+1) WHM API returns error:
+HTTP 400
+{"error":"WHM API 0 does not support JSON input"}
+
+2) WHM API token field does not save in database.
+After clicking save and reopening the server page the token field becomes blank.
+
+Both issues must be fixed.
+
+--------------------------------------------------
+
+ISSUE 1: WHM API request format incorrect
+
+The system is sending JSON body to WHM API.
+
+WHM API does NOT support JSON input.
+
+Requests must be sent using query parameters (GET)
+or form encoded data.
+
+Fix the API call.
+
+Correct example using cURL:
+
+curl -k -H "Authorization: whm root:API_TOKEN" \
+"https://SERVER-IP:2087/json-api/listpkgs?api.version=1"
+
+Do NOT send JSON body.
+
+The request must look like:
+
+GET /json-api/listpkgs?api.version=1
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+--------------------------------------------------
+
+ISSUE 2: Fix server test function
+
+When admin clicks "Test Connection"
+
+System must call:
+
+https://SERVER-IP:2087/json-api/listpkgs?api.version=1
+
+If response success:
+
+Show:
+
+Server Connected
+Packages Found: X
+
+If error show WHM response message.
+
+--------------------------------------------------
+
+ISSUE 3: API token not saving
+
+Fix backend save logic.
+
+Ensure the servers table contains:
+
+id
+name
+hostname
+ip_address
+port
+module_type
+api_token
+group_id
+status
+
+If column missing run:
+
+ALTER TABLE servers ADD COLUMN api_token TEXT;
+
+--------------------------------------------------
+
+ISSUE 4: Fix server save query
+
+When admin saves server config, API token must be saved.
+
+Example:
+
+UPDATE servers
+SET
+hostname = :hostname,
+ip_address = :ip_address,
+port = 2087,
+module_type = 'cpanel',
+api_token = :api_token
+WHERE id = :server_id;
+
+--------------------------------------------------
+
+ISSUE 5: Fix HTML form field
+
+Ensure the input field name is:
+
+<input type="text" name="api_token" />
+
+The backend must read:
+
+req.body.api_token
+
+--------------------------------------------------
+
+ISSUE 6: Fix edit page
+
+When editing server config, load saved token.
+
+Example query:
+
+SELECT hostname, ip_address, api_token
+FROM servers
+WHERE id = :server_id;
+
+Populate field value.
+
+--------------------------------------------------
+
+ISSUE 7: Fix cPanel login link
+
+Client dashboard button "Login to cPanel" must open:
+
+https://domain.com:2083
+
+NOT WHM.
+
+--------------------------------------------------
+
+ISSUE 8: Fix Webmail link
+
+Webmail login must open:
+
+https://domain.com/webmail
+
+--------------------------------------------------
+
+ISSUE 9: Add debug logging
+
+Create table:
+
+server_logs
+
+fields:
+
+id
+action
+response
+created_at
+
+Log WHM API responses for debugging.
+
+--------------------------------------------------
+
+FINAL RESULT
+
+After this fix:
+
+WHM API token saves correctly
+Server test works
+Packages fetch from WHM
+HTTP 400 error disappears
+cPanel login works correctly

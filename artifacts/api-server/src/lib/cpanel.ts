@@ -54,10 +54,11 @@ async function whmRequest(server: ServerConfig, func: string, params: Record<str
   const url = `https://${server.hostname}:${port}/json-api/${func}?${query}`;
   // WHM API token auth header: "whm USERNAME:TOKEN" — username defaults to "root"
   const authUser = server.username || "root";
+  // WHM GET requests must NOT include Content-Type: application/json —
+  // WHM interprets that header as an API v0 JSON body request and returns
+  // "WHM API 0 does not support JSON input". Only Authorization is required.
   const headers = {
     "Authorization": `whm ${authUser}:${server.apiToken}`,
-    "Content-Type": "application/json",
-    "Accept": "application/json",
   };
 
   const body = await httpsGet(url, headers);
