@@ -398,6 +398,22 @@ export default function AdminClientDetail() {
 // ─── Service Management Panel ────────────────────────────────────────────────
 function ServicePanel({ svc, clientId, onBack, onAction }: { svc: any; clientId: string; onBack: () => void; onAction: (url: string, method?: string, body?: any) => Promise<any> }) {
   const { toast } = useToast();
+  const [ssoLoading, setSsoLoading] = useState<"cpanel" | "webmail" | null>(null);
+
+  const handleSsoLogin = async (type: "cpanel" | "webmail") => {
+    setSsoLoading(type);
+    try {
+      const endpoint = type === "cpanel"
+        ? `/api/admin/hosting/${svc.id}/cpanel-login`
+        : `/api/admin/hosting/${svc.id}/webmail-login`;
+      const result = await apiFetch(endpoint, { method: "POST" });
+      if (result.url) window.open(result.url, "_blank");
+    } catch (err: any) {
+      toast({ title: `${type === "cpanel" ? "cPanel" : "Webmail"} login failed`, description: err.message, variant: "destructive" });
+    } finally {
+      setSsoLoading(null);
+    }
+  };
 
   const btn = (label: string, icon: React.ElementType, colorCls: string, onClick: () => void) => {
     const Icon = icon;
@@ -449,13 +465,18 @@ function ServicePanel({ svc, clientId, onBack, onAction }: { svc: any; clientId:
       <div className="mb-4">
         <div className="text-xs font-medium text-muted-foreground mb-2">cPanel / Hosting</div>
         <div className="flex flex-wrap gap-2">
-          {btn("Login to cPanel", ExternalLink, "bg-blue-500/10 text-blue-400 border-blue-500/20", () => {
-            const url = svc.cpanelUrl || `http://${svc.serverHostname || "server"}:2082`;
-            window.open(url, "_blank");
-          })}
-          {btn("Login to Webmail", Mail, "bg-violet-500/10 text-violet-400 border-violet-500/20", () => {
-            window.open(`http://${svc.serverHostname || "server"}:2095`, "_blank");
-          })}
+          {btn(
+            ssoLoading === "cpanel" ? "Connecting..." : "Login to cPanel",
+            ExternalLink,
+            svc.status === "active" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-secondary text-muted-foreground border-border opacity-50",
+            () => { if (svc.status === "active" && !ssoLoading) handleSsoLogin("cpanel"); },
+          )}
+          {btn(
+            ssoLoading === "webmail" ? "Connecting..." : "Login to Webmail",
+            Mail,
+            svc.status === "active" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-secondary text-muted-foreground border-border opacity-50",
+            () => { if (svc.status === "active" && !ssoLoading) handleSsoLogin("webmail"); },
+          )}
           {btn("Change Password", Key, "bg-secondary text-foreground border-border", () => {
             const pw = prompt("New password:"); if (pw) onAction(`/api/admin/hosting/${svc.id}/change-password`, "POST", { password: pw });
           })}

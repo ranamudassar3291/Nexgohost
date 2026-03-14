@@ -119,6 +119,23 @@ export default function AdminOrders() {
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
   const [preActivate, setPreActivate] = useState<PreActivateModal | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [ssoLoadingId, setSsoLoadingId] = useState<string | null>(null);
+
+  const handleSsoLogin = async (serviceId: string, type: "cpanel" | "webmail") => {
+    const key = `${serviceId}-${type}`;
+    setSsoLoadingId(key);
+    try {
+      const endpoint = type === "cpanel"
+        ? `/api/admin/hosting/${serviceId}/cpanel-login`
+        : `/api/admin/hosting/${serviceId}/webmail-login`;
+      const result = await apiFetch(endpoint, { method: "POST" });
+      if (result.url) window.open(result.url, "_blank");
+    } catch (err: any) {
+      toast({ title: `${type === "cpanel" ? "cPanel" : "Webmail"} login failed`, description: err.message, variant: "destructive" });
+    } finally {
+      setSsoLoadingId(null);
+    }
+  };
 
   const { data: orders = [], isLoading, refetch } = useQuery<Order[]>({
     queryKey: ["admin-orders"],
@@ -378,16 +395,22 @@ export default function AdminOrders() {
                   )}
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">cPanel</span>
-                    {activateResult.service.cpanelUrl ? (
-                      <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer"
-                        className="text-primary hover:underline text-xs truncate max-w-[180px]">{activateResult.service.cpanelUrl}</a>
+                    {activateResult.service.id ? (
+                      <button onClick={() => handleSsoLogin(activateResult.service.id, "cpanel")}
+                        disabled={ssoLoadingId === `${activateResult.service.id}-cpanel`}
+                        className="text-primary hover:underline text-xs">
+                        {ssoLoadingId === `${activateResult.service.id}-cpanel` ? "Connecting..." : "Login to cPanel →"}
+                      </button>
                     ) : <span className="text-muted-foreground text-xs">—</span>}
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Webmail</span>
-                    {activateResult.service.webmailUrl ? (
-                      <a href={activateResult.service.webmailUrl} target="_blank" rel="noreferrer"
-                        className="text-primary hover:underline text-xs truncate max-w-[180px]">{activateResult.service.webmailUrl}</a>
+                    {activateResult.service.id ? (
+                      <button onClick={() => handleSsoLogin(activateResult.service.id, "webmail")}
+                        disabled={ssoLoadingId === `${activateResult.service.id}-webmail`}
+                        className="text-primary hover:underline text-xs">
+                        {ssoLoadingId === `${activateResult.service.id}-webmail` ? "Connecting..." : "Login to Webmail →"}
+                      </button>
                     ) : <span className="text-muted-foreground text-xs">—</span>}
                   </div>
                   {activateResult.service.serverName && (
@@ -402,10 +425,15 @@ export default function AdminOrders() {
             )}
 
             <div className="mt-5 flex gap-3">
-              {activateResult.service?.cpanelUrl && (
-                <a href={activateResult.service.cpanelUrl} target="_blank" rel="noreferrer" className="flex-1">
-                  <Button className="w-full bg-orange-600 hover:bg-orange-700"><Terminal size={14} className="mr-2" /> Open cPanel</Button>
-                </a>
+              {activateResult.service?.id && (
+                <Button
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  disabled={ssoLoadingId === `${activateResult.service.id}-cpanel`}
+                  onClick={() => handleSsoLogin(activateResult.service.id, "cpanel")}
+                >
+                  <Terminal size={14} className="mr-2" />
+                  {ssoLoadingId === `${activateResult.service.id}-cpanel` ? "Connecting..." : "Open cPanel"}
+                </Button>
               )}
               <Button variant="outline" className="flex-1" onClick={() => setActivateResult(null)}>Close</Button>
             </div>
@@ -516,22 +544,24 @@ export default function AdminOrders() {
                     </button>
                   )}
                 </td>
-                {/* Quick Access: cPanel + Webmail for active hosting services */}
+                {/* Quick Access: cPanel + Webmail SSO for active hosting services */}
                 <td className="px-5 py-4">
-                  {order.type === "hosting" && order.serviceStatus === "active" && (order.cpanelUrl || order.webmailUrl) ? (
+                  {order.type === "hosting" && order.serviceStatus === "active" && order.serviceId ? (
                     <div className="flex flex-col gap-1">
-                      {order.cpanelUrl && (
-                        <a href={order.cpanelUrl} target="_blank" rel="noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-orange-400 hover:text-orange-300 whitespace-nowrap">
-                          <Terminal size={11} /> cPanel
-                        </a>
-                      )}
-                      {order.webmailUrl && (
-                        <a href={order.webmailUrl} target="_blank" rel="noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 whitespace-nowrap">
-                          <Mail size={11} /> Webmail
-                        </a>
-                      )}
+                      <button
+                        onClick={() => handleSsoLogin(order.serviceId!, "cpanel")}
+                        disabled={ssoLoadingId === `${order.serviceId}-cpanel`}
+                        className="flex items-center gap-1 text-[10px] text-orange-400 hover:text-orange-300 whitespace-nowrap disabled:opacity-50"
+                      >
+                        <Terminal size={11} /> {ssoLoadingId === `${order.serviceId}-cpanel` ? "..." : "cPanel"}
+                      </button>
+                      <button
+                        onClick={() => handleSsoLogin(order.serviceId!, "webmail")}
+                        disabled={ssoLoadingId === `${order.serviceId}-webmail`}
+                        className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 whitespace-nowrap disabled:opacity-50"
+                      >
+                        <Mail size={11} /> {ssoLoadingId === `${order.serviceId}-webmail` ? "..." : "Webmail"}
+                      </button>
                     </div>
                   ) : (
                     <span className="text-muted-foreground text-xs">—</span>

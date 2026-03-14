@@ -1,0 +1,119 @@
+TASK:
+Fix hosting billing panel to fully automate WHM account provisioning and management, including auto login, suspend, unsuspend, terminate, for both old and new orders.
+
+CURRENT ISSUES:
+- Old orders auto login not working (expired WHM session token)
+- New orders activate but auto login missing
+- Dashboard buttons static, cPanel/Webmail login fails
+- Suspend/Unsuspend/Terminate buttons not functional
+
+GOAL:
+- Auto login for all orders
+- Dashboard buttons redirect automatically
+- Suspend/Unsuspend/Terminate fully functional
+- WHM package limits applied correctly
+- Due dates, invoices auto-set
+- Cron-based automation remains intact
+
+--------------------------------------------------
+
+STEP 1: Old Orders Auto Login
+
+1. Query old services without temp login URL or expired token:
+
+```sql
+SELECT s.id, s.username, s.server_id, srv.hostname, srv.api_token
+FROM services s
+JOIN servers srv ON s.server_id = srv.id
+WHERE s.temp_login_url_cpanel IS NULL OR s.temp_login_url_cpanel_expired = 1
+
+For each service, call WHM API create_user_session:
+
+GET https://SERVER:2087/json-api/create_user_session?api.version=1&user=USERNAME&service=cpaneld
+Header: Authorization: whm root:API_TOKEN
+
+Save data.url → services.temp_login_url_cpanel
+
+Save expiration time = NOW + 30 minutes
+
+Repeat for Webmail (service=webmaild) → temp_login_url_webmail
+
+STEP 2: New Orders Auto Login
+
+On order activation:
+
+Verify WHM account created successfully
+
+Immediately call create_user_session API for cPanel and Webmail
+
+Save temp login URLs + expiration in database
+
+Dashboard buttons point to these URLs
+
+STEP 3: Client Dashboard Logic
+
+Button click:
+
+if (temp_login_url expired OR missing) {
+    call WHM create_user_session
+    save new URL + expiration
+}
+redirect client to temp URL
+
+cPanel → temp_login_url_cpanel
+
+Webmail → temp_login_url_webmail
+
+STEP 4: Suspend / Unsuspend / Terminate Buttons
+
+Suspend:
+
+/json-api/suspendacct?api.version=1&user=USERNAME
+
+Update services.status = Suspended
+
+Log action
+
+Unsuspend:
+
+/json-api/unsuspendacct?api.version=1&user=USERNAME
+
+Update services.status = Active
+
+Log action
+
+Terminate:
+
+/json-api/removeacct?api.version=1&user=USERNAME
+
+Update services.status = Terminated
+
+Clear temp login URLs
+
+Log action
+
+STEP 5: Cron Automation
+
+Every 5 minutes:
+
+Check overdue invoices → auto suspend via WHM API
+
+Check paid invoices for suspended services → auto unsuspend
+
+Maintain server_logs
+
+STEP 6: Error Handling
+
+WHM API errors → log in server_logs
+
+Retry 3 times for network errors
+
+Notify admin if persistent
+
+STEP 7: Data Integrity
+
+WHM package limits applied correctly
+
+next_due_date, invoice, service status remain consistent
+
+Old + new orders both handled

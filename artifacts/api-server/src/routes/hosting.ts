@@ -520,6 +520,47 @@ router.post("/client/hosting/:id/webmail-login", authenticate, (req: AuthRequest
   ssoLogin(req, res, "webmaild"),
 );
 
+// ── Admin SSO login: same as client SSO but no clientId check (admin can log into any account) ─
+async function adminSsoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "webmaild") {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    if (!service.username) {
+      return res.status(400).json({ error: "No cPanel username linked to this service." });
+    }
+
+    const server = await resolveServerForService(service);
+    if (!server) {
+      return res.status(400).json({ error: "No WHM server found. Add an active cPanel server in Admin → Servers." });
+    }
+
+    const serverCfg = {
+      hostname: server.hostname,
+      port: server.apiPort || 2087,
+      username: server.apiUsername || "root",
+      apiToken: server.apiToken!,
+    };
+
+    const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, service_name);
+    return res.json({ url: loginUrl });
+  } catch (err: any) {
+    const msg: string = err.message || "SSO login failed";
+    console.warn(`[WHM ADMIN SSO] ${service_name} login failed for service ${req.params.id}: ${msg}`);
+    return res.status(500).json({ error: msg });
+  }
+}
+
+router.post("/admin/hosting/:id/cpanel-login", authenticate, requireAdmin, (req: AuthRequest, res) =>
+  adminSsoLogin(req, res, "cpaneld"),
+);
+
+router.post("/admin/hosting/:id/webmail-login", authenticate, requireAdmin, (req: AuthRequest, res) =>
+  adminSsoLogin(req, res, "webmaild"),
+);
+
 // ── Admin: bulk-link all services without a server to the best available server ─
 // Covers old orders that were created before server assignment was automated.
 router.post("/admin/hosting/link-all-servers", authenticate, requireAdmin, async (_req, res) => {
