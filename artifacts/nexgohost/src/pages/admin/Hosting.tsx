@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key } from "lucide-react";
+import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +32,7 @@ export default function AdminHosting() {
   const [activeTab, setActiveTab] = useState<"services" | "plans">("services");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [linkingServers, setLinkingServers] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -54,6 +55,22 @@ export default function AdminHosting() {
   });
 
   const cancelRequests = services.filter(s => s.cancelRequested);
+
+  const linkAllServers = async () => {
+    setLinkingServers(true);
+    try {
+      const result = await apiFetch("/api/admin/hosting/link-all-servers", { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
+      toast({
+        title: "Services linked",
+        description: result.message,
+      });
+    } catch (err: any) {
+      toast({ title: "Link failed", description: err.message, variant: "destructive" });
+    } finally {
+      setLinkingServers(false);
+    }
+  };
 
   const action = async (id: string, endpoint: string, label: string) => {
     try {
@@ -78,12 +95,24 @@ export default function AdminHosting() {
           <h2 className="text-3xl font-display font-bold text-foreground">Hosting Manager</h2>
           <p className="text-muted-foreground mt-1">Manage active services and hosting plans.</p>
         </div>
-        {cancelRequests.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
-            <AlertTriangle size={14} />
-            {cancelRequests.length} cancellation request{cancelRequests.length > 1 ? "s" : ""} pending
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {cancelRequests.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
+              <AlertTriangle size={14} />
+              {cancelRequests.length} cancellation request{cancelRequests.length > 1 ? "s" : ""} pending
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={linkAllServers}
+            disabled={linkingServers}
+            className="gap-2 border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+          >
+            <LinkIcon size={14} className={linkingServers ? "animate-pulse" : ""} />
+            {linkingServers ? "Linking..." : "Link All Services to Servers"}
+          </Button>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-1.5 flex gap-1 w-fit">

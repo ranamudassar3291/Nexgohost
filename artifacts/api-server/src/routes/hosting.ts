@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended } from "../lib/email.js";
@@ -265,6 +265,59 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
   res.json({ success: true, message: "SSL reinstall initiated" });
 });
 
+/**
+ * Resolve the best WHM server for a given service.
+ * Priority: service.serverId → plan.moduleServerId → plan.moduleServerGroupId
+ *           → default active cPanel server → first active cPanel server.
+ * Saves the resolved serverId back to the service row for future calls.
+ */
+async function resolveServerForService(service: typeof hostingServicesTable.$inferSelect) {
+  // 1. Already has a server assigned
+  if (service.serverId) {
+    const [s] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+    if (s?.status === "active" && s.apiToken && s.hostname) return s;
+  }
+
+  // 2. Look up plan server assignments
+  const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
+
+  if (plan?.moduleServerId) {
+    const [s] = await db.select().from(serversTable).where(eq(serversTable.id, plan.moduleServerId)).limit(1);
+    if (s?.status === "active" && s.apiToken && s.hostname) {
+      await db.update(hostingServicesTable).set({ serverId: s.id, updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, service.id));
+      return s;
+    }
+  }
+
+  // 3. Plan server group — pick best matching active server
+  const allActive = await db.select().from(serversTable).where(eq(serversTable.status, "active"));
+
+  if (plan?.moduleServerGroupId) {
+    const groupServer = allActive.find(s => s.groupId === plan.moduleServerGroupId && s.type === "cpanel" && s.apiToken)
+      || allActive.find(s => s.groupId === plan.moduleServerGroupId && s.apiToken);
+    if (groupServer?.hostname) {
+      await db.update(hostingServicesTable).set({ serverId: groupServer.id, updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, service.id));
+      return groupServer;
+    }
+  }
+
+  // 4. Default active cPanel server
+  const defaultServer = allActive.find(s => s.isDefault && s.type === "cpanel" && s.apiToken)
+    || allActive.find(s => s.isDefault && s.apiToken)
+    || allActive.find(s => s.type === "cpanel" && s.apiToken)
+    || allActive.find(s => s.apiToken && s.hostname);
+
+  if (defaultServer?.hostname) {
+    await db.update(hostingServicesTable).set({ serverId: defaultServer.id, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, service.id));
+    return defaultServer;
+  }
+
+  return null;
+}
+
 // ── cPanel SSO login (generate session, redirect client to cPanel) ────────────
 async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "webmaild") {
   try {
@@ -278,30 +331,27 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
       return res.status(400).json({ error: "Service must be active to login" });
     }
     if (!service.username) {
-      return res.status(400).json({ error: "No cPanel username linked to this service" });
-    }
-    if (!service.serverId) {
-      return res.status(400).json({ error: "No server assigned to this service" });
+      return res.status(400).json({ error: "No cPanel username is linked to this service. Please contact support." });
     }
 
-    const [server] = await db.select().from(serversTable)
-      .where(eq(serversTable.id, service.serverId)).limit(1);
-    if (!server || !server.apiToken || !server.hostname) {
-      return res.status(400).json({ error: "Server is not configured for WHM API access" });
+    // Resolve server (works for old services with no serverId)
+    const server = await resolveServerForService(service);
+    if (!server) {
+      return res.status(400).json({ error: "No WHM server found. Add an active cPanel server in Admin → Servers." });
     }
 
     const serverCfg = {
       hostname: server.hostname,
       port: server.apiPort || 2087,
       username: server.apiUsername || "root",
-      apiToken: server.apiToken,
+      apiToken: server.apiToken!,
     };
 
     const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, service_name);
     return res.json({ url: loginUrl });
   } catch (err: any) {
     const msg: string = err.message || "SSO login failed";
-    console.warn(`[WHM SSO] ${service_name} login failed: ${msg}`);
+    console.warn(`[WHM SSO] ${service_name} login failed for service ${req.params.id}: ${msg}`);
     return res.status(500).json({ error: msg });
   }
 }
@@ -313,6 +363,76 @@ router.post("/client/hosting/:id/cpanel-login", authenticate, (req: AuthRequest,
 router.post("/client/hosting/:id/webmail-login", authenticate, (req: AuthRequest, res) =>
   ssoLogin(req, res, "webmaild"),
 );
+
+// ── Admin: bulk-link all services without a server to the best available server ─
+// Covers old orders that were created before server assignment was automated.
+router.post("/admin/hosting/link-all-servers", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const unlinked = await db.select().from(hostingServicesTable)
+      .where(and(
+        isNull(hostingServicesTable.serverId),
+        isNotNull(hostingServicesTable.username),
+      ));
+
+    const allActive = await db.select().from(serversTable)
+      .where(eq(serversTable.status, "active"));
+
+    const defaultServer = allActive.find(s => s.isDefault && s.type === "cpanel" && s.apiToken)
+      || allActive.find(s => s.isDefault && s.apiToken)
+      || allActive.find(s => s.type === "cpanel" && s.apiToken)
+      || allActive.find(s => s.apiToken && s.hostname)
+      || null;
+
+    let linked = 0;
+    let skipped = 0;
+
+    for (const service of unlinked) {
+      // Try plan-level server first
+      const [plan] = await db.select().from(hostingPlansTable)
+        .where(eq(hostingPlansTable.id, service.planId)).limit(1);
+
+      let targetServer = null;
+
+      if (plan?.moduleServerId) {
+        const [s] = await db.select().from(serversTable)
+          .where(eq(serversTable.id, plan.moduleServerId)).limit(1);
+        if (s?.status === "active" && s.apiToken) targetServer = s;
+      }
+
+      if (!targetServer && plan?.moduleServerGroupId) {
+        targetServer = allActive.find(s => s.groupId === plan.moduleServerGroupId && s.type === "cpanel" && s.apiToken)
+          || allActive.find(s => s.groupId === plan.moduleServerGroupId && s.apiToken)
+          || null;
+      }
+
+      if (!targetServer) targetServer = defaultServer;
+
+      if (!targetServer) { skipped++; continue; }
+
+      const cpanelHost = targetServer.hostname;
+      await db.update(hostingServicesTable).set({
+        serverId: targetServer.id,
+        serverIp: targetServer.ipAddress || targetServer.hostname,
+        cpanelUrl: `https://${cpanelHost}:2083`,
+        webmailUrl: `https://${cpanelHost}:2096`,
+        updatedAt: new Date(),
+      }).where(eq(hostingServicesTable.id, service.id));
+
+      linked++;
+    }
+
+    res.json({
+      success: true,
+      message: `Linked ${linked} service(s) to servers. ${skipped} could not be linked (no server available).`,
+      linked,
+      skipped,
+      total: unlinked.length,
+    });
+  } catch (err: any) {
+    console.error("[ADMIN] link-all-servers error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
   try {
