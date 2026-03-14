@@ -1,0 +1,119 @@
+TASK:
+Fix hosting billing panel so that:
+
+1. Auto login works for **all old and new orders** (cPanel & Webmail)  
+2. Suspend / Unsuspend / Terminate buttons fully functional  
+3. Client dashboard buttons redirect automatically to WHM session  
+4. WHM package limits remain applied  
+5. Service status, due dates, invoices intact  
+
+CURRENT PROBLEMS:
+- Old orders have no auto login
+- New orders do not auto login
+- Suspend / Unsuspend / Terminate buttons not working
+- Dashboard links go to static URL, not temporary WHM session
+
+--------------------------------------------------
+
+STEP 1: Generate Auto Login for Old Orders
+
+Query old services without temp login URLs:
+
+```sql
+SELECT s.id, s.username, s.domain, s.server_id, srv.hostname, srv.api_token
+FROM services s
+JOIN servers srv ON s.server_id = srv.id
+WHERE s.temp_login_url_cpanel IS NULL
+
+For each service:
+
+Call WHM API:
+
+GET https://SERVER:2087/json-api/create_user_session?api.version=1&user=USERNAME&service=cpaneld
+Header: Authorization: whm root:API_TOKEN
+
+Save response data.url → temp_login_url_cpanel
+
+Repeat for Webmail (service=webmaild) → temp_login_url_webmail
+
+STEP 2: Generate Auto Login for New Orders
+
+On order activation:
+
+Verify WHM account created
+
+Generate temporary session URLs as in STEP 1
+
+Save URLs in services table
+
+Update dashboard buttons to redirect to temp URLs
+
+STEP 3: Dashboard Buttons
+
+cPanel → redirect to temp_login_url_cpanel
+
+Webmail → redirect to temp_login_url_webmail
+
+If URL expired → regenerate automatically via WHM API
+
+STEP 4: Suspend / Unsuspend / Terminate
+
+Suspend:
+
+Call WHM API:
+
+/json-api/suspendacct?api.version=1&user=USERNAME
+
+Update services.status = Suspended
+
+Log action in server_logs
+
+Unsuspend:
+
+Call WHM API:
+
+/json-api/unsuspendacct?api.version=1&user=USERNAME
+
+Update services.status = Active
+
+Log action
+
+Terminate:
+
+Call WHM API:
+
+/json-api/removeacct?api.version=1&user=USERNAME
+
+Update services.status = Terminated
+
+Remove temp login URLs
+
+Log action
+
+STEP 5: Automation Integration
+
+Cron job every 5 minutes:
+
+Check overdue invoices → auto suspend via WHM API
+
+Check paid invoices for suspended services → auto unsuspend
+
+Log all actions
+
+Dashboard buttons should trigger WHM API calls immediately with live feedback
+
+STEP 6: Error Handling & Logging
+
+WHM API errors → log in server_logs table
+
+Retry up to 3 times for temporary network errors
+
+Show exact error to admin if persistent
+
+STEP 7: WHM Package Limits & Data Integrity
+
+Do not override WHM package limits
+
+Username & domain must match WHM
+
+next_due_date, invoice, and service status must remain consistent

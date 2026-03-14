@@ -97,7 +97,28 @@ function httpsPost(url: string, headers: Record<string, string>, body = "", time
   });
 }
 
-async function whmRequest(server: ServerConfig, func: string, params: Record<string, string> = {}): Promise<any> {
+/**
+ * Transient network error patterns that warrant a retry.
+ * These are connection-level failures, not WHM API logic errors.
+ */
+function isRetryableError(err: Error): boolean {
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("timed out") ||
+    msg.includes("econnreset") ||
+    msg.includes("econnrefused") ||
+    msg.includes("enotfound") ||
+    msg.includes("socket hang up") ||
+    msg.includes("connection failed")
+  );
+}
+
+async function whmRequest(
+  server: ServerConfig,
+  func: string,
+  params: Record<string, string> = {},
+  maxRetries = 3,
+): Promise<any> {
   const query = new URLSearchParams({ ...params, "api.version": "1" });
   const port = server.port || 2087;
   const url = `https://${server.hostname}:${port}/json-api/${func}?${query}`;
@@ -106,27 +127,39 @@ async function whmRequest(server: ServerConfig, func: string, params: Record<str
   // WHM GET requests must NOT include Content-Type: application/json —
   // WHM interprets that header as an API v0 JSON body request and returns
   // "WHM API 0 does not support JSON input". Only Authorization is required.
-  const headers = {
-    "Authorization": `whm ${authUser}:${server.apiToken}`,
-  };
+  const headers = { "Authorization": `whm ${authUser}:${server.apiToken}` };
 
-  const body = await httpsGet(url, headers);
-  let data: any;
-  try {
-    data = JSON.parse(body);
-  } catch {
-    throw new Error(`WHM returned non-JSON response: ${body.substring(0, 200)}`);
+  let lastErr: Error = new Error("Unknown WHM error");
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const body = await httpsGet(url, headers);
+      let data: any;
+      try {
+        data = JSON.parse(body);
+      } catch {
+        throw new Error(`WHM returned non-JSON response: ${body.substring(0, 200)}`);
+      }
+
+      // WHM API-level error detection (these should NOT be retried)
+      if (data.metadata?.result === 0) {
+        throw new Error(data.metadata?.reason || "cPanel operation failed");
+      }
+      if (data.result?.[0]?.status === 0) {
+        throw new Error(data.result[0]?.statusmsg || "cPanel operation failed");
+      }
+
+      return data;
+    } catch (err: any) {
+      lastErr = err;
+      const retryable = isRetryableError(err);
+      console.warn(`[WHM] ${func} attempt ${attempt}/${maxRetries} failed: ${err.message}${retryable && attempt < maxRetries ? " — retrying in 3s" : ""}`);
+      if (!retryable || attempt >= maxRetries) break;
+      await new Promise(r => setTimeout(r, 3000 * attempt)); // exponential-ish back-off
+    }
   }
 
-  // WHM error detection
-  if (data.metadata?.result === 0) {
-    throw new Error(data.metadata?.reason || "cPanel operation failed");
-  }
-  if (data.result?.[0]?.status === 0) {
-    throw new Error(data.result[0]?.statusmsg || "cPanel operation failed");
-  }
-
-  return data;
+  throw lastErr;
 }
 
 /**

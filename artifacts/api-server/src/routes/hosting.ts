@@ -1,13 +1,38 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable } from "@workspace/db/schema";
+import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable } from "@workspace/db/schema";
 import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended } from "../lib/email.js";
-import { cpanelCreateUserSession } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate } from "../lib/cpanel.js";
 
 const router = Router();
+
+/** Log a WHM action to server_logs (never throws) */
+async function logServerAction(opts: {
+  serviceId?: string;
+  serverId?: string;
+  action: string;
+  status: "success" | "failed";
+  request?: Record<string, string>;
+  response?: string;
+  errorMessage?: string;
+}): Promise<void> {
+  try {
+    await db.insert(serverLogsTable).values({
+      serviceId: opts.serviceId ?? null,
+      serverId: opts.serverId ?? null,
+      action: opts.action,
+      status: opts.status,
+      request: opts.request ? JSON.stringify(opts.request) : null,
+      response: opts.response ?? null,
+      errorMessage: opts.errorMessage ?? null,
+    });
+  } catch (e) {
+    console.warn("[HOSTING] Failed to write server log:", e);
+  }
+}
 
 function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
   return {
@@ -123,45 +148,150 @@ router.get("/admin/hosting", authenticate, requireAdmin, async (_req, res) => {
   }
 });
 
-// Admin: suspend hosting
+// ── Shared helper: build server config from a resolved server row ─────────────
+function toServerCfg(s: typeof serversTable.$inferSelect) {
+  return {
+    hostname: s.hostname,
+    port: s.apiPort || 2087,
+    username: s.apiUsername || "root",
+    apiToken: s.apiToken!,
+  };
+}
+
+// Admin: suspend hosting (DB + WHM)
 router.post("/admin/hosting/:id/suspend", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+
+    let whmNote = "";
+    const server = service.username ? await resolveServerForService(service) : null;
+
+    if (server && service.username) {
+      try {
+        const reason = (req.body?.reason as string) || "Suspended by admin";
+        await cpanelSuspend(toServerCfg(server), service.username, reason);
+        await logServerAction({
+          serviceId: service.id, serverId: server.id,
+          action: "suspendacct",
+          status: "success",
+          request: { user: service.username, reason },
+        });
+      } catch (whmErr: any) {
+        whmNote = ` (WHM warning: ${whmErr.message})`;
+        await logServerAction({
+          serviceId: service.id, serverId: server?.id,
+          action: "suspendacct", status: "failed",
+          request: { user: service.username },
+          errorMessage: whmErr.message,
+        });
+        console.warn(`[WHM] suspend failed for ${service.username}: ${whmErr.message}`);
+        // Still update DB — admin intent overrides WHM failure
+      }
+    } else {
+      whmNote = " (no WHM server resolved — DB only)";
+    }
+
     const [updated] = await db.update(hostingServicesTable)
       .set({ status: "suspended", updatedAt: new Date() })
-      .where(eq(hostingServicesTable.id, req.params.id))
+      .where(eq(hostingServicesTable.id, service.id))
       .returning();
-    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(formatService(updated));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+
+    await emailServiceSuspended(service.clientId, service.domain || service.planName || "your hosting account").catch(() => {});
+
+    res.json({ ...formatService(updated!), whmNote });
+  } catch (err: any) {
+    console.error("[ADMIN] suspend error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Admin: unsuspend hosting
+// Admin: unsuspend hosting (WHM + DB)
 router.post("/admin/hosting/:id/unsuspend", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+
+    let whmNote = "";
+    const server = service.username ? await resolveServerForService(service) : null;
+
+    if (server && service.username) {
+      try {
+        await cpanelUnsuspend(toServerCfg(server), service.username);
+        await logServerAction({
+          serviceId: service.id, serverId: server.id,
+          action: "unsuspendacct", status: "success",
+          request: { user: service.username },
+        });
+      } catch (whmErr: any) {
+        whmNote = ` (WHM warning: ${whmErr.message})`;
+        await logServerAction({
+          serviceId: service.id, serverId: server?.id,
+          action: "unsuspendacct", status: "failed",
+          request: { user: service.username },
+          errorMessage: whmErr.message,
+        });
+        console.warn(`[WHM] unsuspend failed for ${service.username}: ${whmErr.message}`);
+      }
+    } else {
+      whmNote = " (no WHM server resolved — DB only)";
+    }
+
     const [updated] = await db.update(hostingServicesTable)
       .set({ status: "active", updatedAt: new Date() })
-      .where(eq(hostingServicesTable.id, req.params.id))
+      .where(eq(hostingServicesTable.id, service.id))
       .returning();
-    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(formatService(updated));
-  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+
+    res.json({ ...formatService(updated!), whmNote });
+  } catch (err: any) {
+    console.error("[ADMIN] unsuspend error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Admin: terminate hosting
+// Admin: terminate hosting (WHM removeacct + DB)
 router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+
+    let whmNote = "";
+    const server = service.username ? await resolveServerForService(service) : null;
+
+    if (server && service.username) {
+      try {
+        await cpanelTerminate(toServerCfg(server), service.username);
+        await logServerAction({
+          serviceId: service.id, serverId: server.id,
+          action: "removeacct", status: "success",
+          request: { user: service.username },
+        });
+      } catch (whmErr: any) {
+        whmNote = ` (WHM warning: ${whmErr.message})`;
+        await logServerAction({
+          serviceId: service.id, serverId: server?.id,
+          action: "removeacct", status: "failed",
+          request: { user: service.username },
+          errorMessage: whmErr.message,
+        });
+        console.warn(`[WHM] terminate failed for ${service.username}: ${whmErr.message}`);
+      }
+    } else {
+      whmNote = " (no WHM server resolved — DB only)";
+    }
+
     const [updated] = await db.update(hostingServicesTable)
-      .set({ status: "terminated", updatedAt: new Date() })
-      .where(eq(hostingServicesTable.id, req.params.id))
+      .set({ status: "terminated", cpanelUrl: null, webmailUrl: null, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, service.id))
       .returning();
-    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(formatService(updated));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+
+    res.json({ ...formatService(updated!), whmNote });
+  } catch (err: any) {
+    console.error("[ADMIN] terminate error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -230,16 +360,42 @@ router.post("/admin/hosting/:id/provision", authenticate, requireAdmin, async (r
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// Admin: approve cancellation
+// Admin: approve cancellation (WHM removeacct + DB terminated)
 router.post("/admin/hosting/:id/cancel", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+
+    const server = service.username ? await resolveServerForService(service) : null;
+    if (server && service.username) {
+      try {
+        await cpanelTerminate(toServerCfg(server), service.username);
+        await logServerAction({
+          serviceId: service.id, serverId: server.id,
+          action: "removeacct (cancel approved)", status: "success",
+          request: { user: service.username },
+        });
+      } catch (whmErr: any) {
+        await logServerAction({
+          serviceId: service.id, serverId: server?.id,
+          action: "removeacct (cancel approved)", status: "failed",
+          request: { user: service.username }, errorMessage: whmErr.message,
+        });
+        console.warn(`[WHM] cancel/terminate failed for ${service.username}: ${whmErr.message}`);
+      }
+    }
+
     const [updated] = await db.update(hostingServicesTable)
-      .set({ status: "terminated", cancelRequested: false, updatedAt: new Date() })
-      .where(eq(hostingServicesTable.id, req.params.id))
+      .set({ status: "terminated", cancelRequested: false, cpanelUrl: null, webmailUrl: null, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, service.id))
       .returning();
-    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(formatService(updated));
-  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+
+    res.json(formatService(updated!));
+  } catch (err: any) {
+    console.error("[ADMIN] cancel error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Client: get my hosting
