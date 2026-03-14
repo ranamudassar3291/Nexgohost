@@ -1,0 +1,209 @@
+
+TASK:
+Implement a full email template system and fix the client email verification process.
+Currently verification emails are not sent because the system does not have an email template.
+
+The system must create a Hostinger-style verification email template and send it when a client registers.
+
+--------------------------------------------------
+
+STEP 1
+Create email templates table.
+
+Table name:
+
+email_templates
+
+Fields:
+
+id
+name
+subject
+body_html
+body_text
+created_at
+
+--------------------------------------------------
+
+STEP 2
+Insert default email verification template.
+
+Template name:
+
+Client Email Verification
+
+Subject:
+
+Verify Your Email Address
+
+HTML Body (Hostinger style):
+
+<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:8px">
+
+<h2 style="color:#333">Verify your email address</h2>
+
+<p>Hello {{client_name}},</p>
+
+<p>Thank you for creating an account.</p>
+
+<p>Your verification code is:</p>
+
+<h1 style="letter-spacing:5px;color:#6c5ce7">
+{{verification_code}}
+</h1>
+
+<p>This code will expire in 10 minutes.</p>
+
+<p>If you did not create this account, you can safely ignore this email.</p>
+
+<hr>
+
+<p style="font-size:12px;color:#999">
+This email was sent automatically by the billing system.
+</p>
+
+</div>
+</div>
+
+--------------------------------------------------
+
+STEP 3
+Generate verification code during registration.
+
+When client registers:
+
+Generate 6 digit code.
+
+Example:
+
+verification_code = random(100000,999999)
+
+--------------------------------------------------
+
+STEP 4
+Save verification code to database.
+
+Clients table must contain:
+
+email_verification_code
+email_verification_expiry
+email_verified
+
+Query:
+
+UPDATE clients
+SET
+email_verification_code = :code,
+email_verification_expiry = NOW() + INTERVAL 10 MINUTE,
+email_verified = 0
+WHERE id = :client_id
+
+--------------------------------------------------
+
+STEP 5
+Send verification email.
+
+Load template:
+
+Client Email Verification
+
+Replace variables:
+
+{{client_name}}
+{{verification_code}}
+
+Send email to:
+
+client.email
+
+--------------------------------------------------
+
+STEP 6
+Configure SMTP mail system.
+
+Create admin settings:
+
+SMTP Host
+SMTP Port
+SMTP Username
+SMTP Password
+SMTP Encryption
+
+Example working SMTP:
+
+Host = smtp.gmail.com
+Port = 587
+Encryption = TLS
+
+--------------------------------------------------
+
+STEP 7
+Send email using SMTP.
+
+Use nodemailer (if Node.js) or SMTP mailer.
+
+Example variables:
+
+to = client.email
+subject = template.subject
+html = rendered_template
+
+--------------------------------------------------
+
+STEP 8
+Create email verification page.
+
+Route:
+
+/verify-email
+
+Fields:
+
+Email
+Verification Code
+
+--------------------------------------------------
+
+STEP 9
+Validate verification code.
+
+Check:
+
+code matches
+code not expired
+
+If valid:
+
+UPDATE clients
+SET email_verified = 1
+
+--------------------------------------------------
+
+STEP 10
+Add resend verification button.
+
+If user did not receive email:
+
+Generate new code and resend email.
+
+--------------------------------------------------
+
+STEP 11
+Block login until verified.
+
+If email_verified = 0
+
+Redirect user to verification page.
+
+--------------------------------------------------
+
+FINAL RESULT
+
+When client creates account:
+
+1 verification code generated
+2 email template loaded
+3 verification email sent
+4 client enters code
+5 account verified

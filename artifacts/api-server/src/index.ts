@@ -1,6 +1,7 @@
 import app from "./app";
 import { refreshExchangeRates } from "./routes/currencies.js";
 import { runAllCronTasks } from "./lib/cron.js";
+import { seedMissingTemplates } from "./routes/email-templates.js";
 
 const rawPort = process.env["PORT"];
 
@@ -45,4 +46,11 @@ app.listen(port, async () => {
   };
   runCron();
   setInterval(runCron, 5 * 60 * 1000);
+
+  // Seed missing email templates (safe upsert — never overwrites admin edits)
+  seedMissingTemplates().then(() => {
+    console.log("[TEMPLATES] Default email templates ready");
+  }).catch((err: any) => {
+    console.warn("[TEMPLATES] Seed failed (non-fatal):", err.message);
+  });
 });

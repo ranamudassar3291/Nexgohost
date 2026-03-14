@@ -1,14 +1,39 @@
 /**
  * Email Service — renders templates and sends via SMTP (nodemailer)
  * Falls back to console logging if SMTP is not configured.
+ *
+ * Variable syntax:
+ *   {{variable_name}}  — recommended (matches Hostinger-style templates)
+ *   {variable_name}    — also supported for legacy plain-text templates
  */
 import nodemailer from "nodemailer";
 import { db } from "@workspace/db";
 import { emailTemplatesTable, settingsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm"; // still needed by sendTemplatedEmail
+import { eq } from "drizzle-orm";
 
+/**
+ * Render template variables. Supports both {{variable}} and {variable} syntax.
+ * Double-brace is checked first to avoid partial matches.
+ */
 function renderTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{([a-z_]+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+  return template
+    .replace(/\{\{([a-z_]+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
+    .replace(/\{([a-z_]+)\}/g,     (_, key) => vars[key] ?? `{${key}}`);
+}
+
+/** Strip HTML tags for plain-text fallback */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Load SMTP settings from the DB settings table into process.env */
@@ -44,8 +69,6 @@ function createTransport() {
 
 /**
  * Low-level email send — raw subject + html body, no template lookup.
- * Used for system emails like verification codes where we want full control
- * over the HTML without needing a DB template record.
  */
 export async function sendEmail(opts: {
   to: string;
@@ -53,7 +76,6 @@ export async function sendEmail(opts: {
   html: string;
 }): Promise<{ sent: boolean; message: string }> {
   try {
-    // Refresh SMTP config from DB settings before each send
     await loadSmtpFromDb();
 
     const transport = createTransport();
@@ -68,7 +90,8 @@ export async function sendEmail(opts: {
       return { sent: false, message: "SMTP not configured — email logged to console" };
     }
 
-    await transport.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html });
+    const text = stripHtml(opts.html);
+    await transport.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html, text });
     console.log(`[EMAIL] Sent "${opts.subject}" to ${opts.to}`);
     return { sent: true, message: "Email sent" };
   } catch (err: any) {
@@ -100,24 +123,28 @@ export async function sendTemplatedEmail(
     }
 
     const subject = renderTemplate(template.subject, variables);
-    const body = renderTemplate(template.body, variables);
+    const body    = renderTemplate(template.body, variables);
+
+    // Detect if body is HTML (starts with a tag) or plain text
+    const isHtml = body.trimStart().startsWith("<");
+    const html = isHtml ? body : body.replace(/\n/g, "<br>");
+    const text = isHtml ? stripHtml(body) : body;
 
     await loadSmtpFromDb();
     const transport = createTransport();
     const from = process.env.SMTP_FROM || "noreply@nexgohost.com";
 
     if (!transport) {
-      // Log to console when SMTP is not configured (dev mode)
       console.log(`\n[EMAIL LOG] ─────────────────────────────────────────`);
       console.log(`[EMAIL] Template: ${slug}`);
       console.log(`[EMAIL] To: ${to}`);
       console.log(`[EMAIL] Subject: ${subject}`);
-      console.log(`[EMAIL] Body:\n${body}`);
+      console.log(`[EMAIL] Body (preview):\n${text.substring(0, 300)}${text.length > 300 ? "…" : ""}`);
       console.log(`[EMAIL] ─────────────────────────────────────────────\n`);
       return { sent: true, message: "Logged (SMTP not configured)" };
     }
 
-    await transport.sendMail({ from, to, subject, text: body, html: body.replace(/\n/g, "<br>") });
+    await transport.sendMail({ from, to, subject, html, text });
     console.log(`[EMAIL] Sent "${slug}" to ${to}`);
     return { sent: true, message: "Email sent" };
   } catch (err: any) {
@@ -126,8 +153,20 @@ export async function sendTemplatedEmail(
   }
 }
 
-// Convenience helpers for each system event
+// ─── Convenience helpers ──────────────────────────────────────────────────────
 const COMPANY = "Nexgohost";
+
+/**
+ * Send email verification code.
+ * Uses the "email-verification" template from the DB so admins can customise it.
+ */
+export async function emailVerificationCode(to: string, clientName: string, code: string) {
+  return sendTemplatedEmail("email-verification", to, {
+    client_name: clientName,
+    verification_code: code,
+    company_name: COMPANY,
+  });
+}
 
 export async function emailInvoiceCreated(to: string, vars: {
   clientName: string; invoiceId: string; amount: string; dueDate: string; clientAreaUrl?: string;
@@ -135,7 +174,10 @@ export async function emailInvoiceCreated(to: string, vars: {
   return sendTemplatedEmail("invoice-created", to, {
     company_name: COMPANY,
     client_area_url: vars.clientAreaUrl || "https://nexgohost.com/client",
-    ...vars,
+    client_name: vars.clientName,
+    invoice_id: vars.invoiceId,
+    amount: vars.amount,
+    due_date: vars.dueDate,
   });
 }
 
@@ -143,7 +185,11 @@ export async function emailInvoicePaid(to: string, vars: {
   clientName: string; invoiceId: string; amount: string; paymentDate: string;
 }) {
   return sendTemplatedEmail("invoice-paid", to, {
-    company_name: COMPANY, payment_date: vars.paymentDate, ...vars,
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    invoice_id: vars.invoiceId,
+    amount: vars.amount,
+    payment_date: vars.paymentDate,
   });
 }
 
@@ -153,15 +199,27 @@ export async function emailHostingCreated(to: string, vars: {
 }) {
   return sendTemplatedEmail("hosting-created", to, {
     company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    username: vars.username,
+    password: vars.password,
+    cpanel_url: vars.cpanelUrl,
+    ns1: vars.ns1,
+    ns2: vars.ns2,
     webmail_url: vars.webmailUrl || `https://${vars.domain}/webmail`,
-    ...vars,
   });
 }
 
 export async function emailOrderCreated(to: string, vars: {
   clientName: string; serviceName: string; domain: string; orderId: string;
 }) {
-  return sendTemplatedEmail("order-created", to, { company_name: COMPANY, ...vars });
+  return sendTemplatedEmail("order-created", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    service_name: vars.serviceName,
+    domain: vars.domain,
+    order_id: vars.orderId,
+  });
 }
 
 export async function emailServiceSuspended(to: string, vars: {
@@ -169,22 +227,10 @@ export async function emailServiceSuspended(to: string, vars: {
 }) {
   return sendTemplatedEmail("service-suspended", to, {
     company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    reason: vars.reason,
     client_area_url: vars.clientAreaUrl || "https://nexgohost.com/client",
-    ...vars,
-  });
-}
-
-export async function emailVerificationCode(to: string, clientName: string, code: string) {
-  return sendEmail({
-    to,
-    subject: `${COMPANY} — Your Verification Code`,
-    html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px 24px;background:#0f0a1f;color:#fff;border-radius:12px">
-      <h2 style="color:#a855f7;margin-bottom:8px">${COMPANY}</h2>
-      <p style="color:#ccc">Hi ${clientName},</p>
-      <p style="color:#ccc">Your email verification code is:</p>
-      <div style="font-size:36px;font-weight:bold;letter-spacing:12px;color:#fff;background:#1e1033;border:1px solid #6d28d9;border-radius:8px;padding:16px 24px;margin:16px 0;text-align:center">${code}</div>
-      <p style="color:#999;font-size:13px">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
-    </div>`,
   });
 }
 
@@ -199,6 +245,10 @@ export async function emailCancellationConfirmed(to: string, vars: {
   clientName: string; domain: string; serviceName: string; cancelDate: string;
 }) {
   return sendTemplatedEmail("service-cancelled", to, {
-    company_name: COMPANY, service_name: vars.serviceName, cancel_date: vars.cancelDate, ...vars,
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    service_name: vars.serviceName,
+    cancel_date: vars.cancelDate,
   });
 }
