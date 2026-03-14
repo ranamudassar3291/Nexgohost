@@ -1,7 +1,7 @@
 import { db as _db } from "@workspace/db";
 import { serversTable as _serversTable } from "@workspace/db/schema";
 import { eq as _eq } from "drizzle-orm";
-import { cpanelSuspend } from "./cpanel.js";
+import { cpanelSuspend, cpanelUnsuspend } from "./cpanel.js";
 
 export async function suspendHostingAccount(username: string, serverId: string | null, reason = "Admin action"): Promise<void> {
   if (!serverId) return;
@@ -11,6 +11,16 @@ export async function suspendHostingAccount(username: string, serverId: string |
     { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername, apiToken: server.apiToken },
     username,
     reason,
+  );
+}
+
+export async function unsuspendHostingAccount(username: string, serverId: string | null): Promise<void> {
+  if (!serverId) return;
+  const [server] = await _db.select().from(_serversTable).where(_eq(_serversTable.id, serverId)).limit(1);
+  if (!server || !server.apiUsername || !server.apiToken) return;
+  await cpanelUnsuspend(
+    { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername, apiToken: server.apiToken },
+    username,
   );
 }
 

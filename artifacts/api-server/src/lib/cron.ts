@@ -1,10 +1,10 @@
 import { db } from "@workspace/db";
 import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
-  cronLogsTable, emailLogsTable,
+  cronLogsTable, emailLogsTable, hostingPlansTable,
 } from "@workspace/db/schema";
 import { eq, lte, sql, and, gte } from "drizzle-orm";
-import { suspendHostingAccount } from "./provision.js";
+import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 
 async function logCron(task: string, status: "success" | "failed" | "skipped", message?: string) {
   try {
@@ -57,7 +57,7 @@ export async function runBillingCron(): Promise<void> {
 
       if (existingInvoice.length > 0) continue;
 
-      const plan = await db.query?.hostingPlansTable?.findFirst?.({ where: eq } as any);
+      const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
       if (!user) continue;
 
@@ -69,10 +69,13 @@ export async function runBillingCron(): Promise<void> {
       if (service.billingCycle === "yearly") {
         nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
       } else {
-        nextDueDate.setDate(nextDueDate.getDate() + 30);
+        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
       }
 
-      const amount = "0.00";
+      // Use actual plan price; fall back to "0.00" only if no plan found
+      const amount = service.billingCycle === "yearly"
+        ? (plan?.yearlyPrice ?? plan?.price ?? "0.00").toString()
+        : (plan?.price ?? "0.00").toString();
 
       await db.insert(invoicesTable).values({
         invoiceNumber,
@@ -254,12 +257,79 @@ export async function runInvoiceRemindersCron(): Promise<void> {
   }
 }
 
+// ─── Task 5: Auto-unsuspend services whose invoices are now paid ──────────────
+// Runs every 5 min: finds suspended services that have a paid/active invoice,
+// calls WHM unsuspendacct, and sets service status back to Active.
+export async function runUnsuspendRestoredCron(): Promise<void> {
+  try {
+    // Find all suspended hosting services that have a paid invoice
+    const suspendedServices = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.status, "suspended"));
+
+    let unsuspended = 0;
+
+    for (const service of suspendedServices) {
+      // Look for any paid invoice linked to this service
+      const [paidInvoice] = await db.select().from(invoicesTable)
+        .where(and(
+          eq(invoicesTable.serviceId, service.id),
+          eq(invoicesTable.status, "paid"),
+        )).limit(1);
+
+      if (!paidInvoice) continue;
+
+      // Also ensure there are no current overdue unpaid invoices for this service
+      const [overdueInvoice] = await db.select().from(invoicesTable)
+        .where(and(
+          eq(invoicesTable.serviceId, service.id),
+          eq(invoicesTable.status, "overdue"),
+        )).limit(1);
+
+      if (overdueInvoice) continue; // Still has overdue invoices — keep suspended
+
+      // Unsuspend in WHM
+      try {
+        if (service.username) {
+          await unsuspendHostingAccount(service.username, service.serverId);
+        }
+      } catch (whmErr: any) {
+        console.warn(`[CRON] unsuspend WHM error for ${service.username}: ${whmErr.message}`);
+        /* WHM may fail — still update DB status */
+      }
+
+      await db.update(hostingServicesTable)
+        .set({ status: "active", updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, service.id));
+
+      const [user] = await db.select().from(usersTable)
+        .where(eq(usersTable.id, service.clientId)).limit(1);
+      if (user) {
+        await logEmail(
+          service.clientId,
+          user.email,
+          "service_unsuspended",
+          `Your hosting account ${service.domain || service.planName} has been reactivated`,
+          service.id,
+        );
+      }
+
+      unsuspended++;
+    }
+
+    await logCron("billing:auto_unsuspend", "success", `Unsuspended ${unsuspended} service(s)`);
+  } catch (err: any) {
+    await logCron("billing:auto_unsuspend", "failed", err.message);
+    console.error("[CRON] billing:auto_unsuspend error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
   await Promise.allSettled([
     runBillingCron(),
     runSuspendOverdueCron(),
+    runUnsuspendRestoredCron(),
     runDomainRenewalCron(),
     runInvoiceRemindersCron(),
   ]);

@@ -1,0 +1,122 @@
+TASK:
+Implement full WHMCS-style automation for order activation, including:
+
+- cPanel & Webmail auto login (without password)
+- Automatic service status & due date
+- Invoice mark paid
+- Auto suspend/unsuspend
+- WHM package limits properly applied
+
+Current system:  
+Order creation, username, package specification are correct.  
+Problem: auto login does not work, due date & invoice automation missing.
+
+--------------------------------------------------
+
+STEP 1: Auto Login (cPanel & Webmail)
+
+1. After account creation, call WHM API:
+
+- Endpoint: /json-api/create_user_session
+- Parameters:
+  - user = USERNAME
+  - service = cpaneld (for cPanel) or webmaild (for Webmail)
+  - api.version=1
+- Header: Authorization: whm root:API_TOKEN
+
+2. Parse API response:
+
+- Get temporary login URL:
+
+data.url
+
+- Save URL in services table (temporary_login_url_cpanel, temporary_login_url_webmail)
+
+3. In client dashboard:
+
+- cPanel button → redirect to temporary_login_url_cpanel
+- Webmail button → redirect to temporary_login_url_webmail
+
+Notes:
+
+- Session expires automatically (WHM default ~ 30 min)
+- Use **domain-independent server hostname** for login
+
+--------------------------------------------------
+
+STEP 2: Auto Service Status, Due Date, Invoice
+
+1. After successful account creation:
+
+- services.status = Active
+- services.next_due_date = calculate based on package billing cycle (monthly/yearly)
+- invoices.status = Paid
+- invoices.amount = package price
+
+2. Update database tables:
+
+- services
+
+id, client_id, package_id, server_id, domain, username, password, status, next_due_date
+
+- invoices
+
+id, client_id, amount, status, due_date, created_at
+
+
+--------------------------------------------------
+
+STEP 3: Auto Suspend / Unsuspend
+
+1. Cron job every 5 minutes:
+
+- Check overdue invoices:
+
+if invoice.due_date < NOW() AND invoice.status != Paid
+suspend service via WHM API /json-api/suspendacct
+services.status = Suspended
+
+
+- Check paid invoices for suspended services:
+
+if invoice.status == Paid AND services.status == Suspended
+unsuspend service via WHM API /json-api/unsuspendacct
+services.status = Active
+
+
+2. Update logs for all suspend/unsuspend actions.
+
+--------------------------------------------------
+
+STEP 4: Error Handling
+
+1. WHM API errors → log in server_logs table
+2. If account already exists → attach service to existing account
+3. Timeout handling → cURL timeout 60-90s
+
+--------------------------------------------------
+
+STEP 5: Test Auto Login
+
+1. Create test order for client
+2. Activate order
+3. Click cPanel / Webmail button
+4. Verify login automatically without password
+5. Verify due date & invoice updated
+6. Verify service active
+
+--------------------------------------------------
+
+FINAL RESULT
+
+After implementation:
+
+✅ WHM account created with correct username & package  
+✅ Client can auto login to cPanel & Webmail (temporary session URL)  
+✅ Service status set Active  
+✅ Due date auto set  
+✅ Invoice auto marked Paid  
+✅ Auto suspend/unsuspend runs via cron  
+✅ Logs for all actions maintained  
+
+System works fully like WHMCS provisioning & automation.
