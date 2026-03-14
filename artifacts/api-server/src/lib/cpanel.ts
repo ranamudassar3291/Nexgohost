@@ -87,24 +87,26 @@ async function whmRequest(server: ServerConfig, func: string, params: Record<str
   return data;
 }
 
+/**
+ * Create a cPanel account.
+ *
+ * IMPORTANT: Only send username, domain, password, plan, and contactemail.
+ * Do NOT include quota/bwlimit/maxpop/etc — those explicit params override the
+ * WHM package limits and result in accounts with unlimited resources regardless
+ * of what the package defines. Let WHM apply the package settings automatically.
+ */
 export async function cpanelCreateAccount(server: ServerConfig, account: CpanelAccount) {
-  return whmRequest(server, "createacct", {
+  const params: Record<string, string> = {
     username: account.username,
     domain: account.domain,
     password: account.password,
     contactemail: account.contactemail || account.email || "",
-    plan: account.plan || "default",
-    featurelist: "default",
-    quota: "unlimited",
-    bwlimit: "unlimited",
-    hasshell: "0",
-    cgi: "1",
-    cpmod: "jupiter",
-    maxpop: "unlimited",
-    maxsub: "unlimited",
-    maxpark: "unlimited",
-    maxaddon: "0",
-  });
+  };
+  // Only attach plan if one is specified — WHM default plan otherwise
+  if (account.plan && account.plan !== "default") {
+    params.plan = account.plan;
+  }
+  return whmRequest(server, "createacct", params);
 }
 
 export async function cpanelSuspend(server: ServerConfig, username: string, reason = "Suspended by admin") {

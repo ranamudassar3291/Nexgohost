@@ -72,6 +72,8 @@ export default function EditPackage() {
   const [modulePlanName, setModulePlanName] = useState("");
   const [pricingFrom, setPricingFrom] = useState<"module" | "manual">("manual");
 
+  const [selectedServerGroupId, setSelectedServerGroupId] = useState<string>("");
+
   // Ref to restore the server selection after initial load
   const restoredServerId = useRef<string>("");
 
@@ -97,10 +99,12 @@ export default function EditPackage() {
 
         const mod = data.module || "none";
         const savedServerId: string = data.moduleServerId || "";
+        const savedGroupId: string = data.moduleServerGroupId || "";
         const savedPlanId: string = data.modulePlanId || "";
         const savedPlanName: string = data.modulePlanName || savedPlanId;
 
         setModuleType(mod);
+        setSelectedServerGroupId(savedGroupId);
         if (savedPlanId) {
           setModulePlanId(savedPlanId);
           setModulePlanName(savedPlanName);
@@ -150,6 +154,7 @@ export default function EditPackage() {
   const handleModuleTypeChange = (newType: string) => {
     setModuleType(newType);
     setSelectedServerId("");
+    setSelectedServerGroupId("");
     setPlans([]);
     setSelectedPlan(null);
     setPlansError("");
@@ -244,6 +249,7 @@ export default function EditPackage() {
           groupId: form.groupId || null,
           module: moduleType,
           moduleServerId: selectedServerId || null,
+          moduleServerGroupId: selectedServerGroupId || null,
           modulePlanId: modulePlanId || null,
           modulePlanName: modulePlanName || null,
           emailAccounts: parseInt(form.emailAccounts) || 10,
@@ -367,6 +373,19 @@ export default function EditPackage() {
 
                 <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${MODULE_COLORS[moduleType]}`}>
                   <Server size={12} /> {selectedModuleOption?.label} Module
+                </div>
+
+                {/* Server Group (optional) */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground/80">Server Group <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={selectedServerGroupId}
+                    onChange={e => setSelectedServerGroupId(e.target.value)}
+                    placeholder="e.g. us-east or leave blank"
+                    className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <p className="text-xs text-muted-foreground">When set, new accounts will be provisioned on any active server in this group. Overrides the specific server selection below.</p>
                 </div>
 
                 {/* Step 2: Server */}

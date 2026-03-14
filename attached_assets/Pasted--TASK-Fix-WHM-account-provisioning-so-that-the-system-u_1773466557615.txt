@@ -1,0 +1,213 @@
+
+TASK:
+Fix WHM account provisioning so that the system uses the exact WHM package specifications,
+correct server hostname for login links, and proper server group selection.
+
+Currently accounts are created but:
+
+- Package limits are ignored (accounts created with unlimited resources)
+- cPanel login uses the domain instead of server hostname
+- Server groups are not used correctly
+
+--------------------------------------------------
+
+ISSUE 1
+WHM package specifications not applied.
+
+Current behavior:
+
+Account created but storage becomes unlimited
+instead of using the WHM package limits.
+
+CAUSE:
+
+System is not sending correct package name to WHM API.
+
+--------------------------------------------------
+
+FIX
+
+When creating account use EXACT WHM package name.
+
+WHM API endpoint:
+
+/json-api/createacct?api.version=1
+
+Parameters must include:
+
+username
+domain
+password
+plan
+contactemail
+
+Example request:
+
+https://SERVER:2087/json-api/createacct?api.version=1&username=nexgohos&domain=nexgohostss.com&password=PASS&plan=starter
+
+IMPORTANT:
+
+"plan" must match the exact WHM package name.
+
+Example:
+
+starter
+business
+pro
+
+Do NOT create custom limits manually.
+
+WHM will apply correct limits automatically.
+
+--------------------------------------------------
+
+ISSUE 2
+Wrong cPanel login link.
+
+Current system:
+
+https://domain:2083
+
+But DNS may not point yet.
+
+Correct behavior:
+
+Use server hostname.
+
+Example:
+
+Server hostname:
+
+spg1.cloudpowerdns.com
+
+Correct login link:
+
+https://spg1.cloudpowerdns.com:2083
+
+--------------------------------------------------
+
+FIX CLIENT DASHBOARD LINKS
+
+cPanel login:
+
+https://SERVER_HOSTNAME:2083
+
+Webmail login:
+
+https://SERVER_HOSTNAME:2096
+
+Example:
+
+https://spg1.cloudpowerdns.com:2083
+https://spg1.cloudpowerdns.com:2096
+
+--------------------------------------------------
+
+ISSUE 3
+Server group system incorrect.
+
+Admin created server group but system ignores it.
+
+--------------------------------------------------
+
+FIX
+
+When activating order:
+
+1 get server_group_id from product
+
+2 fetch servers in that group
+
+Query:
+
+SELECT * FROM servers
+WHERE group_id = :group_id
+AND status = 'active'
+
+--------------------------------------------------
+
+ISSUE 4
+Allow admin to select server.
+
+If multiple servers exist in group:
+
+Show dropdown:
+
+Select Server
+
+Server 1
+Server 2
+Server 3
+
+Selected server used for account creation.
+
+--------------------------------------------------
+
+ISSUE 5
+Use selected server credentials.
+
+Fetch:
+
+hostname
+api_token
+port
+
+Example:
+
+hostname = spg1.cloudpowerdns.com
+port = 2087
+api_token = TOKEN
+
+Use these values for WHM API.
+
+--------------------------------------------------
+
+ISSUE 6
+Fix timeout message.
+
+WHM account creation can take 20-60 seconds.
+
+Increase timeout:
+
+CURLOPT_CONNECTTIMEOUT = 30
+CURLOPT_TIMEOUT = 90
+
+--------------------------------------------------
+
+ISSUE 7
+Save correct service data.
+
+services table must store:
+
+server_id
+username
+password
+domain
+status
+next_due_date
+
+--------------------------------------------------
+
+ISSUE 8
+Activation success message.
+
+Show:
+
+Account Created Successfully
+
+Domain: nexgohostss.com
+Username: nexgohos
+Server: spg1.cloudpowerdns.com
+Package: starter
+
+--------------------------------------------------
+
+FINAL RESULT
+
+After fixing:
+
+WHM package limits apply correctly
+cPanel login uses server hostname
+webmail link correct
+server group selection works
+account provisioning stable

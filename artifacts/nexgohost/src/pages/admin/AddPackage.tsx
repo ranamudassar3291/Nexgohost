@@ -70,6 +70,7 @@ export default function AddPackage() {
   const [modulePlanId, setModulePlanId] = useState("");
   const [modulePlanName, setModulePlanName] = useState("");
   const [pricingFrom, setPricingFrom] = useState<"module" | "manual">("manual");
+  const [selectedServerGroupId, setSelectedServerGroupId] = useState<string>("");
 
   useEffect(() => {
     apiFetch("/api/admin/product-groups").then(setGroups).catch(() => {});
@@ -78,7 +79,7 @@ export default function AddPackage() {
   // Fetch servers when module type changes
   useEffect(() => {
     if (moduleType === "none") {
-      setServers([]); setSelectedServerId(""); setPlans([]); setSelectedPlan(null);
+      setServers([]); setSelectedServerId(""); setSelectedServerGroupId(""); setPlans([]); setSelectedPlan(null);
       setModulePlanId(""); setModulePlanName(""); setPricingFrom("manual");
       return;
     }
@@ -169,6 +170,7 @@ export default function AddPackage() {
           groupId: form.groupId || null,
           module: moduleType,
           moduleServerId: selectedServerId || null,
+          moduleServerGroupId: selectedServerGroupId || null,
           modulePlanId: modulePlanId || null,
           modulePlanName: modulePlanName || null,
           emailAccounts: parseInt(form.emailAccounts),
@@ -277,6 +279,19 @@ export default function AddPackage() {
                 {/* Module type badge */}
                 <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${MODULE_COLORS[moduleType]}`}>
                   <Server size={12} /> {selectedModuleOption?.label} Module Active
+                </div>
+
+                {/* Server Group (optional) */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-foreground/80">Server Group <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={selectedServerGroupId}
+                    onChange={e => setSelectedServerGroupId(e.target.value)}
+                    placeholder="e.g. us-east or leave blank"
+                    className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <p className="text-xs text-muted-foreground">When set, new accounts will be provisioned on any active server in this group. Overrides the specific server selection below.</p>
                 </div>
 
                 {/* Step 2: Server */}

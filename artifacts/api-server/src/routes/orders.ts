@@ -27,6 +27,7 @@ function formatOrder(
   o: typeof ordersTable.$inferSelect,
   clientName?: string,
   service?: { cpanelUrl: string | null; webmailUrl: string | null; status: string; id: string } | null,
+  planServerGroupId?: string | null,
 ) {
   return {
     id: o.id,
@@ -43,6 +44,7 @@ function formatOrder(
     modulePlanId: o.modulePlanId ?? null,
     modulePlanName: o.modulePlanName ?? null,
     moduleServerId: o.moduleServerId ?? null,
+    moduleServerGroupId: planServerGroupId ?? null,
     paymentStatus: o.paymentStatus ?? "unpaid",
     invoiceId: o.invoiceId ?? null,
     status: o.status,
@@ -141,10 +143,18 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
 router.get("/admin/orders", authenticate, requireAdmin, async (_req, res) => {
   try {
     const orders = await db.select().from(ordersTable).orderBy(sql`created_at DESC`);
+    // Pre-fetch all plans so we can include moduleServerGroupId without N+1 queries
+    const plans = await db.select({
+      id: hostingPlansTable.id,
+      moduleServerGroupId: hostingPlansTable.moduleServerGroupId,
+    }).from(hostingPlansTable);
+    const planMap = new Map(plans.map(p => [p.id, p]));
+
     const result = await Promise.all(orders.map(async (o) => {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, o.clientId)).limit(1);
       const service = await findServiceForOrder(o);
-      return formatOrder(o, user ? `${user.firstName} ${user.lastName}` : "", service);
+      const plan = o.itemId ? planMap.get(o.itemId) : null;
+      return formatOrder(o, user ? `${user.firstName} ${user.lastName}` : "", service, plan?.moduleServerGroupId ?? null);
     }));
     res.json(result);
   } catch (err) {

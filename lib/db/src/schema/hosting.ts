@@ -15,6 +15,7 @@ export const hostingPlansTable = pgTable("hosting_plans", {
   groupId: text("group_id"),
   module: text("module").default("none"),
   moduleServerId: text("module_server_id"),
+  moduleServerGroupId: text("module_server_group_id"),
   modulePlanId: text("module_plan_id"),
   modulePlanName: text("module_plan_name"),
   diskSpace: text("disk_space").notNull(),

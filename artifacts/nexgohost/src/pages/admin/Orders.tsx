@@ -18,6 +18,7 @@ interface Order {
   domain: string | null; amount: number;
   billingCycle: string; dueDate: string | null;
   moduleType: string; modulePlanId: string | null; modulePlanName: string | null;
+  moduleServerId: string | null; moduleServerGroupId: string | null;
   paymentStatus: string; invoiceId: string | null;
   status: string; notes: string | null; createdAt: string; updatedAt: string;
   serviceId: string | null; serviceStatus: string | null;
@@ -66,6 +67,7 @@ interface ServerOption {
   hostname: string;
   type: string;
   isDefault: boolean;
+  groupId: string | null;
 }
 
 interface ActivateResult {
@@ -89,6 +91,8 @@ interface PreActivateModal {
   itemName: string;
   moduleType: string;
   modulePlanName: string | null;
+  /** From the plan's moduleServerGroupId — used to filter server dropdown */
+  moduleServerGroupId: string | null;
   username: string;
   password: string;
   /** Admin-selected server ID (empty = auto-select) */
@@ -167,6 +171,7 @@ export default function AdminOrders() {
       itemName: order.itemName,
       moduleType: order.moduleType || "none",
       modulePlanName: order.modulePlanName || null,
+      moduleServerGroupId: order.moduleServerGroupId ?? null,
       username: generateUsername(domain),
       password: generatePassword(),
       serverId: "",   // empty = auto-select by provision logic
@@ -272,7 +277,11 @@ export default function AdminOrders() {
                 >
                   <option value="">Auto-select (recommended)</option>
                   {allServers
-                    .filter(s => preActivate.moduleType === "none" || s.type === preActivate.moduleType)
+                    .filter(s => {
+                      if (preActivate.moduleType !== "none" && s.type !== preActivate.moduleType) return false;
+                      if (preActivate.moduleServerGroupId && s.groupId !== preActivate.moduleServerGroupId) return false;
+                      return true;
+                    })
                     .map(s => (
                       <option key={s.id} value={s.id}>
                         {s.name} — {s.hostname}{s.isDefault ? " (default)" : ""}

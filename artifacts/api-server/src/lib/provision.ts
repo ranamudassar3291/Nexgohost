@@ -140,13 +140,21 @@ export async function provisionHostingService(
       .where(eq(serversTable.id, plan.moduleServerId)).limit(1);
     if (linkedServer?.status === "active") server = linkedServer;
   }
-  // 3. Service already has a server assigned
+  // 3. Plan specifies a server group — pick the first active server from that group
+  if (!server && plan?.moduleServerGroupId) {
+    const groupServers = await db.select().from(serversTable)
+      .where(eq(serversTable.status, "active"));
+    server = groupServers.find(s => s.groupId === plan.moduleServerGroupId && (module === "none" || s.type === module))
+      || groupServers.find(s => s.groupId === plan.moduleServerGroupId)
+      || null;
+  }
+  // 4. Service already has a server assigned
   if (!server && service.serverId) {
     const [svcServer] = await db.select().from(serversTable)
       .where(eq(serversTable.id, service.serverId)).limit(1);
     if (svcServer?.status === "active") server = svcServer;
   }
-  // 4. Auto-select: match module type → default flag → first active
+  // 5. Auto-select: match module type → default flag → first active
   if (!server) {
     const allServers = await db.select().from(serversTable)
       .where(eq(serversTable.status, "active"));
@@ -170,11 +178,13 @@ export async function provisionHostingService(
   let finalServerIp = service.serverIp || "";
   let whmError: string | undefined;
 
-  // ── cPanel/Webmail URLs use DOMAIN (not server hostname) ──────────────────
-  // Client cPanel always uses port 2083; WHM admin uses 2087 (server.apiPort)
-  const cpanelUrl = `https://${domain}:2083`;
-  const webmailUrl = `https://${domain}/webmail`;
-  const webmailAlt = `https://${domain}:2096`;
+  // ── cPanel/Webmail URLs use SERVER HOSTNAME (not domain) ──────────────────
+  // WHM/cPanel always uses the server hostname for access URLs because the
+  // domain's DNS may not be pointing yet when the account is first created.
+  // cPanel client port: 2083 | WHM admin port: 2087 | Webmail port: 2096
+  const cpanelHost = server?.hostname || domain;
+  const cpanelUrl = `https://${cpanelHost}:2083`;
+  const webmailUrl = `https://${cpanelHost}:2096`;
 
   // ── Provision on the actual panel ─────────────────────────────────────────
   if (server) {
