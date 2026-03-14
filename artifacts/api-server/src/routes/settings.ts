@@ -23,8 +23,10 @@ router.get("/admin/settings", authenticate, requireAdmin, async (_req, res) => {
       smtp_from_name:  map["smtp_from_name"]   ?? "",
       smtp_encryption: map["smtp_encryption"]  ?? "tls",
       smtp_configured: !!(map["smtp_host"] && map["smtp_user"]),
-      google_client_id: map["google_client_id"] ?? "",
-      google_configured: !!map["google_client_id"],
+      google_client_id:       map["google_client_id"]       ?? "",
+      google_client_secret:   map["google_client_secret"]   ? "••••••••" : "",
+      google_allowed_domains: map["google_allowed_domains"]  ?? "",
+      google_configured:      !!(map["google_client_id"] && map["google_client_secret"]),
     });
   } catch (err) {
     console.error(err);
@@ -37,7 +39,8 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
   try {
     const {
       mailer_type, smtp_host, smtp_port, smtp_user, smtp_pass,
-      smtp_from, smtp_from_name, smtp_encryption, google_client_id,
+      smtp_from, smtp_from_name, smtp_encryption,
+      google_client_id, google_client_secret, google_allowed_domains,
     } = req.body;
 
     const pairs: { key: string; value: string }[] = [];
@@ -52,6 +55,10 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
       pairs.push({ key: "smtp_pass", value: smtp_pass });
     }
     if (google_client_id !== undefined) pairs.push({ key: "google_client_id", value: google_client_id });
+    if (google_client_secret !== undefined && google_client_secret !== "••••••••" && google_client_secret !== "") {
+      pairs.push({ key: "google_client_secret", value: google_client_secret });
+    }
+    if (google_allowed_domains !== undefined) pairs.push({ key: "google_allowed_domains", value: google_allowed_domains });
 
     for (const pair of pairs) {
       await db

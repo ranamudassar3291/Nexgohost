@@ -237,15 +237,62 @@ router.put("/account", authenticate, async (req: AuthRequest, res) => {
 
 // ─── Google OAuth helpers ───────────────────────────────────────────────────
 
-async function getGoogleClientId(): Promise<string> {
+interface GoogleSettings {
+  clientId: string;
+  clientSecret: string;
+  allowedDomains: string[];
+}
+
+async function getGoogleSettings(): Promise<GoogleSettings> {
   try {
     const rows = await db.select().from(settingsTable);
     const map: Record<string, string> = {};
     for (const r of rows) if (r.key && r.value) map[r.key] = r.value;
-    return map["google_client_id"] || process.env.GOOGLE_CLIENT_ID || "";
+    const rawDomains = map["google_allowed_domains"] || "";
+    const allowedDomains = rawDomains
+      ? rawDomains.split(",").map(d => d.trim().toLowerCase()).filter(Boolean)
+      : [];
+    return {
+      clientId: map["google_client_id"] || process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: map["google_client_secret"] || process.env.GOOGLE_CLIENT_SECRET || "",
+      allowedDomains,
+    };
   } catch {
-    return process.env.GOOGLE_CLIENT_ID || "";
+    return { clientId: process.env.GOOGLE_CLIENT_ID || "", clientSecret: process.env.GOOGLE_CLIENT_SECRET || "", allowedDomains: [] };
   }
+}
+
+async function getGoogleClientId(): Promise<string> {
+  const { clientId } = await getGoogleSettings();
+  return clientId;
+}
+
+function buildCallbackUrl(req: any): string {
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers["host"] || process.env.REPLIT_DOMAINS || "localhost:8080";
+  return `${proto}://${host}/api/auth/google/callback`;
+}
+
+async function findOrCreateGoogleUser(googleUser: { sub: string; email: string; name: string; given_name?: string; family_name?: string }) {
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, googleUser.email)).limit(1);
+  if (!user) {
+    const [newUser] = await db.insert(usersTable).values({
+      email: googleUser.email,
+      firstName: googleUser.given_name || googleUser.name.split(" ")[0] || "User",
+      lastName: googleUser.family_name || googleUser.name.split(" ").slice(1).join(" ") || "",
+      passwordHash: await hashPassword(crypto.randomUUID()),
+      role: "client",
+      status: "active",
+      emailVerified: true,
+      googleId: googleUser.sub,
+    }).returning();
+    user = newUser;
+    console.log(`[AUTH] New Google user created: ${user.email}`);
+  } else if (!user.googleId) {
+    await db.update(usersTable).set({ googleId: googleUser.sub, emailVerified: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    user = { ...user, googleId: googleUser.sub, emailVerified: true };
+  }
+  return user;
 }
 
 async function logAuthEvent(opts: {
@@ -268,8 +315,127 @@ async function logAuthEvent(opts: {
 
 // GET /api/auth/google/config — return Google Client ID so the frontend can initialise GIS
 router.get("/auth/google/config", async (_req, res) => {
-  const clientId = await getGoogleClientId();
-  res.json({ clientId: clientId || null, configured: !!clientId });
+  const { clientId, clientSecret, allowedDomains } = await getGoogleSettings();
+  res.json({
+    clientId: clientId || null,
+    configured: !!(clientId && clientSecret),
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    allowedDomains,
+  });
+});
+
+// GET /api/auth/google/start — initiate server-side OAuth code flow
+router.get("/auth/google/start", async (req, res) => {
+  const { clientId, clientSecret } = await getGoogleSettings();
+  if (!clientId || !clientSecret) {
+    const frontendBase = (() => {
+      const proto = req.headers["x-forwarded-proto"] || "https";
+      const host = req.headers["x-forwarded-host"] || req.headers["host"] || "";
+      return `${proto}://${host}`;
+    })();
+    res.redirect(`${frontendBase}/client/login?error=google_not_configured`);
+    return;
+  }
+  const callbackUrl = buildCallbackUrl(req);
+  const state = crypto.randomUUID();
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: callbackUrl,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    access_type: "offline",
+    prompt: "select_account",
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+// GET /api/auth/google/callback — exchange code for user info, create session, redirect to frontend
+router.get("/auth/google/callback", async (req, res) => {
+  const ip = req.headers["x-forwarded-for"]?.toString() || req.socket.remoteAddress || "";
+  const ua = req.headers["user-agent"] || "";
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const host = req.headers["x-forwarded-host"] || req.headers["host"] || "";
+  const frontendBase = `${proto}://${host}`;
+
+  const { code, error } = req.query as Record<string, string>;
+
+  if (error) {
+    await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "denied", ipAddress: ip, userAgent: ua, details: error });
+    res.redirect(`${frontendBase}/client/login?error=google_denied`);
+    return;
+  }
+
+  if (!code) {
+    res.redirect(`${frontendBase}/client/login?error=google_no_code`);
+    return;
+  }
+
+  try {
+    const { clientId, clientSecret, allowedDomains } = await getGoogleSettings();
+    if (!clientId || !clientSecret) {
+      res.redirect(`${frontendBase}/client/login?error=google_not_configured`);
+      return;
+    }
+
+    const callbackUrl = buildCallbackUrl(req);
+    const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: callbackUrl,
+        grant_type: "authorization_code",
+      }).toString(),
+    });
+
+    const tokenData = await tokenResp.json() as any;
+    if (!tokenResp.ok || !tokenData.access_token) {
+      throw new Error(tokenData.error_description || tokenData.error || "Token exchange failed");
+    }
+
+    const userInfoResp = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const userInfo = await userInfoResp.json() as any;
+    if (!userInfo.email) throw new Error("Google did not return an email address");
+
+    if (allowedDomains.length > 0) {
+      const domain = userInfo.email.split("@")[1]?.toLowerCase() || "";
+      if (!allowedDomains.includes(domain)) {
+        await logAuthEvent({ email: userInfo.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: `Domain not allowed: ${domain}` });
+        res.redirect(`${frontendBase}/client/login?error=google_domain_not_allowed`);
+        return;
+      }
+    }
+
+    const googleUser = {
+      sub: userInfo.id || userInfo.sub,
+      email: userInfo.email,
+      name: userInfo.name || userInfo.email,
+      given_name: userInfo.given_name,
+      family_name: userInfo.family_name,
+    };
+
+    const user = await findOrCreateGoogleUser(googleUser);
+
+    if (user.status === "suspended") {
+      await logAuthEvent({ userId: user.id, email: user.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: "Account suspended" });
+      res.redirect(`${frontendBase}/client/login?error=account_suspended`);
+      return;
+    }
+
+    const jwt = signToken({ userId: user.id, role: user.role });
+    await logAuthEvent({ userId: user.id, email: user.email, action: "google_callback", method: "google", status: "success", ipAddress: ip, userAgent: ua });
+    res.redirect(`${frontendBase}/google-callback?token=${encodeURIComponent(jwt)}&firstName=${encodeURIComponent(user.firstName || "")}`);
+  } catch (err: any) {
+    console.error("[AUTH] Google callback error:", err.message);
+    await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "error", ipAddress: ip, userAgent: ua, details: err.message });
+    res.redirect(`${frontendBase}/client/login?error=google_failed`);
+  }
 });
 
 // POST /api/auth/google — verify Google ID token, find or create user, return JWT

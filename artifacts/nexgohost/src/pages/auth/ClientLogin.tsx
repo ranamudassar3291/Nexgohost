@@ -38,8 +38,21 @@ export default function ClientLogin() {
   useEffect(() => {
     fetch("/api/auth/google/config")
       .then(r => r.json())
-      .then(d => setGoogleEnabled(!!d.clientId))
+      .then(d => setGoogleEnabled(d.configured ?? !!d.clientId))
       .catch(() => setGoogleEnabled(false));
+
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("error");
+    if (err) {
+      const msgs: Record<string, string> = {
+        google_not_configured: "Google Sign-In is not yet configured. Please use email and password.",
+        google_denied: "Google sign-in was cancelled.",
+        google_failed: "Google sign-in failed. Please try again or use your email and password.",
+        google_domain_not_allowed: "Your Google account domain is not permitted. Please contact support.",
+        account_suspended: "Your account has been suspended. Please contact support.",
+      };
+      setInlineError(msgs[err] || "Sign-in error. Please try again.");
+    }
   }, []);
 
   if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
@@ -128,14 +141,6 @@ export default function ClientLogin() {
     } finally { setResending(false); }
   };
 
-  const handleGoogleSuccess = (token: string, gUser: { role: string }) => {
-    if (gUser.role !== "client") {
-      setInlineError("This portal is for clients only. Please use the Admin Portal to sign in.");
-      return;
-    }
-    login(token);
-    setLocation("/client/dashboard");
-  };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background">
@@ -185,10 +190,7 @@ export default function ClientLogin() {
               <motion.div key="pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative z-10 space-y-4">
                 {googleEnabled && (
                   <>
-                    <GoogleSignInButton
-                      onSuccess={handleGoogleSuccess}
-                      onError={(msg) => setInlineError(msg)}
-                    />
+                    <GoogleSignInButton />
                     <div className="flex items-center gap-3">
                       <div className="flex-1 h-px bg-white/10" />
                       <span className="text-xs text-muted-foreground">or sign in with email</span>

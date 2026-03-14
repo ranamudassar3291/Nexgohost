@@ -35,7 +35,7 @@ export default function Register() {
   useEffect(() => {
     fetch("/api/auth/google/config")
       .then(r => r.json())
-      .then(d => setGoogleEnabled(!!d.clientId))
+      .then(d => setGoogleEnabled(d.configured ?? !!d.clientId))
       .catch(() => setGoogleEnabled(false));
   }, []);
 
@@ -90,11 +90,6 @@ export default function Register() {
     } finally { setResending(false); }
   };
 
-  const handleGoogleSuccess = (token: string) => {
-    login(token);
-    toast({ title: "Welcome to Nexgohost!", description: "You've been signed in with Google." });
-    setLocation("/client/dashboard");
-  };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background py-12">
@@ -126,11 +121,7 @@ export default function Register() {
 
                 {googleEnabled && (
                   <div className="mb-6">
-                    <GoogleSignInButton
-                      label="Sign up with Google"
-                      onSuccess={handleGoogleSuccess}
-                      onError={(msg) => toast({ title: "Google sign-in failed", description: msg, variant: "destructive" })}
-                    />
+                    <GoogleSignInButton label="Sign up with Google" />
                     <div className="flex items-center gap-3 mt-5">
                       <div className="flex-1 h-px bg-white/10" />
                       <span className="text-xs text-muted-foreground">or register with email</span>

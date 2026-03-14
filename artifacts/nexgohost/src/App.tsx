@@ -4,8 +4,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
 import { CurrencyProvider } from "@/context/CurrencyProvider";
-import { GoogleOAuthProvider } from "@react-oauth/google";
-import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -37,6 +35,7 @@ import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminMigrations from "@/pages/admin/Migrations";
 import AdminSettings from "@/pages/admin/Settings";
 import EmailConfiguration from "@/pages/admin/EmailConfiguration";
+import GoogleOAuth from "@/pages/admin/GoogleOAuth";
 import AdminPromoCodes from "@/pages/admin/PromoCodes";
 import AdminPaymentMethods from "@/pages/admin/PaymentMethods";
 import DomainExtensions from "@/pages/admin/DomainExtensions";
@@ -65,6 +64,7 @@ import Checkout from "@/pages/client/Checkout";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import ClientOrders from "@/pages/client/Orders";
 import Homepage from "@/pages/public/Homepage";
+import GoogleCallback from "@/pages/auth/GoogleCallback";
 
 import { queryClient } from "@/lib/query-client";
 
@@ -208,6 +208,9 @@ function RouterRoot() {
       <Route path="/admin/settings/email">
         <AdminPage><EmailConfiguration /></AdminPage>
       </Route>
+      <Route path="/admin/settings/google">
+        <AdminPage><GoogleOAuth /></AdminPage>
+      </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>
       </Route>
@@ -269,6 +272,9 @@ function RouterRoot() {
         <AdminPage><DomainExtensions /></AdminPage>
       </Route>
 
+      {/* ── OAuth callback — public ── */}
+      <Route path="/google-callback" component={GoogleCallback} />
+
       {/* Root: Homepage for guests, dashboard for logged-in users */}
       <Route path="/">
         {isLoading ? (
@@ -287,39 +293,17 @@ function RouterRoot() {
   );
 }
 
-// ─── Google OAuth Dynamic Wrapper ─────────────────────────────────────────────
-// Fetches the Google Client ID from the backend settings, so admins can
-// configure it without touching env vars. Falls back gracefully if not set.
-function GoogleWrapper({ children }: { children: React.ReactNode }) {
-  const [clientId, setClientId] = useState<string | null>(null);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/auth/google/config")
-      .then(r => r.json())
-      .then(d => { setClientId(d.clientId || null); })
-      .catch(() => { setClientId(null); })
-      .finally(() => setChecked(true));
-  }, []);
-
-  if (!checked) return <>{children}</>;
-  if (!clientId) return <>{children}</>;
-  return <GoogleOAuthProvider clientId={clientId}>{children}</GoogleOAuthProvider>;
-}
-
 // ─── App Root ─────────────────────────────────────────────────────────────────
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <GoogleWrapper>
-            <AuthProvider>
-              <CurrencyProvider>
-                <RouterRoot />
-              </CurrencyProvider>
-            </AuthProvider>
-          </GoogleWrapper>
+          <AuthProvider>
+            <CurrencyProvider>
+              <RouterRoot />
+            </CurrencyProvider>
+          </AuthProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

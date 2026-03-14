@@ -352,51 +352,25 @@ export default function EmailConfiguration() {
             <p className="text-xs text-muted-foreground mt-3">Subject: <span className="text-foreground/70 italic">Test Email from Billing System</span></p>
           </div>
 
-          {/* Google OAuth */}
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <div className="flex items-center gap-2.5 mb-4">
-              <KeyRound size={17} className="text-primary" />
-              <div>
-                <h3 className="font-semibold text-foreground text-sm">Google OAuth Sign-In</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Allow clients to sign in / register with their Google account.</p>
-              </div>
-              {cfg.google_configured && (
-                <span className="ml-auto flex items-center gap-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">
-                  <CheckCircle size={11} /> Active
-                </span>
-              )}
+          {/* Google OAuth — link card */}
+          <div className="rounded-2xl border border-border bg-card p-6 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <KeyRound size={18} className="text-primary" />
             </div>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Google Client ID</label>
-                <Input
-                  value={cfg.google_client_id}
-                  onChange={set("google_client_id")}
-                  placeholder="123456789-abc.apps.googleusercontent.com"
-                  className="bg-background/50 border-white/10 font-mono text-xs"
-                />
-              </div>
-              <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-300/80 space-y-1">
-                <p className="font-medium text-blue-300">Setup Instructions</p>
-                <p>1. Go to <span className="text-foreground/70">console.cloud.google.com</span> → APIs &amp; Services → Credentials</p>
-                <p>2. Create an OAuth 2.0 Client ID → Web Application</p>
-                <p>3. Add your domain to <span className="text-foreground/70">Authorised JavaScript Origins</span></p>
-                <p>4. Paste the Client ID above and save settings</p>
-              </div>
-              <Button onClick={async () => {
-                setSaving(true);
-                try {
-                  await apiFetch("/api/admin/settings", { method: "PUT", body: JSON.stringify({ google_client_id: cfg.google_client_id }) });
-                  qc.invalidateQueries({ queryKey: ["admin-settings-email"] });
-                  toast({ title: "Google OAuth settings saved" });
-                } catch (err: any) {
-                  toast({ title: "Failed to save", description: err.message, variant: "destructive" });
-                } finally { setSaving(false); }
-              }} disabled={saving} size="sm" className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20">
-                {saving ? <Loader2 size={14} className="animate-spin mr-1.5" /> : null}
-                Save Google Client ID
-              </Button>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground text-sm">Google OAuth Sign-In</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Configure Client ID, Client Secret, and allowed domains for Google sign-in on the login &amp; register pages.
+              </p>
             </div>
+            {cfg.google_configured && (
+              <span className="flex items-center gap-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full shrink-0">
+                <CheckCircle size={11} /> Active
+              </span>
+            )}
+            <Button onClick={() => setLocation("/admin/settings/google")} size="sm" className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 shrink-0">
+              Configure
+            </Button>
           </div>
 
           {/* Quick tips */}

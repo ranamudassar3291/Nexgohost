@@ -1,0 +1,69 @@
+
+TASK:
+Fix the hosting panel so that Google Sign-In is fully functional with:
+
+1. **Separate Admin Configuration Page**:
+   - Admin can enter:
+     - Google Client ID
+     - Google Client Secret
+     - Allowed domains (optional)
+   - Save configuration securely in database
+   - Test button to verify connection
+   - Secret key / OAuth secret stored securely
+
+2. **Sign-In Integration Page**:
+   - Create an independent page for Google Sign-In integration
+   - This page used for admin configuration and OAuth flow
+   - Handles redirect URI, token exchange, and session creation
+
+3. **Login / Register Pages**:
+   - Add “Sign in with Google” button on:
+     - `/client/login`
+     - `/client/register`
+   - WHMCS-style professional layout
+   - Responsive & mobile-friendly
+   - Button calls OAuth flow to the integration page
+
+4. **OAuth Flow Backend**:
+   - Redirect to Google login
+   - Handle callback `/google-callback`:
+     - Exchange `code` for access token
+     - Fetch user info (name, email, Google ID)
+     - Check if user exists:
+       - Yes → log in
+       - No → create new user (if on register page)
+     - Create session / auto-login
+     - Redirect to client dashboard
+
+5. **Secret Code / OTP Field**:
+   - Include secret / verification code field if needed
+   - Used for admin verification or two-factor verification
+   - Store securely with expiry in DB
+   - Can be used in login or registration workflow
+
+6. **Email / SMTP Integration**:
+   - Ensure emails (OTP, welcome, account info) still work after Google Sign-In integration
+   - No disruption to previously fixed email functionality
+
+7. **Security & Logging**:
+   - Log all Google login attempts in `admin_logs` / `user_logs`
+   - Handle errors: denied access, invalid token, expired token
+   - Store tokens & secret key securely
+   - Only authorized domains / users allowed
+
+8. **UI / UX**:
+   - Button placement on login/register pages
+   - Separate configuration page in admin panel
+   - Hover effect, professional WHMCS-style layout
+   - Mobile responsive
+
+FINAL RESULT:
+
+✅ Google Sign-In button shows on login & register pages  
+✅ Separate admin configuration page for Google API Client ID & Secret  
+✅ Secret / verification code field included and functional  
+✅ OAuth flow works, new & existing users handled  
+✅ Email / SMTP workflow unaffected and still functional  
+✅ Logging & error handling implemented  
+✅ Professional, WHMCS-style UI on all pages  
+✅ Fully integrated with existing panel workflow (orders, dashboard, auto-login)

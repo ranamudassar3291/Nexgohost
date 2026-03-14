@@ -234,6 +234,17 @@ Tables: `users`, `hosting_plans`, `hosting_services`, `domains`, `domain_pricing
 - **Promo code validation**: `GET /api/promo-codes/validate?code=X&amount=Y` — checks active/limit/expiry, returns discount breakdown. Checkout atomically increments `usedCount`
 - **JWT secret**: Stored in `JWT_SECRET` environment variable (defaults to a hardcoded dev value if not set)
 
+## Google OAuth (Server-Side Flow)
+
+- **Admin config page**: `/admin/settings/google` — Client ID, Client Secret (masked), Allowed Domains, Redirect URI copy button
+- **Flow**: Server-side auth code flow (NOT implicit). `GET /api/auth/google/start` → Google → `GET /api/auth/google/callback` → `/google-callback?token=JWT`
+- **Callback page**: `/google-callback` — reads token from URL, calls `login()`, redirects to dashboard
+- **Settings stored**: `google_client_id`, `google_client_secret`, `google_allowed_domains` in `settings` table
+- **Button shown**: Only when BOTH clientId AND clientSecret are configured (`configured: true` from `/api/auth/google/config`)
+- **Allowed domains**: Optional comma-separated list; if set, only those email domains may sign in via Google
+- **Logging**: All OAuth attempts (start, callback, success, error, blocked) logged to `admin_logs`
+- **Error handling**: OAuth errors redirect to `/client/login?error=<code>` with user-friendly messages shown inline
+
 ## Development Commands
 
 - `pnpm --filter @workspace/api-server run dev` — Start API server

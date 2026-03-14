@@ -1,47 +1,25 @@
-import { useState } from "react";
-import { useGoogleLogin } from "@react-oauth/google";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 interface Props {
-  onSuccess: (token: string, user: { id: string; firstName: string; lastName: string; email: string; role: string }) => void;
-  onError?: (message: string) => void;
   label?: string;
+  disabled?: boolean;
 }
 
-export function GoogleSignInButton({ onSuccess, onError, label = "Continue with Google" }: Props) {
+export function GoogleSignInButton({ label = "Continue with Google", disabled = false }: Props) {
   const [loading, setLoading] = useState(false);
 
-  const login = useGoogleLogin({
-    scope: "openid email profile",
-    onSuccess: async (tokenResponse) => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ access_token: tokenResponse.access_token }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Google sign-in failed");
-        onSuccess(data.token, data.user);
-      } catch (err: any) {
-        onError?.(err.message || "Google sign-in failed. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    },
-    onError: (err) => {
-      console.error("Google login error:", err);
-      onError?.("Google sign-in was cancelled or failed. Please try again.");
-    },
-    flow: "implicit",
-  });
+  const handleClick = () => {
+    if (loading || disabled) return;
+    setLoading(true);
+    window.location.href = "/api/auth/google/start";
+  };
 
   return (
     <button
       type="button"
-      onClick={() => !loading && login()}
-      disabled={loading}
+      onClick={handleClick}
+      disabled={loading || disabled}
       className="w-full flex items-center justify-center gap-3 h-12 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 hover:border-white/25 transition-all duration-200 text-sm font-medium text-foreground disabled:opacity-60 disabled:cursor-not-allowed group"
     >
       {loading ? (
@@ -56,7 +34,7 @@ export function GoogleSignInButton({ onSuccess, onError, label = "Continue with 
         </svg>
       )}
       <span className={loading ? "text-muted-foreground" : "group-hover:text-primary transition-colors"}>
-        {loading ? "Signing in…" : label}
+        {loading ? "Redirecting to Google..." : label}
       </span>
     </button>
   );
