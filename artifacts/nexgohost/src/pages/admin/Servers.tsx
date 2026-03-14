@@ -20,6 +20,7 @@ interface ServerRecord {
   apiUsername: string | null; apiPort: number | null;
   ns1: string | null; ns2: string | null; maxAccounts: number | null;
   status: "active" | "inactive" | "maintenance"; groupId: string | null; isDefault: boolean;
+  hasApiToken?: boolean;
 }
 
 const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
@@ -42,6 +43,7 @@ export default function Servers() {
   const [editServerId, setEditServerId] = useState<string | null>(null);
   const [serverForm, setServerForm] = useState(EMPTY_SERVER);
   const [isDefault, setIsDefault] = useState(false);
+  const [apiTokenSaved, setApiTokenSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[] }>>({});
@@ -75,7 +77,7 @@ export default function Servers() {
         toast({ title: "Server added" });
       }
       qc.invalidateQueries({ queryKey: ["admin-servers"] });
-      setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER); setIsDefault(false);
+      setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER); setIsDefault(false); setApiTokenSaved(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally { setSaving(false); }
@@ -140,7 +142,7 @@ export default function Servers() {
           <h1 className="text-2xl font-display font-bold text-foreground">Servers</h1>
           <p className="text-muted-foreground text-sm">Manage hosting servers, groups, and module integrations</p>
         </div>
-        <Button onClick={() => activeTab === "servers" ? (setEditServerId(null), setServerForm(EMPTY_SERVER), setIsDefault(false), setShowServerForm(true)) : (setEditGroupId(null), setGroupForm(EMPTY_GROUP), setShowGroupForm(true))}
+        <Button onClick={() => activeTab === "servers" ? (setEditServerId(null), setServerForm(EMPTY_SERVER), setIsDefault(false), setApiTokenSaved(false), setShowServerForm(true)) : (setEditGroupId(null), setGroupForm(EMPTY_GROUP), setShowGroupForm(true))}
           className="bg-primary hover:bg-primary/90">
           <Plus size={16} className="mr-2" /> {activeTab === "servers" ? "Add Server" : "Add Group"}
         </Button>
@@ -196,8 +198,21 @@ export default function Servers() {
                 <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Username</label><Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" /></div>
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Token / Key</label><Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")} placeholder="••••••••••••" /></div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">API Username</label>
+                      <Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" />
+                      <p className="text-xs text-muted-foreground">Leave as "root" for standard WHM API token auth</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">API Token / Key</label>
+                      <Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")} placeholder={apiTokenSaved ? "Token saved — enter new to change" : "Paste WHM API token here"} />
+                      {editServerId && apiTokenSaved && !serverForm.apiToken && (
+                        <p className="text-xs text-emerald-400">✓ API token is saved — leave blank to keep it</p>
+                      )}
+                      {editServerId && !apiTokenSaved && (
+                        <p className="text-xs text-yellow-400">No token saved — enter your WHM API token</p>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">API Port</label><Input type="number" value={serverForm.apiPort} onChange={setS("apiPort")} className="w-32" /></div>
                 </div>
@@ -214,7 +229,7 @@ export default function Servers() {
                   <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                     {saving && <Loader2 size={16} className="animate-spin mr-2" />} {editServerId ? "Save Changes" : "Add Server"}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => { setShowServerForm(false); setEditServerId(null); }}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={() => { setShowServerForm(false); setEditServerId(null); setApiTokenSaved(false); }}>Cancel</Button>
                 </div>
               </form>
             </div>
@@ -278,7 +293,8 @@ export default function Servers() {
                       </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => {
                         setEditServerId(s.id);
-                        setServerForm({ name: s.name, hostname: s.hostname, ipAddress: s.ipAddress || "", type: s.type, apiUsername: s.apiUsername || "", apiToken: "", apiPort: String(s.apiPort || 2087), ns1: s.ns1 || "", ns2: s.ns2 || "", maxAccounts: String(s.maxAccounts || 500), groupId: s.groupId || "" });
+                        setApiTokenSaved(!!s.hasApiToken);
+                        setServerForm({ name: s.name, hostname: s.hostname, ipAddress: s.ipAddress || "", type: s.type, apiUsername: s.apiUsername || "root", apiToken: "", apiPort: String(s.apiPort || 2087), ns1: s.ns1 || "", ns2: s.ns2 || "", maxAccounts: String(s.maxAccounts || 500), groupId: s.groupId || "" });
                         setIsDefault(s.isDefault);
                         setShowServerForm(true);
                       }}><Pencil size={15} className="text-muted-foreground" /></Button>

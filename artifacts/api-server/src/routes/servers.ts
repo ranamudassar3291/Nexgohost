@@ -47,6 +47,7 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     ipAddress: serversTable.ipAddress,
     type: serversTable.type,
     apiUsername: serversTable.apiUsername,
+    apiToken: serversTable.apiToken,   // needed for hasApiToken check below
     apiPort: serversTable.apiPort,
     ns1: serversTable.ns1,
     ns2: serversTable.ns2,
@@ -58,7 +59,9 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
   }).from(serversTable).orderBy(serversTable.name).$dynamic();
   if (type) query = query.where(eq(serversTable.type, type as any));
   const servers = await query;
-  res.json(servers);
+  // Return hasApiToken flag without exposing the actual token value
+  const safeServers = servers.map(({ apiToken, ...s }) => ({ ...s, hasApiToken: !!apiToken }));
+  res.json(safeServers);
 });
 
 router.get("/admin/servers/:id", authenticate, requireAdmin, async (req, res) => {
@@ -97,8 +100,10 @@ router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   if (hostname !== undefined) updates.hostname = hostname;
   if (ipAddress !== undefined) updates.ipAddress = ipAddress;
   if (type !== undefined) updates.type = type;
-  if (apiUsername !== undefined) updates.apiUsername = apiUsername;
-  if (apiToken !== undefined) updates.apiToken = apiToken;
+  if (apiUsername !== undefined) updates.apiUsername = apiUsername || null;
+  // Only overwrite the stored token when a non-empty value is provided
+  // (empty string means "keep existing token" — prevents accidental wipe)
+  if (apiToken !== undefined && apiToken !== "") updates.apiToken = apiToken;
   if (apiPort !== undefined) updates.apiPort = parseInt(apiPort);
   if (ns1 !== undefined) updates.ns1 = ns1;
   if (ns2 !== undefined) updates.ns2 = ns2;
@@ -120,14 +125,14 @@ router.delete("/admin/servers/:id", authenticate, requireAdmin, async (req, res)
 router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, res) => {
   const [server] = await db.select().from(serversTable).where(eq(serversTable.id, req.params.id));
   if (!server) { res.status(404).json({ error: "Not found" }); return; }
-  if (!server.apiUsername || !server.apiToken) {
-    res.status(400).json({ error: "API credentials required to test connection" }); return;
+  if (!server.apiToken) {
+    res.status(400).json({ error: "API token is required — enter it in the server configuration and save first" }); return;
   }
 
   const serverCfg = {
     hostname: server.hostname,
     port: server.apiPort || 2087,
-    username: server.apiUsername,
+    username: server.apiUsername || "root",   // WHM API token auth uses root by default
     apiToken: server.apiToken,
   };
 
@@ -213,8 +218,9 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
     try {
       const port = server.apiPort || 2087;
       const url = `https://${server.hostname}:${port}/json-api/listpkgs?api.version=1`;
+      const authUser = server.apiUsername || "root";
       const resp = await fetch(url, {
-        headers: { Authorization: `whm ${server.apiUsername}:${server.apiToken}` },
+        headers: { Authorization: `whm ${authUser}:${server.apiToken}` },
         signal: AbortSignal.timeout(8000),
       });
       if (!resp.ok) {

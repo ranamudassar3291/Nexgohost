@@ -22,11 +22,13 @@ interface CpanelAccount {
 async function whmRequest(server: ServerConfig, func: string, params: Record<string, string> = {}): Promise<any> {
   const query = new URLSearchParams({ ...params, "api.version": "1" });
   const url = `https://${server.hostname}:${server.port || 2087}/json-api/${func}?${query}`;
+  // WHM API token auth: "whm USERNAME:TOKEN" — username defaults to root for API token auth
+  const authUser = server.username || "root";
 
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      "Authorization": `whm ${server.username}:${server.apiToken}`,
+      "Authorization": `whm ${authUser}:${server.apiToken}`,
       "Content-Type": "application/json",
     },
     signal: AbortSignal.timeout(15000),

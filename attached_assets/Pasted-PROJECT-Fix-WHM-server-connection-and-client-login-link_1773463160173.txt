@@ -1,0 +1,185 @@
+PROJECT:
+Fix WHM server connection and client login links in hosting billing panel.
+
+--------------------------------------------------
+
+ISSUE 1
+WHM API error: 400 during server test.
+
+CAUSE:
+
+Wrong API request format or missing headers.
+
+FIX:
+
+WHM API must be called using correct endpoint.
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/listpkgs
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Example request:
+
+GET https://SERVER-IP:2087/json-api/listpkgs
+
+If connection successful response should return package list.
+
+--------------------------------------------------
+
+ISSUE 2
+API token not saving in server configuration.
+
+CAUSE:
+
+Field name mismatch or database column missing.
+
+FIX:
+
+Servers table must contain fields:
+
+id
+name
+hostname
+ip_address
+api_token
+port
+module_type
+status
+
+When admin clicks SAVE server:
+
+System must run:
+
+UPDATE servers
+SET
+ip_address = input_ip,
+api_token = input_api_token,
+port = 2087,
+module_type = 'cpanel'
+WHERE id = server_id
+
+Ensure API token field is not cleared after save.
+
+Edit server page must reload saved value.
+
+--------------------------------------------------
+
+ISSUE 3
+Server test function.
+
+Admin → Servers → Test Connection
+
+Test must verify:
+
+1 WHM API access
+2 API token validity
+3 Package list availability
+
+If success show:
+
+Server Connected
+Packages Found: X
+
+If failure show exact error.
+
+--------------------------------------------------
+
+ISSUE 4
+Fix Login to cPanel link.
+
+Current problem:
+
+Login to cPanel opens WHM page.
+
+Correct link:
+
+https://domain.com:2083
+
+OR
+
+https://server-ip:2083
+
+Example button code:
+
+Login to cPanel
+
+redirect to:
+
+https://domain.com:2083
+
+--------------------------------------------------
+
+ISSUE 5
+Fix Webmail login link.
+
+Correct link:
+
+https://domain.com/webmail
+
+OR
+
+https://domain.com:2096
+
+Example:
+
+https://example.com/webmail
+
+--------------------------------------------------
+
+ISSUE 6
+Order activation flow.
+
+When admin clicks "Activate Order":
+
+System must:
+
+1 create WHM account
+2 set service status active
+3 set next_due_date
+4 mark invoice paid
+5 save username/password
+
+--------------------------------------------------
+
+ISSUE 7
+WHM API account creation.
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/createacct
+
+Parameters:
+
+username
+domain
+password
+plan
+contactemail
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+--------------------------------------------------
+
+ISSUE 8
+Logging system.
+
+Create table:
+
+server_logs
+
+fields:
+
+service_id
+action
+response
+created_at
+
+Log WHM responses.
+
+--------------------------------------------------
