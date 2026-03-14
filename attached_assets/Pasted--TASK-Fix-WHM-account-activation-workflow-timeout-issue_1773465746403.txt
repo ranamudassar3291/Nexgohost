@@ -1,0 +1,219 @@
+
+TASK:
+Fix WHM account activation workflow, timeout issues, login links, and server selection.
+
+The system already connects to WHM and fetches packages, but when activating an order
+it shows:
+
+WHM API warning
+WHM API timed out (15s)
+
+Also the cPanel and Webmail links are incorrect and username is not auto generated.
+
+All these issues must be fixed.
+
+--------------------------------------------------
+
+ISSUE 1
+WHM API timeout during account creation.
+
+Current timeout is too low (15 seconds).
+
+Increase cURL timeout.
+
+Use:
+
+CURLOPT_CONNECTTIMEOUT = 30
+CURLOPT_TIMEOUT = 60
+
+Account creation on WHM can take 20-40 seconds.
+
+--------------------------------------------------
+
+ISSUE 2
+Fix WHM account creation request.
+
+Correct API endpoint:
+
+https://SERVER-HOSTNAME:2087/json-api/createacct?api.version=1
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Parameters:
+
+username
+domain
+password
+plan
+contactemail
+
+Send parameters using query string or form encoding.
+
+Do NOT send JSON body.
+
+--------------------------------------------------
+
+ISSUE 3
+Auto generate username.
+
+If admin does not enter username during activation:
+
+Generate automatically from domain.
+
+Example:
+
+rana.mudassar.hosted.com
+
+username = ranamuda
+
+Rules:
+
+max 8 characters
+letters and numbers only
+
+Save username to services table.
+
+--------------------------------------------------
+
+ISSUE 4
+Fix client dashboard login links.
+
+Current system uses hostname incorrectly.
+
+Correct links must be:
+
+cPanel login:
+
+https://DOMAIN:2083
+
+Example:
+
+https://rana.mudassar.hosted.com:2083
+
+Webmail login:
+
+https://DOMAIN/webmail
+
+Example:
+
+https://rana.mudassar.hosted.com/webmail
+
+Do NOT use server hostname for these links.
+
+--------------------------------------------------
+
+ISSUE 5
+Add server selection during order activation.
+
+If multiple servers exist in server group:
+
+Show dropdown on activation page.
+
+Example:
+
+Select Server:
+
+Server 1
+Server 2
+Server 3
+
+Admin must be able to choose which server will create the account.
+
+--------------------------------------------------
+
+ISSUE 6
+Save selected server.
+
+When admin selects server during activation:
+
+Save server_id in services table.
+
+Example fields:
+
+services
+
+id
+client_id
+package_id
+server_id
+domain
+username
+password
+status
+
+--------------------------------------------------
+
+ISSUE 7
+Use selected server credentials for WHM API.
+
+Fetch server data:
+
+SELECT hostname, ip_address, api_token
+FROM servers
+WHERE id = selected_server_id
+
+Use these values to call WHM API.
+
+--------------------------------------------------
+
+ISSUE 8
+Fix service activation workflow.
+
+When admin clicks Activate Order:
+
+System must:
+
+1 determine selected server
+2 generate username if empty
+3 call WHM createacct API
+4 wait for response
+5 save username/password
+6 set service status = Active
+7 set next_due_date
+8 mark invoice paid
+
+--------------------------------------------------
+
+ISSUE 9
+Fix activation success message.
+
+If account created successfully show:
+
+Account Created Successfully
+
+Domain:
+Username:
+Server:
+
+--------------------------------------------------
+
+ISSUE 10
+Add debug logging.
+
+Log WHM API response.
+
+Table:
+
+server_logs
+
+Fields:
+
+service_id
+server_id
+action
+response
+created_at
+
+--------------------------------------------------
+
+FINAL RESULT
+
+After fix:
+
+Account creation will not timeout
+Admin can choose server during activation
+Username auto generates
+cPanel login opens correctly
+Webmail link works correctly

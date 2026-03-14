@@ -24,8 +24,12 @@ interface CpanelAccount {
   contactemail?: string;
 }
 
-/** Low-level HTTPS GET using node:https so we can bypass self-signed certs */
-function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 15000): Promise<string> {
+/**
+ * Low-level HTTPS GET using node:https so we can bypass self-signed certs.
+ * Default timeout is 60s — WHM createacct can legitimately take 20-40 seconds
+ * while it provisions DNS, creates the home directory, and sets up the account.
+ */
+function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 60000): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers,
@@ -43,7 +47,10 @@ function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 1500
         }
       });
     });
-    req.on("timeout", () => { req.destroy(); reject(new Error("WHM API timed out (15s)")); });
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error(`WHM API timed out after ${Math.round(timeoutMs / 1000)}s — account creation can take up to 60 seconds on busy servers`));
+    });
     req.on("error", (err) => reject(new Error(`WHM connection failed: ${err.message}`)));
   });
 }

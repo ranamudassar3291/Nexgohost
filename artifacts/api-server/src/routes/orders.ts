@@ -323,8 +323,8 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
     const clientName = user ? `${user.firstName} ${user.lastName}` : "";
 
-    // Accept admin-provided credentials (will auto-generate if not provided)
-    const { username: overrideUsername, password: overridePassword } = req.body || {};
+    // Accept admin-provided credentials and optional server selection
+    const { username: overrideUsername, password: overridePassword, serverId: overrideServerId } = req.body || {};
 
     let provisionResult = null;
     let serviceId: string | null = null;
@@ -361,6 +361,7 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
         provisionResult = await provisionHostingService(serviceId, {
           username: overrideUsername || undefined,
           password: overridePassword || undefined,
+          serverId: overrideServerId || undefined,
         });
         // Hard failures (missing required params, server config incomplete) → stop and surface error
         if (!provisionResult.success && !provisionResult.whmError) {
@@ -391,9 +392,12 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
       updatedAt: new Date(),
     }).where(eq(ordersTable.id, order.id)).returning();
 
-    // Fetch the service for response
+    // Fetch the service + server for response
     const service = serviceId
       ? await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, serviceId)).limit(1).then(r => r[0])
+      : null;
+    const serverRecord = service?.serverId
+      ? await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1).then(r => r[0])
       : null;
 
     res.json({
@@ -408,6 +412,8 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
         cpanelUrl: service.cpanelUrl,
         webmailUrl: service.webmailUrl,
         domain: service.domain,
+        serverName: serverRecord?.name || null,
+        serverHostname: serverRecord?.hostname || null,
       } : null,
       invoicePaid: true,
     });

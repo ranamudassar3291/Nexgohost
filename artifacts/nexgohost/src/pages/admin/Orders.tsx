@@ -5,6 +5,7 @@ import {
   ShoppingCart, CheckCircle, XCircle, Search, Plus, FileText,
   ChevronDown, Loader2, RefreshCw, AlertTriangle, StopCircle,
   Terminal, Mail, Zap, ExternalLink, Eye, EyeOff, Copy, User, Lock,
+  Server,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -59,9 +60,25 @@ const MODULE_COLORS: Record<string, string> = {
 
 const filterTabs = ["all", "pending", "approved", "suspended", "cancelled", "fraud", "terminated"];
 
+interface ServerOption {
+  id: string;
+  name: string;
+  hostname: string;
+  type: string;
+  isDefault: boolean;
+}
+
 interface ActivateResult {
   orderId: string;
-  service: { cpanelUrl: string | null; webmailUrl: string | null; username: string | null; password: string | null; domain: string | null } | null;
+  service: {
+    cpanelUrl: string | null;
+    webmailUrl: string | null;
+    username: string | null;
+    password: string | null;
+    domain: string | null;
+    serverName: string | null;
+    serverHostname: string | null;
+  } | null;
   whmError: string | null;
 }
 
@@ -74,6 +91,8 @@ interface PreActivateModal {
   modulePlanName: string | null;
   username: string;
   password: string;
+  /** Admin-selected server ID (empty = auto-select) */
+  serverId: string;
 }
 
 function generatePassword() {
@@ -100,6 +119,12 @@ export default function AdminOrders() {
   const { data: orders = [], isLoading, refetch } = useQuery<Order[]>({
     queryKey: ["admin-orders"],
     queryFn: () => apiFetch("/api/admin/orders"),
+  });
+
+  const { data: allServers = [] } = useQuery<ServerOption[]>({
+    queryKey: ["admin-servers-list"],
+    queryFn: () => apiFetch("/api/admin/servers"),
+    staleTime: 60_000,
   });
 
   const filtered = orders.filter(o => {
@@ -144,6 +169,7 @@ export default function AdminOrders() {
       modulePlanName: order.modulePlanName || null,
       username: generateUsername(domain),
       password: generatePassword(),
+      serverId: "",   // empty = auto-select by provision logic
     });
   };
 
@@ -152,12 +178,15 @@ export default function AdminOrders() {
     if (!preActivate) return;
     setLoadingId(preActivate.orderId);
     try {
+      const body: Record<string, string> = {
+        username: preActivate.username,
+        password: preActivate.password,
+      };
+      if (preActivate.serverId) body.serverId = preActivate.serverId;
+
       const data = await apiFetch(`/api/admin/orders/${preActivate.orderId}/activate`, {
         method: "POST",
-        body: JSON.stringify({
-          username: preActivate.username,
-          password: preActivate.password,
-        }),
+        body: JSON.stringify(body),
       });
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
       refetch();
@@ -229,6 +258,30 @@ export default function AdminOrders() {
                 </div>
               )}
             </div>
+
+            {/* Server selection */}
+            {allServers.length > 0 && (
+              <div className="space-y-1.5 mb-4">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Server size={12} /> Server
+                </label>
+                <select
+                  value={preActivate.serverId}
+                  onChange={e => setPreActivate(p => p ? { ...p, serverId: e.target.value } : p)}
+                  className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  <option value="">Auto-select (recommended)</option>
+                  {allServers
+                    .filter(s => preActivate.moduleType === "none" || s.type === preActivate.moduleType)
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} — {s.hostname}{s.isDefault ? " (default)" : ""}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-muted-foreground">Override which server this account is created on</p>
+              </div>
+            )}
 
             {/* Hosting credentials */}
             <div className="space-y-3">
@@ -328,6 +381,12 @@ export default function AdminOrders() {
                         className="text-primary hover:underline text-xs truncate max-w-[180px]">{activateResult.service.webmailUrl}</a>
                     ) : <span className="text-muted-foreground text-xs">—</span>}
                   </div>
+                  {activateResult.service.serverName && (
+                    <div className="flex justify-between items-center border-t border-border/50 pt-2 mt-1">
+                      <span className="text-muted-foreground flex items-center gap-1"><Server size={11} /> Server</span>
+                      <span className="text-foreground text-xs">{activateResult.service.serverName}</span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">A welcome email with credentials has been sent to the client.</p>
               </div>

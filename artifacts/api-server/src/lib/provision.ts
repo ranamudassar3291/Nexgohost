@@ -76,6 +76,8 @@ async function logServerAction(opts: {
 export interface ProvisionOverrides {
   username?: string;
   password?: string;
+  /** Admin-selected server ID — takes priority over plan server and default server */
+  serverId?: string;
 }
 
 export interface ProvisionResult {
@@ -123,19 +125,28 @@ export async function provisionHostingService(
     if (!password) return { success: false, message: "Missing required hosting parameters: password" };
   }
 
-  // ── Resolve server ─────────────────────────────────────────────────────────
+  // ── Resolve server (priority: admin override → plan server → service server → default) ─
   let server: typeof serversTable.$inferSelect | null = null;
 
-  if (plan?.moduleServerId) {
+  // 1. Admin explicitly selected a server during activation
+  if (overrides?.serverId) {
+    const [overrideServer] = await db.select().from(serversTable)
+      .where(eq(serversTable.id, overrides.serverId)).limit(1);
+    if (overrideServer?.status === "active") server = overrideServer;
+  }
+  // 2. Plan has a linked server
+  if (!server && plan?.moduleServerId) {
     const [linkedServer] = await db.select().from(serversTable)
       .where(eq(serversTable.id, plan.moduleServerId)).limit(1);
     if (linkedServer?.status === "active") server = linkedServer;
   }
+  // 3. Service already has a server assigned
   if (!server && service.serverId) {
     const [svcServer] = await db.select().from(serversTable)
       .where(eq(serversTable.id, service.serverId)).limit(1);
     if (svcServer?.status === "active") server = svcServer;
   }
+  // 4. Auto-select: match module type → default flag → first active
   if (!server) {
     const allServers = await db.select().from(serversTable)
       .where(eq(serversTable.status, "active"));
