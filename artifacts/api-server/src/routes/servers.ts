@@ -1,9 +1,35 @@
 import { Router } from "express";
+import https from "node:https";
 import { db } from "@workspace/db";
 import { serversTable, serverGroupsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq } from "drizzle-orm";
 import { cpanelTestConnection, cpanelListPackages } from "../lib/cpanel.js";
+
+/** HTTPS GET with self-signed cert bypass — needed for WHM servers */
+function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      headers: { Authorization: authHeader, "Content-Type": "application/json" },
+      rejectUnauthorized: false,
+      timeout: timeoutMs,
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        const body = Buffer.concat(chunks).toString();
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`WHM HTTP ${res.statusCode}: ${body.substring(0, 200)}`));
+          return;
+        }
+        try { resolve(JSON.parse(body)); }
+        catch { reject(new Error(`Non-JSON from WHM: ${body.substring(0, 200)}`)); }
+      });
+    });
+    req.on("timeout", () => { req.destroy(); reject(new Error("WHM timed out")); });
+    req.on("error", (e) => reject(new Error(`WHM connection failed: ${e.message}`)));
+  });
+}
 
 const router = Router();
 
@@ -182,8 +208,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
   if (server.type === "20i") {
     if (server.apiToken) {
       try {
-        const fetch = (await import("node-fetch")).default;
-        const resp = await (fetch as any)("https://api.20i.com/package", {
+        const resp = await fetch("https://api.20i.com/package", {
           headers: { Authorization: `Bearer ${server.apiToken}` },
         });
         if (resp.ok) {
@@ -219,15 +244,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
       const port = server.apiPort || 2087;
       const url = `https://${server.hostname}:${port}/json-api/listpkgs?api.version=1`;
       const authUser = server.apiUsername || "root";
-      const resp = await fetch(url, {
-        headers: { Authorization: `whm ${authUser}:${server.apiToken}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!resp.ok) {
-        res.json({ plans: [], fromWHM: false, error: `WHM server returned HTTP ${resp.status}` });
-        return;
-      }
-      const data: any = await resp.json();
+      const data: any = await whmGet(url, `whm ${authUser}:${server.apiToken}`);
       const pkgs: any[] = data?.data?.pkg ?? data?.pkg ?? [];
       if (pkgs.length === 0) {
         res.json({ plans: [], fromWHM: true, error: "No WHM packages found on this server — create packages in WHM first" });

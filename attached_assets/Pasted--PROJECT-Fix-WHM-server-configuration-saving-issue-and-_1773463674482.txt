@@ -1,0 +1,195 @@
+
+PROJECT:
+Fix WHM server configuration saving issue and API connection error in hosting billing system.
+
+--------------------------------------------------
+
+ISSUE 1
+API Token not saving in server configuration.
+
+Current behavior:
+
+Admin enters WHM API token
+Clicks SAVE
+After reload token field becomes blank.
+
+CAUSE:
+
+Form field name not matching database column
+OR API token field not included in UPDATE query.
+
+--------------------------------------------------
+
+FIX STEP 1
+Ensure servers table contains API token column.
+
+Database table:
+
+servers
+
+Required fields:
+
+id
+name
+hostname
+ip_address
+port
+module_type
+api_token
+status
+
+If api_token column missing run:
+
+ALTER TABLE servers
+ADD COLUMN api_token TEXT;
+
+--------------------------------------------------
+
+FIX STEP 2
+Fix server save query.
+
+When admin clicks SAVE SERVER
+System must store API token.
+
+Example query:
+
+UPDATE servers
+SET
+hostname = :hostname,
+ip_address = :ip_address,
+port = 2087,
+module_type = 'cpanel',
+api_token = :api_token
+WHERE id = :server_id;
+
+Ensure :api_token is coming from form input.
+
+--------------------------------------------------
+
+FIX STEP 3
+Fix HTML form field name.
+
+Input field must match backend variable.
+
+Example:
+
+<input type="text" name="api_token" />
+
+If field name different
+API token will not save.
+
+--------------------------------------------------
+
+FIX STEP 4
+Reload API token on edit page.
+
+Edit server page must fetch saved value.
+
+Example query:
+
+SELECT hostname, ip_address, api_token
+FROM servers
+WHERE id = :server_id;
+
+Then populate form:
+
+value="<?= server.api_token ?>"
+
+--------------------------------------------------
+
+ISSUE 2
+WHM API Error 400 when testing server.
+
+CAUSE:
+
+Incorrect request headers or parameters.
+
+--------------------------------------------------
+
+FIX STEP 5
+Use correct WHM API test endpoint.
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/listpkgs
+
+Headers required:
+
+Authorization: whm root:API_TOKEN
+
+Example request:
+
+GET https://SERVER-IP:2087/json-api/listpkgs
+
+--------------------------------------------------
+
+FIX STEP 6
+Disable SSL verification for testing.
+
+Add curl option:
+
+CURLOPT_SSL_VERIFYPEER = false
+
+--------------------------------------------------
+
+FIX STEP 7
+Check server port.
+
+WHM API works on:
+
+2087
+
+Ensure port field saved as:
+
+2087
+
+--------------------------------------------------
+
+FIX STEP 8
+Improve server test response.
+
+Server test must return:
+
+Server Connected
+Packages Found: X
+
+If failure:
+
+Display exact WHM error message.
+
+--------------------------------------------------
+
+ISSUE 3
+Activation failing because API not saved.
+
+Once API token saves correctly:
+
+Activation workflow must run:
+
+1 create WHM account
+2 set service status Active
+3 set due date
+4 mark invoice Paid
+5 show cPanel login button
+
+--------------------------------------------------
+
+ISSUE 4
+Fix cPanel login link.
+
+Login to cPanel must open:
+
+https://domain.com:2083
+
+NOT WHM.
+
+--------------------------------------------------
+
+ISSUE 5
+Fix webmail login link.
+
+Webmail login must open:
+
+https://domain.com/webmail
+
+--------------------------------------------------
