@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight, MailCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -16,10 +16,42 @@ async function apiFetch(url: string, opts?: RequestInit) {
 }
 
 interface Me { twoFactorEnabled: boolean; emailVerified: boolean; email: string; }
+interface PlatformSettings { email_verification_enabled: boolean; }
 
 export default function AdminSettings() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const qc = useQueryClient();
+
+  // ── Email Verification ────────────────────────────────────────────────────
+  const [savingVerification, setSavingVerification] = useState(false);
+
+  const { data: platformSettings, refetch: refetchPlatformSettings } = useQuery<PlatformSettings>({
+    queryKey: ["platform-settings"],
+    queryFn: () => apiFetch("/api/admin/settings"),
+  });
+
+  const emailVerificationEnabled = platformSettings?.email_verification_enabled ?? true;
+
+  const handleVerificationToggle = async (enabled: boolean) => {
+    setSavingVerification(true);
+    try {
+      await apiFetch("/api/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ email_verification_enabled: enabled }),
+      });
+      await refetchPlatformSettings();
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+      toast({
+        title: enabled ? "Email verification enabled" : "Email verification disabled",
+        description: enabled
+          ? "New client registrations will require email OTP verification."
+          : "New clients can sign in immediately after registration.",
+      });
+    } catch (err: any) {
+      toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+    } finally { setSavingVerification(false); }
+  };
 
   // ── 2FA ──────────────────────────────────────────────────────────────────
   const [twoFAStep, setTwoFAStep] = useState<"idle" | "setup" | "verify" | "enabled">("idle");
@@ -198,6 +230,53 @@ export default function AdminSettings() {
               </form>
             </div>
           ) : null}
+        </div>
+
+        {/* Email Verification (OTP) */}
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2 bg-blue-500/10 rounded-lg"><MailCheck className="w-5 h-5 text-blue-400" /></div>
+            <div>
+              <h3 className="font-semibold text-foreground">Email Verification</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Require clients to verify their email address via OTP before signing in</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl bg-background/50 border border-border">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Enable Email Verification / OTP</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {emailVerificationEnabled
+                  ? "ON — New clients must verify their email with a 6-digit code before they can log in."
+                  : "OFF — New clients are activated immediately without email verification."}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 ml-4">
+              {savingVerification && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
+              <Switch
+                checked={emailVerificationEnabled}
+                onCheckedChange={handleVerificationToggle}
+                disabled={savingVerification}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className={`p-3 rounded-xl border text-xs space-y-1 ${emailVerificationEnabled ? "border-blue-500/20 bg-blue-500/5" : "border-border bg-background/30 opacity-50"}`}>
+              <p className="font-medium text-foreground">When ON</p>
+              <p className="text-muted-foreground">• 6-digit OTP generated at registration</p>
+              <p className="text-muted-foreground">• Code sent via SMTP email (10-min expiry)</p>
+              <p className="text-muted-foreground">• Login blocked until code is verified</p>
+              <p className="text-muted-foreground">• Code can be resent up to once per minute</p>
+            </div>
+            <div className={`p-3 rounded-xl border text-xs space-y-1 ${!emailVerificationEnabled ? "border-green-500/20 bg-green-500/5" : "border-border bg-background/30 opacity-50"}`}>
+              <p className="font-medium text-foreground">When OFF</p>
+              <p className="text-muted-foreground">• Account activated immediately on signup</p>
+              <p className="text-muted-foreground">• Client redirected straight to dashboard</p>
+              <p className="text-muted-foreground">• No OTP email sent</p>
+              <p className="text-muted-foreground">• Existing verified accounts are unaffected</p>
+            </div>
+          </div>
         </div>
 
         {/* Session Settings */}

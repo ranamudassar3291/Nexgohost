@@ -1,0 +1,76 @@
+
+TASK:
+Add a fully functional option in the Admin Panel to **enable or disable Email Verification (OTP)** for client account creation.
+
+GOAL:
+1. Admin can turn **Email Verification ON / OFF** from settings page
+2. Option stored in database and used globally
+3. When Email Verification is ON:
+   - Generate OTP / verification code on account creation
+   - Send via SMTP (works when SMTP configured)
+   - Expire code in 10 minutes
+4. When Email Verification is OFF:
+   - Skip OTP generation and verification
+   - Account activated immediately without verification
+5. Ensure previously fixed email workflow and SMTP configuration remain unaffected
+
+--------------------------------------------------
+
+STEP 1: Admin Panel Setting
+
+- Add toggle switch in **Settings / Security / Email Options**
+  - Label: "Enable Email Verification / OTP"
+  - Values: ON / OFF
+  - Save in database table `settings` (column: `email_verification_enabled`)
+
+--------------------------------------------------
+
+STEP 2: Workflow Integration
+
+- On client account creation / order activation:
+  IF `email_verification_enabled = ON`:
+    - Generate 6-digit OTP
+    - Store in DB with 10-minute expiry
+    - Send OTP via SMTP email
+  ELSE:
+    - Skip OTP
+    - Activate account immediately
+    - Send Welcome email directly (optional)
+
+--------------------------------------------------
+
+STEP 3: Frontend / Client Experience
+
+- If verification enabled:
+  - Show OTP input field after registration
+  - Validate OTP before login
+- If verification disabled:
+  - Redirect to dashboard immediately
+  - Skip OTP page
+
+--------------------------------------------------
+
+STEP 4: Security & Logging
+
+- Log OTP generation and send events in `email_logs`
+- Log verification attempts and failures
+- Ensure SMTP failures do not break toggle functionality
+
+--------------------------------------------------
+
+STEP 5: Testing / Validation
+
+- Toggle ON → create test account → OTP generated → email sent (once SMTP configured)  
+- Toggle OFF → create test account → OTP skipped → account activated immediately  
+- Existing accounts unaffected
+
+--------------------------------------------------
+
+FINAL RESULT:
+
+✅ Admin panel has toggle for Email Verification / OTP  
+✅ Works with future SMTP configuration  
+✅ OTP generated, sent, and verified when enabled  
+✅ Skipped when disabled  
+✅ Logs maintained in `email_logs`  
+✅ Safe, secure, professional integration without breaking other workflows

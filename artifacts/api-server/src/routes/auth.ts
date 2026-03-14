@@ -38,17 +38,30 @@ router.post("/auth/register", async (req, res) => {
       res.status(400).json({ error: "Validation error", message: "Email already registered" }); return;
     }
     const passwordHash = await hashPassword(password);
-    const code = makeVerificationCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const verificationRequired = await isEmailVerificationEnabled();
+
+    let code: string | null = null;
+    let expiresAt: Date | null = null;
+    if (verificationRequired) {
+      code = makeVerificationCode();
+      expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    }
+
     const [user] = await db.insert(usersTable).values({
       firstName, lastName, email, passwordHash,
       company: company || null, phone: phone || null,
       role: "client", status: "active",
-      emailVerified: false, verificationCode: code, verificationExpiresAt: expiresAt,
+      emailVerified: !verificationRequired,
+      verificationCode: code,
+      verificationExpiresAt: expiresAt,
     }).returning();
-    await emailVerificationCode(email, firstName, code).catch(() => {});
+
+    if (verificationRequired && code) {
+      await emailVerificationCode(email, firstName, code).catch(() => {});
+    }
+
     const token = signToken({ userId: user.id, role: user.role, email: user.email });
-    res.status(201).json({ token, requiresVerification: true, user: formatUser(user) });
+    res.status(201).json({ token, requiresVerification: verificationRequired, user: formatUser(user) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", message: "Registration failed" });
@@ -113,8 +126,9 @@ router.post("/auth/login", async (req, res) => {
       if (!valid2FA) { res.status(401).json({ error: "Unauthorized", message: "Invalid authenticator code" }); return; }
     }
 
-    // Block client login until email is verified
-    if (!user.emailVerified && user.role === "client") {
+    // Block client login until email is verified (only when verification is enabled)
+    const verificationEnabled = await isEmailVerificationEnabled();
+    if (verificationEnabled && !user.emailVerified && user.role === "client") {
       const tempToken = signToken({ userId: user.id, role: user.role, email: user.email });
       res.status(403).json({
         error: "Email not verified",
@@ -265,6 +279,18 @@ async function getGoogleSettings(): Promise<GoogleSettings> {
 async function getGoogleClientId(): Promise<string> {
   const { clientId } = await getGoogleSettings();
   return clientId;
+}
+
+async function isEmailVerificationEnabled(): Promise<boolean> {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) if (r.key && r.value) map[r.key] = r.value;
+    const val = map["email_verification_enabled"];
+    return val === undefined ? true : val === "true";
+  } catch {
+    return true;
+  }
 }
 
 function buildCallbackUrl(req: any): string {
