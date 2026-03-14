@@ -1,0 +1,291 @@
+PROJECT:
+Create a full WHMCS-style hosting module system for cPanel/WHM integration.
+
+GOAL:
+Allow server connection, package fetching, automatic account provisioning,
+service management, and correct client login links.
+
+--------------------------------------------------
+
+1 SERVER CONFIGURATION SYSTEM
+
+Admin → Servers → Add Server
+
+Required fields:
+
+Server Name
+Hostname
+IP Address
+Port
+Module Type
+API Token
+Server Group
+
+Port default:
+
+2087
+
+Database table:
+
+servers
+
+Fields:
+
+id
+name
+hostname
+ip_address
+port
+module_type
+api_token
+group_id
+status
+
+--------------------------------------------------
+
+2 FIX API TOKEN STORAGE
+
+Ensure API token saves correctly.
+
+Backend query:
+
+UPDATE servers
+SET
+hostname = :hostname,
+ip_address = :ip,
+port = 2087,
+module_type = 'cpanel',
+api_token = :api_token
+WHERE id = :server_id
+
+HTML field:
+
+<input type="text" name="api_token" />
+
+--------------------------------------------------
+
+3 SERVER TEST FUNCTION
+
+Admin → Servers → Test Connection
+
+System must call WHM API:
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/listpkgs
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Expected response:
+
+Package list.
+
+Example:
+
+starter
+business
+pro
+
+If success show:
+
+Server Connected
+Packages Found: 3
+
+--------------------------------------------------
+
+4 PACKAGE FETCH SYSTEM
+
+When admin selects module = cPanel
+
+System must fetch packages dynamically.
+
+WHM API:
+
+listpkgs
+
+Endpoint:
+
+https://SERVER-IP:2087/json-api/listpkgs
+
+Populate dropdown with packages.
+
+Example UI:
+
+Select WHM Package
+
+starter
+business
+pro
+
+--------------------------------------------------
+
+5 HOSTING PRODUCT CONFIGURATION
+
+Admin → Packages → Create Product
+
+Fields:
+
+Product Name
+Price
+Billing Cycle
+Server Group
+Module Type
+WHM Package
+
+Example:
+
+Product = Basic Hosting
+Module = cPanel
+WHM Package = starter
+
+--------------------------------------------------
+
+6 ORDER PROVISIONING SYSTEM
+
+Admin → Orders → Activate
+
+Activation workflow:
+
+1 Select server from group
+2 Generate username
+3 Generate password
+4 Call WHM create account API
+5 Save credentials
+6 Set service status Active
+7 Set due date
+8 Mark invoice paid
+
+--------------------------------------------------
+
+7 WHM ACCOUNT CREATION
+
+API endpoint:
+
+https://SERVER-IP:2087/json-api/createacct
+
+Headers:
+
+Authorization: whm root:API_TOKEN
+
+Parameters:
+
+username
+domain
+password
+plan
+contactemail
+
+Example:
+
+username = client1
+domain = example.com
+password = SecurePass123
+plan = starter
+contactemail = client@email.com
+
+--------------------------------------------------
+
+8 SERVICE DATABASE
+
+Table:
+
+services
+
+Fields:
+
+id
+client_id
+package_id
+server_id
+domain
+username
+password
+status
+next_due_date
+
+--------------------------------------------------
+
+9 CLIENT DASHBOARD SERVICE ACTIONS
+
+If service status = Active
+
+Show buttons:
+
+Login to cPanel
+Login to Webmail
+Reinstall SSL
+
+cPanel login:
+
+https://domain.com:2083
+
+Webmail login:
+
+https://domain.com/webmail
+
+--------------------------------------------------
+
+10 SUSPEND / UNSUSPEND MODULE
+
+Suspend API:
+
+/json-api/suspendacct
+
+Unsuspend API:
+
+/json-api/unsuspendacct
+
+Terminate API:
+
+/json-api/removeacct
+
+--------------------------------------------------
+
+11 CRON AUTOMATION
+
+Cron runs every 5 minutes.
+
+Tasks:
+
+Generate invoices
+Suspend overdue services
+Send reminders
+Renew domains
+
+Cron command:
+
+*/5 * * * * php /billing/cron.php
+
+--------------------------------------------------
+
+12 LOGGING SYSTEM
+
+Create table:
+
+server_logs
+
+Fields:
+
+id
+service_id
+action
+response
+created_at
+
+Log all API responses.
+
+--------------------------------------------------
+
+13 ERROR HANDLING
+
+If WHM API fails:
+
+Show error:
+
+Account creation failed.
+
+Log full API response.
+
+--------------------------------------------------

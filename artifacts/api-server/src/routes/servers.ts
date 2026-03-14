@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { serversTable, serverGroupsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq } from "drizzle-orm";
-import { cpanelTestConnection, cpanelListPackages } from "../lib/cpanel.js";
+import { cpanelTestConnection } from "../lib/cpanel.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
@@ -163,28 +163,17 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   };
 
   if (server.type === "cpanel") {
-    // 1. Test connection
-    const connResult = await cpanelTestConnection(serverCfg);
-    if (!connResult.success) {
-      res.status(400).json({ error: connResult.message, success: false });
+    // Single listpkgs call — tests credentials AND fetches packages simultaneously
+    const result = await cpanelTestConnection(serverCfg);
+    if (!result.success) {
+      res.status(400).json({ error: result.message, success: false });
       return;
     }
-    // 2. Fetch packages
-    let packages: { name: string }[] = [];
-    let packagesError: string | null = null;
-    try {
-      packages = await cpanelListPackages(serverCfg);
-    } catch (err: any) {
-      packagesError = err.message;
-    }
-    const packageNames = packages.map(p => p.name);
     res.json({
       success: true,
       connected: true,
-      version: connResult.version,
-      message: `Server Connected — ${packages.length} package(s) found`,
-      packages: packageNames,
-      packagesError,
+      message: result.message,
+      packages: result.packages,
     });
     return;
   }

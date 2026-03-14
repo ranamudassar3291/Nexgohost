@@ -111,13 +111,30 @@ export async function cpanelTerminate(server: ServerConfig, username: string) {
   return whmRequest(server, "removeacct", { user: username });
 }
 
-export async function cpanelTestConnection(server: ServerConfig): Promise<{ success: boolean; version?: string; message: string }> {
+/**
+ * Test WHM connection using listpkgs (as per WHM docs recommendation).
+ * listpkgs is available on all WHM installs and requires a valid API token,
+ * making it the ideal endpoint to verify both connectivity and credentials.
+ */
+export async function cpanelTestConnection(server: ServerConfig): Promise<{
+  success: boolean;
+  message: string;
+  packages: string[];
+}> {
   try {
-    const data = await whmRequest(server, "version");
-    const ver = data.version || data.data?.version || "unknown";
-    return { success: true, version: ver, message: `Connected to cPanel/WHM ${ver}` };
+    const data = await whmRequest(server, "listpkgs");
+    const pkgs: any[] = data?.data?.pkg ?? data?.pkg ?? [];
+    const packageNames: string[] = pkgs.map((p: any) => p.name || String(p)).filter(Boolean);
+    const count = packageNames.length;
+    return {
+      success: true,
+      message: count > 0
+        ? `Server connected — ${count} package(s) found`
+        : "Server connected — no packages found (create packages in WHM first)",
+      packages: packageNames,
+    };
   } catch (err: any) {
-    return { success: false, message: err.message || "Connection failed" };
+    return { success: false, message: err.message || "Connection failed", packages: [] };
   }
 }
 
