@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface Plan {
-  id: string; name: string; description: string | null; price: number;
+  id: string; name: string; description: string | null; price: number; yearlyPrice: number | null;
   billingCycle: string; diskSpace: string; bandwidth: string;
   emailAccounts: number | null; databases: number | null; features: string[];
 }
@@ -49,6 +49,7 @@ const TESTIMONIALS = [
 export default function Homepage() {
   const [, setLocation] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggedIn] = useState(() => !!localStorage.getItem("token"));
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [domainQuery, setDomainQuery] = useState("");
@@ -314,9 +315,21 @@ export default function Homepage() {
                       ))}
                     </ul>
                     <Button
-                      onClick={() => setLocation("/register")}
+                      onClick={() => {
+                        if (isLoggedIn) {
+                          const params = new URLSearchParams({
+                            packageId: plan.id,
+                            packageName: plan.name,
+                            amount: String(plan.price),
+                            ...(plan.yearlyPrice ? { yearlyPrice: String(plan.yearlyPrice) } : {}),
+                          });
+                          setLocation(`/client/checkout?${params.toString()}`);
+                        } else {
+                          setLocation("/client/login");
+                        }
+                      }}
                       className={`w-full rounded-2xl ${isPopular ? "bg-primary hover:bg-primary/90" : "bg-secondary hover:bg-secondary/80 text-foreground"}`}>
-                      Get Started <ArrowRight size={16} className="ml-2" />
+                      Order Now <ArrowRight size={16} className="ml-2" />
                     </Button>
                   </motion.div>
                 );

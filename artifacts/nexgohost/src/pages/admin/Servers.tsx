@@ -246,7 +246,7 @@ export default function Servers() {
                 </div>
 
                 {/* ── 20i-specific fields ── */}
-                {is20i ? (
+                {is20i && (
                   <div className="border border-violet-500/20 rounded-xl p-4 space-y-4 bg-violet-500/5">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-5 h-5 rounded-md bg-violet-500/20 flex items-center justify-center">
@@ -254,8 +254,6 @@ export default function Servers() {
                       </div>
                       <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">20i Reseller API</p>
                     </div>
-
-                    {/* API Key */}
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">API Key *</label>
                       <Input
@@ -274,8 +272,6 @@ export default function Servers() {
                         </a>
                       </p>
                     </div>
-
-                    {/* Test Connection button */}
                     <Button
                       type="button"
                       variant="outline"
@@ -286,16 +282,12 @@ export default function Servers() {
                       {testingForm ? <Loader2 size={14} className="animate-spin mr-2" /> : <Wifi size={14} className="mr-2" />}
                       {testingForm ? "Testing…" : "Test Connection"}
                     </Button>
-
-                    {/* Test result */}
                     {formTestResult && (
                       <div className={`flex items-start gap-2 text-xs p-3 rounded-lg border ${formTestResult.ok ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400" : "border-red-500/20 bg-red-500/5 text-red-400"}`}>
                         {formTestResult.ok ? <CheckCircle size={13} className="mt-0.5 shrink-0" /> : <XCircle size={13} className="mt-0.5 shrink-0" />}
                         <span>{formTestResult.msg}</span>
                       </div>
                     )}
-
-                    {/* Default Package (only after a successful test that returns packages) */}
                     {twentyiPkgs.length > 0 && (
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium text-foreground/80 flex items-center gap-2">
@@ -312,56 +304,82 @@ export default function Servers() {
                       </div>
                     )}
                   </div>
-                ) : (
-                  /* ── WHM/other fields ── */
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground/80">Hostname *</label>
-                        <Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.nexgohost.com" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground/80">IP Address</label>
-                        <Input value={serverForm.ipAddress} onChange={setS("ipAddress")} placeholder="192.168.1.1" />
-                      </div>
-                    </div>
+                )}
 
-                    <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-medium text-foreground/80">API Username</label>
-                          <Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" />
-                          <p className="text-xs text-muted-foreground">Leave as "root" for WHM API token auth</p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-medium text-foreground/80">API Token / Key</label>
-                          <Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")}
-                            placeholder={apiTokenSaved ? "Token saved — enter new to change" : "Paste WHM API token here"} />
-                          {editServerId && apiTokenSaved && !serverForm.apiToken && (
-                            <p className="text-xs text-emerald-400">✓ API token is saved — leave blank to keep it</p>
-                          )}
-                          {editServerId && !apiTokenSaved && (
-                            <p className="text-xs text-yellow-400">No token saved — enter your WHM API token</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground/80">API Port</label>
-                        <Input type="number" value={serverForm.apiPort} onChange={setS("apiPort")} className="w-32" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" /></div>
-                      <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" /></div>
-                    </div>
-
+                {is20i && (
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground/80">Max Accounts</label>
-                      <Input type="number" value={serverForm.maxAccounts} onChange={setS("maxAccounts")} className="w-32" />
+                      <label className="text-sm font-medium text-foreground/80">NS1</label>
+                      <Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" />
                     </div>
-                  </>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">NS2</label>
+                      <Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" />
+                    </div>
+                  </div>
+                )}
+
+                {is20i && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground/80">Account Limit</label>
+                    <Input type="number" value={serverForm.maxAccounts} onChange={setS("maxAccounts")} className="w-40" placeholder="500" />
+                    <p className="text-xs text-muted-foreground">Maximum number of hosting accounts on this reseller.</p>
+                  </div>
+                )}
+
+                {!is20i && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">Hostname *</label>
+                      <Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.nexgohost.com" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">IP Address</label>
+                      <Input value={serverForm.ipAddress} onChange={setS("ipAddress")} placeholder="192.168.1.1" />
+                    </div>
+                  </div>
+                )}
+
+                {!is20i && (
+                  <div className="border border-border/50 rounded-xl p-4 space-y-3 bg-secondary/20">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">API Credentials</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/80">API Username</label>
+                        <Input value={serverForm.apiUsername} onChange={setS("apiUsername")} placeholder="root" />
+                        <p className="text-xs text-muted-foreground">Leave as "root" for WHM API token auth</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/80">API Token / Key</label>
+                        <Input type="password" value={serverForm.apiToken} onChange={setS("apiToken")}
+                          placeholder={apiTokenSaved ? "Token saved — enter new to change" : "Paste WHM API token here"} />
+                        {editServerId && apiTokenSaved && !serverForm.apiToken && (
+                          <p className="text-xs text-emerald-400">✓ API token is saved — leave blank to keep it</p>
+                        )}
+                        {editServerId && !apiTokenSaved && (
+                          <p className="text-xs text-yellow-400">No token saved — enter your WHM API token</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">API Port</label>
+                      <Input type="number" value={serverForm.apiPort} onChange={setS("apiPort")} className="w-32" />
+                    </div>
+                  </div>
+                )}
+
+                {!is20i && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" /></div>
+                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" /></div>
+                  </div>
+                )}
+
+                {!is20i && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground/80">Max Accounts</label>
+                    <Input type="number" value={serverForm.maxAccounts} onChange={setS("maxAccounts")} className="w-32" />
+                  </div>
                 )}
 
                 {/* Server Group */}

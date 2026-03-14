@@ -1,0 +1,66 @@
+
+TASK:
+Fix and fully integrate 20i module in hosting panel, including server configuration, package fields, and WHMCS-style “Order Now” link.
+
+GOAL:
+1. Server Configuration Page (Admin Panel)
+   - Fields to add:
+     - Hostname / Server Name
+     - API Key / Token / Secret
+     - Nameserver 1 / Nameserver 2
+     - Account Limit
+     - SSL Connection (enable/disable)
+   - Test connection button → validate API credentials & endpoint
+   - Save configuration in DB only if API connection successful
+   - Handle errors gracefully → show descriptive messages, no blank form
+
+2. Package Management
+   - Add **custom field** for 20i Package ID in admin panel (like WHMCS custom field)
+   - Admin can select package → assign Package ID required by 20i API
+   - Fetch packages from 20i API → map fields to DB
+
+3. Correct 20i API endpoints
+   - Replace `/reseller/packages` (404) with correct endpoint according to 20i API docs
+   - Ensure HTTP method, headers, and auth are correct:
+     - Authorization: Bearer {API_KEY}
+     - Content-Type: application/json
+   - Test endpoint before saving server configuration
+
+4. “Order Now” Button / Client Frontend
+   - Packages list page shows package + price + features
+   - Each package has “Order Now” button
+   - Button links to order page with package pre-selected
+   - Workflow similar to WHMCS:
+     - Select package → select server/group → proceed to checkout/order
+
+5. Order Activation
+   - On order creation:
+     - Use selected 20i package ID
+     - Call 20i API → create account
+     - Assign SSL if selected
+     - Generate cPanel/Webmail credentials + auto-login URLs
+     - Send Welcome / OTP email via SMTP (if enabled)
+     - Update due date, invoice, service status
+
+6. Client Dashboard
+   - Show cPanel login / Webmail login
+   - SSL activate button
+   - Suspend / Unsuspend / Terminate buttons → call 20i API + update DB
+   - Package info and order link correctly displayed
+
+7. Logging & Error Handling
+   - Log all 20i API calls in `server_logs`
+   - Retry failed API calls up to 3 times
+   - Display descriptive error messages for admin
+   - No blank form submissions
+
+FINAL RESULT:
+
+✅ 20i server configuration fully functional → nameserver, account limit, SSL connection included  
+✅ Admin can add custom field “Package ID” → required by 20i API  
+✅ Packages fetched from 20i API → linked to site packages  
+✅ “Order Now” button created on frontend → links to order page, WHMCS-style  
+✅ Order activation calls 20i API with correct Package ID + SSL → auto-login credentials generated  
+✅ Client dashboard buttons (cPanel/Webmail/SSL/Suspend/Unsuspend/Terminate) fully functional  
+✅ Logging & error handling implemented  
+✅ 404 API endpoint error fixed → correct endpoint, headers, auth used

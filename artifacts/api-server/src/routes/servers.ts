@@ -133,7 +133,7 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     apiPort: (type === "20i") ? null : (apiPort ? parseInt(apiPort) : 2087),
     ns1: ns1 || null,
     ns2: ns2 || null,
-    maxAccounts: (type === "20i") ? null : (maxAccounts ? parseInt(maxAccounts) : 500),
+    maxAccounts: maxAccounts ? parseInt(maxAccounts) : 500,
     groupId: groupId || null,
     isDefault: isDefault ?? false,
     status: "active",
