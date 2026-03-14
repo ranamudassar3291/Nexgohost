@@ -4,7 +4,7 @@ import { useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ArrowRight, ShieldCheck, AlertCircle, UserCheck, Smartphone } from "lucide-react";
+import { Loader2, ArrowRight, ShieldCheck, AlertCircle, UserCheck, Smartphone, RefreshCw, MailCheck } from "lucide-react";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -16,6 +16,8 @@ async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   return data;
 }
 
+type Step = "password" | "2fa" | "verify";
+
 export default function ClientLogin() {
   const { user, login } = useAuth();
   const [, setLocation] = useLocation();
@@ -23,12 +25,20 @@ export default function ClientLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
-  const [step, setStep] = useState<"password" | "2fa">("password");
+  const [verifyCode, setVerifyCode] = useState("");
+  const [step, setStep] = useState<Step>("password");
   const [tempToken, setTempToken] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [inlineError, setInlineError] = useState<string | null>(null);
 
   if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
+
+  const startCountdown = () => {
+    setCountdown(60);
+    const t = setInterval(() => setCountdown(c => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; }), 1000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,6 +58,28 @@ export default function ClientLogin() {
         setLocation("/client/dashboard");
       }
     } catch (err: any) {
+      // Server returns 403 with requiresVerification when email not yet verified
+      let raw: any = {};
+      try { raw = JSON.parse(err.message); } catch { /* not json */ }
+      if (raw?.requiresVerification || err.message?.includes("verify")) {
+        // Try to parse tempToken from the response — we need a separate fetch here
+        // because apiFetch throws on non-ok responses
+        try {
+          const res2 = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          const d2 = await res2.json();
+          if (d2.requiresVerification && d2.tempToken) {
+            setTempToken(d2.tempToken);
+            setStep("verify");
+            startCountdown();
+            setInlineError(null);
+            return;
+          }
+        } catch { /* fall through to show original error */ }
+      }
       setInlineError(err.message || "Invalid email or password. Please try again.");
     } finally { setLoading(false); }
   };
@@ -63,6 +95,32 @@ export default function ClientLogin() {
     } catch (err: any) {
       setInlineError(err.message || "Invalid code. Please try again.");
     } finally { setLoading(false); }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInlineError(null);
+    setLoading(true);
+    try {
+      await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
+      // Verification succeeded — now log the user in properly
+      const loginData = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
+      login(loginData.token);
+      setLocation("/client/dashboard");
+    } catch (err: any) {
+      setInlineError(err.message || "Invalid code. Please try again.");
+    } finally { setLoading(false); }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    setInlineError(null);
+    try {
+      await apiFetch("/api/auth/resend-verification", tempToken, { method: "POST" });
+      startCountdown();
+    } catch (err: any) {
+      setInlineError(err.message || "Failed to resend code.");
+    } finally { setResending(false); }
   };
 
   return (
@@ -86,11 +144,19 @@ export default function ClientLogin() {
                 <UserCheck size={12} className="text-white" />
               </div>
             </div>
-            <h1 className="text-3xl font-display font-bold text-foreground text-center">Welcome Back</h1>
-            <p className="text-muted-foreground text-center mt-1 text-sm">Sign in to manage your hosting services</p>
-            <div className="mt-3 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/25 flex items-center gap-1.5 text-xs text-green-400 font-medium">
-              <UserCheck size={12} /> Client Portal
-            </div>
+            <h1 className="text-3xl font-display font-bold text-foreground text-center">
+              {step === "verify" ? "Verify Your Email" : "Welcome Back"}
+            </h1>
+            <p className="text-muted-foreground text-center mt-1 text-sm">
+              {step === "verify"
+                ? `Enter the code sent to ${email}`
+                : "Sign in to manage your hosting services"}
+            </p>
+            {step === "password" && (
+              <div className="mt-3 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/25 flex items-center gap-1.5 text-xs text-green-400 font-medium">
+                <UserCheck size={12} /> Client Portal
+              </div>
+            )}
           </div>
 
           {inlineError && (
@@ -101,7 +167,7 @@ export default function ClientLogin() {
           )}
 
           <AnimatePresence mode="wait">
-            {step === "password" ? (
+            {step === "password" && (
               <motion.form key="pw" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 onSubmit={handleSubmit} className="relative z-10 space-y-5">
                 <div className="space-y-1">
@@ -119,7 +185,9 @@ export default function ClientLogin() {
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In <ArrowRight className="w-4 h-4" /></span>}
                 </Button>
               </motion.form>
-            ) : (
+            )}
+
+            {step === "2fa" && (
               <motion.form key="2fa" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                 onSubmit={handle2FA} className="relative z-10 space-y-5">
                 <div className="text-center">
@@ -137,6 +205,35 @@ export default function ClientLogin() {
                 <button type="button" onClick={() => { setStep("password"); setTotp(""); setInlineError(null); }}
                   className="w-full text-sm text-muted-foreground hover:text-foreground text-center">← Back to login</button>
               </motion.form>
+            )}
+
+            {step === "verify" && (
+              <motion.div key="verify" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                className="relative z-10 space-y-5">
+                <div className="text-center mb-2">
+                  <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <MailCheck size={26} className="text-primary" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Check your inbox for a 6-digit code. It expires in 10 minutes.</p>
+                </div>
+                <form onSubmit={handleVerify} className="space-y-4">
+                  <Input value={verifyCode} onChange={e => { setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setInlineError(null); }}
+                    placeholder="000000" maxLength={6}
+                    className="bg-background/50 border-white/10 h-14 text-center text-2xl font-mono tracking-[0.5em]" />
+                  <Button type="submit" disabled={loading || verifyCode.length !== 6} className="w-full h-12 font-semibold bg-primary hover:bg-primary/90">
+                    {loading ? <Loader2 size={18} className="animate-spin" /> : "Verify & Sign In"}
+                  </Button>
+                </form>
+                <div className="flex items-center justify-between text-sm">
+                  <button type="button" onClick={() => { setStep("password"); setVerifyCode(""); setInlineError(null); }}
+                    className="text-muted-foreground hover:text-foreground">← Back</button>
+                  <button onClick={handleResend} disabled={resending || countdown > 0}
+                    className="flex items-center gap-1 text-primary hover:underline disabled:opacity-50">
+                    {resending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                    {countdown > 0 ? `Resend in ${countdown}s` : "Resend Code"}
+                  </button>
+                </div>
+              </motion.div>
             )}
           </AnimatePresence>
 

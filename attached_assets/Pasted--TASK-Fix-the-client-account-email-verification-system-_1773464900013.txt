@@ -1,0 +1,181 @@
+
+TASK:
+Fix the client account email verification system so that a verification code
+is generated and sent to the user's email when a new account is created.
+
+Currently when a client registers, no verification email is sent.
+
+The system must implement the full email verification workflow.
+
+--------------------------------------------------
+
+STEP 1
+Generate verification code.
+
+When a new client registers, generate a 6 digit code.
+
+Example:
+
+verification_code = random(100000, 999999)
+
+Store in database.
+
+clients table fields required:
+
+email_verification_code
+email_verification_expiry
+email_verified
+
+Expiry time = 10 minutes.
+
+--------------------------------------------------
+
+STEP 2
+Save verification code.
+
+Example query:
+
+UPDATE clients
+SET
+email_verification_code = :code,
+email_verification_expiry = NOW() + INTERVAL 10 MINUTE,
+email_verified = 0
+WHERE id = :client_id;
+
+--------------------------------------------------
+
+STEP 3
+Send verification email.
+
+Create email template:
+
+Subject:
+
+Verify Your Account
+
+Body:
+
+Hello {{client_name}},
+
+Your verification code is:
+
+{{verification_code}}
+
+This code will expire in 10 minutes.
+
+If you did not create this account, please ignore this email.
+
+--------------------------------------------------
+
+STEP 4
+Configure SMTP mail system.
+
+Admin → Settings → Email
+
+Fields required:
+
+SMTP Host
+SMTP Port
+SMTP Username
+SMTP Password
+SMTP Encryption (SSL/TLS)
+
+Example:
+
+Host = smtp.gmail.com
+Port = 587
+Encryption = TLS
+
+--------------------------------------------------
+
+STEP 5
+Send email using SMTP.
+
+Use mailer library (nodemailer / smtp).
+
+Send email to:
+
+client.email
+
+Include verification code.
+
+--------------------------------------------------
+
+STEP 6
+Create verification page.
+
+URL:
+
+/verify-email
+
+Form fields:
+
+Email
+Verification Code
+
+When submitted:
+
+Check code.
+
+--------------------------------------------------
+
+STEP 7
+Validate verification code.
+
+Check:
+
+verification_code matches
+verification_expiry > NOW()
+
+If valid:
+
+UPDATE clients
+SET email_verified = 1
+
+--------------------------------------------------
+
+STEP 8
+Handle expired code.
+
+If expired:
+
+Show message:
+
+Verification code expired.
+
+Add button:
+
+Resend Code
+
+--------------------------------------------------
+
+STEP 9
+Add resend verification feature.
+
+When user clicks resend:
+
+Generate new code.
+
+Send email again.
+
+--------------------------------------------------
+
+STEP 10
+Prevent login before verification.
+
+If email_verified = 0
+
+Block login and redirect to verification page.
+
+--------------------------------------------------
+
+FINAL RESULT
+
+After fix:
+
+New client registers
+System generates verification code
+Email sent to client
+Client enters code
+Account verified
+Client can login to dashboard

@@ -4,15 +4,33 @@
  */
 import nodemailer from "nodemailer";
 import { db } from "@workspace/db";
-import { emailTemplatesTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { emailTemplatesTable, settingsTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm"; // still needed by sendTemplatedEmail
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{([a-z_]+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
 }
 
+/** Load SMTP settings from the DB settings table into process.env */
+async function loadSmtpFromDb(): Promise<void> {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) {
+      if (r.key && r.value !== null && r.value !== undefined) map[r.key] = r.value;
+    }
+    if (map["smtp_host"]) process.env.SMTP_HOST = map["smtp_host"];
+    if (map["smtp_port"]) process.env.SMTP_PORT = map["smtp_port"];
+    if (map["smtp_user"]) process.env.SMTP_USER = map["smtp_user"];
+    if (map["smtp_pass"]) process.env.SMTP_PASS = map["smtp_pass"];
+    if (map["smtp_from"]) process.env.SMTP_FROM = map["smtp_from"];
+  } catch {
+    // DB not ready yet — fall through and use env vars directly
+  }
+}
+
 function createTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_USER) {
     return null;
   }
@@ -22,6 +40,41 @@ function createTransport() {
     secure: SMTP_PORT === "465",
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
+}
+
+/**
+ * Low-level email send — raw subject + html body, no template lookup.
+ * Used for system emails like verification codes where we want full control
+ * over the HTML without needing a DB template record.
+ */
+export async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<{ sent: boolean; message: string }> {
+  try {
+    // Refresh SMTP config from DB settings before each send
+    await loadSmtpFromDb();
+
+    const transport = createTransport();
+    const from = process.env.SMTP_FROM || "noreply@nexgohost.com";
+
+    if (!transport) {
+      console.log(`\n[EMAIL LOG] ─────────────────────────────────────────`);
+      console.log(`[EMAIL] To: ${opts.to}`);
+      console.log(`[EMAIL] Subject: ${opts.subject}`);
+      console.log(`[EMAIL] (SMTP not configured — email not sent, logged only)`);
+      console.log(`[EMAIL] ─────────────────────────────────────────────\n`);
+      return { sent: false, message: "SMTP not configured — email logged to console" };
+    }
+
+    await transport.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html });
+    console.log(`[EMAIL] Sent "${opts.subject}" to ${opts.to}`);
+    return { sent: true, message: "Email sent" };
+  } catch (err: any) {
+    console.error(`[EMAIL] Failed to send to ${opts.to}:`, err.message);
+    return { sent: false, message: err.message };
+  }
 }
 
 export async function sendTemplatedEmail(
@@ -49,6 +102,7 @@ export async function sendTemplatedEmail(
     const subject = renderTemplate(template.subject, variables);
     const body = renderTemplate(template.body, variables);
 
+    await loadSmtpFromDb();
     const transport = createTransport();
     const from = process.env.SMTP_FROM || "noreply@nexgohost.com";
 

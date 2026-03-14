@@ -17,3 +17,4 @@ export * from "./cron-logs";
 export * from "./fraud-logs";
 export * from "./email-logs";
 export * from "./server-logs";
+export * from "./settings";

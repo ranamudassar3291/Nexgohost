@@ -112,8 +112,20 @@ router.post("/auth/login", async (req, res) => {
       if (!valid2FA) { res.status(401).json({ error: "Unauthorized", message: "Invalid authenticator code" }); return; }
     }
 
+    // Block client login until email is verified
+    if (!user.emailVerified && user.role === "client") {
+      const tempToken = signToken({ userId: user.id, role: user.role, email: user.email });
+      res.status(403).json({
+        error: "Email not verified",
+        requiresVerification: true,
+        tempToken,
+        message: "Please verify your email before logging in. Check your inbox for the verification code.",
+      });
+      return;
+    }
+
     const token = signToken({ userId: user.id, role: user.role, email: user.email });
-    res.json({ token, requiresVerification: !user.emailVerified, user: formatUser(user) });
+    res.json({ token, requiresVerification: false, user: formatUser(user) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", message: "Login failed" });
