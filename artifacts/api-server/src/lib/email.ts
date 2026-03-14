@@ -267,12 +267,17 @@ const COMPANY = "Nexgohost";
  * Send email verification code.
  * Uses the "email-verification" template from the DB so admins can customise it.
  */
-export async function emailVerificationCode(to: string, clientName: string, code: string) {
+export async function emailVerificationCode(
+  to: string,
+  clientName: string,
+  code: string,
+  meta?: { clientId?: string; referenceId?: string },
+) {
   return sendTemplatedEmail("email-verification", to, {
     client_name: clientName,
     verification_code: code,
     company_name: COMPANY,
-  });
+  }, meta);
 }
 
 export async function emailInvoiceCreated(to: string, vars: {
@@ -300,10 +305,14 @@ export async function emailInvoicePaid(to: string, vars: {
   });
 }
 
-export async function emailHostingCreated(to: string, vars: {
-  clientName: string; domain: string; username: string; password?: string;
-  cpanelUrl: string; ns1: string; ns2: string; webmailUrl?: string;
-}) {
+export async function emailHostingCreated(
+  to: string,
+  vars: {
+    clientName: string; domain: string; username: string; password?: string;
+    cpanelUrl: string; ns1: string; ns2: string; webmailUrl?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
   return sendTemplatedEmail("hosting-created", to, {
     company_name: COMPANY,
     client_name: vars.clientName,
@@ -314,7 +323,7 @@ export async function emailHostingCreated(to: string, vars: {
     ns1: vars.ns1,
     ns2: vars.ns2,
     webmail_url: vars.webmailUrl || `https://${vars.domain}/webmail`,
-  });
+  }, meta);
 }
 
 export async function emailOrderCreated(to: string, vars: {

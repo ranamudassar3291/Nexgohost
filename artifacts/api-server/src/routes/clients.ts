@@ -221,7 +221,7 @@ router.post("/admin/clients/:id/resend-verification", authenticate, requireAdmin
       .set({ verificationCode: otpCode, verificationExpiresAt: otpExpiry, emailVerified: false, updatedAt: new Date() })
       .where(eq(usersTable.id, user.id));
 
-    const result = await emailVerificationCode(user.email, user.firstName || user.email, otpCode);
+    const result = await emailVerificationCode(user.email, user.firstName || user.email, otpCode, { clientId: user.id });
     if (result.sent) {
       res.json({ success: true, message: `Verification code sent to ${user.email} (expires 10 min)` });
     } else {

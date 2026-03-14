@@ -406,7 +406,7 @@ router.post("/admin/hosting/:id/resend-welcome", authenticate, requireAdmin, asy
       webmailUrl: freshWebmailUrl,
       ns1: server?.ns1 || "ns1.nexgohost.com",
       ns2: server?.ns2 || "ns2.nexgohost.com",
-    });
+    }, { clientId: user.id, referenceId: service.id });
 
     if (result.sent) {
       res.json({ success: true, message: `Welcome email resent to ${user.email}` });

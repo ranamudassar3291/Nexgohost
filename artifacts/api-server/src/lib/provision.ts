@@ -325,7 +325,7 @@ export async function provisionHostingService(
       ns1: server?.ns1 || "ns1.nexgohost.com",
       ns2: server?.ns2 || "ns2.nexgohost.com",
       webmailUrl,
-    });
+    }, { clientId: user.id, referenceId: serviceId });
   } catch (emailErr: any) {
     console.warn("[PROVISION] Failed to send welcome email:", emailErr.message);
   }
@@ -339,7 +339,12 @@ export async function provisionHostingService(
       await db.update(usersTable)
         .set({ verificationCode: otpCode, verificationExpiresAt: otpExpiry, updatedAt: new Date() })
         .where(eq(usersTable.id, user.id));
-      await emailVerificationCode(user.email, user.firstName || user.email, otpCode);
+      await emailVerificationCode(
+        user.email,
+        user.firstName || user.email,
+        otpCode,
+        { clientId: user.id, referenceId: serviceId },
+      );
       console.log(`[PROVISION] OTP sent to ${user.email} (expires 10 min)`);
     }
   } catch (otpErr: any) {
