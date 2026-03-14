@@ -4,7 +4,7 @@ import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invo
 import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
-import { emailServiceSuspended } from "../lib/email.js";
+import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL } from "../lib/cpanel.js";
 
 const router = Router();
@@ -369,6 +369,54 @@ router.post("/admin/hosting/:id/provision", authenticate, requireAdmin, async (r
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated!.clientId)).limit(1);
     res.json({ ...formatService(updated!, user ? `${user.firstName} ${user.lastName}` : ""), credentials: result.credentials });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: resend welcome email with fresh SSO login URLs (no password — that was sent on creation only)
+router.post("/admin/hosting/:id/resend-welcome", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.username) return res.status(400).json({ error: "No cPanel username — account not provisioned yet" });
+
+    const [user] = await db.select().from(usersTable)
+      .where(eq(usersTable.id, service.clientId)).limit(1);
+    if (!user) return res.status(404).json({ error: "Client not found" });
+
+    const server = await resolveServerForService(service);
+    const serverCfg = server ? toServerCfg(server) : null;
+
+    // Generate fresh SSO URLs (best-effort — gracefully degrade if WHM unreachable)
+    let freshCpanelUrl = service.cpanelUrl || "";
+    let freshWebmailUrl = service.webmailUrl || "";
+    if (serverCfg) {
+      try {
+        freshCpanelUrl = await cpanelCreateUserSession(serverCfg, service.username, "cpaneld");
+        freshWebmailUrl = await cpanelCreateUserSession(serverCfg, service.username, "webmaild");
+      } catch (ssoErr: any) {
+        console.warn("[RESEND-WELCOME] WHM SSO failed:", ssoErr.message, "— using stored URLs");
+      }
+    }
+
+    const result = await emailHostingCreated(user.email, {
+      clientName: `${user.firstName} ${user.lastName}`.trim() || user.email,
+      domain: service.domain || "your hosting account",
+      username: service.username,
+      cpanelUrl: freshCpanelUrl,
+      webmailUrl: freshWebmailUrl,
+      ns1: server?.ns1 || "ns1.nexgohost.com",
+      ns2: server?.ns2 || "ns2.nexgohost.com",
+    });
+
+    if (result.sent) {
+      res.json({ success: true, message: `Welcome email resent to ${user.email}` });
+    } else {
+      res.status(500).json({ error: `Email failed: ${result.message}` });
+    }
+  } catch (err: any) {
+    console.error("[ADMIN] resend-welcome error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin: approve cancellation (WHM removeacct + DB terminated)

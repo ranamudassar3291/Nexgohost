@@ -301,7 +301,7 @@ export async function emailInvoicePaid(to: string, vars: {
 }
 
 export async function emailHostingCreated(to: string, vars: {
-  clientName: string; domain: string; username: string; password: string;
+  clientName: string; domain: string; username: string; password?: string;
   cpanelUrl: string; ns1: string; ns2: string; webmailUrl?: string;
 }) {
   return sendTemplatedEmail("hosting-created", to, {
@@ -309,7 +309,7 @@ export async function emailHostingCreated(to: string, vars: {
     client_name: vars.clientName,
     domain: vars.domain,
     username: vars.username,
-    password: vars.password,
+    password: vars.password || "(use your original password)",
     cpanel_url: vars.cpanelUrl,
     ns1: vars.ns1,
     ns2: vars.ns2,

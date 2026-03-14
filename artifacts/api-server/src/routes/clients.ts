@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, hostingServicesTable, domainsTable, invoicesTable, ticketsTable, ordersTable } from "@workspace/db/schema";
 import { eq, ilike, or, count, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
-import { emailGeneric } from "../lib/email.js";
+import { emailGeneric, emailVerificationCode } from "../lib/email.js";
 
 const router = Router();
 
@@ -206,6 +206,31 @@ router.post("/admin/clients/:id/send-email", authenticate, requireAdmin, async (
     await emailGeneric(user.email, subject, `${user.firstName} ${user.lastName}`, message).catch(console.warn);
     res.json({ success: true, message: "Email sent successfully" });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: resend email verification / OTP to a client
+router.post("/admin/clients/:id/resend-verification", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
+    if (!user) { res.status(404).json({ error: "Client not found" }); return; }
+
+    // Generate fresh 6-digit OTP and save with 10-minute expiry
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await db.update(usersTable)
+      .set({ verificationCode: otpCode, verificationExpiresAt: otpExpiry, emailVerified: false, updatedAt: new Date() })
+      .where(eq(usersTable.id, user.id));
+
+    const result = await emailVerificationCode(user.email, user.firstName || user.email, otpCode);
+    if (result.sent) {
+      res.json({ success: true, message: `Verification code sent to ${user.email} (expires 10 min)` });
+    } else {
+      res.status(500).json({ error: `Email failed: ${result.message}` });
+    }
+  } catch (err: any) {
+    console.error("[ADMIN] resend-verification error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/admin/clients/:id/reset-password", authenticate, requireAdmin, async (req: AuthRequest, res) => {

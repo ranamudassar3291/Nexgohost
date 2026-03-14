@@ -35,7 +35,7 @@ import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serv
 import { eq } from "drizzle-orm";
 import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
 import { twentyiCreateHosting } from "./twenty-i.js";
-import { emailHostingCreated } from "./email.js";
+import { emailHostingCreated, emailVerificationCode } from "./email.js";
 
 function generatePassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
@@ -328,6 +328,22 @@ export async function provisionHostingService(
     });
   } catch (emailErr: any) {
     console.warn("[PROVISION] Failed to send welcome email:", emailErr.message);
+  }
+
+  // ── Generate and send OTP / email verification code ───────────────────────
+  // Only send if the account is not already verified (new clients need this)
+  try {
+    if (!user.emailVerified) {
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      await db.update(usersTable)
+        .set({ verificationCode: otpCode, verificationExpiresAt: otpExpiry, updatedAt: new Date() })
+        .where(eq(usersTable.id, user.id));
+      await emailVerificationCode(user.email, user.firstName || user.email, otpCode);
+      console.log(`[PROVISION] OTP sent to ${user.email} (expires 10 min)`);
+    }
+  } catch (otpErr: any) {
+    console.warn("[PROVISION] Failed to send OTP:", otpErr.message);
   }
 
   return {

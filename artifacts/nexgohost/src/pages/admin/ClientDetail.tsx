@@ -481,6 +481,7 @@ function ServicePanel({ svc, clientId, onBack, onAction }: { svc: any; clientId:
             const pw = prompt("New password:"); if (pw) onAction(`/api/admin/hosting/${svc.id}/change-password`, "POST", { password: pw });
           })}
           {btn("Activate SSL", Shield, "bg-green-500/10 text-green-400 border-green-500/20", () => onAction(`/api/admin/hosting/${svc.id}/activate-ssl`, "POST"))}
+          {svc.status === "active" && btn("Resend Welcome Email", Send, "bg-indigo-500/10 text-indigo-400 border-indigo-500/20", () => onAction(`/api/admin/hosting/${svc.id}/resend-welcome`, "POST"))}
         </div>
       </div>
 
@@ -488,6 +489,7 @@ function ServicePanel({ svc, clientId, onBack, onAction }: { svc: any; clientId:
         <div className="text-xs font-medium text-muted-foreground mb-2">Account Management</div>
         <div className="flex flex-wrap gap-2">
           {svc.status === "pending" && btn("Create Account", Zap, "bg-blue-500/10 text-blue-400 border-blue-500/20", () => onAction(`/api/admin/hosting/${svc.id}/provision`, "POST"))}
+          {btn("Resend Verification Email", Mail, "bg-teal-500/10 text-teal-400 border-teal-500/20", () => onAction(`/api/admin/clients/${clientId}/resend-verification`, "POST"))}
           {svc.status !== "suspended" && svc.status !== "terminated" && btn("Suspend", PauseCircle, "bg-orange-500/10 text-orange-400 border-orange-500/20", () => { if (confirm("Suspend this account?")) onAction(`/api/admin/hosting/${svc.id}/suspend`, "POST"); })}
           {svc.status === "suspended" && btn("Unsuspend", PlayCircle, "bg-green-500/10 text-green-400 border-green-500/20", () => onAction(`/api/admin/hosting/${svc.id}/unsuspend`, "POST"))}
           {svc.status !== "terminated" && btn("Terminate", XCircle, "bg-red-500/10 text-red-400 border-red-500/20", () => { if (confirm("Terminate this account? Irreversible.")) onAction(`/api/admin/hosting/${svc.id}/terminate`, "POST"); })}

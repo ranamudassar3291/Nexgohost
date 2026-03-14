@@ -1,0 +1,111 @@
+
+TASK:
+Fix the hosting panel so that all email functionality works correctly using SMTP, including account verification codes (OTP), welcome emails, and test emails. Emails should work even if DNS/MX records are not pointed yet. 
+
+GOAL:
+- Admin can configure SMTP in panel
+- SMTP configuration fully tested
+- When new account is created:
+  - Generate 6-digit OTP verification code
+  - Send OTP email to client
+  - Include expiry of 10 minutes
+  - Send Welcome email with cPanel/Webmail credentials and login links
+- Old accounts can resend verification / welcome email
+- All emails use SMTP authentication without relying on DNS/MX records
+- Log all email sends and failures
+
+--------------------------------------------------
+
+STEP 1: SMTP Configuration Page
+
+- Fields in Admin Panel:
+  - SMTP Host
+  - SMTP Port
+  - SMTP Username
+  - SMTP Password
+  - Encryption (TLS/SSL)
+  - From Name
+  - From Email
+  - Test Email button
+- Save configuration in database
+- Test email function to verify connection works
+
+--------------------------------------------------
+
+STEP 2: Generate OTP / Verification Code
+
+- On account creation:
+  - otp_code = random 6-digit number
+  - expiry_time = now + 10 minutes
+  - Save to database table linked to client_id
+
+--------------------------------------------------
+
+STEP 3: Send Email via SMTP
+
+- Use stored SMTP configuration
+- Email types:
+  1. Verification / OTP Email
+     - Subject: Verify Your Account
+     - Body: Hello {client_name}, your verification code is {otp_code}. Expires in 10 minutes.
+  2. Welcome Email
+     - Subject: Welcome to Hosting
+     - Body: Hello {client_name}, your hosting account is ready.
+       - cPanel: {cPanel_login_url}
+       - Webmail: {Webmail_login_url}
+       - Username: {username}
+       - Password: {password}
+- Send email using authenticated SMTP
+- Log success / failure in email_logs table
+
+--------------------------------------------------
+
+STEP 4: Old Accounts Email Resend
+
+- Admin / Client button:
+  - Regenerate OTP if needed
+  - Resend Welcome email
+  - Use SMTP configuration
+  - Update logs
+
+--------------------------------------------------
+
+STEP 5: Error Handling
+
+- If SMTP fails → retry 3 times
+- If still fails → store in email_logs for admin review
+- Emails must work without DNS/MX records (authentication-based sending)
+
+--------------------------------------------------
+
+STEP 6: Integration with Account Creation
+
+- When order activated and WHM account created:
+  1. Generate OTP
+  2. Send Verification Email
+  3. Send Welcome Email with cPanel/Webmail credentials
+- If auto-login URL exists → include in Welcome Email
+- Expiry time for OTP: 10 minutes
+
+--------------------------------------------------
+
+STEP 7: Logging
+
+- Table: email_logs
+  - client_id
+  - email_type (otp, welcome, invoice)
+  - smtp_response
+  - status (success / failed)
+  - timestamp
+
+--------------------------------------------------
+
+FINAL RESULT
+
+✅ SMTP configuration setup page works  
+✅ Test email functionality works  
+✅ OTP / verification emails sent on account creation  
+✅ Welcome emails with cPanel/Webmail credentials sent  
+✅ Works even without DNS / MX records  
+✅ Admin can resend emails  
+✅ Logs maintained for all emails
