@@ -1,0 +1,186 @@
+Analyze the Nexgohost project and fix UI design, currency system, billing cycles, and domain TLD system without breaking existing functionality.
+
+========================
+🎨 UI COLOR (CLEAN WHITE THEME)
+===============================
+
+Apply a clean modern white theme across all pages:
+
+Background: White (#ffffff)
+Headings: Black (#000000)
+Text: Dark gray (#333333)
+
+Buttons:
+
+Primary: Purple (#7c3aed)
+Hover: Slight darker purple
+Text: White
+
+Cards:
+
+White background
+Soft shadow
+Rounded corners
+
+Fix all pages:
+
+Admin panel
+Client dashboard
+Login/Register
+Cart page
+
+Ensure consistent spacing and professional layout.
+
+========================
+💱 CURRENCY FIX (PKR ONLY)
+==========================
+
+Remove all USD currency display.
+
+Set system currency to PKR.
+
+Format all prices like:
+
+Rs. 1,000.00
+Rs. 2,500.00
+
+Apply everywhere:
+
+Admin packages page
+Order page
+Cart
+Invoices
+Client dashboard
+
+Remove hardcoded USD values.
+
+========================
+💰 BILLING CYCLES SYSTEM
+========================
+
+Add full billing cycle support for hosting packages:
+
+1 Month
+3 Months
+6 Months
+12 Months (Yearly)
+
+Admin Package Page:
+
+Add fields to set price for each billing cycle:
+
+monthly_price
+quarterly_price (3 months)
+semiannual_price (6 months)
+yearly_price
+
+Save all prices in database.
+
+Frontend:
+
+Allow client to select billing cycle.
+
+Update price dynamically based on selected cycle.
+
+========================
+🔄 RENEWAL SYSTEM
+=================
+
+Add renewal functionality:
+
+Client can renew hosting from dashboard.
+
+Show:
+
+Next due date
+Renew button
+
+Generate invoice on renewal.
+
+========================
+🌐 DOMAIN TLD SYSTEM FIX
+========================
+
+Fix domain system:
+
+Admin must be able to:
+
+Add TLD (.com, .net, .pk)
+
+For each TLD set:
+
+Register price
+Renew price
+Transfer price
+
+Store in database.
+
+Fix domain page:
+
+When adding domain:
+
+Select TLD
+Enter prices
+
+Client side:
+
+Domain search
+Register
+Transfer
+
+========================
+📦 PACKAGE PRICE FIX
+====================
+
+Fix admin package page:
+
+Add pricing for:
+
+1 month
+3 month
+6 month
+12 month
+
+Ensure values save correctly.
+
+Ensure prices show in PKR.
+
+========================
+🛒 ORDER PAGE FIX
+=================
+
+Fix order page:
+
+Remove USD
+Show PKR prices
+Show selected billing cycle
+Calculate correct total
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix any:
+
+Broken UI
+Wrong currency
+Missing fields
+Non-working buttons
+
+Ensure:
+
+All prices saved in database
+All pages display correct PKR pricing
+Billing cycle works correctly
+
+========================
+🎯 GOAL
+=======
+
+Create a clean white modern UI with:
+
+Correct PKR currency
+Full billing cycles
+Working renewal system
+Complete TLD management
+Accurate pricing across admin and client panel

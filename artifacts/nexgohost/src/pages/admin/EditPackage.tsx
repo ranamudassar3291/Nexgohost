@@ -51,7 +51,8 @@ export default function EditPackage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
-    name: "", description: "", price: "", yearlyPrice: "", billingCycle: "monthly",
+    name: "", description: "", price: "", yearlyPrice: "", quarterlyPrice: "", semiannualPrice: "",
+    billingCycle: "monthly",
     groupId: "",
     diskSpace: "", bandwidth: "",
     emailAccounts: "", databases: "", subdomains: "", ftpAccounts: "",
@@ -86,6 +87,8 @@ export default function EditPackage() {
           description: data.description || "",
           price: String(data.price || ""),
           yearlyPrice: data.yearlyPrice ? String(data.yearlyPrice) : "",
+          quarterlyPrice: data.quarterlyPrice ? String(data.quarterlyPrice) : "",
+          semiannualPrice: data.semiannualPrice ? String(data.semiannualPrice) : "",
           billingCycle: data.billingCycle || "monthly",
           groupId: data.groupId || "",
           diskSpace: data.diskSpace || "",
@@ -246,6 +249,8 @@ export default function EditPackage() {
           ...form,
           price: Number(form.price),
           yearlyPrice: form.yearlyPrice ? Number(form.yearlyPrice) : null,
+          quarterlyPrice: form.quarterlyPrice ? Number(form.quarterlyPrice) : null,
+          semiannualPrice: form.semiannualPrice ? Number(form.semiannualPrice) : null,
           groupId: form.groupId || null,
           module: moduleType,
           moduleServerId: selectedServerId || null,
@@ -523,23 +528,36 @@ export default function EditPackage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Monthly Price ($) *</label>
+              <label className="text-sm font-medium text-foreground/80">Monthly Price *</label>
               <Input type="number" step="0.01" min="0" value={form.price} onChange={set("price")} placeholder="9.99"
                 className={`${errors.price ? "border-destructive" : ""} ${pricingFrom === "module" ? "border-primary/30 bg-primary/5" : ""}`} />
               {errors.price && <p className="text-xs text-destructive">{errors.price}</p>}
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Yearly Price ($)</label>
+              <label className="text-sm font-medium text-foreground/80">Quarterly Price <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+              <Input type="number" step="0.01" min="0" value={form.quarterlyPrice} onChange={set("quarterlyPrice")} placeholder="27.99" />
+              <p className="text-xs text-muted-foreground">Billed every 3 months</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Semiannual Price <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
+              <Input type="number" step="0.01" min="0" value={form.semiannualPrice} onChange={set("semiannualPrice")} placeholder="53.99" />
+              <p className="text-xs text-muted-foreground">Billed every 6 months</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Yearly Price <span className="text-muted-foreground text-xs font-normal">(optional)</span></label>
               <Input type="number" step="0.01" min="0" value={form.yearlyPrice} onChange={set("yearlyPrice")} placeholder="99.99"
                 className={pricingFrom === "module" ? "border-primary/30 bg-primary/5" : ""} />
+              <p className="text-xs text-muted-foreground">Billed annually</p>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground/80">Billing Cycle</label>
+            <label className="text-sm font-medium text-foreground/80">Default Billing Cycle</label>
             <select value={form.billingCycle} onChange={set("billingCycle")}
               className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="semiannual">Semiannual</option>
               <option value="yearly">Yearly</option>
             </select>
           </div>

@@ -4,12 +4,13 @@ import { motion } from "framer-motion";
 import {
   Server, ExternalLink, HardDrive, Activity, Shield, ShieldCheck, ShieldX,
   Calendar, ArrowUpCircle, ArrowDownCircle, XCircle, Globe, Loader2, AlertTriangle, X,
-  Lock,
+  Lock, RefreshCw, CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface HostingService {
   id: string; planName: string; domain: string | null; username: string | null;
@@ -44,12 +45,16 @@ function parseUsagePercent(used: string | null, limit: string | null): number {
 export default function ClientHosting() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
   const [cancelModal, setCancelModal] = useState<{ id: string; domain: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [reinstallingSSL, setReinstallingSSL] = useState<string | null>(null);
   const [ssoLoading, setSsoLoading] = useState<Record<string, "cpanel" | "webmail" | null>>({});
+  const [renewModal, setRenewModal] = useState<{ id: string; planName: string; billingCycle: string } | null>(null);
+  const [renewing, setRenewing] = useState(false);
+  const [renewSuccess, setRenewSuccess] = useState<{ invoiceNumber: string; amount: number } | null>(null);
 
   const handleReinstallSSL = async (serviceId: string, domain: string) => {
     setReinstallingSSL(serviceId);
@@ -103,6 +108,19 @@ export default function ClientHosting() {
     }
   };
 
+  const handleRenew = async () => {
+    if (!renewModal) return;
+    setRenewing(true);
+    try {
+      const result = await apiFetch(`/api/client/hosting/${renewModal.id}/renew`, { method: "POST" });
+      setRenewSuccess({ invoiceNumber: result.invoiceNumber, amount: result.amount });
+      queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
+    } catch (err: any) {
+      toast({ title: "Renewal Failed", description: err.message, variant: "destructive" });
+      setRenewModal(null);
+    } finally { setRenewing(false); }
+  };
+
   const handleCancelRequest = async () => {
     if (!cancelModal) return;
     setCancelling(true);
@@ -127,6 +145,58 @@ export default function ClientHosting() {
 
   return (
     <div className="space-y-6">
+      {/* Renewal modal */}
+      {(renewModal || renewSuccess) && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="font-semibold flex items-center gap-2 text-foreground">
+                <RefreshCw size={18} className="text-primary" />
+                {renewSuccess ? "Renewal Invoice Created" : "Renew Hosting Service"}
+              </h2>
+              <Button variant="ghost" size="icon" onClick={() => { setRenewModal(null); setRenewSuccess(null); }}>
+                <X size={18} />
+              </Button>
+            </div>
+            <div className="p-5 space-y-4">
+              {renewSuccess ? (
+                <>
+                  <div className="flex flex-col items-center gap-3 py-4 text-center">
+                    <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
+                      <CheckCircle size={28} className="text-green-500" />
+                    </div>
+                    <p className="font-semibold text-foreground">Invoice Generated!</p>
+                    <p className="text-sm text-muted-foreground">
+                      Invoice <strong>{renewSuccess.invoiceNumber}</strong> for <strong>{formatPrice(renewSuccess.amount)}</strong> has been created.
+                      Please pay it to renew your service.
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button onClick={() => setLocation("/client/invoices")} className="flex-1 bg-primary hover:bg-primary/90">
+                      View & Pay Invoice
+                    </Button>
+                    <Button variant="outline" onClick={() => { setRenewModal(null); setRenewSuccess(null); }}>Close</Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    A renewal invoice will be generated for <strong className="text-foreground">{renewModal?.planName}</strong> on a <strong className="text-foreground capitalize">{renewModal?.billingCycle}</strong> billing cycle. You will be redirected to pay it.
+                  </p>
+                  <div className="flex gap-3">
+                    <Button onClick={handleRenew} disabled={renewing} className="flex-1 bg-primary hover:bg-primary/90">
+                      {renewing && <Loader2 size={16} className="animate-spin mr-2" />}
+                      Confirm Renewal
+                    </Button>
+                    <Button variant="outline" onClick={() => setRenewModal(null)}>Cancel</Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cancel modal */}
       {cancelModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -302,6 +372,14 @@ export default function ClientHosting() {
                 >
                   {reinstallingSSL === service.id ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
                   {reinstallingSSL === service.id ? "Reinstalling..." : "Reinstall SSL"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setRenewModal({ id: service.id, planName: service.planName, billingCycle: service.billingCycle || "monthly" })}
+                  className="gap-2 text-primary border-primary/30 hover:bg-primary/10"
+                  disabled={service.status === "terminated"}
+                >
+                  <RefreshCw size={15} /> Renew Service
                 </Button>
                 <Button
                   variant="outline"

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ShoppingCart, Server, CheckCircle, Loader2, ArrowRight } from "lucide-react";
@@ -7,9 +8,26 @@ import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Plan {
   id: string; name: string; description: string | null; price: number;
+  yearlyPrice: number | null; quarterlyPrice: number | null; semiannualPrice: number | null;
   billingCycle: string; diskSpace: string; bandwidth: string;
   emailAccounts: number | null; databases: number | null; features: string[];
 }
+
+type BillingCycle = "monthly" | "quarterly" | "semiannual" | "yearly";
+
+const CYCLE_LABELS: Record<BillingCycle, string> = {
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  semiannual: "Semiannual",
+  yearly: "Yearly",
+};
+
+const CYCLE_SUFFIX: Record<BillingCycle, string> = {
+  monthly: "/mo",
+  quarterly: "/qtr",
+  semiannual: "/6mo",
+  yearly: "/yr",
+};
 
 async function fetchPublicPlans(): Promise<Plan[]> {
   const token = localStorage.getItem("token");
@@ -18,19 +36,42 @@ async function fetchPublicPlans(): Promise<Plan[]> {
   return res.json();
 }
 
-const POPULAR_INDEX = 1; // Mark the middle plan as "popular"
+function getPrice(plan: Plan, cycle: BillingCycle): number | null {
+  if (cycle === "monthly") return plan.price;
+  if (cycle === "quarterly") return plan.quarterlyPrice ?? null;
+  if (cycle === "semiannual") return plan.semiannualPrice ?? null;
+  if (cycle === "yearly") return plan.yearlyPrice ?? null;
+  return null;
+}
+
+function availableCycles(plan: Plan): BillingCycle[] {
+  const cycles: BillingCycle[] = ["monthly"];
+  if (plan.quarterlyPrice) cycles.push("quarterly");
+  if (plan.semiannualPrice) cycles.push("semiannual");
+  if (plan.yearlyPrice) cycles.push("yearly");
+  return cycles;
+}
+
+const POPULAR_INDEX = 1;
 
 export default function NewOrder() {
   const [, setLocation] = useLocation();
   const { formatPrice } = useCurrency();
   const { data: plans = [], isLoading } = useQuery({ queryKey: ["public-packages"], queryFn: fetchPublicPlans });
+  const [selectedCycles, setSelectedCycles] = useState<Record<string, BillingCycle>>({});
+
+  const getCycleForPlan = (plan: Plan): BillingCycle => {
+    return selectedCycles[plan.id] ?? "monthly";
+  };
 
   const handleOrder = (plan: Plan) => {
+    const cycle = getCycleForPlan(plan);
+    const price = getPrice(plan, cycle) ?? plan.price;
     const params = new URLSearchParams({
       packageId: plan.id,
       packageName: plan.name,
-      amount: String(plan.price),
-      billingCycle: plan.billingCycle,
+      amount: String(price),
+      billingCycle: cycle,
     });
     setLocation(`/client/checkout?${params.toString()}`);
   };
@@ -42,7 +83,7 @@ export default function NewOrder() {
           <ShoppingCart size={14} /> Choose a Plan
         </div>
         <h1 className="text-3xl font-display font-bold text-foreground">Hosting Packages</h1>
-        <p className="text-muted-foreground mt-2">Select the plan that fits your needs. You can upgrade anytime.</p>
+        <p className="text-muted-foreground mt-2">Select the plan and billing cycle that fits your needs. You can upgrade anytime.</p>
       </div>
 
       {isLoading ? (
@@ -56,6 +97,9 @@ export default function NewOrder() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {plans.map((plan, idx) => {
             const isPopular = idx === POPULAR_INDEX || plans.length === 1;
+            const cycle = getCycleForPlan(plan);
+            const price = getPrice(plan, cycle) ?? plan.price;
+            const cycles = availableCycles(plan);
             return (
               <motion.div
                 key={plan.id}
@@ -63,7 +107,7 @@ export default function NewOrder() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.07 }}
                 className={`relative bg-card rounded-2xl p-6 flex flex-col gap-5 transition-all hover:shadow-lg
-                  ${isPopular ? "border-2 border-primary shadow-[0_0_30px_-8px_rgba(139,92,246,0.3)]" : "border border-border"}`}
+                  ${isPopular ? "border-2 border-primary shadow-[0_0_30px_-8px_rgba(139,92,246,0.2)]" : "border border-border"}`}
               >
                 {isPopular && (
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-full shadow">
@@ -72,21 +116,44 @@ export default function NewOrder() {
                 )}
 
                 <div className="flex items-center gap-3">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isPopular ? "bg-primary/20" : "bg-secondary"}`}>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isPopular ? "bg-primary/15" : "bg-secondary"}`}>
                     <Server size={20} className={isPopular ? "text-primary" : "text-muted-foreground"} />
                   </div>
                   <div>
                     <h2 className="font-display font-bold text-foreground text-lg">{plan.name}</h2>
-                    <p className="text-xs text-muted-foreground capitalize">{plan.billingCycle} billing</p>
+                    {plan.description && <p className="text-xs text-muted-foreground">{plan.description}</p>}
                   </div>
                 </div>
 
+                {/* Billing cycle selector */}
+                {cycles.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {cycles.map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setSelectedCycles(prev => ({ ...prev, [plan.id]: c }))}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+                          cycle === c
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-background text-muted-foreground border-border hover:border-primary/40"
+                        }`}
+                      >
+                        {CYCLE_LABELS[c]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div>
                   <p className="text-4xl font-display font-bold text-foreground">
-                    {formatPrice(plan.price)}
-                    <span className="text-base font-normal text-muted-foreground">/{plan.billingCycle === "monthly" ? "mo" : "yr"}</span>
+                    {formatPrice(price)}
+                    <span className="text-base font-normal text-muted-foreground">{CYCLE_SUFFIX[cycle]}</span>
                   </p>
-                  {plan.description && <p className="text-sm text-muted-foreground mt-1">{plan.description}</p>}
+                  {cycle !== "monthly" && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatPrice(plan.price)}/mo equivalent
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2 border-t border-border/50 pt-4">
@@ -106,7 +173,7 @@ export default function NewOrder() {
 
                 <Button
                   onClick={() => handleOrder(plan)}
-                  className={`w-full gap-2 mt-auto ${isPopular ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25" : ""}`}
+                  className={`w-full gap-2 mt-auto ${isPopular ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20" : ""}`}
                   variant={isPopular ? "default" : "outline"}
                 >
                   Order Now <ArrowRight size={16} />
@@ -117,9 +184,8 @@ export default function NewOrder() {
         </div>
       )}
 
-      {/* Money-back banner */}
       <div className="flex items-center gap-3 justify-center text-sm text-muted-foreground bg-card border border-border rounded-xl p-4">
-        <CheckCircle size={16} className="text-green-400" />
+        <CheckCircle size={16} className="text-green-500" />
         30-day money-back guarantee on all plans · No setup fees · Cancel anytime
       </div>
     </motion.div>

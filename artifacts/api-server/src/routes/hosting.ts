@@ -906,4 +906,47 @@ router.get("/client/dashboard", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Client: request renewal (creates invoice)
+router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.id;
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId)))
+      .limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    // Get plan price
+    const [plan] = await db.select().from(hostingPlansTable)
+      .where(eq(hostingPlansTable.id, service.planId)).limit(1);
+    const billingCycle = service.billingCycle || "monthly";
+    let amount = plan ? Number(plan.price) : 0;
+    if (plan) {
+      if (billingCycle === "yearly" && plan.yearlyPrice) amount = Number(plan.yearlyPrice);
+      else if (billingCycle === "quarterly" && (plan as any).quarterlyPrice) amount = Number((plan as any).quarterlyPrice);
+      else if (billingCycle === "semiannual" && (plan as any).semiannualPrice) amount = Number((plan as any).semiannualPrice);
+    }
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 7);
+
+    const invNum = `INV-${Date.now().toString().slice(-8)}`;
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber: invNum,
+      clientId,
+      amount: String(amount),
+      tax: "0",
+      total: String(amount),
+      status: "unpaid",
+      dueDate,
+      items: [{ description: `Renewal: ${service.planName} (${billingCycle})`, amount }],
+    }).returning();
+
+    res.json({ success: true, invoiceId: invoice.id, invoiceNumber: invNum, amount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 export default router;

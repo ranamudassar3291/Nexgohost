@@ -11,6 +11,8 @@ export const hostingPlansTable = pgTable("hosting_plans", {
   description: text("description"),
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   yearlyPrice: numeric("yearly_price", { precision: 10, scale: 2 }),
+  quarterlyPrice: numeric("quarterly_price", { precision: 10, scale: 2 }),
+  semiannualPrice: numeric("semiannual_price", { precision: 10, scale: 2 }),
   billingCycle: billingCycleEnum("billing_cycle").notNull().default("monthly"),
   groupId: text("group_id"),
   module: text("module").default("none"),
