@@ -23,6 +23,8 @@ import {
   ShieldAlert,
   Clock,
   Receipt,
+  Share2,
+  RefreshCw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -73,6 +75,8 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/settings",              label: "Settings",           icon: Settings,     inNav: true  },
   { path: "/admin/settings/email",         label: "Email Configuration", icon: Mail,         inNav: false },
   { path: "/admin/settings/google",        label: "Google OAuth",        icon: ShieldAlert,  inNav: false },
+  { path: "/admin/affiliates",             label: "Affiliates",          icon: Share2,       inNav: true  },
+  { path: "/admin/domain-transfers",       label: "Domain Transfers",    icon: RefreshCw,    inNav: true  },
 ];
 
 // ─── Client Routes ────────────────────────────────────────────────────────────
@@ -88,7 +92,9 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/migrations",  label: "Migrations",  icon: ArrowRightLeft,  inNav: true  },
   { path: "/client/orders/new",  label: "New Order",   icon: ShoppingCart,    inNav: false },
   { path: "/client/checkout",    label: "Checkout",    icon: CreditCard,      inNav: false },
-  { path: "/client/account",     label: "Account",     icon: UserIcon,        inNav: true  },
+  { path: "/client/account",           label: "Account",         icon: UserIcon,        inNav: true  },
+  { path: "/client/affiliate",          label: "Affiliate",       icon: Share2,          inNav: true  },
+  { path: "/client/domains/transfer",   label: "Transfer Domain", icon: RefreshCw,       inNav: false },
 ];
 
 // ─── Role → Route Map ─────────────────────────────────────────────────────────

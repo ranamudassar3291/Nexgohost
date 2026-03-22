@@ -145,10 +145,10 @@ export default function ClientLogin() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-background">
-      <div className="absolute inset-0 z-0">
-        <img src={`${import.meta.env.BASE_URL}images/auth-bg.png`} alt="" className="w-full h-full object-cover opacity-40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-primary/12 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-purple-700/10 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 right-0 w-[350px] h-[350px] bg-indigo-600/8 rounded-full blur-[100px]" />
       </div>
 
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.5, type: "spring" }}

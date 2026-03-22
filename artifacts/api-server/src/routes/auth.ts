@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, settingsTable, adminLogsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailVerificationCode } from "../lib/email.js";
 import { createRequire } from "module";
@@ -47,6 +47,8 @@ router.post("/auth/register", async (req, res) => {
       expiresAt = new Date(Date.now() + 10 * 60 * 1000);
     }
 
+    const { refCode } = req.body;
+
     const [user] = await db.insert(usersTable).values({
       firstName, lastName, email, passwordHash,
       company: company || null, phone: phone || null,
@@ -58,6 +60,27 @@ router.post("/auth/register", async (req, res) => {
 
     if (verificationRequired && code) {
       await emailVerificationCode(email, firstName, code).catch(() => {});
+    }
+
+    // ── Track affiliate referral ────────────────────────────────────────────
+    if (refCode) {
+      try {
+        const [affiliate] = await db.select().from(affiliatesTable)
+          .where(eq(affiliatesTable.referralCode, refCode)).limit(1);
+        if (affiliate && affiliate.status === "active") {
+          await db.insert(affiliateReferralsTable).values({
+            affiliateId: affiliate.id,
+            referredUserId: user.id,
+            status: "registered",
+            ipAddress: (req.headers["x-forwarded-for"] as string || req.ip || "").split(",")[0]?.trim() || null,
+          });
+          await db.update(affiliatesTable)
+            .set({ totalSignups: sql`${affiliatesTable.totalSignups} + 1`, updatedAt: new Date() })
+            .where(eq(affiliatesTable.id, affiliate.id));
+        }
+      } catch (refErr) {
+        console.warn("[AUTH] Failed to track referral:", refErr);
+      }
     }
 
     const token = signToken({ userId: user.id, role: user.role, email: user.email });

@@ -19,3 +19,5 @@ export * from "./email-logs";
 export * from "./server-logs";
 export * from "./settings";
 export * from "./admin-logs";
+export * from "./affiliates";
+export * from "./domain-transfers";

@@ -51,6 +51,8 @@ import EmailTemplates from "@/pages/admin/EmailTemplates";
 import FraudLogs from "@/pages/admin/FraudLogs";
 import CronLogs from "@/pages/admin/CronLogs";
 import ServerLogs from "@/pages/admin/ServerLogs";
+import AdminAffiliates from "@/pages/admin/Affiliates";
+import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -67,6 +69,8 @@ import Checkout from "@/pages/client/Checkout";
 import Cart from "@/pages/client/Cart";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import ClientOrders from "@/pages/client/Orders";
+import Affiliate from "@/pages/client/Affiliate";
+import DomainTransfer from "@/pages/client/DomainTransfer";
 import Homepage from "@/pages/public/Homepage";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
@@ -265,6 +269,12 @@ function RouterRoot() {
       <Route path="/client/account">
         <ClientPage><ClientAccount /></ClientPage>
       </Route>
+      <Route path="/client/affiliate">
+        <ClientPage><Affiliate /></ClientPage>
+      </Route>
+      <Route path="/client/domains/transfer">
+        <ClientPage><DomainTransfer /></ClientPage>
+      </Route>
       {/* ── Route aliases ── */}
       <Route path="/client/services">
         <ClientPage><ClientHosting /></ClientPage>
@@ -283,6 +293,12 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/domain-extensions">
         <AdminPage><DomainExtensions /></AdminPage>
+      </Route>
+      <Route path="/admin/affiliates">
+        <AdminPage><AdminAffiliates /></AdminPage>
+      </Route>
+      <Route path="/admin/domain-transfers">
+        <AdminPage><AdminDomainTransfers /></AdminPage>
       </Route>
 
       {/* ── OAuth callback — public ── */}

@@ -49,10 +49,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Commerce",
     items: [
-      { name: "Promo Codes",      href: "/admin/promo-codes",      icon: (() => null) as any },
-      { name: "Payment Methods",  href: "/admin/payment-methods",  icon: (() => null) as any },
-      { name: "Currencies",       href: "/admin/currencies",       icon: (() => null) as any },
-      { name: "Product Groups",   href: "/admin/product-groups",   icon: (() => null) as any },
+      { name: "Promo Codes",        href: "/admin/promo-codes",        icon: (() => null) as any },
+      { name: "Payment Methods",    href: "/admin/payment-methods",    icon: (() => null) as any },
+      { name: "Currencies",         href: "/admin/currencies",         icon: (() => null) as any },
+      { name: "Product Groups",     href: "/admin/product-groups",     icon: (() => null) as any },
+      { name: "Affiliates",         href: "/admin/affiliates",         icon: (() => null) as any },
+      { name: "Domain Transfers",   href: "/admin/domain-transfers",   icon: (() => null) as any },
     ],
   },
   {

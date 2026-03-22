@@ -23,6 +23,8 @@ import fraudRouter from "./fraud.js";
 import cronLogsRouter from "./cron-logs.js";
 import serverLogsRouter from "./server-logs.js";
 import settingsRouter from "./settings.js";
+import affiliatesRouter from "./affiliates.js";
+import domainTransfersRouter from "./domain-transfers.js";
 
 const router: IRouter = Router();
 
@@ -54,5 +56,7 @@ router.use(fraudRouter);
 router.use(cronLogsRouter);
 router.use(serverLogsRouter);
 router.use(settingsRouter);
+router.use(affiliatesRouter);
+router.use(domainTransfersRouter);
 
 export default router;

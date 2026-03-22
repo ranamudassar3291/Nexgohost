@@ -1,0 +1,219 @@
+Analyze the Nexgohost project and upgrade it into a complete hosting SaaS platform like Hostinger with affiliate system, domain transfer system, modern UI, and full hosting features.
+
+IMPORTANT:
+Do NOT break existing working features.
+Enhance system professionally.
+
+========================
+💰 AFFILIATE PROGRAM SYSTEM (FULL)
+==================================
+
+Create full affiliate system:
+
+Client dashboard:
+
+Add "Affiliate Program" page
+
+Features:
+
+Unique referral link:
+example.com/ref/username
+
+Show:
+
+Clicks
+Signups
+Conversions
+Earnings
+
+Admin panel:
+
+Set commission:
+
+Fixed amount OR percentage
+
+Set payout rules
+
+Track referrals
+
+Affiliate logic:
+
+When user signs up via link → save referral_id
+
+When user purchases → generate commission
+
+========================
+🎨 LOGIN & REGISTER PAGE (HOSTINGER STYLE)
+==========================================
+
+Redesign:
+
+Remove random background image
+
+Use:
+
+Clean gradient OR minimal pattern
+
+Centered card layout
+
+Modern UI:
+
+Rounded inputs
+Purple button
+Shadow
+Spacing
+
+Mobile responsive.
+
+========================
+🌐 DOMAIN TRANSFER SYSTEM (ADVANCED)
+====================================
+
+Create full domain transfer system:
+
+Client enters:
+
+Domain name
+EPP code
+
+System checks:
+
+Domain status (locked/unlocked)
+EPP validity
+
+If API not available:
+
+Simulate realistic validation
+
+Steps:
+
+Step 1: Enter domain
+Step 2: Validate
+Step 3: Add to cart
+Step 4: Checkout
+
+Admin panel:
+
+Approve transfer
+
+After approval:
+
+Domain status = Active
+
+========================
+🔐 DOMAIN VALIDATION LOGIC
+==========================
+
+Check:
+
+Domain format valid
+
+Simulate:
+
+If EPP length > 6 → valid
+
+If domain contains "lock" → show locked
+
+Show messages:
+
+"Domain is locked"
+"Invalid EPP code"
+
+========================
+🛒 CART SYSTEM IMPROVEMENT
+==========================
+
+Enhance cart:
+
+Support:
+
+Hosting
+Domain
+Transfer
+
+Show:
+
+Item
+Price
+Duration
+
+Apply promo codes
+
+========================
+📊 ADMIN FEATURES (FULL)
+========================
+
+Add missing features:
+
+Affiliate management
+Domain transfer approvals
+Commission reports
+
+Add dashboard stats:
+
+Revenue
+Orders
+Clients
+
+========================
+🧾 CLIENT PANEL IMPROVEMENT
+===========================
+
+Add sections:
+
+My Hosting
+My Domains
+Affiliate
+Tickets
+Invoices
+
+Ensure all working.
+
+========================
+⚙️ HOSTING COMPANY FEATURES
+===========================
+
+Ensure system includes:
+
+Order system
+Billing system
+Domain system
+Affiliate system
+Support system
+Admin control
+
+========================
+📱 RESPONSIVE DESIGN
+====================
+
+Ensure:
+
+Mobile perfect
+Tablet perfect
+Desktop perfect
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+UI inconsistencies
+Broken pages
+Missing links
+
+Ensure:
+
+Everything connected
+Everything working
+
+========================
+🎯 GOAL
+=======
+
+Transform project into full hosting SaaS platform with:
+
+Affiliate system
+Domain transfer system
+Modern UI
+Complete hosting features
