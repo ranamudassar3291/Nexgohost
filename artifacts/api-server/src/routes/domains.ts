@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { domainsTable, domainPricingTable, usersTable, ordersTable, invoicesTable } from "@workspace/db/schema";
+import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
@@ -106,7 +106,9 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
       return;
     }
 
-    const pricing = await db.select().from(domainPricingTable).orderBy(domainPricingTable.tld);
+    const pricing = await db.select().from(domainExtensionsTable)
+      .where(eq(domainExtensionsTable.status, "active"))
+      .orderBy(domainExtensionsTable.extension);
 
     const existingInDb = await db
       .select({ name: domainsTable.name, tld: domainsTable.tld })
@@ -117,16 +119,28 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
 
     const results = await Promise.all(
       pricing.map(async (p) => {
-        if (takenTldsInDb.has(p.tld)) {
-          return { tld: p.tld, available: false, registrationPrice: Number(p.registrationPrice), renewalPrice: Number(p.renewalPrice) };
+        if (takenTldsInDb.has(p.extension)) {
+          return {
+            tld: p.extension, available: false,
+            registrationPrice: Number(p.registerPrice),
+            register2YearPrice: p.register2YearPrice ? Number(p.register2YearPrice) : null,
+            register3YearPrice: p.register3YearPrice ? Number(p.register3YearPrice) : null,
+            renewalPrice: Number(p.renewalPrice),
+            renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
+            renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
+          };
         }
-        const status = await checkRdapAvailability(rawName, p.tld);
+        const status = await checkRdapAvailability(rawName, p.extension);
         return {
-          tld: p.tld,
+          tld: p.extension,
           available: status === "available" || status === "unknown",
           rdapStatus: status,
-          registrationPrice: Number(p.registrationPrice),
+          registrationPrice: Number(p.registerPrice),
+          register2YearPrice: p.register2YearPrice ? Number(p.register2YearPrice) : null,
+          register3YearPrice: p.register3YearPrice ? Number(p.register3YearPrice) : null,
           renewalPrice: Number(p.renewalPrice),
+          renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
+          renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
         };
       })
     );

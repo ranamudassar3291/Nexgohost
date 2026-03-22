@@ -1,16 +1,10 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
-import {
-  useSearchDomainAvailability,
-  useRegisterDomain,
-  type DomainTldResult,
-  type DomainRegisterResponse,
-} from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Globe, Search, ShoppingCart, CheckCircle2, XCircle, AlertCircle,
-  Loader2, Trash2, ExternalLink, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
-  Server, Plus, Minus, Save, Key, Copy, CheckCheck,
+  Loader2, Trash2, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
+  Server, Plus, Minus, Save, Key, Copy, CheckCheck, ArrowLeft, ClipboardList,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -23,6 +17,38 @@ interface MyDomain {
   expiryDate: string | null; autoRenew: boolean; nameservers: string[] | null;
 }
 
+interface TldResult {
+  tld: string;
+  available: boolean;
+  rdapStatus?: string;
+  registrationPrice: number;
+  register2YearPrice: number | null;
+  register3YearPrice: number | null;
+  renewalPrice: number;
+  renew2YearPrice: number | null;
+  renew3YearPrice: number | null;
+}
+
+interface SearchResult {
+  name: string;
+  results: TldResult[];
+}
+
+interface CartItem {
+  name: string;
+  tld: string;
+  prices: { 1: number; 2: number; 3: number };
+  period: 1 | 2 | 3;
+}
+
+interface OrderSuccess {
+  domain: string;
+  invoiceNumber: string;
+  amount: number;
+  period: number;
+  invoiceDueDate: string | null;
+}
+
 async function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token");
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
@@ -31,7 +57,8 @@ async function apiFetch(url: string, opts?: RequestInit) {
 }
 
 const TLD_ICONS: Record<string, string> = {
-  ".com": "🌐", ".net": "🔗", ".org": "🏛️", ".co": "🏢", ".io": "💻", ".uk": "🇬🇧",
+  ".com": "🌐", ".net": "🔗", ".org": "🏛️", ".co": "🏢", ".io": "💻",
+  ".uk": "🇬🇧", ".pk": "🇵🇰", ".us": "🇺🇸", ".de": "🇩🇪", ".in": "🇮🇳",
 };
 
 const statusColors: Record<string, string> = {
@@ -41,24 +68,27 @@ const statusColors: Record<string, string> = {
   transferred: "bg-blue-500/10 text-blue-400 border-blue-500/20",
 };
 
-interface CartItem {
-  name: string;
-  tld: string;
-  price: number;
-  period: number;
+function getPriceForPeriod(item: CartItem): number {
+  return item.prices[item.period];
+}
+
+function getCartTotal(cart: CartItem[]): number {
+  return cart.reduce((sum, item) => sum + getPriceForPeriod(item), 0);
 }
 
 type Tab = "my-domains" | "order";
+type OrderView = "search" | "review" | "success";
 
 export default function ClientDomains() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<Tab>("my-domains");
+  const [orderView, setOrderView] = useState<OrderView>("search");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
-  const [successResult, setSuccessResult] = useState<DomainRegisterResponse | null>(null);
-  const [orderingDomain, setOrderingDomain] = useState<string | null>(null);
+  const [success, setSuccess] = useState<OrderSuccess | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [dnsModal, setDnsModal] = useState<MyDomain | null>(null);
   const [eppModal, setEppModal] = useState<MyDomain | null>(null);
   const [eppCode, setEppCode] = useState<string | null>(null);
@@ -68,13 +98,20 @@ export default function ClientDomains() {
 
   const queryClient = useQueryClient();
   const { formatPrice } = useCurrency();
+  const { toast } = useToast();
+
   const { data: myDomains = [], isLoading: domainsLoading } = useQuery<MyDomain[]>({
     queryKey: ["my-domains"],
     queryFn: () => apiFetch("/api/domains"),
   });
-  const { data: searchData, isLoading: searching, error: searchError } = useSearchDomainAvailability(searchQuery);
-  const registerMutation = useRegisterDomain();
-  const { toast } = useToast();
+
+  const { data: searchData, isLoading: searching, error: searchError } = useQuery<SearchResult>({
+    queryKey: ["domain-availability", searchQuery],
+    queryFn: () => apiFetch(`/api/domains/availability?domain=${encodeURIComponent(searchQuery!)}`),
+    enabled: !!searchQuery,
+    retry: false,
+    staleTime: 60_000,
+  });
 
   const openEppModal = async (domain: MyDomain) => {
     setEppModal(domain);
@@ -82,17 +119,10 @@ export default function ClientDomains() {
     setEppCopied(false);
     setEppLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`/api/domains/${domain.id}/epp`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed");
-      setEppCode(data.authCode);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-      setEppModal(null);
-    } finally {
-      setEppLoading(false);
-    }
+      const data = await apiFetch(`/api/domains/${domain.id}/epp`);
+      setEppCode(data.eppCode || null);
+    } catch { setEppCode(null); }
+    finally { setEppLoading(false); }
   };
 
   const copyEppCode = async () => {
@@ -116,77 +146,84 @@ export default function ClientDomains() {
     const val = searchInput.trim().toLowerCase().split(".")[0];
     if (!val) return;
     setSearchQuery(val);
-    setSuccessResult(null);
+    setSuccess(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") handleSearch();
   };
 
-  const addToCart = (item: DomainTldResult) => {
-    const key = `${searchData!.name}${item.tld}`;
+  const addToCart = (result: TldResult) => {
+    const key = `${searchData!.name}${result.tld}`;
     if (cart.some(c => `${c.name}${c.tld}` === key)) {
       toast({ title: "Already in cart", description: key });
       return;
     }
-    setCart(prev => [...prev, { name: searchData!.name, tld: item.tld, price: item.registrationPrice, period: 1 }]);
+    const prices: { 1: number; 2: number; 3: number } = {
+      1: result.registrationPrice,
+      2: result.register2YearPrice ?? result.registrationPrice * 2,
+      3: result.register3YearPrice ?? result.registrationPrice * 3,
+    };
+    setCart(prev => [...prev, { name: searchData!.name, tld: result.tld, prices, period: 1 }]);
     setShowCart(true);
     toast({ title: "Added to cart", description: key });
   };
 
-  const removeFromCart = (idx: number) => {
-    setCart(prev => prev.filter((_, i) => i !== idx));
-  };
+  const removeFromCart = (idx: number) => setCart(prev => prev.filter((_, i) => i !== idx));
 
-  const updatePeriod = (idx: number, period: number) => {
+  const updatePeriod = (idx: number, period: 1 | 2 | 3) => {
     setCart(prev => prev.map((item, i) => i === idx ? { ...item, period } : item));
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.period, 0);
-
-  const handleCheckout = async () => {
+  const handleGoToReview = () => {
     if (cart.length === 0) return;
+    setShowCart(false);
+    setOrderView("review");
+  };
+
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0 || checkingOut) return;
+    setCheckingOut(true);
     const errors: string[] = [];
-    let lastResult: any = null;
+    let lastSuccess: OrderSuccess | null = null;
 
     for (const item of cart) {
-      setOrderingDomain(`${item.name}${item.tld}`);
       try {
         const token = localStorage.getItem("token");
         const res = await fetch("/api/checkout/domain", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            domain: item.name,
-            tld: item.tld,
-            amount: item.price * item.period,
-            period: item.period,
-          }),
+          body: JSON.stringify({ domain: item.name, tld: item.tld, period: item.period }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to place order");
-        lastResult = data;
+        lastSuccess = {
+          domain: data.order?.domain || `${item.name}${item.tld}`,
+          invoiceNumber: data.invoice?.invoiceNumber || "",
+          amount: data.invoice?.amount || getPriceForPeriod(item),
+          period: item.period,
+          invoiceDueDate: data.invoice?.dueDate || null,
+        };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : `Failed to register ${item.name}${item.tld}`;
         errors.push(msg);
       }
     }
 
-    setOrderingDomain(null);
+    setCheckingOut(false);
 
-    if (errors.length > 0 && !lastResult) {
+    if (errors.length > 0 && !lastSuccess) {
       toast({ title: "Order failed", description: errors[0], variant: "destructive" });
       return;
     }
 
-    if (lastResult) {
-      setSuccessResult({ domain: lastResult.order?.domain, invoiceNumber: lastResult.invoice?.invoiceNumber } as any);
+    if (lastSuccess) {
+      setSuccess(lastSuccess);
+      setOrderView("success");
       queryClient.invalidateQueries({ queryKey: ["my-domains"] });
       setCart([]);
-      setShowCart(false);
       setSearchQuery(null);
       setSearchInput("");
-      toast({ title: "Domain order placed!", description: `Order submitted for admin approval. Invoice: ${lastResult.invoice?.invoiceNumber}` });
     }
   };
 
@@ -198,7 +235,7 @@ export default function ClientDomains() {
           <p className="text-muted-foreground mt-1">Register and manage your domain names.</p>
         </div>
         <div className="flex items-center gap-3">
-          {cart.length > 0 && (
+          {cart.length > 0 && activeTab === "order" && orderView === "search" && (
             <button
               onClick={() => setShowCart(true)}
               className="relative flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 rounded-xl text-primary hover:bg-primary/20 transition-colors font-medium text-sm"
@@ -211,7 +248,7 @@ export default function ClientDomains() {
             </button>
           )}
           <button
-            onClick={() => { setActiveTab("order"); setTimeout(() => inputRef.current?.focus(), 100); }}
+            onClick={() => { setActiveTab("order"); setOrderView("search"); setTimeout(() => inputRef.current?.focus(), 100); }}
             className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium text-sm shadow-lg shadow-primary/20 transition-colors"
           >
             <Globe size={16} /> Order New Domain
@@ -233,8 +270,21 @@ export default function ClientDomains() {
 
       {activeTab === "order" && (
         <div className="space-y-6">
-          {successResult ? (
-            <SuccessBanner result={successResult} onOrderMore={() => { setSuccessResult(null); setActiveTab("my-domains"); }} onPayInvoice={() => navigate("/client/invoices")} />
+          {orderView === "success" && success ? (
+            <SuccessBanner
+              success={success}
+              onOrderMore={() => { setSuccess(null); setOrderView("search"); setActiveTab("my-domains"); }}
+              onPayInvoice={() => navigate("/client/invoices")}
+            />
+          ) : orderView === "review" ? (
+            <ReviewStep
+              cart={cart}
+              onBack={() => { setOrderView("search"); setShowCart(true); }}
+              onUpdatePeriod={updatePeriod}
+              onRemove={removeFromCart}
+              onPlaceOrder={handlePlaceOrder}
+              isLoading={checkingOut}
+            />
           ) : (
             <>
               <div className="bg-card border border-border rounded-2xl p-6 shadow-lg shadow-black/5">
@@ -261,7 +311,7 @@ export default function ClientDomains() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Availability checked via RDAP — the official domain registration data protocol.
+                  Availability checked via RDAP — only TLDs configured by admin are shown.
                 </p>
               </div>
 
@@ -270,7 +320,7 @@ export default function ClientDomains() {
                   <AlertCircle size={20} />
                   <div>
                     <p className="font-medium">Search failed</p>
-                    <p className="text-sm">{searchError.message || "Please check your domain name and try again."}</p>
+                    <p className="text-sm">{(searchError as Error).message || "Please check your domain name and try again."}</p>
                   </div>
                 </div>
               )}
@@ -281,20 +331,29 @@ export default function ClientDomains() {
                     <h3 className="font-display font-bold text-lg">
                       Results for <span className="text-primary font-mono">{searchData.name}</span>
                     </h3>
-                    <p className="text-sm text-muted-foreground">{searchData.results.filter(r => r.available).length} of {searchData.results.length} TLDs available</p>
+                    <p className="text-sm text-muted-foreground">
+                      {searchData.results.filter(r => r.available).length} of {searchData.results.length} TLDs available
+                    </p>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {searchData.results.map(result => (
-                      <TldCard
-                        key={result.tld}
-                        name={searchData.name}
-                        result={result}
-                        inCart={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
-                        onAddToCart={() => addToCart(result)}
-                      />
-                    ))}
-                  </div>
+                  {searchData.results.length === 0 ? (
+                    <div className="bg-card border border-border/50 border-dashed rounded-3xl p-12 text-center">
+                      <Globe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
+                      <h3 className="text-xl font-bold text-foreground">No TLDs configured</h3>
+                      <p className="text-muted-foreground mt-2">Admin has not added any active domain extensions yet.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {searchData.results.map(result => (
+                        <TldCard
+                          key={result.tld}
+                          name={searchData.name}
+                          result={result}
+                          inCart={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
+                          onAddToCart={() => addToCart(result)}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -305,13 +364,8 @@ export default function ClientDomains() {
                   </div>
                   <h3 className="text-xl font-display font-bold text-foreground">Find Your Perfect Domain</h3>
                   <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
-                    Type a domain name above to check availability across .com, .net, .org, .co, .io, .uk and more.
+                    Type a domain name above to check availability across all TLDs configured by your admin.
                   </p>
-                  <div className="flex flex-wrap justify-center gap-2 mt-6">
-                    {[".com", ".net", ".org", ".co", ".io", ".uk"].map(tld => (
-                      <span key={tld} className="px-3 py-1 bg-secondary border border-border rounded-lg text-sm font-mono text-muted-foreground">{tld}</span>
-                    ))}
-                  </div>
                 </div>
               )}
             </>
@@ -337,7 +391,6 @@ export default function ClientDomains() {
               const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
               const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft < 30;
-
               return (
                 <div key={domain.id} className="bg-card border border-border rounded-2xl p-6 hover:border-primary/30 transition-all group">
                   <div className="flex items-start justify-between gap-4">
@@ -370,7 +423,6 @@ export default function ClientDomains() {
                       </Button>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-5 border-t border-border/50">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Registered</p>
@@ -382,9 +434,7 @@ export default function ClientDomains() {
                       <p className="text-xs text-muted-foreground mb-1">Expires</p>
                       <p className={`text-sm font-medium ${isExpiringSoon ? "text-orange-400" : ""}`}>
                         {expiryDate ? format(expiryDate, "MMM d, yyyy") : "N/A"}
-                        {daysLeft !== null && (
-                          <span className="text-xs ml-1 text-muted-foreground">({daysLeft}d)</span>
-                        )}
+                        {daysLeft !== null && <span className="text-xs ml-1 text-muted-foreground">({daysLeft}d)</span>}
                       </p>
                     </div>
                     <div>
@@ -417,10 +467,8 @@ export default function ClientDomains() {
           onClose={() => setShowCart(false)}
           onRemove={removeFromCart}
           onUpdatePeriod={updatePeriod}
-          onCheckout={handleCheckout}
-          isLoading={registerMutation.isPending}
-          orderingDomain={orderingDomain}
-          total={cartTotal}
+          onReview={handleGoToReview}
+          total={getCartTotal(cart)}
         />
       )}
 
@@ -428,10 +476,7 @@ export default function ClientDomains() {
         <DnsModal
           domain={dnsModal}
           onClose={() => setDnsModal(null)}
-          onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ["my-domains"] });
-            setDnsModal(null);
-          }}
+          onSaved={() => { queryClient.invalidateQueries({ queryKey: ["my-domains"] }); setDnsModal(null); }}
         />
       )}
 
@@ -452,11 +497,9 @@ export default function ClientDomains() {
                 <X size={18} />
               </button>
             </div>
-
             <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-              Use this authorization code to initiate a domain transfer to another registrar. Keep it confidential and provide it only when requested by your new registrar.
+              Use this authorization code to initiate a domain transfer to another registrar. Keep it confidential.
             </p>
-
             <div className="bg-secondary rounded-xl p-4 mb-4">
               {eppLoading ? (
                 <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
@@ -466,11 +509,7 @@ export default function ClientDomains() {
               ) : eppCode ? (
                 <div className="flex items-center justify-between gap-3">
                   <code className="font-mono text-base font-bold text-primary tracking-wider break-all">{eppCode}</code>
-                  <button
-                    onClick={copyEppCode}
-                    className="shrink-0 p-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
-                    title="Copy to clipboard"
-                  >
+                  <button onClick={copyEppCode} className="shrink-0 p-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors" title="Copy to clipboard">
                     {eppCopied ? <CheckCheck size={15} /> : <Copy size={15} />}
                   </button>
                 </div>
@@ -478,15 +517,11 @@ export default function ClientDomains() {
                 <p className="text-sm text-muted-foreground text-center py-2">Unable to retrieve auth code.</p>
               )}
             </div>
-
             <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>This code is valid for domain transfer only. Keep it private. Generate a new code if it becomes compromised.</span>
+              <span>This code is valid for domain transfer only. Keep it private.</span>
             </div>
-
-            <Button className="w-full mt-4" variant="outline" onClick={() => { setEppModal(null); setEppCode(null); }}>
-              Close
-            </Button>
+            <Button className="w-full mt-4" variant="outline" onClick={() => { setEppModal(null); setEppCode(null); }}>Close</Button>
           </div>
         </div>
       )}
@@ -496,7 +531,7 @@ export default function ClientDomains() {
 
 function TldCard({ name, result, inCart, onAddToCart }: {
   name: string;
-  result: DomainTldResult;
+  result: TldResult;
   inCart: boolean;
   onAddToCart: () => void;
 }) {
@@ -543,44 +578,45 @@ function TldCard({ name, result, inCart, onAddToCart }: {
         <div>
           <p className="text-2xl font-bold text-foreground">{formatPrice(result.registrationPrice)}</p>
           <p className="text-xs text-muted-foreground">/year · renews {formatPrice(result.renewalPrice)}/yr</p>
+          {(result.register2YearPrice || result.register3YearPrice) && (
+            <div className="flex gap-2 mt-1.5">
+              {result.register2YearPrice && (
+                <span className="text-xs bg-secondary border border-border px-1.5 py-0.5 rounded text-muted-foreground">
+                  2yr: {formatPrice(result.register2YearPrice)}
+                </span>
+              )}
+              {result.register3YearPrice && (
+                <span className="text-xs bg-secondary border border-border px-1.5 py-0.5 rounded text-muted-foreground">
+                  3yr: {formatPrice(result.register3YearPrice)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-
         {result.available ? (
           inCart ? (
             <span className="flex items-center gap-1.5 text-primary text-sm font-medium">
               <BadgeCheck size={16} /> In Cart
             </span>
           ) : (
-            <Button
-              size="sm"
-              onClick={onAddToCart}
-              className="bg-primary hover:bg-primary/90 text-white gap-1.5 h-9"
-            >
+            <Button size="sm" onClick={onAddToCart} className="bg-primary hover:bg-primary/90 text-white gap-1.5 h-9">
               <ShoppingCart size={14} /> Add
             </Button>
           )
         ) : (
-          <Button size="sm" variant="ghost" disabled className="h-9 text-muted-foreground">
-            Taken
-          </Button>
+          <Button size="sm" variant="ghost" disabled className="h-9 text-muted-foreground">Taken</Button>
         )}
       </div>
-
-      {!result.available && result.rdapStatus !== "taken" && (
-        <p className="text-xs text-muted-foreground mt-2">This domain name is registered</p>
-      )}
     </div>
   );
 }
 
-function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoading, orderingDomain, total }: {
+function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onReview, total }: {
   cart: CartItem[];
   onClose: () => void;
   onRemove: (idx: number) => void;
-  onUpdatePeriod: (idx: number, period: number) => void;
-  onCheckout: () => void;
-  isLoading: boolean;
-  orderingDomain: string | null;
+  onUpdatePeriod: (idx: number, period: 1 | 2 | 3) => void;
+  onReview: () => void;
   total: number;
 }) {
   const { formatPrice } = useCurrency();
@@ -608,7 +644,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
                     <span>{item.name}</span><span className="text-primary">{item.tld}</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {formatPrice(item.price)}/year × {item.period} year{item.period > 1 ? "s" : ""} = <span className="text-foreground font-semibold">{formatPrice(item.price * item.period)}</span>
+                    {item.period} year{item.period > 1 ? "s" : ""} — <span className="text-foreground font-semibold">{formatPrice(getPriceForPeriod(item))}</span>
                   </p>
                 </div>
                 <button onClick={() => onRemove(idx)} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
@@ -619,7 +655,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
               <div>
                 <label className="text-xs text-muted-foreground mb-1.5 block">Registration Period</label>
                 <div className="flex gap-2">
-                  {[1, 2, 3].map(yr => (
+                  {([1, 2, 3] as (1 | 2 | 3)[]).map(yr => (
                     <button
                       key={yr}
                       onClick={() => onUpdatePeriod(idx, yr)}
@@ -629,7 +665,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
                           : "bg-background border-border text-muted-foreground hover:border-primary/40"
                       }`}
                     >
-                      {yr}yr
+                      {yr}yr — {formatPrice(item.prices[yr])}
                     </button>
                   ))}
                 </div>
@@ -643,7 +679,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
             {cart.map((item, idx) => (
               <div key={idx} className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-mono">{item.name}{item.tld}</span>
-                <span>{formatPrice(item.price * item.period)}</span>
+                <span>{formatPrice(getPriceForPeriod(item))}</span>
               </div>
             ))}
             <div className="flex justify-between font-bold text-lg border-t border-border pt-2 mt-2">
@@ -652,27 +688,16 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
             </div>
           </div>
 
-          {orderingDomain && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 rounded-lg p-3">
-              <Loader2 className="animate-spin text-primary" size={16} />
-              <span>Registering <span className="font-mono text-foreground">{orderingDomain}</span>…</span>
-            </div>
-          )}
-
           <Button
-            onClick={onCheckout}
-            disabled={isLoading || cart.length === 0}
+            onClick={onReview}
+            disabled={cart.length === 0}
             className="w-full bg-primary hover:bg-primary/90 text-white h-12 font-bold text-base gap-2 shadow-lg shadow-primary/20"
           >
-            {isLoading ? (
-              <><Loader2 className="animate-spin" size={18} /> Processing…</>
-            ) : (
-              <><ChevronRight size={18} /> Complete Order — {formatPrice(total)}</>
-            )}
+            <ClipboardList size={18} /> Review Order
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            An invoice will be generated. Domain activates after admin approval.
+            Review your order before payment. Domain activates after admin approval.
           </p>
         </div>
       </div>
@@ -680,7 +705,130 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
   );
 }
 
-function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRegisterResponse; onOrderMore: () => void; onPayInvoice: () => void }) {
+function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLoading }: {
+  cart: CartItem[];
+  onBack: () => void;
+  onUpdatePeriod: (idx: number, period: 1 | 2 | 3) => void;
+  onRemove: (idx: number) => void;
+  onPlaceOrder: () => void;
+  isLoading: boolean;
+}) {
+  const { formatPrice } = useCurrency();
+  const total = getCartTotal(cart);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-sm">
+          <ArrowLeft size={16} /> Back to Cart
+        </button>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="p-5 border-b border-border bg-secondary/30">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
+              <ClipboardList size={18} className="text-primary" />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground text-lg">Review Your Order</h3>
+              <p className="text-xs text-muted-foreground">Check the details before placing your order</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {cart.map((item, idx) => (
+            <div key={idx} className="bg-background border border-border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{TLD_ICONS[item.tld] || "🌐"}</span>
+                  <div>
+                    <p className="font-mono font-bold text-foreground text-lg">
+                      <span>{item.name}</span><span className="text-primary">{item.tld}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">Domain Registration</p>
+                  </div>
+                </div>
+                <button onClick={() => onRemove(idx)} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Registration Period</p>
+                <div className="flex gap-2">
+                  {([1, 2, 3] as (1 | 2 | 3)[]).map(yr => (
+                    <button
+                      key={yr}
+                      onClick={() => onUpdatePeriod(idx, yr)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                        item.period === yr
+                          ? "bg-primary border-primary text-white shadow-md shadow-primary/20"
+                          : "bg-card border-border text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      <span className="block">{yr} Year{yr > 1 ? "s" : ""}</span>
+                      <span className={`block text-xs font-normal mt-0.5 ${item.period === yr ? "text-white/80" : "text-muted-foreground"}`}>
+                        {formatPrice(item.prices[yr])}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mt-3 pt-3 border-t border-border">
+                <span className="text-sm text-muted-foreground">Subtotal</span>
+                <span className="font-bold text-foreground">{formatPrice(getPriceForPeriod(item))}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-5 border-t border-border bg-secondary/20 space-y-4">
+          <div className="space-y-2">
+            {cart.map((item, idx) => (
+              <div key={idx} className="flex justify-between text-sm">
+                <span className="text-muted-foreground font-mono">{item.name}{item.tld} ({item.period}yr)</span>
+                <span>{formatPrice(getPriceForPeriod(item))}</span>
+              </div>
+            ))}
+            <div className="flex justify-between font-bold text-xl border-t border-border pt-3 mt-2">
+              <span>Total Due</span>
+              <span className="text-primary">{formatPrice(total)}</span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-300 text-sm">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-200 mb-0.5">What happens next?</p>
+              <p>An invoice will be generated. Your domain will be activated after admin approval and payment confirmation.</p>
+            </div>
+          </div>
+
+          <Button
+            onClick={onPlaceOrder}
+            disabled={isLoading || cart.length === 0}
+            className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold text-base gap-2 shadow-lg shadow-primary/20"
+          >
+            {isLoading ? (
+              <><Loader2 className="animate-spin" size={18} /> Placing Order…</>
+            ) : (
+              <><ChevronRight size={18} /> Place Order — {formatPrice(total)}</>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuccessBanner({ success, onOrderMore, onPayInvoice }: {
+  success: OrderSuccess;
+  onOrderMore: () => void;
+  onPayInvoice: () => void;
+}) {
   const { formatPrice } = useCurrency();
   return (
     <div className="bg-card border border-emerald-500/30 rounded-3xl overflow-hidden shadow-2xl shadow-emerald-500/5 relative">
@@ -689,32 +837,32 @@ function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRe
         <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 className="w-10 h-10 text-emerald-400" />
         </div>
-        <h3 className="text-2xl font-display font-bold text-foreground">Domain Registered!</h3>
+        <h3 className="text-2xl font-display font-bold text-foreground">Order Placed!</h3>
         <p className="text-muted-foreground mt-2 text-lg">
-          <span className="font-mono text-foreground font-bold">{result.domain.name}{result.domain.tld}</span> is now active.
+          <span className="font-mono text-foreground font-bold">{success.domain}</span> is pending approval.
         </p>
 
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left max-w-lg mx-auto">
           <div className="bg-background/60 border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Domain</p>
-            <p className="font-mono font-bold text-sm">{result.domain.name}{result.domain.tld}</p>
+            <p className="font-mono font-bold text-sm">{success.domain}</p>
           </div>
           <div className="bg-background/60 border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Invoice</p>
-            <p className="font-bold text-sm">{result.invoice?.invoiceNumber || "Pending"}</p>
+            <p className="font-bold text-sm">{success.invoiceNumber || "Pending"}</p>
           </div>
           <div className="bg-background/60 border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Amount Due</p>
-            <p className="font-bold text-sm text-primary">{typeof result.invoice?.total === "number" ? formatPrice(result.invoice.total) : (result.invoice?.total || "—")}</p>
+            <p className="font-bold text-sm text-primary">{formatPrice(success.amount)}</p>
           </div>
         </div>
 
-        {result.invoice && (
+        {success.invoiceDueDate && (
           <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl max-w-lg mx-auto text-sm text-blue-300 flex items-start gap-3">
             <AlertCircle size={16} className="shrink-0 mt-0.5" />
             <span>
-              Invoice <strong>{result.invoice.invoiceNumber}</strong> has been created and is due by{" "}
-              {result.invoice.dueDate ? format(new Date(result.invoice.dueDate), "MMM d, yyyy") : "soon"}. Visit the Invoices section to pay.
+              Invoice <strong>{success.invoiceNumber}</strong> is due by{" "}
+              {format(new Date(success.invoiceDueDate), "MMM d, yyyy")}. Visit the Invoices section to pay.
             </span>
           </div>
         )}
@@ -787,10 +935,8 @@ function DnsModal({ domain, onClose, onSaved }: {
             <X size={20} />
           </button>
         </div>
-
         <div className="p-5 space-y-3">
           <p className="text-sm text-muted-foreground">Update the nameservers for your domain. Changes may take up to 48 hours to propagate.</p>
-
           <div className="space-y-2">
             {nameservers.map((ns, idx) => (
               <div key={idx} className="flex gap-2 items-center">
@@ -809,19 +955,16 @@ function DnsModal({ domain, onClose, onSaved }: {
               </div>
             ))}
           </div>
-
           {nameservers.length < 6 && (
             <button onClick={addRow} className="flex items-center gap-1.5 text-xs text-primary hover:underline mt-1">
               <Plus size={13} /> Add nameserver
             </button>
           )}
-
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-300 flex gap-2 mt-4">
             <AlertCircle size={14} className="shrink-0 mt-0.5 text-blue-400" />
             <span>DNS propagation can take up to 48 hours. During this time your domain may be temporarily unavailable.</span>
           </div>
         </div>
-
         <div className="flex gap-3 p-5 border-t border-border">
           <Button onClick={handleSave} disabled={saving} className="flex-1 bg-primary hover:bg-primary/90 gap-2">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}

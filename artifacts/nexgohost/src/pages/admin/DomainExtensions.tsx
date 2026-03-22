@@ -11,7 +11,11 @@ interface DomainExtension {
   id: string;
   extension: string;
   registerPrice: string;
+  register2YearPrice: string | null;
+  register3YearPrice: string | null;
   renewalPrice: string;
+  renew2YearPrice: string | null;
+  renew3YearPrice: string | null;
   transferPrice: string;
   privacyEnabled: boolean;
   status: "active" | "inactive";
@@ -24,7 +28,12 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return res.json();
 }
 
-const EMPTY = { extension: "", registerPrice: "", renewalPrice: "", transferPrice: "", privacyEnabled: true };
+const EMPTY = {
+  extension: "",
+  registerPrice: "", register2YearPrice: "", register3YearPrice: "",
+  renewalPrice: "", renew2YearPrice: "", renew3YearPrice: "",
+  transferPrice: "", privacyEnabled: true,
+};
 
 export default function DomainExtensions() {
   const { toast } = useToast();
@@ -46,15 +55,26 @@ export default function DomainExtensions() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.extension || !form.registerPrice || !form.renewalPrice || !form.transferPrice) {
-      toast({ title: "Error", description: "All price fields are required", variant: "destructive" }); return;
+      toast({ title: "Error", description: "Extension, 1-year register/renewal, and transfer price are required", variant: "destructive" }); return;
     }
     setSaving(true);
     try {
+      const body = {
+        extension: form.extension,
+        registerPrice: form.registerPrice,
+        register2YearPrice: form.register2YearPrice || null,
+        register3YearPrice: form.register3YearPrice || null,
+        renewalPrice: form.renewalPrice,
+        renew2YearPrice: form.renew2YearPrice || null,
+        renew3YearPrice: form.renew3YearPrice || null,
+        transferPrice: form.transferPrice,
+        privacyEnabled: form.privacyEnabled,
+      };
       if (editId) {
-        await apiFetch(`/api/admin/domain-extensions/${editId}`, { method: "PUT", body: JSON.stringify(form) });
+        await apiFetch(`/api/admin/domain-extensions/${editId}`, { method: "PUT", body: JSON.stringify(body) });
         toast({ title: "Extension updated" });
       } else {
-        await apiFetch("/api/admin/domain-extensions", { method: "POST", body: JSON.stringify(form) });
+        await apiFetch("/api/admin/domain-extensions", { method: "POST", body: JSON.stringify(body) });
         toast({ title: "Extension added", description: `${form.extension} is now available.` });
       }
       queryClient.invalidateQueries({ queryKey: ["admin-domain-extensions"] });
@@ -66,7 +86,17 @@ export default function DomainExtensions() {
 
   const handleEdit = (ext: DomainExtension) => {
     setEditId(ext.id);
-    setForm({ extension: ext.extension, registerPrice: ext.registerPrice, renewalPrice: ext.renewalPrice, transferPrice: ext.transferPrice, privacyEnabled: ext.privacyEnabled });
+    setForm({
+      extension: ext.extension,
+      registerPrice: ext.registerPrice,
+      register2YearPrice: ext.register2YearPrice || "",
+      register3YearPrice: ext.register3YearPrice || "",
+      renewalPrice: ext.renewalPrice,
+      renew2YearPrice: ext.renew2YearPrice || "",
+      renew3YearPrice: ext.renew3YearPrice || "",
+      transferPrice: ext.transferPrice,
+      privacyEnabled: ext.privacyEnabled,
+    });
     setShowForm(true);
   };
 
@@ -93,6 +123,8 @@ export default function DomainExtensions() {
     }
   };
 
+  const priceOrDash = (v: string | null | undefined) => v ? formatPrice(Number(v)) : <span className="text-muted-foreground/40">—</span>;
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between">
@@ -106,41 +138,68 @@ export default function DomainExtensions() {
       </div>
 
       {showForm && (
-        <div className="bg-card border border-border rounded-2xl p-6 max-w-2xl">
+        <div className="bg-card border border-border rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-5 pb-4 border-b border-border/50">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <Globe size={18} className="text-primary" />
             </div>
             <h2 className="font-semibold">{editId ? "Edit Extension" : "Add Domain Extension"}</h2>
           </div>
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-5">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Extension (e.g. .com)</label>
-              <Input value={form.extension} onChange={set("extension")} placeholder=".com" disabled={!!editId} />
+              <Input value={form.extension} onChange={set("extension")} placeholder=".com" disabled={!!editId} className="max-w-xs" />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { field: "registerPrice", label: "Register Price (Rs.)" },
-                { field: "renewalPrice", label: "Renewal Price (Rs.)" },
-                { field: "transferPrice", label: "Transfer Price (Rs.)" },
-              ].map(({ field, label }) => (
-                <div key={field} className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground/80">{label}</label>
-                  <Input type="number" step="0.01" min="0" value={form[field as keyof typeof form] as string} onChange={set(field)} placeholder="12.99" />
-                </div>
-              ))}
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Registration Pricing (PKR)</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { field: "registerPrice", label: "1 Year *" },
+                  { field: "register2YearPrice", label: "2 Years" },
+                  { field: "register3YearPrice", label: "3 Years" },
+                ].map(({ field, label }) => (
+                  <div key={field} className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground/70">{label}</label>
+                    <Input type="number" step="0.01" min="0" value={form[field as keyof typeof form] as string} onChange={set(field)} placeholder="0.00" />
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Renewal Pricing (PKR)</p>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { field: "renewalPrice", label: "1 Year *" },
+                  { field: "renew2YearPrice", label: "2 Years" },
+                  { field: "renew3YearPrice", label: "3 Years" },
+                ].map(({ field, label }) => (
+                  <div key={field} className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground/70">{label}</label>
+                    <Input type="number" step="0.01" min="0" value={form[field as keyof typeof form] as string} onChange={set(field)} placeholder="0.00" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 max-w-xs">
+              <label className="text-sm font-medium text-foreground/80">Transfer Price (PKR) *</label>
+              <Input type="number" step="0.01" min="0" value={form.transferPrice} onChange={set("transferPrice")} placeholder="0.00" />
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl max-w-md">
               <Shield size={16} className="text-primary" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Domain Privacy Protection</p>
-                <p className="text-xs text-muted-foreground">Free WHOIS privacy (like Hostinger)</p>
+                <p className="text-xs text-muted-foreground">Free WHOIS privacy for clients</p>
               </div>
               <button type="button" onClick={() => setForm(f => ({ ...f, privacyEnabled: !f.privacyEnabled }))}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.privacyEnabled ? "bg-primary" : "bg-muted"}`}>
                 <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.privacyEnabled ? "translate-x-6" : "translate-x-1"}`} />
               </button>
             </div>
+
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                 {saving && <Loader2 size={16} className="animate-spin mr-2" />}
@@ -153,58 +212,68 @@ export default function DomainExtensions() {
       )}
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-secondary/50 border-b border-border">
-              <th className="p-4 text-sm font-medium text-muted-foreground">Extension</th>
-              <th className="p-4 text-sm font-medium text-muted-foreground">Register</th>
-              <th className="p-4 text-sm font-medium text-muted-foreground">Renewal</th>
-              <th className="p-4 text-sm font-medium text-muted-foreground">Transfer</th>
-              <th className="p-4 text-sm font-medium text-muted-foreground">Privacy</th>
-              <th className="p-4 text-sm font-medium text-muted-foreground">Status</th>
-              <th className="p-4 text-sm font-medium text-muted-foreground text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={7} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
-            ) : extensions.length === 0 ? (
-              <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
-            ) : extensions.map(ext => (
-              <tr key={ext.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                <td className="p-4 font-mono font-semibold text-primary">{ext.extension}</td>
-                <td className="p-4 text-sm">{formatPrice(Number(ext.registerPrice))}/yr</td>
-                <td className="p-4 text-sm">{formatPrice(Number(ext.renewalPrice))}/yr</td>
-                <td className="p-4 text-sm">{formatPrice(Number(ext.transferPrice))}</td>
-                <td className="p-4">
-                  <button onClick={() => handleToggle(ext, "privacyEnabled")}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.privacyEnabled ? "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
-                    {ext.privacyEnabled ? <Shield size={11} /> : <ShieldOff size={11} />}
-                    {ext.privacyEnabled ? "Free" : "Off"}
-                  </button>
-                </td>
-                <td className="p-4">
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                    ext.status === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-secondary text-muted-foreground border-border"
-                  }`}>{ext.status}</span>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-1 justify-end">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleToggle(ext, "status")}>
-                      {ext.status === "active" ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} className="text-muted-foreground" />}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleEdit(ext)}>
-                      <Pencil size={15} className="text-muted-foreground" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDelete(ext.id)}>
-                      <Trash2 size={15} className="text-destructive" />
-                    </Button>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr className="bg-secondary/50 border-b border-border">
+                <th className="p-4 text-sm font-medium text-muted-foreground">Extension</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Reg 1yr</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Reg 2yr</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Reg 3yr</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Ren 1yr</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Ren 2yr</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Ren 3yr</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Transfer</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Privacy</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Status</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={11} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
+              ) : extensions.length === 0 ? (
+                <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
+              ) : extensions.map(ext => (
+                <tr key={ext.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                  <td className="p-4 font-mono font-semibold text-primary">{ext.extension}</td>
+                  <td className="p-4 text-sm">{formatPrice(Number(ext.registerPrice))}</td>
+                  <td className="p-4 text-sm">{priceOrDash(ext.register2YearPrice)}</td>
+                  <td className="p-4 text-sm">{priceOrDash(ext.register3YearPrice)}</td>
+                  <td className="p-4 text-sm">{formatPrice(Number(ext.renewalPrice))}</td>
+                  <td className="p-4 text-sm">{priceOrDash(ext.renew2YearPrice)}</td>
+                  <td className="p-4 text-sm">{priceOrDash(ext.renew3YearPrice)}</td>
+                  <td className="p-4 text-sm">{formatPrice(Number(ext.transferPrice))}</td>
+                  <td className="p-4">
+                    <button onClick={() => handleToggle(ext, "privacyEnabled")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.privacyEnabled ? "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
+                      {ext.privacyEnabled ? <Shield size={11} /> : <ShieldOff size={11} />}
+                      {ext.privacyEnabled ? "Free" : "Off"}
+                    </button>
+                  </td>
+                  <td className="p-4">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                      ext.status === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-secondary text-muted-foreground border-border"
+                    }`}>{ext.status}</span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleToggle(ext, "status")}>
+                        {ext.status === "active" ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} className="text-muted-foreground" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleEdit(ext)}>
+                        <Pencil size={15} className="text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDelete(ext.id)}>
+                        <Trash2 size={15} className="text-destructive" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </motion.div>
   );

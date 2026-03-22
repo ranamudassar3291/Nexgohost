@@ -1,0 +1,133 @@
+Analyze the Nexgohost project and fix the domain TLD system, pricing structure, and order flow without breaking existing functionality.
+
+========================
+🌐 TLD PRICING SYSTEM (MULTI-YEAR)
+==================================
+
+Update TLD management system:
+
+For each TLD add pricing fields:
+
+register_1_year_price
+register_2_year_price
+register_3_year_price
+
+renew_1_year_price
+renew_2_year_price
+renew_3_year_price
+
+transfer_price
+
+Ensure all values are saved in database.
+
+========================
+🌐 CLIENT DOMAIN DISPLAY FIX
+============================
+
+Fix domain register page:
+
+Only show TLDs that admin has added.
+
+Do NOT show hardcoded extensions.
+
+Load TLDs dynamically from database.
+
+========================
+🌐 DOMAIN ORDER FLOW FIX
+========================
+
+Fix domain order process:
+
+When client searches domain:
+
+Select domain
+Select duration (1 year / 2 year / 3 year)
+
+Click continue →
+
+Go to "Review Order" page
+
+Then:
+
+Click checkout →
+
+Generate invoice
+
+IMPORTANT:
+
+Do NOT skip review step
+Do NOT go directly to invoice
+
+========================
+🛒 DOMAIN CART SYSTEM
+=====================
+
+Add domain to cart properly:
+
+Cart must show:
+
+Domain name
+Selected TLD
+Selected duration
+Price
+
+Ensure correct total calculation.
+
+========================
+💰 PRICE CALCULATION FIX
+========================
+
+Fix pricing:
+
+If 1 year → use register_1_year_price
+If 2 year → use register_2_year_price
+If 3 year → use register_3_year_price
+
+Ensure correct PKR format:
+
+Rs. 1,000.00
+
+========================
+🧾 INVOICE GENERATION FIX
+=========================
+
+After checkout:
+
+Generate ONLY ONE invoice.
+
+Invoice must include:
+
+Domain name
+Duration
+Price
+
+Ensure no duplicate invoices.
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+Wrong TLD display
+Missing pricing
+Broken order flow
+Direct invoice skip
+
+Ensure:
+
+Admin controls all TLDs
+Client sees correct options
+Order → Review → Invoice flow works
+
+========================
+🎯 GOAL
+=======
+
+Create a fully working domain system with:
+
+Multi-year pricing
+Dynamic TLD display
+Proper cart system
+Correct order flow
+Single invoice generation

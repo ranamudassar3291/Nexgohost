@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
+  domainExtensionsTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
@@ -273,20 +274,39 @@ async function handleCheckout(req: AuthRequest, res: any) {
 // POST /api/checkout/domain — domain-only order
 async function handleDomainCheckout(req: AuthRequest, res: any) {
   try {
-    const { domain, tld, amount, paymentMethodId } = req.body;
+    const { domain, tld, period = 1 } = req.body;
     if (!domain || !tld) {
       res.status(400).json({ error: "domain and tld are required" });
       return;
     }
 
+    const registrationYears = Math.min(3, Math.max(1, Number(period) || 1));
+
     const [user] = await db.select().from(usersTable)
       .where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    const fullDomain = domain + tld;
-    const orderAmount = Number(amount) || 0;
+    const cleanTld = tld.startsWith(".") ? tld : `.${tld}`;
+    const [ext] = await db.select().from(domainExtensionsTable)
+      .where(eq(domainExtensionsTable.extension, cleanTld)).limit(1);
 
-    // Create domain order
+    let orderAmount = 0;
+    if (ext) {
+      if (registrationYears === 3 && ext.register3YearPrice) {
+        orderAmount = Number(ext.register3YearPrice);
+      } else if (registrationYears === 2 && ext.register2YearPrice) {
+        orderAmount = Number(ext.register2YearPrice);
+      } else {
+        orderAmount = Number(ext.registerPrice) * registrationYears;
+      }
+    } else {
+      res.status(400).json({ error: `TLD ${cleanTld} is not supported` });
+      return;
+    }
+
+    const fullDomain = domain.replace(/^\./, "") + cleanTld;
+    const periodLabel = `${registrationYears} year${registrationYears > 1 ? "s" : ""}`;
+
     const [order] = await db.insert(ordersTable).values({
       clientId: req.user!.userId,
       type: "domain",
@@ -294,12 +314,11 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       itemName: fullDomain,
       domain: fullDomain,
       amount: String(orderAmount.toFixed(2)),
-      billingCycle: "yearly",
+      billingCycle: registrationYears === 1 ? "yearly" : `${registrationYears}years`,
       status: "pending",
-      notes: `Domain registration: ${fullDomain}`,
+      notes: `Domain registration: ${fullDomain} (${periodLabel})`,
     }).returning();
 
-    // Create invoice
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -316,7 +335,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       status: "unpaid",
       dueDate,
       items: [{
-        description: `Domain Registration: ${fullDomain} (1 year)`,
+        description: `Domain Registration: ${fullDomain} (${periodLabel})`,
         quantity: 1,
         unitPrice: orderAmount,
         total: orderAmount,
