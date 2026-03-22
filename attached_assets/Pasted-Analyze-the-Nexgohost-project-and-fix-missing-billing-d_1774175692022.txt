@@ -1,0 +1,229 @@
+Analyze the Nexgohost project and fix missing billing, domain, and order management features without breaking existing functionality.
+
+========================
+💱 CURRENCY FIX (IMPORTANT)
+===========================
+
+Fix all currency issues:
+
+Remove USD completely.
+
+Set system currency to PKR.
+
+Fix admin panel Packages page:
+All prices must display in PKR.
+
+Format:
+
+Rs. 1,000.00
+Rs. 2,500.00
+
+Ensure:
+
+No USD appears anywhere
+Correct formatting with commas and decimals
+
+========================
+💰 BILLING CYCLES (COMPLETE)
+============================
+
+Ensure hosting packages support:
+
+1 Month
+3 Months
+6 Months
+1 Year
+
+Admin package page:
+
+Add fields:
+
+monthly_price
+quarterly_price
+semiannual_price
+yearly_price
+
+Ensure all fields save correctly.
+
+Frontend:
+
+Show all 4 options when client orders.
+
+Update price dynamically.
+
+========================
+🔄 RENEWAL SYSTEM (ADD FIELD)
+=============================
+
+Add renewal functionality:
+
+Database:
+
+Add field:
+next_due_date
+
+Client dashboard:
+
+Show:
+
+Next due date
+Renew button
+
+When client clicks renew:
+
+Generate invoice
+Extend due date
+
+========================
+🎁 FREE DOMAIN LOGIC
+====================
+
+Add feature:
+
+If client selects 1 Year plan:
+
+Domain is FREE
+
+Logic:
+
+If billing cycle = yearly:
+Domain price = 0
+
+Apply in:
+
+Cart
+Invoice
+Order
+
+Show label:
+
+"Free Domain Included"
+
+========================
+🌐 DOMAIN + HOSTING LINK
+========================
+
+When client orders hosting + domain:
+
+After order approval:
+
+Create hosting account
+Register domain
+Link domain with client
+
+Ensure:
+
+Domain appears in client dashboard
+Hosting appears in services
+
+========================
+🌐 DOMAIN ONLY ORDER SYSTEM
+===========================
+
+If client orders only domain:
+
+Create domain order
+
+Admin must approve manually.
+
+After approval:
+
+Domain status = Active
+
+========================
+📦 ADMIN ORDER MANAGEMENT PAGE
+==============================
+
+Create a new admin page:
+
+"All Orders"
+
+Features:
+
+Show all orders:
+
+Hosting
+Domain
+Invoices
+
+Each order must show:
+
+Client name
+Service type
+Status (Pending / Active / Cancelled)
+
+Admin actions:
+
+Approve
+Cancel
+Mark Fraud
+Refund
+
+When admin approves:
+
+Trigger automation:
+
+Hosting → create account
+Domain → activate
+
+========================
+🛒 ORDER FLOW FIX
+=================
+
+Fix order process:
+
+When client places order:
+
+Create order in database
+Generate invoice
+Set status = Pending
+
+When admin approves:
+
+Set status = Active
+Execute automation
+
+========================
+📦 PACKAGE PRICE FIX
+====================
+
+Fix admin Packages page:
+
+Ensure:
+
+All prices saved
+All prices displayed correctly
+PKR format used
+
+Remove USD values completely.
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix any:
+
+Missing fields
+Broken pricing
+Wrong calculations
+Non-working buttons
+
+Ensure:
+
+Billing works
+Orders work
+Domains link correctly
+Admin can manage everything
+
+========================
+🎯 GOAL
+=======
+
+Create a fully working hosting + domain billing system with:
+
+PKR currency
+Billing cycles
+Renewal system
+Free domain logic
+Domain + hosting linking
+Admin order management page

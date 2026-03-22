@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   ordersTable, usersTable, hostingPlansTable, hostingServicesTable,
-  invoicesTable, serversTable,
+  invoicesTable, serversTable, domainsTable,
 } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -290,7 +290,8 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
             serverId = server?.id || null;
           }
           const nextDue = new Date();
-          nextDue.setMonth(nextDue.getMonth() + (updated.billingCycle === "yearly" ? 12 : 1));
+          const cycleMonths = updated.billingCycle === "yearly" ? 12 : updated.billingCycle === "semiannual" ? 6 : updated.billingCycle === "quarterly" ? 3 : 1;
+          nextDue.setMonth(nextDue.getMonth() + cycleMonths);
 
           await db.insert(hostingServicesTable).values({
             clientId: updated.clientId,
@@ -477,6 +478,95 @@ router.post("/admin/orders/:id/terminate", authenticate, requireAdmin, async (re
       .where(eq(ordersTable.id, req.params.id)).returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: activate domain order → create domain record and set active
+router.post("/admin/orders/:id/activate-domain", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, req.params.id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Not found" }); return; }
+    if (order.type !== "domain") { res.status(400).json({ error: "Not a domain order" }); return; }
+
+    // Parse domain name and TLD from order
+    const fullDomain = order.domain || order.itemName || "";
+    const dotIdx = fullDomain.indexOf(".");
+    const domainName = dotIdx > 0 ? fullDomain.substring(0, dotIdx) : fullDomain;
+    const tld = dotIdx > 0 ? fullDomain.substring(dotIdx) : ".com";
+
+    // Create or update domain record
+    const existingDomains = await db.select().from(domainsTable)
+      .where(eq(domainsTable.clientId, order.clientId)).limit(100);
+    const alreadyExists = existingDomains.find(d => d.name === domainName && d.tld === tld);
+
+    let domain;
+    if (alreadyExists) {
+      [domain] = await db.update(domainsTable)
+        .set({ status: "active", updatedAt: new Date() })
+        .where(eq(domainsTable.id, alreadyExists.id))
+        .returning();
+    } else {
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      [domain] = await db.insert(domainsTable).values({
+        clientId: order.clientId,
+        name: domainName,
+        tld,
+        status: "active",
+        expiryDate,
+        nextDueDate: expiryDate,
+        registrationDate: new Date(),
+      }).returning();
+    }
+
+    // Mark order as approved (active)
+    const [updated] = await db.update(ordersTable)
+      .set({ status: "approved", updatedAt: new Date() })
+      .where(eq(ordersTable.id, req.params.id))
+      .returning();
+
+    // Mark invoice as paid if exists
+    if (order.invoiceId) {
+      await db.update(invoicesTable)
+        .set({ status: "paid", paidAt: new Date() } as any)
+        .where(eq(invoicesTable.id, order.invoiceId));
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
+    res.json({
+      order: formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""),
+      domain: { id: domain.id, name: domain.name, tld: domain.tld, status: domain.status },
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: refund order → cancel order and mark invoice as refunded
+router.post("/admin/orders/:id/refund", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, req.params.id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Not found" }); return; }
+
+    const [updated] = await db.update(ordersTable)
+      .set({ status: "cancelled", notes: (order.notes ? order.notes + " | " : "") + "Refunded by admin", updatedAt: new Date() })
+      .where(eq(ordersTable.id, req.params.id))
+      .returning();
+
+    // Mark invoice as refunded if exists
+    if (order.invoiceId) {
+      await db.update(invoicesTable)
+        .set({ status: "refunded" } as any)
+        .where(eq(invoicesTable.id, order.invoiceId));
+    }
+
+    // Suspend hosting service if exists
+    if (order.type === "hosting") {
+      await db.update(hostingServicesTable)
+        .set({ status: "suspended" } as any)
+        .where(eq(hostingServicesTable.clientId, order.clientId));
+    }
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
     res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });

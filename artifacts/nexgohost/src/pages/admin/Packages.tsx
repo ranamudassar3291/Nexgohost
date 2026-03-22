@@ -5,9 +5,11 @@ import { Package, Plus, ToggleLeft, ToggleRight, Trash2, Pencil, Server, CheckCi
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface HostingPlan {
-  id: string; name: string; description: string | null; price: number;
+  id: string; name: string; description: string | null;
+  price: number; yearlyPrice: number | null; quarterlyPrice: number | null; semiannualPrice: number | null;
   billingCycle: string; diskSpace: string; bandwidth: string;
   emailAccounts: number | null; databases: number | null; isActive: boolean; createdAt: string;
 }
@@ -23,6 +25,7 @@ export default function Packages() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatPrice } = useCurrency();
 
   const { data: plans = [], isLoading } = useQuery({ queryKey: ["admin-packages"], queryFn: fetchPlans });
 
@@ -46,6 +49,16 @@ export default function Packages() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-packages"] }); toast({ title: "Package deleted" }); },
     onError: () => toast({ title: "Error", description: "Failed to delete package", variant: "destructive" }),
   });
+
+  const priceTiers = (plan: HostingPlan) => {
+    const tiers: { label: string; price: number | null; suffix: string }[] = [
+      { label: "Monthly", price: plan.price, suffix: "/mo" },
+      { label: "Quarterly", price: plan.quarterlyPrice, suffix: "/qtr" },
+      { label: "Semiannual", price: plan.semiannualPrice, suffix: "/6mo" },
+      { label: "Yearly", price: plan.yearlyPrice, suffix: "/yr" },
+    ];
+    return tiers.filter(t => t.price !== null && t.price !== undefined);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -71,55 +84,72 @@ export default function Packages() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {plans.map((plan) => (
-            <div key={plan.id} className={`bg-card border rounded-2xl p-5 space-y-4 transition-all ${plan.isActive ? "border-border" : "border-border/40 opacity-60"}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Server size={18} className="text-primary" />
+          {plans.map((plan) => {
+            const tiers = priceTiers(plan);
+            const lowestTier = tiers[0];
+            return (
+              <div key={plan.id} className={`bg-card border rounded-2xl p-5 space-y-4 transition-all ${plan.isActive ? "border-border" : "border-border/40 opacity-60"}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Server size={18} className="text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground">{plan.name}</h3>
+                      <p className="text-xs text-muted-foreground">{tiers.length} billing option{tiers.length !== 1 ? "s" : ""}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">{plan.name}</h3>
-                    <p className="text-xs text-muted-foreground capitalize">{plan.billingCycle}</p>
+                  <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${plan.isActive ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>
+                    {plan.isActive ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                    {plan.isActive ? "Active" : "Disabled"}
                   </div>
                 </div>
-                <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${plan.isActive ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>
-                  {plan.isActive ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                  {plan.isActive ? "Active" : "Disabled"}
+
+                {lowestTier && (
+                  <p className="text-2xl font-bold text-foreground">
+                    {formatPrice(lowestTier.price!)}
+                    <span className="text-sm font-normal text-muted-foreground">{lowestTier.suffix}</span>
+                  </p>
+                )}
+
+                {tiers.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tiers.slice(1).map(t => (
+                      <span key={t.label} className="text-xs px-2 py-0.5 rounded-full bg-primary/5 border border-primary/20 text-primary/80">
+                        {formatPrice(t.price!)}{t.suffix}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {plan.description && <p className="text-sm text-muted-foreground line-clamp-2">{plan.description}</p>}
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <span>💾 {plan.diskSpace}</span>
+                  <span>📶 {plan.bandwidth}</span>
+                  <span>📧 {plan.emailAccounts} emails</span>
+                  <span>🗄️ {plan.databases} DBs</span>
+                </div>
+
+                <div className="flex gap-2 pt-1 border-t border-border/50">
+                  <Button size="sm" variant="ghost" onClick={() => toggleMutation.mutate(plan.id)} className="flex-1 gap-1.5 text-xs">
+                    {plan.isActive ? <ToggleRight size={14} className="text-green-400" /> : <ToggleLeft size={14} />}
+                    {plan.isActive ? "Disable" : "Enable"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setLocation(`/admin/packages/${plan.id}/edit`)} className="text-xs gap-1.5">
+                    <Pencil size={14} /> Edit
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost"
+                    onClick={() => { if (confirm("Delete this package?")) deleteMutation.mutate(plan.id); }}
+                    className="text-xs text-destructive hover:text-destructive gap-1.5"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
                 </div>
               </div>
-
-              <p className="text-2xl font-bold text-foreground">
-                ${plan.price.toFixed(2)}<span className="text-sm font-normal text-muted-foreground">/{plan.billingCycle === "monthly" ? "mo" : "yr"}</span>
-              </p>
-
-              {plan.description && <p className="text-sm text-muted-foreground line-clamp-2">{plan.description}</p>}
-
-              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                <span>💾 {plan.diskSpace}</span>
-                <span>📶 {plan.bandwidth}</span>
-                <span>📧 {plan.emailAccounts} emails</span>
-                <span>🗄️ {plan.databases} DBs</span>
-              </div>
-
-              <div className="flex gap-2 pt-1 border-t border-border/50">
-                <Button size="sm" variant="ghost" onClick={() => toggleMutation.mutate(plan.id)} className="flex-1 gap-1.5 text-xs">
-                  {plan.isActive ? <ToggleRight size={14} className="text-green-400" /> : <ToggleLeft size={14} />}
-                  {plan.isActive ? "Disable" : "Enable"}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setLocation(`/admin/packages/${plan.id}/edit`)} className="text-xs gap-1.5">
-                  <Pencil size={14} /> Edit
-                </Button>
-                <Button
-                  size="sm" variant="ghost"
-                  onClick={() => { if (confirm("Delete this package?")) deleteMutation.mutate(plan.id); }}
-                  className="text-xs text-destructive hover:text-destructive gap-1.5"
-                >
-                  <Trash2 size={14} />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </motion.div>

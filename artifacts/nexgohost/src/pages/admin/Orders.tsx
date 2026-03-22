@@ -5,12 +5,13 @@ import {
   ShoppingCart, CheckCircle, XCircle, Search, Plus, FileText,
   ChevronDown, Loader2, RefreshCw, AlertTriangle, StopCircle,
   Terminal, Mail, Zap, ExternalLink, Eye, EyeOff, Copy, User, Lock,
-  Server,
+  Server, Globe, RotateCcw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Order {
   id: string; clientId: string; clientName: string;
@@ -112,6 +113,7 @@ export default function AdminOrders() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatPrice } = useCurrency();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -518,7 +520,7 @@ export default function AdminOrders() {
                   )}
                 </td>
                 <td className="px-5 py-4 text-sm font-semibold text-foreground whitespace-nowrap">
-                  ${Number(order.amount).toFixed(2)}
+                  {formatPrice(Number(order.amount))}
                 </td>
                 <td className="px-5 py-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[order.status] || "bg-secondary text-secondary-foreground border-border"}`}>
@@ -596,6 +598,16 @@ export default function AdminOrders() {
                         Activate
                       </Button>
                     )}
+                    {/* Domain activate: for domain orders that are approved */}
+                    {order.type === "domain" && order.status === "approved" && (
+                      <Button size="sm"
+                        className="h-7 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
+                        disabled={loadingId === order.id}
+                        onClick={() => doAction(order.id, "activate-domain")}>
+                        {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <Globe className="w-3 h-3 mr-1" />}
+                        Activate Domain
+                      </Button>
+                    )}
                     <div className="relative">
                       <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1"
                         onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === order.id ? null : order.id); }}>
@@ -622,6 +634,10 @@ export default function AdminOrders() {
                           <button className="flex items-center gap-2 w-full px-3 py-2 hover:bg-secondary text-left text-destructive"
                             onClick={() => doAction(order.id, "terminate")}>
                             <XCircle size={13} /> Terminate
+                          </button>
+                          <button className="flex items-center gap-2 w-full px-3 py-2 hover:bg-secondary text-left text-blue-400 border-t border-border mt-1"
+                            onClick={() => doAction(order.id, "refund")}>
+                            <RotateCcw size={13} /> Refund & Cancel
                           </button>
                           {!order.invoiceId && (
                             <button className="flex items-center gap-2 w-full px-3 py-2 hover:bg-secondary text-left text-primary border-t border-border mt-1"

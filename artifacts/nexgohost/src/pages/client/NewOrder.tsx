@@ -72,6 +72,10 @@ export default function NewOrder() {
       packageName: plan.name,
       amount: String(price),
       billingCycle: cycle,
+      monthlyPrice: String(plan.price),
+      ...(plan.quarterlyPrice ? { quarterlyPrice: String(plan.quarterlyPrice) } : {}),
+      ...(plan.semiannualPrice ? { semiannualPrice: String(plan.semiannualPrice) } : {}),
+      ...(plan.yearlyPrice ? { yearlyPrice: String(plan.yearlyPrice) } : {}),
     });
     setLocation(`/client/checkout?${params.toString()}`);
   };

@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface MyDomain {
   id: string; name: string; tld: string; status: string; registrationDate: string | null;
@@ -66,6 +67,7 @@ export default function ClientDomains() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
+  const { formatPrice } = useCurrency();
   const { data: myDomains = [], isLoading: domainsLoading } = useQuery<MyDomain[]>({
     queryKey: ["my-domains"],
     queryFn: () => apiFetch("/api/domains"),
@@ -129,7 +131,7 @@ export default function ClientDomains() {
     }
     setCart(prev => [...prev, { name: searchData!.name, tld: item.tld, price: item.registrationPrice, period: 1 }]);
     setShowCart(true);
-    toast({ title: "Added to cart", description: `${key} — $${item.registrationPrice}/yr` });
+    toast({ title: "Added to cart", description: key });
   };
 
   const removeFromCart = (idx: number) => {
@@ -144,14 +146,26 @@ export default function ClientDomains() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
-    const results: DomainRegisterResponse[] = [];
     const errors: string[] = [];
+    let lastResult: any = null;
 
     for (const item of cart) {
       setOrderingDomain(`${item.name}${item.tld}`);
       try {
-        const result = await registerMutation.mutateAsync({ name: item.name, tld: item.tld, period: item.period });
-        results.push(result);
+        const token = localStorage.getItem("token");
+        const res = await fetch("/api/checkout/domain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            domain: item.name,
+            tld: item.tld,
+            amount: item.price * item.period,
+            period: item.period,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to place order");
+        lastResult = data;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : `Failed to register ${item.name}${item.tld}`;
         errors.push(msg);
@@ -160,21 +174,19 @@ export default function ClientDomains() {
 
     setOrderingDomain(null);
 
-    if (errors.length > 0 && results.length === 0) {
+    if (errors.length > 0 && !lastResult) {
       toast({ title: "Order failed", description: errors[0], variant: "destructive" });
       return;
     }
 
-    if (errors.length > 0) {
-      toast({ title: "Partial success", description: `${results.length} domain(s) registered. ${errors.length} failed: ${errors.join(", ")}`, variant: "destructive" });
-    }
-
-    if (results.length > 0) {
-      setSuccessResult(results[results.length - 1]);
+    if (lastResult) {
+      setSuccessResult({ domain: lastResult.order?.domain, invoiceNumber: lastResult.invoice?.invoiceNumber } as any);
+      queryClient.invalidateQueries({ queryKey: ["my-domains"] });
       setCart([]);
       setShowCart(false);
       setSearchQuery(null);
       setSearchInput("");
+      toast({ title: "Domain order placed!", description: `Order submitted for admin approval. Invoice: ${lastResult.invoice?.invoiceNumber}` });
     }
   };
 
@@ -488,6 +500,7 @@ function TldCard({ name, result, inCart, onAddToCart }: {
   inCart: boolean;
   onAddToCart: () => void;
 }) {
+  const { formatPrice } = useCurrency();
   const fullDomain = `${name}${result.tld}`;
 
   return (
@@ -528,8 +541,8 @@ function TldCard({ name, result, inCart, onAddToCart }: {
 
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-2xl font-bold text-foreground">${result.registrationPrice.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground">/year · renews ${result.renewalPrice.toFixed(2)}/yr</p>
+          <p className="text-2xl font-bold text-foreground">{formatPrice(result.registrationPrice)}</p>
+          <p className="text-xs text-muted-foreground">/year · renews {formatPrice(result.renewalPrice)}/yr</p>
         </div>
 
         {result.available ? (
@@ -570,6 +583,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
   orderingDomain: string | null;
   total: number;
 }) {
+  const { formatPrice } = useCurrency();
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -594,7 +608,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
                     <span>{item.name}</span><span className="text-primary">{item.tld}</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    ${item.price.toFixed(2)}/year × {item.period} year{item.period > 1 ? "s" : ""} = <span className="text-foreground font-semibold">${(item.price * item.period).toFixed(2)}</span>
+                    {formatPrice(item.price)}/year × {item.period} year{item.period > 1 ? "s" : ""} = <span className="text-foreground font-semibold">{formatPrice(item.price * item.period)}</span>
                   </p>
                 </div>
                 <button onClick={() => onRemove(idx)} className="text-muted-foreground hover:text-red-400 transition-colors p-1">
@@ -629,12 +643,12 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
             {cart.map((item, idx) => (
               <div key={idx} className="flex justify-between text-sm">
                 <span className="text-muted-foreground font-mono">{item.name}{item.tld}</span>
-                <span>${(item.price * item.period).toFixed(2)}</span>
+                <span>{formatPrice(item.price * item.period)}</span>
               </div>
             ))}
             <div className="flex justify-between font-bold text-lg border-t border-border pt-2 mt-2">
               <span>Total</span>
-              <span className="text-primary">${total.toFixed(2)}</span>
+              <span className="text-primary">{formatPrice(total)}</span>
             </div>
           </div>
 
@@ -653,12 +667,12 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
             {isLoading ? (
               <><Loader2 className="animate-spin" size={18} /> Processing…</>
             ) : (
-              <><ChevronRight size={18} /> Complete Order — ${total.toFixed(2)}</>
+              <><ChevronRight size={18} /> Complete Order — {formatPrice(total)}</>
             )}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            An invoice will be generated. Domain becomes active immediately.
+            An invoice will be generated. Domain activates after admin approval.
           </p>
         </div>
       </div>
@@ -667,6 +681,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onCheckout, isLoa
 }
 
 function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRegisterResponse; onOrderMore: () => void; onPayInvoice: () => void }) {
+  const { formatPrice } = useCurrency();
   return (
     <div className="bg-card border border-emerald-500/30 rounded-3xl overflow-hidden shadow-2xl shadow-emerald-500/5 relative">
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-primary/5 pointer-events-none" />
@@ -690,7 +705,7 @@ function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRe
           </div>
           <div className="bg-background/60 border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Amount Due</p>
-            <p className="font-bold text-sm text-primary">${result.invoice.total.toFixed(2)}</p>
+            <p className="font-bold text-sm text-primary">{typeof result.invoice?.total === "number" ? formatPrice(result.invoice.total) : (result.invoice?.total || "—")}</p>
           </div>
         </div>
 
