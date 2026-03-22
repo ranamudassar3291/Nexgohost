@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Invoice {
   id: string; invoiceNumber: string; total: number; amount: number; tax: number;
@@ -28,6 +29,7 @@ export default function ClientInvoices() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatPrice } = useCurrency();
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
     queryKey: ["client-invoices"],
@@ -59,7 +61,7 @@ export default function ClientInvoices() {
             <AlertCircle size={16} className="text-red-400" />
             <div>
               <div className="text-xs text-muted-foreground">{unpaidCount} invoice{unpaidCount > 1 ? "s" : ""} unpaid</div>
-              <div className="text-sm font-semibold text-red-400">${totalDue.toFixed(2)} due</div>
+              <div className="text-sm font-semibold text-red-400">{formatPrice(totalDue)} due</div>
             </div>
           </div>
         )}
@@ -101,7 +103,7 @@ export default function ClientInvoices() {
                       </td>
                       <td className="p-4 text-sm text-muted-foreground">{format(new Date(inv.createdAt), "MMM d, yyyy")}</td>
                       <td className="p-4 text-sm text-muted-foreground">{format(new Date(inv.dueDate), "MMM d, yyyy")}</td>
-                      <td className="p-4 font-semibold">${Number(inv.total).toFixed(2)}</td>
+                      <td className="p-4 font-semibold">{formatPrice(Number(inv.total))}</td>
                       <td className="p-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${cfg.color}`}>
                           <Icon size={12} />

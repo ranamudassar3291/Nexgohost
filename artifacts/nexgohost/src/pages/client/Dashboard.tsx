@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Order {
   id: string; itemName: string; amount: number; billingCycle: string;
@@ -37,6 +38,7 @@ export default function ClientDashboard() {
   const { data: user } = useGetMe();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const [ssoLoading, setSsoLoading] = useState<Record<string, "cpanel" | "webmail" | null>>({});
 
   const handleSsoLogin = async (serviceId: string, type: "cpanel" | "webmail") => {
@@ -208,7 +210,7 @@ export default function ClientDashboard() {
                         {order.domain && <p className="text-xs font-mono text-muted-foreground">{order.domain}</p>}
                         <p className="text-xs text-muted-foreground capitalize mt-0.5">{order.type} · {order.billingCycle}</p>
                       </td>
-                      <td className="p-4 text-sm font-semibold text-foreground whitespace-nowrap">${Number(order.amount).toFixed(2)}</td>
+                      <td className="p-4 text-sm font-semibold text-foreground whitespace-nowrap">{formatPrice(Number(order.amount))}</td>
                       <td className="p-4 text-right">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-medium border capitalize ${orderStatusColors[order.status] || "bg-secondary text-secondary-foreground border-border"}`}>
                           {order.status}
@@ -244,7 +246,7 @@ export default function ClientDashboard() {
                     <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 cursor-pointer"
                       onClick={() => navigate("/client/invoices")}>
                       <td className="p-4 font-mono font-medium text-sm text-foreground">{inv.invoiceNumber}</td>
-                      <td className="p-4 text-sm font-semibold">${Number(inv.total).toFixed(2)}</td>
+                      <td className="p-4 text-sm font-semibold">{formatPrice(Number(inv.total))}</td>
                       <td className="p-4 text-right">
                         <span className={`px-2 py-1 rounded text-xs font-bold ${inv.status === "unpaid" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
                           {inv.status}

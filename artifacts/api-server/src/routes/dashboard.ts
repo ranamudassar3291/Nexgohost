@@ -40,6 +40,37 @@ router.get("/admin/dashboard", authenticate, requireAdmin, async (_req, res) => 
     const totalRevenue = Number(paidInvoices[0]?.total || 0);
     const monthlyRevenue = Number(monthlyPaid[0]?.total || 0);
 
+    // Revenue by day — last 30 days, grouped per day
+    const revenueRows = await db.execute(sql`
+      SELECT
+        TO_CHAR(DATE(paid_date), 'Mon DD') as name,
+        DATE(paid_date) as day_date,
+        COALESCE(SUM(CAST(total AS NUMERIC)), 0) as revenue
+      FROM invoices
+      WHERE status = 'paid'
+        AND paid_date >= CURRENT_DATE - INTERVAL '29 days'
+      GROUP BY DATE(paid_date)
+      ORDER BY DATE(paid_date) ASC
+    `);
+
+    // Build complete 30-day series (fill gaps with 0)
+    const revenueMap: Record<string, number> = {};
+    for (const row of (revenueRows as any).rows ?? revenueRows) {
+      revenueMap[String((row as any).day_date)] = Number((row as any).revenue);
+    }
+    const revenueByDay: { name: string; revenue: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      revenueByDay.push({ name: label, revenue: revenueMap[key] ?? 0 });
+    }
+
+    // Clients registered this month
+    const [{ newClientsMonth }] = await db.select({ newClientsMonth: count() }).from(usersTable)
+      .where(sql`role = 'client' AND created_at >= ${monthStart}`);
+
     const recentOrders = await db.select().from(ordersTable).orderBy(sql`created_at DESC`).limit(5);
     const recentClients = await db.select().from(usersTable).where(eq(usersTable.role, "client")).orderBy(sql`created_at DESC`).limit(5);
 
@@ -70,8 +101,10 @@ router.get("/admin/dashboard", authenticate, requireAdmin, async (_req, res) => 
       emailsSent,
       monthlyRevenue,
       totalRevenue,
+      newClientsMonth: Number(newClientsMonth),
       openTickets: Number(openTickets),
       activeMigrations: Number(activeMigrations),
+      revenueByDay,
       recentCronLogs: recentCronLogs.map(l => ({
         id: l.id, task: l.task, status: l.status, message: l.message, executedAt: l.executedAt.toISOString(),
       })),

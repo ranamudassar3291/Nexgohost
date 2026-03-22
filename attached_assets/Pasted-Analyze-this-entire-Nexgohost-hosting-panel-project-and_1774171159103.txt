@@ -1,0 +1,196 @@
+Analyze this entire Nexgohost hosting panel project and transform it into a fully modern SaaS hosting platform with a premium UI, custom cart system, and full automation similar to a professional hosting company like Hostinger.
+
+IMPORTANT:
+Do NOT break or remove existing functionality.
+Do NOT delete database data.
+Only improve, redesign, and extend the system.
+
+---
+
+## UI / DESIGN TRANSFORMATION
+
+Redesign the entire frontend and backend UI with a modern SaaS style.
+
+Apply a new design theme:
+
+Primary: Purple / Blue gradient
+Background: Dark modern UI
+Accent: Neon glow effects
+
+Use clean typography, spacing, and responsive layout.
+
+Create a professional look similar to a premium hosting platform.
+
+---
+
+## ADMIN PANEL REDESIGN
+
+Redesign admin panel with:
+
+Sidebar navigation (icons + labels)
+Top header bar
+Dashboard with analytics cards:
+
+Total Clients
+Active Services
+Revenue
+Orders
+
+Modern tables with filters and pagination.
+
+Improve all admin pages:
+
+Clients
+Orders
+Invoices
+Services
+Servers
+Domains
+Settings
+
+---
+
+## CLIENT DASHBOARD REDESIGN
+
+Create a modern client dashboard:
+
+Overview page with cards
+My Services section
+My Domains section
+Invoices page
+Support tickets
+
+Hosting service page must include:
+
+Login to cPanel button
+Webmail access
+Service status
+Package details
+SSL status
+
+---
+
+## CUSTOM CART SYSTEM
+
+Create a fully custom cart system (NOT WHMCS style).
+
+Features:
+
+Add hosting to cart
+Domain search and add to cart
+Cart page with summary
+Billing cycle selection (monthly/yearly)
+Real-time price updates
+Checkout page (modern UI)
+Client login/register during checkout
+
+---
+
+## ORDER & AUTOMATION SYSTEM
+
+When order is placed:
+
+Create order in database
+Generate invoice
+Link order to client
+
+When admin approves order:
+
+Auto create hosting account
+Auto assign server
+Auto generate username/password
+Auto set due date
+Auto mark invoice paid (optional)
+
+---
+
+## HOSTING AUTOMATION
+
+Implement full hosting automation:
+
+Create account
+Suspend
+Unsuspend
+Terminate
+Auto login to cPanel
+Webmail login
+SSL activation
+
+Support modules:
+
+cPanel / WHM
+20i module
+
+---
+
+## BILLING AUTOMATION
+
+Implement cron system:
+
+Auto suspend overdue services
+Auto unsuspend after payment
+Invoice reminders
+Domain renewal reminders
+
+---
+
+## CURRENCY SYSTEM
+
+Set PKR as default currency.
+
+Convert USD to PKR using admin-defined rate.
+
+Format all prices like:
+
+Rs. 1,000.00
+Rs. 2,500.00
+
+Use commas and proper decimals.
+
+---
+
+## EMAIL SYSTEM
+
+Implement SMTP system:
+
+Email templates for:
+
+Account verification
+Order confirmation
+Hosting activation
+Invoice generation
+
+---
+
+## SECURITY
+
+Email verification (code expires in 10 minutes)
+Google login option
+2FA for admin
+
+---
+
+## DATABASE
+
+Ensure all new features store data correctly.
+
+If new fields are required:
+
+Automatically update database schema.
+
+Do NOT remove existing tables.
+
+---
+
+## PERFORMANCE & UX
+
+Fix all UI bugs
+Fix broken buttons
+Ensure smooth navigation
+Optimize loading speed
+
+---
+
+## GOAL
+
+Convert this project into a complete, modern, automated hosting SaaS platform with a premium UI, custom cart system, and full backend automation.

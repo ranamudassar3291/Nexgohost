@@ -1,0 +1,233 @@
+Analyze the entire Nexgohost hosting panel project and transform it into a complete, production-ready SaaS hosting platform with a premium modern UI and full automation.
+
+IMPORTANT:
+Do NOT break existing features.
+Do NOT delete database data.
+Only improve, redesign, and complete missing systems.
+
+====================================
+🔥 FINAL UI / DESIGN (HOSTINGER LEVEL)
+======================================
+
+Redesign the entire platform (admin + client + public site).
+
+Theme:
+
+Dark modern UI
+Primary gradient: Purple → Blue
+Accent: Neon glow (blue/violet)
+Cards: Glassmorphism + soft shadows
+
+Apply everywhere:
+
+Rounded corners
+Smooth animations
+Hover effects
+Professional typography
+
+====================================
+🔥 REAL CLIENT READY HOMEPAGE
+=============================
+
+Create a full landing website:
+
+Hero section with CTA
+Hosting plans pricing table
+Domain search box
+Features section
+Why choose us
+Testimonials
+FAQ section
+Footer
+
+Each hosting plan must include:
+
+Order Now button
+Linked to cart system
+
+====================================
+🔥 ADMIN PANEL (PRO LEVEL)
+==========================
+
+Create modern admin dashboard:
+
+Sidebar navigation with icons
+Stats cards:
+
+Revenue
+Clients
+Orders
+Services
+
+Pages:
+
+Client Manager
+Client Summary
+Order Manager
+Hosting Services
+Server Manager
+Server Groups
+Product Manager
+Invoice Manager
+Domain Manager
+TLD Manager
+Transactions
+Settings
+
+====================================
+🔥 CLIENT DASHBOARD (MODERN)
+============================
+
+Dashboard:
+
+Overview cards
+Active services
+Domains
+Invoices
+
+Service page must include:
+
+Login to cPanel
+Webmail
+SSL status
+Suspend status
+Usage/specs
+
+====================================
+🔥 CUSTOM CART SYSTEM (UNIQUE)
+==============================
+
+Modern multi-step checkout:
+
+Step 1: Select plan
+Step 2: Domain search/register
+Step 3: Configure options
+Step 4: Review cart
+Step 5: Checkout
+
+Features:
+
+Add/remove items
+Billing cycle selector
+Real-time pricing
+Coupon system
+
+====================================
+🔥 DOMAIN SYSTEM (FULL TLD MANAGEMENT)
+======================================
+
+Create full domain system:
+
+TLD Management Page (Admin):
+
+Add TLD
+Remove TLD
+Set pricing:
+
+Register price
+Renew price
+Transfer price
+
+Domain features:
+
+Register domain
+Transfer domain
+Renew domain
+
+Client domain panel:
+
+Nameservers management
+DNS management
+EPP code display
+Auto renew toggle
+
+====================================
+🔥 HOSTING AUTOMATION
+=====================
+
+When order approved:
+
+Auto create account
+Auto assign server group
+Auto generate username/password
+Auto set due date
+Auto mark invoice paid
+
+====================================
+🔥 HOSTING ACTIONS
+==================
+
+Ensure working:
+
+Suspend
+Unsuspend
+Terminate
+Login to cPanel (auto login)
+Webmail access
+SSL activation
+
+====================================
+🔥 BILLING AUTOMATION (CRON)
+============================
+
+Auto system:
+
+Suspend overdue accounts
+Unsuspend after payment
+Invoice reminders
+Domain renewal reminders
+
+====================================
+🔥 CURRENCY SYSTEM (PKR)
+========================
+
+Default currency: PKR
+
+Format all prices like:
+
+Rs. 1,000.00
+Rs. 2,500.00
+
+Add USD → PKR conversion setting
+
+====================================
+🔥 EMAIL SYSTEM
+===============
+
+Create templates:
+
+Verification email
+Order confirmation
+Hosting activation
+Invoice email
+
+====================================
+🔥 FINAL POLISH
+===============
+
+Fix all:
+
+Broken UI
+CSS issues
+API errors
+Database connection
+Routing
+
+Ensure:
+
+Frontend + backend + database fully connected
+All buttons working
+All data saving correctly
+
+====================================
+🔥 GOAL
+=======
+
+Transform this project into a fully complete hosting SaaS platform with:
+
+Premium modern UI
+Custom cart system
+Full domain system
+Automation (hosting + billing)
+Admin panel + client dashboard
+Real client ready production system

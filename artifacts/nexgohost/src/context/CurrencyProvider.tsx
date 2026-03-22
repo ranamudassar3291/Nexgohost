@@ -17,7 +17,7 @@ const COUNTRY_TO_CURRENCY: Record<string, string> = {
 };
 
 const FALLBACK_CURRENCIES: Record<string, CurrencyInfo> = {
-  PKR: { code: "PKR", symbol: "Rs", rate: 1, name: "Pakistani Rupee" },
+  PKR: { code: "PKR", symbol: "Rs.", rate: 1, name: "Pakistani Rupee" },
   USD: { code: "USD", symbol: "$", rate: 1, name: "US Dollar" },
   GBP: { code: "GBP", symbol: "£", rate: 1, name: "British Pound" },
   EUR: { code: "EUR", symbol: "€", rate: 1, name: "Euro" },
@@ -32,7 +32,7 @@ const CurrencyContext = createContext<{
   currency: FALLBACK_CURRENCIES.PKR,
   setCurrency: () => {},
   allCurrencies: Object.values(FALLBACK_CURRENCIES),
-  formatPrice: (a) => `Rs ${a.toFixed(2)}`,
+  formatPrice: (a) => `Rs. ${a.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
@@ -45,7 +45,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       try { setCurrencyState(JSON.parse(stored)); } catch {}
     }
 
-    // Fetch currencies from API
     fetch("/api/currencies")
       .then(r => r.ok ? r.json() : null)
       .then((data: any[] | null) => {
@@ -55,11 +54,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }));
         setAllCurrencies(mapped);
 
-        // If no stored preference, detect by country
         if (!stored) {
           detectCountryCurrency(mapped);
         } else {
-          // Update rate from server
           const storedCode = JSON.parse(stored).code;
           const serverCurrency = mapped.find(c => c.code === storedCode);
           if (serverCurrency) setCurrencyState(serverCurrency);
@@ -76,12 +73,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         const targetCode = COUNTRY_TO_CURRENCY[data.country_code];
         const found = currencies.find(c => c.code === targetCode);
         if (found) { setCurrencyAndStore(found); return; }
-        // Fallback to PKR default
         const pkr = currencies.find(c => c.code === "PKR");
         if (pkr) setCurrencyAndStore(pkr);
       })
       .catch(() => {
-        // Geo detection failed — use PKR default
         const pkr = currencies.find(c => c.code === "PKR");
         if (pkr) setCurrencyAndStore(pkr);
       });
@@ -98,7 +93,14 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   function formatPrice(amount: number) {
     const converted = amount * currency.rate;
-    return `${currency.symbol} ${converted.toFixed(2)}`;
+    const formatted = converted.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    if (currency.code === "PKR") {
+      return `Rs. ${formatted}`;
+    }
+    return `${currency.symbol}${formatted}`;
   }
 
   return (

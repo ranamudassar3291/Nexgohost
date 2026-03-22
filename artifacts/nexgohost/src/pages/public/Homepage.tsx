@@ -7,7 +7,7 @@ import {
   Star, ArrowRight, Menu, X, Database, Lock, Cpu, Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Plan {
   id: string; name: string; description: string | null; price: number; yearlyPrice: number | null;
@@ -32,18 +32,18 @@ async function checkDomain(name: string): Promise<{ name: string; results: Domai
 }
 
 const FEATURES = [
-  { icon: Zap, title: "Instant Setup", desc: "Your hosting account is ready in seconds after order. No waiting." },
-  { icon: Shield, title: "99.9% Uptime SLA", desc: "Enterprise-grade infrastructure with guaranteed uptime and redundancy." },
-  { icon: HeadphonesIcon, title: "24/7 Expert Support", desc: "Our team of hosting experts is available round the clock to assist you." },
-  { icon: Database, title: "Daily Backups", desc: "Automated daily backups keep your data safe and always recoverable." },
-  { icon: Lock, title: "Free SSL Certificates", desc: "Every hosting plan includes free Let's Encrypt SSL for all your domains." },
-  { icon: Cpu, title: "High-Performance Servers", desc: "NVMe SSD storage and LiteSpeed servers deliver blazing-fast load times." },
+  { icon: Zap,            title: "Instant Setup",           desc: "Your hosting account is ready in seconds after order. No waiting." },
+  { icon: Shield,         title: "99.9% Uptime SLA",        desc: "Enterprise-grade infrastructure with guaranteed uptime and redundancy." },
+  { icon: HeadphonesIcon, title: "24/7 Expert Support",     desc: "Our team of hosting experts is available round the clock to assist you." },
+  { icon: Database,       title: "Daily Backups",           desc: "Automated daily backups keep your data safe and always recoverable." },
+  { icon: Lock,           title: "Free SSL Certificates",   desc: "Every hosting plan includes free Let's Encrypt SSL for all your domains." },
+  { icon: Cpu,            title: "High-Performance Servers", desc: "NVMe SSD storage and LiteSpeed servers deliver blazing-fast load times." },
 ];
 
 const TESTIMONIALS = [
-  { name: "Ahmed Khan", role: "E-commerce Owner", rating: 5, text: "Nexgohost has been the perfect hosting partner. My store loads incredibly fast and I've had zero downtime in 2 years." },
-  { name: "Sarah Johnson", role: "Web Developer", rating: 5, text: "The cPanel interface is clean and the support team always resolves issues within minutes. Highly recommended!" },
-  { name: "Muhammad Ali", role: "Blogger", rating: 5, text: "Switched from another host and couldn't be happier. The value for money is unbeatable and the speed is phenomenal." },
+  { name: "Ahmed Khan",      role: "E-commerce Owner", rating: 5, text: "Nexgohost has been the perfect hosting partner. My store loads incredibly fast and I've had zero downtime in 2 years." },
+  { name: "Sarah Johnson",   role: "Web Developer",    rating: 5, text: "The cPanel interface is clean and the support team always resolves issues within minutes. Highly recommended!" },
+  { name: "Muhammad Ali",    role: "Blogger",          rating: 5, text: "Switched from another host and couldn't be happier. The value for money is unbeatable and the speed is phenomenal." },
 ];
 
 export default function Homepage() {
@@ -58,6 +58,7 @@ export default function Homepage() {
   const [domainSearched, setDomainSearched] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const domainInputRef = useRef<HTMLInputElement>(null);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     fetchPublicPlans().then(p => { setPlans(p.slice(0, 3)); setPlansLoading(false); });
@@ -83,20 +84,20 @@ export default function Homepage() {
   };
 
   const navLinks = [
-    { label: "Home", action: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
-    { label: "Hosting", action: () => scrollTo("plans") },
-    { label: "Domains", action: () => scrollTo("domain-search") },
+    { label: "Home",     action: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+    { label: "Hosting",  action: () => scrollTo("plans") },
+    { label: "Domains",  action: () => scrollTo("domain-search") },
     { label: "Features", action: () => scrollTo("features") },
   ];
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
 
-      {/* ── Sticky Header ──────────────────────────────────────────── */}
+      {/* ── Sticky Header ── */}
       <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur border-b border-border/40 shadow-lg shadow-black/20" : "bg-transparent"}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-white text-sm">N</div>
+            <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-primary/30">N</div>
             <span className="font-display font-bold text-xl text-foreground">Nexgohost</span>
           </div>
 
@@ -111,7 +112,7 @@ export default function Homepage() {
 
           <div className="hidden md:flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => setLocation("/client/login")}>Sign In</Button>
-            <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => setLocation("/register")}>Get Started</Button>
+            <Button size="sm" className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20" onClick={() => setLocation("/register")}>Get Started</Button>
           </div>
 
           <button className="md:hidden p-2 text-foreground" onClick={() => setMenuOpen(!menuOpen)}>
@@ -138,7 +139,7 @@ export default function Homepage() {
         </AnimatePresence>
       </header>
 
-      {/* ── Hero Section ───────────────────────────────────────────── */}
+      {/* ── Hero Section ── */}
       <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-purple-900/10 to-background" />
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-[120px] -z-0" />
@@ -208,7 +209,7 @@ export default function Homepage() {
                           </div>
                           <div className="flex items-center gap-4">
                             {r.registrationPrice != null && (
-                              <span className="text-sm text-muted-foreground">${Number(r.registrationPrice).toFixed(2)}/yr</span>
+                              <span className="text-sm text-muted-foreground">{formatPrice(Number(r.registrationPrice))}/yr</span>
                             )}
                             {r.available ? (
                               <Button size="sm" className="h-7 px-3 text-xs bg-primary hover:bg-primary/90"
@@ -245,14 +246,14 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── Stats Bar ──────────────────────────────────────────────── */}
+      {/* ── Stats Bar ── */}
       <section className="border-y border-border bg-card/50 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
           {[
             { value: "50,000+", label: "Websites Hosted" },
-            { value: "99.9%", label: "Uptime Guarantee" },
-            { value: "24/7", label: "Expert Support" },
-            { value: "10+", label: "Years Experience" },
+            { value: "99.9%",   label: "Uptime Guarantee" },
+            { value: "24/7",    label: "Expert Support" },
+            { value: "10+",     label: "Years Experience" },
           ].map(stat => (
             <div key={stat.label}>
               <div className="text-3xl font-bold text-primary">{stat.value}</div>
@@ -262,7 +263,7 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── Hosting Plans ──────────────────────────────────────────── */}
+      {/* ── Hosting Plans ── */}
       <section id="plans" className="py-24 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
@@ -287,7 +288,7 @@ export default function Homepage() {
                     transition={{ delay: i * 0.1 }} viewport={{ once: true }}
                     className={`relative rounded-3xl border p-8 flex flex-col transition-all hover:-translate-y-1 hover:shadow-xl ${isPopular ? "border-primary/50 bg-gradient-to-b from-primary/10 to-card shadow-lg shadow-primary/10" : "border-border bg-card"}`}>
                     {isPopular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary rounded-full text-xs font-bold text-white">
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary rounded-full text-xs font-bold text-white shadow-lg shadow-primary/30">
                         MOST POPULAR
                       </div>
                     )}
@@ -297,9 +298,14 @@ export default function Homepage() {
                     </div>
                     <div className="mb-6">
                       <div className="flex items-end gap-1">
-                        <span className="text-4xl font-bold text-primary">${plan.price}</span>
+                        <span className="text-4xl font-bold text-primary">{formatPrice(Number(plan.price))}</span>
                         <span className="text-muted-foreground mb-1">/{plan.billingCycle === "yearly" ? "yr" : "mo"}</span>
                       </div>
+                      {plan.yearlyPrice && plan.billingCycle !== "yearly" && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          or {formatPrice(Number(plan.yearlyPrice))}/year — save {Math.round((1 - Number(plan.yearlyPrice) / (Number(plan.price) * 12)) * 100)}%
+                        </p>
+                      )}
                     </div>
                     <ul className="space-y-2.5 mb-8 flex-1 text-sm">
                       <li className="flex items-center gap-2 text-foreground"><CheckCircle size={15} className="text-green-400 shrink-0" /> {plan.diskSpace} Storage</li>
@@ -328,7 +334,7 @@ export default function Homepage() {
                           setLocation("/client/login");
                         }
                       }}
-                      className={`w-full rounded-2xl ${isPopular ? "bg-primary hover:bg-primary/90" : "bg-secondary hover:bg-secondary/80 text-foreground"}`}>
+                      className={`w-full rounded-2xl ${isPopular ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20" : "bg-secondary hover:bg-secondary/80 text-foreground"}`}>
                       Order Now <ArrowRight size={16} className="ml-2" />
                     </Button>
                   </motion.div>
@@ -346,7 +352,7 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── Features Grid ──────────────────────────────────────────── */}
+      {/* ── Features Grid ── */}
       <section id="features" className="py-24 px-4 sm:px-6 bg-card/30 border-y border-border">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
@@ -364,8 +370,8 @@ export default function Homepage() {
                 <motion.div key={feat.title}
                   initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }} viewport={{ once: true }}
-                  className="bg-card border border-border rounded-2xl p-6 hover:border-primary/30 hover:-translate-y-1 transition-all">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+                  className="bg-card border border-border rounded-2xl p-6 hover:border-primary/30 hover:-translate-y-1 transition-all group">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 group-hover:border-primary/40 transition-colors">
                     <Icon size={22} className="text-primary" />
                   </div>
                   <h3 className="font-semibold text-foreground mb-2">{feat.title}</h3>
@@ -377,7 +383,7 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── Testimonials ───────────────────────────────────────────── */}
+      {/* ── Testimonials ── */}
       <section className="py-24 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
@@ -389,7 +395,7 @@ export default function Homepage() {
               <motion.div key={t.name}
                 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }} viewport={{ once: true }}
-                className="bg-card border border-border rounded-2xl p-6">
+                className="bg-card border border-border rounded-2xl p-6 hover:border-primary/20 transition-colors">
                 <div className="flex gap-1 mb-4">
                   {Array.from({ length: t.rating }).map((_, si) => (
                     <Star key={si} size={14} className="text-yellow-400 fill-yellow-400" />
@@ -406,7 +412,7 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* ── CTA Banner ─────────────────────────────────────────────── */}
+      {/* ── CTA Banner ── */}
       <section className="py-20 px-4 sm:px-6 bg-gradient-to-r from-primary/20 via-purple-600/15 to-transparent border-y border-primary/10">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl font-display font-bold text-foreground mb-4">Ready to Launch Your Website?</h2>
@@ -414,58 +420,53 @@ export default function Homepage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8 shadow-lg shadow-primary/25"
               onClick={() => setLocation("/register")}>
-              Start Free Trial <ArrowRight size={18} className="ml-2" />
+              Get Started Now <ChevronRight size={20} className="ml-1" />
             </Button>
             <Button size="lg" variant="outline" className="text-lg px-8"
               onClick={() => scrollTo("plans")}>
-              View All Plans
+              View Plans
             </Button>
           </div>
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="bg-card/50 border-t border-border py-12 px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+      {/* ── Footer ── */}
+      <footer className="border-t border-border bg-card/50">
+        <div className="max-w-7xl mx-auto px-4 py-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-white text-sm">N</div>
-                <span className="font-display font-bold text-lg text-foreground">Nexgohost</span>
+                <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-primary/20">N</div>
+                <span className="font-display font-bold text-xl">Nexgohost</span>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">Pakistan's leading web hosting provider delivering fast, reliable, and affordable hosting solutions.</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">Pakistan's premier web hosting provider with enterprise-grade infrastructure and 24/7 expert support.</p>
             </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-4 text-sm uppercase tracking-wider">Hosting</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {["Shared Hosting", "WordPress Hosting", "Reseller Hosting", "VPS Hosting", "Dedicated Servers"].map(l => (
-                  <li key={l}><button onClick={() => scrollTo("plans")} className="hover:text-foreground transition-colors">{l}</button></li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-4 text-sm uppercase tracking-wider">Domains</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {["Domain Search", "Domain Transfer", "Domain Pricing", ".pk Domains", "Bulk Registration"].map(l => (
-                  <li key={l}><button onClick={() => scrollTo("domain-search")} className="hover:text-foreground transition-colors">{l}</button></li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-4 text-sm uppercase tracking-wider">Support</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {["Help Center", "Live Chat", "Submit Ticket", "Server Status", "Contact Us"].map(l => (
-                  <li key={l}><button onClick={() => setLocation("/client/login")} className="hover:text-foreground transition-colors">{l}</button></li>
-                ))}
-              </ul>
-            </div>
+            {[
+              { title: "Hosting", links: [{ l: "Shared Hosting", a: "plans" }, { l: "Domain Registration", a: "domain-search" }, { l: "SSL Certificates", a: "features" }, { l: "Business Email", a: "plans" }] },
+              { title: "Company",  links: [{ l: "About Us", a: "features" }, { l: "Contact", a: "features" }, { l: "Blog", a: "features" }, { l: "Careers", a: "features" }] },
+              { title: "Support",  links: [{ l: "Help Center", a: "features" }, { l: "Submit Ticket", a: "" }, { l: "Server Status", a: "" }, { l: "Community", a: "" }] },
+            ].map(col => (
+              <div key={col.title}>
+                <h4 className="font-semibold text-foreground mb-4">{col.title}</h4>
+                <ul className="space-y-2.5">
+                  {col.links.map(link => (
+                    <li key={link.l}>
+                      <button onClick={() => link.a ? scrollTo(link.a) : undefined}
+                        className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                        {link.l}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-          <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Nexgohost. All rights reserved.</p>
-            <div className="flex gap-6 text-sm text-muted-foreground">
+          <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
+            <p>© {new Date().getFullYear()} Nexgohost. All rights reserved.</p>
+            <div className="flex gap-6">
               <button className="hover:text-foreground transition-colors">Privacy Policy</button>
               <button className="hover:text-foreground transition-colors">Terms of Service</button>
-              <button className="hover:text-foreground transition-colors">GDPR</button>
+              <button className="hover:text-foreground transition-colors">Refund Policy</button>
             </div>
           </div>
         </div>
