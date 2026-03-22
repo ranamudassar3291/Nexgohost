@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingCart, Tag, CreditCard, CheckCircle, Loader2, AlertCircle,
   ArrowLeft, ArrowRight, Package, Globe, Receipt, Check,
-  Search as SearchIcon, XCircle, Gift,
+  Search as SearchIcon, XCircle, Gift, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +117,12 @@ export default function Checkout() {
     enabled: !!packageId,
   });
 
+  const { data: creditsData } = useQuery<{ creditBalance: string }>({
+    queryKey: ["my-credits"],
+    queryFn: () => apiFetch("/api/my/credits"),
+  });
+  const creditBalance = parseFloat(creditsData?.creditBalance ?? "0");
+
   const pkgFreeDomainEnabled = pkgDetails?.freeDomainEnabled ?? false;
   const pkgFreeTlds: string[] = Array.isArray(pkgDetails?.freeDomainTlds) ? pkgDetails.freeDomainTlds : [];
 
@@ -227,8 +233,14 @@ export default function Checkout() {
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Domain</span><span className="font-medium text-green-400">✓ {success.summary.domain} (FREE)</span></div>
           )}
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Invoice</span><span className="font-medium text-primary">#{success.invoice?.invoiceNumber}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount Due</span><span className="font-medium">{formatPrice(success.invoice?.amount || success.summary?.finalAmount || 0)}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Status</span><span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Pending Payment</span></div>
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-medium">{formatPrice(success.invoice?.amount || success.summary?.finalAmount || 0)}</span></div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Status</span>
+            {success.paidWithCredits
+              ? <span className="px-2 py-0.5 rounded-full text-xs bg-green-500/10 text-green-400 border border-green-500/20">✓ Paid with Credits</span>
+              : <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Pending Payment</span>
+            }
+          </div>
         </div>
         <div className="flex gap-3">
           <Button onClick={() => setLocation("/client/invoices")} className="flex-1 bg-primary hover:bg-primary/90">View Invoice</Button>
@@ -590,7 +602,28 @@ export default function Checkout() {
               </div>
 
               <div className="space-y-3">
-                {paymentMethods.length === 0 && (
+                {/* Account Credits option */}
+                {creditBalance > 0 && (
+                  <button
+                    onClick={() => setSelectedPaymentMethod("credits")}
+                    className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${selectedPaymentMethod === "credits" ? "border-emerald-500 bg-emerald-500/5" : "border-border hover:border-emerald-500/40"}`}
+                  >
+                    <span className="text-2xl">💳</span>
+                    <div className="flex-1">
+                      <div className="font-medium text-foreground text-sm flex items-center gap-1.5">
+                        <Wallet size={13} className="text-emerald-500" /> Account Credits
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Balance: <span className={`font-semibold ${creditBalance >= finalAmount ? "text-emerald-500" : "text-yellow-500"}`}>{formatPrice(creditBalance)}</span>
+                        {creditBalance < finalAmount && <span className="ml-1.5 text-yellow-500">(insufficient for {formatPrice(finalAmount)})</span>}
+                        {creditBalance >= finalAmount && <span className="ml-1.5 text-emerald-600 font-medium">✓ Enough to pay in full</span>}
+                      </div>
+                    </div>
+                    {selectedPaymentMethod === "credits" && <Check size={16} className="text-emerald-500" />}
+                  </button>
+                )}
+
+                {paymentMethods.length === 0 && creditBalance <= 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     <CreditCard size={32} className="mx-auto mb-3 opacity-40" />
                     <p className="text-sm">No payment methods configured yet.</p>

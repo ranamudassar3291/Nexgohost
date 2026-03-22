@@ -26,6 +26,7 @@ import {
   Share2,
   RefreshCw,
   Wallet,
+  ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -96,6 +97,7 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/account",           label: "Account",         icon: UserIcon,        inNav: true  },
   { path: "/client/affiliate",          label: "Affiliate",       icon: Share2,          inNav: true  },
   { path: "/client/credits",            label: "Credits",         icon: Wallet,          inNav: true  },
+  { path: "/client/security",            label: "Security",        icon: ShieldCheck,     inNav: true  },
   { path: "/client/domains/transfer",   label: "Transfer Domain", icon: RefreshCw,       inNav: false },
 ];
 

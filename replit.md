@@ -1,5 +1,11 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 13)
+- **otplib v13 migration**: `authenticator` singleton removed in otplib v13. Migrated all 2FA code in `auth.ts` to use `TOTP` class with `NobleCryptoPlugin` + `ScureBase32Plugin`, `generateSecret()` standalone, and `verify()` standalone function. All 2FA operations (setup, enable, disable, verify) fully working and tested.
+- **Checkout credits fix**: `referenceId` → `invoiceId` corrected in `checkout.ts` credit transaction insert (matches `creditTransactionsTable` schema).
+- **Checkout success screen**: Shows "✓ Paid with Credits" badge (green) instead of "Pending Payment" (yellow) when `paidWithCredits` flag is returned from checkout API.
+- **2FA verified end-to-end**: Setup (QR + secret), Enable (TOTP verification), Disable (TOTP verification), and login flow all confirmed working.
+
 ## Recent Changes (Session 12)
 - **Invoice number collision fix**: `generateInvoiceNumber()` in `domains.ts` was generating sequential `INV-YYYY-NNN` but colliding with random-suffix invoices from checkout.ts. Replaced with `INV-YYYY-XXXXXX` (random 6-char alphanumeric suffix) — guaranteed unique, no DB query needed.
 - **Domain registration commission**: `POST /api/domains/register` now triggers affiliate commission non-blocking after successful domain creation (same pattern as hosting checkout and domain transfers).

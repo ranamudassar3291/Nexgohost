@@ -1,0 +1,166 @@
+Upgrade the existing SaaS hosting platform and FIX all missing critical features with real working logic.
+
+========================
+1. DOMAIN TRANSFER (REAL FLOW - CLOUDFLARE / REGISTRAR API)
+========================
+- Use Cloudflare API (or registrar API fallback) for real checks
+- When user enters domain:
+    - Check if domain is registered
+    - Check transfer lock status (locked/unlocked)
+    - Check if domain is eligible for transfer
+- Add EPP code validation system:
+    - Validate format and simulate API verification
+- Flow:
+    - If not registered → show error
+    - If locked → show "Unlock domain before transfer"
+    - If EPP invalid → show error
+- On success:
+    - Show transfer price
+    - Generate invoice
+    - Create order (Pending Transfer)
+- Domain dashboard:
+    - Show status (Pending, In Progress, Completed, Failed)
+    - Show lock status
+    - Show last update
+
+========================
+2. SSL AUTO ACTIVATION (FIX)
+========================
+- Integrate SSL system:
+    Option A: Let's Encrypt (Auto SSL)
+    Option B: Cloudflare SSL (Flexible/Full)
+
+- When hosting/domain is active:
+    - Automatically issue SSL certificate
+    - Verify domain ownership
+    - Install SSL on server
+- Add button in client dashboard:
+    - "Activate SSL"
+    - "Reissue SSL"
+- Show SSL status:
+    - Active / Pending / Failed
+
+========================
+3. WORDPRESS AUTO INSTALL (FIX)
+========================
+- Add WordPress installer system (like Softaculous):
+    - One-click install button in client dashboard
+- Flow:
+    - Select domain
+    - Select path (/ or subfolder)
+    - Enter admin username/password
+- System:
+    - Connect to server module
+    - Create database automatically
+    - Download latest WordPress
+    - Configure wp-config.php
+    - Install WordPress
+- Show:
+    - Login URL
+    - Admin credentials
+- Add button:
+    - "Login to WordPress Admin"
+
+========================
+4. SERVER MODULE IMPROVEMENT
+========================
+- Ensure server module supports:
+    - Create account
+    - Suspend / Unsuspend
+    - Terminate
+    - SSL install
+    - WordPress install
+- If missing → auto-create default functions
+- Support cPanel / DirectAdmin API integration
+
+========================
+5. AUTHENTICATOR (2FA SYSTEM)
+========================
+- Add Two-Factor Authentication (2FA):
+    - Use Google Authenticator compatible system (TOTP)
+- Flow:
+    - User enables 2FA
+    - Show QR code
+    - User scans in authenticator app
+- On login:
+    - Require 6-digit code
+- Backup codes generation
+- Option to disable/reset 2FA
+
+========================
+6. AFFILIATE CREDIT SYSTEM (FIX)
+========================
+- When affiliate requests payout:
+    - DO NOT send externally
+    - Add to user's internal credit balance
+- Add wallet system:
+    - credits field in user
+- Use credits for:
+    - Domain purchase
+    - Hosting purchase
+- Auto-deduct credits on checkout
+
+========================
+7. INVOICE SYSTEM (FIX)
+========================
+- Generate invoice for:
+    - Domain transfer
+    - Hosting orders
+- Show:
+    - Invoice ID
+    - Amount
+    - Status (Paid/Unpaid)
+- Auto-mark paid when using credits or payment gateway
+
+========================
+8. CLIENT DASHBOARD IMPROVEMENTS
+========================
+Add full WHMCS-style sections:
+
+- Domains:
+    - Transfer status
+    - Lock status
+    - EPP validation result
+
+- Hosting:
+    - Server status
+    - SSL status
+    - WordPress install button
+
+- Affiliate:
+    - Earnings
+    - Credit balance
+
+- Security:
+    - Enable/disable 2FA
+
+========================
+9. AUTO FIX SYSTEM (IMPORTANT)
+========================
+- Detect missing:
+    - Server configs
+    - SSL configs
+    - Database configs
+    - Domain configs
+- Auto-create defaults so system NEVER breaks
+
+========================
+10. TECH STACK
+========================
+- Node.js + Express
+- MongoDB
+- JWT Authentication
+- TOTP (2FA)
+- Let's Encrypt or Cloudflare SSL API
+- WordPress installer scripts
+- Modular architecture (routes/controllers/modules)
+
+========================
+GOAL:
+Fix all broken features and create a fully working production-ready hosting SaaS system with:
+- Real domain transfer logic
+- SSL auto activation
+- WordPress one-click installer
+- 2FA security
+- Affiliate credit wallet
+- WHMCS-level dashboard

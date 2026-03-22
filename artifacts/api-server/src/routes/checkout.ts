@@ -4,6 +4,7 @@ import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
   domainExtensionsTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable,
+  creditTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
@@ -199,6 +200,41 @@ async function handleCheckout(req: AuthRequest, res: any) {
       } catch { /* non-fatal — domain may already exist */ }
     }
 
+    // 5b. Auto-pay with credits if selected
+    let paidWithCredits = false;
+    if (paymentMethodId === "credits") {
+      const freshUser = await db.select({ creditBalance: usersTable.creditBalance })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]);
+      const balance = parseFloat(freshUser?.creditBalance ?? "0");
+      if (balance < finalAmount) {
+        // Rollback would be complex — return error early instead
+        res.status(400).json({
+          error: `Insufficient credits. Your balance is Rs. ${balance.toFixed(2)} but the order total is Rs. ${finalAmount.toFixed(2)}.`,
+          creditBalance: balance,
+        });
+        return;
+      }
+      const newBalance = parseFloat((balance - finalAmount).toFixed(2));
+      await db.update(usersTable)
+        .set({ creditBalance: String(newBalance), updatedAt: new Date() })
+        .where(eq(usersTable.id, req.user!.userId));
+      await db.insert(creditTransactionsTable).values({
+        userId: req.user!.userId,
+        amount: String(finalAmount.toFixed(2)),
+        type: "invoice_payment",
+        description: `Payment for ${plan.name} order #${order.id.slice(0, 8).toUpperCase()}`,
+        invoiceId: invoice.id,
+      });
+      await db.update(invoicesTable).set({
+        status: "paid", paidDate: new Date(), updatedAt: new Date(),
+      }).where(eq(invoicesTable.id, invoice.id));
+      await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+        .where(eq(ordersTable.id, order.id));
+      await db.update(hostingServicesTable).set({ status: "active", updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, service.id));
+      paidWithCredits = true;
+    }
+
     // 6. Fraud detection (non-blocking)
     const clientIp = (req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || "").split(",")[0]?.trim() || "";
     (async () => {
@@ -289,9 +325,10 @@ async function handleCheckout(req: AuthRequest, res: any) {
 
     res.status(201).json({
       success: true,
-      order: { id: order.id, itemName: order.itemName, amount: Number(order.amount), status: order.status },
-      invoice: { id: invoice.id, invoiceNumber, amount: Number(invoice.amount), status: invoice.status, dueDate: invoice.dueDate?.toISOString() },
-      service: { id: service.id, status: service.status },
+      paidWithCredits,
+      order: { id: order.id, itemName: order.itemName, amount: Number(order.amount), status: paidWithCredits ? "approved" : order.status },
+      invoice: { id: invoice.id, invoiceNumber, amount: Number(invoice.amount), status: paidWithCredits ? "paid" : invoice.status, dueDate: invoice.dueDate?.toISOString() },
+      service: { id: service.id, status: paidWithCredits ? "active" : service.status },
       summary: {
         packageName: plan.name,
         domain: domain || null,

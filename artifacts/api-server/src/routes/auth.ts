@@ -6,7 +6,15 @@ import { hashPassword, comparePassword, signToken, authenticate, type AuthReques
 import { emailVerificationCode } from "../lib/email.js";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
-const { authenticator } = _require("otplib") as typeof import("otplib");
+const _otplib = _require("otplib") as any;
+const { TOTP: OtpTOTP, generateSecret: otpGenerateSecret, NobleCryptoPlugin, ScureBase32Plugin, verify: otpVerify } = _otplib;
+function _makeTotp(secret: string) {
+  return new OtpTOTP({ crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin(), secret });
+}
+async function _otpVerify(token: string, secret: string): Promise<boolean> {
+  const result = await otpVerify({ token, secret, crypto: new NobleCryptoPlugin(), base32: new ScureBase32Plugin() });
+  return result?.valid === true;
+}
 import QRCode from "qrcode";
 import { OAuth2Client } from "google-auth-library";
 
@@ -145,7 +153,7 @@ router.post("/auth/login", async (req, res) => {
         const tempToken = signToken({ userId: user.id, role: user.role, email: user.email });
         res.json({ requires2FA: true, tempToken }); return;
       }
-      const valid2FA = authenticator.verify({ token: totp, secret: user.twoFactorSecret });
+      const valid2FA = await _otpVerify(totp, user.twoFactorSecret!);
       if (!valid2FA) { res.status(401).json({ error: "Unauthorized", message: "Invalid authenticator code" }); return; }
     }
 
@@ -185,8 +193,8 @@ router.get("/auth/2fa/setup", authenticate, async (req: AuthRequest, res) => {
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
-    const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(user.email, "Nexgohost", secret);
+    const secret = otpGenerateSecret();
+    const otpauth = await _makeTotp(secret).toURI({ label: user.email, issuer: "Nexgohost" });
     const qrCode = await QRCode.toDataURL(otpauth);
     // Store secret temporarily (not enabled until verified)
     await db.update(usersTable).set({ twoFactorSecret: secret, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
@@ -200,16 +208,24 @@ router.post("/auth/2fa/enable", authenticate, async (req: AuthRequest, res) => {
     const { totp } = req.body;
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user || !user.twoFactorSecret) { res.status(400).json({ error: "Setup 2FA first" }); return; }
-    const valid = authenticator.verify({ token: totp, secret: user.twoFactorSecret });
+    const valid = await _otpVerify(totp, user.twoFactorSecret!);
     if (!valid) { res.status(400).json({ error: "Invalid authenticator code" }); return; }
     const [updated] = await db.update(usersTable).set({ twoFactorEnabled: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id)).returning();
     res.json({ success: true, user: formatUser(updated) });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// POST /auth/2fa/disable — disable 2FA
+// POST /auth/2fa/disable — disable 2FA (requires current TOTP code for safety)
 router.post("/auth/2fa/disable", authenticate, async (req: AuthRequest, res) => {
   try {
+    const { totp } = req.body;
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "Not found" }); return; }
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      if (!totp) { res.status(400).json({ error: "Authenticator code required to disable 2FA" }); return; }
+      const valid = await _otpVerify(totp, user.twoFactorSecret!);
+      if (!valid) { res.status(400).json({ error: "Invalid authenticator code" }); return; }
+    }
     const [updated] = await db.update(usersTable)
       .set({ twoFactorEnabled: false, twoFactorSecret: null, updatedAt: new Date() })
       .where(eq(usersTable.id, req.user!.userId)).returning();
@@ -223,7 +239,7 @@ router.post("/auth/2fa/verify", authenticate, async (req: AuthRequest, res) => {
     const { totp } = req.body;
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user || !user.twoFactorSecret) { res.status(400).json({ error: "2FA not configured" }); return; }
-    const valid = authenticator.verify({ token: totp, secret: user.twoFactorSecret });
+    const valid = await _otpVerify(totp, user.twoFactorSecret!);
     if (!valid) { res.status(401).json({ error: "Invalid authenticator code" }); return; }
     const token = signToken({ userId: user.id, role: user.role, email: user.email });
     res.json({ token, user: formatUser(user) });

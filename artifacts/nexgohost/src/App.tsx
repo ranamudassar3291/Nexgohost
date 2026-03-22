@@ -71,6 +71,7 @@ import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import ClientOrders from "@/pages/client/Orders";
 import Affiliate from "@/pages/client/Affiliate";
 import Credits from "@/pages/client/Credits";
+import Security from "@/pages/client/Security";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import Homepage from "@/pages/public/Homepage";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
@@ -275,6 +276,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/credits">
         <ClientPage><Credits /></ClientPage>
+      </Route>
+      <Route path="/client/security">
+        <ClientPage><Security /></ClientPage>
       </Route>
       <Route path="/client/domains/transfer">
         <ClientPage><DomainTransfer /></ClientPage>
