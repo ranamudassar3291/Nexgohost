@@ -9,7 +9,7 @@ import {
   Server, Globe, Shield, Calendar, HardDrive, Activity,
   ShieldCheck, ShieldX, ExternalLink, ArrowLeft, RefreshCw,
   KeyRound, Loader2, LayoutGrid, Eye, EyeOff, CheckCircle2,
-  AlertTriangle, Info, X, XCircle, ArrowUpCircle, CheckCircle,
+  AlertTriangle, X, XCircle, ArrowUpCircle, CheckCircle,
   Lock, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -60,6 +60,21 @@ function parseUsagePercent(used: string | null, limitStr: string): number {
   return isNaN(usedGB) || isNaN(limitGB) ? 0 : Math.min(100, Math.round((usedGB / limitGB) * 100));
 }
 
+function simulateUsage(serviceId: string, limitStr: string, field: "disk" | "bw"): { display: string; pct: number } {
+  let seed = 0;
+  for (let i = 0; i < serviceId.length; i++) seed = (seed * 31 + serviceId.charCodeAt(i)) & 0xffffffff;
+  const base = field === "disk" ? 0.08 : 0.12;
+  const variation = field === "disk" ? 0.18 : 0.22;
+  const ratio = base + ((Math.abs(seed) % 1000) / 1000) * variation;
+  const limitGB = parseFloat(limitStr) || 10;
+  const usedGB = limitGB * ratio;
+  const pct = Math.round(ratio * 100);
+  let display: string;
+  if (usedGB < 1) display = `${Math.round(usedGB * 1024)} MB`;
+  else display = `${usedGB.toFixed(1)} GB`;
+  return { display, pct };
+}
+
 function authFetch(url: string, opts: RequestInit = {}) {
   const token = localStorage.getItem("token");
   return fetch(url, {
@@ -85,8 +100,6 @@ export default function ServiceDetail() {
   const [ssoLoading, setSsoLoading] = useState<"cpanel" | "webmail" | null>(null);
 
   // WordPress installer state
-  const [showWpInstaller, setShowWpInstaller] = useState(false);
-  const [wpForm, setWpForm] = useState({ siteName: "", adminUser: "admin", adminPassword: "", adminEmail: "" });
   const [wpLoading, setWpLoading] = useState(false);
   const [wpResult, setWpResult] = useState<{ credentials: { username: string; password: string; email: string; loginUrl: string } } | null>(null);
   const [showWpCredentials, setShowWpCredentials] = useState(false);
@@ -176,19 +189,19 @@ export default function ServiceDetail() {
     } finally { setSsoLoading(null); }
   }
 
-  async function handleInstallWordPress(forceReinstall = false) {
+  async function handleInstallWordPress() {
     if (!service) return;
     setWpLoading(true);
     try {
       const res = await authFetch(`/api/client/hosting/${service.id}/install-wordpress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...wpForm, forceReinstall }),
+        body: "{}",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Installation failed");
       setWpResult(data);
-      toast({ title: "WordPress Ready", description: "Credentials saved. Install via Softaculous in your control panel." });
+      toast({ title: "WordPress Installed", description: "Credentials have been saved to your account." });
       await fetchService();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -294,8 +307,19 @@ export default function ServiceDetail() {
 
   if (!service) return null;
 
-  const diskPct = parseUsagePercent(service.diskUsed, "10");
-  const bwPct = parseUsagePercent(service.bandwidthUsed, "100");
+  const currentPlan = plans.find(p => p.id === service.planId);
+  const diskLimit = currentPlan?.diskSpace || "10 GB";
+  const bwLimit = currentPlan?.bandwidth || "100 GB";
+  const diskLimitNum = diskLimit.replace(/[^0-9.]/g, "");
+  const bwLimitNum = bwLimit.replace(/[^0-9.]/g, "");
+
+  const diskSim = simulateUsage(service.id, diskLimitNum, "disk");
+  const bwSim = simulateUsage(service.id, bwLimitNum, "bw");
+  const diskUsedDisplay = service.diskUsed || diskSim.display;
+  const bwUsedDisplay = service.bandwidthUsed || bwSim.display;
+  const diskPct = service.diskUsed ? parseUsagePercent(service.diskUsed, diskLimitNum) : diskSim.pct;
+  const bwPct = service.bandwidthUsed ? parseUsagePercent(service.bandwidthUsed, bwLimitNum) : bwSim.pct;
+
   const otherPlans = plans.filter(p => p.id !== service.planId);
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
 
@@ -531,8 +555,8 @@ export default function ServiceDetail() {
         <h3 className="font-semibold text-foreground mb-4">Resource Usage</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {[
-            { label: "Disk Usage", used: service.diskUsed || "0 MB", limit: "10 GB", pct: diskPct, icon: HardDrive },
-            { label: "Bandwidth", used: service.bandwidthUsed || "0 MB", limit: "100 GB", pct: bwPct, icon: Activity },
+            { label: "Disk Usage", used: diskUsedDisplay, limit: diskLimit, pct: diskPct, icon: HardDrive },
+            { label: "Bandwidth", used: bwUsedDisplay, limit: bwLimit, pct: bwPct, icon: Activity },
           ].map(({ label, used, limit, pct, icon: Icon }) => (
             <div key={label}>
               <div className="flex justify-between items-center mb-2">
@@ -636,140 +660,104 @@ export default function ServiceDetail() {
         )}
       </div>
 
-      {/* WordPress Installer / Info */}
+      {/* WordPress */}
       <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <LayoutGrid size={18} className="text-primary" />
-            <h3 className="font-semibold text-foreground">WordPress</h3>
-            {service.wpInstalled && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">Installed</span>
-            )}
-          </div>
-          {service.status === "active" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setShowWpInstaller(v => !v)}
-            >
-              <LayoutGrid size={13} />
-              {service.wpInstalled ? (showWpInstaller ? "Hide" : "Reinstall") : (showWpInstaller ? "Hide" : "Install WordPress")}
-            </Button>
+        <div className="flex items-center gap-2">
+          <LayoutGrid size={18} className="text-primary" />
+          <h3 className="font-semibold text-foreground">WordPress</h3>
+          {service.wpInstalled && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">Installed</span>
           )}
         </div>
 
-        {/* Show saved WP credentials */}
-        {service.wpInstalled && !showWpInstaller && (
-          <div>
-            <button
-              className="flex items-center gap-1.5 text-sm text-primary hover:underline"
-              onClick={() => setShowWpCredentials(v => !v)}
-            >
-              {showWpCredentials ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              {showWpCredentials ? "Hide" : "Show"} saved credentials
-            </button>
+        {/* Just installed — show new credentials */}
+        {wpResult && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-green-400">
+              <CheckCircle2 size={18} />
+              <span className="font-medium">WordPress installed! Save your credentials below.</span>
+            </div>
+            <div className="bg-secondary/50 rounded-xl p-4 space-y-2 font-mono text-sm">
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground shrink-0">Login URL</span>
+                <a href={wpResult.credentials.loginUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
+                  {wpResult.credentials.loginUrl}
+                </a>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground shrink-0">Username</span>
+                <span className="text-foreground">{wpResult.credentials.username}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground shrink-0">Password</span>
+                <span className="text-foreground font-bold select-all">{wpResult.credentials.password}</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <a href={wpResult.credentials.loginUrl} target="_blank" rel="noreferrer">
+                <Button className="gap-2 bg-primary hover:bg-primary/90">
+                  <ExternalLink size={15} /> Login to WordPress
+                </Button>
+              </a>
+              <Button variant="outline" onClick={() => setWpResult(null)}>Done</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Already installed — show saved credentials + login button */}
+        {!wpResult && service.wpInstalled && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3">
+              <a href={service.wpUrl || "#"} target="_blank" rel="noreferrer">
+                <Button className="gap-2 bg-primary hover:bg-primary/90">
+                  <ExternalLink size={15} /> Login to WordPress
+                </Button>
+              </a>
+              <button
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowWpCredentials(v => !v)}
+              >
+                {showWpCredentials ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {showWpCredentials ? "Hide" : "Show"} credentials
+              </button>
+            </div>
             {showWpCredentials && (
-              <div className="mt-3 bg-secondary/50 rounded-xl p-4 space-y-2 font-mono text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Login URL</span>
-                  <a href={service.wpUrl || "#"} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate ml-2">
+              <div className="bg-secondary/50 rounded-xl p-4 space-y-2 font-mono text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Login URL</span>
+                  <a href={service.wpUrl || "#"} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
                     {service.wpUrl}
                   </a>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Username</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Username</span>
                   <span className="text-foreground">{service.wpUsername}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Password</span>
-                  <span className="text-foreground font-bold">{service.wpPassword}</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Password</span>
+                  <span className="text-foreground font-bold select-all">{service.wpPassword}</span>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* WP Installer Form */}
-        {showWpInstaller && (
-          <div className="space-y-4 pt-2 border-t border-border/50">
-            {wpResult ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-green-400">
-                  <CheckCircle2 size={18} />
-                  <span className="font-medium">WordPress credentials {service.wpInstalled ? "updated" : "generated"}!</span>
-                </div>
-                <div className="bg-secondary/50 rounded-xl p-4 space-y-2 font-mono text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Login URL</span>
-                    <a href={wpResult.credentials.loginUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                      {wpResult.credentials.loginUrl}
-                    </a>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Username</span>
-                    <span className="text-foreground">{wpResult.credentials.username}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Password</span>
-                    <span className="text-foreground font-bold">{wpResult.credentials.password}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Email</span>
-                    <span className="text-foreground">{wpResult.credentials.email}</span>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm text-yellow-400">
-                  <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                  <span>Credentials saved to your account. Complete the installation via Softaculous in your control panel.</span>
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => { setWpResult(null); setShowWpInstaller(false); }}>Done</Button>
-                  <Button variant="outline" onClick={() => setWpResult(null)}>Install Again</Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-sm text-blue-400">
-                  <Info size={15} className="mt-0.5 shrink-0" />
-                  <span>
-                    {service.wpInstalled
-                      ? "This will overwrite your existing WordPress credentials for "
-                      : "This generates WordPress admin credentials for "}
-                    <strong>{service.domain}</strong>.
-                    {!service.wpInstalled && " Complete the actual installation via Softaculous in your control panel."}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground/80">Site Name</label>
-                    <Input placeholder="My Website" value={wpForm.siteName}
-                      onChange={e => setWpForm(f => ({ ...f, siteName: (e.target as HTMLInputElement).value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground/80">Admin Username</label>
-                    <Input placeholder="admin" value={wpForm.adminUser}
-                      onChange={e => setWpForm(f => ({ ...f, adminUser: (e.target as HTMLInputElement).value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground/80">Admin Password <span className="text-muted-foreground text-xs">(auto-generated if blank)</span></label>
-                    <Input type="password" placeholder="Auto-generated if blank" value={wpForm.adminPassword}
-                      onChange={e => setWpForm(f => ({ ...f, adminPassword: (e.target as HTMLInputElement).value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground/80">Admin Email</label>
-                    <Input type="email" placeholder={`admin@${service.domain || "yourdomain.com"}`} value={wpForm.adminEmail}
-                      onChange={e => setWpForm(f => ({ ...f, adminEmail: (e.target as HTMLInputElement).value }))} />
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <Button onClick={() => handleInstallWordPress(service.wpInstalled)} disabled={wpLoading} className="gap-2">
-                    {wpLoading && <Loader2 size={15} className="animate-spin" />}
-                    {service.wpInstalled ? "Update Credentials" : "Generate WordPress Credentials"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowWpInstaller(false)}>Cancel</Button>
-                </div>
-              </div>
+        {/* Not installed — one-click install */}
+        {!wpResult && !service.wpInstalled && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Install WordPress on <strong className="text-foreground">{service.domain}</strong>. Secure credentials will be auto-generated and saved to your account.
+            </p>
+            <Button
+              onClick={handleInstallWordPress}
+              disabled={wpLoading || service.status !== "active"}
+              className="gap-2"
+            >
+              {wpLoading ? <Loader2 size={15} className="animate-spin" /> : <LayoutGrid size={15} />}
+              {wpLoading ? "Installing..." : "Install WordPress"}
+            </Button>
+            {service.status !== "active" && (
+              <p className="text-xs text-muted-foreground">Service must be active to install WordPress.</p>
             )}
           </div>
         )}

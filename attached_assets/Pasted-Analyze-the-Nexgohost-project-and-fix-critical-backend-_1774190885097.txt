@@ -1,0 +1,181 @@
+Analyze the Nexgohost project and fix critical backend and logic issues related to WordPress installation, invoice duplication, domain flow, renewal system, and server API errors.
+
+IMPORTANT:
+Do NOT change UI design.
+Focus only on fixing backend logic, API, and data flow.
+
+========================
+⚠️ WORDPRESS INSTALL FIX (FULL BACKEND)
+=======================================
+
+Fix WordPress installation system:
+
+Currently only frontend → NOT saving properly
+
+When user clicks "Install WordPress":
+
+1. Call backend API
+2. Generate RANDOM credentials:
+
+username = random string (e.g. wp_user_1234)
+password = secure random password
+
+3. Save in database:
+
+wp_installed = true
+wp_username
+wp_password
+wp_url
+
+4. Prevent reinstall:
+
+If already installed → do NOT show "Install again"
+Show:
+
+"Login to WordPress" button
+
+5. Fix button:
+
+After install → show login button
+Redirect to /wp-admin
+
+========================
+⚠️ DISK USAGE (REAL DATA SHOW)
+==============================
+
+Fix hosting usage display:
+
+Fetch from server API:
+
+Disk usage
+Bandwidth
+
+If API not available → simulate realistic values
+
+Display in service page.
+
+========================
+⚠️ DOUBLE INVOICE FIX
+=====================
+
+Fix duplicate invoice issue:
+
+When order placed:
+
+Ensure ONLY ONE invoice is created
+
+Check:
+
+Order creation logic
+Invoice function
+
+Prevent duplicate calls.
+
+========================
+⚠️ DOMAIN ORDER FLOW FIX
+========================
+
+Fix domain order system:
+
+When domain ordered:
+
+Save as:
+
+type = domain
+status = Pending
+
+Client dashboard:
+
+Show in "My Domains" page (Pending)
+
+NOT in orders only.
+
+Admin panel:
+
+Show in:
+
+Orders page
+Domains page
+
+========================
+⚠️ ADMIN APPROVE ERROR FIX
+==========================
+
+Fix server error on approve:
+
+Check:
+
+API route for approve
+Database update query
+
+Ensure:
+
+Order status → Active
+Domain status → Active
+
+Add proper error handling.
+
+========================
+⚠️ RENEW SERVICE FIX
+====================
+
+Fix renew button:
+
+When client clicks Renew:
+
+Create renewal order
+Generate invoice
+Status = Pending
+
+Admin approves:
+
+Update due date:
+
++1 / +3 / +6 / +12 months
+
+Update database.
+
+========================
+⚠️ API & ROUTES FIX
+===================
+
+Fix all backend routes:
+
+/api/orders/approve
+/api/services/renew
+/api/wordpress/install
+
+Ensure:
+
+Correct parameters passed
+Correct responses returned
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+WordPress install not saving
+No login button
+Duplicate invoices
+Domain not showing correctly
+Approve server error
+Renew button not working
+
+Ensure:
+
+All actions fully working end-to-end
+
+========================
+🎯 GOAL
+=======
+
+Create a stable system where:
+
+WordPress installs correctly
+Login button appears
+Only one invoice is generated
+Domain shows in correct page
+Admin approve works without error
+Renewal updates due date

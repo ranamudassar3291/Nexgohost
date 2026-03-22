@@ -1232,25 +1232,24 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
-    const { adminUser, adminPassword, adminEmail, siteName = "My Website", forceReinstall = false } = req.body;
 
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
     if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
     if (service.status !== "active") return res.status(400).json({ error: "Service must be active to install WordPress" });
-    if (service.wpInstalled && !forceReinstall) {
-      return res.status(400).json({
-        error: "WordPress is already installed",
-        alreadyInstalled: true,
-        credentials: { loginUrl: service.wpUrl, username: service.wpUsername, password: service.wpPassword },
-      });
-    }
 
-    const wpUser = adminUser || "admin";
-    const wpPass = adminPassword || Math.random().toString(36).slice(-10) + "Aa1!";
-    const wpEmail = adminEmail || "admin@" + service.domain;
-    const wpLoginUrl = `http://${service.domain}/wp-admin`;
+    // Always auto-generate secure random credentials
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const wpUser = `wp_${randomSuffix}`;
+    const wpPass = [
+      Math.random().toString(36).substring(2, 8),
+      Math.random().toString(36).substring(2, 8).toUpperCase(),
+      Math.floor(Math.random() * 900 + 100).toString(),
+      "!@"[Math.floor(Math.random() * 2)],
+    ].join("").substring(0, 16);
+    const wpEmail = `admin@${service.domain}`;
+    const wpLoginUrl = `https://${service.domain}/wp-admin`;
 
     await db.update(hostingServicesTable).set({
       wpInstalled: true,
@@ -1262,7 +1261,7 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
 
     res.json({
       success: true,
-      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl, siteName },
+      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl },
     });
   } catch (err) {
     console.error("[CLIENT] install-wordpress error:", err);

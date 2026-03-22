@@ -173,6 +173,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
       items: invoiceItems,
     }).returning();
 
+    // Link invoice back to order so admin approve does not create a duplicate
+    await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+
     // 4. Insert domain record when registering a domain
     if (registerDomain && domain && domain.includes(".")) {
       try {
