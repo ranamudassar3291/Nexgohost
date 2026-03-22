@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, UserPlus, ShieldCheck, RefreshCw } from "lucide-react";
+import { Loader2, UserPlus, ShieldCheck, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 async function apiFetch(url: string, token: string | null, opts?: RequestInit) {
@@ -25,6 +25,7 @@ export default function Register() {
 
   const [formData, setFormData] = useState({ firstName: "", lastName: "", email: "", password: "", company: "", phone: "" });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState<"form" | "verify">("form");
   const [tempToken, setTempToken] = useState("");
   const [code, setCode] = useState("");
@@ -148,7 +149,14 @@ export default function Register() {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">Password *</label>
-                      <Input type="password" name="password" required value={formData.password} onChange={handleChange} className="bg-background/50 border-white/10 h-11" />
+                      <div className="relative">
+                        <Input type={showPassword ? "text" : "password"} name="password" required value={formData.password} onChange={handleChange}
+                          className="bg-background/50 border-white/10 h-11 pr-12" />
+                        <button type="button" onClick={() => setShowPassword(p => !p)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

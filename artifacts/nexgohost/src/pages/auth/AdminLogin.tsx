@@ -4,7 +4,7 @@ import { useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ArrowRight, ShieldCheck, AlertCircle, User, Smartphone } from "lucide-react";
+import { Loader2, ArrowRight, ShieldCheck, AlertCircle, User, Smartphone, Eye, EyeOff } from "lucide-react";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
@@ -27,6 +27,7 @@ export default function AdminLogin() {
   const [step, setStep] = useState<"password" | "2fa">("password");
   const [tempToken, setTempToken] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
 
@@ -142,8 +143,14 @@ export default function AdminLogin() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-foreground/80 ml-1">Password</label>
-                    <Input type="password" required value={password} onChange={e => { setPassword(e.target.value); setInlineError(null); }} placeholder="••••••••"
-                      className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
+                    <div className="relative">
+                      <Input type={showPassword ? "text" : "password"} required value={password} onChange={e => { setPassword(e.target.value); setInlineError(null); }} placeholder="••••••••"
+                        className="bg-background/50 border-white/10 h-12 rounded-xl text-base pr-12" />
+                      <button type="button" onClick={() => setShowPassword(p => !p)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" disabled={loading}
                     className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25">

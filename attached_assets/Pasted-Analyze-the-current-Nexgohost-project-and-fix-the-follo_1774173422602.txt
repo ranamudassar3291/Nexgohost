@@ -1,0 +1,137 @@
+Analyze the current Nexgohost project and fix the following issues without breaking existing functionality.
+
+========================
+🎨 UI COLOR FIX
+===============
+
+Change the full UI theme to a modern SaaS design.
+
+Apply globally:
+
+Primary: Purple to Blue gradient
+Background: Dark theme (#0f172a or similar)
+Accent: Neon blue/violet
+
+Update:
+
+Buttons
+Cards
+Navbar
+Sidebar
+Forms
+
+Fix Tailwind or CSS so styles apply correctly across all pages.
+
+========================
+💱 CURRENCY FIX (USD → PKR)
+===========================
+
+Replace all USD pricing with PKR.
+
+Set default currency to PKR.
+
+Format prices like:
+
+Rs. 1,000.00
+Rs. 2,500.00
+
+Apply formatting everywhere:
+
+Hosting packages
+Cart
+Invoices
+Orders
+Admin panel
+
+Ensure:
+
+Comma separators
+2 decimal places
+
+Remove any hardcoded USD values.
+
+========================
+🌐 DOMAIN TLD SYSTEM
+====================
+
+Create a new admin page:
+
+TLD Management
+
+Features:
+
+Add TLD (.com, .net, .pk)
+Set pricing:
+
+Register price
+Renew price
+Transfer price
+
+Save in database.
+
+Create client side domain system:
+
+Search domain
+Register domain
+Transfer domain
+
+Add fields:
+
+EPP code
+Nameservers
+
+========================
+🔐 LOGIN / REGISTER UI FIX
+==========================
+
+Redesign login and register pages:
+
+Centered layout
+Modern card UI
+Gradient background
+Rounded inputs
+Smooth button styles
+
+Add:
+
+Show/hide password
+Better spacing
+
+========================
+🛒 CART SYSTEM (HOSTINGER STYLE)
+================================
+
+Create a modern cart system:
+
+Add to cart button for hosting
+Cart page with:
+
+Product summary
+Billing cycle selector
+Total price
+
+Checkout page:
+
+Client login/register
+Order summary
+
+Ensure:
+
+Real-time price update
+Clean UI
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix any:
+
+Broken styles
+API errors
+Non-working buttons
+
+Ensure all data saves correctly.
+
+Goal:
+
+Fix UI, currency, domain system, login/register and cart system to a modern working state without breaking existing features.

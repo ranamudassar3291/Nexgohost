@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ShoppingCart, Server, CheckCircle, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Plan {
   id: string; name: string; description: string | null; price: number;
@@ -21,6 +22,7 @@ const POPULAR_INDEX = 1; // Mark the middle plan as "popular"
 
 export default function NewOrder() {
   const [, setLocation] = useLocation();
+  const { formatPrice } = useCurrency();
   const { data: plans = [], isLoading } = useQuery({ queryKey: ["public-packages"], queryFn: fetchPublicPlans });
 
   const handleOrder = (plan: Plan) => {
@@ -81,7 +83,7 @@ export default function NewOrder() {
 
                 <div>
                   <p className="text-4xl font-display font-bold text-foreground">
-                    ${plan.price.toFixed(2)}
+                    {formatPrice(plan.price)}
                     <span className="text-base font-normal text-muted-foreground">/{plan.billingCycle === "monthly" ? "mo" : "yr"}</span>
                   </p>
                   {plan.description && <p className="text-sm text-muted-foreground mt-1">{plan.description}</p>}
