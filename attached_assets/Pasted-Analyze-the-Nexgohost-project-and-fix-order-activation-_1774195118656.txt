@@ -1,0 +1,147 @@
+Analyze the Nexgohost project and fix order activation mismatch, renewal pricing logic, and service linking issues.
+
+IMPORTANT:
+Do NOT change UI.
+Focus on fixing backend data mapping and logic.
+
+========================
+⚠️ WRONG CPANEL ACCOUNT LINK FIX
+================================
+
+Issue:
+
+New order activate → old cPanel account login showing
+
+Fix:
+
+Each order MUST create unique service record.
+
+Ensure:
+
+service_id is unique
+username is unique
+domain is correctly linked
+
+When activating order:
+
+Use correct order_id → fetch correct domain + package
+Create new cPanel account using NEW username
+
+Do NOT reuse old service data.
+
+Fix database:
+
+Ensure no duplicate or reused service records.
+
+========================
+⚠️ SERVICE LINKING FIX
+======================
+
+Ensure:
+
+Each service is linked to correct:
+
+client_id
+order_id
+domain
+
+Fix queries:
+
+Client dashboard must load services based on correct client_id
+
+========================
+⚠️ RENEWAL PRICE FIX
+====================
+
+Issue:
+
+Wrong price showing on renew
+
+Fix:
+
+When client clicks "Renew":
+
+Fetch renewal_price from package table
+
+NOT original price
+
+If yearly plan:
+
+Use yearly renewal price only
+
+Show correct PKR format.
+
+========================
+⚠️ RENEWAL FLOW FIX
+===================
+
+When client clicks Renew:
+
+Create renewal order
+Generate invoice
+
+Admin approves:
+
+Update service due date
+
+Ensure:
+
+Correct duration applied (monthly/yearly)
+
+========================
+⚠️ ORDER ACTIVATION FIX
+=======================
+
+Fix admin activate button:
+
+When clicked:
+
+Fetch correct order
+Create correct hosting account
+Link to correct domain
+
+Ensure:
+
+No old data reused
+No wrong account linked
+
+========================
+⚠️ DATABASE VALIDATION
+======================
+
+Check and fix:
+
+Duplicate services
+Wrong foreign keys
+Incorrect joins
+
+Ensure clean relationships:
+
+orders → services → clients
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+Wrong cPanel login
+Wrong service mapping
+Renewal wrong price
+Activation mismatch
+
+Ensure:
+
+Each order creates separate service
+Correct data shown everywhere
+
+========================
+🎯 GOAL
+=======
+
+Create a stable system where:
+
+Each order links to correct service
+cPanel login is always correct
+Renewal price is accurate
+No data mismatch occurs

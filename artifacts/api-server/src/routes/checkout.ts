@@ -113,6 +113,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
 
     const [service] = await db.insert(hostingServicesTable).values({
       clientId: req.user!.userId,
+      orderId: order.id,
       planId: plan.id,
       planName: plan.name,
       domain: domain || null,

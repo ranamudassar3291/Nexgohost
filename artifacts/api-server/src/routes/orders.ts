@@ -53,10 +53,20 @@ function formatOrder(
 }
 
 async function findServiceForOrder(order: typeof ordersTable.$inferSelect) {
-  if (order.type !== "hosting" || !order.itemId) return null;
-  const services = await db.select().from(hostingServicesTable)
-    .where(eq(hostingServicesTable.clientId, order.clientId));
-  return services.find(s => s.planId === order.itemId || (order.domain && s.domain === order.domain)) || null;
+  if (order.type !== "hosting") return null;
+  // Primary: look up by orderId for accurate 1-to-1 mapping
+  const byOrderId = await db.select().from(hostingServicesTable)
+    .where(eq(hostingServicesTable.orderId, order.id)).limit(1);
+  if (byOrderId.length > 0) return byOrderId[0];
+  // Fallback: for legacy records without orderId, use clientId+domain exact match
+  if (!order.itemId) return null;
+  const byDomain = order.domain
+    ? await db.select().from(hostingServicesTable)
+        .where(eq(hostingServicesTable.clientId, order.clientId)).then(
+          rows => rows.find(s => s.domain === order.domain && s.orderId === null) ?? null
+        )
+    : null;
+  return byDomain;
 }
 
 async function createInvoiceForOrder(order: typeof ordersTable.$inferSelect, clientName: string) {
@@ -333,22 +343,24 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
     let provisionResult = null;
     let serviceId: string | null = null;
 
-    // Find or create the hosting service
+    // Find or create the hosting service — always use orderId for 1-to-1 mapping
     if (order.type === "hosting") {
-      const existingServices = await db.select().from(hostingServicesTable)
-        .where(eq(hostingServicesTable.clientId, order.clientId));
-      const matchingService = existingServices.find(s =>
-        s.planId === order.itemId || (order.domain && s.domain === order.domain)
-      );
+      // Step 1: Look up service by orderId (accurate, no ambiguity)
+      const [existingByOrder] = await db.select().from(hostingServicesTable)
+        .where(eq(hostingServicesTable.orderId, order.id)).limit(1);
 
-      if (matchingService) {
-        serviceId = matchingService.id;
+      if (existingByOrder) {
+        serviceId = existingByOrder.id;
       } else if (order.itemId) {
-        // Create the service first
+        // No service linked to this order — create a fresh one
+        const months = order.billingCycle === "yearly" ? 12
+          : order.billingCycle === "quarterly" ? 3
+          : order.billingCycle === "semiannual" ? 6 : 1;
         const nextDue = new Date();
-        nextDue.setMonth(nextDue.getMonth() + (order.billingCycle === "yearly" ? 12 : 1));
+        nextDue.setMonth(nextDue.getMonth() + months);
         const [newService] = await db.insert(hostingServicesTable).values({
           clientId: order.clientId,
+          orderId: order.id,
           planId: order.itemId,
           planName: order.itemName,
           domain: order.domain || null,

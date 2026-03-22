@@ -10,6 +10,41 @@ import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twe
 
 const router = Router();
 
+/**
+ * Calculate the correct renewal amount for a hosting service.
+ * Priority: renewalPrice (if configured) → cycle-specific price → base monthly price.
+ */
+function getRenewalAmount(
+  plan: { price: string; renewalPrice: string | null; yearlyPrice: string | null; quarterlyPrice: string | null; semiannualPrice: string | null },
+  billingCycle: string
+): number {
+  // Use dedicated renewal price if configured
+  if (plan.renewalPrice) return Number(plan.renewalPrice);
+  // Fall back to the billing-cycle-specific list price
+  switch (billingCycle) {
+    case "yearly":    return Number(plan.yearlyPrice    || plan.price);
+    case "quarterly": return Number(plan.quarterlyPrice || plan.price);
+    case "semiannual":return Number(plan.semiannualPrice|| plan.price);
+    default:          return Number(plan.price);
+  }
+}
+
+/**
+ * Calculate the correct amount for a new order / plan change.
+ * Uses cycle-specific prices; does NOT use renewalPrice (that's only for renewals).
+ */
+function getOrderAmount(
+  plan: { price: string; yearlyPrice: string | null; quarterlyPrice: string | null; semiannualPrice: string | null },
+  billingCycle: string
+): number {
+  switch (billingCycle) {
+    case "yearly":    return Number(plan.yearlyPrice    || plan.price);
+    case "quarterly": return Number(plan.quarterlyPrice || plan.price);
+    case "semiannual":return Number(plan.semiannualPrice|| plan.price);
+    default:          return Number(plan.price);
+  }
+}
+
 /** Log a WHM action to server_logs (never throws) */
 async function logServerAction(opts: {
   serviceId?: string;
@@ -941,10 +976,8 @@ router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, 
       .where(eq(hostingPlansTable.id, service.planId)).limit(1);
     const billingCycle = service.billingCycle || "monthly";
 
-    let amount = plan ? Number(plan.renewalPrice || plan.price) : 0;
-    if (plan) {
-      if (billingCycle === "yearly" && plan.yearlyPrice) amount = Number(plan.yearlyPrice);
-    }
+    // Use renewalPrice if set, otherwise fall back to cycle-specific price
+    const amount = plan ? getRenewalAmount(plan, billingCycle) : 0;
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);
@@ -1044,8 +1077,8 @@ router.post("/client/hosting/:id/upgrade", authenticate, async (req: AuthRequest
     if (!newPlan) return res.status(404).json({ error: "Plan not found" });
 
     const billingCycle = service.billingCycle || "monthly";
-    let amount = Number(newPlan.price);
-    if (billingCycle === "yearly" && newPlan.yearlyPrice) amount = Number(newPlan.yearlyPrice);
+    // Use the correct cycle price for the new plan (not renewalPrice — this is a new order)
+    const amount = getOrderAmount(newPlan, billingCycle);
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);

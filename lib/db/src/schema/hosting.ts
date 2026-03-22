@@ -38,6 +38,7 @@ export const hostingPlansTable = pgTable("hosting_plans", {
 export const hostingServicesTable = pgTable("hosting_services", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   clientId: text("client_id").notNull(),
+  orderId: text("order_id"),
   planId: text("plan_id").notNull(),
   planName: text("plan_name").notNull(),
   domain: text("domain"),

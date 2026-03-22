@@ -1,5 +1,15 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 10)
+- **DB schema**: Added `orderId` (nullable text) column to `hostingServicesTable` — pushed to DB. Creates a 1-to-1 link between each hosting service and the order that created it.
+- **checkout.ts**: Service creation now stores `orderId: order.id` so each service is uniquely linked to its originating order.
+- **orders.ts — findServiceForOrder()**: Replaced ambiguous `planId`/`domain` matching with `orderId`-first lookup. Fallback for legacy records (no `orderId`) uses exact domain match scoped to that client only.
+- **orders.ts — activate endpoint**: Replaced planId/domain-based service reuse with `orderId` lookup. Always creates a brand-new service (with `orderId`) if none found — guarantees each order gets its own unique cPanel account.
+- **hosting.ts — getRenewalAmount()**: New helper. Priority: `renewalPrice` (if set on plan) → cycle-specific price (yearly/quarterly/semiannual) → base monthly price. Fixes bug where `yearlyPrice` was overriding `renewalPrice` when billing cycle was yearly.
+- **hosting.ts — getOrderAmount()**: New helper for plan changes/upgrades — uses cycle-specific prices only (no `renewalPrice`), correct for new purchase invoices.
+- **hosting.ts — renew endpoint**: Uses `getRenewalAmount` — now always shows the correct renewal price in PKR.
+- **hosting.ts — upgrade endpoint**: Uses `getOrderAmount` — correct price for plan change invoices.
+
 ## Recent Changes (Session 9)
 - **Ticket sender name fix**: Client `TicketDetail.tsx` — updated `Message` interface from `sender: string` to `senderName + senderRole`. Removed hardcoded "You" label; messages now display the actual sender's name (client's real name or admin name). `isStaff` check updated to use `senderRole`.
 - **Cart system (Hostinger-style)**: Added `CartContext.tsx` (localStorage-persisted cart). Created `/client/cart` page (Cart.tsx) showing items, billing cycle selector, order summary, and "Proceed to Checkout" button. Updated `NewOrder.tsx` — "Order Now" button replaced with "Add to Cart" (adds to cart → redirects to cart). Cart icon with badge count added to both desktop header and mobile header (client only). Route `/client/cart` added to App.tsx. `CartProvider` wraps the entire app.
