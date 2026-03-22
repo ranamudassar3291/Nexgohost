@@ -92,7 +92,6 @@ export default function Checkout() {
   const [success, setSuccess] = useState<any>(null);
 
   const isYearly = billingCycle === "yearly";
-  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register" && (domainName ? tldIsFree : true);
 
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods"],
@@ -125,6 +124,7 @@ export default function Checkout() {
   };
   const domainTld = getDomainTld(domainName.trim().toLowerCase());
   const tldIsFree = pkgFreeTlds.length === 0 ? true : pkgFreeTlds.some(t => domainTld.endsWith(t));
+  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register" && (domainName ? tldIsFree : true);
 
   const getDomainPrice = (domain: string): { register: number; renew: number } | null => {
     if (!domain || !domain.includes(".")) return null;
