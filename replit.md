@@ -1,5 +1,10 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 9)
+- **Ticket sender name fix**: Client `TicketDetail.tsx` — updated `Message` interface from `sender: string` to `senderName + senderRole`. Removed hardcoded "You" label; messages now display the actual sender's name (client's real name or admin name). `isStaff` check updated to use `senderRole`.
+- **Cart system (Hostinger-style)**: Added `CartContext.tsx` (localStorage-persisted cart). Created `/client/cart` page (Cart.tsx) showing items, billing cycle selector, order summary, and "Proceed to Checkout" button. Updated `NewOrder.tsx` — "Order Now" button replaced with "Add to Cart" (adds to cart → redirects to cart). Cart icon with badge count added to both desktop header and mobile header (client only). Route `/client/cart` added to App.tsx. `CartProvider` wraps the entire app.
+- **Email templates upgraded to HTML**: All plain-text default email templates (invoice-created, invoice-paid, order-created, hosting-created, password-reset, ticket-reply, service-suspended, service-cancelled) replaced with professional branded HTML templates. Seeder updated to auto-upgrade existing plain-text templates to HTML on server restart.
+
 ## Recent Changes (Session 8)
 - **EditPackage.tsx**: Added `renewalPrice` UI field (visible when "Enable Renewal" is toggled on). Admin can now set a custom renewal price per plan.
 - **API: cPanel Password Change**: `POST /admin/hosting/:id/change-password` and `POST /client/hosting/:id/change-password` — updates DB and attempts live WHM password change via new `cpanelChangePassword()` in `cpanel.ts`.

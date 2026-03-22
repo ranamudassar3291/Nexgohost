@@ -2,10 +2,11 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight } from "lucide-react";
+import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
+import { useCart } from "@/context/CartContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -82,9 +83,10 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const { count: cartCount } = useCart();
 
   const toggleGroup = (label: string) => {
     setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
@@ -239,9 +241,24 @@ export function AppLayout({ children, role }: LayoutProps) {
           <div className="w-7 h-7 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-xs">N</div>
           <span className="font-display font-bold text-lg text-foreground">Nexgohost</span>
         </div>
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground p-2">
-          {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        <div className="flex items-center gap-1">
+          {role === "client" && (
+            <button
+              onClick={() => { setLocation("/client/cart"); setMobileMenuOpen(false); }}
+              className="relative p-2 rounded-xl text-muted-foreground"
+            >
+              <ShoppingCart size={20} />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          )}
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground p-2">
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </div>
 
       {/* Desktop Sidebar */}
@@ -291,6 +308,20 @@ export function AppLayout({ children, role }: LayoutProps) {
               <div className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-2 text-xs text-primary font-semibold">
                 <ShieldAlert size={14} /> Admin Access
               </div>
+            )}
+            {role === "client" && (
+              <button
+                onClick={() => setLocation("/client/cart")}
+                className="relative p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                title="View Cart"
+              >
+                <ShoppingCart size={18} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
             )}
             <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20">
               {user?.firstName?.[0]}{user?.lastName?.[0]}

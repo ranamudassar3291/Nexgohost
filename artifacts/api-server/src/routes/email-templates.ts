@@ -48,71 +48,255 @@ const DEFAULT_TEMPLATES = [
     name: "Invoice Created",
     slug: "invoice-created",
     subject: "Invoice #{invoice_id} — {company_name}",
-    body: `Hi {client_name},\n\nA new invoice has been generated for your account.\n\nInvoice #: {invoice_id}\nAmount Due: {amount}\nDue Date: {due_date}\n\nPlease log in to your client area to view and pay this invoice.\n{client_area_url}\n\nThank you for your business.\n— {company_name} Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0;letter-spacing:-0.5px">{company_name}</h1>
+</div>
+<h2 style="color:#1a1a2e;font-size:20px;margin-bottom:4px">New Invoice Generated</h2>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">A new invoice has been created for your account. Please review and pay it before the due date to avoid service interruption.</p>
+<div style="background:#f9f8ff;border:1px solid #e0d9ff;border-radius:10px;padding:20px;margin:24px 0">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:6px 0">Invoice Number</td><td style="font-weight:600;color:#1a1a2e;text-align:right">#{invoice_id}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:6px 0;border-top:1px solid #eee">Amount Due</td><td style="font-weight:700;color:#6c5ce7;font-size:18px;text-align:right;border-top:1px solid #eee">{amount}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:6px 0;border-top:1px solid #eee">Due Date</td><td style="font-weight:600;color:#e17055;text-align:right;border-top:1px solid #eee">{due_date}</td></tr>
+  </table>
+</div>
+<div style="text-align:center;margin:28px 0">
+  <a href="{client_area_url}" style="background:#6c5ce7;color:white;padding:13px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block">View &amp; Pay Invoice</a>
+</div>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">This email was sent automatically by {company_name}. Please do not reply.</p>
+</div></div>`,
     variables: ["{client_name}", "{invoice_id}", "{amount}", "{due_date}", "{client_area_url}", "{company_name}"],
   },
   {
     name: "Invoice Payment Confirmation",
     slug: "invoice-paid",
     subject: "Payment Received — Invoice #{invoice_id}",
-    body: `Hi {client_name},\n\nWe have received your payment for Invoice #{invoice_id}.\n\nAmount Paid: {amount}\nPayment Date: {payment_date}\n\nThank you! Your services are now active.\n— {company_name} Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<div style="text-align:center;margin-bottom:20px">
+  <div style="width:56px;height:56px;background:#d4fce8;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px">
+    <span style="color:#00b894;font-size:28px">✓</span>
+  </div>
+  <h2 style="color:#1a1a2e;font-size:22px;margin:0">Payment Received</h2>
+</div>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">We have successfully received your payment. Thank you!</p>
+<div style="background:#f0fff8;border:1px solid #b2f0d5;border-radius:10px;padding:20px;margin:24px 0">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:6px 0">Invoice Number</td><td style="font-weight:600;color:#1a1a2e;text-align:right">#{invoice_id}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:6px 0;border-top:1px solid #cef5e2">Amount Paid</td><td style="font-weight:700;color:#00b894;font-size:18px;text-align:right;border-top:1px solid #cef5e2">{amount}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:6px 0;border-top:1px solid #cef5e2">Payment Date</td><td style="font-weight:600;color:#1a1a2e;text-align:right;border-top:1px solid #cef5e2">{payment_date}</td></tr>
+  </table>
+</div>
+<p style="color:#555;line-height:1.7">Your services are now active. If you have any questions, please open a support ticket in your client area.</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Team</p>
+</div></div>`,
     variables: ["{client_name}", "{invoice_id}", "{amount}", "{payment_date}", "{company_name}"],
   },
   {
     name: "New Order Confirmation",
     slug: "order-created",
     subject: "Order Confirmed — {service_name}",
-    body: `Hi {client_name},\n\nThank you for your order! We are setting up your account.\n\nService: {service_name}\nDomain: {domain}\nOrder #: {order_id}\n\nYou will receive login details once your hosting account is ready.\n— {company_name} Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<h2 style="color:#1a1a2e;font-size:20px;margin-bottom:4px">Order Confirmed!</h2>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">Thank you for your order! We are setting up your hosting account and will notify you when it is ready.</p>
+<div style="background:#f9f8ff;border:1px solid #e0d9ff;border-radius:10px;padding:20px;margin:24px 0">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:6px 0">Order Number</td><td style="font-weight:600;color:#1a1a2e;text-align:right">#{order_id}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:6px 0;border-top:1px solid #eee">Service</td><td style="font-weight:600;color:#1a1a2e;text-align:right;border-top:1px solid #eee">{service_name}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:6px 0;border-top:1px solid #eee">Domain</td><td style="font-weight:600;color:#6c5ce7;text-align:right;border-top:1px solid #eee">{domain}</td></tr>
+  </table>
+</div>
+<p style="color:#555;line-height:1.7">You will receive your hosting account details (cPanel credentials, nameservers) in a separate email once your account is activated.</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Team</p>
+</div></div>`,
     variables: ["{client_name}", "{service_name}", "{domain}", "{order_id}", "{company_name}"],
   },
   {
     name: "Hosting Account Created",
     slug: "hosting-created",
     subject: "Your Hosting Account is Ready — {domain}",
-    body: `Hi {client_name},\n\nYour hosting account has been successfully created!\n\n--- ACCOUNT DETAILS ---\nDomain: {domain}\nUsername: {username}\nPassword: {password}\ncPanel URL: {cpanel_url}\n\n--- NAMESERVERS ---\nNS1: {ns1}\nNS2: {ns2}\n\n--- WEBMAIL ---\nWebmail: {webmail_url}\n\n— {company_name} Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<div style="text-align:center;margin-bottom:20px">
+  <div style="width:56px;height:56px;background:#e8f4fd;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px">
+    <span style="font-size:28px">🚀</span>
+  </div>
+  <h2 style="color:#1a1a2e;font-size:22px;margin:0">Your Hosting is Ready!</h2>
+</div>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">Your hosting account for <strong>{domain}</strong> has been successfully created. Here are your account details:</p>
+<div style="background:#f9f8ff;border:1px solid #e0d9ff;border-radius:10px;padding:20px;margin:24px 0">
+  <p style="margin:0 0 12px;font-weight:700;color:#6c5ce7;font-size:13px;text-transform:uppercase;letter-spacing:1px">Account Details</p>
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:5px 0">Domain</td><td style="font-weight:600;color:#1a1a2e;text-align:right">{domain}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Username</td><td style="font-family:monospace;font-weight:600;color:#1a1a2e;text-align:right;border-top:1px solid #eee">{username}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Password</td><td style="font-family:monospace;font-weight:600;color:#6c5ce7;text-align:right;border-top:1px solid #eee">{password}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">cPanel URL</td><td style="text-align:right;border-top:1px solid #eee"><a href="{cpanel_url}" style="color:#6c5ce7">{cpanel_url}</a></td></tr>
+  </table>
+</div>
+<div style="background:#fff8f0;border:1px solid #ffd8b0;border-radius:10px;padding:20px;margin:24px 0">
+  <p style="margin:0 0 10px;font-weight:700;color:#e17055;font-size:13px;text-transform:uppercase;letter-spacing:1px">Nameservers</p>
+  <p style="margin:4px 0;color:#555;font-family:monospace;font-size:14px">{ns1}</p>
+  <p style="margin:4px 0;color:#555;font-family:monospace;font-size:14px">{ns2}</p>
+</div>
+<p style="color:#555;line-height:1.7;font-size:13px">Please update your domain's nameservers to the values above to point your domain to your hosting account. Propagation may take up to 24–48 hours.</p>
+<div style="text-align:center;margin:24px 0">
+  <a href="{cpanel_url}" style="background:#6c5ce7;color:white;padding:13px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block">Access cPanel</a>
+</div>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Team</p>
+</div></div>`,
     variables: ["{client_name}", "{domain}", "{username}", "{password}", "{cpanel_url}", "{ns1}", "{ns2}", "{webmail_url}", "{company_name}"],
   },
   {
     name: "Password Reset",
     slug: "password-reset",
-    subject: "Password Reset Request",
-    body: `Hi {client_name},\n\nWe received a request to reset your password.\n\nClick the link below (expires in 24 hours):\n{reset_link}\n\nIf you did not request this, please ignore this email.\n— {company_name} Team`,
+    subject: "Password Reset Request — {company_name}",
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<h2 style="color:#1a1a2e;font-size:20px;margin-bottom:4px">Reset Your Password</h2>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">We received a request to reset the password for your account. Click the button below to set a new password. This link expires in <strong>24 hours</strong>.</p>
+<div style="text-align:center;margin:28px 0">
+  <a href="{reset_link}" style="background:#6c5ce7;color:white;padding:13px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block">Reset Password</a>
+</div>
+<p style="color:#888;font-size:13px;line-height:1.6">If the button doesn't work, copy and paste this link:<br><a href="{reset_link}" style="color:#6c5ce7;word-break:break-all">{reset_link}</a></p>
+<p style="color:#e17055;font-size:13px;line-height:1.6">If you did not request a password reset, please ignore this email. Your password will not change.</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Team</p>
+</div></div>`,
     variables: ["{client_name}", "{reset_link}", "{company_name}"],
   },
   {
     name: "Support Ticket Reply",
     slug: "ticket-reply",
     subject: "Re: [{ticket_number}] {ticket_subject}",
-    body: `Hi {client_name},\n\nA new reply has been added to your support ticket.\n\nTicket #: {ticket_number}\nSubject: {ticket_subject}\nDepartment: {department}\n\nReply:\n{reply_body}\n\nView & reply: {ticket_url}\n— {company_name} Support Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<h2 style="color:#1a1a2e;font-size:20px;margin-bottom:4px">New Reply to Your Ticket</h2>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">Our support team has replied to your ticket:</p>
+<div style="background:#f9f8ff;border:1px solid #e0d9ff;border-radius:10px;padding:20px;margin:20px 0">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:5px 0">Ticket #</td><td style="font-weight:600;color:#1a1a2e;text-align:right">{ticket_number}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Subject</td><td style="font-weight:600;color:#1a1a2e;text-align:right;border-top:1px solid #eee">{ticket_subject}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Department</td><td style="font-weight:600;color:#6c5ce7;text-align:right;border-top:1px solid #eee">{department}</td></tr>
+  </table>
+</div>
+<div style="background:#fafafa;border-left:4px solid #6c5ce7;border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0">
+  <p style="margin:0;color:#444;line-height:1.7;font-size:14px">{reply_body}</p>
+</div>
+<div style="text-align:center;margin:24px 0">
+  <a href="{ticket_url}" style="background:#6c5ce7;color:white;padding:13px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block">View &amp; Reply to Ticket</a>
+</div>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Support Team</p>
+</div></div>`,
     variables: ["{client_name}", "{ticket_number}", "{ticket_subject}", "{department}", "{reply_body}", "{ticket_url}", "{company_name}"],
   },
   {
     name: "Service Suspended",
     slug: "service-suspended",
     subject: "Service Suspended — {domain}",
-    body: `Hi {client_name},\n\nYour hosting service for {domain} has been suspended.\n\nReason: {reason}\n\nTo reactivate, please pay outstanding invoices or contact support.\n{client_area_url}\n— {company_name} Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:20px;margin-bottom:24px;text-align:center">
+  <p style="font-size:28px;margin:0 0 8px">⚠️</p>
+  <h2 style="color:#c53030;font-size:20px;margin:0">Service Suspended</h2>
+</div>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">Your hosting service for <strong>{domain}</strong> has been suspended.</p>
+<div style="background:#f9f8ff;border:1px solid #e0d9ff;border-radius:10px;padding:20px;margin:20px 0">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:5px 0">Domain</td><td style="font-weight:600;color:#1a1a2e;text-align:right">{domain}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Reason</td><td style="font-weight:600;color:#c53030;text-align:right;border-top:1px solid #eee">{reason}</td></tr>
+  </table>
+</div>
+<p style="color:#555;line-height:1.7">To reactivate your service, please pay any outstanding invoices or contact our support team.</p>
+<div style="text-align:center;margin:24px 0">
+  <a href="{client_area_url}" style="background:#6c5ce7;color:white;padding:13px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block">Go to Client Area</a>
+</div>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Team</p>
+</div></div>`,
     variables: ["{client_name}", "{domain}", "{reason}", "{client_area_url}", "{company_name}"],
   },
   {
     name: "Cancellation Confirmation",
     slug: "service-cancelled",
     subject: "Cancellation Processed — {domain}",
-    body: `Hi {client_name},\n\nYour cancellation request for {domain} has been processed.\n\nService: {service_name}\nCancellation Date: {cancel_date}\n\nWe're sorry to see you go. You're welcome back anytime!\n— {company_name} Team`,
+    body: `<div style="font-family:Arial,sans-serif;background:#f5f7fb;padding:30px">
+<div style="max-width:600px;margin:auto;background:white;padding:32px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+<div style="text-align:center;margin-bottom:24px">
+  <h1 style="color:#6c5ce7;font-size:26px;margin:0">{company_name}</h1>
+</div>
+<h2 style="color:#1a1a2e;font-size:20px;margin-bottom:4px">Cancellation Processed</h2>
+<p style="color:#555;line-height:1.7">Hello {client_name},</p>
+<p style="color:#555;line-height:1.7">Your cancellation request has been processed. We're sorry to see you go!</p>
+<div style="background:#f9f8ff;border:1px solid #e0d9ff;border-radius:10px;padding:20px;margin:20px 0">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="color:#888;font-size:13px;padding:5px 0">Service</td><td style="font-weight:600;color:#1a1a2e;text-align:right">{service_name}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Domain</td><td style="font-weight:600;color:#1a1a2e;text-align:right;border-top:1px solid #eee">{domain}</td></tr>
+    <tr><td style="color:#888;font-size:13px;padding:5px 0;border-top:1px solid #eee">Cancellation Date</td><td style="font-weight:600;color:#1a1a2e;text-align:right;border-top:1px solid #eee">{cancel_date}</td></tr>
+  </table>
+</div>
+<p style="color:#555;line-height:1.7">You're always welcome back! If you change your mind, please don't hesitate to create a new order or contact our support team.</p>
+<hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+<p style="font-size:12px;color:#aaa;margin:0;text-align:center">— {company_name} Team</p>
+</div></div>`,
     variables: ["{client_name}", "{domain}", "{service_name}", "{cancel_date}", "{company_name}"],
   },
 ];
 
 /**
- * Seed any missing default templates (upsert-style).
- * If a template with a given slug already exists, skip it — don't overwrite admin edits.
+ * Seed any missing default templates and upgrade plain-text defaults to HTML.
+ * Existing templates that already contain HTML (admin-customised) are skipped.
  * Called at server startup and on every GET /admin/email-templates request.
  */
 export async function seedMissingTemplates() {
-  const existing = await db.select({ slug: emailTemplatesTable.slug }).from(emailTemplatesTable);
-  const existingSlugs = new Set(existing.map(r => r.slug));
-  const missing = DEFAULT_TEMPLATES.filter(t => !existingSlugs.has(t.slug));
-  if (missing.length > 0) {
-    await db.insert(emailTemplatesTable).values(missing);
+  const existing = await db.select({ slug: emailTemplatesTable.slug, body: emailTemplatesTable.body }).from(emailTemplatesTable);
+  const existingMap = new Map(existing.map(r => [r.slug, r.body]));
+
+  const toInsert = DEFAULT_TEMPLATES.filter(t => !existingMap.has(t.slug));
+  if (toInsert.length > 0) {
+    await db.insert(emailTemplatesTable).values(toInsert);
+  }
+
+  // Upgrade plain-text templates to HTML (only if the body doesn't contain HTML)
+  for (const t of DEFAULT_TEMPLATES) {
+    const existingBody = existingMap.get(t.slug);
+    if (existingBody && !existingBody.includes("<div") && t.body.includes("<div")) {
+      await db.update(emailTemplatesTable)
+        .set({ body: t.body, subject: t.subject, name: t.name })
+        .where(eq(emailTemplatesTable.slug, t.slug));
+    }
   }
 }
 

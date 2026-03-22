@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
 import { CurrencyProvider } from "@/context/CurrencyProvider";
+import { CartProvider } from "@/context/CartContext";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -63,6 +64,7 @@ import ClientMigrations from "@/pages/client/Migrations";
 import ClientAccount from "@/pages/client/Account";
 import NewOrder from "@/pages/client/NewOrder";
 import Checkout from "@/pages/client/Checkout";
+import Cart from "@/pages/client/Cart";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import ClientOrders from "@/pages/client/Orders";
 import Homepage from "@/pages/public/Homepage";
@@ -254,6 +256,9 @@ function RouterRoot() {
       <Route path="/client/orders">
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
+      <Route path="/client/cart">
+        <ClientPage><Cart /></ClientPage>
+      </Route>
       <Route path="/client/checkout">
         <ClientPage><Checkout /></ClientPage>
       </Route>
@@ -309,7 +314,9 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <AuthProvider>
             <CurrencyProvider>
-              <RouterRoot />
+              <CartProvider>
+                <RouterRoot />
+              </CartProvider>
             </CurrencyProvider>
           </AuthProvider>
         </WouterRouter>

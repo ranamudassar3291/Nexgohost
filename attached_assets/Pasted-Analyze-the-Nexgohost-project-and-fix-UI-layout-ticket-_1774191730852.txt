@@ -1,0 +1,146 @@
+Analyze the Nexgohost project and fix UI layout, ticket system identity, and convert checkout into a full cart-based system.
+
+IMPORTANT:
+Do NOT break backend logic.
+Focus on UI structure, identity, and checkout flow.
+
+========================
+🎨 FULL LAYOUT FIX (ADMIN + CLIENT)
+===================================
+
+Fix all layout issues:
+
+Admin panel
+Client dashboard
+Tables
+Forms
+Cards
+
+Ensure:
+
+Proper spacing
+Aligned elements
+Consistent font sizes
+No broken layout
+
+Fix responsive issues for mobile and desktop.
+
+========================
+📧 EMAIL TEMPLATE FIX
+=====================
+
+Fix email templates:
+
+Use professional layout:
+
+Header (logo + company name)
+Body (clear message)
+Footer
+
+Ensure:
+
+Proper spacing
+Readable fonts
+No broken formatting
+
+========================
+🎫 TICKET SYSTEM FIX (NAME ISSUE)
+=================================
+
+Fix ticket messages showing "You":
+
+When client sends message:
+
+Show client name
+
+When admin replies:
+
+Show admin name
+
+Fix database:
+
+Store sender_type (admin/client)
+Store sender_name
+
+Frontend:
+
+Display correct name instead of "You"
+
+========================
+🛒 FULL CART SYSTEM (HOSTINGER STYLE)
+=====================================
+
+Replace current checkout with full cart system:
+
+Step 1: Add product/domain to cart
+
+Step 2: Cart page:
+
+Show items
+Edit/remove
+Select billing cycle
+
+Step 3: Continue to checkout
+
+Step 4: Checkout page:
+
+Login/Register
+Order summary
+
+Step 5: Place order → generate invoice
+
+Ensure:
+
+No direct checkout
+Always go through cart
+
+========================
+🔐 LOGIN PAGE (MODERN)
+======================
+
+Redesign login page:
+
+Centered card
+White background
+Clean input fields
+Purple button
+
+Add:
+
+Show/hide password
+Proper spacing
+
+========================
+📝 REGISTER PAGE (MODERN)
+=========================
+
+Redesign register page:
+
+Modern form
+Responsive layout
+Clean UI
+
+Fields:
+
+Name
+Email
+Password
+
+Proper validation.
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+Broken UI
+Ticket "You" issue
+Checkout skipping cart
+Misaligned pages
+
+Ensure:
+
+Professional layout
+Cart system working
+Ticket names correct

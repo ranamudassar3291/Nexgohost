@@ -5,6 +5,7 @@ import { ShoppingCart, Server, CheckCircle, Loader2, ArrowRight } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { useCart } from "@/context/CartContext";
 
 interface Plan {
   id: string; name: string; description: string | null; price: number;
@@ -58,8 +59,10 @@ const POPULAR_INDEX = 1;
 export default function NewOrder() {
   const [, setLocation] = useLocation();
   const { formatPrice } = useCurrency();
+  const { addItem } = useCart();
   const { data: plans = [], isLoading } = useQuery({ queryKey: ["public-packages"], queryFn: fetchPublicPlans });
   const [selectedCycles, setSelectedCycles] = useState<Record<string, BillingCycle>>({});
+  const [addedPlanId, setAddedPlanId] = useState<string | null>(null);
 
   const getCycleForPlan = (plan: Plan): BillingCycle => {
     return selectedCycles[plan.id] ?? "monthly";
@@ -67,19 +70,19 @@ export default function NewOrder() {
 
   const handleOrder = (plan: Plan) => {
     const cycle = getCycleForPlan(plan);
-    const price = getPrice(plan, cycle) ?? plan.price;
-    const params = new URLSearchParams({
-      packageId: plan.id,
-      packageName: plan.name,
-      amount: String(price),
+    addItem({
+      planId: plan.id,
+      planName: plan.name,
       billingCycle: cycle,
-      monthlyPrice: String(plan.price),
-      ...(plan.quarterlyPrice ? { quarterlyPrice: String(plan.quarterlyPrice) } : {}),
-      ...(plan.semiannualPrice ? { semiannualPrice: String(plan.semiannualPrice) } : {}),
-      ...(plan.yearlyPrice ? { yearlyPrice: String(plan.yearlyPrice) } : {}),
-      ...(plan.renewalEnabled && plan.renewalPrice ? { renewalPrice: String(plan.renewalPrice) } : {}),
+      monthlyPrice: plan.price,
+      quarterlyPrice: plan.quarterlyPrice ?? undefined,
+      semiannualPrice: plan.semiannualPrice ?? undefined,
+      yearlyPrice: plan.yearlyPrice ?? undefined,
+      renewalPrice: plan.renewalPrice ?? undefined,
+      renewalEnabled: plan.renewalEnabled,
     });
-    setLocation(`/client/checkout?${params.toString()}`);
+    setAddedPlanId(plan.id);
+    setTimeout(() => setLocation("/client/cart"), 600);
   };
 
   return (
@@ -179,10 +182,15 @@ export default function NewOrder() {
 
                 <Button
                   onClick={() => handleOrder(plan)}
+                  disabled={addedPlanId === plan.id}
                   className={`w-full gap-2 mt-auto ${isPopular ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20" : ""}`}
                   variant={isPopular ? "default" : "outline"}
                 >
-                  Order Now <ArrowRight size={16} />
+                  {addedPlanId === plan.id ? (
+                    <><CheckCircle size={16} /> Added to Cart</>
+                  ) : (
+                    <><ShoppingCart size={16} /> Add to Cart</>
+                  )}
                 </Button>
               </motion.div>
             );

@@ -14,7 +14,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf", "applicatio
 const MAX_SIZE_MB = 5;
 
 interface Attachment { name: string; type: string; size: number; data: string; }
-interface Message { id: string; sender: string; message: string; createdAt: string; attachments?: Attachment[]; }
+interface Message { id: string; senderName: string; senderRole: string; message: string; createdAt: string; attachments?: Attachment[]; }
 interface Ticket {
   id: string; ticketNumber: string; subject: string; department: string;
   priority: string; status: string; createdAt: string; updatedAt: string;
@@ -155,7 +155,7 @@ export default function ClientTicketDetail() {
       {/* Messages */}
       <div className="space-y-4">
         {ticket.messages?.map((msg, idx) => {
-          const isStaff = msg.sender === "admin" || msg.sender === "staff";
+          const isStaff = msg.senderRole === "admin" || msg.senderRole === "staff";
           return (
             <div key={msg.id || idx} className={`flex gap-3 ${isStaff ? "" : "flex-row-reverse"}`}>
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isStaff ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>
@@ -165,7 +165,7 @@ export default function ClientTicketDetail() {
                 <div className={`rounded-2xl p-4 ${isStaff ? "bg-card border border-border rounded-tl-sm" : "bg-primary/10 border border-primary/20 rounded-tr-sm"}`}>
                   <div className="flex items-center justify-between gap-4 mb-2">
                     <span className={`text-xs font-semibold ${isStaff ? "text-primary" : "text-foreground"}`}>
-                      {isStaff ? "Support Team" : "You"}
+                      {msg.senderName || (isStaff ? "Support Team" : "Client")}
                     </span>
                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <Clock size={10} /> {format(new Date(msg.createdAt), "MMM d, h:mm a")}
