@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Server, Globe, Shield, Zap, Clock, HeadphonesIcon,
-  Search, CheckCircle, XCircle, Loader2, ChevronRight,
+  Search, CheckCircle, XCircle, Loader2, ChevronRight, ChevronDown,
   Star, ArrowRight, Menu, X, Database, Lock, Cpu, Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,80 @@ const TESTIMONIALS = [
   { name: "Sarah Johnson",   role: "Web Developer",    rating: 5, text: "The cPanel interface is clean and the support team always resolves issues within minutes. Highly recommended!" },
   { name: "Muhammad Ali",    role: "Blogger",          rating: 5, text: "Switched from another host and couldn't be happier. The value for money is unbeatable and the speed is phenomenal." },
 ];
+
+const FAQS = [
+  {
+    q: "What hosting plans do you offer?",
+    a: "We offer Shared Hosting, Business Hosting, and Enterprise plans — each suited for different stages of growth. All plans include free SSL, 99.9% uptime SLA, cPanel access, and 24/7 support. You can upgrade or downgrade at any time.",
+  },
+  {
+    q: "How do I register a domain name?",
+    a: "Simply search for your desired domain in our domain checker above. If it's available, add it to your cart and complete checkout. We support .com, .pk, .net, .org, and many more TLDs at competitive prices.",
+  },
+  {
+    q: "Is there a money-back guarantee?",
+    a: "Yes! All hosting plans come with a 30-day money-back guarantee. If you're not satisfied for any reason, contact our support team within 30 days of purchase and we'll issue a full refund — no questions asked.",
+  },
+  {
+    q: "Do I get free SSL with my hosting?",
+    a: "Absolutely. Every hosting account includes a free Let's Encrypt SSL certificate. We also offer premium Comodo/RapidSSL certificates for businesses that need extended validation or wildcard coverage.",
+  },
+  {
+    q: "Can I migrate my existing website to Nexgohost?",
+    a: "Yes, we offer free website migration for all new customers. Our technical team will handle the full migration — files, databases, emails — with minimal downtime. Just open a support ticket after signing up.",
+  },
+  {
+    q: "What control panel do you use?",
+    a: "We use cPanel, the industry-standard control panel trusted by millions of websites. It gives you complete control over your files, databases, email accounts, DNS settings, and much more through an intuitive interface.",
+  },
+  {
+    q: "Do you offer dedicated or VPS hosting?",
+    a: "Our Business and Enterprise plans are built on cloud infrastructure with dedicated resources. For fully dedicated servers, please contact our sales team for a custom quote tailored to your workload.",
+  },
+  {
+    q: "How do I reach support if I need help?",
+    a: "Our support team is available 24/7 via live chat, ticket system, and email. Average first response time is under 15 minutes. Premium plans also include priority queue access for even faster resolutions.",
+  },
+];
+
+function FaqAccordion() {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <div className="space-y-3">
+      {FAQS.map((faq, i) => (
+        <div
+          key={i}
+          className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-colors"
+        >
+          <button
+            className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left"
+            onClick={() => setOpen(open === i ? null : i)}
+          >
+            <span className="font-semibold text-foreground text-sm sm:text-base">{faq.q}</span>
+            <ChevronDown
+              size={18}
+              className={`shrink-0 text-muted-foreground transition-transform duration-300 ${open === i ? "rotate-180" : ""}`}
+            />
+          </button>
+          <AnimatePresence initial={false}>
+            {open === i && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+              >
+                <div className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed border-t border-border/50 pt-4">
+                  {faq.a}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Homepage() {
   const [, setLocation] = useLocation();
@@ -409,6 +483,18 @@ export default function Homepage() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section className="py-20 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="inline-block text-xs font-semibold uppercase tracking-widest text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 mb-4">FAQ</span>
+            <h2 className="text-4xl font-display font-bold text-foreground mb-3">Frequently Asked Questions</h2>
+            <p className="text-muted-foreground">Everything you need to know about our hosting services.</p>
+          </div>
+          <FaqAccordion />
         </div>
       </section>
 

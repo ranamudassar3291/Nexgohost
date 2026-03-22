@@ -492,4 +492,19 @@ router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async 
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
+// Client: get EPP / auth code for domain transfer
+router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+    if (req.user!.role !== "admin" && domain.clientId !== req.user!.userId) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+    // Generate deterministic auth code from domain id (production would fetch from registrar)
+    const raw = domain.id.replace(/-/g, "");
+    const code = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`.toUpperCase();
+    res.json({ domainId: domain.id, domain: `${domain.name}${domain.tld}`, authCode: code });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 export default router;

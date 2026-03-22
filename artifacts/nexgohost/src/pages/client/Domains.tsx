@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Globe, Search, ShoppingCart, CheckCircle2, XCircle, AlertCircle,
   Loader2, Trash2, ExternalLink, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
-  Server, Plus, Minus, Save,
+  Server, Plus, Minus, Save, Key, Copy, CheckCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,10 @@ export default function ClientDomains() {
   const [successResult, setSuccessResult] = useState<DomainRegisterResponse | null>(null);
   const [orderingDomain, setOrderingDomain] = useState<string | null>(null);
   const [dnsModal, setDnsModal] = useState<MyDomain | null>(null);
+  const [eppModal, setEppModal] = useState<MyDomain | null>(null);
+  const [eppCode, setEppCode] = useState<string | null>(null);
+  const [eppLoading, setEppLoading] = useState(false);
+  const [eppCopied, setEppCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -69,6 +73,32 @@ export default function ClientDomains() {
   const { data: searchData, isLoading: searching, error: searchError } = useSearchDomainAvailability(searchQuery);
   const registerMutation = useRegisterDomain();
   const { toast } = useToast();
+
+  const openEppModal = async (domain: MyDomain) => {
+    setEppModal(domain);
+    setEppCode(null);
+    setEppCopied(false);
+    setEppLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/domains/${domain.id}/epp`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setEppCode(data.authCode);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+      setEppModal(null);
+    } finally {
+      setEppLoading(false);
+    }
+  };
+
+  const copyEppCode = async () => {
+    if (!eppCode) return;
+    await navigator.clipboard.writeText(eppCode);
+    setEppCopied(true);
+    setTimeout(() => setEppCopied(false), 2500);
+  };
 
   const toggleAutoRenew = async (domainId: string, current: boolean) => {
     try {
@@ -323,6 +353,9 @@ export default function ClientDomains() {
                       <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => setDnsModal(domain)}>
                         <Server size={12} /> Nameservers
                       </Button>
+                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => openEppModal(domain)} title="Get EPP / Auth Code for domain transfer">
+                        <Key size={12} /> Auth Code
+                      </Button>
                     </div>
                   </div>
 
@@ -388,6 +421,62 @@ export default function ClientDomains() {
             setDnsModal(null);
           }}
         />
+      )}
+
+      {eppModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Key size={18} className="text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground">EPP / Auth Code</h3>
+                  <p className="text-xs text-muted-foreground font-mono">{eppModal.name}{eppModal.tld}</p>
+                </div>
+              </div>
+              <button onClick={() => { setEppModal(null); setEppCode(null); }} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+              Use this authorization code to initiate a domain transfer to another registrar. Keep it confidential and provide it only when requested by your new registrar.
+            </p>
+
+            <div className="bg-secondary rounded-xl p-4 mb-4">
+              {eppLoading ? (
+                <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">Fetching auth code…</span>
+                </div>
+              ) : eppCode ? (
+                <div className="flex items-center justify-between gap-3">
+                  <code className="font-mono text-base font-bold text-primary tracking-wider break-all">{eppCode}</code>
+                  <button
+                    onClick={copyEppCode}
+                    className="shrink-0 p-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    {eppCopied ? <CheckCheck size={15} /> : <Copy size={15} />}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">Unable to retrieve auth code.</p>
+              )}
+            </div>
+
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>This code is valid for domain transfer only. Keep it private. Generate a new code if it becomes compromised.</span>
+            </div>
+
+            <Button className="w-full mt-4" variant="outline" onClick={() => { setEppModal(null); setEppCode(null); }}>
+              Close
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   Clock,
+  Receipt,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -65,6 +66,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/reports",               label: "Reports",            icon: BarChart3,    inNav: true  },
   { path: "/admin/product-groups",        label: "Product Groups",     icon: Layers,       inNav: true  },
   { path: "/admin/email-templates",       label: "Email Templates",    icon: Mail,         inNav: true  },
+  { path: "/admin/transactions",           label: "Transactions",       icon: Receipt,      inNav: true  },
   { path: "/admin/fraud-logs",             label: "Fraud Logs",         icon: ShieldAlert,  inNav: true  },
   { path: "/admin/server-logs",           label: "Server Logs",        icon: Server,       inNav: true  },
   { path: "/admin/cron-logs",             label: "Automation",         icon: Clock,        inNav: true  },

@@ -64,6 +64,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Analytics & Logs",
     items: [
       { name: "Reports",          href: "/admin/reports",          icon: (() => null) as any },
+      { name: "Transactions",     href: "/admin/transactions",     icon: (() => null) as any },
       { name: "Fraud Logs",       href: "/admin/fraud-logs",       icon: (() => null) as any },
       { name: "Automation",       href: "/admin/cron-logs",        icon: (() => null) as any },
       { name: "Server Logs",      href: "/admin/server-logs",      icon: (() => null) as any },
