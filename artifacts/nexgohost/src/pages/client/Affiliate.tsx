@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Link2, TrendingUp, DollarSign, Copy, Check, ExternalLink, AlertCircle, Loader2, Share2, Gift } from "lucide-react";
+import {
+  Users, Link2, TrendingUp, DollarSign, Copy, Check, ExternalLink,
+  AlertCircle, Loader2, Share2, Gift, ArrowDownCircle, Clock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -14,6 +17,7 @@ function StatusBadge({ status }: { status: string }) {
     rejected: "bg-red-500/10 text-red-400 border-red-500/20",
     registered: "bg-purple-500/10 text-purple-400 border-purple-500/20",
     converted: "bg-green-500/10 text-green-400 border-green-500/20",
+    validating: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   };
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || "bg-secondary text-muted-foreground border-transparent"}`}>
@@ -25,24 +29,36 @@ function StatusBadge({ status }: { status: string }) {
 export default function Affiliate() {
   const { formatPrice } = useCurrency();
   const [data, setData] = useState<any>(null);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [paypalEmail, setPaypalEmail] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
   const [payoutMsg, setPayoutMsg] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawMsg, setWithdrawMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const baseUrl = window.location.origin;
 
-  useEffect(() => {
-    apiFetch("/api/affiliate")
-      .then(d => {
-        setData(d);
-        setPaypalEmail(d.affiliate?.paypalEmail || "");
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const loadData = async () => {
+    try {
+      const [aff, wdraw] = await Promise.all([
+        apiFetch("/api/affiliate"),
+        apiFetch("/api/affiliate/withdrawals"),
+      ]);
+      setData(aff);
+      setPaypalEmail(aff.affiliate?.paypalEmail || "");
+      setWithdrawals(wdraw.withdrawals || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   const referralLink = data ? `${baseUrl}/register?ref=${data.affiliate.referralCode}` : "";
 
@@ -65,6 +81,24 @@ export default function Affiliate() {
     }
   };
 
+  const requestWithdrawal = async () => {
+    setWithdrawing(true);
+    setWithdrawMsg(null);
+    try {
+      await apiFetch("/api/affiliate/withdraw", {
+        method: "POST",
+        body: JSON.stringify({ amount: parseFloat(withdrawAmount) }),
+      });
+      setWithdrawMsg({ type: "ok", text: "Withdrawal request submitted! Admin will process it shortly." });
+      setWithdrawAmount("");
+      loadData();
+    } catch (e: any) {
+      setWithdrawMsg({ type: "err", text: e.message || "Failed to submit withdrawal." });
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -82,6 +116,10 @@ export default function Affiliate() {
   }
 
   const { affiliate, commissions = [], referrals = [] } = data;
+
+  const approvedBalance = parseFloat(affiliate.totalEarnings || "0")
+    - parseFloat(affiliate.pendingEarnings || "0")
+    - parseFloat(affiliate.paidEarnings || "0");
 
   const stats = [
     { label: "Total Clicks", value: affiliate.totalClicks, icon: TrendingUp, color: "text-blue-400" },
@@ -115,12 +153,12 @@ export default function Affiliate() {
       {/* Earnings breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Pending", value: affiliate.pendingEarnings, color: "text-yellow-400" },
-          { label: "Approved", value: String(parseFloat(affiliate.totalEarnings || "0") - parseFloat(affiliate.pendingEarnings || "0") - parseFloat(affiliate.paidEarnings || "0")), color: "text-blue-400" },
-          { label: "Paid Out", value: affiliate.paidEarnings, color: "text-green-400" },
+          { label: "Pending (Awaiting Approval)", value: affiliate.pendingEarnings, color: "text-yellow-400" },
+          { label: "Withdrawable Balance", value: String(approvedBalance), color: "text-blue-400" },
+          { label: "Total Paid Out", value: affiliate.paidEarnings, color: "text-green-400" },
         ].map(e => (
           <div key={e.label} className="bg-card border border-border rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">{e.label} Earnings</p>
+            <p className="text-xs text-muted-foreground mb-1">{e.label}</p>
             <p className={`text-xl font-bold ${e.color}`}>{formatPrice(parseFloat(e.value || "0"))}</p>
           </div>
         ))}
@@ -173,6 +211,82 @@ export default function Affiliate() {
         </div>
         {payoutMsg && <p className="text-xs text-green-400">{payoutMsg}</p>}
         <p className="text-xs text-muted-foreground">Commissions will be paid to this PayPal address once approved by the admin.</p>
+      </div>
+
+      {/* Withdrawal request */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <ArrowDownCircle size={18} className="text-primary" />
+          <h2 className="font-semibold text-foreground">Request Withdrawal</h2>
+        </div>
+        <div className="flex items-center gap-3 bg-secondary/40 rounded-xl px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Withdrawable balance:</span>
+          <span className="font-bold text-blue-400">{formatPrice(approvedBalance)}</span>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min="1"
+            step="0.01"
+            placeholder="Amount to withdraw (Rs.)"
+            value={withdrawAmount}
+            onChange={e => setWithdrawAmount(e.target.value)}
+            className="bg-background/60 border-border"
+            disabled={withdrawing}
+          />
+          <Button
+            onClick={requestWithdrawal}
+            disabled={withdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+            className="shrink-0 gap-1"
+          >
+            {withdrawing ? <Loader2 size={14} className="animate-spin" /> : <ArrowDownCircle size={14} />}
+            Withdraw
+          </Button>
+        </div>
+        {withdrawMsg && (
+          <p className={`text-xs ${withdrawMsg.type === "ok" ? "text-green-400" : "text-red-400"}`}>
+            {withdrawMsg.text}
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Minimum withdrawal: Rs. 500. Only approved commissions can be withdrawn. You must have a PayPal email saved.
+        </p>
+      </div>
+
+      {/* Withdrawal history */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="p-5 border-b border-border flex items-center gap-2">
+          <Clock size={18} className="text-primary" />
+          <h2 className="font-semibold text-foreground">Withdrawal History</h2>
+        </div>
+        {withdrawals.length === 0 ? (
+          <div className="p-10 text-center text-muted-foreground text-sm">No withdrawal requests yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="px-5 py-3">Amount</th>
+                  <th className="px-5 py-3">PayPal</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Notes</th>
+                  <th className="px-5 py-3">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {withdrawals.map((w: any) => (
+                  <tr key={w.id} className="hover:bg-secondary/30 transition-colors">
+                    <td className="px-5 py-3 font-bold text-foreground">{formatPrice(parseFloat(w.amount))}</td>
+                    <td className="px-5 py-3 text-muted-foreground text-xs">{w.paypalEmail || "—"}</td>
+                    <td className="px-5 py-3"><StatusBadge status={w.status} /></td>
+                    <td className="px-5 py-3 text-muted-foreground text-xs">{w.adminNotes || "—"}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{new Date(w.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Referrals table */}

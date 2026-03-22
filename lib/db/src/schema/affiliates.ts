@@ -55,6 +55,19 @@ export const affiliateClicksTable = pgTable("affiliate_clicks", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "approved", "paid", "rejected"]);
+
+export const affiliateWithdrawalsTable = pgTable("affiliate_withdrawals", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  affiliateId: text("affiliate_id").notNull(),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  status: withdrawalStatusEnum("status").notNull().default("pending"),
+  paypalEmail: text("paypal_email"),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertAffiliateSchema = createInsertSchema(affiliatesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertAffiliate = z.infer<typeof insertAffiliateSchema>;
 export type Affiliate = typeof affiliatesTable.$inferSelect;

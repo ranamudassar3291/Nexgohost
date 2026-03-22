@@ -8,6 +8,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
+import { emailGeneric } from "../lib/email.js";
 
 const router = Router();
 
@@ -89,6 +90,30 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       validationMessage: message,
       price,
     }).returning();
+
+    // Send confirmation email (non-blocking)
+    (async () => {
+      try {
+        const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+        if (user) {
+          const clientName = `${user.firstName} ${user.lastName}`;
+          emailGeneric(
+            user.email,
+            "Domain Transfer Initiated – " + domain,
+            clientName,
+            `Your domain transfer request for <strong>${domain}</strong> has been received and is now <strong>${valid ? "under review" : "pending validation"}</strong>.<br/><br/>` +
+            `<strong>Domain:</strong> ${domain}<br/>` +
+            `<strong>Transfer Price:</strong> Rs. ${price}<br/>` +
+            `<strong>Status:</strong> ${valid ? "Validating" : "Pending"}<br/><br/>` +
+            `<strong>Next Steps:</strong><br/>` +
+            `1. Our team will verify your EPP/Auth code.<br/>` +
+            `2. Once approved, the transfer process will begin (typically 5–7 days).<br/>` +
+            `3. You will receive an email update when the status changes.<br/><br/>` +
+            `If you have any questions, please open a support ticket from your client portal.`
+          ).catch(console.warn);
+        }
+      } catch { /* non-fatal */ }
+    })();
 
     res.status(201).json({ transfer, valid, message });
   } catch (err) {

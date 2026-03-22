@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users, DollarSign, Check, X, Settings, Loader2, AlertCircle, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, DollarSign, Check, X, Settings, Loader2, AlertCircle, TrendingUp, ChevronDown, ChevronUp, ArrowDownCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -22,13 +22,14 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-type Tab = "affiliates" | "commissions";
+type Tab = "affiliates" | "commissions" | "withdrawals";
 
 export default function Affiliates() {
   const { formatPrice } = useCurrency();
   const [tab, setTab] = useState<Tab>("affiliates");
   const [affiliates, setAffiliates] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<any[]>([]);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -39,12 +40,14 @@ export default function Affiliates() {
   const load = async () => {
     setLoading(true);
     try {
-      const [aff, comm] = await Promise.all([
+      const [aff, comm, wdraw] = await Promise.all([
         apiFetch("/api/admin/affiliates"),
         apiFetch("/api/admin/affiliates/commissions/all"),
+        apiFetch("/api/admin/affiliates/withdrawals/all"),
       ]);
       setAffiliates(aff.affiliates || []);
       setCommissions(comm.commissions || []);
+      setWithdrawals(wdraw.withdrawals || []);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -94,6 +97,42 @@ export default function Affiliates() {
     }
   };
 
+  const approveWithdrawal = async (id: string) => {
+    setActioning(id);
+    try {
+      await apiFetch(`/api/admin/affiliates/withdrawals/${id}/approve`, { method: "PUT" });
+      await load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const payWithdrawal = async (id: string) => {
+    setActioning(id);
+    try {
+      await apiFetch(`/api/admin/affiliates/withdrawals/${id}/pay`, { method: "PUT" });
+      await load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const rejectWithdrawal = async (id: string) => {
+    setActioning(id);
+    try {
+      await apiFetch(`/api/admin/affiliates/withdrawals/${id}/reject`, { method: "PUT" });
+      await load();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -133,11 +172,13 @@ export default function Affiliates() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-secondary/50 rounded-xl p-1 w-fit">
-        {(["affiliates", "commissions"] as Tab[]).map(t => (
+      <div className="flex gap-1 bg-secondary/50 rounded-xl p-1 w-fit flex-wrap">
+        {(["affiliates", "commissions", "withdrawals"] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {t === "withdrawals"
+              ? `Withdrawals${withdrawals.filter(w => w.status === "pending").length ? ` (${withdrawals.filter(w => w.status === "pending").length})` : ""}`
+              : t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -266,6 +307,62 @@ export default function Affiliates() {
                           {c.status === "approved" && (
                             <Button size="sm" onClick={() => payCommission(c.id)} disabled={actioning === c.id} className="gap-1 text-xs h-7">
                               {actioning === c.id ? <Loader2 size={10} className="animate-spin" /> : <DollarSign size={10} />} Mark Paid
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "withdrawals" && (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          {withdrawals.length === 0 ? (
+            <div className="p-10 text-center text-muted-foreground text-sm">No withdrawal requests yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="px-5 py-3">Affiliate</th>
+                    <th className="px-5 py-3">Amount</th>
+                    <th className="px-5 py-3">PayPal</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {withdrawals.map((w: any) => (
+                    <tr key={w.id} className="hover:bg-secondary/30 transition-colors">
+                      <td className="px-5 py-3">
+                        <div className="font-medium text-foreground">{w.firstName} {w.lastName}</div>
+                        <div className="text-xs text-muted-foreground">{w.email}</div>
+                      </td>
+                      <td className="px-5 py-3 font-bold text-orange-400">{formatPrice(parseFloat(w.amount))}</td>
+                      <td className="px-5 py-3 text-xs text-muted-foreground">{w.paypalEmail || "—"}</td>
+                      <td className="px-5 py-3"><StatusBadge status={w.status} /></td>
+                      <td className="px-5 py-3 text-muted-foreground">{new Date(w.createdAt).toLocaleDateString()}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {w.status === "pending" && (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => approveWithdrawal(w.id)} disabled={actioning === w.id} className="gap-1 text-xs h-7">
+                                {actioning === w.id ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Approve
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => rejectWithdrawal(w.id)} disabled={actioning === w.id} className="gap-1 text-xs h-7">
+                                {actioning === w.id ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />} Reject
+                              </Button>
+                            </>
+                          )}
+                          {w.status === "approved" && (
+                            <Button size="sm" onClick={() => payWithdrawal(w.id)} disabled={actioning === w.id} className="gap-1 text-xs h-7">
+                              {actioning === w.id ? <Loader2 size={10} className="animate-spin" /> : <ArrowDownCircle size={10} />} Mark Paid
                             </Button>
                           )}
                         </div>

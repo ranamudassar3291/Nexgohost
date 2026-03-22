@@ -1,5 +1,12 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 11)
+- **Affiliate Withdrawal System**: New `affiliateWithdrawalsTable` added to DB schema and pushed. Client can request withdrawals from approved commission balance via `POST /api/affiliate/withdraw`. Validation: requires PayPal email saved, sufficient approved balance. Client can view withdrawal history via `GET /api/affiliate/withdrawals`.
+- **Admin Withdrawal Management**: New admin routes — `GET /api/admin/affiliates/withdrawals/all`, `PUT /admin/affiliates/withdrawals/:id/approve`, `/pay`, `/reject`. Admin Affiliates page now has 3 tabs: Affiliates | Commissions | Withdrawals (with pending count badge). Approve → Mark Paid → Reject actions per row.
+- **Auto-commission on checkout**: When a referred user (tracked via `affiliateReferralsTable`) completes a hosting order, a commission is automatically created in `affiliateCommissionsTable` (percentage or fixed per affiliate settings). Affiliate's `totalEarnings` and `pendingEarnings` incremented. Referral status updated to `converted`. All non-blocking (fire-and-forget).
+- **Domain transfer confirmation email**: `POST /api/domains/transfer` now sends a branded HTML email to the client with domain name, price, status, and step-by-step next-steps instructions. Non-blocking.
+- **Client Affiliate page updated**: Shows "Withdrawable Balance" stat, new withdrawal request form, and full withdrawal history table with status, PayPal, admin notes columns.
+
 ## Recent Changes (Session 10)
 - **DB schema**: Added `orderId` (nullable text) column to `hostingServicesTable` — pushed to DB. Creates a 1-to-1 link between each hosting service and the order that created it.
 - **checkout.ts**: Service creation now stores `orderId: order.id` so each service is uniquely linked to its originating order.

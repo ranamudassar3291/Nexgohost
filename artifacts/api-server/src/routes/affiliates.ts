@@ -5,6 +5,7 @@ import {
   affiliateReferralsTable,
   affiliateCommissionsTable,
   affiliateClicksTable,
+  affiliateWithdrawalsTable,
   usersTable,
 } from "@workspace/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
@@ -265,6 +266,154 @@ router.put("/admin/affiliates/commissions/:id/pay", authenticate, requireRole("a
     }
 
     res.json({ commission: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Client: Get my withdrawals ────────────────────────────────────────────────
+router.get("/affiliate/withdrawals", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const affiliate = await getOrCreateAffiliate(req.user!.userId);
+    if (!affiliate) { res.status(404).json({ error: "Not found" }); return; }
+
+    const withdrawals = await db.select().from(affiliateWithdrawalsTable)
+      .where(eq(affiliateWithdrawalsTable.affiliateId, affiliate.id))
+      .orderBy(desc(affiliateWithdrawalsTable.createdAt));
+
+    res.json({ withdrawals });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Client: Request a withdrawal ──────────────────────────────────────────────
+router.post("/affiliate/withdraw", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const affiliate = await getOrCreateAffiliate(req.user!.userId);
+    if (!affiliate) { res.status(404).json({ error: "Not found" }); return; }
+
+    const { amount } = req.body;
+    const requested = parseFloat(amount);
+
+    if (!amount || isNaN(requested) || requested <= 0) {
+      res.status(400).json({ error: "Invalid amount" }); return;
+    }
+
+    const approvedBalance = parseFloat(affiliate.totalEarnings || "0")
+      - parseFloat(affiliate.pendingEarnings || "0")
+      - parseFloat(affiliate.paidEarnings || "0");
+
+    if (requested > approvedBalance + 0.001) {
+      res.status(400).json({ error: `Insufficient withdrawable balance. Available: Rs. ${approvedBalance.toFixed(2)}` }); return;
+    }
+
+    if (!affiliate.paypalEmail) {
+      res.status(400).json({ error: "Please add your PayPal email before requesting a withdrawal." }); return;
+    }
+
+    const [withdrawal] = await db.insert(affiliateWithdrawalsTable).values({
+      affiliateId: affiliate.id,
+      amount: String(requested.toFixed(2)),
+      status: "pending",
+      paypalEmail: affiliate.paypalEmail,
+    }).returning();
+
+    res.status(201).json({ withdrawal });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: List all withdrawals ────────────────────────────────────────────────
+// IMPORTANT: Must be before /admin/affiliates/:id
+router.get("/admin/affiliates/withdrawals/all", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const withdrawals = await db.select({
+      id: affiliateWithdrawalsTable.id,
+      affiliateId: affiliateWithdrawalsTable.affiliateId,
+      amount: affiliateWithdrawalsTable.amount,
+      status: affiliateWithdrawalsTable.status,
+      paypalEmail: affiliateWithdrawalsTable.paypalEmail,
+      adminNotes: affiliateWithdrawalsTable.adminNotes,
+      createdAt: affiliateWithdrawalsTable.createdAt,
+      referralCode: affiliatesTable.referralCode,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      email: usersTable.email,
+    })
+      .from(affiliateWithdrawalsTable)
+      .leftJoin(affiliatesTable, eq(affiliateWithdrawalsTable.affiliateId, affiliatesTable.id))
+      .leftJoin(usersTable, eq(affiliatesTable.userId, usersTable.id))
+      .orderBy(desc(affiliateWithdrawalsTable.createdAt));
+
+    res.json({ withdrawals });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Approve withdrawal ──────────────────────────────────────────────────
+router.put("/admin/affiliates/withdrawals/:id/approve", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const [w] = await db.select().from(affiliateWithdrawalsTable).where(eq(affiliateWithdrawalsTable.id, req.params.id!)).limit(1);
+    if (!w) { res.status(404).json({ error: "Not found" }); return; }
+
+    const { adminNotes } = req.body;
+    const [updated] = await db.update(affiliateWithdrawalsTable)
+      .set({ status: "approved", adminNotes: adminNotes || null, updatedAt: new Date() })
+      .where(eq(affiliateWithdrawalsTable.id, req.params.id!))
+      .returning();
+
+    res.json({ withdrawal: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Mark withdrawal as paid ────────────────────────────────────────────
+router.put("/admin/affiliates/withdrawals/:id/pay", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const [w] = await db.select().from(affiliateWithdrawalsTable).where(eq(affiliateWithdrawalsTable.id, req.params.id!)).limit(1);
+    if (!w) { res.status(404).json({ error: "Not found" }); return; }
+
+    const [updated] = await db.update(affiliateWithdrawalsTable)
+      .set({ status: "paid", updatedAt: new Date() })
+      .where(eq(affiliateWithdrawalsTable.id, req.params.id!))
+      .returning();
+
+    // Deduct from affiliate's paid earnings pool
+    await db.update(affiliatesTable)
+      .set({
+        paidEarnings: sql`${affiliatesTable.paidEarnings} + ${w.amount}`,
+        pendingEarnings: sql`GREATEST(${affiliatesTable.pendingEarnings} - ${w.amount}, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(affiliatesTable.id, w.affiliateId));
+
+    res.json({ withdrawal: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Reject withdrawal ───────────────────────────────────────────────────
+router.put("/admin/affiliates/withdrawals/:id/reject", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const { adminNotes } = req.body;
+    const [updated] = await db.update(affiliateWithdrawalsTable)
+      .set({ status: "rejected", adminNotes: adminNotes || null, updatedAt: new Date() })
+      .where(eq(affiliateWithdrawalsTable.id, req.params.id!))
+      .returning();
+
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ withdrawal: updated });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

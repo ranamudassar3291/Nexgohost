@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
-  domainExtensionsTable,
+  domainExtensionsTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
@@ -237,7 +237,42 @@ async function handleCheckout(req: AuthRequest, res: any) {
       } catch { /* non-fatal */ }
     })();
 
-    // 7. Send emails (non-blocking)
+    // 7. Auto-commission for affiliate referrals (non-blocking)
+    (async () => {
+      try {
+        const [referral] = await db.select().from(affiliateReferralsTable)
+          .where(eq(affiliateReferralsTable.referredUserId, req.user!.userId)).limit(1);
+        if (referral) {
+          const [affiliate] = await db.select().from(affiliatesTable)
+            .where(eq(affiliatesTable.id, referral.affiliateId)).limit(1);
+          if (affiliate && affiliate.status === "active") {
+            const commAmt = affiliate.commissionType === "percentage"
+              ? finalAmount * (parseFloat(affiliate.commissionValue) / 100)
+              : parseFloat(affiliate.commissionValue);
+            if (commAmt > 0) {
+              await db.insert(affiliateCommissionsTable).values({
+                affiliateId: affiliate.id,
+                referredUserId: req.user!.userId,
+                orderId: order.id,
+                amount: String(commAmt.toFixed(2)),
+                status: "pending",
+                description: `Commission for ${plan.name} order by referred client`,
+              });
+              await db.update(affiliatesTable).set({
+                totalEarnings: sql`${affiliatesTable.totalEarnings} + ${String(commAmt.toFixed(2))}`,
+                pendingEarnings: sql`${affiliatesTable.pendingEarnings} + ${String(commAmt.toFixed(2))}`,
+                totalConversions: sql`${affiliatesTable.totalConversions} + 1`,
+                updatedAt: new Date(),
+              }).where(eq(affiliatesTable.id, affiliate.id));
+              await db.update(affiliateReferralsTable).set({ status: "converted" })
+                .where(eq(affiliateReferralsTable.id, referral.id));
+            }
+          }
+        }
+      } catch { /* non-fatal */ }
+    })();
+
+    // 8. Send emails (non-blocking)
     const dueFormatted = dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     emailInvoiceCreated(user.email, {
       clientName: `${user.firstName} ${user.lastName}`,

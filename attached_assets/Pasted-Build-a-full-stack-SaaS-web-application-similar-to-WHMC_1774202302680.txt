@@ -1,0 +1,159 @@
+Build a full-stack SaaS web application similar to WHMCS using Node.js (Express) + MongoDB + simple frontend (HTML/CSS/JS or React optional).
+
+The system must support:
+
+========================
+1. DOMAIN TRANSFER SYSTEM (REAL-LIKE FLOW)
+========================
+
+Create a domain transfer feature with the following logic:
+
+- User enters domain name
+- System performs:
+  1. Check if domain is valid format
+  2. Simulate LIVE API check:
+     - Check if domain exists
+     - Check transfer lock status (locked/unlocked)
+     - Check EPP code validity (fake vs real simulation logic)
+
+- If:
+  - Domain is locked → show error: "Domain is locked. Unlock before transfer"
+  - EPP invalid → show error
+  - Otherwise → allow continue
+
+- On continue:
+  - Show transfer pricing dynamically
+  - Show order summary
+  - Generate invoice
+
+- After order:
+  - Create order record
+  - Status = "Pending Transfer"
+  - Show in client dashboard under "Domains"
+
+- Domain page must show:
+  - Domain name
+  - Transfer status (Pending, Completed, Failed)
+  - Created date
+  - Actions (View, Manage)
+
+========================
+2. EMAIL SYSTEM (AUTO GENERATED)
+========================
+
+When user completes domain transfer order:
+
+- Send email:
+  - Subject: "Domain Transfer Initiated"
+  - Include:
+    - Domain name
+    - Status
+    - Instructions
+
+- Use simple SMTP or mock email system
+
+========================
+3. AFFILIATE SYSTEM
+========================
+
+Build a full affiliate system:
+
+- Each user gets unique referral link
+- Track referrals
+- Assign commission on:
+  - Domain purchase
+  - Hosting packages
+
+- Affiliate dashboard:
+  - Total earnings
+  - Pending earnings
+  - Withdrawable balance
+
+- Withdraw system:
+  - User submits withdrawal request
+  - Admin can approve/reject
+  - Status: Pending / Paid / Rejected
+
+========================
+4. PACKAGE / PRODUCT SYSTEM
+========================
+
+- Admin can create packages:
+  - Name
+  - Price
+  - Features
+
+- Group packages:
+  - Example: Basic / Premium / Business
+
+- Client dashboard:
+  - Show package groups
+  - Show plans inside group
+  - Allow purchase
+
+========================
+5. CLIENT DASHBOARD (IMPORTANT)
+========================
+
+Create a full dashboard with sections:
+
+- Domains
+- Services (hosting)
+- Affiliate
+- Invoices
+- Orders
+
+Domain section must show:
+- Transfer domains
+- Status tracking
+
+Affiliate section must show:
+- Commission per product/domain
+- Assign commission rules
+
+========================
+6. ADMIN PANEL
+========================
+
+- Manage users
+- Manage domains
+- Manage orders
+- Manage invoices
+- Manage affiliate payouts
+- Approve withdrawals
+
+========================
+7. PRODUCTION READY FEATURES
+========================
+
+- Authentication (JWT or session)
+- Secure routes
+- Clean UI (like WHMCS style)
+- API-based architecture
+- Ready for deployment
+
+========================
+8. BONUS (IMPORTANT)
+========================
+
+- Structure code properly:
+  - routes/
+  - controllers/
+  - models/
+  - middleware/
+
+- Use MongoDB schemas:
+  - User
+  - Domain
+  - Order
+  - Invoice
+  - Affiliate
+  - Withdrawal
+
+- Add dummy "domain API simulation" function:
+  simulateDomainCheck(domain, epp)
+
+========================
+
+Goal:
+Build a working SaaS billing + domain + affiliate system that can be deployed and used as a real hosting business platform.
