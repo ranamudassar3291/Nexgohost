@@ -299,7 +299,7 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
             planName: updated.itemName,
             domain: updated.domain || null,
             serverId,
-            status: "active",
+            status: "pending",
             billingCycle: updated.billingCycle || "monthly",
             nextDueDate: updated.dueDate || nextDue,
           });

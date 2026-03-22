@@ -1,9 +1,9 @@
+import { useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle, Printer, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
 
@@ -31,9 +31,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
+  const paymentRef = useRef<HTMLDivElement>(null);
   const { formatPrice } = useCurrency();
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
@@ -47,15 +45,8 @@ export default function InvoiceDetail() {
     queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(r => r.json()),
   });
 
-  const handlePay = async () => {
-    try {
-      await apiFetch(`/api/invoices/${id}/pay`, { method: "POST" });
-      queryClient.invalidateQueries({ queryKey: ["invoice", id] });
-      queryClient.invalidateQueries({ queryKey: ["client-invoices"] });
-      toast({ title: "Payment recorded", description: "Invoice marked as paid." });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+  const scrollToPayment = () => {
+    paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   if (isLoading) return (
@@ -84,8 +75,8 @@ export default function InvoiceDetail() {
             <Printer size={15} /> Print
           </Button>
           {!isPaid && invoice.status !== "cancelled" && (
-            <Button size="sm" onClick={handlePay} className="bg-primary hover:bg-primary/90 gap-2">
-              <CreditCard size={15} /> Pay Now
+            <Button size="sm" onClick={scrollToPayment} className="bg-primary hover:bg-primary/90 gap-2">
+              <CreditCard size={15} /> View Payment Details
             </Button>
           )}
         </div>
@@ -192,7 +183,7 @@ export default function InvoiceDetail() {
 
         {/* Payment Instructions */}
         {!isPaid && invoice.status !== "cancelled" && (
-          <div className="border-t border-border/50 p-6 bg-secondary/20">
+          <div ref={paymentRef} className="border-t border-border/50 p-6 bg-secondary/20">
             <div className="text-sm font-medium text-foreground mb-1">Payment Instructions</div>
             <p className="text-xs text-muted-foreground mb-3">Please pay {formatPrice(Number(invoice.total))} using one of the methods below and reference invoice <span className="font-mono font-semibold text-foreground">#{invoice.invoiceNumber}</span>.</p>
             {paymentMethods.length > 0 ? (

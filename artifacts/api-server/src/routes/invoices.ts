@@ -126,7 +126,7 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
   }
 });
 
-// Client: pay invoice
+// Client: submit payment notification (does NOT mark invoice as paid — admin must verify and mark paid)
 router.post("/invoices/:id/pay", authenticate, async (req: AuthRequest, res) => {
   try {
     const { method = "manual" } = req.body;
@@ -135,63 +135,23 @@ router.post("/invoices/:id/pay", authenticate, async (req: AuthRequest, res) => 
     if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
     if (invoice.status === "paid") { res.json({ success: true, message: "Already paid" }); return; }
 
-    const transactionRef = method === "manual" ? `MANUAL-${Date.now()}` : `TXN-${Date.now()}`;
-    const txStatus = method === "manual" ? "success" : "success"; // Treat all as success for demo
-
-    // 1. Record transaction
+    // Record a pending transaction — admin must verify and mark the invoice paid
+    const transactionRef = `NOTIFY-${Date.now()}`;
     const [tx] = await db.insert(transactionsTable).values({
       clientId: req.user!.userId,
       invoiceId: invoice.id,
       amount: invoice.total,
       method,
-      status: txStatus,
+      status: "pending",
       transactionRef,
     }).returning();
 
-    // 2. Mark invoice as paid
-    await db.update(invoicesTable).set({
-      status: "paid",
-      paidDate: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(invoicesTable.id, invoice.id));
-
-    // 3. Activate linked order (if any)
-    if (invoice.orderId) {
-      await db.update(ordersTable).set({
-        status: "approved",
-        updatedAt: new Date(),
-      }).where(eq(ordersTable.id, invoice.orderId));
-    }
-
-    // 4. Auto-provision hosting service (async, don't block response)
-    let provisionResult: { success: boolean; message: string; credentials?: any } | null = null;
-    if (invoice.serviceId) {
-      try {
-        provisionResult = await provisionHostingService(invoice.serviceId);
-        console.log(`[AUTO-PROVISION] ${provisionResult.success ? "✅" : "❌"} ${provisionResult.message}`);
-      } catch (provErr: any) {
-        console.error("[AUTO-PROVISION] Error:", provErr.message);
-      }
-    }
-
-    // 5. Send payment confirmation email
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    if (user) {
-      emailInvoicePaid(user.email, {
-        clientName: `${user.firstName} ${user.lastName}`,
-        invoiceId: invoice.invoiceNumber,
-        amount: `$${Number(invoice.total).toFixed(2)}`,
-        paymentDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      }).catch(console.warn);
-    }
+    console.log(`[PAYMENT NOTIFY] Client ${req.user!.userId} submitted payment notification for invoice ${invoice.invoiceNumber} (tx: ${tx.id})`);
 
     res.json({
       success: true,
       transactionId: tx.id,
-      invoiceStatus: "paid",
-      provisioned: provisionResult?.success ?? false,
-      provisionMessage: provisionResult?.message,
-      credentials: provisionResult?.credentials,
+      message: "Payment notification submitted. Our team will verify and activate your service.",
     });
   } catch (err) {
     console.error(err);

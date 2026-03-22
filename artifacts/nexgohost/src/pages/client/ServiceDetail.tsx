@@ -93,17 +93,24 @@ export default function ServiceDetail() {
   async function handleCpanelLogin() {
     if (!service) return;
     setSsoLoading("cpanel");
+    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`/api/client/hosting/${service.id}/cpanel-sso`, {
-        method: "POST", credentials: "include",
+      const res = await fetch(`/api/client/hosting/${service.id}/cpanel-login`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.url) { window.open(data.url, "_blank"); return; }
+      if (!res.ok) {
+        if (service.cpanelUrl) { window.open(service.cpanelUrl, "_blank"); return; }
+        toast({ title: "Cannot open cPanel", description: data.error || "Service not yet provisioned. Contact support.", variant: "destructive" });
+        return;
+      }
       if (service.cpanelUrl) { window.open(service.cpanelUrl, "_blank"); return; }
       toast({ title: "Info", description: "No cPanel URL configured for this service" });
     } catch {
       if (service.cpanelUrl) window.open(service.cpanelUrl, "_blank");
-      else toast({ title: "Error", description: "cPanel SSO failed", variant: "destructive" });
+      else toast({ title: "Error", description: "cPanel login failed", variant: "destructive" });
     } finally {
       setSsoLoading(null);
     }
@@ -112,17 +119,24 @@ export default function ServiceDetail() {
   async function handleWebmailLogin() {
     if (!service) return;
     setSsoLoading("webmail");
+    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`/api/client/hosting/${service.id}/webmail-sso`, {
-        method: "POST", credentials: "include",
+      const res = await fetch(`/api/client/hosting/${service.id}/webmail-login`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.url) { window.open(data.url, "_blank"); return; }
+      if (!res.ok) {
+        if (service.webmailUrl) { window.open(service.webmailUrl, "_blank"); return; }
+        toast({ title: "Cannot open Webmail", description: data.error || "Service not yet provisioned. Contact support.", variant: "destructive" });
+        return;
+      }
       if (service.webmailUrl) { window.open(service.webmailUrl, "_blank"); return; }
       toast({ title: "Info", description: "No Webmail URL configured for this service" });
     } catch {
       if (service.webmailUrl) window.open(service.webmailUrl, "_blank");
-      else toast({ title: "Error", description: "Webmail SSO failed", variant: "destructive" });
+      else toast({ title: "Error", description: "Webmail login failed", variant: "destructive" });
     } finally {
       setSsoLoading(null);
     }
