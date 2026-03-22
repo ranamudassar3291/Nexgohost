@@ -29,9 +29,10 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Management",
     items: [
       { name: "Clients",          href: "/admin/clients",         icon: (() => null) as any },
-      { name: "Hosting",          href: "/admin/hosting",         icon: (() => null) as any },
-      { name: "Domains",          href: "/admin/domains",         icon: (() => null) as any },
-      { name: "Packages",         href: "/admin/packages",        icon: (() => null) as any },
+      { name: "Hosting",          href: "/admin/hosting",             icon: (() => null) as any },
+      { name: "Domains",          href: "/admin/domains",             icon: (() => null) as any },
+      { name: "TLD Management",   href: "/admin/domains/extensions",  icon: (() => null) as any },
+      { name: "Packages",         href: "/admin/packages",            icon: (() => null) as any },
       { name: "Orders",           href: "/admin/orders",          icon: (() => null) as any },
       { name: "Invoices",         href: "/admin/invoices",        icon: (() => null) as any },
     ],

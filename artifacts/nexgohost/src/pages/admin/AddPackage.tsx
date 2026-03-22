@@ -51,6 +51,7 @@ export default function AddPackage() {
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [form, setForm] = useState({
     name: "", description: "", price: "", yearlyPrice: "", quarterlyPrice: "", semiannualPrice: "",
+    renewalPrice: "",
     billingCycle: "monthly",
     groupId: "",
     diskSpace: "10 GB", bandwidth: "100 GB",
@@ -193,6 +194,7 @@ export default function AddPackage() {
           ftpAccounts: parseInt(form.ftpAccounts),
           features,
           renewalEnabled,
+          renewalPrice: form.renewalPrice ? Number(form.renewalPrice) : null,
           freeDomainEnabled,
           freeDomainTlds,
         }),
@@ -504,6 +506,16 @@ export default function AddPackage() {
               <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${renewalEnabled ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
+
+          {renewalEnabled && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Renewal Price (PKR) <span className="text-muted-foreground text-xs font-normal">— leave blank to use standard price</span></label>
+              <Input type="number" step="0.01" min="0" placeholder="e.g. 2999.00"
+                value={form.renewalPrice}
+                onChange={e => setForm(f => ({ ...f, renewalPrice: e.target.value }))}
+                className="h-10" />
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-xl">

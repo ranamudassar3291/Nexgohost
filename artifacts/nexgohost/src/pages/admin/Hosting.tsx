@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon } from "lucide-react";
+import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon, KeyRound, Eye, EyeOff, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,10 @@ export default function AdminHosting() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [linkingServers, setLinkingServers] = useState(false);
+  const [changePwModal, setChangePwModal] = useState<{ id: string; domain: string | null } | null>(null);
+  const [changePwValue, setChangePwValue] = useState("");
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [changePwLoading, setChangePwLoading] = useState(false);
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
@@ -74,6 +78,25 @@ export default function AdminHosting() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!changePwModal) return;
+    if (changePwValue.length < 8) {
+      toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" }); return;
+    }
+    setChangePwLoading(true);
+    try {
+      await apiFetch(`/api/admin/hosting/${changePwModal.id}/change-password`, {
+        method: "POST", body: JSON.stringify({ password: changePwValue }),
+      });
+      toast({ title: "Password Changed", description: `Password updated for ${changePwModal.domain || "service"}` });
+      setChangePwModal(null); setChangePwValue(""); setShowChangePw(false);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setChangePwLoading(false);
+    }
+  };
+
   const action = async (id: string, endpoint: string, label: string) => {
     try {
       const result = await apiFetch(`/api/admin/hosting/${id}/${endpoint}`, { method: "POST" });
@@ -92,6 +115,46 @@ export default function AdminHosting() {
 
   return (
     <div className="space-y-6">
+      {/* Change Password Modal */}
+      {changePwModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="font-semibold flex items-center gap-2"><KeyRound size={18} className="text-primary" /> Change cPanel Password</h2>
+              <Button variant="ghost" size="icon" onClick={() => { setChangePwModal(null); setChangePwValue(""); setShowChangePw(false); }}>
+                <X size={18} />
+              </Button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Update password for <strong className="text-foreground">{changePwModal.domain || "this service"}</strong>.
+                Minimum 8 characters.
+              </p>
+              <div className="relative">
+                <Input
+                  type={showChangePw ? "text" : "password"}
+                  placeholder="New password"
+                  value={changePwValue}
+                  onChange={e => setChangePwValue((e.target as HTMLInputElement).value)}
+                  className="pr-10"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowChangePw(v => !v)}>
+                  {showChangePw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleChangePassword} disabled={changePwLoading || changePwValue.length < 8} className="flex-1 gap-2">
+                  {changePwLoading && <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full inline-block" />}
+                  Update Password
+                </Button>
+                <Button variant="outline" onClick={() => { setChangePwModal(null); setChangePwValue(""); setShowChangePw(false); }}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-display font-bold text-foreground">Hosting Manager</h2>
@@ -234,6 +297,10 @@ export default function AdminHosting() {
                             <Trash2 size={13} /> Terminate
                           </Button>
                         )}
+                        <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1"
+                          onClick={() => { setChangePwModal({ id: s.id, domain: s.domain }); setChangePwValue(""); }}>
+                          <KeyRound size={13} /> Password
+                        </Button>
                       </div>
                     </td>
                   </tr>

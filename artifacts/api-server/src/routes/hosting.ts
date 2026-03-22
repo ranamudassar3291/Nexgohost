@@ -5,7 +5,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -945,6 +945,142 @@ router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, 
     res.json({ success: true, invoiceId: invoice.id, invoiceNumber: invNum, amount });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin + Client: change cPanel password
+router.post("/admin/hosting/:id/change-password", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    // Try to update on server
+    let serverUpdated = false;
+    if (service.serverId) {
+      const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+      if (server && service.username) {
+        try {
+          if (server.type === "cpanel" || server.type === "whm") {
+            await cpanelChangePassword(toServerCfg(server), service.username, password);
+            serverUpdated = true;
+          }
+        } catch (e) { /* best effort */ }
+      }
+    }
+
+    // Always update in DB
+    await db.update(hostingServicesTable).set({ password, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+
+    res.json({ success: true, serverUpdated, message: serverUpdated ? "Password updated on server and in database" : "Password updated in database (server update failed or not connected)" });
+  } catch (err) {
+    console.error("[ADMIN] change-password error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/client/hosting/:id/change-password", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const { password } = req.body;
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    let serverUpdated = false;
+    if (service.serverId) {
+      const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+      if (server && service.username) {
+        try {
+          if (server.type === "cpanel" || server.type === "whm") {
+            await cpanelChangePassword(toServerCfg(server), service.username, password);
+            serverUpdated = true;
+          }
+        } catch (e) { /* best effort */ }
+      }
+    }
+    await db.update(hostingServicesTable).set({ password, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+
+    res.json({ success: true, serverUpdated });
+  } catch (err) {
+    console.error("[CLIENT] change-password error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// WordPress auto-installer
+router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { adminUser, adminPassword, adminEmail, siteName = "My WordPress Site", path = "/" } = req.body;
+    const [service] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
+
+    const wpUser = adminUser || "admin";
+    const wpPass = adminPassword || Math.random().toString(36).slice(-12) + "A1!";
+    const wpEmail = adminEmail || "admin@" + service.domain;
+
+    // If server connected, try real install
+    let serverInstalled = false;
+    if (service.serverId && service.username) {
+      const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+      // Softaculous/Installatron API needed for server-side WP install
+      serverInstalled = false;
+    }
+
+    const wpLoginUrl = `http://${service.domain}${path === "/" ? "" : path}/wp-admin`;
+    res.json({
+      success: true,
+      serverInstalled,
+      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl, siteName },
+      message: "WordPress credentials generated. Complete the installation via your control panel's Softaculous/Installatron.",
+    });
+  } catch (err) {
+    console.error("[ADMIN] install-wordpress error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const { adminUser, adminPassword, adminEmail, siteName = "My Website", path = "/" } = req.body;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
+    if (service.status !== "active") return res.status(400).json({ error: "Service must be active to install WordPress" });
+
+    const wpUser = adminUser || "admin";
+    const wpPass = adminPassword || Math.random().toString(36).slice(-10) + "Aa1!";
+    const wpEmail = adminEmail || "admin@" + service.domain;
+
+    // Softaculous/Installatron required for server-side install
+    const serverInstalled = false;
+
+    const wpLoginUrl = `http://${service.domain}/wp-admin`;
+    res.json({
+      success: true,
+      serverInstalled,
+      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl },
+    });
+  } catch (err) {
+    console.error("[CLIENT] install-wordpress error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

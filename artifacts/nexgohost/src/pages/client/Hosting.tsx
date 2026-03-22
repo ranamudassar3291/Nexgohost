@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Server, ExternalLink, HardDrive, Activity, Shield, ShieldCheck, ShieldX,
   Calendar, ArrowUpCircle, ArrowDownCircle, XCircle, Globe, Loader2, AlertTriangle, X,
-  Lock, RefreshCw, CheckCircle,
+  Lock, RefreshCw, CheckCircle, Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -343,6 +343,13 @@ export default function ClientHosting() {
 
               {/* Action buttons */}
               <div className="p-5 flex flex-wrap gap-2.5">
+                <Button
+                  onClick={() => setLocation(`/client/hosting/${service.id}`)}
+                  variant="outline"
+                  className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
+                >
+                  <Settings size={15} /> Manage Service
+                </Button>
                 <Button
                   onClick={() => handleCpanelLogin(service)}
                   className="gap-2 bg-primary hover:bg-primary/90"

@@ -1,0 +1,197 @@
+Analyze the Nexgohost project and implement missing advanced hosting, domain, and admin management features without breaking existing functionality.
+
+========================
+🌐 TLD MANAGEMENT PAGE (MUST CREATE)
+====================================
+
+Create a new admin panel page:
+
+"TLD Management"
+
+Features:
+
+Add TLD (.com, .net, .org, .pk, .uk)
+
+For each TLD:
+
+Set Register Price
+Set Renewal Price
+Set Transfer Price
+
+Allow edit and delete TLD.
+
+Save all data in database.
+
+Ensure this page is visible and accessible in admin panel menu.
+
+========================
+🌐 DOMAIN ONLY ORDER FLOW
+=========================
+
+If client orders only domain:
+
+Create order with status = Pending
+
+Admin panel:
+
+Show in Orders page
+
+Admin actions:
+
+Approve
+Cancel
+
+When admin approves:
+
+Set domain status = Active
+Allow admin to set:
+
+Registration date
+Expiry date
+
+========================
+💰 RENEWAL PRICE SYSTEM
+=======================
+
+Fix package renewal pricing:
+
+Admin package page:
+
+Add field:
+
+renewal_price
+
+Save in database.
+
+Checkout page:
+
+Show:
+
+"Renewal Price: Rs. XXXX.00"
+
+Client dashboard:
+
+Show renewal price in service details.
+
+========================
+🛒 CHECKOUT SUMMARY FIX
+=======================
+
+Fix checkout summary:
+
+Show:
+
+Selected billing cycle
+Current price
+Renewal price
+
+Ensure proper PKR formatting.
+
+========================
+🧑‍💻 CLIENT HOSTING MANAGEMENT UI
+==================================
+
+Improve client dashboard:
+
+For each hosting service:
+
+Show "Manage" button
+
+Click → open separate service page
+
+Show:
+
+Service details
+cPanel login
+Webmail
+SSL status
+Renewal info
+
+========================
+⚙️ WORDPRESS AUTO INSTALLER
+===========================
+
+Add feature:
+
+"Install WordPress" button
+
+When clicked:
+
+Auto install WordPress on hosting account
+
+Auto generate:
+
+Admin username
+Admin password
+
+Allow user to edit before install.
+
+After install:
+
+Show button:
+
+"Login to WordPress (Auto Login)"
+
+========================
+🔐 CPANEL PASSWORD MANAGEMENT
+=============================
+
+Add option:
+
+Change cPanel password
+
+Available in:
+
+Client dashboard
+Admin panel
+
+Allow:
+
+Manual password change
+Auto generate password
+
+Ensure API updates password on server.
+
+========================
+⚙️ ADMIN HOSTING ACTIONS
+========================
+
+Ensure admin panel shows:
+
+Suspend
+Unsuspend
+Terminate
+Change Password
+
+All buttons must work via server API.
+
+========================
+⚙️ FINAL FIXES
+==============
+
+Fix:
+
+Missing admin pages
+Broken domain flow
+Missing renewal display
+UI issues
+
+Ensure:
+
+All features are connected to database
+All actions are saved correctly
+All buttons work properly
+
+========================
+🎯 GOAL
+=======
+
+Complete the hosting SaaS system with:
+
+TLD management page
+Domain order approval system
+Renewal pricing system
+Advanced hosting management UI
+WordPress auto installer
+cPanel password management
+Full admin control panel

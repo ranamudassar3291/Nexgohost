@@ -46,7 +46,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/clients/:id",           label: "Client",             icon: Users,        inNav: false },
   { path: "/admin/hosting",               label: "Hosting",            icon: Server,       inNav: true  },
   { path: "/admin/domains",               label: "Domains",            icon: Globe,        inNav: true  },
-  { path: "/admin/domains/extensions",    label: "Domain Extensions",  icon: Globe,        inNav: false },
+  { path: "/admin/domains/extensions",    label: "TLD Management",     icon: Globe,        inNav: true  },
   { path: "/admin/packages",              label: "Packages",           icon: Package,      inNav: true  },
   { path: "/admin/packages/add",          label: "Add Package",        icon: Package,      inNav: false },
   { path: "/admin/packages/:id/edit",     label: "Edit Package",       icon: Package,      inNav: false },

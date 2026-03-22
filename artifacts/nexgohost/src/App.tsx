@@ -54,6 +54,7 @@ import ServerLogs from "@/pages/admin/ServerLogs";
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
 import ClientHosting from "@/pages/client/Hosting";
+import ClientServiceDetail from "@/pages/client/ServiceDetail";
 import ClientDomains from "@/pages/client/Domains";
 import ClientInvoices from "@/pages/client/Invoices";
 import ClientTickets from "@/pages/client/Tickets";
@@ -222,6 +223,9 @@ function RouterRoot() {
       {/* ── Client routes (each individually guarded) ── */}
       <Route path="/client/dashboard">
         <ClientPage><ClientDashboard /></ClientPage>
+      </Route>
+      <Route path="/client/hosting/:id">
+        <ClientPage><ClientServiceDetail /></ClientPage>
       </Route>
       <Route path="/client/hosting">
         <ClientPage><ClientHosting /></ClientPage>

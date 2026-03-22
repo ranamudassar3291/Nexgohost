@@ -63,6 +63,7 @@ export default function Checkout() {
   const quarterlyPrice = params.get("quarterlyPrice") ? parseFloat(params.get("quarterlyPrice")!) : null;
   const semiannualPrice = params.get("semiannualPrice") ? parseFloat(params.get("semiannualPrice")!) : null;
   const yearlyPrice = params.get("yearlyPrice") ? parseFloat(params.get("yearlyPrice")!) : null;
+  const renewalPrice = params.get("renewalPrice") ? parseFloat(params.get("renewalPrice")!) : null;
   const initialCycle = (params.get("billingCycle") as BillingCycle) || "monthly";
 
   const priceMap: Partial<Record<BillingCycle, number>> = {
@@ -508,6 +509,12 @@ export default function Checkout() {
                   <span className="text-muted-foreground">Billing</span>
                   <span className="font-medium">{CYCLE_LABELS[billingCycle]}</span>
                 </div>
+                {renewalPrice != null && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Renewal Price</span>
+                    <span className="font-medium text-muted-foreground">{formatPrice(renewalPrice)}/mo</span>
+                  </div>
+                )}
                 {domainChoice === "register" && domainName && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Domain Registration</span>

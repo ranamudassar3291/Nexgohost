@@ -54,6 +54,7 @@ export default function EditPackage() {
 
   const [form, setForm] = useState({
     name: "", description: "", price: "", yearlyPrice: "", quarterlyPrice: "", semiannualPrice: "",
+    renewalPrice: "",
     billingCycle: "monthly",
     groupId: "",
     diskSpace: "", bandwidth: "",
@@ -102,6 +103,7 @@ export default function EditPackage() {
           yearlyPrice: data.yearlyPrice ? String(data.yearlyPrice) : "",
           quarterlyPrice: data.quarterlyPrice ? String(data.quarterlyPrice) : "",
           semiannualPrice: data.semiannualPrice ? String(data.semiannualPrice) : "",
+          renewalPrice: data.renewalPrice ? String(data.renewalPrice) : "",
           billingCycle: data.billingCycle || "monthly",
           groupId: data.groupId || "",
           diskSpace: data.diskSpace || "",
@@ -279,6 +281,7 @@ export default function EditPackage() {
           ftpAccounts: parseInt(form.ftpAccounts) || 5,
           features,
           renewalEnabled,
+          renewalPrice: form.renewalPrice ? Number(form.renewalPrice) : null,
           freeDomainEnabled,
           freeDomainTlds,
         }),
@@ -604,6 +607,16 @@ export default function EditPackage() {
               <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${renewalEnabled ? "translate-x-6" : "translate-x-1"}`} />
             </button>
           </div>
+
+          {renewalEnabled && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Renewal Price (PKR) <span className="text-muted-foreground text-xs font-normal">— leave blank to use standard price</span></label>
+              <Input type="number" step="0.01" min="0" placeholder="e.g. 2999.00"
+                value={form.renewalPrice}
+                onChange={e => setForm(f => ({ ...f, renewalPrice: e.target.value }))}
+                className="h-10" />
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-xl">

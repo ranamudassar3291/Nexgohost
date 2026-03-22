@@ -196,6 +196,10 @@ export async function cpanelTerminate(server: ServerConfig, username: string) {
   return whmRequest(server, "removeacct", { user: username });
 }
 
+export async function cpanelChangePassword(server: ServerConfig, username: string, password: string) {
+  return whmRequest(server, "passwd", { user: username, password });
+}
+
 /**
  * Test WHM connection using listpkgs (as per WHM docs recommendation).
  * listpkgs is available on all WHM installs and requires a valid API token,

@@ -29,6 +29,7 @@ export const hostingPlansTable = pgTable("hosting_plans", {
   isActive: boolean("is_active").default(true),
   features: text("features").array().default([]),
   renewalEnabled: boolean("renewal_enabled").default(true),
+  renewalPrice: numeric("renewal_price", { precision: 10, scale: 2 }),
   freeDomainEnabled: boolean("free_domain_enabled").default(false),
   freeDomainTlds: text("free_domain_tlds").array().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),

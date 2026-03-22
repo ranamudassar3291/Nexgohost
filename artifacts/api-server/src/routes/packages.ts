@@ -31,6 +31,7 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
     isActive: p.isActive,
     features: p.features ?? [],
     renewalEnabled: p.renewalEnabled ?? true,
+    renewalPrice: (p as any).renewalPrice ? Number((p as any).renewalPrice) : null,
     freeDomainEnabled: p.freeDomainEnabled ?? false,
     freeDomainTlds: p.freeDomainTlds ?? [],
     createdAt: p.createdAt.toISOString(),
@@ -96,7 +97,7 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
       diskSpace = "10 GB", bandwidth = "100 GB",
       emailAccounts = 10, databases = 5, subdomains = 10, ftpAccounts = 5,
       features = [],
-      renewalEnabled = true, freeDomainEnabled = false, freeDomainTlds = [],
+      renewalEnabled = true, renewalPrice, freeDomainEnabled = false, freeDomainTlds = [],
     } = req.body;
 
     if (!name || !price) {
@@ -120,10 +121,11 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
     } as any).returning();
 
     // Update quarterly/semiannual via raw SQL since drizzle schema may be stale
-    if (quarterlyPrice || semiannualPrice) {
+    if (quarterlyPrice || semiannualPrice || renewalPrice !== undefined) {
       await db.execute(sql`UPDATE hosting_plans SET
         quarterly_price = ${quarterlyPrice ? String(quarterlyPrice) : null},
-        semiannual_price = ${semiannualPrice ? String(semiannualPrice) : null}
+        semiannual_price = ${semiannualPrice ? String(semiannualPrice) : null},
+        renewal_price = ${renewalPrice ? String(renewalPrice) : null}
         WHERE id = ${plan.id}`);
     }
 
@@ -139,7 +141,7 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
 router.put("/admin/packages/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { quarterlyPrice, semiannualPrice, ...updates } = req.body;
+    const { quarterlyPrice, semiannualPrice, renewalPrice, ...updates } = req.body;
 
     if (updates.price !== undefined) updates.price = String(updates.price);
     if (updates.yearlyPrice !== undefined) updates.yearlyPrice = updates.yearlyPrice ? String(updates.yearlyPrice) : null;
@@ -152,10 +154,11 @@ router.put("/admin/packages/:id", authenticate, requireAdmin, async (req: AuthRe
       .set(updates)
       .where(eq(hostingPlansTable.id, id));
 
-    // Update quarterly/semiannual via raw SQL
+    // Update quarterly/semiannual/renewal via raw SQL
     await db.execute(sql`UPDATE hosting_plans SET
       quarterly_price = ${quarterlyPrice ? String(quarterlyPrice) : null},
-      semiannual_price = ${semiannualPrice ? String(semiannualPrice) : null}
+      semiannual_price = ${semiannualPrice ? String(semiannualPrice) : null},
+      renewal_price = ${renewalPrice ? String(renewalPrice) : null}
       WHERE id = ${id}`);
 
     const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, id)).limit(1);

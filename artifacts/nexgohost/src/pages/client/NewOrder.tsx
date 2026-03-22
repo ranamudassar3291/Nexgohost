@@ -9,6 +9,7 @@ import { useCurrency } from "@/context/CurrencyProvider";
 interface Plan {
   id: string; name: string; description: string | null; price: number;
   yearlyPrice: number | null; quarterlyPrice: number | null; semiannualPrice: number | null;
+  renewalPrice: number | null; renewalEnabled: boolean;
   billingCycle: string; diskSpace: string; bandwidth: string;
   emailAccounts: number | null; databases: number | null; features: string[];
 }
@@ -76,6 +77,7 @@ export default function NewOrder() {
       ...(plan.quarterlyPrice ? { quarterlyPrice: String(plan.quarterlyPrice) } : {}),
       ...(plan.semiannualPrice ? { semiannualPrice: String(plan.semiannualPrice) } : {}),
       ...(plan.yearlyPrice ? { yearlyPrice: String(plan.yearlyPrice) } : {}),
+      ...(plan.renewalEnabled && plan.renewalPrice ? { renewalPrice: String(plan.renewalPrice) } : {}),
     });
     setLocation(`/client/checkout?${params.toString()}`);
   };
