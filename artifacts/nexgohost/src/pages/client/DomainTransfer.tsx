@@ -5,18 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { useLocation } from "wouter";
-
-const token = () => localStorage.getItem("token") || "";
-
-async function apiFetch(url: string, opts?: RequestInit) {
-  const res = await fetch(url, {
-    ...opts,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, ...opts?.headers },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || "Request failed");
-  return data;
-}
+import { apiFetch } from "@/lib/api";
 
 type Step = "enter" | "validate" | "submit" | "success";
 

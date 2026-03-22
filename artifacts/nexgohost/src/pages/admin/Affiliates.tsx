@@ -4,18 +4,7 @@ import { Users, DollarSign, Check, X, Settings, Loader2, AlertCircle, TrendingUp
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCurrency } from "@/context/CurrencyProvider";
-
-const token = () => localStorage.getItem("token") || "";
-
-async function apiFetch(url: string, opts?: RequestInit) {
-  const res = await fetch(url, {
-    ...opts,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, ...opts?.headers },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || "Request failed");
-  return data;
-}
+import { apiFetch } from "@/lib/api";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {

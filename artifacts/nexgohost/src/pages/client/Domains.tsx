@@ -5,6 +5,7 @@ import {
   Globe, Search, ShoppingCart, CheckCircle2, XCircle, AlertCircle,
   Loader2, Trash2, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
   Server, Plus, Minus, Save, Key, Copy, CheckCheck, ArrowLeft, ClipboardList,
+  ArrowRightLeft,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -50,10 +51,15 @@ interface OrderSuccess {
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || "";
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
-  if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
-  return res.json();
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    throw new Error(`Server error (${res.status})`);
+  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || data.message || "Request failed");
+  return data;
 }
 
 const TLD_ICONS: Record<string, string> = {
@@ -247,6 +253,12 @@ export default function ClientDomains() {
               </span>
             </button>
           )}
+          <button
+            onClick={() => navigate("/client/domains/transfer")}
+            className="flex items-center gap-2 px-4 py-2 bg-card border border-border hover:border-primary/40 text-foreground rounded-xl font-medium text-sm transition-colors"
+          >
+            <ArrowRightLeft size={16} /> Transfer Domain
+          </button>
           <button
             onClick={() => { setActiveTab("order"); setOrderView("search"); setTimeout(() => inputRef.current?.focus(), 100); }}
             className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium text-sm shadow-lg shadow-primary/20 transition-colors"

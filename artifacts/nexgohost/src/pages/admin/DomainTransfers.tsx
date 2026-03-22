@@ -3,18 +3,7 @@ import { motion } from "framer-motion";
 import { Globe, CheckCircle2, XCircle, Loader2, AlertCircle, Clock, Eye, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/context/CurrencyProvider";
-
-const token = () => localStorage.getItem("token") || "";
-
-async function apiFetch(url: string, opts?: RequestInit) {
-  const res = await fetch(url, {
-    ...opts,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}`, ...opts?.headers },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || "Request failed");
-  return data;
-}
+import { apiFetch } from "@/lib/api";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; label: string }> = {
