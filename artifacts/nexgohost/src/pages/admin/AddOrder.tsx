@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -40,6 +41,7 @@ const MODULE_BADGES: Record<string, { label: string; color: string; icon: string
 export default function AddOrder() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -165,7 +167,7 @@ export default function AddOrder() {
               <div className="bg-secondary/50 border border-border rounded-xl p-4 space-y-1">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Order</p>
                 <p className="font-semibold text-foreground">{result.order?.itemName}</p>
-                <p className="text-sm text-muted-foreground">${Number(result.order?.amount || 0).toFixed(2)} · {result.order?.billingCycle}</p>
+                <p className="text-sm text-muted-foreground">{formatPrice(Number(result.order?.amount || 0))} · {result.order?.billingCycle}</p>
                 <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${result.order?.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"}`}>
                   {result.order?.status}
                 </span>
@@ -174,7 +176,7 @@ export default function AddOrder() {
                 <div className="bg-secondary/50 border border-border rounded-xl p-4 space-y-1">
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Invoice</p>
                   <p className="font-mono font-semibold text-primary">{result.invoice?.invoiceNumber}</p>
-                  <p className="text-sm text-muted-foreground">${Number(result.invoice?.total || 0).toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">{formatPrice(Number(result.invoice?.total || 0))}</p>
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${result.invoice?.status === "paid" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"}`}>
                     {result.invoice?.status}
                   </span>

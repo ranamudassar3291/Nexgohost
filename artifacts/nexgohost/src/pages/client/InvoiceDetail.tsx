@@ -42,6 +42,11 @@ export default function InvoiceDetail() {
     enabled: !!id,
   });
 
+  const { data: paymentMethods = [] } = useQuery<Array<{ id: string; name: string; type: string; description: string | null }>>({
+    queryKey: ["payment-methods"],
+    queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(r => r.json()),
+  });
+
   const handlePay = async () => {
     try {
       await apiFetch(`/api/invoices/${id}/pay`, { method: "POST" });
@@ -188,32 +193,32 @@ export default function InvoiceDetail() {
         {/* Payment Instructions */}
         {!isPaid && invoice.status !== "cancelled" && (
           <div className="border-t border-border/50 p-6 bg-secondary/20">
-            <div className="text-sm font-medium text-foreground mb-3">Payment Instructions</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {[
-                {
-                  title: "Bank Transfer",
-                  icon: "🏦",
-                  details: ["Account: Nexgohost Ltd", "IBAN: PK00ABCD0000000000001234", "Ref: " + invoice.invoiceNumber],
-                },
-                {
-                  title: "PayPal",
-                  icon: "🅿️",
-                  details: ["billing@nexgohost.com", `Amount: ${formatPrice(Number(invoice.total))}`, "Include invoice number"],
-                },
-                {
-                  title: "Manual",
-                  icon: "✍️",
-                  details: ["Contact support", "We'll mark as paid", "after verification"],
-                },
-              ].map(method => (
-                <div key={method.title} className="bg-card border border-border/50 rounded-xl p-3">
-                  <div className="text-base mb-1">{method.icon}</div>
-                  <div className="text-xs font-semibold text-foreground mb-1">{method.title}</div>
-                  {method.details.map((d, i) => <div key={i} className="text-xs text-muted-foreground">{d}</div>)}
-                </div>
-              ))}
-            </div>
+            <div className="text-sm font-medium text-foreground mb-1">Payment Instructions</div>
+            <p className="text-xs text-muted-foreground mb-3">Please pay {formatPrice(Number(invoice.total))} using one of the methods below and reference invoice <span className="font-mono font-semibold text-foreground">#{invoice.invoiceNumber}</span>.</p>
+            {paymentMethods.length > 0 ? (
+              <div className={`grid grid-cols-1 gap-3 ${paymentMethods.length > 1 ? "md:grid-cols-" + Math.min(paymentMethods.length, 3) : ""}`}>
+                {paymentMethods.map(pm => {
+                  const icons: Record<string, string> = { stripe: "💳", paypal: "🅿️", bank_transfer: "🏦", crypto: "₿", manual: "✍️" };
+                  const icon = icons[pm.type] || "💳";
+                  return (
+                    <div key={pm.id} className="bg-card border border-border/50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-base">{icon}</span>
+                        <span className="text-xs font-semibold text-foreground">{pm.name}</span>
+                      </div>
+                      {pm.description && <div className="text-xs text-muted-foreground">{pm.description}</div>}
+                      {!pm.description && (
+                        <div className="text-xs text-muted-foreground">Contact support for payment details</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-card border border-border/50 rounded-xl p-4 text-sm text-muted-foreground">
+                Please contact our support team at <span className="text-foreground font-medium">billing@nexgohost.com</span> to arrange your payment.
+              </div>
+            )}
           </div>
         )}
 

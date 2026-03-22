@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface HostingService {
   id: string; clientId: string; clientName: string; planName: string;
@@ -34,6 +35,7 @@ export default function AdminHosting() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [linkingServers, setLinkingServers] = useState(false);
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
 
   const { data: services = [], isLoading: isLoadingServices } = useQuery<HostingService[]>({
@@ -250,9 +252,9 @@ export default function AdminHosting() {
             <div key={plan.id} className="bg-card border border-border rounded-2xl p-6 hover:border-primary/50 transition-colors">
               <h3 className="text-xl font-bold">{plan.name}</h3>
               <div className="mt-3 flex items-end gap-1">
-                <span className="text-3xl font-bold">${plan.price}</span>
+                <span className="text-3xl font-bold">{formatPrice(plan.price)}</span>
                 <span className="text-muted-foreground mb-1">/mo</span>
-                {plan.yearlyPrice && <span className="ml-2 text-sm text-muted-foreground">(${plan.yearlyPrice}/yr)</span>}
+                {plan.yearlyPrice && <span className="ml-2 text-sm text-muted-foreground">({formatPrice(plan.yearlyPrice)}/yr)</span>}
               </div>
               <ul className="mt-4 space-y-2">
                 <li className="flex items-center gap-2 text-sm text-foreground/80"><HardDrive size={14} className="text-primary" /> {plan.diskSpace}</li>

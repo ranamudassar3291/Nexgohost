@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface ServerRecord { id: string; name: string; type: string; status: string; }
 interface Plan { id: string; name: string; monthlyPrice: number; yearlyPrice: number; }
@@ -44,6 +45,7 @@ export default function EditPackage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
 
   const [fetching, setFetching] = useState(true);
@@ -482,8 +484,8 @@ export default function EditPackage() {
                                 </div>
                                 {moduleType !== "cpanel" && plan.monthlyPrice > 0 && (
                                   <div className="text-right shrink-0">
-                                    <p className="text-sm font-semibold text-foreground">${plan.monthlyPrice.toFixed(2)}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
-                                    <p className="text-xs text-muted-foreground">${plan.yearlyPrice.toFixed(2)}/yr</p>
+                                    <p className="text-sm font-semibold text-foreground">{formatPrice(plan.monthlyPrice)}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                                    <p className="text-xs text-muted-foreground">{formatPrice(plan.yearlyPrice)}/yr</p>
                                   </div>
                                 )}
                                 {modulePlanId === plan.id && <CheckCircle size={15} className="text-primary shrink-0" />}

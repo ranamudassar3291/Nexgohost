@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
-  promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable,
+  promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
@@ -172,7 +172,29 @@ async function handleCheckout(req: AuthRequest, res: any) {
       items: invoiceItems,
     }).returning();
 
-    // 4. Fraud detection (non-blocking)
+    // 4. Insert domain record when registering a domain
+    if (registerDomain && domain && domain.includes(".")) {
+      try {
+        const dotIdx = domain.indexOf(".");
+        const domainName = domain.slice(0, dotIdx);
+        const domainTld = domain.slice(dotIdx);
+        const regDate = new Date();
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        await db.insert(domainsTable).values({
+          clientId: req.user!.userId,
+          name: domainName.toLowerCase(),
+          tld: domainTld.toLowerCase(),
+          registrationDate: regDate,
+          expiryDate,
+          status: "pending",
+          autoRenew: true,
+          nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+        });
+      } catch { /* non-fatal — domain may already exist */ }
+    }
+
+    // 6. Fraud detection (non-blocking)
     const clientIp = (req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || "").split(",")[0]?.trim() || "";
     (async () => {
       try {
@@ -210,7 +232,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       } catch { /* non-fatal */ }
     })();
 
-    // 5. Send emails (non-blocking)
+    // 7. Send emails (non-blocking)
     const dueFormatted = dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     emailInvoiceCreated(user.email, {
       clientName: `${user.firstName} ${user.lastName}`,

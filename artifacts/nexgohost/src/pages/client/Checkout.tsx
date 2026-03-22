@@ -80,6 +80,8 @@ export default function Checkout() {
   const [domainChoice, setDomainChoice] = useState<"register" | "existing" | "manual" | "skip">("skip");
   const [domainName, setDomainName] = useState("");
   const [existingDomainId, setExistingDomainId] = useState("");
+  const [showFreeTldModal, setShowFreeTldModal] = useState(false);
+  const [selectedFreeTld, setSelectedFreeTld] = useState("");
   const [domainAvailability, setDomainAvailability] = useState<"available" | "taken" | "invalid" | null>(null);
   const [checkingDomain, setCheckingDomain] = useState(false);
   const domainCheckTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -236,7 +238,39 @@ export default function Checkout() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 relative">
+      {/* Free TLD Selection Modal */}
+      {showFreeTldModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-primary/30 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                <Gift size={20} className="text-green-400" />
+              </div>
+              <div>
+                <h2 className="font-bold text-foreground text-lg">Choose Your Free Domain</h2>
+                <p className="text-xs text-muted-foreground">Select an extension included free with your yearly plan</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {pkgFreeTlds.map(tld => (
+                <button key={tld} type="button"
+                  onClick={() => { setSelectedFreeTld(tld); setShowFreeTldModal(false); }}
+                  className={`p-4 rounded-xl border-2 text-center transition-all hover:border-primary hover:bg-primary/5 ${selectedFreeTld === tld ? "border-primary bg-primary/5" : "border-border"}`}>
+                  <span className="text-xl font-mono font-bold text-foreground">{tld}</span>
+                  <p className="text-xs text-green-500 font-semibold mt-1">FREE</p>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setShowFreeTldModal(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-all">
+                Skip — use any TLD
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between relative">
         <div className="absolute top-5 left-0 right-0 h-px bg-border -z-10" />
         {STEPS.map((s) => {
@@ -334,7 +368,12 @@ export default function Checkout() {
                   { value: "manual", label: "I have a domain (set up manually)", icon: "⚙️" },
                   { value: "skip", label: "Skip — I'll set this up later", icon: "⏭️" },
                 ].map(opt => (
-                  <button key={opt.value} onClick={() => setDomainChoice(opt.value as any)}
+                  <button key={opt.value} onClick={() => {
+                      setDomainChoice(opt.value as any);
+                      if (opt.value === "register" && isYearly && pkgFreeDomainEnabled && pkgFreeTlds.length > 0) {
+                        setShowFreeTldModal(true);
+                      }
+                    }}
                     className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${domainChoice === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
                     <span className="text-xl">{opt.icon}</span>
                     <span className="font-medium text-foreground text-sm flex-1">{opt.label}</span>
@@ -367,9 +406,19 @@ export default function Checkout() {
                     {domainChoice === "register" ? "Domain to register" : "Domain name"}
                   </label>
                   {domainChoice === "register" && isYearly && pkgFreeDomainEnabled && pkgFreeTlds.length > 0 && (
-                    <p className="text-xs text-green-600 flex items-center gap-1">
-                      <Gift size={11} /> Free for: <span className="font-mono">{pkgFreeTlds.join(", ")}</span>
-                    </p>
+                    <div className="flex items-center gap-2">
+                      {selectedFreeTld ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-500 font-semibold">
+                          <Gift size={11} /> Free TLD selected: <span className="font-mono bg-green-500/10 px-1.5 py-0.5 rounded">{selectedFreeTld}</span>
+                          <button type="button" onClick={() => setShowFreeTldModal(true)} className="ml-1 text-primary underline text-xs font-normal">Change</button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                          <Gift size={11} /> Free TLDs: <span className="font-mono">{pkgFreeTlds.join(", ")}</span>
+                          <button type="button" onClick={() => setShowFreeTldModal(true)} className="ml-1 text-primary underline text-xs">Select</button>
+                        </span>
+                      )}
+                    </div>
                   )}
                   <div className="flex gap-2">
                     <div className="relative flex-1">

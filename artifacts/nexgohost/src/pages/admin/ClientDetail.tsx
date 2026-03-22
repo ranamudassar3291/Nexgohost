@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCurrency } from "@/context/CurrencyProvider";
 import {
   ArrowLeft, User, Mail, Building, Phone, Calendar, Server, Globe, FileText,
   MessageSquare, ShoppingCart, Loader2, Edit2, Trash2, PauseCircle, PlayCircle,
@@ -53,6 +54,7 @@ export default function AdminClientDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const qc = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<Tab>("services");
@@ -327,7 +329,7 @@ export default function AdminClientDetail() {
                       <div className="text-xs text-muted-foreground mt-0.5">Due {format(new Date(inv.dueDate), "MMM d, yyyy")}</div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold">${Number(inv.total || inv.amount).toFixed(2)}</span>
+                      <span className="font-semibold">{formatPrice(Number(inv.total || inv.amount))}</span>
                       <StatusBadge status={inv.status} />
                       {inv.status === "unpaid" && (
                         <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-green-400 border-green-500/30 hover:bg-green-500/10"
@@ -381,7 +383,7 @@ export default function AdminClientDetail() {
                       <div className="text-xs text-muted-foreground mt-0.5 font-mono">#{o.id.slice(0, 8).toUpperCase()} · {format(new Date(o.createdAt), "MMM d, yyyy")}</div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold">${Number(o.amount).toFixed(2)}</span>
+                      <span className="font-semibold">{formatPrice(Number(o.amount))}</span>
                       <StatusBadge status={o.status} />
                     </div>
                   </div>

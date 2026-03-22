@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Client { id: string; firstName: string; lastName: string; email: string; }
 interface InvoiceItem { description: string; quantity: number; unitPrice: number; total: number; }
@@ -14,6 +15,7 @@ interface InvoiceItem { description: string; quantity: number; unitPrice: number
 export default function AddInvoice() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -129,7 +131,7 @@ export default function AddInvoice() {
                       <Input className="col-span-5 h-9 text-sm" value={item.description} onChange={e => updateItem(idx, "description", e.target.value)} placeholder="Service description" />
                       <Input className="col-span-2 h-9 text-sm text-center" type="number" min="1" value={item.quantity} onChange={e => updateItem(idx, "quantity", Number(e.target.value))} />
                       <Input className="col-span-2 h-9 text-sm text-right" type="number" step="0.01" min="0" value={item.unitPrice} onChange={e => updateItem(idx, "unitPrice", Number(e.target.value))} />
-                      <div className="col-span-2 text-right text-sm font-medium text-foreground/80 pr-1">${item.total.toFixed(2)}</div>
+                      <div className="col-span-2 text-right text-sm font-medium text-foreground/80 pr-1">{formatPrice(item.total)}</div>
                       <Button type="button" variant="ghost" size="icon" className="col-span-1 h-8 w-8 rounded-lg" onClick={() => removeItem(idx)} disabled={items.length === 1}>
                         <Trash2 size={13} className="text-destructive" />
                       </Button>
@@ -148,13 +150,13 @@ export default function AddInvoice() {
           <div className="bg-card border border-border rounded-2xl p-5">
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
+                <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
               </div>
               {taxAmt > 0 && <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Tax ({tax}%)</span><span>${taxAmt.toFixed(2)}</span>
+                <span>Tax ({tax}%)</span><span>{formatPrice(taxAmt)}</span>
               </div>}
               <div className="flex justify-between font-semibold text-foreground pt-2 border-t border-border/50">
-                <span>Total</span><span className="text-primary">${grandTotal.toFixed(2)}</span>
+                <span>Total</span><span className="text-primary">{formatPrice(grandTotal)}</span>
               </div>
             </div>
           </div>
