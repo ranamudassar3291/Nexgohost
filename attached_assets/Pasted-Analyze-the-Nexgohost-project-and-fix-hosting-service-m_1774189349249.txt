@@ -1,0 +1,181 @@
+Analyze the Nexgohost project and fix hosting service management, WordPress integration, renewal system, and upgrade functionality without breaking existing features.
+
+IMPORTANT:
+Do NOT redesign UI.
+Focus on fixing logic, backend sync, and service workflow.
+
+========================
+🧑‍💻 CLIENT HOSTING UI FIX
+===========================
+
+My Hosting page:
+
+Show ONLY:
+
+Service name
+Status
+Due date
+"Manage Service" button
+
+Remove all other buttons from this page.
+
+When user clicks "Manage Service":
+
+Open separate service details page.
+
+========================
+⚙️ SERVICE DETAILS PAGE
+=======================
+
+Show all actions ONLY inside this page:
+
+Login to cPanel
+Webmail
+SSL status
+Change cPanel password
+Install WordPress
+Renew service
+Upgrade service
+
+Ensure all buttons work via backend API.
+
+========================
+⚠️ WORDPRESS BACKEND FIX
+========================
+
+Fix WordPress installation:
+
+Currently frontend only → NOT backend
+
+Update:
+
+When user clicks "Install WordPress":
+
+Call backend API
+Trigger real or simulated install
+
+Update database:
+
+Save:
+
+domain
+wp_username
+wp_password
+wp_url
+
+Ensure:
+
+If already installed → do NOT reinstall
+Update service name if needed
+
+After install:
+
+Show:
+
+"Login to WordPress" button
+
+========================
+🔄 RENEWAL SYSTEM (FULL FIX)
+============================
+
+Add working renewal flow:
+
+Client clicks "Renew":
+
+Create renewal order
+Generate invoice
+Status = Pending
+
+Admin approves:
+
+Update service due date:
+
++1 month / +3 / +6 / +12 based on plan
+
+Update:
+
+Invoice → Paid
+Service → Active
+
+========================
+⬆️ UPGRADE SYSTEM
+=================
+
+Add "Upgrade" button:
+
+Client selects new plan
+
+System:
+
+Calculate price difference
+Create upgrade invoice
+
+Admin approval:
+
+Upgrade package
+Update service specs
+
+========================
+🔐 CPANEL PASSWORD FIX
+======================
+
+Ensure:
+
+Change password button works
+
+Call backend API
+Update password in server
+Save in database
+
+========================
+⚠️ SERVICE NAME UPDATE FIX
+==========================
+
+Fix issue:
+
+After WordPress install → name not updating
+
+Update:
+
+Service name = domain or site name
+
+Save in database.
+
+========================
+⚙️ BACKEND API CONNECTION
+=========================
+
+Fix all service actions:
+
+Ensure:
+
+Correct service ID passed
+API routes working
+Database updated after action
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+Non-working buttons
+Frontend-only actions
+Missing backend updates
+Renewal not updating due date
+
+Ensure:
+
+All actions fully functional end-to-end
+
+========================
+🎯 GOAL
+=======
+
+Create a fully working hosting service system where:
+
+Manage page works correctly
+WordPress installs properly (backend + DB)
+Renewal updates due date automatically
+Upgrade system works
+All buttons functional

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable } from "@workspace/db/schema";
+import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable } from "@workspace/db/schema";
 import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
@@ -77,6 +77,10 @@ function formatService(s: typeof hostingServicesTable.$inferSelect, clientName?:
     cancelRequested: s.cancelRequested,
     cancelReason: s.cancelReason,
     cancelRequestedAt: s.cancelRequestedAt?.toISOString(),
+    wpInstalled: s.wpInstalled ?? false,
+    wpUrl: s.wpUrl,
+    wpUsername: s.wpUsername,
+    wpPassword: s.wpPassword,
     createdAt: s.createdAt.toISOString(),
   };
 }
@@ -922,25 +926,24 @@ router.get("/client/dashboard", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Client: request renewal (creates invoice)
+// Client: request renewal (creates order + invoice)
 router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, res) => {
   try {
-    const clientId = req.user!.id;
+    const clientId = req.user!.userId;
     const { id } = req.params;
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId)))
       .limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
+    if (service.status === "terminated") return res.status(400).json({ error: "Cannot renew a terminated service" });
 
-    // Get plan price
     const [plan] = await db.select().from(hostingPlansTable)
       .where(eq(hostingPlansTable.id, service.planId)).limit(1);
     const billingCycle = service.billingCycle || "monthly";
-    let amount = plan ? Number(plan.price) : 0;
+
+    let amount = plan ? Number(plan.renewalPrice || plan.price) : 0;
     if (plan) {
       if (billingCycle === "yearly" && plan.yearlyPrice) amount = Number(plan.yearlyPrice);
-      else if (billingCycle === "quarterly" && (plan as any).quarterlyPrice) amount = Number((plan as any).quarterlyPrice);
-      else if (billingCycle === "semiannual" && (plan as any).semiannualPrice) amount = Number((plan as any).semiannualPrice);
     }
 
     const dueDate = new Date();
@@ -958,9 +961,164 @@ router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, 
       items: [{ description: `Renewal: ${service.planName} (${billingCycle})`, amount }],
     }).returning();
 
-    res.json({ success: true, invoiceId: invoice.id, invoiceNumber: invNum, amount });
+    const [order] = await db.insert(ordersTable).values({
+      clientId,
+      type: "renewal",
+      itemId: service.id,
+      itemName: `Renewal: ${service.planName}`,
+      domain: service.domain,
+      amount: String(amount),
+      billingCycle,
+      invoiceId: invoice.id,
+      status: "pending",
+      notes: `Renewal request for service ID: ${service.id}`,
+    }).returning();
+
+    res.json({ success: true, invoiceId: invoice.id, invoiceNumber: invNum, orderId: order.id, amount });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: approve renewal → extend due date + mark invoice paid
+router.post("/admin/hosting/:id/approve-renewal", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    const billingCycle = service.billingCycle || "monthly";
+    const base = service.nextDueDate ? new Date(service.nextDueDate) : new Date();
+    if (base < new Date()) base.setTime(new Date().getTime());
+
+    const newDueDate = new Date(base);
+    if (billingCycle === "yearly") newDueDate.setFullYear(newDueDate.getFullYear() + 1);
+    else if (billingCycle === "quarterly") newDueDate.setMonth(newDueDate.getMonth() + 3);
+    else if (billingCycle === "semiannual") newDueDate.setMonth(newDueDate.getMonth() + 6);
+    else newDueDate.setMonth(newDueDate.getMonth() + 1);
+
+    const [updated] = await db.update(hostingServicesTable).set({
+      nextDueDate: newDueDate,
+      status: "active",
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id)).returning();
+
+    // Mark the most recent unpaid renewal invoice as paid
+    const pendingOrders = await db.select().from(ordersTable)
+      .where(and(eq(ordersTable.itemId, id), eq(ordersTable.type, "renewal"), eq(ordersTable.status, "pending")));
+
+    for (const order of pendingOrders) {
+      await db.update(ordersTable).set({ status: "completed", updatedAt: new Date() })
+        .where(eq(ordersTable.id, order.id));
+      if (order.invoiceId) {
+        await db.update(invoicesTable).set({ status: "paid", paidDate: new Date() })
+          .where(eq(invoicesTable.id, order.invoiceId));
+      }
+    }
+
+    res.json({ success: true, newDueDate: newDueDate.toISOString(), service: formatService(updated!) });
+  } catch (err) {
+    console.error("[ADMIN] approve-renewal error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: request plan upgrade/downgrade
+router.post("/client/hosting/:id/upgrade", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const { newPlanId } = req.body;
+    if (!newPlanId) return res.status(400).json({ error: "newPlanId is required" });
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (service.status !== "active") return res.status(400).json({ error: "Service must be active" });
+    if (service.planId === newPlanId) return res.status(400).json({ error: "Already on this plan" });
+
+    const [newPlan] = await db.select().from(hostingPlansTable)
+      .where(and(eq(hostingPlansTable.id, newPlanId), eq(hostingPlansTable.isActive, true))).limit(1);
+    if (!newPlan) return res.status(404).json({ error: "Plan not found" });
+
+    const billingCycle = service.billingCycle || "monthly";
+    let amount = Number(newPlan.price);
+    if (billingCycle === "yearly" && newPlan.yearlyPrice) amount = Number(newPlan.yearlyPrice);
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 7);
+    const invNum = `INV-${Date.now().toString().slice(-8)}`;
+
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber: invNum,
+      clientId,
+      amount: String(amount),
+      tax: "0",
+      total: String(amount),
+      status: "unpaid",
+      dueDate,
+      items: [{ description: `Plan Change: ${service.planName} → ${newPlan.name} (${billingCycle})`, amount }],
+    }).returning();
+
+    const [order] = await db.insert(ordersTable).values({
+      clientId,
+      type: "upgrade",
+      itemId: service.id,
+      itemName: `Plan Change: ${service.planName} → ${newPlan.name}`,
+      domain: service.domain,
+      amount: String(amount),
+      billingCycle,
+      invoiceId: invoice.id,
+      status: "pending",
+      notes: `Plan change to: ${newPlan.id}|${newPlan.name}`,
+    }).returning();
+
+    res.json({ success: true, orderId: order.id, invoiceId: invoice.id, invoiceNumber: invNum, amount, newPlanName: newPlan.name });
+  } catch (err) {
+    console.error("[CLIENT] upgrade error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: approve plan upgrade/downgrade
+router.post("/admin/hosting/:id/approve-upgrade", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    const pendingUpgrade = await db.select().from(ordersTable)
+      .where(and(eq(ordersTable.itemId, id), eq(ordersTable.type, "upgrade"), eq(ordersTable.status, "pending")))
+      .orderBy(sql`created_at DESC`).limit(1);
+    if (!pendingUpgrade.length) return res.status(404).json({ error: "No pending upgrade request found" });
+
+    const upgradeOrder = pendingUpgrade[0];
+    const notesStr = upgradeOrder.notes || "";
+    const planMatch = notesStr.match(/Plan change to: ([^|]+)\|(.+)/);
+    if (!planMatch) return res.status(400).json({ error: "Invalid upgrade order data" });
+    const newPlanId = planMatch[1];
+    const newPlanName = planMatch[2];
+
+    const [updated] = await db.update(hostingServicesTable).set({
+      planId: newPlanId,
+      planName: newPlanName,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id)).returning();
+
+    await db.update(ordersTable).set({ status: "completed", updatedAt: new Date() })
+      .where(eq(ordersTable.id, upgradeOrder.id));
+
+    if (upgradeOrder.invoiceId) {
+      await db.update(invoicesTable).set({ status: "paid", paidDate: new Date() })
+        .where(eq(invoicesTable.id, upgradeOrder.invoiceId));
+    }
+
+    res.json({ success: true, service: formatService(updated!) });
+  } catch (err) {
+    console.error("[ADMIN] approve-upgrade error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -1074,26 +1232,37 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
-    const { adminUser, adminPassword, adminEmail, siteName = "My Website", path = "/" } = req.body;
+    const { adminUser, adminPassword, adminEmail, siteName = "My Website", forceReinstall = false } = req.body;
 
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
     if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
     if (service.status !== "active") return res.status(400).json({ error: "Service must be active to install WordPress" });
+    if (service.wpInstalled && !forceReinstall) {
+      return res.status(400).json({
+        error: "WordPress is already installed",
+        alreadyInstalled: true,
+        credentials: { loginUrl: service.wpUrl, username: service.wpUsername, password: service.wpPassword },
+      });
+    }
 
     const wpUser = adminUser || "admin";
     const wpPass = adminPassword || Math.random().toString(36).slice(-10) + "Aa1!";
     const wpEmail = adminEmail || "admin@" + service.domain;
-
-    // Softaculous/Installatron required for server-side install
-    const serverInstalled = false;
-
     const wpLoginUrl = `http://${service.domain}/wp-admin`;
+
+    await db.update(hostingServicesTable).set({
+      wpInstalled: true,
+      wpUrl: wpLoginUrl,
+      wpUsername: wpUser,
+      wpPassword: wpPass,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id));
+
     res.json({
       success: true,
-      serverInstalled,
-      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl },
+      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl, siteName },
     });
   } catch (err) {
     console.error("[CLIENT] install-wordpress error:", err);

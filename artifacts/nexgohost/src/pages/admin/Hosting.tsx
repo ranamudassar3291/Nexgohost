@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon, KeyRound, Eye, EyeOff, X } from "lucide-react";
+import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon, KeyRound, Eye, EyeOff, X, RefreshCw, ArrowUpCircle, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,12 @@ interface HostingService {
   status: string; billingCycle: string | null; nextDueDate: string | null;
   sslStatus: string; diskUsed: string | null; bandwidthUsed: string | null;
   cancelRequested: boolean; cancelReason: string | null; createdAt: string;
+}
+
+interface PendingOrder {
+  id: string; type: string; itemId: string | null; itemName: string;
+  domain: string | null; amount: number; billingCycle: string | null;
+  status: string; clientId: string; createdAt: string;
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -51,6 +57,15 @@ export default function AdminHosting() {
     queryKey: ["admin-packages"],
     queryFn: () => apiFetch("/api/admin/packages"),
   });
+
+  const { data: allOrders = [] } = useQuery<PendingOrder[]>({
+    queryKey: ["admin-orders-pending"],
+    queryFn: () => apiFetch("/api/admin/orders"),
+    refetchInterval: 30000,
+  });
+
+  const pendingRenewals = allOrders.filter(o => o.type === "renewal" && o.status === "pending");
+  const pendingUpgrades = allOrders.filter(o => o.type === "upgrade" && o.status === "pending");
 
   const filtered = services.filter(s => {
     const matchSearch = (s.domain || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -214,6 +229,80 @@ export default function AdminHosting() {
                       Dismiss
                     </Button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pending Renewal Requests */}
+          {pendingRenewals.length > 0 && (
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 space-y-2">
+              <h3 className="text-sm font-semibold text-blue-400 flex items-center gap-2"><RefreshCw size={14} /> Pending Renewal Requests ({pendingRenewals.length})</h3>
+              {pendingRenewals.map(order => {
+                const relatedService = services.find(s => s.id === order.itemId);
+                return (
+                  <div key={order.id} className="flex items-center justify-between py-2 border-t border-blue-500/10">
+                    <div>
+                      <span className="text-sm font-medium text-foreground">{order.itemName}</span>
+                      {order.domain && <span className="text-xs text-muted-foreground ml-2">({order.domain})</span>}
+                      <div className="text-xs text-muted-foreground">
+                        {formatPrice(order.amount)} · {order.billingCycle} · Submitted {format(new Date(order.createdAt), "MMM d")}
+                        {relatedService && <span className="ml-2">· Due: {relatedService.nextDueDate ? format(new Date(relatedService.nextDueDate), "MMM d, yyyy") : "—"}</span>}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-7 bg-blue-600 hover:bg-blue-700 text-white gap-1"
+                      onClick={async () => {
+                        if (!order.itemId) return;
+                        try {
+                          const result = await apiFetch(`/api/admin/hosting/${order.itemId}/approve-renewal`, { method: "POST" });
+                          queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
+                          queryClient.invalidateQueries({ queryKey: ["admin-orders-pending"] });
+                          toast({ title: "Renewal Approved", description: `Next due date: ${result.newDueDate ? format(new Date(result.newDueDate), "MMM d, yyyy") : "extended"}` });
+                        } catch (err: any) {
+                          toast({ title: "Error", description: err.message, variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <CheckCircle size={12} /> Approve Renewal
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pending Upgrade Requests */}
+          {pendingUpgrades.length > 0 && (
+            <div className="bg-purple-500/5 border border-purple-500/20 rounded-2xl p-4 space-y-2">
+              <h3 className="text-sm font-semibold text-purple-400 flex items-center gap-2"><ArrowUpCircle size={14} /> Pending Plan Change Requests ({pendingUpgrades.length})</h3>
+              {pendingUpgrades.map(order => (
+                <div key={order.id} className="flex items-center justify-between py-2 border-t border-purple-500/10">
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{order.itemName}</span>
+                    {order.domain && <span className="text-xs text-muted-foreground ml-2">({order.domain})</span>}
+                    <div className="text-xs text-muted-foreground">
+                      {formatPrice(order.amount)} · Submitted {format(new Date(order.createdAt), "MMM d")}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-7 bg-purple-600 hover:bg-purple-700 text-white gap-1"
+                    onClick={async () => {
+                      if (!order.itemId) return;
+                      try {
+                        await apiFetch(`/api/admin/hosting/${order.itemId}/approve-upgrade`, { method: "POST" });
+                        queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
+                        queryClient.invalidateQueries({ queryKey: ["admin-orders-pending"] });
+                        toast({ title: "Plan Change Approved", description: "Service plan has been updated." });
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <CheckCircle size={12} /> Approve Plan Change
+                  </Button>
                 </div>
               ))}
             </div>

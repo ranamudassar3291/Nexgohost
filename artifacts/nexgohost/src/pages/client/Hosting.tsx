@@ -1,28 +1,22 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import {
-  Server, ExternalLink, HardDrive, Activity, Shield, ShieldCheck, ShieldX,
-  Calendar, ArrowUpCircle, ArrowDownCircle, XCircle, Globe, Loader2, AlertTriangle, X,
-  Lock, RefreshCw, CheckCircle, Settings,
-} from "lucide-react";
+import { Server, Globe, Calendar, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useCurrency } from "@/context/CurrencyProvider";
 
 interface HostingService {
-  id: string; planName: string; domain: string | null; username: string | null;
-  serverIp: string | null; status: string; billingCycle: string | null;
-  nextDueDate: string | null; sslStatus: string; diskUsed: string | null;
-  bandwidthUsed: string | null; cpanelUrl: string | null; webmailUrl: string | null;
-  cancelRequested: boolean; cancelReason: string | null;
+  id: string;
+  planName: string;
+  domain: string | null;
+  status: string;
+  nextDueDate: string | null;
+  cancelRequested: boolean;
 }
 
-async function apiFetch(url: string, opts?: RequestInit) {
+async function apiFetch(url: string) {
   const token = localStorage.getItem("token");
-  const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
   return res.json();
 }
@@ -34,108 +28,13 @@ const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
 };
 
-function parseUsagePercent(used: string | null, limit: string | null): number {
-  if (!used || !limit) return 0;
-  const usedNum = parseFloat(used);
-  const limitNum = parseFloat(limit);
-  if (!limitNum || limitNum === 0) return 0;
-  return Math.min(Math.round((usedNum / limitNum) * 100), 100);
-}
-
 export default function ClientHosting() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const { formatPrice } = useCurrency();
-  const queryClient = useQueryClient();
-  const [cancelModal, setCancelModal] = useState<{ id: string; domain: string } | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelling, setCancelling] = useState(false);
-  const [reinstallingSSL, setReinstallingSSL] = useState<string | null>(null);
-  const [ssoLoading, setSsoLoading] = useState<Record<string, "cpanel" | "webmail" | null>>({});
-  const [renewModal, setRenewModal] = useState<{ id: string; planName: string; billingCycle: string } | null>(null);
-  const [renewing, setRenewing] = useState(false);
-  const [renewSuccess, setRenewSuccess] = useState<{ invoiceNumber: string; amount: number } | null>(null);
-
-  const handleReinstallSSL = async (serviceId: string, domain: string) => {
-    setReinstallingSSL(serviceId);
-    try {
-      await apiFetch(`/api/client/hosting/${serviceId}/reinstall-ssl`, { method: "POST" });
-      toast({ title: "SSL Reinstall Initiated", description: `Reinstalling SSL for ${domain}. This may take a moment.` });
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
-        setReinstallingSSL(null);
-      }, 3000);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-      setReinstallingSSL(null);
-    }
-  };
 
   const { data: services = [], isLoading } = useQuery<HostingService[]>({
     queryKey: ["client-hosting"],
     queryFn: () => apiFetch("/api/client/hosting"),
   });
-
-  const handleCpanelLogin = async (service: HostingService) => {
-    setSsoLoading(prev => ({ ...prev, [service.id]: "cpanel" }));
-    try {
-      const result = await apiFetch(`/api/client/hosting/${service.id}/cpanel-login`, { method: "POST" });
-      if (result.url) {
-        window.open(result.url, "_blank");
-      } else {
-        throw new Error("No login URL returned");
-      }
-    } catch (err: any) {
-      toast({ title: "cPanel Login Failed", description: err.message, variant: "destructive" });
-    } finally {
-      setSsoLoading(prev => ({ ...prev, [service.id]: null }));
-    }
-  };
-
-  const handleWebmailLogin = async (service: HostingService) => {
-    setSsoLoading(prev => ({ ...prev, [service.id]: "webmail" }));
-    try {
-      const result = await apiFetch(`/api/client/hosting/${service.id}/webmail-login`, { method: "POST" });
-      if (result.url) {
-        window.open(result.url, "_blank");
-      } else {
-        throw new Error("No login URL returned");
-      }
-    } catch (err: any) {
-      toast({ title: "Webmail Login Failed", description: err.message, variant: "destructive" });
-    } finally {
-      setSsoLoading(prev => ({ ...prev, [service.id]: null }));
-    }
-  };
-
-  const handleRenew = async () => {
-    if (!renewModal) return;
-    setRenewing(true);
-    try {
-      const result = await apiFetch(`/api/client/hosting/${renewModal.id}/renew`, { method: "POST" });
-      setRenewSuccess({ invoiceNumber: result.invoiceNumber, amount: result.amount });
-      queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
-    } catch (err: any) {
-      toast({ title: "Renewal Failed", description: err.message, variant: "destructive" });
-      setRenewModal(null);
-    } finally { setRenewing(false); }
-  };
-
-  const handleCancelRequest = async () => {
-    if (!cancelModal) return;
-    setCancelling(true);
-    try {
-      await apiFetch(`/api/client/hosting/${cancelModal.id}/cancel-request`, {
-        method: "POST",
-        body: JSON.stringify({ reason: cancelReason || "Requested by client" }),
-      });
-      queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
-      toast({ title: "Cancellation requested", description: "Our team will process your request." });
-      setCancelModal(null); setCancelReason("");
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally { setCancelling(false); }
-  };
 
   if (isLoading) return (
     <div className="flex justify-center p-12">
@@ -145,97 +44,6 @@ export default function ClientHosting() {
 
   return (
     <div className="space-y-6">
-      {/* Renewal modal */}
-      {(renewModal || renewSuccess) && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="font-semibold flex items-center gap-2 text-foreground">
-                <RefreshCw size={18} className="text-primary" />
-                {renewSuccess ? "Renewal Invoice Created" : "Renew Hosting Service"}
-              </h2>
-              <Button variant="ghost" size="icon" onClick={() => { setRenewModal(null); setRenewSuccess(null); }}>
-                <X size={18} />
-              </Button>
-            </div>
-            <div className="p-5 space-y-4">
-              {renewSuccess ? (
-                <>
-                  <div className="flex flex-col items-center gap-3 py-4 text-center">
-                    <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
-                      <CheckCircle size={28} className="text-green-500" />
-                    </div>
-                    <p className="font-semibold text-foreground">Invoice Generated!</p>
-                    <p className="text-sm text-muted-foreground">
-                      Invoice <strong>{renewSuccess.invoiceNumber}</strong> for <strong>{formatPrice(renewSuccess.amount)}</strong> has been created.
-                      Please pay it to renew your service.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button onClick={() => setLocation("/client/invoices")} className="flex-1 bg-primary hover:bg-primary/90">
-                      View & Pay Invoice
-                    </Button>
-                    <Button variant="outline" onClick={() => { setRenewModal(null); setRenewSuccess(null); }}>Close</Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    A renewal invoice will be generated for <strong className="text-foreground">{renewModal?.planName}</strong> on a <strong className="text-foreground capitalize">{renewModal?.billingCycle}</strong> billing cycle. You will be redirected to pay it.
-                  </p>
-                  <div className="flex gap-3">
-                    <Button onClick={handleRenew} disabled={renewing} className="flex-1 bg-primary hover:bg-primary/90">
-                      {renewing && <Loader2 size={16} className="animate-spin mr-2" />}
-                      Confirm Renewal
-                    </Button>
-                    <Button variant="outline" onClick={() => setRenewModal(null)}>Cancel</Button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancel modal */}
-      {cancelModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="font-semibold flex items-center gap-2 text-destructive">
-                <AlertTriangle size={18} /> Request Cancellation
-              </h2>
-              <Button variant="ghost" size="icon" onClick={() => { setCancelModal(null); setCancelReason(""); }}>
-                <X size={18} />
-              </Button>
-            </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                You are requesting cancellation for <strong className="text-foreground">{cancelModal.domain}</strong>.
-                Your service will remain active until an admin processes your request.
-              </p>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Reason (optional)</label>
-                <textarea
-                  value={cancelReason}
-                  onChange={e => setCancelReason(e.target.value)}
-                  rows={3}
-                  placeholder="Let us know why you're cancelling..."
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                />
-              </div>
-              <div className="flex gap-3">
-                <Button onClick={handleCancelRequest} disabled={cancelling} className="flex-1 bg-destructive hover:bg-destructive/90">
-                  {cancelling && <Loader2 size={16} className="animate-spin mr-2" />}
-                  Confirm Cancellation Request
-                </Button>
-                <Button variant="outline" onClick={() => { setCancelModal(null); setCancelReason(""); }}>Keep Service</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div>
         <h2 className="text-3xl font-display font-bold text-foreground">My Hosting</h2>
         <p className="text-muted-foreground mt-1">Manage your active hosting services and control panels.</p>
@@ -247,177 +55,55 @@ export default function ClientHosting() {
             <Server className="w-10 h-10 text-muted-foreground" />
           </div>
           <h3 className="text-xl font-bold text-foreground">No Hosting Services</h3>
-          <p className="text-muted-foreground mt-2 max-w-md">You don't have any hosting plans. Browse our plans to get started.</p>
+          <p className="text-muted-foreground mt-2 max-w-md">You don't have any hosting plans yet. Browse our plans to get started.</p>
           <Button className="mt-6 bg-primary" onClick={() => setLocation("/client/orders/new")}>Order Hosting</Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 gap-4">
           {services.map(service => (
-            <motion.div key={service.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-colors">
-              
-              {/* Header */}
-              <div className="p-6 border-b border-border/50 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-[40px]" />
-                <div className="relative flex justify-between items-start">
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-xl font-bold text-foreground">{service.planName}</h3>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${statusColors[service.status] || "bg-secondary border-border text-muted-foreground"}`}>
-                        {service.status}
+            <motion.div
+              key={service.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card border border-border rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-primary/30 transition-colors"
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <Server size={18} className="text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-foreground">{service.planName}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${statusColors[service.status] || "bg-secondary border-border text-muted-foreground"}`}>
+                      {service.status}
+                    </span>
+                    {service.cancelRequested && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                        Cancel Pending
                       </span>
-                      {service.cancelRequested && (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                          Cancellation Pending
-                        </span>
-                      )}
-                    </div>
-                    {service.domain && (
-                      <div className="flex items-center gap-1.5 text-primary font-medium">
-                        <Globe size={14} />
-                        <span>{service.domain}</span>
-                      </div>
                     )}
                   </div>
-
-                  {/* SSL Status */}
-                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border ${
-                    service.sslStatus === "active" || service.sslStatus === "installed"
-                      ? "bg-green-500/10 text-green-400 border-green-500/20"
-                      : "bg-muted text-muted-foreground border-border"
-                  }`}>
-                    {service.sslStatus === "active" || service.sslStatus === "installed"
-                      ? <ShieldCheck size={14} /> : <ShieldX size={14} />}
-                    SSL {service.sslStatus === "active" || service.sslStatus === "installed" ? "Active" : "Not Installed"}
+                  <div className="flex items-center gap-3 mt-0.5 text-sm text-muted-foreground">
+                    {service.domain && (
+                      <span className="flex items-center gap-1 text-primary/80">
+                        <Globe size={12} /> {service.domain}
+                      </span>
+                    )}
+                    {service.nextDueDate && (
+                      <span className="flex items-center gap-1">
+                        <Calendar size={12} />
+                        Due {format(new Date(service.nextDueDate), "MMM d, yyyy")}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-
-              {/* Info grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/50 border-b border-border/50">
-                {[
-                  { label: "Server", value: service.serverIp || "Pending setup", icon: Server },
-                  { label: "Username", value: service.username || "—", icon: Shield },
-                  { label: "Billing", value: service.billingCycle || "Monthly", icon: Calendar },
-                  {
-                    label: "Next Due Date",
-                    value: service.nextDueDate ? format(new Date(service.nextDueDate), "MMM d, yyyy") : "—",
-                    icon: Calendar,
-                  },
-                ].map(({ label, value, icon: Icon }) => (
-                  <div key={label} className="p-4 text-center">
-                    <Icon size={14} className="text-muted-foreground mx-auto mb-1" />
-                    <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
-                    <div className="text-sm font-medium text-foreground truncate">{value}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Usage bars */}
-              <div className="p-5 space-y-3 border-b border-border/50">
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: "Disk Usage", used: service.diskUsed, limit: "10 GB", icon: HardDrive },
-                    { label: "Bandwidth", used: service.bandwidthUsed, limit: "100 GB", icon: Activity },
-                  ].map(({ label, used, limit, icon: Icon }) => {
-                    const pct = parseUsagePercent(used, limit);
-                    return (
-                      <div key={label}>
-                        <div className="flex justify-between items-center mb-1.5">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Icon size={12} /> {label}
-                          </div>
-                          <span className="text-xs font-medium text-foreground">{used || "0 MB"}</span>
-                        </div>
-                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${pct > 80 ? "bg-red-400" : pct > 60 ? "bg-yellow-400" : "bg-primary"}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="p-5 flex flex-wrap gap-2.5">
-                <Button
-                  onClick={() => setLocation(`/client/hosting/${service.id}`)}
-                  variant="outline"
-                  className="gap-2 border-primary/40 text-primary hover:bg-primary/10"
-                >
-                  <Settings size={15} /> Manage Service
-                </Button>
-                <Button
-                  onClick={() => handleCpanelLogin(service)}
-                  className="gap-2 bg-primary hover:bg-primary/90"
-                  disabled={service.status !== "active" || !!ssoLoading[service.id]}
-                >
-                  {ssoLoading[service.id] === "cpanel"
-                    ? <Loader2 size={15} className="animate-spin" />
-                    : <ExternalLink size={15} />}
-                  {ssoLoading[service.id] === "cpanel" ? "Logging in..." : "Control Panel"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleWebmailLogin(service)}
-                  className="gap-2"
-                  disabled={service.status !== "active" || !!ssoLoading[service.id]}
-                >
-                  {ssoLoading[service.id] === "webmail"
-                    ? <Loader2 size={15} className="animate-spin" />
-                    : <ExternalLink size={15} />}
-                  {ssoLoading[service.id] === "webmail" ? "Logging in..." : "Login to Webmail"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleReinstallSSL(service.id, service.domain || service.planName)}
-                  className="gap-2"
-                  disabled={service.status !== "active" || reinstallingSSL === service.id}
-                >
-                  {reinstallingSSL === service.id ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
-                  {reinstallingSSL === service.id ? "Reinstalling..." : "Reinstall SSL"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setRenewModal({ id: service.id, planName: service.planName, billingCycle: service.billingCycle || "monthly" })}
-                  className="gap-2 text-primary border-primary/30 hover:bg-primary/10"
-                  disabled={service.status === "terminated"}
-                >
-                  <RefreshCw size={15} /> Renew Service
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setLocation("/client/orders/new")}
-                  className="gap-2"
-                >
-                  <ArrowUpCircle size={15} /> Upgrade Plan
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setLocation("/client/orders/new")}
-                  className="gap-2"
-                >
-                  <ArrowDownCircle size={15} /> Downgrade Plan
-                </Button>
-                {!service.cancelRequested && service.status !== "terminated" && (
-                  <Button
-                    variant="outline"
-                    className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 ml-auto"
-                    onClick={() => { setCancelModal({ id: service.id, domain: service.domain || service.planName }); }}
-                  >
-                    <XCircle size={15} /> Cancel Service
-                  </Button>
-                )}
-                {service.cancelRequested && (
-                  <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-                    <AlertTriangle size={14} className="text-orange-400" />
-                    Cancellation requested
-                  </div>
-                )}
-              </div>
+              <Button
+                onClick={() => setLocation(`/client/hosting/${service.id}`)}
+                className="gap-2 shrink-0 bg-primary hover:bg-primary/90"
+              >
+                <Settings size={15} /> Manage Service
+              </Button>
             </motion.div>
           ))}
         </div>
