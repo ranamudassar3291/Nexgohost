@@ -52,27 +52,80 @@ const RESERVED_USERNAMES = new Set([
   "webmaster", "hostmaster", "postmaster", "abuse", "info",
   "mail", "email", "ftp", "cpanel", "whm", "mysql", "nobody",
   "apache", "nginx", "www", "web", "host", "server", "service",
+  "daemon", "bin", "sys", "sync", "games", "man", "lp", "news",
+  "uucp", "proxy", "www-data", "backup", "list", "irc", "gnats",
+  "sshd", "postgres", "mysql", "puppet",
 ]);
 
-/** Generate a WHM-valid username: max 8 chars, lowercase alphanumeric only.
- *  Skips reserved names and any already taken usernames. */
+/**
+ * Validate a cPanel/WHM username:
+ *  - Must start with a letter (a-z)
+ *  - Only lowercase letters and digits (a-z, 0-9)
+ *  - 1–8 characters
+ *  - Not a reserved system username
+ */
+export function isValidWhmUsername(username: string): boolean {
+  return (
+    username.length >= 1 &&
+    username.length <= 8 &&
+    /^[a-z][a-z0-9]*$/.test(username) &&
+    !RESERVED_USERNAMES.has(username)
+  );
+}
+
+/**
+ * Generate a WHM-compliant cPanel username from a domain name.
+ *
+ * Algorithm:
+ *  1. Take the subdomain part before the first dot (strips TLD)
+ *  2. Remove all non-alphanumeric characters → lowercase
+ *  3. Strip leading digits so the first character is always a letter
+ *  4. Truncate to 6 characters (leaves room for 2 suffix digits)
+ *  5. Append 2 random digits (10–99) → final max 8 characters
+ *  6. Retry with new digits if reserved or already taken
+ *
+ * Examples:
+ *   93news.online → base "news"   → "news37"
+ *   123abc.com    → base "abc"    → "abc51"
+ *   example.com   → base "exampl" → "exampl82"
+ */
 export function generateUsername(domain: string, existingUsernames: string[] = []): string {
-  const base = domain.split(".")[0]!.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8) || "host";
-  // If base itself is reserved or too short, prefix with "h"
-  const safeBase = (RESERVED_USERNAMES.has(base) || base.length < 2) ? `h${base}`.substring(0, 8) : base;
-  let candidate = safeBase;
-  let i = 1;
-  while (existingUsernames.includes(candidate) || RESERVED_USERNAMES.has(candidate)) {
-    candidate = `${safeBase.substring(0, 7)}${i++}`;
+  // Step 1–3: extract a clean alphabetic base from the domain label
+  const rawBase = domain.split(".")[0]!.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const alphaBase = rawBase.replace(/^[0-9]+/, ""); // strip leading digits
+  const base = alphaBase.substring(0, 6) || "acct"; // max 6 chars; "acct" is safe fallback
+
+  const makeCandidate = (): string => {
+    const suffix = String(Math.floor(Math.random() * 90) + 10); // "10"–"99"
+    return `${base}${suffix}`;
+  };
+
+  let candidate = makeCandidate();
+  let attempts = 0;
+
+  while (!isValidWhmUsername(candidate) || existingUsernames.includes(candidate)) {
+    candidate = makeCandidate();
+    if (++attempts >= 300) {
+      // Absolute fallback: random 6-char alpha base + 2 digits
+      const fb = `acct${String(Math.floor(Math.random() * 90) + 10)}`;
+      return fb;
+    }
   }
+
   return candidate;
 }
 
-/** Sanitize an admin-supplied username to WHM requirements (max 8, alphanumeric).
- *  Rejects reserved names and returns empty string so the caller falls back to auto-generate. */
+/**
+ * Sanitize an admin-supplied username to WHM requirements.
+ *  - Strip non-alphanumeric characters → lowercase
+ *  - Strip leading digits (WHM requires first char to be a letter)
+ *  - Truncate to 8 characters
+ *  - Returns empty string if result is invalid (caller falls back to auto-generate)
+ */
 function sanitizeUsername(raw: string): string {
-  const clean = raw.replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8);
-  return RESERVED_USERNAMES.has(clean) ? "" : clean;
+  const stripped = raw.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  const clean = stripped.replace(/^[0-9]+/, "").substring(0, 8);
+  return isValidWhmUsername(clean) ? clean : "";
 }
 
 /** Log WHM API call to server_logs table (non-fatal) */
@@ -139,10 +192,24 @@ export async function provisionHostingService(
   const domain = service.domain || `${(user.firstName || "user").toLowerCase()}${(user.lastName || "host").toLowerCase()}.hosted.com`;
 
   // ── Username and password ──────────────────────────────────────────────────
+  // Fetch all existing usernames from DB so we can guarantee global uniqueness
+  const takenUsernames = await db
+    .select({ username: hostingServicesTable.username })
+    .from(hostingServicesTable)
+    .then(rows => rows.map(r => r.username).filter(Boolean) as string[]);
+
   const rawUsername = overrides?.username?.trim()
     ? sanitizeUsername(overrides.username.trim())
-    : generateUsername(domain);
-  let username = rawUsername || generateUsername(domain);
+    : generateUsername(domain, takenUsernames);
+  let username = (rawUsername && isValidWhmUsername(rawUsername) && !takenUsernames.includes(rawUsername))
+    ? rawUsername
+    : generateUsername(domain, takenUsernames);
+
+  // Final validation guard — should never be false after the above, but be safe
+  if (!isValidWhmUsername(username)) {
+    username = generateUsername(domain, takenUsernames);
+  }
+
   const password = overrides?.password?.trim() || generatePassword();
 
   // ── Required field validation for cPanel ──────────────────────────────────
@@ -242,38 +309,72 @@ export async function provisionHostingService(
         });
       } else {
         // Domain does not exist — proceed with account creation
-        const requestParams = {
-          username,
-          domain,
-          password: "***",
-          plan: whmPlan || "(default)",
-          contactemail: user.email,
-        };
+        // Retry with a new username if WHM rejects due to invalid/taken username
+        const MAX_USERNAME_RETRIES = 5;
+        let createAttempt = 0;
+        let created = false;
+        const usedDuringRetry: string[] = [...takenUsernames];
 
-        console.log(`[PROVISION] WHM createacct: domain=${domain} user=${username} plan=${whmPlan || "(default)"} server=${server.hostname}:${whmPort}`);
+        while (!created && createAttempt < MAX_USERNAME_RETRIES) {
+          // Validate username before each attempt
+          if (!isValidWhmUsername(username)) {
+            console.warn(`[PROVISION] Generated username "${username}" failed WHM validation — regenerating`);
+            usedDuringRetry.push(username);
+            username = generateUsername(domain, usedDuringRetry);
+          }
 
-        try {
-          const result = await cpanelCreateAccount(serverCfg, { username, domain, password, email: user.email, plan: whmPlan, contactemail: user.email });
-          console.log(`[PROVISION] WHM account created successfully: ${username}@${domain}`);
-          await logServerAction({
-            serviceId,
-            serverId: server.id,
-            action: "createacct",
-            status: "success",
-            request: requestParams,
-            response: JSON.stringify(result),
-          });
-        } catch (err: any) {
-          whmError = err.message;
-          console.warn(`[PROVISION] WHM createacct failed: ${err.message}`);
-          await logServerAction({
-            serviceId,
-            serverId: server.id,
-            action: "createacct",
-            status: "failed",
-            request: requestParams,
-            errorMessage: err.message,
-          });
+          const requestParams = {
+            username,
+            domain,
+            password: "***",
+            plan: whmPlan || "(default)",
+            contactemail: user.email,
+          };
+
+          console.log(`[PROVISION] WHM createacct (attempt ${createAttempt + 1}): domain=${domain} user=${username} plan=${whmPlan || "(default)"} server=${server.hostname}:${whmPort}`);
+
+          try {
+            const result = await cpanelCreateAccount(serverCfg, { username, domain, password, email: user.email, plan: whmPlan, contactemail: user.email });
+            console.log(`[PROVISION] WHM account created successfully: ${username}@${domain}`);
+            await logServerAction({
+              serviceId,
+              serverId: server.id,
+              action: "createacct",
+              status: "success",
+              request: requestParams,
+              response: JSON.stringify(result),
+            });
+            created = true;
+          } catch (err: any) {
+            const errMsg: string = err.message || "";
+            console.warn(`[PROVISION] WHM createacct attempt ${createAttempt + 1} failed: ${errMsg}`);
+
+            // Detect username-related errors → regenerate and retry
+            const isUsernameError =
+              /invalid.?username|username.*invalid|username.*taken|username.*exists|username.*in use|account.*exists/i.test(errMsg);
+
+            if (isUsernameError && createAttempt < MAX_USERNAME_RETRIES - 1) {
+              console.log(`[PROVISION] Username error detected — regenerating username (was: ${username})`);
+              usedDuringRetry.push(username);
+              username = generateUsername(domain, usedDuringRetry);
+              createAttempt++;
+              continue;
+            }
+
+            // Non-username error or max retries reached — record and abort
+            whmError = errMsg;
+            await logServerAction({
+              serviceId,
+              serverId: server.id,
+              action: "createacct",
+              status: "failed",
+              request: requestParams,
+              errorMessage: errMsg,
+            });
+            break;
+          }
+
+          createAttempt++;
         }
       }
     } else if (module === "20i" && server.apiToken) {
