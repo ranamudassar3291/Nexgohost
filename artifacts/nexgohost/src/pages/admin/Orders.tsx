@@ -443,14 +443,14 @@ export default function AdminOrders() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Orders</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Orders</h2>
           <p className="text-muted-foreground mt-1">Manage client orders and provisioning</p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{orders.filter(o => o.status === "pending").length} pending</span>
-          <Button onClick={() => setLocation("/admin/orders/add")} className="bg-primary hover:bg-primary/90 h-10 rounded-xl">
+          <Button onClick={() => setLocation("/admin/orders/add")} className="bg-primary hover:bg-primary/90 h-10 rounded-xl whitespace-nowrap">
             <Plus size={16} className="mr-2" /> Create Order
           </Button>
         </div>

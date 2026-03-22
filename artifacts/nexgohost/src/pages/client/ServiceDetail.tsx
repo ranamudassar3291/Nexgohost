@@ -471,12 +471,12 @@ export default function ServiceDetail() {
       )}
 
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/client/hosting")}>
+      <div className="flex flex-wrap items-start gap-3">
+        <Button variant="ghost" size="icon" onClick={() => setLocation("/client/hosting")} className="shrink-0">
           <ArrowLeft size={18} />
         </Button>
-        <div className="flex-1">
-          <h2 className="text-2xl font-display font-bold text-foreground flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl sm:text-2xl font-display font-bold text-foreground flex flex-wrap items-center gap-2">
             {service.planName}
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${statusColors[service.status] || "bg-secondary border-border text-muted-foreground"}`}>
               {service.status}
@@ -490,11 +490,11 @@ export default function ServiceDetail() {
           {service.domain && (
             <div className="flex items-center gap-1.5 text-primary font-medium mt-0.5">
               <Globe size={14} />
-              <span>{service.domain}</span>
+              <span className="truncate">{service.domain}</span>
             </div>
           )}
         </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border ${
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shrink-0 ${
           service.sslStatus === "active" || service.sslStatus === "installed"
             ? "bg-green-500/10 text-green-400 border-green-500/20"
             : "bg-muted text-muted-foreground border-border"

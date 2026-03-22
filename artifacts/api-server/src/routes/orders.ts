@@ -11,16 +11,9 @@ import { provisionHostingService } from "../lib/provision.js";
 const router = Router();
 
 async function generateInvoiceNumber(): Promise<string> {
-  const year = new Date().getFullYear();
-  const [latest] = await db.select({ num: invoicesTable.invoiceNumber })
-    .from(invoicesTable).orderBy(desc(invoicesTable.createdAt)).limit(1);
-  let seq = 1;
-  if (latest?.num) {
-    const parts = latest.num.split("-");
-    const lastNum = parseInt(parts[parts.length - 1] || "0", 10);
-    seq = isNaN(lastNum) ? 1 : lastNum + 1;
-  }
-  return `INV-${year}-${String(seq).padStart(4, "0")}`;
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `INV-${dateStr}-${rand}`;
 }
 
 function formatOrder(

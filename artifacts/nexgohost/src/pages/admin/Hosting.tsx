@@ -308,12 +308,12 @@ export default function AdminHosting() {
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input className="pl-9 bg-card border-border" placeholder="Search domain, client, plan..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
               {["all", "active", "suspended", "terminated", "pending"].map(s => (
                 <button key={s} onClick={() => setStatusFilter(s)}
                   className={`px-3 py-1.5 text-xs rounded-lg border capitalize transition-all ${statusFilter === s ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
@@ -323,8 +323,8 @@ export default function AdminHosting() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <table className="w-full text-left text-sm">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="p-4 font-medium text-muted-foreground">Domain</th>

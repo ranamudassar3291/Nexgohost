@@ -56,7 +56,7 @@ export default function ClientOrders() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 sm:gap-4">
         {[
           { label: "Total Orders", value: orders.length, color: "text-foreground" },
           { label: "Active", value: activeCount, color: "text-green-400" },

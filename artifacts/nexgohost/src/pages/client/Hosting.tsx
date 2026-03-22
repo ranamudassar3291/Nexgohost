@@ -65,7 +65,7 @@ export default function ClientHosting() {
               key={service.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-card border border-border rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-primary/30 transition-colors"
+              className="bg-card border border-border rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-primary/30 transition-colors"
             >
               <div className="flex items-center gap-4 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">

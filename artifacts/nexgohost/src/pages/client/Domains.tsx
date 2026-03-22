@@ -411,15 +411,15 @@ export default function ClientDomains() {
                         <p className="text-sm text-muted-foreground mt-0.5 font-mono">{domain.nameservers?.[0] || "ns1.nexgohost.com"}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" size="sm" className="gap-1 text-xs h-8">
                         <RefreshCw size={12} /> Renew
                       </Button>
                       <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => setDnsModal(domain)}>
-                        <Server size={12} /> Nameservers
+                        <Server size={12} /> NS
                       </Button>
                       <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => openEppModal(domain)} title="Get EPP / Auth Code for domain transfer">
-                        <Key size={12} /> Auth Code
+                        <Key size={12} /> Auth
                       </Button>
                     </div>
                   </div>

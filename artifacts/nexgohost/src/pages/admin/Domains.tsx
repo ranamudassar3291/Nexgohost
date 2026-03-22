@@ -229,12 +229,12 @@ export default function AdminDomains() {
       {showAddModal && <DomainForm onSubmit={handleAdd} title="Add Domain" />}
       {editDomain && <DomainForm onSubmit={handleEdit} title={`Edit: ${editDomain.name}${editDomain.tld}`} isEdit />}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">Domain Management</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Domain Management</h2>
           <p className="text-muted-foreground mt-1">Manage client domains and registrations</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)} className="bg-primary hover:bg-primary/90 h-10 rounded-xl">
+        <Button onClick={() => setShowAddModal(true)} className="bg-primary hover:bg-primary/90 h-10 rounded-xl whitespace-nowrap">
           <Plus size={16} className="mr-2" /> Add Domain
         </Button>
       </div>
@@ -254,8 +254,8 @@ export default function AdminDomains() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <table className="w-full">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead>
             <tr className="border-b border-border bg-muted/30">
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Domain</th>

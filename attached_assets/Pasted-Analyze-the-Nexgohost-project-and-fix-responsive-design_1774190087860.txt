@@ -1,0 +1,157 @@
+Analyze the Nexgohost project and fix responsive design issues and domain order visibility without breaking existing functionality.
+
+IMPORTANT:
+Do NOT change business logic unnecessarily.
+Focus on UI responsiveness and domain order flow.
+
+========================
+📱 RESPONSIVE DESIGN FIX
+========================
+
+Make the entire project fully responsive for:
+
+Mobile
+Tablet
+Laptop/Desktop
+
+Use proper responsive design:
+
+Grid system
+Flexible layouts
+Media queries
+Tailwind responsive classes (sm, md, lg, xl)
+
+Fix:
+
+Navbar
+Sidebar
+Cards
+Tables
+Forms
+Buttons
+
+========================
+📐 BUTTON + UI FIX
+==================
+
+Fix all buttons:
+
+Proper size
+Proper spacing
+Consistent style
+
+Ensure:
+
+Buttons do not overlap
+Buttons are clickable on mobile
+Text does not overflow
+
+Fix headings:
+
+Proper font size scaling for mobile and desktop
+
+========================
+📊 DASHBOARD LAYOUT FIX
+=======================
+
+Ensure:
+
+Cards stack properly on mobile
+Tables scroll horizontally if needed
+Sidebar collapses on mobile
+
+========================
+🌐 DOMAIN ORDER VISIBILITY FIX
+==============================
+
+Fix domain order issue:
+
+When client orders domain:
+
+Create domain record in database
+Status = Pending
+
+Ensure it appears in:
+
+Client dashboard → Domains page (Pending)
+Admin panel → Domain page
+Admin panel → Orders page
+
+Fix database queries:
+
+Ensure correct client_id
+Ensure correct order_type = domain
+
+========================
+📦 DOMAIN ORDER FLOW FIX
+========================
+
+When domain ordered:
+
+Save:
+
+domain_name
+tld
+status
+client_id
+
+Ensure no missing fields.
+
+========================
+⚙️ ADMIN DOMAIN MANAGEMENT
+==========================
+
+Admin must see:
+
+All domain orders
+
+Actions:
+
+Approve
+Cancel
+
+When approved:
+
+Status = Active
+
+========================
+⚙️ FRONTEND CONNECTION FIX
+==========================
+
+Ensure:
+
+Client dashboard fetches correct domain list
+
+Fix API endpoints:
+
+/api/domains
+/api/orders
+
+Ensure correct filtering by client.
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+Domain not showing
+Broken layout on mobile
+Button misalignment
+Overflow issues
+
+Ensure:
+
+All pages responsive
+Domain orders visible everywhere
+UI clean on all devices
+
+========================
+🎯 GOAL
+=======
+
+Create a fully responsive hosting panel where:
+
+UI works on all devices
+Buttons and layout are clean
+Domain orders show correctly in client and admin panel

@@ -342,6 +342,24 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       }],
     }).returning();
 
+    // Create domain record so it appears immediately in client's domain list
+    try {
+      const regDate = new Date();
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + registrationYears);
+      const cleanName = domain.replace(/^\./, "").replace(/\..+$/, "").toLowerCase();
+      await db.insert(domainsTable).values({
+        clientId: req.user!.userId,
+        name: cleanName,
+        tld: cleanTld.toLowerCase(),
+        registrationDate: regDate,
+        expiryDate,
+        status: "pending",
+        autoRenew: true,
+        nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+      });
+    } catch { /* non-fatal — domain may already exist */ }
+
     res.status(201).json({
       success: true,
       order: { id: order.id, domain: fullDomain, amount: orderAmount, status: order.status },

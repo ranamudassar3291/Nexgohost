@@ -87,18 +87,18 @@ export default function ClientDashboard() {
   return (
     <div className="space-y-8">
       {/* Hero banner */}
-      <div className="bg-gradient-to-r from-primary/20 via-purple-600/10 to-transparent border border-primary/10 rounded-3xl p-8 relative overflow-hidden shadow-lg">
+      <div className="bg-gradient-to-r from-primary/20 via-purple-600/10 to-transparent border border-primary/10 rounded-3xl p-5 sm:p-8 relative overflow-hidden shadow-lg">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px]" />
         <div className="relative z-10">
-          <h2 className="text-3xl font-display font-bold text-foreground">Welcome back, {user?.firstName}!</h2>
-          <p className="text-muted-foreground mt-2 text-lg">Manage your digital infrastructure securely.</p>
+          <h2 className="text-2xl sm:text-3xl font-display font-bold text-foreground">Welcome back, {user?.firstName}!</h2>
+          <p className="text-muted-foreground mt-2 sm:text-lg">Manage your digital infrastructure securely.</p>
           {pendingOrders > 0 && (
             <div className="mt-3 flex items-center gap-2 text-yellow-400 text-sm">
               <Clock size={15} />
               <span>You have {pendingOrders} pending order{pendingOrders > 1 ? "s" : ""} awaiting approval</span>
             </div>
           )}
-          <div className="mt-6 flex gap-4">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
               <Link href="/client/hosting">View Services</Link>
             </Button>
