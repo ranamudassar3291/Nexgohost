@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2 } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -65,6 +65,12 @@ export default function ClientDashboard() {
     queryFn: () => apiFetch("/api/orders").then(d => (d || []).slice(0, 5)),
   });
 
+  const { data: creditsData } = useQuery<{ creditBalance: string }>({
+    queryKey: ["my-credits"],
+    queryFn: () => apiFetch("/api/my/credits"),
+  });
+  const creditBalance = parseFloat(creditsData?.creditBalance ?? "0");
+
   const { data: activeServices = [] } = useQuery<HostingService[]>({
     queryKey: ["client-services-dashboard"],
     queryFn: () => apiFetch("/api/client/hosting").then(d =>
@@ -125,6 +131,25 @@ export default function ClientDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Credit Balance banner */}
+      {creditBalance > 0 && (
+        <Link href="/client/credits">
+          <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-600/5 to-transparent border border-emerald-500/20 rounded-2xl p-5 flex items-center gap-4 cursor-pointer hover:border-emerald-500/40 transition-colors">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center border border-emerald-500/20 shrink-0">
+              <Wallet size={22} className="text-emerald-500" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground">Account Credits Available</p>
+              <p className="text-xs text-muted-foreground">You have <span className="font-bold text-emerald-500">{formatPrice(creditBalance)}</span> available — use it to pay invoices instantly.</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xl font-bold text-emerald-500">{formatPrice(creditBalance)}</p>
+              <p className="text-xs text-muted-foreground">View Credits →</p>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Active Hosting Services Quick Access */}
       {activeServices.length > 0 && (

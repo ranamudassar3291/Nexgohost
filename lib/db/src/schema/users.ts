@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, boolean, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -21,6 +21,7 @@ export const usersTable = pgTable("users", {
   twoFactorSecret: text("two_factor_secret"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   googleId: text("google_id"),
+  creditBalance: numeric("credit_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

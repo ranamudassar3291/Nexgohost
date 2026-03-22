@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { invoicesTable, transactionsTable, usersTable, ordersTable } from "@workspace/db/schema";
+import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
@@ -215,6 +215,89 @@ router.get("/payments/transactions", authenticate, async (req: AuthRequest, res)
       };
     }));
     res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: pay invoice with account credits
+router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const [invoice] = await db.select().from(invoicesTable)
+      .where(eq(invoicesTable.id, req.params.id)).limit(1);
+    if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (invoice.clientId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (invoice.status !== "unpaid") {
+      res.status(400).json({ error: `Invoice cannot be paid — current status is ${invoice.status}` }); return;
+    }
+
+    const invoiceTotal = parseFloat(invoice.total);
+    const [user] = await db.select({ creditBalance: usersTable.creditBalance })
+      .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const balance = parseFloat(user.creditBalance ?? "0");
+    if (balance < invoiceTotal) {
+      res.status(400).json({
+        error: `Insufficient credits. Your balance is Rs. ${balance.toFixed(2)} but invoice total is Rs. ${invoiceTotal.toFixed(2)}.`,
+        creditBalance: balance,
+      }); return;
+    }
+
+    const newBalance = parseFloat((balance - invoiceTotal).toFixed(2));
+
+    // Deduct credits
+    await db.update(usersTable)
+      .set({ creditBalance: String(newBalance), updatedAt: new Date() })
+      .where(eq(usersTable.id, userId));
+
+    // Record credit transaction
+    await db.insert(creditTransactionsTable).values({
+      userId,
+      amount: String(invoiceTotal),
+      type: "invoice_payment",
+      description: `Payment for invoice ${invoice.invoiceNumber}`,
+      invoiceId: invoice.id,
+      performedBy: userId,
+    });
+
+    // Mark invoice paid
+    const [updated] = await db.update(invoicesTable)
+      .set({
+        status: "paid",
+        paidDate: new Date(),
+        paymentRef: `CREDIT-${Date.now()}`,
+        paymentNotes: "Paid with account credits",
+        updatedAt: new Date(),
+      })
+      .where(eq(invoicesTable.id, invoice.id))
+      .returning();
+
+    console.log(`[CREDITS] Invoice ${invoice.invoiceNumber} paid with credits by ${userId}. New balance: Rs. ${newBalance}`);
+
+    // Provision hosting if applicable
+    try {
+      const [order] = updated.orderId
+        ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
+        : [];
+      if (order?.type === "hosting") {
+        await provisionHostingService(order, updated);
+      }
+    } catch { /* non-blocking */ }
+
+    // Send paid email
+    try {
+      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (u) await emailInvoicePaid(u.email, `${u.firstName} ${u.lastName}`, formatInvoice(updated));
+    } catch { /* non-blocking */ }
+
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    res.json({
+      ...formatInvoice(updated, u ? `${u.firstName} ${u.lastName}` : ""),
+      creditBalance: String(newBalance),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

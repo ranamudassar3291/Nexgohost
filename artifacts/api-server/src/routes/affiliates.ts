@@ -7,6 +7,7 @@ import {
   affiliateClicksTable,
   affiliateWithdrawalsTable,
   usersTable,
+  creditTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
@@ -387,18 +388,19 @@ router.put("/admin/affiliates/withdrawals/:id/approve", authenticate, requireRol
   }
 });
 
-// ── Admin: Mark withdrawal as paid ────────────────────────────────────────────
+// ── Admin: Mark withdrawal as paid (credits user's account) ──────────────────
 router.put("/admin/affiliates/withdrawals/:id/pay", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const [w] = await db.select().from(affiliateWithdrawalsTable).where(eq(affiliateWithdrawalsTable.id, req.params.id!)).limit(1);
     if (!w) { res.status(404).json({ error: "Not found" }); return; }
+    if (w.status !== "approved") { res.status(400).json({ error: "Only approved withdrawals can be marked as paid" }); return; }
 
     const [updated] = await db.update(affiliateWithdrawalsTable)
       .set({ status: "paid", updatedAt: new Date() })
       .where(eq(affiliateWithdrawalsTable.id, req.params.id!))
       .returning();
 
-    // Deduct from affiliate's paid earnings pool
+    // Move earnings from pending → paid in affiliate stats
     await db.update(affiliatesTable)
       .set({
         paidEarnings: sql`${affiliatesTable.paidEarnings} + ${w.amount}`,
@@ -406,6 +408,27 @@ router.put("/admin/affiliates/withdrawals/:id/pay", authenticate, requireRole("a
         updatedAt: new Date(),
       })
       .where(eq(affiliatesTable.id, w.affiliateId));
+
+    // Credit the user's account balance
+    const [affiliate] = await db.select({ userId: affiliatesTable.userId })
+      .from(affiliatesTable).where(eq(affiliatesTable.id, w.affiliateId)).limit(1);
+    if (affiliate) {
+      await db.update(usersTable)
+        .set({
+          creditBalance: sql`COALESCE(${usersTable.creditBalance}, 0) + ${w.amount}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(usersTable.id, affiliate.userId));
+
+      await db.insert(creditTransactionsTable).values({
+        userId: affiliate.userId,
+        amount: w.amount,
+        type: "affiliate_payout",
+        description: `Affiliate commission payout (withdrawal #${w.id.slice(0, 8)})`,
+        withdrawalId: w.id,
+        performedBy: req.user!.id,
+      });
+    }
 
     res.json({ withdrawal: updated });
   } catch (err) {

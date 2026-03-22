@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle, Printer, Building2, Send, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle, Printer, Building2, Send, AlertCircle, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -81,6 +81,7 @@ export default function InvoiceDetail() {
   const [txRef, setTxRef] = useState("");
   const [txNotes, setTxNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [payingWithCredits, setPayingWithCredits] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -92,6 +93,28 @@ export default function InvoiceDetail() {
     queryKey: ["payment-methods"],
     queryFn: () => apiFetch("/api/payment-methods"),
   });
+
+  const { data: credits } = useQuery<{ creditBalance: string }>({
+    queryKey: ["my-credits"],
+    queryFn: () => apiFetch("/api/my/credits"),
+  });
+
+  const creditBalance = parseFloat(credits?.creditBalance ?? "0");
+
+  const handlePayWithCredits = async () => {
+    if (!invoice) return;
+    setPayingWithCredits(true);
+    try {
+      await apiFetch(`/api/my/invoices/${id}/pay-with-credits`, { method: "POST" });
+      qc.invalidateQueries({ queryKey: ["invoice", id] });
+      qc.invalidateQueries({ queryKey: ["my-credits"] });
+      toast({ title: "Paid with credits!", description: "Your invoice has been paid from your account credit balance." });
+    } catch (err: any) {
+      toast({ title: "Payment failed", description: err.message, variant: "destructive" });
+    } finally {
+      setPayingWithCredits(false);
+    }
+  };
 
   const scrollToPayment = () => paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -275,74 +298,99 @@ export default function InvoiceDetail() {
         )}
 
         {/* Payment Section (unpaid/overdue) */}
-        {canPay && paymentMethods.length > 0 && (
+        {canPay && (
           <div ref={paymentRef} className="border-t border-border/50 p-6 bg-secondary/20 space-y-5">
             <div>
               <div className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-                <CreditCard size={16} className="text-primary" /> Payment Instructions
+                <CreditCard size={16} className="text-primary" /> Payment Options
               </div>
               <p className="text-xs text-muted-foreground">
-                Pay <span className="font-bold text-foreground">{formatPrice(Number(invoice.total))}</span> using one of the gateways below, then submit your transaction reference.
-                Use invoice <span className="font-mono font-semibold text-foreground">#{invoice.invoiceNumber}</span> as your payment description.
+                Pay <span className="font-bold text-foreground">{formatPrice(Number(invoice.total))}</span> using your account credits or one of the gateways below.
               </p>
             </div>
 
-            {/* Gateway cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {paymentMethods.map(pm => (
-                <div
-                  key={pm.id}
-                  onClick={() => setSelectedGateway(selectedGateway === pm.id ? "" : pm.id)}
-                  className={`bg-card border rounded-xl p-4 cursor-pointer transition-all ${selectedGateway === pm.id ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40"}`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">{TYPE_ICONS[pm.type] ?? "💳"}</span>
-                    <span className="text-sm font-semibold text-foreground">{pm.name}</span>
-                    {selectedGateway === pm.id && <CheckCircle size={14} className="ml-auto text-primary" />}
-                  </div>
-                  <PaymentInstructions method={pm} />
+            {/* Pay with Credits card */}
+            <div className={`rounded-xl border p-4 flex items-center justify-between gap-4 ${creditBalance >= Number(invoice.total) ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <Wallet size={17} className="text-emerald-500" />
                 </div>
-              ))}
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Account Credits</p>
+                  <p className="text-xs text-muted-foreground">Balance: <span className={`font-medium ${creditBalance > 0 ? "text-emerald-500" : "text-muted-foreground"}`}>{formatPrice(creditBalance)}</span></p>
+                </div>
+              </div>
+              {creditBalance >= Number(invoice.total) ? (
+                <Button
+                  size="sm"
+                  onClick={handlePayWithCredits}
+                  disabled={payingWithCredits}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shrink-0"
+                >
+                  {payingWithCredits ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+                  Pay {formatPrice(Number(invoice.total))}
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground shrink-0">Insufficient balance</span>
+              )}
             </div>
 
-            {/* Submit payment form */}
-            <AnimatePresence>
-              {selectedGateway && (
-                <motion.form
-                  initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-                  onSubmit={handleSubmitPayment}
-                  className="bg-card border border-primary/20 rounded-xl p-4 space-y-3"
-                >
-                  <p className="text-sm font-medium text-foreground">Submit Payment Confirmation</p>
-                  <p className="text-xs text-muted-foreground">After transferring, enter your transaction ID or receipt number below so our team can verify your payment.</p>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground/70">Transaction ID / Receipt Number *</label>
-                    <Input
-                      value={txRef}
-                      onChange={e => setTxRef(e.target.value)}
-                      placeholder="e.g. JC-1234567890 or TXN#XXXXX"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-foreground/70">Additional Notes (optional)</label>
-                    <Input
-                      value={txNotes}
-                      onChange={e => setTxNotes(e.target.value)}
-                      placeholder="e.g. Sent from 03XX-XXXXXXX at 3:45 PM"
-                    />
-                  </div>
-                  <Button type="submit" disabled={submitting || !txRef.trim()} className="w-full gap-2">
-                    {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                    Confirm Payment
-                  </Button>
-                </motion.form>
-              )}
-            </AnimatePresence>
+            {paymentMethods.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">— or pay via payment gateway —</p>
 
-            {paymentMethods.length === 0 && (
-              <div className="bg-card border border-border/50 rounded-xl p-4 text-sm text-muted-foreground">
-                Please contact our support team at <span className="text-foreground font-medium">billing@nexgohost.com</span> to arrange your payment.
+                {/* Gateway cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {paymentMethods.map(pm => (
+                    <div
+                      key={pm.id}
+                      onClick={() => setSelectedGateway(selectedGateway === pm.id ? "" : pm.id)}
+                      className={`bg-card border rounded-xl p-4 cursor-pointer transition-all ${selectedGateway === pm.id ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40"}`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{TYPE_ICONS[pm.type] ?? "💳"}</span>
+                        <span className="text-sm font-semibold text-foreground">{pm.name}</span>
+                        {selectedGateway === pm.id && <CheckCircle size={14} className="ml-auto text-primary" />}
+                      </div>
+                      <PaymentInstructions method={pm} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Submit payment form */}
+                <AnimatePresence>
+                  {selectedGateway && (
+                    <motion.form
+                      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                      onSubmit={handleSubmitPayment}
+                      className="bg-card border border-primary/20 rounded-xl p-4 space-y-3"
+                    >
+                      <p className="text-sm font-medium text-foreground">Submit Payment Confirmation</p>
+                      <p className="text-xs text-muted-foreground">After transferring, enter your transaction ID or receipt number below so our team can verify your payment.</p>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/70">Transaction ID / Receipt Number *</label>
+                        <Input
+                          value={txRef}
+                          onChange={e => setTxRef(e.target.value)}
+                          placeholder="e.g. JC-1234567890 or TXN#XXXXX"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-foreground/70">Additional Notes (optional)</label>
+                        <Input
+                          value={txNotes}
+                          onChange={e => setTxNotes(e.target.value)}
+                          placeholder="e.g. Sent from 03XX-XXXXXXX at 3:45 PM"
+                        />
+                      </div>
+                      <Button type="submit" disabled={submitting || !txRef.trim()} className="w-full gap-2">
+                        {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                        Confirm Payment
+                      </Button>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </div>

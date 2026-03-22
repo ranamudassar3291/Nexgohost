@@ -25,6 +25,7 @@ import serverLogsRouter from "./server-logs.js";
 import settingsRouter from "./settings.js";
 import affiliatesRouter from "./affiliates.js";
 import domainTransfersRouter from "./domain-transfers.js";
+import creditsRouter from "./credits.js";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(serverLogsRouter);
 router.use(settingsRouter);
 router.use(affiliatesRouter);
 router.use(domainTransfersRouter);
+router.use(creditsRouter);
 
 export default router;

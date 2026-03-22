@@ -21,3 +21,4 @@ export * from "./settings";
 export * from "./admin-logs";
 export * from "./affiliates";
 export * from "./domain-transfers";
+export * from "./credits";
