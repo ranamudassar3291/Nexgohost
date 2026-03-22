@@ -1,0 +1,188 @@
+Analyze the Nexgohost project and fix API response errors and complete affiliate + domain transfer system integration.
+
+IMPORTANT:
+Fix backend API responses first.
+All API must return JSON, NOT HTML.
+
+========================
+⚠️ JSON ERROR FIX (CRITICAL)
+============================
+
+Fix error:
+
+"Unexpected token '<'"
+
+Cause:
+
+Frontend expecting JSON but backend returns HTML.
+
+Fix:
+
+Ensure ALL API routes return JSON:
+
+Use:
+
+res.json({ success: true, data })
+
+NOT:
+
+res.render()
+NOT HTML pages
+
+Add global error handler:
+
+Return:
+
+res.status(500).json({
+success: false,
+message: "Server error"
+})
+
+========================
+⚠️ API ROUTE FIX
+================
+
+Check and fix routes:
+
+/api/affiliate
+/api/affiliate/stats
+/api/domain/transfer
+/api/domain/transfer/validate
+
+Ensure:
+
+Routes exist
+Correct method (GET/POST)
+Return JSON
+
+========================
+💰 AFFILIATE SYSTEM FIX
+=======================
+
+Fix affiliate page:
+
+Client dashboard:
+
+Fetch data from API:
+
+/api/affiliate/stats
+
+Show:
+
+Referral link
+Clicks
+Earnings
+
+Ensure API works and returns JSON.
+
+========================
+🌐 DOMAIN TRANSFER PAGE (CLIENT)
+================================
+
+Add transfer domain option in:
+
+Client dashboard → Domains page
+
+Button:
+
+"Transfer Domain"
+
+When clicked:
+
+Open transfer page
+
+Steps:
+
+Enter domain
+Enter EPP code
+
+Call API:
+
+/api/domain/transfer/validate
+
+========================
+🌐 DOMAIN VALIDATION FIX
+========================
+
+Fix validation:
+
+Return JSON:
+
+{
+valid: true,
+locked: false
+}
+
+If invalid:
+
+Return proper message.
+
+========================
+🛒 TRANSFER ORDER FLOW
+======================
+
+After validation:
+
+Add to cart
+
+Then:
+
+Review order
+Checkout
+Invoice
+
+========================
+⚙️ ADMIN TRANSFER CONTROL
+=========================
+
+Admin panel:
+
+Show transfer orders
+
+Approve button
+
+When approved:
+
+Set domain status = Active
+
+========================
+⚙️ FRONTEND FETCH FIX
+=====================
+
+Fix frontend API calls:
+
+Use:
+
+fetch("/api/...")
+
+Handle errors:
+
+If response not JSON → show error
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+JSON parse error
+Broken API routes
+Affiliate page crash
+Transfer page not working
+
+Ensure:
+
+All APIs return JSON
+Frontend works correctly
+Affiliate + transfer fully functional
+
+========================
+🎯 GOAL
+=======
+
+Fix system so:
+
+No JSON errors
+Affiliate page works
+Domain transfer system works
+All API endpoints return valid JSON

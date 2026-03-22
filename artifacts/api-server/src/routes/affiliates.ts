@@ -121,6 +121,36 @@ router.post("/affiliate/track", async (req, res) => {
   }
 });
 
+// ── Admin: List all commissions ────────────────────────────────────────────────
+// IMPORTANT: This MUST be before /admin/affiliates/:id to avoid "commissions" matching as :id
+router.get("/admin/affiliates/commissions/all", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const commissions = await db.select({
+      id: affiliateCommissionsTable.id,
+      affiliateId: affiliateCommissionsTable.affiliateId,
+      orderId: affiliateCommissionsTable.orderId,
+      amount: affiliateCommissionsTable.amount,
+      status: affiliateCommissionsTable.status,
+      description: affiliateCommissionsTable.description,
+      paidAt: affiliateCommissionsTable.paidAt,
+      createdAt: affiliateCommissionsTable.createdAt,
+      referralCode: affiliatesTable.referralCode,
+      affiliateEmail: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+    })
+      .from(affiliateCommissionsTable)
+      .leftJoin(affiliatesTable, eq(affiliateCommissionsTable.affiliateId, affiliatesTable.id))
+      .leftJoin(usersTable, eq(affiliatesTable.userId, usersTable.id))
+      .orderBy(desc(affiliateCommissionsTable.createdAt));
+
+    res.json({ commissions });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ── Admin: List all affiliates ────────────────────────────────────────────────
 router.get("/admin/affiliates", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
@@ -188,35 +218,6 @@ router.put("/admin/affiliates/:id", authenticate, requireRole("admin"), async (r
 
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ affiliate: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// ── Admin: List all commissions ────────────────────────────────────────────────
-router.get("/admin/affiliates/commissions/all", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
-  try {
-    const commissions = await db.select({
-      id: affiliateCommissionsTable.id,
-      affiliateId: affiliateCommissionsTable.affiliateId,
-      orderId: affiliateCommissionsTable.orderId,
-      amount: affiliateCommissionsTable.amount,
-      status: affiliateCommissionsTable.status,
-      description: affiliateCommissionsTable.description,
-      paidAt: affiliateCommissionsTable.paidAt,
-      createdAt: affiliateCommissionsTable.createdAt,
-      referralCode: affiliatesTable.referralCode,
-      affiliateEmail: usersTable.email,
-      firstName: usersTable.firstName,
-      lastName: usersTable.lastName,
-    })
-      .from(affiliateCommissionsTable)
-      .leftJoin(affiliatesTable, eq(affiliateCommissionsTable.affiliateId, affiliatesTable.id))
-      .leftJoin(usersTable, eq(affiliatesTable.userId, usersTable.id))
-      .orderBy(desc(affiliateCommissionsTable.createdAt));
-
-    res.json({ commissions });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
