@@ -701,7 +701,7 @@ function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRe
           </div>
           <div className="bg-background/60 border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Invoice</p>
-            <p className="font-bold text-sm">{result.invoice.invoiceNumber}</p>
+            <p className="font-bold text-sm">{result.invoice?.invoiceNumber || "Pending"}</p>
           </div>
           <div className="bg-background/60 border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground mb-1">Amount Due</p>
@@ -709,13 +709,15 @@ function SuccessBanner({ result, onOrderMore, onPayInvoice }: { result: DomainRe
           </div>
         </div>
 
-        <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl max-w-lg mx-auto text-sm text-blue-300 flex items-start gap-3">
-          <AlertCircle size={16} className="shrink-0 mt-0.5" />
-          <span>
-            Invoice <strong>{result.invoice.invoiceNumber}</strong> has been created and is due by{" "}
-            {format(new Date(result.invoice.dueDate), "MMM d, yyyy")}. Visit the Invoices section to pay.
-          </span>
-        </div>
+        {result.invoice && (
+          <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl max-w-lg mx-auto text-sm text-blue-300 flex items-start gap-3">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <span>
+              Invoice <strong>{result.invoice.invoiceNumber}</strong> has been created and is due by{" "}
+              {result.invoice.dueDate ? format(new Date(result.invoice.dueDate), "MMM d, yyyy") : "soon"}. Visit the Invoices section to pay.
+            </span>
+          </div>
+        )}
 
         <div className="mt-8 flex gap-4 justify-center">
           <Button onClick={onOrderMore} variant="outline" className="gap-2 border-border bg-card hover:bg-secondary">

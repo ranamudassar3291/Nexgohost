@@ -851,6 +851,22 @@ router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Client: get single service by ID
+router.get("/client/hosting/:id", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, req.user!.userId)))
+      .limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    return res.json(formatService(service, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Client dashboard data
 router.get("/client/dashboard", authenticate, async (req: AuthRequest, res) => {
   try {

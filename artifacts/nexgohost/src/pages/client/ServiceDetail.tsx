@@ -44,6 +44,17 @@ function parseUsagePercent(used: string | null, limitStr: string): number {
   return isNaN(usedGB) || isNaN(limitGB) ? 0 : Math.min(100, Math.round((usedGB / limitGB) * 100));
 }
 
+function authFetch(url: string, opts: RequestInit = {}) {
+  const token = localStorage.getItem("token");
+  return fetch(url, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(opts.headers || {}),
+    },
+  });
+}
+
 export default function ServiceDetail() {
   const [, params] = useRoute("/client/hosting/:id");
   const [, setLocation] = useLocation();
@@ -76,14 +87,13 @@ export default function ServiceDetail() {
   async function fetchService() {
     try {
       setLoading(true);
-      const res = await fetch(`/api/client/hosting`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load services");
-      const services: Service[] = await res.json();
-      const found = services.find(s => s.id === serviceId);
-      if (!found) { setLocation("/client/hosting"); return; }
-      setService(found);
+      const res = await authFetch(`/api/client/hosting/${serviceId}`);
+      if (res.status === 404) { setLocation("/client/hosting"); return; }
+      if (!res.ok) throw new Error("Failed to load service");
+      const data = await res.json();
+      setService(data);
     } catch {
-      toast({ title: "Error", description: "Failed to load service details", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to load service details. Please try again.", variant: "destructive" });
       setLocation("/client/hosting");
     } finally {
       setLoading(false);
@@ -93,12 +103,8 @@ export default function ServiceDetail() {
   async function handleCpanelLogin() {
     if (!service) return;
     setSsoLoading("cpanel");
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`/api/client/hosting/${service.id}/cpanel-login`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authFetch(`/api/client/hosting/${service.id}/cpanel-login`, { method: "POST" });
       const data = await res.json();
       if (data.url) { window.open(data.url, "_blank"); return; }
       if (!res.ok) {
@@ -119,12 +125,8 @@ export default function ServiceDetail() {
   async function handleWebmailLogin() {
     if (!service) return;
     setSsoLoading("webmail");
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`/api/client/hosting/${service.id}/webmail-login`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await authFetch(`/api/client/hosting/${service.id}/webmail-login`, { method: "POST" });
       const data = await res.json();
       if (data.url) { window.open(data.url, "_blank"); return; }
       if (!res.ok) {
@@ -146,9 +148,8 @@ export default function ServiceDetail() {
     if (!service) return;
     setWpLoading(true);
     try {
-      const res = await fetch(`/api/client/hosting/${service.id}/install-wordpress`, {
+      const res = await authFetch(`/api/client/hosting/${service.id}/install-wordpress`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(wpForm),
       });
@@ -171,9 +172,8 @@ export default function ServiceDetail() {
     }
     setPasswordLoading(true);
     try {
-      const res = await fetch(`/api/client/hosting/${service.id}/change-password`, {
+      const res = await authFetch(`/api/client/hosting/${service.id}/change-password`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: newPassword }),
       });

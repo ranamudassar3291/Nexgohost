@@ -1,0 +1,176 @@
+Analyze the Nexgohost project and fix all critical workflow, permission, and server issues without breaking existing features.
+
+IMPORTANT:
+Focus on backend logic, permissions, and API connections.
+Do NOT redesign UI.
+
+========================
+⚠️ ORDER ACTIVATION FIX
+=======================
+
+Fix order activation process:
+
+When client places order:
+
+Create order with status = Pending
+Generate invoice with status = Unpaid
+
+Admin must manually:
+
+Approve order
+Mark invoice as Paid
+
+ONLY after admin action:
+
+Order status = Active
+Trigger hosting account creation
+
+Fix server errors during activation:
+
+Validate API credentials
+Fix request format
+Add timeout handling
+
+========================
+⚠️ INVOICE PERMISSION FIX
+=========================
+
+Client must NOT be able to mark invoice as paid.
+
+Fix:
+
+Remove or disable "Mark as Paid" button from client dashboard
+
+Client can only:
+
+View invoice
+Click "Pay Now" (this should NOT auto mark paid)
+
+Only admin can:
+
+Mark invoice as Paid
+
+========================
+⚠️ CLIENT HOSTING DISPLAY FIX
+=============================
+
+Fix client dashboard:
+
+My Hosting page must show all services correctly.
+
+Each service must show:
+
+Service name
+Status
+Due date
+
+Add "Manage" button for each service.
+
+========================
+⚠️ SERVICE MANAGEMENT PAGE FIX
+==============================
+
+When client clicks "Manage":
+
+Open a new service details page.
+
+Fix error:
+
+"Server load failed"
+
+Ensure:
+
+Correct service ID passed
+Backend API fetch works
+Database query correct
+
+Display:
+
+cPanel login
+Webmail
+Service status
+Renewal info
+
+========================
+⚠️ SERVER API ERROR FIX
+=======================
+
+Fix all server API calls:
+
+Ensure correct endpoint
+Ensure correct authentication
+Ensure correct request format
+
+If API fails:
+
+Do NOT crash
+Show proper error message
+
+========================
+⚠️ WORDPRESS INSTALL BUTTON
+===========================
+
+Add and fix WordPress installer:
+
+Show button:
+
+"Install WordPress"
+
+When clicked:
+
+Call backend API
+Generate:
+
+username
+password
+
+Store in database
+
+After install:
+
+Show:
+
+"Login to WordPress"
+
+Ensure button is visible in service manage page.
+
+========================
+⚠️ ADMIN CONTROL PRIORITY
+=========================
+
+Ensure admin has full control:
+
+Order approval
+Invoice marking
+Service activation
+
+Client cannot bypass admin actions.
+
+========================
+⚠️ FINAL ERROR FIX
+==================
+
+Fix:
+
+Server load failed
+Activation errors
+Broken API calls
+Button click issues
+
+Ensure:
+
+Frontend properly connected to backend
+All actions work correctly
+
+========================
+🎯 GOAL
+=======
+
+Make the system stable and functional:
+
+Order activation works
+Invoice controlled by admin
+Client dashboard works
+Service manage page loads correctly
+WordPress installer available
+No server errors
