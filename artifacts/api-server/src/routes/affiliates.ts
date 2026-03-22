@@ -230,11 +230,22 @@ router.put("/admin/affiliates/commissions/:id/approve", authenticate, requireRol
   try {
     const [commission] = await db.select().from(affiliateCommissionsTable).where(eq(affiliateCommissionsTable.id, req.params.id!)).limit(1);
     if (!commission) { res.status(404).json({ error: "Not found" }); return; }
+    if (commission.status !== "pending") {
+      res.status(400).json({ error: `Commission is already ${commission.status}` }); return;
+    }
 
     const [updated] = await db.update(affiliateCommissionsTable)
       .set({ status: "approved" })
       .where(eq(affiliateCommissionsTable.id, req.params.id!))
       .returning();
+
+    // Move commission out of pendingEarnings into approved (withdrawable) pool
+    await db.update(affiliatesTable)
+      .set({
+        pendingEarnings: sql`GREATEST(${affiliatesTable.pendingEarnings} - ${commission.amount}, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(affiliatesTable.id, commission.affiliateId));
 
     res.json({ commission: updated });
   } catch (err) {
@@ -363,7 +374,7 @@ router.put("/admin/affiliates/withdrawals/:id/approve", authenticate, requireRol
     const [w] = await db.select().from(affiliateWithdrawalsTable).where(eq(affiliateWithdrawalsTable.id, req.params.id!)).limit(1);
     if (!w) { res.status(404).json({ error: "Not found" }); return; }
 
-    const { adminNotes } = req.body;
+    const { adminNotes } = req.body || {};
     const [updated] = await db.update(affiliateWithdrawalsTable)
       .set({ status: "approved", adminNotes: adminNotes || null, updatedAt: new Date() })
       .where(eq(affiliateWithdrawalsTable.id, req.params.id!))
@@ -406,7 +417,7 @@ router.put("/admin/affiliates/withdrawals/:id/pay", authenticate, requireRole("a
 // ── Admin: Reject withdrawal ───────────────────────────────────────────────────
 router.put("/admin/affiliates/withdrawals/:id/reject", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
-    const { adminNotes } = req.body;
+    const { adminNotes } = req.body || {};
     const [updated] = await db.update(affiliateWithdrawalsTable)
       .set({ status: "rejected", adminNotes: adminNotes || null, updatedAt: new Date() })
       .where(eq(affiliateWithdrawalsTable.id, req.params.id!))

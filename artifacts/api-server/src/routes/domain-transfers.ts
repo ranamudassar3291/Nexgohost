@@ -168,7 +168,7 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
 // ── Admin: Approve a transfer ──────────────────────────────────────────────────
 router.put("/admin/domain-transfers/:id/approve", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
-    const { adminNotes } = req.body;
+    const { adminNotes } = req.body || {};
     const [transfer] = await db.select().from(domainTransfersTable).where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
     if (!transfer) { res.status(404).json({ error: "Transfer not found" }); return; }
 
@@ -198,7 +198,7 @@ router.put("/admin/domain-transfers/:id/approve", authenticate, requireRole("adm
 // ── Admin: Reject a transfer ───────────────────────────────────────────────────
 router.put("/admin/domain-transfers/:id/reject", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
-    const { adminNotes } = req.body;
+    const { adminNotes } = req.body || {};
     const [updated] = await db.update(domainTransfersTable)
       .set({ status: "rejected", adminNotes: adminNotes || null, updatedAt: new Date() })
       .where(eq(domainTransfersTable.id, req.params.id!))

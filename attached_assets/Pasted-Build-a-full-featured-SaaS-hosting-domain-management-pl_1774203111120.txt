@@ -1,0 +1,144 @@
+Build a full-featured SaaS hosting & domain management platform similar to WHMCS using Node.js (Express) + MongoDB + React (optional frontend). The system must include the following fully working modules:
+
+========================
+1. DOMAIN TRANSFER SYSTEM (LIVE-LIKE)
+========================
+- User enters a domain name for transfer.
+- System performs live-like API checks:
+    - Valid domain format
+    - Domain existence
+    - Transfer lock status (locked/unlocked)
+    - EPP code validity
+- Conditional flow:
+    - Locked → show error
+    - Invalid EPP → show error
+    - Otherwise → continue
+- Show transfer price dynamically
+- Generate invoice automatically
+- Create order with status: "Pending Transfer"
+- Domain page must show:
+    - Domain name
+    - Transfer status (Pending, Completed, Failed)
+    - Actions: View, Manage, Cancel
+- Auto-email generated on order completion:
+    - Subject: "Domain Transfer Initiated"
+    - Include domain name, status, instructions
+
+========================
+2. AFFILIATE SYSTEM + PAYOUTS
+========================
+- Unique referral links for each user
+- Track referrals and commissions on:
+    - Domain transfers
+    - Hosting or service packages
+- Affiliate dashboard:
+    - Total earnings
+    - Pending earnings
+    - Withdrawable balance
+- Withdraw system:
+    - Submit withdrawal requests
+    - Admin approves/rejects
+    - Status tracking: Pending / Paid / Rejected
+- Assign commissions automatically when order completes
+
+========================
+3. MODULAR SERVER & PAYMENT INTEGRATION
+========================
+- Admin Panel allows adding modules dynamically:
+
+1. **Server Modules**
+    - Admin clicks "Add Server Module" → Upload ZIP
+    - System extracts, registers, and auto-integrates:
+        - Create Account
+        - Suspend / Unsuspend
+        - Terminate / Cancel
+        - Manage (including SSL activation)
+    - Auto-detect missing configs & fill defaults
+    - Modules immediately usable in client dashboard
+
+2. **Payment Gateway Modules**
+    - Admin clicks "Add Payment Gateway" → Upload ZIP
+    - System extracts, registers, and auto-integrates:
+        - Deposit
+        - Withdrawals
+        - Callback handling
+        - Commission assignment for affiliates
+    - Fully functional without extra coding
+
+========================
+4. AUTOMATIC CONFIG DETECTION
+========================
+- Detect missing or incomplete settings in:
+    - Packages
+    - Domains
+    - Orders
+    - Affiliates
+    - Servers
+    - Payment gateways
+- Auto-fill missing defaults and ensure seamless operation
+- Ensure all modules, orders, payments, and transfers remain fully functional
+
+========================
+5. PACKAGE & PRODUCT SYSTEM
+========================
+- Admin creates packages (name, price, features)
+- Group packages (Basic, Premium, Business)
+- Client dashboard shows package groups and plans
+- Package orders integrate with server module & affiliate commission automatically
+
+========================
+6. CLIENT DASHBOARD (WHMCS STYLE)
+========================
+Sections:
+- Domains
+- Hosting / Services
+- Orders
+- Invoices
+- Affiliate Dashboard
+- Server Management
+- Payment Methods
+Features:
+- Full order tracking
+- Domain transfer status
+- Affiliate earnings & commission assignment
+- Easy module management
+- Clean UI resembling WHMCS layout
+
+========================
+7. ADMIN PANEL
+========================
+- Manage Users
+- Manage Servers / Server Modules
+- Manage Payment Gateways
+- Manage Orders, Invoices
+- Approve Affiliate Withdrawals
+- Add/Remove Modules dynamically (ZIP upload)
+- Auto-config detection & error-free integration
+
+========================
+8. TECHNICAL REQUIREMENTS
+========================
+- Node.js + Express backend
+- MongoDB schemas for:
+    - Users
+    - Domains
+    - Orders
+    - Invoices
+    - Servers
+    - Payment Gateways
+    - Affiliates
+    - Withdrawals
+- Authentication (JWT or session)
+- Role-based access: Admin / Client
+- Secure routes & validations
+- API-based architecture ready for deployment
+- Fully functional live-like flow (no placeholders)
+- Self-contained for Replit deployment
+
+========================
+9. BONUS
+========================
+- All modules automatically appear in dashboard after upload
+- Orders, payments, and affiliate commissions automatically use new modules
+- Emails & notifications auto-send on relevant events
+- Modular, plug-and-play system with production-ready logic
