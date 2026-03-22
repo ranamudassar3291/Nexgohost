@@ -1,0 +1,192 @@
+Analyze the Nexgohost project and fix the remaining missing features and issues in domain system, billing, invoice, and admin panel without breaking existing functionality.
+
+========================
+📦 PACKAGE PAGE FIX (RENEWAL + TLD)
+===================================
+
+Fix admin package page:
+
+Add field:
+Enable Renewal (true/false)
+
+Add option:
+Free Domain Available (true/false)
+
+Add dropdown popup:
+
+Select Free TLD:
+
+.com
+.net
+.org
+.uk
+.pk
+
+Admin selects which TLD is free for yearly plan.
+
+Save all fields in database.
+
+========================
+🎁 FREE DOMAIN POPUP (CLIENT SIDE)
+==================================
+
+When client selects yearly hosting plan:
+
+Show popup:
+
+"Select your free domain extension"
+
+Options:
+
+Only those TLDs marked free in admin.
+
+If client selects:
+
+Free TLD → price = 0
+Paid TLD → normal price applies
+
+If client skips selection:
+
+Allow domain to be registered later.
+
+========================
+🌐 TLD MANAGEMENT PAGE (ADMIN)
+==============================
+
+Create new admin page:
+
+"TLD Management"
+
+Features:
+
+Add TLD
+Delete TLD
+
+Set pricing:
+
+Register price
+Renew price
+Transfer price
+
+Store in database.
+
+Ensure this page works fully.
+
+========================
+🌐 DOMAIN DISPLAY FIX
+=====================
+
+Fix domain visibility:
+
+If client orders domain:
+
+Show in:
+
+Client dashboard → My Domains page
+Admin panel → Domains page
+
+Ensure:
+
+Status shows correctly
+Linked to correct client
+
+========================
+🧾 INVOICE FIX (PKR + TEMPLATE)
+===============================
+
+Fix invoice system:
+
+Remove USD completely.
+
+Use PKR format:
+
+Rs. 1,000.00
+
+Create professional invoice template:
+
+Company name
+Logo
+Client details
+Invoice number
+Date
+Due date
+
+Table:
+
+Service name
+Billing cycle
+Price
+
+Show:
+
+Selected payment method only
+
+Do NOT show unused payment methods.
+
+========================
+🏷️ PROMO CODE FIX
+==================
+
+Fix promo code system:
+
+Admin can:
+
+Create promo code
+Assign to:
+
+Hosting
+Domain
+
+Client checkout:
+
+Apply promo code
+
+Ensure:
+
+Discount applied correctly
+Works only for selected services
+
+========================
+🔄 DOMAIN ORDER FLOW FIX
+========================
+
+If client selects free domain:
+
+Do NOT auto register immediately.
+
+Allow admin to approve later.
+
+After approval:
+
+Domain becomes Active
+
+========================
+⚙️ FINAL CHECK
+==============
+
+Fix:
+
+USD showing anywhere
+Broken domain logic
+Missing admin pages
+Non-working popup
+Invoice formatting
+
+Ensure:
+
+All data saved correctly
+All pages connected
+All features working
+
+========================
+🎯 GOAL
+=======
+
+Complete the hosting + domain SaaS system with:
+
+Free domain logic
+TLD management
+Domain display (client + admin)
+Professional invoice template
+Promo code working system
+Fully fixed PKR currency

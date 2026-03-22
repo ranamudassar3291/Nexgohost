@@ -92,7 +92,7 @@ export default function Checkout() {
   const [success, setSuccess] = useState<any>(null);
 
   const isYearly = billingCycle === "yearly";
-  const isDomainFree = isYearly && domainChoice === "register";
+  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register" && (domainName ? tldIsFree : true);
 
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods"],
@@ -108,6 +108,23 @@ export default function Checkout() {
     queryKey: ["client-domains"],
     queryFn: () => apiFetch("/api/domains"),
   });
+
+  const { data: pkgDetails } = useQuery<any>({
+    queryKey: ["package-details", packageId],
+    queryFn: () => apiFetch(`/api/packages/${packageId}`),
+    enabled: !!packageId,
+  });
+
+  const pkgFreeDomainEnabled = pkgDetails?.freeDomainEnabled ?? false;
+  const pkgFreeTlds: string[] = Array.isArray(pkgDetails?.freeDomainTlds) ? pkgDetails.freeDomainTlds : [];
+
+  const getDomainTld = (domain: string) => {
+    if (!domain.includes(".")) return "";
+    const parts = domain.split(".");
+    return parts.length >= 3 ? `.${parts.slice(-2).join(".")}` : `.${parts[parts.length - 1]}`;
+  };
+  const domainTld = getDomainTld(domainName.trim().toLowerCase());
+  const tldIsFree = pkgFreeTlds.length === 0 ? true : pkgFreeTlds.some(t => domainTld.endsWith(t));
 
   const getDomainPrice = (domain: string): { register: number; renew: number } | null => {
     if (!domain || !domain.includes(".")) return null;
@@ -154,7 +171,7 @@ export default function Checkout() {
     if (!promoCode.trim()) return;
     setCheckingPromo(true); setPromoError(""); setPromoResult(null);
     try {
-      const data = await apiFetch(`/api/promo-codes/validate?code=${encodeURIComponent(promoCode)}&amount=${basePrice}`);
+      const data = await apiFetch(`/api/promo-codes/validate?code=${encodeURIComponent(promoCode)}&amount=${basePrice}&serviceType=hosting`);
       setPromoResult(data);
     } catch (err: any) {
       setPromoError(err.message || "Invalid code");
@@ -274,10 +291,13 @@ export default function Checkout() {
                 })}
               </div>
 
-              {isYearly && (
+              {isYearly && pkgFreeDomainEnabled && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 text-sm">
                   <Gift size={16} />
-                  <span className="font-medium">Yearly plan includes a free domain registration!</span>
+                  <span className="font-medium">
+                    Yearly plan includes a free domain registration
+                    {pkgFreeTlds.length > 0 ? ` (${pkgFreeTlds.join(", ")})` : ""}!
+                  </span>
                 </div>
               )}
 
@@ -297,16 +317,19 @@ export default function Checkout() {
                 <p className="text-sm text-muted-foreground mt-1">Add a domain to your hosting account</p>
               </div>
 
-              {isYearly && (
+              {isYearly && pkgFreeDomainEnabled && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 text-sm">
                   <Gift size={16} />
-                  <span className="font-medium">Yearly plan includes one free domain registration!</span>
+                  <span className="font-medium">
+                    Yearly plan includes one free domain registration
+                    {pkgFreeTlds.length > 0 ? ` for: ${pkgFreeTlds.join(", ")}` : ""}!
+                  </span>
                 </div>
               )}
 
               <div className="space-y-3">
                 {[
-                  { value: "register", label: isYearly ? "Register a new domain — FREE!" : "Register a new domain", icon: isYearly ? "🎁" : "🌐" },
+                  { value: "register", label: isYearly && pkgFreeDomainEnabled ? "Register a new domain — FREE!" : "Register a new domain", icon: isYearly && pkgFreeDomainEnabled ? "🎁" : "🌐" },
                   { value: "existing", label: "Use an existing domain in my account", icon: "🔗" },
                   { value: "manual", label: "I have a domain (set up manually)", icon: "⚙️" },
                   { value: "skip", label: "Skip — I'll set this up later", icon: "⏭️" },
@@ -315,7 +338,7 @@ export default function Checkout() {
                     className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${domainChoice === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
                     <span className="text-xl">{opt.icon}</span>
                     <span className="font-medium text-foreground text-sm flex-1">{opt.label}</span>
-                    {opt.value === "register" && isYearly && (
+                    {opt.value === "register" && isYearly && pkgFreeDomainEnabled && (
                       <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-600 text-xs font-bold">FREE</span>
                     )}
                     {domainChoice === opt.value && <Check size={16} className="text-primary ml-auto" />}
@@ -343,6 +366,11 @@ export default function Checkout() {
                   <label className="text-sm font-medium text-foreground/80">
                     {domainChoice === "register" ? "Domain to register" : "Domain name"}
                   </label>
+                  {domainChoice === "register" && isYearly && pkgFreeDomainEnabled && pkgFreeTlds.length > 0 && (
+                    <p className="text-xs text-green-600 flex items-center gap-1">
+                      <Gift size={11} /> Free for: <span className="font-mono">{pkgFreeTlds.join(", ")}</span>
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Input

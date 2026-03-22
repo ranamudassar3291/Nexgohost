@@ -28,6 +28,9 @@ export const hostingPlansTable = pgTable("hosting_plans", {
   ftpAccounts: integer("ftp_accounts").default(5),
   isActive: boolean("is_active").default(true),
   features: text("features").array().default([]),
+  renewalEnabled: boolean("renewal_enabled").default(true),
+  freeDomainEnabled: boolean("free_domain_enabled").default(false),
+  freeDomainTlds: text("free_domain_tlds").array().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

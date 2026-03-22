@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface InvoiceItem { description: string; quantity: number; unitPrice: number; total: number; }
 interface Invoice {
@@ -32,6 +33,8 @@ export default function InvoiceDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { formatPrice } = useCurrency();
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -152,8 +155,8 @@ export default function InvoiceDetail() {
                 <tr key={i} className="border-b border-border/30">
                   <td className="py-3 text-sm text-foreground">{item.description}</td>
                   <td className="py-3 text-sm text-center text-muted-foreground">{item.quantity}</td>
-                  <td className="py-3 text-sm text-right text-muted-foreground">${Number(item.unitPrice).toFixed(2)}</td>
-                  <td className="py-3 text-sm text-right font-medium text-foreground">${Number(item.total).toFixed(2)}</td>
+                  <td className="py-3 text-sm text-right text-muted-foreground">{formatPrice(Number(item.unitPrice))}</td>
+                  <td className="py-3 text-sm text-right font-medium text-foreground">{formatPrice(Number(item.total))}</td>
                 </tr>
               )) : (
                 <tr>
@@ -169,15 +172,15 @@ export default function InvoiceDetail() {
           <div className="ml-auto max-w-xs space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>${Number(invoice.amount).toFixed(2)}</span>
+              <span>{formatPrice(Number(invoice.amount))}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Tax</span>
-              <span>${Number(invoice.tax || 0).toFixed(2)}</span>
+              <span>{formatPrice(Number(invoice.tax || 0))}</span>
             </div>
             <div className="flex justify-between font-bold text-lg border-t border-border/50 pt-2">
               <span>Total</span>
-              <span className="text-primary">${Number(invoice.total).toFixed(2)}</span>
+              <span className="text-primary">{formatPrice(Number(invoice.total))}</span>
             </div>
           </div>
         </div>
@@ -196,7 +199,7 @@ export default function InvoiceDetail() {
                 {
                   title: "PayPal",
                   icon: "🅿️",
-                  details: ["billing@nexgohost.com", `Amount: $${Number(invoice.total).toFixed(2)}`, "Include invoice number"],
+                  details: ["billing@nexgohost.com", `Amount: ${formatPrice(Number(invoice.total))}`, "Include invoice number"],
                 },
                 {
                   title: "Manual",

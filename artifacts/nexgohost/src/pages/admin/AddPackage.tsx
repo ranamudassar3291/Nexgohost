@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Package, ArrowLeft, Loader2, Plus, X, Server, ChevronDown,
-  DollarSign, AlertCircle, CheckCircle, Zap, RefreshCw,
+  DollarSign, AlertCircle, CheckCircle, Zap, RefreshCw, Globe, Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,15 @@ export default function AddPackage() {
   const [modulePlanName, setModulePlanName] = useState("");
   const [pricingFrom, setPricingFrom] = useState<"module" | "manual">("manual");
   const [selectedServerGroupId, setSelectedServerGroupId] = useState<string>("");
+
+  // Free domain & renewal settings
+  const [renewalEnabled, setRenewalEnabled] = useState(true);
+  const [freeDomainEnabled, setFreeDomainEnabled] = useState(false);
+  const [freeDomainTlds, setFreeDomainTlds] = useState<string[]>([]);
+  const COMMON_TLDS = [".com", ".net", ".org", ".pk", ".uk", ".info", ".biz"];
+  const toggleFreeTld = (tld: string) => {
+    setFreeDomainTlds(prev => prev.includes(tld) ? prev.filter(t => t !== tld) : [...prev, tld]);
+  };
 
   useEffect(() => {
     apiFetch("/api/admin/product-groups").then(setGroups).catch(() => {});
@@ -181,6 +190,9 @@ export default function AddPackage() {
           subdomains: parseInt(form.subdomains),
           ftpAccounts: parseInt(form.ftpAccounts),
           features,
+          renewalEnabled,
+          freeDomainEnabled,
+          freeDomainTlds,
         }),
       });
       queryClient.invalidateQueries({ queryKey: ["admin-packages"] });
@@ -465,6 +477,72 @@ export default function AddPackage() {
               <option value="semiannual">Semiannual</option>
               <option value="yearly">Yearly</option>
             </select>
+          </div>
+        </div>
+
+        {/* ── Free Domain & Renewal ── */}
+        <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
+          <div className="flex items-center gap-3 pb-4 border-b border-border/50">
+            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+              <Globe size={20} className="text-green-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground">Domain & Renewal Settings</h2>
+              <p className="text-xs text-muted-foreground">Configure free domain and renewal options</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-xl">
+            <div>
+              <p className="text-sm font-medium text-foreground">Enable Renewal</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Allow clients to renew this hosting plan</p>
+            </div>
+            <button type="button" onClick={() => setRenewalEnabled(v => !v)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${renewalEnabled ? "bg-primary" : "bg-muted"}`}>
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${renewalEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-xl">
+              <div className="flex items-center gap-3">
+                <Gift size={16} className="text-green-400" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Free Domain with Yearly Plan</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Clients get one free domain when buying yearly</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setFreeDomainEnabled(v => !v)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${freeDomainEnabled ? "bg-primary" : "bg-muted"}`}>
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${freeDomainEnabled ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+
+            {freeDomainEnabled && (
+              <div className="space-y-2 ml-4">
+                <label className="text-sm font-medium text-foreground/80">Free TLD Options</label>
+                <p className="text-xs text-muted-foreground">Select which TLDs are available for free</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {COMMON_TLDS.map(tld => (
+                    <button key={tld} type="button" onClick={() => toggleFreeTld(tld)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-mono font-medium border transition-all ${
+                        freeDomainTlds.includes(tld)
+                          ? "bg-primary/10 border-primary/40 text-primary"
+                          : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                      }`}>
+                      {tld}
+                      {freeDomainTlds.includes(tld) && <CheckCircle size={11} className="inline ml-1.5 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+                {freeDomainTlds.length === 0 && (
+                  <p className="text-xs text-amber-400 flex items-center gap-1">
+                    <AlertCircle size={11} /> Select at least one TLD to offer as free
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">Selected: {freeDomainTlds.length === 0 ? "None" : freeDomainTlds.join(", ")}</p>
+              </div>
+            )}
           </div>
         </div>
 

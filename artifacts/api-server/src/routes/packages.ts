@@ -30,6 +30,9 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
     ftpAccounts: p.ftpAccounts,
     isActive: p.isActive,
     features: p.features ?? [],
+    renewalEnabled: p.renewalEnabled ?? true,
+    freeDomainEnabled: p.freeDomainEnabled ?? false,
+    freeDomainTlds: p.freeDomainTlds ?? [],
     createdAt: p.createdAt.toISOString(),
   };
 }
@@ -44,6 +47,19 @@ router.get("/packages", async (_req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Public: get single package by ID
+router.get("/packages/:id", async (req, res) => {
+  try {
+    const [plan] = await db.select().from(hostingPlansTable)
+      .where(eq(hostingPlansTable.id, req.params.id));
+    if (!plan) return res.status(404).json({ error: "Package not found" });
+    return res.json(formatPlan(plan));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -80,6 +96,7 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
       diskSpace = "10 GB", bandwidth = "100 GB",
       emailAccounts = 10, databases = 5, subdomains = 10, ftpAccounts = 5,
       features = [],
+      renewalEnabled = true, freeDomainEnabled = false, freeDomainTlds = [],
     } = req.body;
 
     if (!name || !price) {
@@ -97,6 +114,9 @@ router.post("/admin/packages", authenticate, requireAdmin, async (req: AuthReque
       modulePlanName: modulePlanName || null,
       diskSpace, bandwidth, emailAccounts, databases, subdomains, ftpAccounts,
       isActive: true, features,
+      renewalEnabled: Boolean(renewalEnabled),
+      freeDomainEnabled: Boolean(freeDomainEnabled),
+      freeDomainTlds: Array.isArray(freeDomainTlds) ? freeDomainTlds : [],
     } as any).returning();
 
     // Update quarterly/semiannual via raw SQL since drizzle schema may be stale
@@ -124,6 +144,9 @@ router.put("/admin/packages/:id", authenticate, requireAdmin, async (req: AuthRe
     if (updates.price !== undefined) updates.price = String(updates.price);
     if (updates.yearlyPrice !== undefined) updates.yearlyPrice = updates.yearlyPrice ? String(updates.yearlyPrice) : null;
     if (updates.groupId !== undefined) updates.groupId = updates.groupId || null;
+    if (updates.freeDomainEnabled !== undefined) updates.freeDomainEnabled = Boolean(updates.freeDomainEnabled);
+    if (updates.renewalEnabled !== undefined) updates.renewalEnabled = Boolean(updates.renewalEnabled);
+    if (updates.freeDomainTlds !== undefined) updates.freeDomainTlds = Array.isArray(updates.freeDomainTlds) ? updates.freeDomainTlds : [];
 
     await db.update(hostingPlansTable)
       .set(updates)

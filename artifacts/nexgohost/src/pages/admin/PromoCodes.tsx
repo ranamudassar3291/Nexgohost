@@ -8,7 +8,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface PromoCode {
   id: string; code: string; description: string | null; discountPercent: number;
-  isActive: boolean; usageLimit: number | null; usedCount: number; expiresAt: string | null; createdAt: string;
+  isActive: boolean; usageLimit: number | null; usedCount: number; expiresAt: string | null;
+  applicableTo: string; createdAt: string;
 }
 
 async function fetchCodes(): Promise<PromoCode[]> {
@@ -24,7 +25,7 @@ export default function PromoCodes() {
   const { data: codes = [], isLoading } = useQuery({ queryKey: ["admin-promo-codes"], queryFn: fetchCodes });
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ code: "", description: "", discountPercent: "", usageLimit: "", expiresAt: "" });
+  const [form, setForm] = useState({ code: "", description: "", discountPercent: "", usageLimit: "", expiresAt: "", applicableTo: "all" });
   const [adding, setAdding] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -62,13 +63,14 @@ export default function PromoCodes() {
           discountPercent: pct,
           usageLimit: form.usageLimit ? parseInt(form.usageLimit) : undefined,
           expiresAt: form.expiresAt || undefined,
+          applicableTo: form.applicableTo || "all",
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       queryClient.invalidateQueries({ queryKey: ["admin-promo-codes"] });
       toast({ title: "Promo code created", description: data.code });
-      setForm({ code: "", description: "", discountPercent: "", usageLimit: "", expiresAt: "" });
+      setForm({ code: "", description: "", discountPercent: "", usageLimit: "", expiresAt: "", applicableTo: "all" });
       setShowForm(false);
     } catch (err: any) {
       setFormError(err.message);
@@ -112,7 +114,16 @@ export default function PromoCodes() {
               <label className="text-sm font-medium text-foreground/80">Description</label>
               <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Summer Sale" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">Applies To</label>
+                <select value={form.applicableTo} onChange={e => setForm(f => ({ ...f, applicableTo: e.target.value }))}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none">
+                  <option value="all">All Services</option>
+                  <option value="hosting">Hosting Only</option>
+                  <option value="domain">Domains Only</option>
+                </select>
+              </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground/80">Usage Limit</label>
                 <Input type="number" min="1" value={form.usageLimit} onChange={e => setForm(f => ({ ...f, usageLimit: e.target.value }))} placeholder="Unlimited" />
@@ -143,7 +154,7 @@ export default function PromoCodes() {
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           <table className="w-full">
             <thead><tr className="border-b border-border/50 bg-secondary/30">
-              {["Code", "Discount", "Usage", "Expires", "Status", ""].map(h => (
+              {["Code", "Discount", "Applies To", "Usage", "Expires", "Status", ""].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">{h}</th>
               ))}
             </tr></thead>
@@ -159,6 +170,15 @@ export default function PromoCodes() {
                   <td className="px-4 py-3">
                     <span className="px-2 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-lg text-sm font-semibold">
                       -{c.discountPercent}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${
+                      c.applicableTo === "hosting" ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
+                      c.applicableTo === "domain"  ? "bg-purple-500/10 border-purple-500/20 text-purple-400" :
+                      "bg-secondary border-border text-muted-foreground"
+                    }`}>
+                      {c.applicableTo === "hosting" ? "Hosting" : c.applicableTo === "domain" ? "Domains" : "All"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">

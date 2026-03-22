@@ -16,6 +16,7 @@ function formatCode(c: typeof promoCodesTable.$inferSelect) {
     usageLimit: c.usageLimit,
     usedCount: c.usedCount,
     expiresAt: c.expiresAt?.toISOString() ?? null,
+    applicableTo: (c as any).applicableTo ?? "all",
     createdAt: c.createdAt.toISOString(),
   };
 }
@@ -23,7 +24,7 @@ function formatCode(c: typeof promoCodesTable.$inferSelect) {
 // Client: validate a promo code and compute discounted amount
 router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { code, amount } = req.query as { code: string; amount: string };
+    const { code, amount, serviceType } = req.query as { code: string; amount: string; serviceType?: string };
     if (!code) { res.status(400).json({ error: "code is required" }); return; }
 
     const [promo] = await db.select().from(promoCodesTable)
@@ -41,6 +42,12 @@ router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) 
       return;
     }
 
+    const applicableTo = (promo as any).applicableTo ?? "all";
+    if (serviceType && applicableTo !== "all" && applicableTo !== serviceType) {
+      res.status(400).json({ error: `This promo code is only valid for ${applicableTo} services` });
+      return;
+    }
+
     const originalAmount = parseFloat(amount || "0");
     const discount = originalAmount * (promo.discountPercent / 100);
     const finalAmount = Math.max(0, originalAmount - discount);
@@ -52,6 +59,7 @@ router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) 
       discountAmount: Number(discount.toFixed(2)),
       originalAmount: Number(originalAmount.toFixed(2)),
       finalAmount: Number(finalAmount.toFixed(2)),
+      applicableTo,
     });
   } catch (err) {
     console.error(err);
@@ -73,7 +81,7 @@ router.get("/admin/promo-codes", authenticate, requireAdmin, async (_req, res) =
 // Admin: create promo code
 router.post("/admin/promo-codes", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { code, description, discountPercent, usageLimit, expiresAt } = req.body;
+    const { code, description, discountPercent, usageLimit, expiresAt, applicableTo = "all" } = req.body;
     if (!code || !discountPercent) {
       res.status(400).json({ error: "code and discountPercent are required" });
       return;
@@ -90,7 +98,8 @@ router.post("/admin/promo-codes", authenticate, requireAdmin, async (req: AuthRe
       isActive: true,
       usageLimit: usageLimit ? parseInt(usageLimit) : null,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
-    }).returning();
+      applicableTo: ["all", "hosting", "domain"].includes(applicableTo) ? applicableTo : "all",
+    } as any).returning();
 
     res.status(201).json(formatCode(promo));
   } catch (err: any) {

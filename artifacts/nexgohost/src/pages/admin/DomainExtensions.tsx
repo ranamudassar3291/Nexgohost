@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff } from "lucide-react";
+import { useCurrency } from "@/context/CurrencyProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +28,7 @@ const EMPTY = { extension: "", registerPrice: "", renewalPrice: "", transferPric
 
 export default function DomainExtensions() {
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -118,9 +120,9 @@ export default function DomainExtensions() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { field: "registerPrice", label: "Register Price ($)" },
-                { field: "renewalPrice", label: "Renewal Price ($)" },
-                { field: "transferPrice", label: "Transfer Price ($)" },
+                { field: "registerPrice", label: "Register Price (Rs.)" },
+                { field: "renewalPrice", label: "Renewal Price (Rs.)" },
+                { field: "transferPrice", label: "Transfer Price (Rs.)" },
               ].map(({ field, label }) => (
                 <div key={field} className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">{label}</label>
@@ -171,9 +173,9 @@ export default function DomainExtensions() {
             ) : extensions.map(ext => (
               <tr key={ext.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                 <td className="p-4 font-mono font-semibold text-primary">{ext.extension}</td>
-                <td className="p-4 text-sm">${Number(ext.registerPrice).toFixed(2)}/yr</td>
-                <td className="p-4 text-sm">${Number(ext.renewalPrice).toFixed(2)}/yr</td>
-                <td className="p-4 text-sm">${Number(ext.transferPrice).toFixed(2)}</td>
+                <td className="p-4 text-sm">{formatPrice(Number(ext.registerPrice))}/yr</td>
+                <td className="p-4 text-sm">{formatPrice(Number(ext.renewalPrice))}/yr</td>
+                <td className="p-4 text-sm">{formatPrice(Number(ext.transferPrice))}</td>
                 <td className="p-4">
                   <button onClick={() => handleToggle(ext, "privacyEnabled")}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.privacyEnabled ? "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
