@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable } from "@workspace/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
@@ -39,21 +39,10 @@ async function checkRdapAvailability(name: string, tld: string): Promise<"availa
   }
 }
 
-async function generateInvoiceNumber(): Promise<string> {
+function generateInvoiceNumber(): string {
   const year = new Date().getFullYear();
-  const [latest] = await db
-    .select({ num: invoicesTable.invoiceNumber })
-    .from(invoicesTable)
-    .orderBy(desc(invoicesTable.createdAt))
-    .limit(1);
-
-  let seq = 1;
-  if (latest?.num) {
-    const parts = latest.num.split("-");
-    const lastNum = parseInt(parts[parts.length - 1] || "0", 10);
-    seq = isNaN(lastNum) ? 1 : lastNum + 1;
-  }
-  return `INV-${year}-${String(seq).padStart(3, "0")}`;
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `INV-${year}-${rand}`;
 }
 
 function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) {
@@ -229,7 +218,7 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
       notes: `Domain registration for ${cleanName}${cleanTld}`,
     }).returning();
 
-    const invoiceNumber = await generateInvoiceNumber();
+    const invoiceNumber = generateInvoiceNumber();
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);
 
@@ -245,6 +234,42 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
     }).returning();
 
     const clientName = `${user.firstName} ${user.lastName}`;
+
+    // Auto-commission for affiliate referrals on domain registration (non-blocking)
+    (async () => {
+      try {
+        if (registrationPrice <= 0) return;
+        const [referral] = await db.select().from(affiliateReferralsTable)
+          .where(eq(affiliateReferralsTable.referredUserId, req.user!.userId)).limit(1);
+        if (referral) {
+          const [affiliate] = await db.select().from(affiliatesTable)
+            .where(eq(affiliatesTable.id, referral.affiliateId)).limit(1);
+          if (affiliate && affiliate.status === "active") {
+            const commAmt = affiliate.commissionType === "percentage"
+              ? registrationPrice * (parseFloat(affiliate.commissionValue) / 100)
+              : parseFloat(affiliate.commissionValue);
+            if (commAmt > 0) {
+              await db.insert(affiliateCommissionsTable).values({
+                affiliateId: affiliate.id,
+                referredUserId: req.user!.userId,
+                orderId: order.id,
+                amount: String(commAmt.toFixed(2)),
+                status: "pending",
+                description: `Commission for domain registration: ${cleanName}${cleanTld}`,
+              });
+              await db.update(affiliatesTable).set({
+                totalEarnings: sql`${affiliatesTable.totalEarnings} + ${String(commAmt.toFixed(2))}`,
+                pendingEarnings: sql`${affiliatesTable.pendingEarnings} + ${String(commAmt.toFixed(2))}`,
+                totalConversions: sql`${affiliatesTable.totalConversions} + 1`,
+                updatedAt: new Date(),
+              }).where(eq(affiliatesTable.id, affiliate.id));
+              await db.update(affiliateReferralsTable).set({ status: "converted" })
+                .where(eq(affiliateReferralsTable.id, referral.id));
+            }
+          }
+        }
+      } catch { /* non-fatal */ }
+    })();
 
     res.status(201).json({
       domain: formatDomain(domain, clientName),

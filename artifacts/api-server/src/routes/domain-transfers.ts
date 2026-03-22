@@ -5,8 +5,11 @@ import {
   domainsTable,
   usersTable,
   domainPricingTable,
+  affiliatesTable,
+  affiliateReferralsTable,
+  affiliateCommissionsTable,
 } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
 import { emailGeneric } from "../lib/email.js";
 
@@ -115,7 +118,64 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       } catch { /* non-fatal */ }
     })();
 
+    // Auto-commission for affiliate referrals (non-blocking)
+    (async () => {
+      try {
+        const transferPrice = parseFloat(price);
+        if (transferPrice <= 0) return;
+        const [referral] = await db.select().from(affiliateReferralsTable)
+          .where(eq(affiliateReferralsTable.referredUserId, req.user!.userId)).limit(1);
+        if (referral) {
+          const [affiliate] = await db.select().from(affiliatesTable)
+            .where(eq(affiliatesTable.id, referral.affiliateId)).limit(1);
+          if (affiliate && affiliate.status === "active") {
+            const commAmt = affiliate.commissionType === "percentage"
+              ? transferPrice * (parseFloat(affiliate.commissionValue) / 100)
+              : parseFloat(affiliate.commissionValue);
+            if (commAmt > 0) {
+              await db.insert(affiliateCommissionsTable).values({
+                affiliateId: affiliate.id,
+                referredUserId: req.user!.userId,
+                amount: String(commAmt.toFixed(2)),
+                status: "pending",
+                description: `Commission for domain transfer: ${domain}`,
+              });
+              await db.update(affiliatesTable).set({
+                totalEarnings: sql`${affiliatesTable.totalEarnings} + ${String(commAmt.toFixed(2))}`,
+                pendingEarnings: sql`${affiliatesTable.pendingEarnings} + ${String(commAmt.toFixed(2))}`,
+                totalConversions: sql`${affiliatesTable.totalConversions} + 1`,
+                updatedAt: new Date(),
+              }).where(eq(affiliatesTable.id, affiliate.id));
+              await db.update(affiliateReferralsTable).set({ status: "converted" })
+                .where(eq(affiliateReferralsTable.id, referral.id));
+            }
+          }
+        }
+      } catch { /* non-fatal */ }
+    })();
+
     res.status(201).json({ transfer, valid, message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Client: Cancel a pending/validating transfer ───────────────────────────────
+router.put("/domains/transfers/:id/cancel", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [transfer] = await db.select().from(domainTransfersTable)
+      .where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
+    if (!transfer) { res.status(404).json({ error: "Transfer not found" }); return; }
+    if (transfer.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!["pending", "validating"].includes(transfer.status)) {
+      res.status(400).json({ error: "Only pending or validating transfers can be cancelled" }); return;
+    }
+    const [updated] = await db.update(domainTransfersTable)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(domainTransfersTable.id, req.params.id!))
+      .returning();
+    res.json({ transfer: updated });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

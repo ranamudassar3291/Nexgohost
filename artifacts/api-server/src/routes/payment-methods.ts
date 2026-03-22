@@ -23,13 +23,44 @@ function formatMethodAdmin(m: typeof paymentMethodsTable.$inferSelect) {
   return { ...formatMethod(m), settings: JSON.parse(m.settings ?? "{}") };
 }
 
+// Public settings fields exposed to clients per gateway type (no secrets)
+function publicSettings(type: string, settings: Record<string, unknown>) {
+  switch (type) {
+    case "bank_transfer":
+      return {
+        bankName: settings.bankName,
+        accountTitle: settings.accountTitle,
+        accountNumber: settings.accountNumber,
+        iban: settings.iban,
+        swiftCode: settings.swiftCode,
+      };
+    case "jazzcash":
+      return { accountTitle: settings.accountTitle, mobileNumber: settings.mobileNumber };
+    case "easypaisa":
+      return { accountTitle: settings.accountTitle, mobileNumber: settings.mobileNumber };
+    case "paypal":
+      return { paypalEmail: settings.paypalEmail };
+    case "crypto":
+      return { walletAddress: settings.walletAddress, cryptoType: settings.cryptoType };
+    case "manual":
+      return { instructions: settings.instructions };
+    case "stripe":
+      return { publishableKey: settings.publishableKey };
+    default:
+      return {};
+  }
+}
+
 // Public/client: list active payment methods (for checkout page)
 router.get("/payment-methods", authenticate, async (_req, res) => {
   try {
     const methods = await db.select().from(paymentMethodsTable)
       .where(eq(paymentMethodsTable.isActive, true))
       .orderBy(sql`created_at ASC`);
-    res.json(methods.map(formatMethod));
+    res.json(methods.map(m => ({
+      ...formatMethod(m),
+      publicSettings: publicSettings(m.type, JSON.parse(m.settings ?? "{}")),
+    })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -56,7 +87,7 @@ router.post("/admin/payment-methods", authenticate, requireAdmin, async (req: Au
       return;
     }
 
-    const validTypes = ["stripe", "paypal", "bank_transfer", "crypto", "manual"];
+    const validTypes = ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual"];
     if (!validTypes.includes(type)) {
       res.status(400).json({ error: `type must be one of: ${validTypes.join(", ")}` });
       return;

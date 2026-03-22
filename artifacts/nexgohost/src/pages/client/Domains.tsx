@@ -82,13 +82,19 @@ function getCartTotal(cart: CartItem[]): number {
   return cart.reduce((sum, item) => sum + getPriceForPeriod(item), 0);
 }
 
-type Tab = "my-domains" | "order";
+type Tab = "my-domains" | "order" | "transfers";
 type OrderView = "search" | "review" | "success";
+
+interface DomainTransfer {
+  id: string; domainName: string; epp: string; status: string;
+  validationMessage: string | null; price: string; createdAt: string;
+}
 
 export default function ClientDomains() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<Tab>("my-domains");
   const [orderView, setOrderView] = useState<OrderView>("search");
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -110,6 +116,27 @@ export default function ClientDomains() {
     queryKey: ["my-domains"],
     queryFn: () => apiFetch("/api/domains"),
   });
+
+  const { data: transfersData, isLoading: transfersLoading, refetch: refetchTransfers } = useQuery<{ transfers: DomainTransfer[] }>({
+    queryKey: ["my-domain-transfers"],
+    queryFn: () => apiFetch("/api/domains/transfers"),
+    enabled: activeTab === "transfers",
+  });
+  const myTransfers = transfersData?.transfers ?? [];
+
+  const handleCancelTransfer = async (id: string) => {
+    if (!confirm("Cancel this domain transfer request?")) return;
+    setCancellingId(id);
+    try {
+      await apiFetch(`/api/domains/transfers/${id}/cancel`, { method: "PUT" });
+      toast({ title: "Transfer cancelled" });
+      refetchTransfers();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const { data: searchData, isLoading: searching, error: searchError } = useQuery<SearchResult>({
     queryKey: ["domain-availability", searchQuery],
@@ -269,13 +296,13 @@ export default function ClientDomains() {
       </div>
 
       <div className="flex gap-1 bg-secondary/50 border border-border rounded-xl p-1 w-fit">
-        {(["my-domains", "order"] as Tab[]).map(tab => (
+        {(["my-domains", "order", "transfers"] as Tab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}
           >
-            {tab === "my-domains" ? `My Domains (${myDomains.length})` : "Order New Domain"}
+            {tab === "my-domains" ? `My Domains (${myDomains.length})` : tab === "order" ? "Order New Domain" : "Transfers"}
           </button>
         ))}
       </div>
@@ -466,6 +493,79 @@ export default function ClientDomains() {
                       <p className="text-sm font-medium">{domain.nameservers?.[0] || "ns1.nexgohost.com"}</p>
                     </div>
                   </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {activeTab === "transfers" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Track the status of your domain transfer requests.</p>
+            <Button variant="outline" size="sm" onClick={() => navigate("/client/domains/transfer")} className="gap-2">
+              <ArrowRightLeft size={14} /> New Transfer
+            </Button>
+          </div>
+          {transfersLoading ? (
+            <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+          ) : myTransfers.length === 0 ? (
+            <div className="bg-card border border-border border-dashed rounded-3xl p-12 text-center">
+              <ArrowRightLeft className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
+              <h3 className="text-xl font-bold text-foreground">No transfer requests</h3>
+              <p className="text-muted-foreground mt-2">Initiate a domain transfer to bring your domains to Nexgohost.</p>
+              <Button onClick={() => navigate("/client/domains/transfer")} className="mt-6 bg-primary text-white gap-2">
+                <ArrowRightLeft size={16} /> Transfer a Domain
+              </Button>
+            </div>
+          ) : (
+            myTransfers.map(transfer => {
+              const statusColors: Record<string, string> = {
+                pending:    "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+                validating: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+                approved:   "bg-green-500/10 text-green-400 border-green-500/20",
+                rejected:   "bg-red-500/10 text-red-400 border-red-500/20",
+                completed:  "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+                cancelled:  "bg-secondary text-muted-foreground border-border",
+              };
+              const statusLabels: Record<string, string> = {
+                pending: "Pending", validating: "Validating", approved: "Approved",
+                rejected: "Rejected", completed: "Completed", cancelled: "Cancelled",
+              };
+              const canCancel = ["pending", "validating"].includes(transfer.status);
+              return (
+                <div key={transfer.id} className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <ArrowRightLeft size={18} className="text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-foreground">{transfer.domainName}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColors[transfer.status] ?? "bg-secondary text-muted-foreground border-border"}`}>
+                        {statusLabels[transfer.status] ?? transfer.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                      <span>Transfer fee: {formatPrice(parseFloat(transfer.price))}</span>
+                      <span>Submitted: {format(new Date(transfer.createdAt), "MMM d, yyyy")}</span>
+                    </div>
+                    {transfer.validationMessage && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">{transfer.validationMessage}</p>
+                    )}
+                  </div>
+                  {canCancel && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCancelTransfer(transfer.id)}
+                      disabled={cancellingId === transfer.id}
+                      className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/10"
+                    >
+                      {cancellingId === transfer.id ? <Loader2 size={13} className="animate-spin mr-1" /> : null}
+                      Cancel
+                    </Button>
+                  )}
                 </div>
               );
             })

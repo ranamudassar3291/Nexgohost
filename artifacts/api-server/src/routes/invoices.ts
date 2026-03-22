@@ -22,6 +22,9 @@ function formatInvoice(i: typeof invoicesTable.$inferSelect, clientName?: string
     status: i.status,
     dueDate: i.dueDate.toISOString(),
     paidDate: i.paidDate?.toISOString(),
+    paymentRef: i.paymentRef,
+    paymentGatewayId: i.paymentGatewayId,
+    paymentNotes: i.paymentNotes,
     items: i.items as Array<{ description: string; quantity: number; unitPrice: number; total: number }>,
     createdAt: i.createdAt.toISOString(),
   };
@@ -36,6 +39,35 @@ router.get("/my/invoices/:id", authenticate, async (req: AuthRequest, res) => {
     if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     res.json(formatInvoice(invoice, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Client: submit payment reference for an unpaid invoice
+router.post("/my/invoices/:id/submit-payment", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [invoice] = await db.select().from(invoicesTable)
+      .where(eq(invoicesTable.id, req.params.id)).limit(1);
+    if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!["unpaid", "overdue"].includes(invoice.status)) {
+      res.status(400).json({ error: "Invoice is not unpaid" }); return;
+    }
+    const { paymentRef, paymentGatewayId, paymentNotes } = req.body || {};
+    if (!paymentRef || !paymentGatewayId) {
+      res.status(400).json({ error: "paymentRef and paymentGatewayId are required" }); return;
+    }
+    const [updated] = await db.update(invoicesTable)
+      .set({
+        status: "payment_pending",
+        paymentRef: String(paymentRef).trim(),
+        paymentGatewayId: String(paymentGatewayId),
+        paymentNotes: paymentNotes ? String(paymentNotes).trim() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(invoicesTable.id, req.params.id))
+      .returning();
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

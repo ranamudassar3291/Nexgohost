@@ -1,0 +1,99 @@
+Build a full SaaS hosting & domain transfer platform (Node.js + Express + MongoDB + React optional) with **full live functionality** including Cloudflare API or real registrar API for domain checks.
+
+========================
+1. DOMAIN TRANSFER & LIVE CHECK
+========================
+- User enters domain to transfer
+- System performs:
+    1. **Availability check** via Cloudflare Domains API (or real registrar)
+    2. **Transfer lock check** (locked/unlocked)
+    3. **EPP code validation** (real)
+- Conditional flow:
+    - Locked → show message "Domain is locked. Unlock before transfer"
+    - Invalid EPP → show message "Invalid EPP code"
+    - Domain not registered → show "Domain not registered"
+- On success:
+    - Show transfer price
+    - Generate invoice
+    - Create order with status = "Pending Transfer"
+- Client dashboard:
+    - Domain list with real-time status (Pending, Completed, Failed)
+    - Actions: View, Manage, Cancel
+- Auto-email sent to client with domain transfer details
+
+========================
+2. AFFILIATE SYSTEM & CREDITS
+========================
+- Unique referral links per user
+- Track referrals & assign commission per product/domain
+- Affiliate dashboard:
+    - Total earnings
+    - Pending earnings
+    - Withdrawable balance
+- When payout occurs:
+    - Commission credited to user's **internal credit account**
+    - Credits usable for domain & hosting purchases
+    - Orders auto-deduct from credits
+
+========================
+3. MODULAR SERVER & PAYMENT INTEGRATION
+========================
+- Admin panel:
+    - Add server modules (ZIP) → auto-extract & register
+    - Add payment gateways (ZIP) → auto-extract & register
+- Server modules:
+    - Create / Suspend / Unsuspend / Terminate / Manage accounts
+- Payment modules:
+    - Deposit / Withdraw / Callbacks / Commission assignment
+- Auto-detect missing configs & auto-fill
+
+========================
+4. PACKAGE & PRODUCT SYSTEM
+========================
+- Admin can create packages & group them (Basic / Premium / Business)
+- Client dashboard shows packages & plans
+- Package orders integrate with server module & affiliate commissions automatically
+
+========================
+5. CLIENT DASHBOARD (WHMCS STYLE)
+========================
+Sections:
+- Domains → show live transfer status, lock status, EPP validation
+- Hosting / Services
+- Orders & Invoices → invoice generated automatically on domain transfer
+- Affiliate dashboard → credit balance, earnings
+- Server management → manage modules dynamically
+- Payment & credits → internal credits can be used for purchases
+
+========================
+6. ADMIN PANEL
+========================
+- Manage users, servers, modules, payment gateways, orders, invoices
+- Approve affiliate withdrawals (credits auto-added to account)
+- Upload new modules dynamically
+- Auto-config detection
+
+========================
+7. TECHNICAL REQUIREMENTS
+========================
+- Node.js + Express backend
+- MongoDB schemas for:
+    - Users, Domains, Orders, Invoices
+    - Servers, Payment Gateways, Affiliates, Credits, Withdrawals
+- Authentication (JWT or sessions)
+- Role-based access: Admin / Client
+- Cloudflare API integration for:
+    - Domain availability
+    - Transfer lock
+    - EPP code validation
+- Secure routes & validation
+- API-based architecture
+- Fully functional live SaaS flow (no placeholders)
+- Emails & notifications auto-send
+
+========================
+8. BONUS
+========================
+- Uploaded server/payment modules appear immediately in dashboard
+- Orders, payments, affiliate credits, and domain transfers automatically use new modules
+- Dashboard reflects live statuses for domain transfers, orders, and credits

@@ -2,8 +2,8 @@ import { pgTable, text, timestamp, numeric, jsonb, pgEnum } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const invoiceStatusEnum = pgEnum("invoice_status", ["unpaid", "paid", "cancelled", "overdue", "refunded", "collections"]);
-export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "paypal", "manual"]);
+export const invoiceStatusEnum = pgEnum("invoice_status", ["unpaid", "payment_pending", "paid", "cancelled", "overdue", "refunded", "collections"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual"]);
 export const transactionStatusEnum = pgEnum("transaction_status", ["success", "failed", "pending", "refunded"]);
 
 export const invoicesTable = pgTable("invoices", {
@@ -19,6 +19,9 @@ export const invoicesTable = pgTable("invoices", {
   dueDate: timestamp("due_date").notNull(),
   paidDate: timestamp("paid_date"),
   items: jsonb("items").notNull().default([]),
+  paymentRef: text("payment_ref"),
+  paymentGatewayId: text("payment_gateway_id"),
+  paymentNotes: text("payment_notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

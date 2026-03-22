@@ -1,5 +1,12 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 12)
+- **Invoice number collision fix**: `generateInvoiceNumber()` in `domains.ts` was generating sequential `INV-YYYY-NNN` but colliding with random-suffix invoices from checkout.ts. Replaced with `INV-YYYY-XXXXXX` (random 6-char alphanumeric suffix) — guaranteed unique, no DB query needed.
+- **Domain registration commission**: `POST /api/domains/register` now triggers affiliate commission non-blocking after successful domain creation (same pattern as hosting checkout and domain transfers).
+- **Payment gateway management**: Admin can create/edit/delete JazzCash, EasyPaisa, Bank Transfer, and Manual gateways via `PaymentMethods.tsx`. Type-specific settings fields rendered per gateway type. `publicSettings()` filters sensitive fields (API keys, passwords, merchant IDs) before exposing to clients.
+- **Invoice payment submission flow**: `POST /api/my/invoices/:id/submit-payment` moves invoice to `payment_pending` status with paymentRef, gatewayId, and notes stored. Duplicate submissions blocked. Admin marks paid via `POST /api/admin/invoices/:id/mark-paid`.
+- **Client Domains "Transfers" tab**: Full tab added to `Domains.tsx` showing all transfer requests with status badges (pending/validating/approved/rejected/completed/cancelled), transfer fee, submission date, and Cancel button for pending/validating transfers.
+
 ## Recent Changes (Session 11)
 - **Affiliate Withdrawal System**: New `affiliateWithdrawalsTable` added to DB schema and pushed. Client can request withdrawals from approved commission balance via `POST /api/affiliate/withdraw`. Validation: requires PayPal email saved, sufficient approved balance. Client can view withdrawal history via `GET /api/affiliate/withdrawals`.
 - **Admin Withdrawal Management**: New admin routes — `GET /api/admin/affiliates/withdrawals/all`, `PUT /admin/affiliates/withdrawals/:id/approve`, `/pay`, `/reject`. Admin Affiliates page now has 3 tabs: Affiliates | Commissions | Withdrawals (with pending count badge). Approve → Mark Paid → Reject actions per row.
