@@ -85,6 +85,66 @@ async function cpanelUAPI(
   return json.data;
 }
 
+// ── Softaculous installer ─────────────────────────────────────────────────────
+// Uses the Softaculous API endpoint built into cPanel.
+// Auth: Basic base64(username:password)  — NOT cpanel-token format
+// URL:  https://{hostname}:2083/frontend/paper_lantern/softaculous/index.live.php?api=serialize
+// Body: application/x-www-form-urlencoded  (querystring)
+// Response: serialized text — success is indicated by the word "done" in the body
+
+async function softaculousInstall(
+  ctx: CpanelCtx,
+  domain: string,
+  directory: string,
+  adminUser: string,
+  adminPass: string,
+  adminEmail: string,
+  siteName: string,
+): Promise<void> {
+  const url = `${ctx.baseUrl}frontend/paper_lantern/softaculous/index.live.php?api=serialize`;
+  const creds = Buffer.from(`${ctx.username}:${ctx.password}`).toString("base64");
+
+  const postData = new URLSearchParams({
+    soft:           "26",          // Softaculous script ID for WordPress
+    act:            "install",
+    protocol:       "https://",
+    domain:         domain,
+    dir:            directory,     // "" = root, "blog" = /blog subdir
+    admin_username: adminUser,     // NOTE: Softaculous uses admin_username, not admin_user
+    admin_pass:     adminPass,
+    admin_email:    adminEmail,
+    site_name:      siteName || "My WordPress Site", // Softaculous uses site_name
+    dbprefix:       "wp_",
+    language:       "en",
+    auto_upgrade:   "1",
+  });
+
+  console.log(`[Softaculous] POST ${url}`);
+  console.log(`FINAL PAYLOAD:`, postData.toString());
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization:  `Basic ${creds}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: postData.toString(),
+  });
+
+  const text = await resp.text();
+  console.log(`CPANEL RESPONSE:`, text.substring(0, 500));
+
+  if (!resp.ok) {
+    throw new Error(`Softaculous HTTP error ${resp.status} ${resp.statusText}`);
+  }
+
+  if (!text.includes("done")) {
+    throw new Error(`Softaculous installation failed. Response snippet: ${text.substring(0, 300)}`);
+  }
+
+  console.log(`[Softaculous] WordPress installed successfully on ${domain}`);
+}
+
 // ── Check if WordPress is already installed ────────────────────────────────────
 
 export async function checkWordPressInstalled(
@@ -239,66 +299,42 @@ async function cpanelProvision(
   const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}/${directory}`;
   const adminUrl = `${wpUrl}/wp-admin`;
 
-  // ── STRATEGY 1: cPanel WordPress UAPI (POST /execute/WordPress/install) ───
-  // Correct endpoint: WordPress/install (NOT WordPressManager)
-  // Required fields (all must be present — missing any causes API to reject):
-  //   domain, directory, admin_user, admin_pass, admin_email, name, user
-  await setStep(serviceId, "Creating database");
-  let usedCpanelWpApi = false;
+  // ── STRATEGY 1: Softaculous (primary) ────────────────────────────────────
+  // Uses the Softaculous API built into cPanel to install WordPress.
+  // Softaculous handles everything: DB creation, file download, configuration.
+  // Auth: Basic base64(username:password) — standard cPanel credentials.
+  await setStep(serviceId, "Installing WordPress");
+  let usedSoftaculous = false;
 
-  // ── Pre-flight validation — fail fast before touching any API ─────────────
-  // The cPanel user is sent via Authorization header ("cpanel user:token"), NOT in the body.
-  // ctx.username / CPANEL_USER are still used to build the DB name prefix.
+  // Pre-flight: resolve cPanel username (for logging; auth is handled by ctx)
   const resolvedCpanelUser = (ctx.username || "").trim() || CPANEL_USER;
+
   const missingFields: string[] = [];
   if (!domain)  missingFields.push("domain");
-  if (!wpUser)  missingFields.push("admin_user");
+  if (!wpUser)  missingFields.push("admin_username");
   if (!wpPass)  missingFields.push("admin_pass");
   if (!wpEmail) missingFields.push("admin_email");
-  if (!ctx.username && !CPANEL_USER) missingFields.push("cpanel auth user (check CPANEL_USER env var)");
   if (missingFields.length > 0) {
-    throw new Error(`Missing required fields for WordPress install: ${missingFields.join(", ")}`);
+    throw new Error(`Missing required fields for Softaculous install: ${missingFields.join(", ")}`);
   }
 
-  console.log(`[WP] cPanel auth user: "${resolvedCpanelUser}" (from service="${ctx.username}", fallback="${CPANEL_USER}")`);
-  console.log(`[WP] Auth header: cpanel ${resolvedCpanelUser}:***`);
-
-  // Minimal payload — cPanel WordPress installer handles database creation automatically.
-  // Do NOT include db_name/db_user/db_pass — those cause 403 errors if the token
-  // lacks MySQL API permissions. The WordPress/install endpoint manages the DB itself.
-  // NOTE: "user" is NOT in the body — cPanel identifies the caller via the
-  //       Authorization header: "cpanel username:API_TOKEN"
-  const payload = {
-    domain,
-    directory,
-    admin_user:  wpUser,
-    admin_pass:  wpPass,
-    admin_email: wpEmail,
-    name:        siteTitle || "My WordPress Site", // "name" = site title, NOT "site_name"
-  };
+  console.log(`[WP] cPanel user: "${resolvedCpanelUser}", host: ${ctx.baseUrl}`);
 
   try {
-    console.log(`[WP] Calling WordPress/install for ${domain}`);
-    console.log(`FINAL PAYLOAD:`, JSON.stringify(payload));
-
-    const rawResult = await cpanelUAPI(ctx, "WordPress", "install", payload);
-    console.log(`CPANEL RESPONSE:`, JSON.stringify(rawResult));
-
-    // cpanelUAPI throws on status !== 1, so reaching here means success
-    usedCpanelWpApi = true;
-    console.log(`[WP] WordPress/install succeeded for ${domain}`);
-  } catch (wpErr: any) {
-    console.warn(`[WP] WordPress/install failed: ${wpErr.message} — falling back to manual install`);
+    await softaculousInstall(ctx, domain, directory, wpUser, wpPass, wpEmail, siteTitle);
+    usedSoftaculous = true;
+  } catch (softErr: any) {
+    console.warn(`[WP] Softaculous failed: ${softErr.message} — falling back to manual install`);
   }
 
-  if (usedCpanelWpApi) {
-    // cPanel WordPress API handled everything — verify and save
+  if (usedSoftaculous) {
+    // Softaculous handled everything — verify wp-config.php exists before saving success
     await setStep(serviceId, "Verifying installation");
-    await new Promise(r => setTimeout(r, 5000)); // allow cPanel to finish writing files
+    await new Promise(r => setTimeout(r, 5000)); // allow Softaculous to finish writing files
     const isInstalled = await checkWordPressInstalled(ctx, installPath);
     if (!isInstalled) {
       throw new Error(
-        "cPanel WordPress API reported success but wp-config.php was not found. " +
+        "Softaculous reported success but wp-config.php was not found. " +
         "Check that the domain resolves to this server."
       );
     }

@@ -1,0 +1,78 @@
+import express from "express";
+import fetch from "node-fetch";
+import cors from "cors";
+import querystring from "querystring";
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// 🔐 cPanel credentials
+const CPANEL_USER = "wscreati";
+const CPANEL_PASS = "YOUR_CPANEL_PASSWORD"; // ⚠️ use password OR API token (see note below)
+const CPANEL_HOST = "https://spg1.cloudpowerdns.com:2083";
+
+app.post("/install-wordpress", async (req, res) => {
+  const { domain, admin_user, admin_pass, admin_email, site_name } = req.body;
+
+  try {
+    // Softaculous payload
+    const postData = querystring.stringify({
+      soft: 26, // WordPress
+      act: "install",
+      protocol: "https://",
+      domain: domain,
+      dir: "",
+
+      admin_username: admin_user,
+      admin_pass: admin_pass,
+      admin_email: admin_email,
+
+      site_name: site_name || "My WordPress Site",
+
+      // recommended defaults
+      dbprefix: "wp_",
+      language: "en",
+      auto_upgrade: "1"
+    });
+
+    console.log("Sending to Softaculous:", postData);
+
+    const response = await fetch(
+      `${CPANEL_HOST}/frontend/paper_lantern/softaculous/index.live.php?api=serialize`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": "Basic " + Buffer.from(`${CPANEL_USER}:${CPANEL_PASS}`).toString("base64"),
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: postData
+      }
+    );
+
+    const text = await response.text();
+    console.log("Softaculous Raw Response:", text);
+
+    // Softaculous returns serialized data, so just check success keyword
+    if (text.includes("done")) {
+      res.json({
+        success: true,
+        message: "✅ WordPress Installed Successfully!"
+      });
+    } else {
+      res.json({
+        success: false,
+        message: "❌ Installation failed",
+        raw: text
+      });
+    }
+
+  } catch (err) {
+    res.json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+app.listen(3000, () => console.log("Server running on port 3000"));
