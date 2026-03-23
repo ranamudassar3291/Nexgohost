@@ -1,0 +1,181 @@
+Fix billing, renew system, domain management UI, and DNS routing issues. Do NOT rebuild. Fix existing logic only.
+
+========================
+1. BLOCK MANAGEMENT FOR PENDING SERVICES
+========================
+
+If domain or hosting status = "pending":
+
+- Disable ALL management actions:
+   - DNS
+   - Nameservers
+   - WordPress
+   - SSL
+   - File Manager
+
+- Show message:
+  "Service is pending. Complete payment to manage."
+
+========================
+2. DOMAIN RENEW FIX (CRITICAL)
+========================
+
+When user clicks "Renew Domain":
+
+STEP 1:
+- Extract TLD:
+  const tld = "." + domain.split('.').pop();
+
+STEP 2:
+- Fetch price from TLD table:
+  const pricing = await TLD.findOne({ extension: tld });
+
+STEP 3:
+- Use ONLY:
+  pricing.renewPrice
+
+========================
+3. ADD TO CART SYSTEM
+========================
+
+On renew click:
+
+- Add to cart:
+{
+  type: "domain_renew",
+  domain,
+  price: pricing.renewPrice,
+  years: 1
+}
+
+- Redirect to cart page
+
+========================
+4. CART → ORDER → INVOICE FLOW
+========================
+
+On "Place Order":
+
+1. Create Order:
+   - type: renew
+   - domain/service
+   - price
+
+2. Create Invoice:
+   - items
+   - total price
+   - status: unpaid
+
+3. Link invoice to order
+
+4. Show invoice page to client
+
+========================
+5. HOSTING RENEW FIX
+========================
+
+Issue:
+Wrong price showing
+
+Fix:
+
+- Fetch from package/service table:
+  service.price OR package.price
+
+- DO NOT use hardcoded value
+
+========================
+6. INVOICE PRICE FIX
+========================
+
+Invoice must show:
+
+- Correct item price
+- Correct total
+- Match cart value EXACTLY
+
+========================
+7. ADMIN PANEL FIX
+========================
+
+Admin must see:
+
+- Renew orders
+- Type: domain renew / hosting renew
+- Status
+- Amount
+
+========================
+8. DOMAIN MANAGE POPUP UI
+========================
+
+Fix UI:
+
+- Replace inline options with modal popup
+
+When clicking:
+👉 "Manage Domain"
+
+Open modal with:
+
+- Renew Domain
+- Nameservers
+- DNS Management
+- Get EPP Code
+- Transfer Lock toggle
+
+========================
+9. DNS 404 ERROR FIX (CRITICAL)
+========================
+
+Issue:
+DNS page gives 404
+
+Fix:
+
+- Check route:
+  /domains/:id/dns
+
+- Ensure:
+  route exists in backend
+  controller exists
+  API returns data
+
+If using Cloudflare:
+- Fetch DNS records properly
+
+If no DNS:
+- Return empty array, NOT 404
+
+========================
+10. ERROR HANDLING
+========================
+
+- NEVER return 404 for valid domain
+- Return:
+  { success: true, records: [] }
+
+========================
+11. DEBUG LOGS
+========================
+
+console.log("RENEW DEBUG:", {
+  domain,
+  price,
+  cart,
+  invoice
+});
+
+========================
+GOAL
+========================
+
+Fix:
+
+- Pending services not manageable
+- Domain renew uses correct TLD price
+- Hosting renew shows correct price
+- Cart → order → invoice works
+- Admin sees renew orders
+- Domain manage popup UI
+- DNS page works (no 404)

@@ -1,12 +1,28 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable } from "@workspace/db/schema";
+import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
 import { provisionHostingService } from "../lib/provision.js";
 
 const router = Router();
+
+async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
+  if (order.type !== "renewal" || !order.itemId) return;
+  const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, order.itemId)).limit(1);
+  if (!domain) return;
+  const current = domain.expiryDate ? new Date(domain.expiryDate) : new Date();
+  const extended = new Date(current);
+  extended.setFullYear(extended.getFullYear() + 1);
+  await db.update(domainsTable)
+    .set({ expiryDate: extended.toISOString().split("T")[0], status: "active", updatedAt: new Date() })
+    .where(eq(domainsTable.id, domain.id));
+  await db.update(ordersTable)
+    .set({ status: "approved", updatedAt: new Date() })
+    .where(eq(ordersTable.id, order.id));
+  console.log(`[RENEWAL] Domain ${domain.name}${domain.tld} renewed → new expiry ${extended.toISOString().split("T")[0]}`);
+}
 
 let invoiceCounter = 1000;
 
@@ -150,6 +166,14 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
       .where(eq(invoicesTable.id, req.params.id))
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    // Handle downstream: renewal order → extend domain expiry, hosting → provision
+    try {
+      const [order] = updated.orderId
+        ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
+        : [];
+      if (order?.type === "renewal") await processRenewalOrder(order);
+      else if (order?.type === "hosting") await provisionHostingService(order, updated);
+    } catch { /* non-blocking */ }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
   } catch (err) {
@@ -277,14 +301,13 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
 
     console.log(`[CREDITS] Invoice ${invoice.invoiceNumber} paid with credits by ${userId}. New balance: Rs. ${newBalance}`);
 
-    // Provision hosting if applicable
+    // Provision hosting or process renewal if applicable
     try {
       const [order] = updated.orderId
         ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
         : [];
-      if (order?.type === "hosting") {
-        await provisionHostingService(order, updated);
-      }
+      if (order?.type === "renewal") await processRenewalOrder(order);
+      else if (order?.type === "hosting") await provisionHostingService(order, updated);
     } catch { /* non-blocking */ }
 
     // Send paid email

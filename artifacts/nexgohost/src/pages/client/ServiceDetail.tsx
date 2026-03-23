@@ -9,7 +9,7 @@ import {
   Server, Globe, Shield, Calendar, HardDrive, Activity,
   ShieldCheck, ShieldX, ExternalLink, ArrowLeft, RefreshCw,
   KeyRound, Loader2, LayoutGrid, Eye, EyeOff, CheckCircle2,
-  AlertTriangle, X, XCircle, ArrowUpCircle, CheckCircle,
+  AlertTriangle, AlertCircle, X, XCircle, ArrowUpCircle, CheckCircle,
   Lock, ChevronDown, ChevronUp, Network, Plus, Trash2, Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -760,6 +760,20 @@ export default function ServiceDetail() {
           SSL {service.sslStatus === "active" || service.sslStatus === "installed" ? "Active" : "Not Installed"}
         </div>
       </div>
+
+      {/* Pending payment banner */}
+      {service.status === "pending" && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+          <AlertCircle size={18} className="text-yellow-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-yellow-400">Service pending — payment required</p>
+            <p className="text-xs text-muted-foreground mt-0.5">All management features are disabled until payment is complete. View your invoice to pay and activate this service.</p>
+          </div>
+          <button onClick={() => setLocation("/client/invoices")} className="shrink-0 text-xs font-medium text-yellow-400 hover:text-yellow-300 underline underline-offset-2">
+            View invoices
+          </button>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl border border-border/50 w-fit">

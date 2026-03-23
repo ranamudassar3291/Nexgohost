@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable } from "@workspace/db/schema";
+import { eq, sql, and } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
@@ -331,6 +331,131 @@ router.put("/domains/:id/auto-renew", authenticate, async (req: AuthRequest, res
     const [updated] = await db.update(domainsTable).set({ autoRenew: autoRenew ?? !domain.autoRenew }).where(eq(domainsTable.id, req.params.id)).returning();
     res.json(formatDomain(updated, ""));
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Client: renew domain — creates order + unpaid invoice using TLD renewal price
+router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const [domain] = await db.select().from(domainsTable)
+      .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+    if (domain.status === "cancelled" || domain.status === "transferred") {
+      res.status(400).json({ error: `Cannot renew a ${domain.status} domain` }); return;
+    }
+
+    const tld = domain.tld;
+    const [pricing] = await db.select().from(domainExtensionsTable)
+      .where(eq(domainExtensionsTable.extension, tld)).limit(1);
+    if (!pricing) { res.status(400).json({ error: `No pricing found for ${tld}` }); return; }
+
+    const renewPrice = Number(pricing.renewalPrice);
+    const domainFqdn = `${domain.name}${domain.tld}`;
+
+    console.log("RENEW DEBUG:", { domain: domainFqdn, tld, price: renewPrice });
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+
+    const [order] = await db.insert(ordersTable).values({
+      clientId,
+      type: "renewal",
+      itemId: domain.id,
+      itemName: `${domainFqdn} - Domain Renewal (1 year)`,
+      amount: String(renewPrice),
+      status: "pending",
+      notes: `Domain renewal for ${domainFqdn}`,
+    }).returning();
+
+    const invoiceNumber = generateInvoiceNumber();
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 7);
+
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber,
+      clientId,
+      orderId: order.id,
+      amount: String(renewPrice),
+      tax: "0",
+      total: String(renewPrice),
+      status: "unpaid",
+      dueDate,
+      items: [{ description: `${domainFqdn} - Domain Renewal (1 year)`, quantity: 1, unitPrice: renewPrice, total: renewPrice }],
+    } as any).returning();
+
+    console.log("RENEW DEBUG:", { domain: domainFqdn, price: renewPrice, invoiceId: invoice.id, invoiceNumber });
+
+    res.json({
+      success: true,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      amount: renewPrice,
+      domain: domainFqdn,
+    });
+  } catch (err: any) {
+    console.error("[DOMAIN RENEW]", err);
+    res.status(500).json({ error: err.message || "Server error" });
+  }
+});
+
+// Client: get DNS records for own domain
+router.get("/domains/:id/dns", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const [domain] = await db.select().from(domainsTable)
+      .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+    const records = await db.select().from(dnsRecordsTable)
+      .where(eq(dnsRecordsTable.serviceId, domain.id));
+    res.json({ success: true, records });
+  } catch (err: any) {
+    console.error("[DNS]", err);
+    res.status(500).json({ error: err.message || "Server error" });
+  }
+});
+
+// Client: add DNS record for own domain
+router.post("/domains/:id/dns", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const [domain] = await db.select().from(domainsTable)
+      .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+    if (domain.status === "pending") { res.status(400).json({ error: "Cannot manage DNS for a pending domain" }); return; }
+
+    const { type, name, value, ttl = 3600, priority } = req.body;
+    if (!type || !name || !value) { res.status(400).json({ error: "type, name, and value are required" }); return; }
+
+    const [record] = await db.insert(dnsRecordsTable).values({
+      serviceId: domain.id,
+      domain: `${domain.name}${domain.tld}`,
+      type: type.toUpperCase(),
+      name,
+      value,
+      ttl: Number(ttl),
+      priority: priority ? Number(priority) : null,
+    }).returning();
+    res.json({ success: true, record });
+  } catch (err: any) {
+    console.error("[DNS]", err);
+    res.status(500).json({ error: err.message || "Server error" });
+  }
+});
+
+// Client: delete DNS record for own domain
+router.delete("/domains/:id/dns/:recordId", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const [domain] = await db.select().from(domainsTable)
+      .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+
+    await db.delete(dnsRecordsTable)
+      .where(and(eq(dnsRecordsTable.id, req.params.recordId), eq(dnsRecordsTable.serviceId, domain.id)));
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[DNS]", err);
+    res.status(500).json({ error: err.message || "Server error" });
+  }
 });
 
 // Client: get my domains
