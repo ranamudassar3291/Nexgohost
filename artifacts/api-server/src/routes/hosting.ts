@@ -1350,8 +1350,14 @@ router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: Auth
   }
 });
 
-// POST /client/hosting/:id/install-wordpress — start async WordPress provisioning
+// POST /client/hosting/:id/install-wordpress
+// Synchronous controller — awaits every step (DB creation, file extraction, wp-config write)
+// before responding. Returns 200 + credentials on success, or the EXACT error on failure.
+// The client-side polling loop (/wordpress-status) runs in parallel and drives the progress bar.
 router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: AuthRequest, res) => {
+  // Extend socket timeout for this route to 5 minutes — WordPress download can take ~60 s on slow VPS
+  res.socket?.setTimeout(300_000);
+
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -1379,57 +1385,91 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
     if (service.wpProvisionStatus === "provisioning" || service.wpProvisionStatus === "queued") {
       return res.status(409).json({ error: "WordPress installation is already in progress" });
     }
-    // Block duplicate installs — already installed and active in DB
+
+    // Already installed — return existing credentials immediately
     if (service.wpInstalled && service.wpProvisionStatus === "active") {
       return res.status(409).json({
         error: "WordPress is already installed on this service.",
         alreadyInstalled: true,
         credentials: {
-          loginUrl: service.wpUrl,
-          username: service.wpUsername,
+          loginUrl:  service.wpUrl,
+          username:  service.wpUsername,
           siteTitle: service.wpSiteTitle,
         },
       });
     }
 
-    // Use the values the user provided; only auto-generate if left blank
-    const wpUser = adminUsername?.trim() || generateWpUsername(service.domain);
-    const wpPass = adminPassword?.trim() || generateWpPassword();
-    const wpEmail = adminEmail?.trim() || `admin@${service.domain}`;
+    // Use the values the client provided — only auto-generate when left blank
+    const wpUser  = adminUsername?.trim() || generateWpUsername(service.domain);
+    const wpPass  = adminPassword?.trim() || generateWpPassword();
+    const wpEmail = adminEmail?.trim()    || `admin@${service.domain}`;
 
-    console.log(`[WP] Install queued for service ${id} | domain=${service.domain} | user=${wpUser} | email=${wpEmail} | path=${installPath}`);
+    console.log(`[WP] Install starting for service ${id} | domain=${service.domain} | user=${wpUser} | email=${wpEmail} | path=${installPath}`);
 
+    // Write initial state so the polling endpoint sees "provisioning" immediately
     await db.update(hostingServicesTable).set({
       wpProvisionStatus: "queued",
-      wpProvisionStep: "Queued",
-      wpProvisionError: null,
-      wpInstalled: false,
-      wpUsername: wpUser,
-      wpPassword: wpPass,
-      wpEmail: wpEmail,
-      wpSiteTitle: siteTitle,
-      wpInstallPath: installPath,
-      updatedAt: new Date(),
+      wpProvisionStep:   "Queued",
+      wpProvisionError:  null,
+      wpInstalled:       false,
+      wpUsername:        wpUser,
+      wpPassword:        wpPass,
+      wpEmail:           wpEmail,
+      wpSiteTitle:       siteTitle,
+      wpInstallPath:     installPath,
+      updatedAt:         new Date(),
     }).where(eq(hostingServicesTable.id, id));
 
-    // Run provisioning in background — response returns immediately so client can poll
-    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath)
-      .catch(err => console.error("[WP] Background provisioner threw:", err));
+    // ── SYNCHRONOUS PROVISION ─────────────────────────────────────────────────
+    // provisionWordPress handles every real action:
+    //   Pre-flight → mkdir → download (wget/curl) → extract (unzip) → move files
+    //   → CREATE DATABASE + USER + GRANT → write wp-config.php → chmod → verify
+    // It writes the final status (active | failed) + any error message to the DB
+    // before returning.  We then re-read the row to build the response.
+    await provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
 
-    res.json({
+    // Re-read the updated row — provisionWordPress wrote the definitive state
+    const [updated] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+
+    if (!updated || updated.wpProvisionStatus === "failed") {
+      const errorMsg = (updated as any)?.wpProvisionError || "Installation failed — no further details available.";
+      console.error(`[WP] Install returned failed status for ${id}: ${errorMsg}`);
+      return res.status(500).json({
+        success: false,
+        error: errorMsg,
+      });
+    }
+
+    // ── All steps succeeded — return credentials ──────────────────────────────
+    console.log(`[WP] Install completed successfully for ${id}`);
+    return res.json({
       success: true,
-      queued: true,
-      generatedUsername: wpUser,
-      message: "WordPress installation started. Poll /wordpress-status for progress.",
+      installed: true,
+      credentials: {
+        loginUrl:    updated.wpUrl,
+        username:    updated.wpUsername,
+        password:    updated.wpPassword,
+        email:       updated.wpEmail,
+        siteTitle:   updated.wpSiteTitle,
+        installPath: updated.wpInstallPath,
+        dbName:      updated.wpDbName,
+      },
     });
-  } catch (err) {
-    console.error("[CLIENT] install-wordpress error:", err);
-    res.status(500).json({ error: "Server error" });
+
+  } catch (err: any) {
+    const msg = err?.message || "Unexpected server error during WordPress installation";
+    console.error("[CLIENT] install-wordpress unhandled error:", msg);
+    return res.status(500).json({ error: msg });
   }
 });
 
-// POST /client/hosting/:id/reinstall-wordpress — wipe and reinstall WordPress
+// POST /client/hosting/:id/reinstall-wordpress
+// Synchronous — drops old DB/files, runs full provision, waits for completion,
+// returns credentials on success or the exact error on failure.
 router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req: AuthRequest, res) => {
+  res.socket?.setTimeout(300_000);
+
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -1450,19 +1490,42 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
       return res.status(409).json({ error: "An installation is already in progress" });
     }
 
-    const wpUser = adminUsername?.trim() || generateWpUsername(service.domain);
-    const wpPass = adminPassword?.trim() || generateWpPassword();
-    const wpEmail = adminEmail?.trim() || `admin@${service.domain}`;
+    const wpUser  = adminUsername?.trim() || generateWpUsername(service.domain);
+    const wpPass  = adminPassword?.trim() || generateWpPassword();
+    const wpEmail = adminEmail?.trim()    || `admin@${service.domain}`;
 
-    console.log(`[WP] Reinstall queued for service ${id} | domain=${service.domain}`);
+    console.log(`[WP] Reinstall starting for service ${id} | domain=${service.domain}`);
 
-    reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath)
-      .catch(err => console.error("[WP] Background reinstaller threw:", err));
+    // Wipes old DB + files, then runs full synchronous provision
+    await reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
 
-    res.json({ success: true, queued: true, message: "WordPress reinstall started." });
-  } catch (err) {
-    console.error("[CLIENT] reinstall-wordpress error:", err);
-    res.status(500).json({ error: "Server error" });
+    // Re-read to get the definitive final state
+    const [updated] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+
+    if (!updated || updated.wpProvisionStatus === "failed") {
+      const errorMsg = (updated as any)?.wpProvisionError || "Reinstall failed — no further details available.";
+      console.error(`[WP] Reinstall returned failed status for ${id}: ${errorMsg}`);
+      return res.status(500).json({ success: false, error: errorMsg });
+    }
+
+    return res.json({
+      success: true,
+      installed: true,
+      credentials: {
+        loginUrl:    updated.wpUrl,
+        username:    updated.wpUsername,
+        password:    updated.wpPassword,
+        email:       updated.wpEmail,
+        siteTitle:   updated.wpSiteTitle,
+        installPath: updated.wpInstallPath,
+        dbName:      updated.wpDbName,
+      },
+    });
+  } catch (err: any) {
+    const msg = err?.message || "Unexpected server error during WordPress reinstall";
+    console.error("[CLIENT] reinstall-wordpress unhandled error:", msg);
+    return res.status(500).json({ error: msg });
   }
 });
 

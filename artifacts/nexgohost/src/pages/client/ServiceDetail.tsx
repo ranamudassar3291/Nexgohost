@@ -326,6 +326,12 @@ export default function ServiceDetail() {
   async function handleInstallWordPress() {
     if (!service) return;
     setWpLoading(true);
+
+    // Start the progress bar immediately — the POST is now synchronous and may
+    // take up to ~2 minutes on a real VPS. Polling keeps the UI alive during that time.
+    setWpProvisionData({ status: "queued", step: "Queued", error: null });
+    setWpPolling(true);
+
     try {
       const res = await authFetch(`/api/client/hosting/${service.id}/install-wordpress`, {
         method: "POST",
@@ -339,9 +345,10 @@ export default function ServiceDetail() {
         }),
       });
       const data = await res.json();
+
       // Already installed — jump straight to credentials view
       if (res.status === 409 && data.alreadyInstalled) {
-        // Re-fetch the status so we get full credentials from DB
+        setWpPolling(false);
         const statusRes = await authFetch(`/api/client/hosting/${service.id}/wordpress-status`);
         if (statusRes.ok) {
           const statusData = await statusRes.json();
@@ -349,18 +356,54 @@ export default function ServiceDetail() {
         }
         return;
       }
-      if (!res.ok) throw new Error(data.error || "Installation failed");
-      setWpProvisionData({ status: "queued", step: "Queued", error: null });
-      setWpPolling(true);
+
+      if (!res.ok) {
+        // Exact error returned synchronously from the server
+        const errorMsg = data.error || "Installation failed";
+        setWpPolling(false);
+        setWpProvisionData({ status: "failed", step: null, error: errorMsg });
+        toast({ title: "Installation failed", description: errorMsg, variant: "destructive" });
+        return;
+      }
+
+      // POST returned 200 with credentials — installation fully complete
+      if (data.installed && data.credentials) {
+        setWpPolling(false);
+        setWpProvisionData({
+          status: "active",
+          step: "Completed",
+          error: null,
+          credentials: {
+            loginUrl:    data.credentials.loginUrl,
+            username:    data.credentials.username,
+            password:    data.credentials.password,
+            email:       data.credentials.email,
+            siteTitle:   data.credentials.siteTitle,
+            installPath: data.credentials.installPath,
+          },
+        });
+        toast({ title: "WordPress Installed", description: "Your WordPress site is ready!" });
+        fetchService();
+      }
+      // If server returned success but no credentials yet, polling will pick it up
     } catch (e: any) {
+      setWpPolling(false);
+      setWpProvisionData({ status: "failed", step: null, error: e.message });
       toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setWpLoading(false); }
+    } finally {
+      setWpLoading(false);
+    }
   }
 
   async function handleReinstallWordPress() {
     if (!service) return;
     setWpReinstallLoading(true);
     setShowReinstallConfirm(false);
+
+    // Start progress bar immediately — POST is synchronous
+    setWpProvisionData({ status: "queued", step: "Queued", error: null });
+    setWpPolling(true);
+
     try {
       const res = await authFetch(`/api/client/hosting/${service.id}/reinstall-wordpress`, {
         method: "POST",
@@ -374,13 +417,40 @@ export default function ServiceDetail() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Reinstall failed");
-      setWpProvisionData({ status: "queued", step: "Queued", error: null });
-      setWpPolling(true);
-      toast({ title: "Reinstall started", description: "WordPress is being reinstalled. Previous installation will be replaced." });
+
+      if (!res.ok) {
+        const errorMsg = data.error || "Reinstall failed";
+        setWpPolling(false);
+        setWpProvisionData({ status: "failed", step: null, error: errorMsg });
+        toast({ title: "Reinstall failed", description: errorMsg, variant: "destructive" });
+        return;
+      }
+
+      if (data.installed && data.credentials) {
+        setWpPolling(false);
+        setWpProvisionData({
+          status: "active",
+          step: "Completed",
+          error: null,
+          credentials: {
+            loginUrl:    data.credentials.loginUrl,
+            username:    data.credentials.username,
+            password:    data.credentials.password,
+            email:       data.credentials.email,
+            siteTitle:   data.credentials.siteTitle,
+            installPath: data.credentials.installPath,
+          },
+        });
+        toast({ title: "WordPress Reinstalled", description: "Your site has been reinstalled successfully." });
+        fetchService();
+      }
     } catch (e: any) {
+      setWpPolling(false);
+      setWpProvisionData({ status: "failed", step: null, error: e.message });
       toast({ title: "Reinstall failed", description: e.message, variant: "destructive" });
-    } finally { setWpReinstallLoading(false); }
+    } finally {
+      setWpReinstallLoading(false);
+    }
   }
 
   async function handleChangePassword() {
