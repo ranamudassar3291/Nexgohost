@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable } from "@workspace/db/schema";
+import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
@@ -172,7 +172,11 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
         ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
         : [];
       if (order?.type === "renewal") await processRenewalOrder(order);
-      else if (order?.type === "hosting") await provisionHostingService(order, updated);
+      else if (order?.type === "hosting") {
+        const [svc] = await db.select().from(hostingServicesTable)
+          .where(eq(hostingServicesTable.orderId, order.id)).limit(1);
+        if (svc) await provisionHostingService(svc.id);
+      }
     } catch { /* non-blocking */ }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
@@ -307,7 +311,11 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
         ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
         : [];
       if (order?.type === "renewal") await processRenewalOrder(order);
-      else if (order?.type === "hosting") await provisionHostingService(order, updated);
+      else if (order?.type === "hosting") {
+        const [svc] = await db.select().from(hostingServicesTable)
+          .where(eq(hostingServicesTable.orderId, order.id)).limit(1);
+        if (svc) await provisionHostingService(svc.id);
+      }
     } catch { /* non-blocking */ }
 
     // Send paid email

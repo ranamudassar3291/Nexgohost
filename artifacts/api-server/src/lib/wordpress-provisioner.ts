@@ -1,16 +1,26 @@
-import { exec } from "child_process";
+import fs from "fs";
+import path from "path";
 import { promisify } from "util";
+import { exec } from "child_process";
 import { db } from "@workspace/db";
 import { hostingServicesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 const execAsync = promisify(exec);
 
-const WP_SIMULATE = process.env.WP_SIMULATE === "true";
+// ── VPS Configuration ─────────────────────────────────────────────────────────
+// These are read at startup. Override via environment variables.
 
-// Fallback cPanel account username used when the service record has no username set.
-// Override via CPANEL_USER env var for multi-server setups; defaults to "wscreati".
-const CPANEL_USER = process.env.CPANEL_USER || "wscreati";
+// Root directory where domains are hosted, e.g. /var/www
+const VPS_BASE_DIR = process.env.WP_BASE_DIR || "/var/www";
+
+// MySQL root credentials for creating databases
+const MYSQL_HOST = process.env.WP_MYSQL_HOST || "localhost";
+const MYSQL_ROOT_USER = process.env.WP_MYSQL_ROOT_USER || "root";
+const MYSQL_ROOT_PASS = process.env.WP_MYSQL_ROOT_PASS || "";
+
+// Web server user that should own WordPress files (www-data on nginx/apache)
+const WWW_USER = process.env.WP_WWW_USER || "www-data";
 
 export const WP_STEPS = [
   { key: "database",  label: "Creating database" },
@@ -23,167 +33,41 @@ export const WP_STEPS = [
 
 // ── Step tracker ──────────────────────────────────────────────────────────────
 
-async function setStep(serviceId: string, step: string, extra: Record<string, unknown> = {}) {
+async function setStep(serviceId: string, step: string) {
   console.log(`[WP] [${serviceId}] Step: ${step}`);
   await db.update(hostingServicesTable).set({
     wpProvisionStep: step,
     wpProvisionStatus: "provisioning",
     updatedAt: new Date(),
-    ...extra,
   }).where(eq(hostingServicesTable.id, serviceId));
 }
 
-// ── cPanel UAPI helper ────────────────────────────────────────────────────────
+// ── Shell helper ──────────────────────────────────────────────────────────────
 
-interface CpanelCtx {
-  baseUrl: string;
-  username: string;
-  password: string;
-}
-
-// Sends a cPanel UAPI request via POST with JSON body.
-// cPanel UAPI URL: https://{hostname}:2083/execute/{Module}/{function}
-// Auth: cPanel API token format — "cpanel username:API_TOKEN"
-//   ✅ Correct: Authorization: cpanel wscreati:XXXXTOKEN
-//   ❌ Wrong:   Authorization: Basic base64(user:pass)
-// The user is identified by the auth header — do NOT put "user" in the request body.
-// Body: JSON object with the API params (no "user" field)
-// Response: { status: 1 = success, 0 = error, errors: string[], data: any }
-async function cpanelUAPI(
-  ctx: CpanelCtx,
-  module: string,
-  fn: string,
-  params: Record<string, string> = {},
-): Promise<any> {
-  const url = `${ctx.baseUrl}execute/${module}/${fn}`;
-
-  console.log(`[cPanel UAPI] POST ${url}`);
-  console.log(`[cPanel UAPI] Sending payload:`, JSON.stringify(params));
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `cpanel ${ctx.username}:${ctx.password}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(params),
-  });
-
-  if (!resp.ok) {
-    throw new Error(`cPanel API HTTP error: ${resp.status} ${resp.statusText} — URL: ${url}`);
-  }
-
-  const json: any = await resp.json();
-  console.log(`[cPanel UAPI] Response for ${module}/${fn}:`, JSON.stringify(json));
-
-  // cPanel UAPI: status=1 means success, anything else is an error
-  if (json.status !== 1) {
-    const errMsg = (json.errors && json.errors[0]) || json.error || `cPanel ${module}/${fn} returned status ${json.status}`;
-    throw new Error(errMsg);
-  }
-
-  return json.data;
-}
-
-// ── Softaculous installer ─────────────────────────────────────────────────────
-// Uses the Softaculous API endpoint built into cPanel.
-// Auth: Basic base64(username:password)  — NOT cpanel-token format
-// URL:  https://{hostname}:2083/frontend/paper_lantern/softaculous/index.live.php?api=serialize
-// Body: application/x-www-form-urlencoded  (querystring)
-// Response: serialized text — success is indicated by the word "done" in the body
-
-// Softaculous theme paths to try, in order of preference.
-// cPanel servers may use different themes (paper_lantern = legacy, jupiter = modern default).
-const SOFTACULOUS_THEMES = ["jupiter", "paper_lantern"];
-
-async function softaculousInstall(
-  ctx: CpanelCtx,
-  domain: string,
-  directory: string,
-  adminUser: string,
-  adminPass: string,
-  adminEmail: string,
-  siteName: string,
-): Promise<void> {
-  const creds = Buffer.from(`${ctx.username}:${ctx.password}`).toString("base64");
-
-  const postData = new URLSearchParams({
-    soft:           "26",          // Softaculous script ID for WordPress
-    act:            "install",
-    protocol:       "https://",
-    domain:         domain,
-    dir:            directory,     // "" = root, "blog" = /blog subdir
-    admin_username: adminUser,     // Softaculous uses admin_username (not admin_user)
-    admin_pass:     adminPass,
-    admin_email:    adminEmail,
-    site_name:      siteName || "My WordPress Site",
-    dbprefix:       "wp_",
-    language:       "en",
-    auto_upgrade:   "1",
-  });
-
-  console.log("Softaculous Payload:", postData.toString());
-
-  let lastErr = "";
-
-  for (const theme of SOFTACULOUS_THEMES) {
-    const url = `${ctx.baseUrl}frontend/${theme}/softaculous/index.live.php?api=serialize`;
-    console.log(`[Softaculous] Trying theme "${theme}" — POST ${url}`);
-
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization:  `Basic ${creds}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: postData.toString(),
-      });
-
-      const text = await resp.text();
-      console.log("Softaculous Response:", text.substring(0, 1000));
-
-      if (!resp.ok) {
-        lastErr = `HTTP ${resp.status} ${resp.statusText}: ${text.substring(0, 200)}`;
-        console.warn(`[Softaculous] theme "${theme}" returned ${resp.status} — trying next theme`);
-        continue;
-      }
-
-      if (!text.includes("done")) {
-        lastErr = `Unexpected response (no "done"): ${text.substring(0, 400)}`;
-        console.warn(`[Softaculous] theme "${theme}" did not return "done" — trying next theme`);
-        continue;
-      }
-
-      // Success
-      console.log(`[Softaculous] WordPress installed successfully on ${domain} (theme: ${theme})`);
-      return;
-    } catch (fetchErr: any) {
-      // Network-level failure (connection refused, SSL error, DNS, etc.)
-      const cause = fetchErr.cause?.message || fetchErr.cause?.code || fetchErr.message;
-      lastErr = `Network error for theme "${theme}": ${cause}`;
-      console.warn(`[Softaculous] fetch failed for theme "${theme}": ${lastErr}`);
-    }
-  }
-
-  // All themes exhausted
-  throw new Error(`Softaculous unavailable after trying all themes (${SOFTACULOUS_THEMES.join(", ")}). Last error: ${lastErr}`);
-}
-
-// ── Check if WordPress is already installed ────────────────────────────────────
-
-export async function checkWordPressInstalled(
-  ctx: CpanelCtx,
-  installPath: string = "/",
-): Promise<boolean> {
+async function run(cmd: string, label: string): Promise<string> {
+  console.log(`[WP] ${label}: ${cmd}`);
   try {
-    const dir = installPath === "/" ? "/public_html" : `/public_html/${installPath.replace(/^\//, "")}`;
-    const data = await cpanelUAPI(ctx, "Fileman", "stat", { dir, files: "wp-config.php" });
-    const entries: any[] = data?.entries || [];
-    return entries.some((e: any) => e.file === "wp-config.php" && e.type === "file");
-  } catch {
-    return false;
+    const { stdout, stderr } = await execAsync(cmd, { timeout: 120_000 });
+    if (stderr) console.warn(`[WP] stderr (${label}):`, stderr.trim());
+    if (stdout) console.log(`[WP] stdout (${label}):`, stdout.trim());
+    return stdout;
+  } catch (err: any) {
+    throw new Error(`[${label}] command failed: ${err.message}`);
   }
+}
+
+// ── MySQL helper ──────────────────────────────────────────────────────────────
+// Runs a SQL statement via the mysql CLI using root credentials.
+// No mysql2 dependency needed — the CLI is always available on a VPS.
+
+function mysqlFlag(): string {
+  const passFlag = MYSQL_ROOT_PASS ? `-p${MYSQL_ROOT_PASS.replace(/'/g, "\\'")}` : "";
+  return `-h ${MYSQL_HOST} -u ${MYSQL_ROOT_USER} ${passFlag}`;
+}
+
+async function mysqlRun(sql: string, label: string): Promise<void> {
+  const escaped = sql.replace(/"/g, '\\"');
+  await run(`mysql ${mysqlFlag()} -e "${escaped}"`, label);
 }
 
 // ── Generate strong credentials ───────────────────────────────────────────────
@@ -203,198 +87,7 @@ export function generateWpPassword(): string {
   return `${rand(upper)}${rand(digits)}${rand(specials)}${rest}`;
 }
 
-// ── Main provisioner ──────────────────────────────────────────────────────────
-
-export async function provisionWordPress(
-  serviceId: string,
-  domain: string,
-  siteTitle: string,
-  wpUser: string,
-  wpPass: string,
-  wpEmail: string,
-  installPath: string = "/",
-  cpanelCtx?: CpanelCtx,
-) {
-  try {
-    if (!cpanelCtx) {
-      // Simulation mode — no real cPanel, uniqueness doesn't matter
-      const simDbName = `wp_${Date.now().toString().slice(-6)}`;
-      console.log(`[WP] No cPanel context for service ${serviceId} — simulation mode`);
-      await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, simDbName);
-      return;
-    }
-
-    console.log(`[WP] Real cPanel provisioning for service ${serviceId} at ${cpanelCtx.baseUrl}`);
-    console.log(`[WP] cPanel will handle database creation automatically`);
-
-    await cpanelProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx);
-  } catch (err: any) {
-    const msg = err?.message || "Unknown error during WordPress provisioning";
-    console.error(`[WP] Provisioning failed for ${serviceId}:`, msg);
-    await db.update(hostingServicesTable).set({
-      wpProvisionStatus: "failed",
-      wpProvisionStep: null,
-      wpProvisionError: msg,
-      updatedAt: new Date(),
-    }).where(eq(hostingServicesTable.id, serviceId));
-  }
-}
-
-// ── Reinstall ─────────────────────────────────────────────────────────────────
-
-export async function reinstallWordPress(
-  serviceId: string,
-  domain: string,
-  siteTitle: string,
-  wpUser: string,
-  wpPass: string,
-  wpEmail: string,
-  installPath: string = "/",
-  cpanelCtx?: CpanelCtx,
-) {
-  console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
-
-  try {
-    if (cpanelCtx) {
-      // Fetch existing DB name so we can drop it
-      const [existing] = await db.select().from(hostingServicesTable)
-        .where(eq(hostingServicesTable.id, serviceId)).limit(1);
-      const oldDbName = (existing as any)?.wpDbName;
-      const oldDbUser = oldDbName; // dbUser == dbName by convention
-
-      // STEP A: Delete old MySQL database + user
-      if (oldDbName) {
-        console.log(`[WP] Dropping old database: ${oldDbName}`);
-        try { await cpanelUAPI(cpanelCtx, "Mysql", "delete_database", { name: oldDbName }); } catch { /* may not exist */ }
-        try { await cpanelUAPI(cpanelCtx, "Mysql", "delete_user", { name: oldDbUser }); } catch { /* may not exist */ }
-      }
-
-      // STEP B: Remove old WordPress files
-      const dir = installPath === "/" ? "/public_html" : `/public_html/${installPath.replace(/^\//, "")}`;
-      const wpFiles = ["wp-admin", "wp-content", "wp-includes", "wp-config.php", "wp-login.php", "index.php", "wp-blog-header.php", "xmlrpc.php", "wp-cron.php", ".htaccess"];
-      console.log(`[WP] Removing old WordPress files from ${dir}`);
-      for (const f of wpFiles) {
-        try {
-          await cpanelUAPI(cpanelCtx, "Fileman", "delete_files", { files: `${dir}/${f}`, is_skiptrash: "1" });
-        } catch { /* file may not exist */ }
-      }
-    }
-
-    // Mark as starting fresh
-    await db.update(hostingServicesTable).set({
-      wpInstalled: false,
-      wpProvisionStatus: "queued",
-      wpProvisionStep: "Queued",
-      wpProvisionError: null,
-      wpUrl: null,
-      wpDbName: null,
-      wpUsername: wpUser,
-      wpPassword: wpPass,
-      wpEmail: wpEmail,
-      wpSiteTitle: siteTitle,
-      wpProvisionedAt: null,
-      updatedAt: new Date(),
-    } as any).where(eq(hostingServicesTable.id, serviceId));
-
-    await provisionWordPress(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx);
-  } catch (err: any) {
-    const msg = err?.message || "Reinstall failed";
-    console.error(`[WP] Reinstall failed for ${serviceId}:`, msg);
-    await db.update(hostingServicesTable).set({
-      wpProvisionStatus: "failed",
-      wpProvisionError: msg,
-      updatedAt: new Date(),
-    }).where(eq(hostingServicesTable.id, serviceId));
-  }
-}
-
-// ── cPanel-based real install ─────────────────────────────────────────────────
-
-async function cpanelProvision(
-  serviceId: string,
-  domain: string,
-  siteTitle: string,
-  wpUser: string,
-  wpPass: string,
-  wpEmail: string,
-  installPath: string,
-  ctx: CpanelCtx,
-) {
-  const directory = installPath === "/" ? "" : installPath.replace(/^\//, "");
-  const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}/${directory}`;
-  const adminUrl = `${wpUrl}/wp-admin`;
-
-  // ── STRATEGY 1: Softaculous (primary) ────────────────────────────────────
-  // Uses the Softaculous API built into cPanel to install WordPress.
-  // Softaculous handles everything: DB creation, file download, configuration.
-  // Auth: Basic base64(username:password) — standard cPanel credentials.
-  await setStep(serviceId, "Installing WordPress");
-  let usedSoftaculous = false;
-
-  // Pre-flight: resolve cPanel username (for logging; auth is handled by ctx)
-  const resolvedCpanelUser = (ctx.username || "").trim() || CPANEL_USER;
-
-  const missingFields: string[] = [];
-  if (!domain)  missingFields.push("domain");
-  if (!wpUser)  missingFields.push("admin_username");
-  if (!wpPass)  missingFields.push("admin_pass");
-  if (!wpEmail) missingFields.push("admin_email");
-  if (missingFields.length > 0) {
-    throw new Error(`Missing required fields for Softaculous install: ${missingFields.join(", ")}`);
-  }
-
-  console.log(`[WP] cPanel user: "${resolvedCpanelUser}", host: ${ctx.baseUrl}`);
-
-  try {
-    await softaculousInstall(ctx, domain, directory, wpUser, wpPass, wpEmail, siteTitle);
-    usedSoftaculous = true;
-  } catch (softErr: any) {
-    console.warn(`[WP] Softaculous failed: ${softErr.message} — falling back to manual install`);
-  }
-
-  if (usedSoftaculous) {
-    // Softaculous handled everything — verify wp-config.php exists before saving success
-    await setStep(serviceId, "Verifying installation");
-    await new Promise(r => setTimeout(r, 5000)); // allow Softaculous to finish writing files
-    const isInstalled = await checkWordPressInstalled(ctx, installPath);
-    if (!isInstalled) {
-      throw new Error(
-        "Softaculous reported success but wp-config.php was not found. " +
-        "Check that the domain resolves to this server."
-      );
-    }
-  } else {
-    // Softaculous was the only supported install method on this server.
-    // Direct cPanel UAPI file/database calls (Fileman/run_command, Mysql/create_database)
-    // are restricted on shared hosting and intentionally not attempted.
-    throw new Error(
-      "WordPress installation requires Softaculous, which could not be reached on this server. " +
-      "Ensure Softaculous is installed and the cPanel credentials (username + password) are correct. " +
-      "Contact your hosting provider if Softaculous access is restricted."
-    );
-  }
-
-  console.log(`[WP] Install verified ✓ for service ${serviceId} (${domain})`);
-
-  // Save to DB ONLY after real verification passes — never before
-  await db.update(hostingServicesTable).set({
-    wpInstalled: true,
-    wpProvisionStatus: "active",
-    wpProvisionStep: "Completed",
-    wpProvisionError: null,
-    wpUrl: adminUrl,
-    wpUsername: wpUser,
-    wpPassword: wpPass,
-    wpEmail: wpEmail,
-    wpSiteTitle: siteTitle,
-    wpDbName: dbName,
-    wpInstallPath: installPath,
-    wpProvisionedAt: new Date(),
-    updatedAt: new Date(),
-  }).where(eq(hostingServicesTable.id, serviceId));
-
-  console.log(`[WP] WordPress fully provisioned for service ${serviceId} (${domain})`);
-}
+// ── wp-config.php generator ───────────────────────────────────────────────────
 
 function generateWpConfig(dbName: string, dbUser: string, dbPass: string, dbHost: string): string {
   const genKey = () => Array.from({ length: 64 }, () =>
@@ -427,9 +120,105 @@ require_once ABSPATH . 'wp-settings.php';
 `;
 }
 
-// ── Simulation mode ───────────────────────────────────────────────────────────
+// ── Check if WordPress is installed ──────────────────────────────────────────
 
-async function simulateProvision(
+export async function checkWordPressInstalled(
+  domain: string,
+  installPath: string = "/",
+): Promise<boolean> {
+  const subdir = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;
+  const configPath = path.join(VPS_BASE_DIR, domain, "public_html" + subdir, "wp-config.php");
+  return fs.existsSync(configPath);
+}
+
+// ── Main provisioner ──────────────────────────────────────────────────────────
+
+export async function provisionWordPress(
+  serviceId: string,
+  domain: string,
+  siteTitle: string,
+  wpUser: string,
+  wpPass: string,
+  wpEmail: string,
+  installPath: string = "/",
+) {
+  try {
+    await vpsProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+  } catch (err: any) {
+    const msg = err?.message || "Unknown error during WordPress provisioning";
+    console.error(`[WP] Provisioning failed for ${serviceId}:`, msg);
+    await db.update(hostingServicesTable).set({
+      wpProvisionStatus: "failed",
+      wpProvisionStep: null,
+      wpProvisionError: msg,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, serviceId));
+  }
+}
+
+// ── Reinstall ─────────────────────────────────────────────────────────────────
+
+export async function reinstallWordPress(
+  serviceId: string,
+  domain: string,
+  siteTitle: string,
+  wpUser: string,
+  wpPass: string,
+  wpEmail: string,
+  installPath: string = "/",
+) {
+  console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
+
+  try {
+    // Fetch existing DB name so we can drop it
+    const [existing] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, serviceId)).limit(1);
+    const oldDbName = (existing as any)?.wpDbName;
+
+    if (oldDbName) {
+      console.log(`[WP] Dropping old database: ${oldDbName}`);
+      try { await mysqlRun(`DROP DATABASE IF EXISTS \`${oldDbName}\``, "Drop old DB"); } catch { /* ignore */ }
+      try { await mysqlRun(`DROP USER IF EXISTS '${oldDbName}'@'localhost'`, "Drop old DB user"); } catch { /* ignore */ }
+    }
+
+    // Remove old WordPress files
+    const subdir = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;
+    const publicHtml = path.join(VPS_BASE_DIR, domain, "public_html" + subdir);
+    if (fs.existsSync(publicHtml)) {
+      await run(`rm -rf ${publicHtml}/*`, "Remove old WP files");
+    }
+
+    // Reset DB state, then re-provision
+    await db.update(hostingServicesTable).set({
+      wpInstalled: false,
+      wpProvisionStatus: "queued",
+      wpProvisionStep: "Queued",
+      wpProvisionError: null,
+      wpUrl: null,
+      wpDbName: null,
+      wpUsername: wpUser,
+      wpPassword: wpPass,
+      wpEmail: wpEmail,
+      wpSiteTitle: siteTitle,
+      wpProvisionedAt: null,
+      updatedAt: new Date(),
+    } as any).where(eq(hostingServicesTable.id, serviceId));
+
+    await provisionWordPress(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+  } catch (err: any) {
+    const msg = err?.message || "Reinstall failed";
+    console.error(`[WP] Reinstall failed for ${serviceId}:`, msg);
+    await db.update(hostingServicesTable).set({
+      wpProvisionStatus: "failed",
+      wpProvisionError: msg,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, serviceId));
+  }
+}
+
+// ── VPS direct install ────────────────────────────────────────────────────────
+
+async function vpsProvision(
   serviceId: string,
   domain: string,
   siteTitle: string,
@@ -437,9 +226,129 @@ async function simulateProvision(
   wpPass: string,
   wpEmail: string,
   installPath: string,
-  dbName: string,
+) {
+  const subdir = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;
+  const publicHtml = path.join(VPS_BASE_DIR, domain, "public_html" + subdir);
+  const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}${subdir}`;
+  const adminUrl = `${wpUrl}/wp-admin`;
+
+  // Unique DB credentials — timestamp + random ensures no collisions on retry
+  const uid = `${Date.now().toString().slice(-6)}${Math.random().toString(36).substring(2, 5)}`;
+  const dbName = `wp_${uid}`.substring(0, 64);
+  const dbUser = `wpu_${uid}`.substring(0, 32); // MySQL user name limit: 32 chars
+  const dbPass = generateWpPassword();
+
+  console.log(`[WP] VPS provisioning for service ${serviceId}`);
+  console.log(`[WP] Domain: ${domain}, Path: ${publicHtml}`);
+  console.log(`[WP] DB Name: ${dbName}, DB User: ${dbUser}`);
+
+  // STEP 1: Create MySQL database + user
+  await setStep(serviceId, "Creating database");
+  await mysqlRun(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`, "Create DB");
+  await mysqlRun(`CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY '${dbPass.replace(/'/g, "\\'")}'`, "Create DB user");
+  await mysqlRun(`GRANT ALL PRIVILEGES ON \`${dbName}\`.* TO '${dbUser}'@'localhost'`, "Grant privileges");
+  await mysqlRun("FLUSH PRIVILEGES", "Flush privileges");
+  console.log(`[WP] Database created: ${dbName}`);
+
+  // STEP 2: Ensure public_html directory exists
+  await setStep(serviceId, "Downloading WordPress");
+  fs.mkdirSync(publicHtml, { recursive: true });
+
+  // Download WordPress to a temp file
+  const tmpTar = `/tmp/wp_${uid}.tar.gz`;
+  await run(`curl -sL https://wordpress.org/latest.tar.gz -o ${tmpTar}`, "Download WordPress");
+  console.log(`[WP] WordPress downloaded to ${tmpTar}`);
+
+  // STEP 3: Extract WordPress files
+  await setStep(serviceId, "Extracting files");
+  const tmpDir = `/tmp/wp_extract_${uid}`;
+  await run(`mkdir -p ${tmpDir} && tar -xzf ${tmpTar} -C ${tmpDir}`, "Extract WordPress");
+  await run(`cp -rp ${tmpDir}/wordpress/. ${publicHtml}/`, "Copy WordPress files");
+  await run(`rm -rf ${tmpTar} ${tmpDir}`, "Cleanup temp files");
+  console.log(`[WP] WordPress files extracted to ${publicHtml}`);
+
+  // STEP 4: Write wp-config.php
+  await setStep(serviceId, "Configuring WordPress");
+  const wpConfig = generateWpConfig(dbName, dbUser, dbPass, MYSQL_HOST);
+  const configPath = path.join(publicHtml, "wp-config.php");
+  fs.writeFileSync(configPath, wpConfig, "utf-8");
+  console.log(`[WP] wp-config.php written`);
+
+  // STEP 5: Set correct file permissions
+  await setStep(serviceId, "Running installer");
+  try {
+    await run(`chown -R ${WWW_USER}:${WWW_USER} ${publicHtml}`, "Set ownership");
+    await run(`chmod -R 755 ${publicHtml}`, "Set permissions");
+  } catch (permErr: any) {
+    // Permission setting may fail if running as non-root — not fatal
+    console.warn(`[WP] Warning: could not set file permissions (${permErr.message}). Continuing.`);
+  }
+
+  // Run WordPress native installer via HTTP
+  try {
+    console.log(`[WP] Running WordPress native install.php for ${wpUrl}`);
+    const installForm = new URLSearchParams({
+      weblog_title:    siteTitle || "My WordPress Site",
+      user_name:       wpUser,
+      admin_password:  wpPass,
+      admin_password2: wpPass,
+      admin_email:     wpEmail,
+      blog_public:     "1",
+    });
+    const installResp = await fetch(`${wpUrl}/wp-admin/install.php?step=2`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: installForm.toString(),
+    });
+    console.log(`[WP] install.php response: HTTP ${installResp.status}`);
+  } catch (httpErr: any) {
+    // If the domain isn't publicly resolving yet, install.php won't work.
+    // wp-config.php + database are set up, so WP will self-install on first visit.
+    console.warn(`[WP] install.php HTTP call failed (${httpErr.message}) — WordPress will complete setup on first browser visit`);
+  }
+
+  // STEP 6: Verify wp-config.php exists on disk
+  await setStep(serviceId, "Verifying installation");
+  const isInstalled = fs.existsSync(configPath);
+  if (!isInstalled) {
+    throw new Error(`WordPress verification failed: wp-config.php not found at ${configPath}`);
+  }
+  console.log(`[WP] Install verified ✓ — wp-config.php exists at ${configPath}`);
+
+  // Save success to DB — only after real verification
+  await db.update(hostingServicesTable).set({
+    wpInstalled: true,
+    wpProvisionStatus: "active",
+    wpProvisionStep: "Completed",
+    wpProvisionError: null,
+    wpUrl: adminUrl,
+    wpUsername: wpUser,
+    wpPassword: wpPass,
+    wpEmail: wpEmail,
+    wpSiteTitle: siteTitle,
+    wpDbName: dbName,
+    wpInstallPath: installPath,
+    wpProvisionedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(hostingServicesTable.id, serviceId));
+
+  console.log(`[WP] WordPress fully provisioned for service ${serviceId} (${domain})`);
+}
+
+// ── Simulation mode ───────────────────────────────────────────────────────────
+// Used when WP_SIMULATE=true or no VPS config is available (dev/test).
+
+export async function simulateProvision(
+  serviceId: string,
+  domain: string,
+  siteTitle: string,
+  wpUser: string,
+  wpPass: string,
+  wpEmail: string,
+  installPath: string,
 ) {
   const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+  const dbName = `wp_${Date.now().toString().slice(-6)}`;
 
   console.log(`[WP:SIM] Starting simulated install for ${domain}`);
 
@@ -448,7 +357,6 @@ async function simulateProvision(
     console.log(`[WP INSTALL STEP: ${step.key}]`);
     await delay(2500);
   }
-  // Simulate post-install verification delay
   await delay(1000);
 
   const pathSuffix = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;

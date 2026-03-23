@@ -1274,33 +1274,44 @@ router.post("/client/hosting/:id/change-password", authenticate, async (req: Aut
   }
 });
 
-// WordPress auto-installer
+// WordPress auto-installer (admin-triggered)
 router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { adminUser, adminPassword, adminEmail, siteName = "My WordPress Site", path = "/" } = req.body;
+    const { adminUser, adminPassword, adminEmail, siteName = "My WordPress Site", installPath = "/" } = req.body;
     const [service] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, id)).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
     if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
-
-    const wpUser = adminUser || "admin";
-    const wpPass = adminPassword || Math.random().toString(36).slice(-12) + "A1!";
-    const wpEmail = adminEmail || "admin@" + service.domain;
-
-    // If server connected, try real install
-    let serverInstalled = false;
-    if (service.serverId && service.username) {
-      const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
-      // Softaculous/Installatron API needed for server-side WP install
-      serverInstalled = false;
+    if (service.wpProvisionStatus === "provisioning" || service.wpProvisionStatus === "queued") {
+      return res.status(409).json({ error: "WordPress installation is already in progress" });
     }
 
-    const wpLoginUrl = `http://${service.domain}${path === "/" ? "" : path}/wp-admin`;
+    const wpUser = adminUser?.trim() || generateWpUsername(service.domain);
+    const wpPass = adminPassword?.trim() || generateWpPassword();
+    const wpEmail = adminEmail?.trim() || `admin@${service.domain}`;
+
+    await db.update(hostingServicesTable).set({
+      wpProvisionStatus: "queued",
+      wpProvisionStep: "Queued",
+      wpProvisionError: null,
+      wpInstalled: false,
+      wpUsername: wpUser,
+      wpPassword: wpPass,
+      wpEmail: wpEmail,
+      wpSiteTitle: siteName,
+      wpInstallPath: installPath,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id));
+
+    provisionWordPress(id, service.domain, siteName, wpUser, wpPass, wpEmail, installPath)
+      .catch(err => console.error("[WP] Admin provisioner threw:", err));
+
+    const wpLoginUrl = `https://${service.domain}${installPath === "/" ? "" : installPath}/wp-admin`;
     res.json({
       success: true,
-      serverInstalled,
+      queued: true,
       credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl, siteName },
-      message: "WordPress credentials generated. Complete the installation via your control panel's Softaculous/Installatron.",
+      message: "WordPress installation started on VPS. Poll /client/hosting/:id/wordpress-status for progress.",
     });
   } catch (err) {
     console.error("[ADMIN] install-wordpress error:", err);
@@ -1308,29 +1319,7 @@ router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, 
   }
 });
 
-// ── Helper: build cPanel UAPI context from the resolved server + service credentials ──
-// This resolves the WHM server to get the correct hostname, then builds the cPanel
-// user-level API base URL (https://{hostname}:2083/) using the hosting account's
-// username and password. Falls back to undefined when no server or credentials exist,
-// causing the WordPress provisioner to run in simulation mode.
-async function buildCpanelCtx(service: typeof hostingServicesTable.$inferSelect) {
-  if (!service.username || !service.password) {
-    console.log(`[WP] No cPanel credentials on service ${service.id} (username=${service.username ? "set" : "missing"}, password=${service.password ? "set" : "missing"}) — will simulate`);
-    return undefined;
-  }
-  const server = await resolveServerForService(service);
-  if (!server || !server.hostname) {
-    console.log(`[WP] No server resolved for service ${service.id} — will simulate`);
-    return undefined;
-  }
-  // cPanel user-level API lives on port 2083 (not WHM port 2087)
-  const cpanelPort = 2083;
-  const baseUrl = `https://${server.hostname}:${cpanelPort}/`;
-  console.log(`[WP] Built cPanel context for service ${service.id}: baseUrl=${baseUrl}, user=${service.username}`);
-  return { baseUrl, username: service.username, password: service.password };
-}
-
-// GET /client/hosting/:id/wordpress-check — detect if WP is installed (cPanel file check)
+// GET /client/hosting/:id/wordpress-check — detect if WP is installed (filesystem check)
 router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
@@ -1338,14 +1327,11 @@ router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: Auth
       .where(and(eq(hostingServicesTable.id, req.params.id!), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
 
-    const dbInstalled = service.wpInstalled ?? false;
     const installPath = service.wpInstallPath ?? "/";
-    let fileExists = dbInstalled;
-
-    const ctx = await buildCpanelCtx(service);
-    if (ctx) {
-      fileExists = await checkWordPressInstalled(ctx, installPath);
-    }
+    const dbInstalled = service.wpInstalled ?? false;
+    const fileExists = service.domain
+      ? await checkWordPressInstalled(service.domain, installPath)
+      : dbInstalled;
 
     const installed = dbInstalled || fileExists;
     res.json({
@@ -1404,9 +1390,8 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       updatedAt: new Date(),
     }).where(eq(hostingServicesTable.id, id));
 
-    // Build real cPanel context from the resolved server — falls back to simulation if no server/credentials
-    const cpanelCtx = await buildCpanelCtx(service);
-    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx)
+    // Run provisioning in background — response returns immediately so client can poll
+    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath)
       .catch(err => console.error("[WP] Background provisioner threw:", err));
 
     res.json({
@@ -1421,7 +1406,7 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
   }
 });
 
-// POST /client/hosting/:id/reinstall-wordpress — reinstall (wipes existing, fresh install)
+// POST /client/hosting/:id/reinstall-wordpress — wipe and reinstall WordPress
 router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
@@ -1449,8 +1434,7 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
 
     console.log(`[WP] Reinstall queued for service ${id} | domain=${service.domain}`);
 
-    const cpanelCtx = await buildCpanelCtx(service);
-    reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx)
+    reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath)
       .catch(err => console.error("[WP] Background reinstaller threw:", err));
 
     res.json({ success: true, queued: true, message: "WordPress reinstall started." });
@@ -1460,7 +1444,7 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
   }
 });
 
-// GET /client/hosting/:id/wordpress-status — poll provisioning progress (always verifies from server)
+// GET /client/hosting/:id/wordpress-status — poll provisioning progress
 router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
@@ -1472,29 +1456,24 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
 
     let status = service.wpProvisionStatus || "not_started";
 
-    // For a terminal "active" status, do a real file check to confirm files actually exist.
-    // This prevents showing "Installed" when files have been removed or install failed silently.
-    if (status === "active" && service.wpInstalled) {
-      const ctx = await buildCpanelCtx(service);
-      if (ctx) {
-        const fileExists = await checkWordPressInstalled(ctx, service.wpInstallPath ?? "/");
-        if (!fileExists) {
-          // DB says installed but files are gone — correct the DB and return not_installed
-          await db.update(hostingServicesTable).set({
-            wpInstalled: false,
-            wpProvisionStatus: "not_started",
-            wpProvisionStep: null,
-            wpProvisionError: "Installation files not found during verification. Please reinstall.",
-            updatedAt: new Date(),
-          }).where(eq(hostingServicesTable.id, id));
-          return res.json({
-            status: "not_installed",
-            step: null,
-            error: "Installation files not found. Please reinstall WordPress.",
-            wpInstalled: false,
-            steps: WP_STEPS,
-          });
-        }
+    // For terminal "active" status — verify wp-config.php actually exists on disk
+    if (status === "active" && service.wpInstalled && service.domain) {
+      const fileExists = await checkWordPressInstalled(service.domain, service.wpInstallPath ?? "/");
+      if (!fileExists) {
+        await db.update(hostingServicesTable).set({
+          wpInstalled: false,
+          wpProvisionStatus: "not_started",
+          wpProvisionStep: null,
+          wpProvisionError: "Installation files not found during verification. Please reinstall.",
+          updatedAt: new Date(),
+        }).where(eq(hostingServicesTable.id, id));
+        return res.json({
+          status: "not_installed",
+          step: null,
+          error: "Installation files not found. Please reinstall WordPress.",
+          wpInstalled: false,
+          steps: WP_STEPS,
+        });
       }
       // Files confirmed — return full credentials
       return res.json({
