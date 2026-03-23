@@ -73,6 +73,8 @@ export const hostingServicesTable = pgTable("hosting_services", {
   wpProvisionStep: text("wp_provision_step"),
   wpProvisionError: text("wp_provision_error"),
   wpProvisionedAt: timestamp("wp_provisioned_at"),
+  wpInstallPath: text("wp_install_path").default("/"),
+  wpPasswordRevealed: boolean("wp_password_revealed").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

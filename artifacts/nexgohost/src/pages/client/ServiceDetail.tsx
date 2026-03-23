@@ -118,11 +118,18 @@ export default function ServiceDetail() {
   const [wpPolling, setWpPolling] = useState(false);
   const [showWpCredentials, setShowWpCredentials] = useState(false);
   const [wpSiteTitle, setWpSiteTitle] = useState("My WordPress Site");
+  const [wpAdminUsername, setWpAdminUsername] = useState("");
+  const [wpAdminPassword, setWpAdminPassword] = useState("");
+  const [wpAdminEmail, setWpAdminEmail] = useState("");
+  const [wpInstallPath, setWpInstallPath] = useState("/");
+  const [showWpPassInForm, setShowWpPassInForm] = useState(false);
+  const [showReinstallConfirm, setShowReinstallConfirm] = useState(false);
+  const [wpReinstallLoading, setWpReinstallLoading] = useState(false);
   const [wpProvisionData, setWpProvisionData] = useState<{
     status: string;
     step: string | null;
     error: string | null;
-    credentials?: { loginUrl: string | null; username: string | null; password: string | null; email: string | null; siteTitle: string | null };
+    credentials?: { loginUrl: string | null; username: string | null; password: string | null; email: string | null; siteTitle: string | null; installPath?: string | null };
   } | null>(null);
 
   // Password change state
@@ -271,6 +278,17 @@ export default function ServiceDetail() {
     } finally { setSsoLoading(null); }
   }
 
+  function generateWpCredentials() {
+    if (!service?.domain) return;
+    const base = (service.domain.split(".")[0] || "admin").replace(/[^a-zA-Z0-9]/g, "").substring(0, 8);
+    setWpAdminUsername(`${base}${Math.floor(100 + Math.random() * 900)}`);
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const pass = `${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${Math.floor(Math.random() * 10)}!` +
+      Array.from({ length: 11 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+    setWpAdminPassword(pass);
+    if (service.domain) setWpAdminEmail(`admin@${service.domain}`);
+  }
+
   async function handleInstallWordPress() {
     if (!service) return;
     setWpLoading(true);
@@ -278,7 +296,13 @@ export default function ServiceDetail() {
       const res = await authFetch(`/api/client/hosting/${service.id}/install-wordpress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteTitle: wpSiteTitle }),
+        body: JSON.stringify({
+          siteTitle: wpSiteTitle,
+          adminUsername: wpAdminUsername || undefined,
+          adminPassword: wpAdminPassword || undefined,
+          adminEmail: wpAdminEmail || undefined,
+          installPath: wpInstallPath,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Installation failed");
@@ -287,6 +311,32 @@ export default function ServiceDetail() {
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setWpLoading(false); }
+  }
+
+  async function handleReinstallWordPress() {
+    if (!service) return;
+    setWpReinstallLoading(true);
+    setShowReinstallConfirm(false);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/reinstall-wordpress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteTitle: wpSiteTitle,
+          adminUsername: wpAdminUsername || undefined,
+          adminPassword: wpAdminPassword || undefined,
+          adminEmail: wpAdminEmail || undefined,
+          installPath: wpInstallPath,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reinstall failed");
+      setWpProvisionData({ status: "queued", step: "Queued", error: null });
+      setWpPolling(true);
+      toast({ title: "Reinstall started", description: "WordPress is being reinstalled. Previous installation will be replaced." });
+    } catch (e: any) {
+      toast({ title: "Reinstall failed", description: e.message, variant: "destructive" });
+    } finally { setWpReinstallLoading(false); }
   }
 
   async function handleChangePassword() {
@@ -975,16 +1025,33 @@ export default function ServiceDetail() {
 
       {/* WordPress */}
       <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <LayoutGrid size={18} className="text-primary" />
-          <h3 className="font-semibold text-foreground">WordPress</h3>
-          {wpProvisionData?.status === "active" || service.wpInstalled ? (
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">Installed</span>
-          ) : wpPolling ? (
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
-              <Loader2 size={10} className="animate-spin" /> Installing…
-            </span>
-          ) : null}
+        {/* Header row */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <LayoutGrid size={18} className="text-primary" />
+            <h3 className="font-semibold text-foreground">WordPress</h3>
+            {(wpProvisionData?.status === "active" || service.wpInstalled) && !wpPolling ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1">
+                <CheckCircle2 size={11} /> Installed
+              </span>
+            ) : wpPolling ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
+                <Loader2 size={10} className="animate-spin" /> Installing…
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-muted-foreground border border-border">
+                Not Installed
+              </span>
+            )}
+          </div>
+          {/* Prominent Login button — visible when installed */}
+          {(wpProvisionData?.status === "active" || service.wpInstalled) && !wpPolling && (
+            <a href={wpProvisionData?.credentials?.loginUrl || service.wpUrl || "#"} target="_blank" rel="noreferrer">
+              <Button size="sm" className="gap-1.5">
+                <ExternalLink size={13} /> Login to WordPress
+              </Button>
+            </a>
+          )}
         </div>
 
         {/* ─── Installing: Step-by-step progress ─── */}
@@ -992,9 +1059,9 @@ export default function ServiceDetail() {
           <div className="space-y-4">
             <div className="space-y-1">
               {[
-                { label: "Creating container", key: "container" },
                 { label: "Creating database", key: "database" },
                 { label: "Downloading WordPress", key: "download" },
+                { label: "Extracting files", key: "extract" },
                 { label: "Configuring WordPress", key: "configure" },
                 { label: "Running installer", key: "install" },
               ].map((step, idx, arr) => {
@@ -1014,21 +1081,17 @@ export default function ServiceDetail() {
                     <span className={`text-sm ${isDone ? "text-green-400" : isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                       {step.label}
                     </span>
-                    {isActive && (
-                      <span className="text-xs text-muted-foreground animate-pulse ml-auto">In progress…</span>
-                    )}
-                    {isDone && (
-                      <span className="text-xs text-green-400 ml-auto">Done</span>
-                    )}
+                    {isActive && <span className="text-xs text-muted-foreground animate-pulse ml-auto">In progress…</span>}
+                    {isDone && <span className="text-xs text-green-400 ml-auto">Done</span>}
                   </div>
                 );
               })}
             </div>
-            <p className="text-xs text-muted-foreground">This takes 1–2 minutes. You can leave this page and come back — the install continues in the background.</p>
+            <p className="text-xs text-muted-foreground">This takes 1–3 minutes. You can leave this page and come back — the install continues in the background.</p>
           </div>
         )}
 
-        {/* ─── Success: Show credentials ─── */}
+        {/* ─── Success: credentials card ─── */}
         {(wpProvisionData?.status === "active" && wpProvisionData.credentials) && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-green-400">
@@ -1057,20 +1120,67 @@ export default function ServiceDetail() {
                 {showWpCredentials ? (
                   <span className="text-foreground font-bold select-all">{wpProvisionData.credentials.password}</span>
                 ) : (
-                  <button onClick={() => setShowWpCredentials(true)} className="text-primary hover:underline text-xs">Reveal password</button>
+                  <button onClick={() => setShowWpCredentials(true)} className="text-primary hover:underline text-xs">Reveal once</button>
                 )}
               </div>
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground shrink-0">Email</span>
                 <span className="text-foreground">{wpProvisionData.credentials.email}</span>
               </div>
+              {wpProvisionData.credentials.installPath && wpProvisionData.credentials.installPath !== "/" && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground shrink-0">Install Path</span>
+                  <span className="text-foreground">{wpProvisionData.credentials.installPath}</span>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <a href={wpProvisionData.credentials.loginUrl ?? "#"} target="_blank" rel="noreferrer">
-                <Button className="gap-2 bg-primary hover:bg-primary/90">
+                <Button className="gap-2">
                   <ExternalLink size={15} /> Open WordPress Admin
                 </Button>
               </a>
+              <Button
+                variant="outline"
+                className="gap-2 text-orange-400 border-orange-500/30 hover:bg-orange-500/10"
+                onClick={() => { generateWpCredentials(); setShowReinstallConfirm(true); }}
+              >
+                <RefreshCw size={14} /> Reinstall WordPress
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Installed but no credentials in state — show login only */}
+        {service.wpInstalled && !wpProvisionData && !wpPolling && (
+          <div className="space-y-3">
+            <div className="bg-secondary/50 rounded-xl p-4 text-sm space-y-2">
+              {service.wpSiteTitle && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Site</span>
+                  <span className="font-medium text-foreground">{service.wpSiteTitle}</span>
+                </div>
+              )}
+              {service.wpUsername && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Username</span>
+                  <span className="font-mono text-foreground select-all">{service.wpUsername}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <a href={service.wpUrl || "#"} target="_blank" rel="noreferrer">
+                <Button className="gap-2">
+                  <ExternalLink size={15} /> Open WordPress Admin
+                </Button>
+              </a>
+              <Button
+                variant="outline"
+                className="gap-2 text-orange-400 border-orange-500/30 hover:bg-orange-500/10"
+                onClick={() => { generateWpCredentials(); setShowReinstallConfirm(true); }}
+              >
+                <RefreshCw size={14} /> Reinstall WordPress
+              </Button>
             </div>
           </div>
         )}
@@ -1083,45 +1193,113 @@ export default function ServiceDetail() {
               <div>
                 <p className="font-medium">Installation failed</p>
                 {wpProvisionData.error && (
-                  <p className="text-xs text-muted-foreground mt-1 font-mono">{wpProvisionData.error}</p>
+                  <p className="text-xs text-muted-foreground mt-1 font-mono bg-red-500/10 p-2 rounded-lg">{wpProvisionData.error}</p>
                 )}
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => { setWpProvisionData(null); }}
-              className="gap-2"
-            >
-              <RefreshCw size={14} /> Try Again
+            <Button variant="outline" onClick={() => setWpProvisionData(null)} className="gap-2">
+              <RefreshCw size={14} /> Retry Install
             </Button>
           </div>
         )}
 
-        {/* ─── Not started — install form ─── */}
+        {/* ─── Not installed — smart install form ─── */}
         {!wpPolling && !wpProvisionData && !service.wpInstalled && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Install WordPress on <strong className="text-foreground">{service.domain}</strong>. A container will be created, a database provisioned, and WordPress installed automatically.
+              Install WordPress on <strong className="text-foreground">{service.domain}</strong>. A database will be provisioned and WordPress installed automatically.
             </p>
-            <div className="space-y-2 max-w-sm">
-              <label className="text-sm font-medium text-foreground">Site Title</label>
-              <Input
-                value={wpSiteTitle}
-                onChange={e => setWpSiteTitle((e.target as HTMLInputElement).value)}
-                placeholder="My WordPress Site"
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/70">Site Title</label>
+                <Input value={wpSiteTitle} onChange={e => setWpSiteTitle(e.target.value)} placeholder="My WordPress Site" className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/70">Install Path</label>
+                <select
+                  value={wpInstallPath}
+                  onChange={e => setWpInstallPath(e.target.value)}
+                  className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+                >
+                  <option value="/">/ (site root)</option>
+                  <option value="/blog">/blog</option>
+                  <option value="/wordpress">/wordpress</option>
+                  <option value="/wp">/wp</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/70">Admin Username</label>
+                <Input value={wpAdminUsername} onChange={e => setWpAdminUsername(e.target.value)} placeholder="Auto-generated" className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/70">Admin Password</label>
+                <div className="relative">
+                  <Input
+                    type={showWpPassInForm ? "text" : "password"}
+                    value={wpAdminPassword}
+                    onChange={e => setWpAdminPassword(e.target.value)}
+                    placeholder="Auto-generated"
+                    className="h-9 pr-8"
+                  />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowWpPassInForm(v => !v)}>
+                    {showWpPassInForm ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-foreground/70">Admin Email</label>
+                <Input value={wpAdminEmail} onChange={e => setWpAdminEmail(e.target.value)} placeholder={`admin@${service.domain}`} className="h-9" />
+              </div>
             </div>
-            <Button
-              onClick={handleInstallWordPress}
-              disabled={wpLoading || service.status !== "active"}
-              className="gap-2"
-            >
-              {wpLoading ? <Loader2 size={15} className="animate-spin" /> : <LayoutGrid size={15} />}
-              {wpLoading ? "Starting…" : "Install WordPress"}
+
+            <Button variant="outline" size="sm" onClick={generateWpCredentials} className="gap-1.5 text-xs">
+              <RefreshCw size={12} /> Auto-generate credentials
             </Button>
+
+            <div className="flex gap-3 flex-wrap">
+              <Button onClick={handleInstallWordPress} disabled={wpLoading || service.status !== "active"} className="gap-2">
+                {wpLoading ? <Loader2 size={15} className="animate-spin" /> : <LayoutGrid size={15} />}
+                {wpLoading ? "Starting…" : "Install WordPress"}
+              </Button>
+            </div>
             {service.status !== "active" && (
-              <p className="text-xs text-muted-foreground">Service must be active to install WordPress.</p>
+              <p className="text-xs text-orange-400">Service must be active to install WordPress.</p>
             )}
+          </div>
+        )}
+
+        {/* ─── Reinstall confirm dialog ─── */}
+        {showReinstallConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full mx-4 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertTriangle size={20} className="text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Reinstall WordPress?</h3>
+                  <p className="text-sm text-muted-foreground mt-1">All existing WordPress files and data will be deleted and a fresh installation will run. This cannot be undone.</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-foreground/70">New Admin Username</label>
+                  <Input value={wpAdminUsername} onChange={e => setWpAdminUsername(e.target.value)} placeholder="Auto-generated" className="h-9" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-foreground/70">New Admin Password</label>
+                  <Input type="text" value={wpAdminPassword} onChange={e => setWpAdminPassword(e.target.value)} placeholder="Auto-generated" className="h-9 font-mono text-xs" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setShowReinstallConfirm(false)} className="flex-1">Cancel</Button>
+                <Button onClick={handleReinstallWordPress} disabled={wpReinstallLoading} className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 text-white">
+                  {wpReinstallLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {wpReinstallLoading ? "Starting…" : "Reinstall"}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>

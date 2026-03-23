@@ -7,7 +7,7 @@ import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
-import { provisionWordPress } from "../lib/wordpress-provisioner.js";
+import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 
 const router = Router();
 
@@ -1281,30 +1281,73 @@ router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, 
   }
 });
 
-// POST /client/hosting/:id/install-wordpress — kick off async WordPress provisioning
+// ── Helper: build cPanel context from a service record ────────────────────────
+function getCpanelCtx(service: any) {
+  if (!service.cpanelUrl || !service.username || !service.password) return undefined;
+  return { baseUrl: service.cpanelUrl.replace(/\/?$/, "/"), username: service.username, password: service.password };
+}
+
+// GET /client/hosting/:id/wordpress-check — detect if WP is installed (cPanel file check)
+router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, req.params.id!), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    const dbInstalled = service.wpInstalled ?? false;
+    const installPath = service.wpInstallPath ?? "/";
+    let fileExists = dbInstalled;
+
+    const ctx = getCpanelCtx(service);
+    if (ctx && !process.env.WP_SIMULATE) {
+      fileExists = await checkWordPressInstalled(ctx, installPath);
+    }
+
+    const installed = dbInstalled || fileExists;
+    res.json({
+      installed,
+      status: service.wpProvisionStatus || "not_started",
+      loginUrl: installed ? service.wpUrl : null,
+      username: installed ? service.wpUsername : null,
+      siteTitle: installed ? service.wpSiteTitle : null,
+      installPath,
+    });
+  } catch (err) {
+    console.error("[WP] wordpress-check error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /client/hosting/:id/install-wordpress — start async WordPress provisioning
 router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
-    const { siteTitle = "My WordPress Site" } = req.body;
+    const {
+      siteTitle = "My WordPress Site",
+      adminUsername,
+      adminPassword,
+      adminEmail,
+      installPath = "/",
+    } = req.body;
 
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
-    if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain configured" });
     if (service.status !== "active") return res.status(400).json({ error: "Service must be active to install WordPress" });
-    if (service.wpProvisionStatus === "provisioning") return res.status(409).json({ error: "WordPress installation is already in progress" });
+    if (service.wpProvisionStatus === "provisioning" || service.wpProvisionStatus === "queued") {
+      return res.status(409).json({ error: "WordPress installation is already in progress" });
+    }
+    if (service.wpInstalled) return res.status(409).json({ error: "WordPress is already installed. Use reinstall instead." });
 
-    const wpUser = `admin`;
-    const wpPass = [
-      Math.random().toString(36).substring(2, 8),
-      Math.random().toString(36).substring(2, 8).toUpperCase(),
-      Math.floor(Math.random() * 900 + 100).toString(),
-      "!@"[Math.floor(Math.random() * 2)],
-    ].join("").substring(0, 16);
-    const wpEmail = `admin@${service.domain}`;
+    const wpUser = adminUsername?.trim() || generateWpUsername(service.domain);
+    const wpPass = adminPassword?.trim() || generateWpPassword();
+    const wpEmail = adminEmail?.trim() || `admin@${service.domain}`;
 
-    // Mark as queued immediately so UI can start polling
+    console.log(`[WP] Install queued for service ${id} | domain=${service.domain} | user=${wpUser} | path=${installPath}`);
+
     await db.update(hostingServicesTable).set({
       wpProvisionStatus: "queued",
       wpProvisionStep: "Queued",
@@ -1314,16 +1357,61 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       wpPassword: wpPass,
       wpEmail: wpEmail,
       wpSiteTitle: siteTitle,
+      wpInstallPath: installPath,
       updatedAt: new Date(),
     }).where(eq(hostingServicesTable.id, id));
 
-    // Fire-and-forget background provisioning
-    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail)
+    const cpanelCtx = getCpanelCtx(service);
+    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx)
       .catch(err => console.error("[WP] Background provisioner threw:", err));
 
-    res.json({ success: true, queued: true, message: "WordPress installation started. Poll /wordpress-status for progress." });
+    res.json({
+      success: true,
+      queued: true,
+      generatedUsername: wpUser,
+      message: "WordPress installation started. Poll /wordpress-status for progress.",
+    });
   } catch (err) {
     console.error("[CLIENT] install-wordpress error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /client/hosting/:id/reinstall-wordpress — reinstall (wipes existing, fresh install)
+router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const {
+      siteTitle = "My WordPress Site",
+      adminUsername,
+      adminPassword,
+      adminEmail,
+      installPath = "/",
+    } = req.body;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
+    if (service.status !== "active") return res.status(400).json({ error: "Service must be active" });
+    if (service.wpProvisionStatus === "provisioning" || service.wpProvisionStatus === "queued") {
+      return res.status(409).json({ error: "An installation is already in progress" });
+    }
+
+    const wpUser = adminUsername?.trim() || generateWpUsername(service.domain);
+    const wpPass = adminPassword?.trim() || generateWpPassword();
+    const wpEmail = adminEmail?.trim() || `admin@${service.domain}`;
+
+    console.log(`[WP] Reinstall queued for service ${id} | domain=${service.domain}`);
+
+    const cpanelCtx = getCpanelCtx(service);
+    reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx)
+      .catch(err => console.error("[WP] Background reinstaller threw:", err));
+
+    res.json({ success: true, queued: true, message: "WordPress reinstall started." });
+  } catch (err) {
+    console.error("[CLIENT] reinstall-wordpress error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -1344,9 +1432,10 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
       step: service.wpProvisionStep,
       error: service.wpProvisionError,
       wpInstalled: service.wpInstalled,
+      steps: WP_STEPS,
     };
 
-    if (status === "active" && service.wpInstalled) {
+    if ((status === "active" || status === "completed") && service.wpInstalled) {
       return res.json({
         ...base,
         credentials: {
@@ -1355,6 +1444,7 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
           password: service.wpPassword,
           email: service.wpEmail,
           siteTitle: service.wpSiteTitle,
+          installPath: service.wpInstallPath,
         },
       });
     }

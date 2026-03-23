@@ -1,0 +1,150 @@
+Fix and upgrade the WordPress installation system using cPanel API. Do NOT rebuild project. Only improve WordPress workflow.
+
+========================
+1. WORDPRESS INSTALL DETECTION (IMPORTANT)
+========================
+
+Before showing "Install WordPress":
+
+- Check if WordPress already installed on domain
+
+Logic:
+- Check if /public_html/wp-config.php exists via cPanel File API
+- OR check /wp-admin path response
+
+If exists:
+  → Show "WordPress Installed"
+  → Show button: "Login to WordPress"
+
+If NOT exists:
+  → Show button: "Install WordPress"
+
+========================
+2. SMART INSTALL FORM
+========================
+
+When user clicks Install:
+
+Show form:
+- Domain (auto selected)
+- Install path (/ or subfolder)
+- Admin Username (auto-generate but editable)
+- Admin Password (auto-generate but editable)
+- Admin Email
+
+Auto-generate:
+- username: user + random number
+- password: strong random string
+
+========================
+3. REAL WORDPRESS INSTALL (CPANEL API)
+========================
+
+Use cPanel API:
+
+Steps:
+1. Create MySQL database
+2. Create DB user
+3. Assign privileges
+4. Download WordPress
+5. Extract files in public_html
+6. Create wp-config.php dynamically
+7. Run installation via wp-admin/install.php
+
+========================
+4. SAVE INSTALL DATA
+========================
+
+After install, save:
+
+{
+  domain,
+  installPath,
+  adminUrl,
+  username,
+  password (encrypted),
+  status: "installed"
+}
+
+========================
+5. LOGIN TO WORDPRESS (IMPORTANT)
+========================
+
+After install:
+
+- Show button: "Login to WordPress"
+
+Options:
+1. Direct login link:
+   domain/wp-admin
+
+2. Auto-login (optional):
+   Generate temporary login token
+
+========================
+6. FAILED INSTALL DETECTION
+========================
+
+If install fails:
+- Show error clearly
+- Keep "Retry Install" button visible
+
+========================
+7. REINSTALL OPTION
+========================
+
+If WordPress exists:
+- Show:
+  - Login
+  - Reinstall WordPress
+
+Reinstall flow:
+- Confirm popup
+- Delete old files
+- Run fresh install
+
+========================
+8. UI IMPROVEMENT
+========================
+
+Hosting page should show:
+
+- WordPress Status:
+   Installed / Not Installed
+
+- Buttons:
+   Install
+   Login
+   Reinstall
+
+- Show credentials after install
+
+========================
+9. SECURITY
+========================
+
+- Encrypt stored passwords
+- Do NOT expose password after first display
+- Allow reset password option
+
+========================
+10. DEBUG LOGS
+========================
+
+console.log:
+- install start
+- db created
+- wp files extracted
+- install success/fail
+
+========================
+GOAL
+========================
+
+Create a fully working WordPress management system:
+- Detect install automatically
+- Smart install form with auto credentials
+- Real install using cPanel
+- Login button works
+- Reinstall option
+- Clean UI in client dashboard
