@@ -24,10 +24,13 @@ const MYSQL_ROOT_PASS = process.env.WP_MYSQL_ROOT_PASS || "";
 const WWW_USER = process.env.WP_WWW_USER || "www-data";
 
 export const WP_STEPS = [
-  { key: "database",  label: "Creating database" },
+  { key: "mkdir",     label: "Creating directory" },
   { key: "download",  label: "Downloading WordPress" },
   { key: "extract",   label: "Extracting files" },
+  { key: "move",      label: "Moving files" },
+  { key: "database",  label: "Creating database" },
   { key: "configure", label: "Configuring WordPress" },
+  { key: "perms",     label: "Setting permissions" },
   { key: "install",   label: "Running installer" },
   { key: "verify",    label: "Verifying installation" },
 ];
@@ -279,71 +282,99 @@ async function vpsProvision(
   const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}${subdir}`;
   const adminUrl = `${wpUrl}/wp-admin`;
 
-  // Unique DB credentials — timestamp + random ensures no collisions on retry
+  // Unique suffix — timestamp + random prevents name collisions on retry
   const uid = `${Date.now().toString().slice(-6)}${Math.random().toString(36).substring(2, 5)}`;
   const dbName = `wp_${uid}`.substring(0, 64);
-  const dbUser = `wpu_${uid}`.substring(0, 32); // MySQL user name limit: 32 chars
+  const dbUser = `wpu_${uid}`.substring(0, 32); // MySQL username limit: 32 chars
   const dbPass = generateWpPassword();
 
-  console.log(`[WP] VPS provisioning for service ${serviceId}`);
-  console.log(`[WP] Domain: ${domain}, Path: ${publicHtml}`);
-  console.log(`[WP] DB Name: ${dbName}, DB User: ${dbUser}`);
+  const zipPath = `/tmp/wp_${uid}.zip`;
+  const extractDir = `/tmp/wp_extract_${uid}`;
 
-  // STEP 1: Create MySQL database + user
+  console.log(`[WP] ── VPS provisioning started ──────────────────────────────`);
+  console.log(`[WP] Service:   ${serviceId}`);
+  console.log(`[WP] Domain:    ${domain}`);
+  console.log(`[WP] PublicHTML:${publicHtml}`);
+  console.log(`[WP] DB name:   ${dbName}   DB user: ${dbUser}`);
+
+  // ── STEP 1: Create directory ────────────────────────────────────────────────
+  await setStep(serviceId, "Creating directory");
+  await execAsync(`mkdir -p ${publicHtml}`);
+  console.log(`[WP] STEP DONE: mkdir ${publicHtml}`);
+
+  // ── STEP 2: Download WordPress ──────────────────────────────────────────────
+  await setStep(serviceId, "Downloading WordPress");
+  await execAsync(`wget -q https://wordpress.org/latest.zip -O ${zipPath}`, { timeout: 120_000 });
+  console.log(`[WP] STEP DONE: download → ${zipPath}`);
+
+  if (!fs.existsSync(zipPath)) {
+    throw new Error(`Download failed: ${zipPath} not found after wget`);
+  }
+
+  // ── STEP 3: Extract zip ─────────────────────────────────────────────────────
+  await setStep(serviceId, "Extracting files");
+  await execAsync(`mkdir -p ${extractDir}`);
+  await execAsync(`unzip -q ${zipPath} -d ${extractDir}`, { timeout: 60_000 });
+  console.log(`[WP] STEP DONE: extract → ${extractDir}`);
+
+  // ── STEP 4: Move files from wordpress/ sub-folder into public_html ──────────
+  await setStep(serviceId, "Moving files");
+  await execAsync(`mv ${extractDir}/wordpress/* ${publicHtml}/`);
+  console.log(`[WP] STEP DONE: mv ${extractDir}/wordpress/* → ${publicHtml}/`);
+
+  // ── STEP 5: Clean up temp files ─────────────────────────────────────────────
+  await execAsync(`rm -rf ${zipPath} ${extractDir}`);
+  console.log(`[WP] STEP DONE: cleanup temp files`);
+
+  // Verify index.php arrived before touching the DB
+  const indexPath = path.join(publicHtml, "index.php");
+  if (!fs.existsSync(indexPath)) {
+    throw new Error(`File extraction failed: index.php not found at ${indexPath}`);
+  }
+  console.log(`[WP] index.php present ✓`);
+
+  // ── STEP 6: Create MySQL database + user ────────────────────────────────────
   // Uses mysql2 library directly — no shell CLI, no escaping issues.
   await setStep(serviceId, "Creating database");
   console.log(`[WP] Connecting to MySQL at ${MYSQL_HOST} as ${MYSQL_ROOT_USER}`);
   const mysqlConn = await getMysqlConn();
   try {
-    console.log(`[WP] Creating database: ${dbName}`);
     await mysqlConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    console.log(`[WP] Creating user: ${dbUser}`);
+    console.log(`[WP] STEP DONE: CREATE DATABASE ${dbName}`);
+
     await mysqlConn.query(`CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY ?`, [dbPass]);
-    console.log(`[WP] Granting privileges on ${dbName} to ${dbUser}`);
+    console.log(`[WP] STEP DONE: CREATE USER ${dbUser}`);
+
     await mysqlConn.query(`GRANT ALL PRIVILEGES ON \`${dbName}\`.* TO '${dbUser}'@'localhost'`);
     await mysqlConn.query(`FLUSH PRIVILEGES`);
-    console.log(`[WP] Database setup complete: ${dbName} / ${dbUser}`);
+    console.log(`[WP] STEP DONE: GRANT privileges + FLUSH`);
   } finally {
     await mysqlConn.end();
   }
 
-  // STEP 2: Ensure public_html directory exists
-  await setStep(serviceId, "Downloading WordPress");
-  fs.mkdirSync(publicHtml, { recursive: true });
-
-  // Download WordPress to a temp file
-  const tmpTar = `/tmp/wp_${uid}.tar.gz`;
-  await run(`curl -sL https://wordpress.org/latest.tar.gz -o ${tmpTar}`, "Download WordPress");
-  console.log(`[WP] WordPress downloaded to ${tmpTar}`);
-
-  // STEP 3: Extract WordPress files
-  await setStep(serviceId, "Extracting files");
-  const tmpDir = `/tmp/wp_extract_${uid}`;
-  await run(`mkdir -p ${tmpDir} && tar -xzf ${tmpTar} -C ${tmpDir}`, "Extract WordPress");
-  await run(`cp -rp ${tmpDir}/wordpress/. ${publicHtml}/`, "Copy WordPress files");
-  await run(`rm -rf ${tmpTar} ${tmpDir}`, "Cleanup temp files");
-  console.log(`[WP] WordPress files extracted to ${publicHtml}`);
-
-  // STEP 4: Write wp-config.php
+  // ── STEP 7: Write wp-config.php ─────────────────────────────────────────────
   await setStep(serviceId, "Configuring WordPress");
-  const wpConfig = generateWpConfig(dbName, dbUser, dbPass, MYSQL_HOST);
   const configPath = path.join(publicHtml, "wp-config.php");
+  const wpConfig = generateWpConfig(dbName, dbUser, dbPass, MYSQL_HOST);
   fs.writeFileSync(configPath, wpConfig, "utf-8");
-  console.log(`[WP] wp-config.php written`);
+  console.log(`[WP] STEP DONE: wp-config.php written to ${configPath}`);
 
-  // STEP 5: Set correct file permissions
-  await setStep(serviceId, "Running installer");
+  // ── STEP 8: Set file permissions ─────────────────────────────────────────────
+  await setStep(serviceId, "Setting permissions");
   try {
-    await run(`chown -R ${WWW_USER}:${WWW_USER} ${publicHtml}`, "Set ownership");
-    await run(`chmod -R 755 ${publicHtml}`, "Set permissions");
+    await execAsync(`chown -R ${WWW_USER}:${WWW_USER} ${path.join(VPS_BASE_DIR, domain)}`);
+    console.log(`[WP] STEP DONE: chown ${WWW_USER}`);
+    await execAsync(`chmod -R 755 ${publicHtml}`);
+    console.log(`[WP] STEP DONE: chmod 755`);
   } catch (permErr: any) {
-    // Permission setting may fail if running as non-root — not fatal
+    // Non-fatal — may fail if not running as root
     console.warn(`[WP] Warning: could not set file permissions (${permErr.message}). Continuing.`);
   }
 
-  // Run WordPress native installer via HTTP
+  // Attempt native WP installer via HTTP (best-effort — domain may not resolve yet)
+  await setStep(serviceId, "Running installer");
   try {
-    console.log(`[WP] Running WordPress native install.php for ${wpUrl}`);
+    console.log(`[WP] POSTing to install.php for ${wpUrl}`);
     const installForm = new URLSearchParams({
       weblog_title:    siteTitle || "My WordPress Site",
       user_name:       wpUser,
@@ -357,22 +388,28 @@ async function vpsProvision(
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: installForm.toString(),
     });
-    console.log(`[WP] install.php response: HTTP ${installResp.status}`);
+    console.log(`[WP] STEP DONE: install.php → HTTP ${installResp.status}`);
   } catch (httpErr: any) {
-    // If the domain isn't publicly resolving yet, install.php won't work.
-    // wp-config.php + database are set up, so WP will self-install on first visit.
-    console.warn(`[WP] install.php HTTP call failed (${httpErr.message}) — WordPress will complete setup on first browser visit`);
+    // Domain not yet resolving publicly — WP will self-install on first browser visit.
+    console.warn(`[WP] install.php HTTP call skipped (${httpErr.message}). WP will finish setup on first visit.`);
   }
 
-  // STEP 6: Verify wp-config.php exists on disk
+  // ── STEP 9: Verify BOTH key files exist ──────────────────────────────────────
   await setStep(serviceId, "Verifying installation");
-  const isInstalled = fs.existsSync(configPath);
-  if (!isInstalled) {
-    throw new Error(`WordPress verification failed: wp-config.php not found at ${configPath}`);
+  const configExists = fs.existsSync(configPath);
+  const indexExists  = fs.existsSync(indexPath);
+  console.log(`[WP] Verify: wp-config.php=${configExists}  index.php=${indexExists}`);
+  if (!configExists || !indexExists) {
+    throw new Error(
+      `WordPress verification failed — ` +
+      `wp-config.php: ${configExists ? "OK" : "MISSING"}, ` +
+      `index.php: ${indexExists ? "OK" : "MISSING"} ` +
+      `at ${publicHtml}`
+    );
   }
-  console.log(`[WP] Install verified ✓ — wp-config.php exists at ${configPath}`);
+  console.log(`[WP] STEP DONE: verification passed ✓`);
 
-  // Save success to DB — only after real verification
+  // ── Save success to DB ── only after all steps and both files confirmed ───────
   await db.update(hostingServicesTable).set({
     wpInstalled: true,
     wpProvisionStatus: "active",
@@ -389,7 +426,7 @@ async function vpsProvision(
     updatedAt: new Date(),
   }).where(eq(hostingServicesTable.id, serviceId));
 
-  console.log(`[WP] WordPress fully provisioned for service ${serviceId} (${domain})`);
+  console.log(`[WP] ── WordPress fully provisioned for service ${serviceId} (${domain}) ──`);
 }
 
 // ── Simulation mode ───────────────────────────────────────────────────────────

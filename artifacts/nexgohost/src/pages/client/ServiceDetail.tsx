@@ -1108,16 +1108,18 @@ export default function ServiceDetail() {
           <div className="space-y-4">
             <div className="space-y-1">
               {[
-                { label: "Creating database", key: "database" },
+                { label: "Creating directory",    key: "mkdir" },
                 { label: "Downloading WordPress", key: "download" },
-                { label: "Extracting files", key: "extract" },
+                { label: "Extracting files",      key: "extract" },
+                { label: "Moving files",          key: "move" },
+                { label: "Creating database",     key: "database" },
                 { label: "Configuring WordPress", key: "configure" },
-                { label: "Running installer", key: "install" },
-                { label: "Verifying installation", key: "verify" },
+                { label: "Setting permissions",   key: "perms" },
+                { label: "Running installer",     key: "install" },
+                { label: "Verifying installation",key: "verify" },
               ].map((step, idx, arr) => {
-                const currentIdx = arr.findIndex(s =>
-                  wpProvisionData.step?.toLowerCase().includes(s.label.toLowerCase().split(" ")[0])
-                );
+                const currentStep = wpProvisionData.step?.toLowerCase() ?? "";
+                const currentIdx = arr.findIndex(s => currentStep === s.label.toLowerCase() || currentStep.startsWith(s.label.toLowerCase()));
                 const isDone = currentIdx > idx;
                 const isActive = currentIdx === idx;
                 return (
