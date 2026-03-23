@@ -322,6 +322,16 @@ export default function ServiceDetail() {
         }),
       });
       const data = await res.json();
+      // Already installed — jump straight to credentials view
+      if (res.status === 409 && data.alreadyInstalled) {
+        // Re-fetch the status so we get full credentials from DB
+        const statusRes = await authFetch(`/api/client/hosting/${service.id}/wordpress-status`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          setWpProvisionData(statusData);
+        }
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Installation failed");
       setWpProvisionData({ status: "queued", step: "Queued", error: null });
       setWpPolling(true);
@@ -1291,9 +1301,9 @@ export default function ServiceDetail() {
             </Button>
 
             <div className="flex gap-3 flex-wrap">
-              <Button onClick={handleInstallWordPress} disabled={wpLoading || service.status !== "active"} className="gap-2">
-                {wpLoading ? <Loader2 size={15} className="animate-spin" /> : <LayoutGrid size={15} />}
-                {wpLoading ? "Starting…" : "Install WordPress"}
+              <Button onClick={handleInstallWordPress} disabled={wpLoading || wpPolling || service.status !== "active"} className="gap-2">
+                {(wpLoading || wpPolling) ? <Loader2 size={15} className="animate-spin" /> : <LayoutGrid size={15} />}
+                {wpLoading ? "Starting…" : wpPolling ? "Installing…" : "Install WordPress"}
               </Button>
             </div>
             {service.status !== "active" && (

@@ -7,7 +7,7 @@ import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
-import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
+import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 
 const router = Router();
 
@@ -1361,6 +1361,14 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       installPath = "/",
     } = req.body;
 
+    console.log(`[WP] Incoming install request for service ${id}:`, {
+      siteTitle,
+      adminUsername: adminUsername || "(auto-generate)",
+      adminPassword: adminPassword ? "****" : "(auto-generate)",
+      adminEmail: adminEmail || "(auto-generate)",
+      installPath,
+    });
+
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
@@ -1369,13 +1377,25 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
     if (service.wpProvisionStatus === "provisioning" || service.wpProvisionStatus === "queued") {
       return res.status(409).json({ error: "WordPress installation is already in progress" });
     }
-    if (service.wpInstalled) return res.status(409).json({ error: "WordPress is already installed. Use reinstall instead." });
+    // Block duplicate installs — already installed and active in DB
+    if (service.wpInstalled && service.wpProvisionStatus === "active") {
+      return res.status(409).json({
+        error: "WordPress is already installed on this service.",
+        alreadyInstalled: true,
+        credentials: {
+          loginUrl: service.wpUrl,
+          username: service.wpUsername,
+          siteTitle: service.wpSiteTitle,
+        },
+      });
+    }
 
+    // Use the values the user provided; only auto-generate if left blank
     const wpUser = adminUsername?.trim() || generateWpUsername(service.domain);
     const wpPass = adminPassword?.trim() || generateWpPassword();
     const wpEmail = adminEmail?.trim() || `admin@${service.domain}`;
 
-    console.log(`[WP] Install queued for service ${id} | domain=${service.domain} | user=${wpUser} | path=${installPath}`);
+    console.log(`[WP] Install queued for service ${id} | domain=${service.domain} | user=${wpUser} | email=${wpEmail} | path=${installPath}`);
 
     await db.update(hostingServicesTable).set({
       wpProvisionStatus: "queued",
@@ -1454,28 +1474,29 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
 
-    let status = service.wpProvisionStatus || "not_started";
+    const status = service.wpProvisionStatus || "not_started";
 
-    // For terminal "active" status — verify wp-config.php actually exists on disk
-    if (status === "active" && service.wpInstalled && service.domain) {
-      const fileExists = await checkWordPressInstalled(service.domain, service.wpInstallPath ?? "/");
-      if (!fileExists) {
-        await db.update(hostingServicesTable).set({
-          wpInstalled: false,
-          wpProvisionStatus: "not_started",
-          wpProvisionStep: null,
-          wpProvisionError: "Installation files not found during verification. Please reinstall.",
-          updatedAt: new Date(),
-        }).where(eq(hostingServicesTable.id, id));
-        return res.json({
-          status: "not_installed",
-          step: null,
-          error: "Installation files not found. Please reinstall WordPress.",
-          wpInstalled: false,
-          steps: WP_STEPS,
-        });
+    // ── Active + installed: return credentials ───────────────────────────────
+    if (status === "active" && service.wpInstalled) {
+      // On a real VPS (MySQL reachable), also verify wp-config.php is on disk.
+      // In simulation / dev mode (MySQL not reachable), trust the DB — never
+      // clear state based on a filesystem check that runs on the wrong machine.
+      const onVps = await isMysqlReachable();
+      if (onVps && service.domain) {
+        const fileExists = await checkWordPressInstalled(service.domain, service.wpInstallPath ?? "/");
+        if (!fileExists) {
+          // VPS mode: files genuinely missing — reset so user can reinstall
+          await db.update(hostingServicesTable).set({
+            wpInstalled: false,
+            wpProvisionStatus: "not_started",
+            wpProvisionStep: null,
+            wpProvisionError: "Installation files not found on disk. Please reinstall WordPress.",
+            updatedAt: new Date(),
+          }).where(eq(hostingServicesTable.id, id));
+          return res.json({ status: "not_installed", step: null, error: "Installation files not found. Please reinstall.", wpInstalled: false, steps: WP_STEPS });
+        }
       }
-      // Files confirmed — return full credentials
+      // Return credentials (from DB) — valid for both VPS and simulation mode
       return res.json({
         status: "active",
         step: "Completed",
@@ -1493,6 +1514,7 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
       });
     }
 
+    // ── In-progress or failed ─────────────────────────────────────────────────
     res.json({
       status,
       step: service.wpProvisionStep,

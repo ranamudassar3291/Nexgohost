@@ -143,7 +143,7 @@ export async function checkWordPressInstalled(
 
 // ── MySQL reachability check ──────────────────────────────────────────────────
 
-async function isMysqlReachable(): Promise<boolean> {
+export async function isMysqlReachable(): Promise<boolean> {
   try {
     const conn = await getMysqlConn();
     await conn.ping();
