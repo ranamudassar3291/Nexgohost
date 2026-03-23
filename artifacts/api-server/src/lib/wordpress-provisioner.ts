@@ -208,80 +208,115 @@ async function cpanelProvision(
   dbPass: string,
   ctx: CpanelCtx,
 ) {
-  const publicHtml = installPath === "/" ? "/public_html" : `/public_html/${installPath.replace(/^\//, "")}`;
-  const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}/${installPath.replace(/^\//, "")}`;
+  const directory = installPath === "/" ? "" : installPath.replace(/^\//, "");
+  const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}/${directory}`;
   const adminUrl = `${wpUrl}/wp-admin`;
 
-  // STEP 1: Create MySQL database
+  // ── STRATEGY 1: cPanel WordPress Manager API (WordPress Toolkit) ──────────
+  // This is the official one-call approach cPanel provides. Uses `name` (NOT
+  // `site_name`) for the site title. Available on servers with WordPress Toolkit.
   await setStep(serviceId, "Creating database");
-  console.log(`[WP] Creating database: ${dbName}`);
-  await cpanelUAPI(ctx, "Mysql", "create_database", { name: dbName });
-  await cpanelUAPI(ctx, "Mysql", "create_user", { name: dbUser, password: dbPass });
-  await cpanelUAPI(ctx, "Mysql", "set_privileges_on_database", {
-    database: dbName, dbuser: dbUser, privileges: "ALL PRIVILEGES",
-  });
-  console.log(`[WP] Database created: ${dbName}`);
-
-  // STEP 2: Download WordPress
-  await setStep(serviceId, "Downloading WordPress");
-  console.log(`[WP] Downloading WordPress to ${publicHtml}`);
-  await cpanelUAPI(ctx, "Fileman", "run_command", {
-    command: `cd ${publicHtml} && curl -sL https://wordpress.org/latest.tar.gz -o /tmp/wordpress.tar.gz`,
-  });
-
-  // STEP 3: Extract WordPress files
-  await setStep(serviceId, "Extracting files");
-  console.log(`[WP] Extracting WordPress files`);
-  await cpanelUAPI(ctx, "Fileman", "run_command", {
-    command: `cd /tmp && tar -xzf wordpress.tar.gz && cp -rp wordpress/. ${publicHtml}/ && rm -rf wordpress wordpress.tar.gz`,
-  });
-
-  // STEP 4: Create wp-config.php
-  await setStep(serviceId, "Configuring WordPress");
-  console.log(`[WP] Creating wp-config.php`);
-  const wpConfigContent = generateWpConfig(dbName, dbUser, dbPass, ctx.username);
-  await cpanelUAPI(ctx, "Fileman", "save_file_content", {
-    dir: publicHtml,
-    file: "wp-config.php",
-    content: wpConfigContent,
-  });
-
-  // STEP 5: Run WordPress installer
-  await setStep(serviceId, "Running installer");
-  console.log(`[WP INSTALL STEP: running install]`);
-  const installResp = await fetch(`${wpUrl}/wp-admin/install.php?step=2`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      weblog_title: siteTitle,
-      user_name: wpUser,
-      admin_password: wpPass,
-      admin_password2: wpPass,
+  let usedWordPressManager = false;
+  try {
+    console.log(`[WP] Attempting cPanel WordPressManager/install for ${domain}`);
+    await cpanelUAPI(ctx, "WordPressManager", "install", {
+      domain,
+      directory,
+      admin_user: wpUser,
+      admin_pass: wpPass,
       admin_email: wpEmail,
-      blog_public: "1",
-    }),
-  });
-
-  if (!installResp.ok && installResp.status !== 302) {
-    throw new Error(`WordPress installer request failed (HTTP ${installResp.status}). Check if the domain resolves correctly.`);
+      language: "en",
+      name: siteTitle,   // ✅ correct field — NOT site_name
+    });
+    usedWordPressManager = true;
+    console.log(`[WP] WordPressManager/install succeeded for ${domain}`);
+  } catch (wptErr: any) {
+    console.warn(`[WP] WordPressManager not available (${wptErr.message}) — falling back to manual install`);
   }
 
-  // STEP 6: Verify installation — do NOT save success until files are confirmed
-  await setStep(serviceId, "Verifying installation");
-  console.log(`[WP INSTALL STEP: verifying installation]`);
-  // Give cPanel a moment to flush writes before verifying
-  await new Promise(r => setTimeout(r, 3000));
-  const isInstalled = await checkWordPressInstalled(ctx, installPath);
-  if (!isInstalled) {
-    throw new Error(
-      "WordPress installation verification failed: wp-config.php was not found after install. " +
-      "The installer may have not completed correctly."
-    );
+  if (usedWordPressManager) {
+    // WordPress Toolkit handled everything — jump straight to verification
+    await setStep(serviceId, "Verifying installation");
+    await new Promise(r => setTimeout(r, 5000)); // give WPT time to finish
+    const isInstalled = await checkWordPressInstalled(ctx, installPath);
+    if (!isInstalled) {
+      throw new Error(
+        "WordPress Toolkit reported success but wp-config.php was not found. " +
+        "Check the domain resolves to this server."
+      );
+    }
+  } else {
+    // ── STRATEGY 2: Manual install via cPanel UAPI ──────────────────────────
+    const publicHtml = installPath === "/" ? "/public_html" : `/public_html/${directory}`;
+
+    // STEP 1: Create MySQL database + user
+    console.log(`[WP] Creating database: ${dbName}`);
+    await cpanelUAPI(ctx, "Mysql", "create_database", { name: dbName });
+    await cpanelUAPI(ctx, "Mysql", "create_user", { name: dbUser, password: dbPass });
+    await cpanelUAPI(ctx, "Mysql", "set_privileges_on_database", {
+      database: dbName, dbuser: dbUser, privileges: "ALL PRIVILEGES",
+    });
+    console.log(`[WP] Database created: ${dbName}`);
+
+    // STEP 2: Download WordPress
+    await setStep(serviceId, "Downloading WordPress");
+    console.log(`[WP] Downloading WordPress to ${publicHtml}`);
+    await cpanelUAPI(ctx, "Fileman", "run_command", {
+      command: `cd ${publicHtml} && curl -sL https://wordpress.org/latest.tar.gz -o /tmp/wordpress.tar.gz`,
+    });
+
+    // STEP 3: Extract WordPress files
+    await setStep(serviceId, "Extracting files");
+    console.log(`[WP] Extracting WordPress files`);
+    await cpanelUAPI(ctx, "Fileman", "run_command", {
+      command: `cd /tmp && tar -xzf wordpress.tar.gz && cp -rp wordpress/. ${publicHtml}/ && rm -rf wordpress wordpress.tar.gz`,
+    });
+
+    // STEP 4: Create wp-config.php
+    await setStep(serviceId, "Configuring WordPress");
+    console.log(`[WP] Creating wp-config.php`);
+    const wpConfigContent = generateWpConfig(dbName, dbUser, dbPass, "localhost");
+    await cpanelUAPI(ctx, "Fileman", "save_file_content", {
+      dir: publicHtml,
+      file: "wp-config.php",
+      content: wpConfigContent,
+    });
+
+    // STEP 5: Run WordPress native installer
+    await setStep(serviceId, "Running installer");
+    console.log(`[WP] Running WordPress native install.php`);
+    const installResp = await fetch(`${wpUrl}/wp-admin/install.php?step=2`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        weblog_title: siteTitle,  // WordPress native installer uses weblog_title
+        user_name: wpUser,
+        admin_password: wpPass,
+        admin_password2: wpPass,
+        admin_email: wpEmail,
+        blog_public: "1",
+      }),
+    });
+    if (!installResp.ok && installResp.status !== 302) {
+      throw new Error(`WordPress install.php failed (HTTP ${installResp.status}). Check domain resolves to this server.`);
+    }
+
+    // STEP 6: Verify
+    await setStep(serviceId, "Verifying installation");
+    console.log(`[WP] Verifying installation`);
+    await new Promise(r => setTimeout(r, 3000));
+    const isInstalled = await checkWordPressInstalled(ctx, installPath);
+    if (!isInstalled) {
+      throw new Error(
+        "WordPress installation verification failed: wp-config.php was not found after install. " +
+        "The installer may not have completed correctly."
+      );
+    }
   }
 
-  console.log(`[WP] Install verified ✓ — wp-config.php found at ${publicHtml}`);
+  console.log(`[WP] Install verified ✓ for service ${serviceId} (${domain})`);
 
-  // Only save to DB after successful verification
+  // Save success to DB only after verification passes
   await db.update(hostingServicesTable).set({
     wpInstalled: true,
     wpProvisionStatus: "active",
