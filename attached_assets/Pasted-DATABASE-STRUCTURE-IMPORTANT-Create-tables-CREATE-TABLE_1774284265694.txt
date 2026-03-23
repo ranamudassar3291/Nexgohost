@@ -1,0 +1,122 @@
+DATABASE STRUCTURE (IMPORTANT)
+
+Create tables:
+
+CREATE TABLE clients (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100),
+  password VARCHAR(255)
+);
+
+CREATE TABLE hosting (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  client_id INT,
+  domain VARCHAR(100),
+  db_name VARCHAR(100),
+  db_user VARCHAR(100),
+  db_pass VARCHAR(100),
+  wp_admin VARCHAR(100),
+  wp_pass VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+🔥 2️⃣ UPDATE INSTALLER (SAVE DATA + LOGIN LINK)
+
+👉 Replace your install API with this upgraded version:
+
+app.post("/install-wordpress", async (req, res) => {
+  const { client_id, domain, admin_user, admin_pass, admin_email } = req.body;
+
+  const sitePath = `/var/www/${domain}/public_html`;
+
+  const dbName = "wp_" + Date.now();
+  const dbUser = "wpuser_" + Date.now();
+  const dbPass = Math.random().toString(36).slice(-10);
+
+  try {
+    const db = await mysql.createConnection({
+      host: "localhost",
+      user: "root",
+      password: "YOUR_ROOT_PASSWORD"
+    });
+
+    await db.query(`CREATE DATABASE ${dbName}`);
+    await db.query(`CREATE USER '${dbUser}'@'localhost' IDENTIFIED BY '${dbPass}'`);
+    await db.query(`GRANT ALL PRIVILEGES ON ${dbName}.* TO '${dbUser}'@'localhost'`);
+    await db.query(`FLUSH PRIVILEGES`);
+
+    // WordPress download + extract (same as before)
+
+    // SAVE DATA
+    await db.query(
+      "INSERT INTO hosting (client_id, domain, db_name, db_user, db_pass, wp_admin, wp_pass) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [client_id, domain, dbName, dbUser, dbPass, admin_user, admin_pass]
+    );
+
+    res.json({
+      success: true,
+      message: "✅ Installed",
+      wp_login: `https://${domain}/wp-admin`,
+      auto_login: `https://${domain}/wp-admin`
+    });
+
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+🌐 3️⃣ CLIENT DASHBOARD (FRONTEND)
+<h2>My Hosting</h2>
+<div id="hostingList"></div>
+
+<script>
+async function loadHosting() {
+  const res = await fetch("/my-hosting");
+  const data = await res.json();
+
+  let html = "";
+  data.forEach(h => {
+    html += `
+      <div style="border:1px solid #ccc;padding:10px;margin:10px;">
+        <b>${h.domain}</b><br>
+        <button onclick="loginWP('${h.domain}')">Login WordPress</button>
+        <button onclick="openSite('${h.domain}')">Visit Site</button>
+      </div>
+    `;
+  });
+
+  document.getElementById("hostingList").innerHTML = html;
+}
+
+function loginWP(domain) {
+  window.open(`https://${domain}/wp-admin`, "_blank");
+}
+
+function openSite(domain) {
+  window.open(`https://${domain}`, "_blank");
+}
+
+loadHosting();
+</script>
+🔥 4️⃣ AUTO LOGIN (DIRECT WP LOGIN)
+
+👉 Simple version (works instantly):
+
+app.get("/wp-login/:id", async (req, res) => {
+  const [row] = await db.query("SELECT * FROM hosting WHERE id = ?", [req.params.id]);
+
+  res.redirect(`https://${row[0].domain}/wp-admin`);
+});
+🔐 5️⃣ AUTO SSL (LET’S ENCRYPT)
+
+Run command after install:
+
+sudo certbot --nginx -d example.com -d www.example.com --non-interactive --agree-tos -m your@email.com
+
+👉 Add in Node:
+
+exec(`certbot --nginx -d ${domain} --non-interactive --agree-tos -m admin@${domain}`);
+📊 6️⃣ HOSTING API (FOR DASHBOARD)
+app.get("/my-hosting", async (req, res) => {
+  const [rows] = await db.query("SELECT * FROM hosting WHERE client_id = 1");
+  res.json(rows);
+});
