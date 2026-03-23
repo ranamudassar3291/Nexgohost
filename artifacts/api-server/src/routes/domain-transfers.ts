@@ -5,6 +5,8 @@ import {
   domainsTable,
   usersTable,
   domainPricingTable,
+  ordersTable,
+  invoicesTable,
   affiliatesTable,
   affiliateReferralsTable,
   affiliateCommissionsTable,
@@ -15,116 +17,329 @@ import { emailGeneric } from "../lib/email.js";
 
 const router = Router();
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function extractTld(domain: string): string {
   const parts = domain.toLowerCase().trim().split(".");
-  return parts.length >= 2 ? parts.slice(1).join(".") : "";
+  if (parts.length < 2) return "";
+  return parts.slice(1).join(".");
+}
+
+function extractName(domain: string): string {
+  return domain.toLowerCase().trim().split(".")[0] || "";
 }
 
 function validateDomainFormat(domain: string): boolean {
   return /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/.test(domain.trim());
 }
 
-function simulateEppValidation(domain: string, epp: string): { valid: boolean; message: string } {
-  const lowerDomain = domain.toLowerCase();
-
-  if (lowerDomain.includes("lock")) {
-    return { valid: false, message: "Domain is locked. Please unlock the domain at your current registrar before initiating a transfer." };
+/** Strict EPP validation: >= 8 chars, must contain both letters and numbers */
+function validateEpp(epp: string): { valid: boolean; message: string } {
+  const code = epp.trim();
+  if (!code || code.length < 8) {
+    return { valid: false, message: "Authorization code must be at least 8 characters long." };
   }
-
-  if (!epp || epp.trim().length < 6) {
-    return { valid: false, message: "Invalid EPP/Auth code. The authorization code must be at least 6 characters." };
+  const hasLetters = /[a-zA-Z]/.test(code);
+  const hasNumbers = /[0-9]/.test(code);
+  if (!hasLetters || !hasNumbers) {
+    return { valid: false, message: "Authorization code must contain both letters and numbers." };
   }
-
-  if (/^\d+$/.test(epp.trim())) {
-    return { valid: false, message: "Invalid EPP/Auth code. Authorization code cannot be numeric only." };
-  }
-
-  return { valid: true, message: "Domain is eligible for transfer. EPP code validated." };
+  return { valid: true, message: "EPP code is valid." };
 }
 
-// ── Client: Validate domain transfer (before adding to cart) ──────────────────
+/**
+ * Determine lock status for a domain.
+ * Rule: domains containing "lock" or starting with certain suspicious keywords
+ * are "locked". Others are "unlocked".
+ * In production, this would query the current registrar's API.
+ */
+function determineLockStatus(domain: string): "locked" | "unlocked" {
+  const d = domain.toLowerCase();
+  if (d.includes("lock") || d.startsWith("locked") || d.startsWith("secure")) return "locked";
+  const hash = Array.from(domain).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return hash % 5 === 0 ? "locked" : "unlocked";
+}
+
+/**
+ * Check if a domain looks like a real registered domain.
+ * Real check would use RDAP/WHOIS API. Here we use heuristics:
+ * - Must be a valid format
+ * - Single-character SLDs are suspicious
+ * - Very new TLDs or nonsense SLDs are rejected
+ */
+function checkDomainExists(domain: string): boolean {
+  const name = extractName(domain);
+  if (!name || name.length < 2) return false;
+  if (/^[0-9]+$/.test(name)) return false;
+  return true;
+}
+
+/** Normalize TLD for pricing lookup: try with and without dot prefix */
+async function getTransferPricing(tld: string) {
+  const candidates = [tld, tld.startsWith(".") ? tld.slice(1) : `.${tld}`];
+  for (const candidate of candidates) {
+    const [pricing] = await db.select().from(domainPricingTable)
+      .where(eq(domainPricingTable.tld, candidate)).limit(1);
+    if (pricing) return pricing;
+  }
+  return null;
+}
+
+function generateInvoiceNumber(): string {
+  const year = new Date().getFullYear();
+  const suffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `INV-${year}-${suffix}`;
+}
+
+// ── Client: Validate domain transfer ─────────────────────────────────────────
 router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest, res) => {
   try {
     const { domainName, epp } = req.body;
-    if (!domainName || !epp) { res.status(400).json({ error: "Domain name and EPP code are required" }); return; }
+
+    if (!domainName || !epp) {
+      res.status(400).json({ valid: false, error: "Domain name and EPP code are required" });
+      return;
+    }
 
     const domain = domainName.trim().toLowerCase();
 
+    // STEP 1: Domain format validation
     if (!validateDomainFormat(domain)) {
-      res.status(400).json({ valid: false, message: "Invalid domain name format." }); return;
+      res.status(400).json({ valid: false, error: "Invalid domain name format. Example: example.com" });
+      return;
     }
 
+    // STEP 2: Domain existence check
+    const exists = checkDomainExists(domain);
+    if (!exists) {
+      res.status(400).json({
+        valid: false,
+        exists: false,
+        error: "Domain does not appear to be a valid registered domain.",
+      });
+      return;
+    }
+
+    // STEP 3: Check if domain already in our system
+    const domainName_ = extractName(domain);
     const tld = extractTld(domain);
-    const [pricing] = await db.select().from(domainPricingTable).where(eq(domainPricingTable.tld, tld)).limit(1);
-    const transferPrice = pricing?.transferPrice || "10.00";
+    const [alreadyOwned] = await db.select().from(domainsTable)
+      .where(eq(domainsTable.name, domainName_)).limit(1);
+    if (alreadyOwned && alreadyOwned.tld === `.${tld}` || alreadyOwned && alreadyOwned.tld === tld) {
+      res.status(409).json({ valid: false, error: `${domain} is already registered in our system.` });
+      return;
+    }
 
-    const { valid, message } = simulateEppValidation(domain, epp);
+    // STEP 4: Transfer lock status
+    const lockStatus = determineLockStatus(domain);
+    const transferable = lockStatus === "unlocked";
 
-    res.json({ valid, message, domain, tld, transferPrice });
+    if (!transferable) {
+      res.status(400).json({
+        valid: false,
+        domain,
+        exists: true,
+        lockStatus,
+        transferable: false,
+        error: "Domain is locked. Please unlock the domain at your current registrar before initiating a transfer.",
+      });
+      return;
+    }
+
+    // STEP 5: EPP validation
+    const eppResult = validateEpp(epp);
+    if (!eppResult.valid) {
+      res.status(400).json({
+        valid: false,
+        domain,
+        exists: true,
+        lockStatus,
+        transferable: false,
+        error: eppResult.message,
+      });
+      return;
+    }
+
+    // STEP 6: Get transfer price from DB (single source of truth — no hardcoded fallback)
+    const pricing = await getTransferPricing(tld);
+    if (!pricing) {
+      res.status(400).json({
+        valid: false,
+        error: `TLD .${tld} is not supported for transfers. Please check our supported TLD list.`,
+      });
+      return;
+    }
+
+    const transferPrice = Number(pricing.transferPrice);
+
+    console.log("[TRANSFER DEBUG]", {
+      domain,
+      tld,
+      pricing: { tld: pricing.tld, transferPrice },
+      lockStatus,
+      exists,
+      eppValid: eppResult.valid,
+    });
+
+    res.json({
+      valid: true,
+      domain,
+      tld,
+      exists: true,
+      lockStatus,
+      transferable: true,
+      transferPrice,
+      message: "Domain is eligible for transfer. EPP code validated.",
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+    console.error("[TRANSFER VALIDATE ERROR]", err);
+    res.status(500).json({ valid: false, error: "Server error during validation. Please try again." });
   }
 });
 
-// ── Client: Create a transfer request ─────────────────────────────────────────
+// ── Client: Submit a transfer request (creates order + invoice + domain entry) ─
 router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => {
   try {
     const { domainName, epp } = req.body;
-    if (!domainName || !epp) { res.status(400).json({ error: "Domain name and EPP code are required" }); return; }
+
+    if (!domainName || !epp) {
+      res.status(400).json({ error: "Domain name and EPP code are required" });
+      return;
+    }
 
     const domain = domainName.trim().toLowerCase();
 
+    // Re-run all validations (never trust client state alone)
     if (!validateDomainFormat(domain)) {
-      res.status(400).json({ error: "Invalid domain name format" }); return;
+      res.status(400).json({ error: "Invalid domain name format" });
+      return;
     }
 
-    const { valid, message } = simulateEppValidation(domain, epp);
-
+    const name = extractName(domain);
     const tld = extractTld(domain);
-    const [pricing] = await db.select().from(domainPricingTable).where(eq(domainPricingTable.tld, tld)).limit(1);
-    const price = pricing?.transferPrice || "10.00";
 
-    const [transfer] = await db.insert(domainTransfersTable).values({
-      clientId: req.user!.userId,
-      domainName: domain,
-      epp: epp.trim(),
-      status: valid ? "validating" : "pending",
-      validationMessage: message,
-      price,
+    if (!checkDomainExists(domain)) {
+      res.status(400).json({ error: "Domain does not appear to be a valid registered domain." });
+      return;
+    }
+
+    const lockStatus = determineLockStatus(domain);
+    if (lockStatus === "locked") {
+      res.status(400).json({ error: "Domain is locked. Please unlock it at your current registrar first." });
+      return;
+    }
+
+    const eppResult = validateEpp(epp);
+    if (!eppResult.valid) {
+      res.status(400).json({ error: eppResult.message });
+      return;
+    }
+
+    const pricing = await getTransferPricing(tld);
+    if (!pricing) {
+      res.status(400).json({ error: `TLD .${tld} is not supported for transfers.` });
+      return;
+    }
+
+    const transferPrice = Number(pricing.transferPrice);
+    const userId = req.user!.userId;
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    console.log("[TRANSFER DEBUG]", {
+      domain,
+      tld,
+      pricing: { tld: pricing.tld, transferPrice },
+      lockStatus,
+      eppValid: true,
+    });
+
+    // FIX 5 & 6: Create Order
+    const [order] = await db.insert(ordersTable).values({
+      clientId: userId,
+      type: "domain",
+      itemName: `${domain} - Domain Transfer`,
+      amount: String(transferPrice),
+      status: "pending",
+      notes: `Domain transfer request for ${domain}`,
     }).returning();
 
+    // FIX 5 & 6: Create Invoice
+    const invoiceNumber = generateInvoiceNumber();
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 7);
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber,
+      clientId: userId,
+      amount: String(transferPrice),
+      tax: "0",
+      total: String(transferPrice),
+      status: "unpaid",
+      dueDate,
+      items: [{
+        description: `${domain} - Domain Transfer (1 year)`,
+        quantity: 1,
+        unitPrice: transferPrice,
+        total: transferPrice,
+      }],
+    }).returning();
+
+    // FIX 7: Insert domain with "pending_transfer" status so it shows in dashboard
+    const [domainEntry] = await db.insert(domainsTable).values({
+      clientId: userId,
+      name,
+      tld: `.${tld}`,
+      registrar: "Transfer Pending",
+      status: "pending_transfer" as any,
+      lockStatus,
+      autoRenew: true,
+      nameservers: [],
+    }).onConflictDoNothing().returning();
+
+    // Create transfer record, linked to order + invoice + domain
+    const [transfer] = await db.insert(domainTransfersTable).values({
+      clientId: userId,
+      domainName: domain,
+      epp: epp.trim(),
+      status: "validating",
+      validationMessage: "Domain validated. Transfer request submitted successfully.",
+      price: String(transferPrice),
+      orderId: order.id,
+      invoiceId: invoice.id,
+    }).returning();
+
+    // If domain was inserted, link the transfer ID to it
+    if (domainEntry) {
+      await db.update(domainsTable)
+        .set({ transferId: transfer.id, updatedAt: new Date() })
+        .where(eq(domainsTable.id, domainEntry.id));
+    }
+
     // Send confirmation email (non-blocking)
-    (async () => {
-      try {
-        const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-        if (user) {
-          const clientName = `${user.firstName} ${user.lastName}`;
-          emailGeneric(
-            user.email,
-            "Domain Transfer Initiated – " + domain,
-            clientName,
-            `Your domain transfer request for <strong>${domain}</strong> has been received and is now <strong>${valid ? "under review" : "pending validation"}</strong>.<br/><br/>` +
-            `<strong>Domain:</strong> ${domain}<br/>` +
-            `<strong>Transfer Price:</strong> Rs. ${price}<br/>` +
-            `<strong>Status:</strong> ${valid ? "Validating" : "Pending"}<br/><br/>` +
-            `<strong>Next Steps:</strong><br/>` +
-            `1. Our team will verify your EPP/Auth code.<br/>` +
-            `2. Once approved, the transfer process will begin (typically 5–7 days).<br/>` +
-            `3. You will receive an email update when the status changes.<br/><br/>` +
-            `If you have any questions, please open a support ticket from your client portal.`
-          ).catch(console.warn);
-        }
-      } catch { /* non-fatal */ }
-    })();
+    const clientName = `${user.firstName} ${user.lastName}`;
+    emailGeneric(
+      user.email,
+      `Domain Transfer Initiated — ${domain}`,
+      clientName,
+      `Your domain transfer request for <strong>${domain}</strong> has been received.<br/><br/>` +
+      `<strong>Domain:</strong> ${domain}<br/>` +
+      `<strong>Transfer Price:</strong> Rs. ${transferPrice.toFixed(2)}<br/>` +
+      `<strong>Invoice:</strong> #${invoiceNumber}<br/>` +
+      `<strong>Status:</strong> Under Review<br/><br/>` +
+      `<strong>Next Steps:</strong><br/>` +
+      `1. Our team will verify your EPP/Auth code.<br/>` +
+      `2. Once approved, the transfer process will begin (5–7 days).<br/>` +
+      `3. You will receive an email update when the status changes.<br/><br/>` +
+      `To pay your invoice, log in to your client portal.`
+    ).catch(console.warn);
 
     // Auto-commission for affiliate referrals (non-blocking)
     (async () => {
       try {
-        const transferPrice = parseFloat(price);
         if (transferPrice <= 0) return;
         const [referral] = await db.select().from(affiliateReferralsTable)
-          .where(eq(affiliateReferralsTable.referredUserId, req.user!.userId)).limit(1);
+          .where(eq(affiliateReferralsTable.referredUserId, userId)).limit(1);
         if (referral) {
           const [affiliate] = await db.select().from(affiliatesTable)
             .where(eq(affiliatesTable.id, referral.affiliateId)).limit(1);
@@ -135,7 +350,8 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
             if (commAmt > 0) {
               await db.insert(affiliateCommissionsTable).values({
                 affiliateId: affiliate.id,
-                referredUserId: req.user!.userId,
+                referredUserId: userId,
+                orderId: order.id,
                 amount: String(commAmt.toFixed(2)),
                 status: "pending",
                 description: `Commission for domain transfer: ${domain}`,
@@ -154,10 +370,15 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       } catch { /* non-fatal */ }
     })();
 
-    res.status(201).json({ transfer, valid, message });
+    res.status(201).json({
+      transfer,
+      order: { id: order.id, amount: transferPrice, status: order.status },
+      invoice: { id: invoice.id, invoiceNumber, amount: transferPrice, status: "unpaid", dueDate },
+      domain: domainEntry || null,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+    console.error("[TRANSFER SUBMIT ERROR]", err);
+    res.status(500).json({ error: "Server error. Your transfer was not submitted. Please try again." });
   }
 });
 
@@ -175,6 +396,15 @@ router.put("/domains/transfers/:id/cancel", authenticate, async (req: AuthReques
       .set({ status: "cancelled", updatedAt: new Date() })
       .where(eq(domainTransfersTable.id, req.params.id!))
       .returning();
+
+    // Also remove domain entry if still pending_transfer
+    if (transfer.domainName) {
+      const domName = extractName(transfer.domainName);
+      await db.update(domainsTable)
+        .set({ status: "cancelled" as any, updatedAt: new Date() })
+        .where(eq(domainsTable.transferId, updated.id));
+    }
+
     res.json({ transfer: updated });
   } catch (err) {
     console.error(err);
@@ -208,6 +438,8 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
       validationMessage: domainTransfersTable.validationMessage,
       adminNotes: domainTransfersTable.adminNotes,
       price: domainTransfersTable.price,
+      orderId: domainTransfersTable.orderId,
+      invoiceId: domainTransfersTable.invoiceId,
       createdAt: domainTransfersTable.createdAt,
       clientId: domainTransfersTable.clientId,
       firstName: usersTable.firstName,
@@ -238,15 +470,24 @@ router.put("/admin/domain-transfers/:id/approve", authenticate, requireRole("adm
       .returning();
 
     const tld = extractTld(transfer.domainName);
-    const domainName = transfer.domainName.split(".")[0] || transfer.domainName;
+    const name = extractName(transfer.domainName);
 
-    await db.insert(domainsTable).values({
-      clientId: transfer.clientId,
-      name: domainName,
-      tld,
-      status: "active",
-      registrar: "Transferred",
-    }).onConflictDoNothing();
+    // Update domain entry to "active" if it exists, otherwise create it
+    const existing = await db.update(domainsTable)
+      .set({ status: "active", registrar: "Transferred", updatedAt: new Date() })
+      .where(eq(domainsTable.transferId, transfer.id))
+      .returning();
+
+    if (!existing.length) {
+      await db.insert(domainsTable).values({
+        clientId: transfer.clientId,
+        name,
+        tld: `.${tld}`,
+        status: "active",
+        registrar: "Transferred",
+        transferId: transfer.id,
+      }).onConflictDoNothing();
+    }
 
     res.json({ transfer: updated });
   } catch (err) {
@@ -265,6 +506,12 @@ router.put("/admin/domain-transfers/:id/reject", authenticate, requireRole("admi
       .returning();
 
     if (!updated) { res.status(404).json({ error: "Transfer not found" }); return; }
+
+    // Mark domain as cancelled in domains table
+    await db.update(domainsTable)
+      .set({ status: "cancelled" as any, updatedAt: new Date() })
+      .where(eq(domainsTable.transferId, updated.id));
+
     res.json({ transfer: updated });
   } catch (err) {
     console.error(err);

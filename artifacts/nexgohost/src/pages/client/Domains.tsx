@@ -72,6 +72,19 @@ const statusColors: Record<string, string> = {
   expired: "bg-red-500/10 text-red-400 border-red-500/20",
   pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   transferred: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  suspended: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  cancelled: "bg-secondary text-muted-foreground border-border",
+  pending_transfer: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+};
+
+const statusLabels: Record<string, string> = {
+  active: "Active",
+  expired: "Expired",
+  pending: "Pending",
+  transferred: "Transferred",
+  suspended: "Suspended",
+  cancelled: "Cancelled",
+  pending_transfer: "Pending Transfer",
 };
 
 function getPriceForPeriod(item: CartItem): number {
@@ -440,7 +453,7 @@ export default function ClientDomains() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-xl font-bold text-foreground font-mono">{domain.name}{domain.tld}</h3>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${statusColors[domain.status]}`}>{domain.status}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[domain.status] ?? "bg-secondary text-muted-foreground border-border"}`}>{statusLabels[domain.status] ?? domain.status}</span>
                           {isExpiringSoon && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-500/10 text-orange-400 border border-orange-500/20">
                               <AlertCircle className="w-3 h-3" /> Expiring soon
