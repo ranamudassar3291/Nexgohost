@@ -41,14 +41,21 @@ export interface CpanelServerConfig {
 }
 
 export interface CpanelWpInstallOptions {
-  serviceId:   string;
-  domain:      string;
-  cpanelUser:  string;   // cPanel account username (e.g. "johndoe")
-  siteTitle:   string;
-  wpAdmin:     string;
-  wpPass:      string;
-  wpEmail:     string;
-  installPath: string;   // "/" → public_html, "/blog" → public_html/blog
+  serviceId:      string;
+  domain:         string;
+  cpanelUser:     string;   // cPanel account username (e.g. "johndoe")
+  siteTitle:      string;
+  wpAdmin:        string;
+  wpPass:         string;
+  wpEmail:        string;
+  installPath:    string;   // "/" → public_html, "/blog" → public_html/blog
+  /**
+   * The cPanel account's own API token (cPanel → Security → Manage API Tokens).
+   * When provided it is used instead of WHM root create_user_session, which
+   * requires the WHM token to have the create-user-session ACL — the cause of
+   * the "No data returned from cPanel Service" 500 error.
+   */
+  cpanelApiToken?: string;
 }
 
 // ── Step tracker ───────────────────────────────────────────────────────────────
@@ -203,6 +210,7 @@ export async function cpanelProvisionWordPress(
 ): Promise<void> {
   const {
     serviceId, domain, cpanelUser, siteTitle, wpAdmin, wpPass, wpEmail, installPath,
+    cpanelApiToken,
   } = opts;
 
   // Resolve public_html path on the cPanel server
@@ -268,21 +276,27 @@ export async function cpanelProvisionWordPress(
   let deployedVia = "none";
 
   // ── Strategy A: Softaculous ─────────────────────────────────────────────────
-  // Uses the exact parameter names from the Softaculous API spec:
-  //   softdomain, softdirectory, admin_username, admin_pass, admin_email, autoinstall=1
-  // The cpsess token is obtained automatically from WHM's create_user_session.
-  console.log(`[CP-WP] Attempting Softaculous Quick Install via cpsess session…`);
+  // Uses exact Softaculous API parameter names: softdomain, softdirectory,
+  // admin_username, admin_pass, admin_email, autoinstall=1.
+  //
+  // Auth:
+  //   If cpanelApiToken is provided → uses "Authorization: cpanel user:token"
+  //   to call /login/?login_only=1 directly (no WHM root permission needed).
+  //   Otherwise falls back to WHM's create_user_session.
+  console.log(`[CP-WP] Attempting Softaculous Quick Install${cpanelApiToken ? " (cPanel API Token auth)" : " (WHM session auth)"}…`);
   const softOpts: SoftaculousInstallOpts = {
     softdomain:     domain,
-    softdirectory:  subPath.replace(/^\//, ""),  // strip leading slash ("" for root, "wp" for subdir)
+    softdirectory:  subPath.replace(/^\//, ""),  // strip leading slash ("" for root, "wp" for /wp)
     site_name:      siteTitle,
     admin_username: wpAdmin,
-    admin_pass:     wpPass,   // never logged — passed directly to HTTPS POST
+    admin_pass:     wpPass,          // never logged — redacted in all console output
     admin_email:    wpEmail,
-    // Pass the DB we already created so Softaculous links to it rather than making a new one
-    softdb:        dbName,
-    dbusername:    dbUser,
-    dbuserpasswd:  dbPass,
+    // Pass the DB we already created so Softaculous links to it rather than auto-creating
+    softdb:         dbName,
+    dbusername:     dbUser,
+    dbuserpasswd:   dbPass,
+    // Forward the cPanel API token if available (bypasses WHM root permission requirement)
+    ...(cpanelApiToken && { cpanelApiToken }),
   };
   const softResult = await cpanelSoftaculousInstallWordPress(server, cpanelUser, softOpts);
 

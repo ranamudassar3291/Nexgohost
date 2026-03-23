@@ -222,15 +222,16 @@ export async function provisionWordPress(
   wpPass:      string,
   wpEmail:     string,
   installPath: string = "/",
-  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string } | null = null,
+  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string } | null = null,
 ) {
   try {
     // ── Path 1: cPanel / WHM server ──────────────────────────────────────────
     if (cpanelCfg) {
-      console.log(`[WP] Using cPanel UAPI path for service ${serviceId} (user: ${cpanelCfg.cpanelUser})`);
+      console.log(`[WP] Using cPanel path for service ${serviceId} (user: ${cpanelCfg.cpanelUser}, apiToken=${cpanelCfg.cpanelApiToken ? "provided" : "not set — will use WHM session"})`);
       await cpanelProvisionWordPress(cpanelCfg.server, {
         serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
         siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
+        cpanelApiToken: cpanelCfg.cpanelApiToken,
       });
       return;
     }
@@ -271,7 +272,7 @@ export async function reinstallWordPress(
   wpPass:      string,
   wpEmail:     string,
   installPath: string = "/",
-  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string } | null = null,
+  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string } | null = null,
 ) {
   console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
 
@@ -302,6 +303,7 @@ export async function reinstallWordPress(
       await cpanelReinstallWordPress(cpanelCfg.server, {
         serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
         siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
+        cpanelApiToken: cpanelCfg.cpanelApiToken,
       }, oldDbName ?? null, null);
       return;
     }
