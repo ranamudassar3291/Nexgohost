@@ -1,0 +1,109 @@
+const axios = require('axios');
+const crypto = require('crypto');
+
+// CONFIGURATION
+const CPANEL_HOST = 'https://YOUR_SERVER:2083';
+const CPANEL_USER = 'cpanelusername';
+const CPANEL_TOKEN = 'cpanelapitoken';
+const WP_PATH = 'public_html'; // installation folder
+const DOMAIN = 'example.com';
+const WP_DB_PREFIX = 'wp_';
+
+// generate random DB credentials
+function generateCredentials() {
+  const username = 'user' + Math.floor(Math.random() * 10000);
+  const password = crypto.randomBytes(8).toString('hex');
+  return { username, password };
+}
+
+// cPanel API call helper
+async function cpanelApi(module, func, params = {}) {
+  const url = `${CPANEL_HOST}/json-api/cpanel?cpanel_jsonapi_module=${module}&cpanel_jsonapi_func=${func}&cpanel_jsonapi_version=2`;
+  const query = new URLSearchParams(params).toString();
+  const headers = { Authorization: `cpanel ${CPANEL_USER}:${CPANEL_TOKEN}` };
+  const res = await axios.get(`${url}&${query}`, { headers });
+  return res.data;
+}
+
+// CREATE DATABASE
+async function createDatabase(dbName, dbUser, dbPass) {
+  await cpanelApi('Mysql', 'create_database', { name: dbName });
+  await cpanelApi('Mysql', 'create_user', { name: dbUser, password: dbPass });
+  await cpanelApi('Mysql', 'set_privileges_on_database', {
+    user: dbUser,
+    database: dbName,
+    privileges: 'ALL PRIVILEGES',
+  });
+  console.log('Database created:', dbName);
+}
+
+// INSTALL WORDPRESS BACKEND
+async function installWordPress(domain, path) {
+  const { username: dbUser, password: dbPass } = generateCredentials();
+  const dbName = domain.replace(/\W/g, '_') + '_wp';
+
+  try {
+    // 1️⃣ Create DB & User
+    await createDatabase(dbName, dbUser, dbPass);
+
+    // 2️⃣ Download WordPress
+    await cpanelApi('Fileman', 'fetch', { dir: path, url: 'https://wordpress.org/latest.tar.gz' });
+
+    // 3️⃣ Extract
+    await cpanelApi('Fileman', 'extract', { dir: path, archive: 'latest.tar.gz' });
+
+    // 4️⃣ Move files to root
+    await cpanelApi('Fileman', 'mv', { sourcefiles: `${path}/wordpress/*`, destfiles: `${path}/` });
+
+    // 5️⃣ Generate wp-config.php
+    const wpConfig = `
+define('DB_NAME', '${dbName}');
+define('DB_USER', '${dbUser}');
+define('DB_PASSWORD', '${dbPass}');
+define('DB_HOST', 'localhost');
+define('DB_CHARSET', 'utf8');
+define('DB_COLLATE', '');
+$table_prefix = '${WP_DB_PREFIX}';
+define('AUTH_KEY', '${crypto.randomBytes(32).toString('hex')}');
+define('SECURE_AUTH_KEY', '${crypto.randomBytes(32).toString('hex')}');
+define('LOGGED_IN_KEY', '${crypto.randomBytes(32).toString('hex')}');
+define('NONCE_KEY', '${crypto.randomBytes(32).toString('hex')}');
+if (!defined('ABSPATH')) define('ABSPATH', __DIR__ . '/');
+require_once ABSPATH . 'wp-settings.php';
+`;
+    await cpanelApi('Fileman', 'save_file', { file: `${path}/wp-config.php`, data: wpConfig });
+
+    // 6️⃣ Verify backend installation
+    const statusCheck = await cpanelApi('Fileman', 'fileexists', { file: `${path}/wp-config.php` });
+    if (!statusCheck.exists) throw new Error('wp-config.php missing');
+
+    console.log('✅ WordPress installed successfully at', domain);
+    return { status: 'installed', dbName, dbUser, dbPass };
+  } catch (err) {
+    console.error('❌ WordPress install failed:', err.message);
+    return { status: 'failed', error: err.message };
+  }
+}
+
+// CHECK INSTALL STATUS
+async function checkWpStatus(path) {
+  try {
+    const res = await cpanelApi('Fileman', 'fileexists', { file: `${path}/wp-config.php` });
+    return res.exists ? 'installed' : 'not_installed';
+  } catch (err) {
+    return 'not_installed';
+  }
+}
+
+// RUN INSTALLATION
+(async () => {
+  const status = await checkWpStatus(WP_PATH);
+  console.log('Current WordPress status:', status);
+
+  if (status === 'not_installed') {
+    const result = await installWordPress(DOMAIN, WP_PATH);
+    console.log('Installation result:', result);
+  } else {
+    console.log('WordPress already installed, show login button.');
+  }
+})();
