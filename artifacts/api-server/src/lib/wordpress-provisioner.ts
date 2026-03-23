@@ -249,51 +249,72 @@ async function cpanelProvision(
   const wpUrl = installPath === "/" ? `https://${domain}` : `https://${domain}/${directory}`;
   const adminUrl = `${wpUrl}/wp-admin`;
 
-  // ── STRATEGY 1: cPanel WordPress Manager API (WordPress Toolkit) ──────────
-  // This is the official one-call approach cPanel provides. Uses `name` (NOT
-  // `site_name`) for the site title. Available on servers with WordPress Toolkit.
+  // ── STRATEGY 1: cPanel WordPress UAPI (POST /execute/WordPress/install) ───
+  // Correct endpoint: WordPress/install (NOT WordPressManager)
+  // Required fields (all must be present — missing any causes API to reject):
+  //   domain, directory, admin_user, admin_pass, admin_email, name, user
   await setStep(serviceId, "Creating database");
-  let usedWordPressManager = false;
+  let usedCpanelWpApi = false;
   try {
-    // Build the exact payload cPanel WordPressManager/install expects.
-    // IMPORTANT: field is "name" (site title) — NOT "site_name", NOT "siteTitle".
-    const wptPayload = {
-      domain,
-      directory,                                   // "" for root, "subdir" for /subdir
-      admin_user: wpUser,
-      admin_pass: wpPass,
-      admin_email: wpEmail,
-      language: "en",
-      name: siteTitle || "My WordPress Site",      // ✅ "name" is the required site title field
+    // ── Pre-flight validation: ensure every required field is present ────────
+    const missingFields: string[] = [];
+    if (!domain)     missingFields.push("domain");
+    if (!wpUser)     missingFields.push("admin_user");
+    if (!wpPass)     missingFields.push("admin_pass");
+    if (!wpEmail)    missingFields.push("admin_email");
+    if (!ctx.username) missingFields.push("user");
+
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required cPanel WordPress install fields: ${missingFields.join(", ")}`);
+    }
+
+    // ── Build the complete, validated payload ────────────────────────────────
+    const wpApiPayload = {
+      domain,                                      // hosting domain
+      directory,                                   // "" = root, "blog" = /blog
+      admin_user:  wpUser,                         // WordPress admin username
+      admin_pass:  wpPass,                         // WordPress admin password
+      admin_email: wpEmail,                        // WordPress admin email
+      name:        siteTitle || "My WordPress Site", // site title (NOT site_name)
+      user:        ctx.username,                   // cPanel account username (REQUIRED)
+      db_name:     dbName,                         // prefixed db name e.g. wscreati_wp_abc
+      db_user:     dbUser,                         // prefixed db user e.g. wscreati_wp_abc
+      db_pass:     dbPass,                         // secure random db password
     };
-    console.log(`[WP] Attempting cPanel WordPressManager/install for ${domain}`);
-    console.log(`[WP] Payload:`, JSON.stringify(wptPayload));
-    const wptResult = await cpanelUAPI(ctx, "WordPressManager", "install", wptPayload);
-    console.log(`[WP] WordPressManager/install result:`, JSON.stringify(wptResult));
-    // Only mark as succeeded if API returned status=1 (enforced inside cpanelUAPI)
-    usedWordPressManager = true;
-    console.log(`[WP] WordPressManager/install succeeded for ${domain}`);
-  } catch (wptErr: any) {
-    console.warn(`[WP] WordPressManager not available (${wptErr.message}) — falling back to manual install`);
+
+    console.log(`[WP] Calling cPanel WordPress/install for ${domain}`);
+    console.log(`[WP] Final Payload:`, JSON.stringify(wpApiPayload));
+
+    const wpApiResult = await cpanelUAPI(ctx, "WordPress", "install", wpApiPayload);
+    console.log(`[WP] WordPress/install result:`, JSON.stringify(wpApiResult));
+
+    // cpanelUAPI throws if status !== 1, so reaching here means success
+    usedCpanelWpApi = true;
+    console.log(`[WP] WordPress/install succeeded for ${domain}`);
+  } catch (wpApiErr: any) {
+    console.warn(`[WP] WordPress/install failed (${wpApiErr.message}) — falling back to manual install`);
   }
 
-  if (usedWordPressManager) {
-    // WordPress Toolkit handled everything — jump straight to verification
+  if (usedCpanelWpApi) {
+    // cPanel WordPress API handled everything — verify and save
     await setStep(serviceId, "Verifying installation");
-    await new Promise(r => setTimeout(r, 5000)); // give WPT time to finish
+    await new Promise(r => setTimeout(r, 5000)); // allow cPanel to finish writing files
     const isInstalled = await checkWordPressInstalled(ctx, installPath);
     if (!isInstalled) {
       throw new Error(
-        "WordPress Toolkit reported success but wp-config.php was not found. " +
-        "Check the domain resolves to this server."
+        "cPanel WordPress API reported success but wp-config.php was not found. " +
+        "Check that the domain resolves to this server."
       );
     }
   } else {
     // ── STRATEGY 2: Manual install via cPanel UAPI ──────────────────────────
+    // Used when the WordPress UAPI module is unavailable on the server.
     const publicHtml = installPath === "/" ? "/public_html" : `/public_html/${directory}`;
 
-    // STEP 1: Create MySQL database + user
+    // STEP 1: Create MySQL database + user (with prefixed names)
     console.log(`[WP] Creating database: ${dbName}`);
+    console.log(`[WP] DB Name: ${dbName}`);
+    console.log(`[WP] DB User: ${dbUser}`);
     await cpanelUAPI(ctx, "Mysql", "create_database", { name: dbName });
     await cpanelUAPI(ctx, "Mysql", "create_user", { name: dbUser, password: dbPass });
     await cpanelUAPI(ctx, "Mysql", "set_privileges_on_database", {
@@ -325,33 +346,35 @@ async function cpanelProvision(
       content: wpConfigContent,
     });
 
-    // STEP 5: Run WordPress native installer
+    // STEP 5: Run WordPress native installer (wp-admin/install.php)
     await setStep(serviceId, "Running installer");
     console.log(`[WP] Running WordPress native install.php`);
+    const installPayload = {
+      weblog_title:     siteTitle || "My WordPress Site", // native WP installer field
+      user_name:        wpUser,
+      admin_password:   wpPass,
+      admin_password2:  wpPass,
+      admin_email:      wpEmail,
+      blog_public:      "1",
+    };
+    console.log(`[WP] install.php payload:`, JSON.stringify(installPayload));
     const installResp = await fetch(`${wpUrl}/wp-admin/install.php?step=2`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        weblog_title: siteTitle,  // WordPress native installer uses weblog_title
-        user_name: wpUser,
-        admin_password: wpPass,
-        admin_password2: wpPass,
-        admin_email: wpEmail,
-        blog_public: "1",
-      }),
+      body: new URLSearchParams(installPayload),
     });
     if (!installResp.ok && installResp.status !== 302) {
       throw new Error(`WordPress install.php failed (HTTP ${installResp.status}). Check domain resolves to this server.`);
     }
 
-    // STEP 6: Verify
+    // STEP 6: Verify — never save success without confirming files exist
     await setStep(serviceId, "Verifying installation");
     console.log(`[WP] Verifying installation`);
     await new Promise(r => setTimeout(r, 3000));
     const isInstalled = await checkWordPressInstalled(ctx, installPath);
     if (!isInstalled) {
       throw new Error(
-        "WordPress installation verification failed: wp-config.php was not found after install. " +
+        "WordPress verification failed: wp-config.php not found after install. " +
         "The installer may not have completed correctly."
       );
     }
@@ -359,7 +382,7 @@ async function cpanelProvision(
 
   console.log(`[WP] Install verified ✓ for service ${serviceId} (${domain})`);
 
-  // Save success to DB only after verification passes
+  // Save to DB ONLY after real verification passes — never before
   await db.update(hostingServicesTable).set({
     wpInstalled: true,
     wpProvisionStatus: "active",
@@ -376,7 +399,7 @@ async function cpanelProvision(
     updatedAt: new Date(),
   }).where(eq(hostingServicesTable.id, serviceId));
 
-  console.log(`[WP] WordPress provisioned and verified for service ${serviceId} (${domain})`);
+  console.log(`[WP] WordPress fully provisioned for service ${serviceId} (${domain})`);
 }
 
 function generateWpConfig(dbName: string, dbUser: string, dbPass: string, dbHost: string): string {
