@@ -1416,7 +1416,7 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
   }
 });
 
-// GET /client/hosting/:id/wordpress-status — poll provisioning progress
+// GET /client/hosting/:id/wordpress-status — poll provisioning progress (always verifies from server)
 router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
@@ -1426,18 +1426,39 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
 
-    const status = service.wpProvisionStatus || "not_started";
-    const base = {
-      status,
-      step: service.wpProvisionStep,
-      error: service.wpProvisionError,
-      wpInstalled: service.wpInstalled,
-      steps: WP_STEPS,
-    };
+    let status = service.wpProvisionStatus || "not_started";
 
-    if ((status === "active" || status === "completed") && service.wpInstalled) {
+    // For a terminal "active" status, do a real file check to confirm files actually exist.
+    // This prevents showing "Installed" when files have been removed or install failed silently.
+    if (status === "active" && service.wpInstalled) {
+      const ctx = getCpanelCtx(service);
+      if (ctx && !process.env.WP_SIMULATE) {
+        const fileExists = await checkWordPressInstalled(ctx, service.wpInstallPath ?? "/");
+        if (!fileExists) {
+          // DB says installed but files are gone — correct the DB and return not_installed
+          await db.update(hostingServicesTable).set({
+            wpInstalled: false,
+            wpProvisionStatus: "not_started",
+            wpProvisionStep: null,
+            wpProvisionError: "Installation files not found during verification. Please reinstall.",
+            updatedAt: new Date(),
+          }).where(eq(hostingServicesTable.id, id));
+          return res.json({
+            status: "not_installed",
+            step: null,
+            error: "Installation files not found. Please reinstall WordPress.",
+            wpInstalled: false,
+            steps: WP_STEPS,
+          });
+        }
+      }
+      // Files confirmed — return full credentials
       return res.json({
-        ...base,
+        status: "active",
+        step: "Completed",
+        error: null,
+        wpInstalled: true,
+        steps: WP_STEPS,
         credentials: {
           loginUrl: service.wpUrl,
           username: service.wpUsername,
@@ -1449,7 +1470,13 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
       });
     }
 
-    res.json(base);
+    res.json({
+      status,
+      step: service.wpProvisionStep,
+      error: service.wpProvisionError,
+      wpInstalled: service.wpInstalled,
+      steps: WP_STEPS,
+    });
   } catch (err) {
     console.error("[CLIENT] wordpress-status error:", err);
     res.status(500).json({ error: "Server error" });

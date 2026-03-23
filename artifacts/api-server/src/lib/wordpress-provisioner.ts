@@ -14,6 +14,7 @@ export const WP_STEPS = [
   { key: "extract",   label: "Extracting files" },
   { key: "configure", label: "Configuring WordPress" },
   { key: "install",   label: "Running installer" },
+  { key: "verify",    label: "Verifying installation" },
 ];
 
 // ── Step tracker ──────────────────────────────────────────────────────────────
@@ -137,10 +138,24 @@ export async function reinstallWordPress(
   console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
 
   try {
-    // Remove old WP files via cPanel
     if (cpanelCtx && !WP_SIMULATE) {
+      // Fetch existing DB name so we can drop it
+      const [existing] = await db.select().from(hostingServicesTable)
+        .where(eq(hostingServicesTable.id, serviceId)).limit(1);
+      const oldDbName = (existing as any)?.wpDbName;
+      const oldDbUser = oldDbName; // dbUser == dbName by convention
+
+      // STEP A: Delete old MySQL database + user
+      if (oldDbName) {
+        console.log(`[WP] Dropping old database: ${oldDbName}`);
+        try { await cpanelUAPI(cpanelCtx, "Mysql", "delete_database", { name: oldDbName }); } catch { /* may not exist */ }
+        try { await cpanelUAPI(cpanelCtx, "Mysql", "delete_user", { name: oldDbUser }); } catch { /* may not exist */ }
+      }
+
+      // STEP B: Remove old WordPress files
       const dir = installPath === "/" ? "/public_html" : `/public_html/${installPath.replace(/^\//, "")}`;
-      const wpFiles = ["wp-admin", "wp-content", "wp-includes", "wp-config.php", "wp-login.php", "index.php", "wp-blog-header.php"];
+      const wpFiles = ["wp-admin", "wp-content", "wp-includes", "wp-config.php", "wp-login.php", "index.php", "wp-blog-header.php", "xmlrpc.php", "wp-cron.php", ".htaccess"];
+      console.log(`[WP] Removing old WordPress files from ${dir}`);
       for (const f of wpFiles) {
         try {
           await cpanelUAPI(cpanelCtx, "Fileman", "delete_files", { files: `${dir}/${f}`, is_skiptrash: "1" });
@@ -155,12 +170,14 @@ export async function reinstallWordPress(
       wpProvisionStep: "Queued",
       wpProvisionError: null,
       wpUrl: null,
+      wpDbName: null,
       wpUsername: wpUser,
       wpPassword: wpPass,
       wpEmail: wpEmail,
       wpSiteTitle: siteTitle,
+      wpProvisionedAt: null,
       updatedAt: new Date(),
-    }).where(eq(hostingServicesTable.id, serviceId));
+    } as any).where(eq(hostingServicesTable.id, serviceId));
 
     await provisionWordPress(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx);
   } catch (err: any) {
@@ -229,7 +246,7 @@ async function cpanelProvision(
 
   // STEP 5: Run WordPress installer
   await setStep(serviceId, "Running installer");
-  console.log(`[WP] Running WordPress installer`);
+  console.log(`[WP INSTALL STEP: running install]`);
   const installResp = await fetch(`${wpUrl}/wp-admin/install.php?step=2`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -244,11 +261,25 @@ async function cpanelProvision(
   });
 
   if (!installResp.ok && installResp.status !== 302) {
-    throw new Error(`WordPress installer returned HTTP ${installResp.status}`);
+    throw new Error(`WordPress installer request failed (HTTP ${installResp.status}). Check if the domain resolves correctly.`);
   }
 
-  console.log(`[WP] WordPress installed successfully for ${domain}`);
+  // STEP 6: Verify installation — do NOT save success until files are confirmed
+  await setStep(serviceId, "Verifying installation");
+  console.log(`[WP INSTALL STEP: verifying installation]`);
+  // Give cPanel a moment to flush writes before verifying
+  await new Promise(r => setTimeout(r, 3000));
+  const isInstalled = await checkWordPressInstalled(ctx, installPath);
+  if (!isInstalled) {
+    throw new Error(
+      "WordPress installation verification failed: wp-config.php was not found after install. " +
+      "The installer may have not completed correctly."
+    );
+  }
 
+  console.log(`[WP] Install verified ✓ — wp-config.php found at ${publicHtml}`);
+
+  // Only save to DB after successful verification
   await db.update(hostingServicesTable).set({
     wpInstalled: true,
     wpProvisionStatus: "active",
@@ -264,6 +295,8 @@ async function cpanelProvision(
     wpProvisionedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(hostingServicesTable.id, serviceId));
+
+  console.log(`[WP] WordPress provisioned and verified for service ${serviceId} (${domain})`);
 }
 
 function generateWpConfig(dbName: string, dbUser: string, dbPass: string, dbHost: string): string {
@@ -315,9 +348,11 @@ async function simulateProvision(
 
   for (const step of WP_STEPS) {
     await setStep(serviceId, step.label);
-    console.log(`[WP:SIM] Simulating: ${step.label}`);
+    console.log(`[WP INSTALL STEP: ${step.key}]`);
     await delay(2500);
   }
+  // Simulate post-install verification delay
+  await delay(1000);
 
   const pathSuffix = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;
   const wpUrl = `https://${domain}${pathSuffix}`;

@@ -186,29 +186,46 @@ export default function ServiceDetail() {
     fetchService();
   }, [serviceId]);
 
-  // Sync wpProvisionData from loaded service (for sessions where install was already started)
+  // Verify WordPress status from server on every service load (never trust local state alone)
   useEffect(() => {
-    if (!service) return;
-    const status = service.wpProvisionStatus;
-    if (status === "queued" || status === "provisioning") {
-      setWpProvisionData({ status, step: service.wpProvisionStep, error: null });
-      setWpPolling(true);
-    } else if (status === "active" && service.wpInstalled) {
-      setWpProvisionData({
-        status: "active",
-        step: "Completed",
-        error: null,
-        credentials: {
-          loginUrl: service.wpUrl,
-          username: service.wpUsername,
-          password: service.wpPassword,
-          email: service.wpEmail,
-          siteTitle: service.wpSiteTitle,
-        },
-      });
-    } else if (status === "failed") {
-      setWpProvisionData({ status: "failed", step: null, error: service.wpProvisionError });
+    if (!service?.id) return;
+    let cancelled = false;
+    async function checkWpStatus() {
+      try {
+        const res = await authFetch(`/api/client/hosting/${service!.id}/wordpress-status`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        setWpProvisionData(data);
+        // If actively provisioning, kick off polling
+        if (data.status === "queued" || data.status === "provisioning") {
+          setWpPolling(true);
+        }
+      } catch {
+        // Network error: fall back to DB data so UI doesn't break
+        const status = service!.wpProvisionStatus;
+        if (status === "queued" || status === "provisioning") {
+          setWpProvisionData({ status, step: service!.wpProvisionStep, error: null });
+          setWpPolling(true);
+        } else if (status === "active" && service!.wpInstalled) {
+          setWpProvisionData({
+            status: "active",
+            step: "Completed",
+            error: null,
+            credentials: {
+              loginUrl: service!.wpUrl,
+              username: service!.wpUsername,
+              password: service!.wpPassword,
+              email: service!.wpEmail,
+              siteTitle: service!.wpSiteTitle,
+            },
+          });
+        } else if (status === "failed") {
+          setWpProvisionData({ status: "failed", step: null, error: service!.wpProvisionError });
+        }
+      }
     }
+    checkWpStatus();
+    return () => { cancelled = true; };
   }, [service?.id]);
 
   // Poll /wordpress-status while install is in progress
@@ -1030,7 +1047,11 @@ export default function ServiceDetail() {
           <div className="flex items-center gap-2">
             <LayoutGrid size={18} className="text-primary" />
             <h3 className="font-semibold text-foreground">WordPress</h3>
-            {(wpProvisionData?.status === "active" || service.wpInstalled) && !wpPolling ? (
+            {wpProvisionData === null ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-muted-foreground border border-border flex items-center gap-1">
+                <Loader2 size={10} className="animate-spin" /> Checking…
+              </span>
+            ) : wpProvisionData.status === "active" && !wpPolling ? (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1">
                 <CheckCircle2 size={11} /> Installed
               </span>
@@ -1038,15 +1059,19 @@ export default function ServiceDetail() {
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
                 <Loader2 size={10} className="animate-spin" /> Installing…
               </span>
+            ) : wpProvisionData.status === "failed" ? (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                Failed
+              </span>
             ) : (
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-muted-foreground border border-border">
                 Not Installed
               </span>
             )}
           </div>
-          {/* Prominent Login button — visible when installed */}
-          {(wpProvisionData?.status === "active" || service.wpInstalled) && !wpPolling && (
-            <a href={wpProvisionData?.credentials?.loginUrl || service.wpUrl || "#"} target="_blank" rel="noreferrer">
+          {/* Login button — only shown when server confirms installed */}
+          {wpProvisionData?.status === "active" && !wpPolling && (
+            <a href={wpProvisionData.credentials?.loginUrl || "#"} target="_blank" rel="noreferrer">
               <Button size="sm" className="gap-1.5">
                 <ExternalLink size={13} /> Login to WordPress
               </Button>
@@ -1064,6 +1089,7 @@ export default function ServiceDetail() {
                 { label: "Extracting files", key: "extract" },
                 { label: "Configuring WordPress", key: "configure" },
                 { label: "Running installer", key: "install" },
+                { label: "Verifying installation", key: "verify" },
               ].map((step, idx, arr) => {
                 const currentIdx = arr.findIndex(s =>
                   wpProvisionData.step?.toLowerCase().includes(s.label.toLowerCase().split(" ")[0])
@@ -1151,22 +1177,11 @@ export default function ServiceDetail() {
           </div>
         )}
 
-        {/* Installed but no credentials in state — show login only */}
-        {service.wpInstalled && !wpProvisionData && !wpPolling && (
+        {/* Installed (server-confirmed) but credentials not yet in state — show minimal card */}
+        {wpProvisionData?.status === "active" && !wpProvisionData.credentials && !wpPolling && (
           <div className="space-y-3">
-            <div className="bg-secondary/50 rounded-xl p-4 text-sm space-y-2">
-              {service.wpSiteTitle && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Site</span>
-                  <span className="font-medium text-foreground">{service.wpSiteTitle}</span>
-                </div>
-              )}
-              {service.wpUsername && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Username</span>
-                  <span className="font-mono text-foreground select-all">{service.wpUsername}</span>
-                </div>
-              )}
+            <div className="bg-secondary/50 rounded-xl p-4 text-sm text-muted-foreground">
+              WordPress is installed. Credential details were set during installation.
             </div>
             <div className="flex flex-wrap gap-3">
               <a href={service.wpUrl || "#"} target="_blank" rel="noreferrer">
@@ -1204,7 +1219,11 @@ export default function ServiceDetail() {
         )}
 
         {/* ─── Not installed — smart install form ─── */}
-        {!wpPolling && !wpProvisionData && !service.wpInstalled && (
+        {!wpPolling && wpProvisionData !== null &&
+          wpProvisionData.status !== "active" &&
+          wpProvisionData.status !== "failed" &&
+          wpProvisionData.status !== "queued" &&
+          wpProvisionData.status !== "provisioning" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Install WordPress on <strong className="text-foreground">{service.domain}</strong>. A database will be provisioned and WordPress installed automatically.

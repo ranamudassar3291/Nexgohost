@@ -1,0 +1,157 @@
+Fix WordPress installation system completely. Do NOT rely on frontend state. Backend must control everything.
+
+========================
+1. REMOVE FAKE STATUS (CRITICAL)
+========================
+
+Current issue:
+Frontend shows "Installed" without real install
+
+Fix:
+- NEVER use frontend state for install status
+- ALWAYS verify from server
+
+REAL CHECK:
+- Check if wp-config.php exists via cPanel File API
+- Check if /public_html/wp-admin exists
+
+If NOT found:
+  status = "not_installed"
+
+If found:
+  status = "installed"
+
+========================
+2. REAL INSTALLATION (MANDATORY)
+========================
+
+When user clicks "Install WordPress":
+
+Backend MUST execute:
+
+STEP 1: Create MySQL database via cPanel API
+STEP 2: Create DB user
+STEP 3: Assign privileges
+STEP 4: Download WordPress
+STEP 5: Extract files
+STEP 6: Generate wp-config.php
+STEP 7: Run install.php (HTTP request)
+
+If ANY step fails:
+  STOP and return error
+
+DO NOT mark success until ALL steps complete
+
+========================
+3. VERIFY INSTALL AFTER COMPLETION
+========================
+
+After install:
+
+- Check:
+   /wp-admin exists
+   wp-config.php exists
+
+If NOT:
+   status = "failed"
+   show "Installation failed"
+
+If YES:
+   status = "installed"
+
+========================
+4. FIX STATUS DISPLAY
+========================
+
+Status must be:
+
+- installed → only if real install exists
+- not_installed → default
+- failed → if error
+
+Frontend must use API:
+GET /hosting/:id/wordpress-status
+
+========================
+5. INSTALL BUTTON LOGIC
+========================
+
+If status = not_installed:
+  show "Install WordPress"
+
+If status = installed:
+  show:
+    - Login to WordPress
+    - Reinstall
+
+If status = failed:
+  show:
+    - Retry Install
+
+========================
+6. SAVE INSTALL DATA ONLY AFTER SUCCESS
+========================
+
+ONLY save in DB if install success:
+
+{
+  domain,
+  adminUrl,
+  username,
+  password (encrypted),
+  status: "installed"
+}
+
+If failed:
+  DO NOT save
+
+========================
+7. DEBUG LOGGING (IMPORTANT)
+========================
+
+Add logs for each step:
+
+console.log("WP INSTALL STEP:", stepName)
+
+Example:
+- creating db
+- creating user
+- downloading wordpress
+- extracting files
+- creating config
+- running install
+
+========================
+8. ERROR HANDLING
+========================
+
+Return real errors:
+
+- DB creation failed
+- File extraction failed
+- Install request failed
+
+NO fake success messages
+
+========================
+9. FIX REINSTALL
+========================
+
+Reinstall flow:
+
+- Delete:
+   public_html/*
+   database
+
+- Then run fresh install
+
+========================
+10. FINAL GOAL
+========================
+
+Make WordPress system:
+
+- 100% real backend installation
+- No fake UI success
+- Status always accurate
+- Install only marked success after verification
