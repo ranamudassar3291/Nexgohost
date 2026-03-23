@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable } from "@workspace/db/schema";
+import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable, promoCodesTable } from "@workspace/db/schema";
 import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
@@ -981,11 +981,12 @@ router.get("/client/dashboard", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// Client: request renewal (creates order + invoice)
+// Client: request renewal (creates order + invoice; supports promo code)
 router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
+    const { promoCode } = req.body || {};
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId)))
       .limit(1);
@@ -996,8 +997,31 @@ router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, 
       .where(eq(hostingPlansTable.id, service.planId)).limit(1);
     const billingCycle = service.billingCycle || "monthly";
 
-    // Use renewalPrice if set, otherwise fall back to cycle-specific price
-    const amount = plan ? getRenewalAmount(plan, billingCycle) : 0;
+    const baseAmount = plan ? getRenewalAmount(plan, billingCycle) : 0;
+    let amount = baseAmount;
+    let discountAmount = 0;
+    let appliedPromo: string | null = null;
+
+    // Apply promo code if provided
+    if (promoCode) {
+      const [promo] = await db.select().from(promoCodesTable)
+        .where(eq(promoCodesTable.code, promoCode.toUpperCase())).limit(1);
+      if (
+        promo && promo.isActive &&
+        (!promo.usageLimit || promo.usedCount < promo.usageLimit) &&
+        (!promo.expiresAt || new Date() < promo.expiresAt)
+      ) {
+        const at = (promo as any).applicableTo ?? "all";
+        if (at === "all" || at === "hosting") {
+          discountAmount = Number((amount * promo.discountPercent / 100).toFixed(2));
+          amount = Math.max(0, Number((amount - discountAmount).toFixed(2)));
+          appliedPromo = promo.code;
+          await db.update(promoCodesTable).set({ usedCount: promo.usedCount + 1 }).where(eq(promoCodesTable.id, promo.id));
+        }
+      }
+    }
+
+    console.log("RENEW DEBUG:", { service: service.planName, domain: service.domain, baseAmount, discount: discountAmount, finalAmount: amount, promo: appliedPromo });
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);
@@ -1011,7 +1035,10 @@ router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, 
       total: String(amount),
       status: "unpaid",
       dueDate,
-      items: [{ description: `Renewal: ${service.planName} (${billingCycle})`, amount }],
+      items: [
+        { description: `Renewal: ${service.planName} (${billingCycle})`, quantity: 1, unitPrice: baseAmount, total: baseAmount },
+        ...(discountAmount > 0 ? [{ description: `Promo: ${appliedPromo}`, quantity: 1, unitPrice: -discountAmount, total: -discountAmount }] : []),
+      ],
     }).returning();
 
     const [order] = await db.insert(ordersTable).values({
@@ -1024,7 +1051,7 @@ router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, 
       billingCycle,
       invoiceId: invoice.id,
       status: "pending",
-      notes: `Renewal request for service ID: ${service.id}`,
+      notes: `Renewal for service ${service.id}${appliedPromo ? ` (promo: ${appliedPromo})` : ""}`,
     }).returning();
 
     res.json({ success: true, invoiceId: invoice.id, invoiceNumber: invNum, orderId: order.id, amount });

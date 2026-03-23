@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
+import { RenewalCartModal, type RenewalItem } from "./RenewalCartModal";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -123,6 +124,7 @@ export default function ClientDomains() {
   const [eppCopied, setEppCopied] = useState(false);
   const [manageDomainModal, setManageDomainModal] = useState<MyDomain | null>(null);
   const [renewLoading, setRenewLoading] = useState(false);
+  const [renewModalItem, setRenewModalItem] = useState<RenewalItem | null>(null);
   const [lockLoading, setLockLoading] = useState<string | null>(null);
   const [lockOverrides, setLockOverrides] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
@@ -197,19 +199,15 @@ export default function ClientDomains() {
     }
   };
 
-  const handleRenewDomain = async (domain: MyDomain) => {
-    setRenewLoading(true);
-    try {
-      const data = await apiFetch(`/api/domains/${domain.id}/renew`, { method: "POST" });
-      console.log("RENEW DEBUG:", { domain: `${domain.name}${domain.tld}`, invoice: data.invoiceNumber, amount: data.amount });
-      toast({ title: "Renewal invoice created", description: `Invoice ${data.invoiceNumber} for ${domain.name}${domain.tld}` });
-      setManageDomainModal(null);
-      navigate(`/client/invoices/${data.invoiceId}`);
-    } catch (err: any) {
-      toast({ title: "Renewal failed", description: err.message, variant: "destructive" });
-    } finally {
-      setRenewLoading(false);
-    }
+  const handleRenewDomain = (domain: MyDomain) => {
+    setRenewModalItem({
+      id: domain.id,
+      name: `${domain.name}${domain.tld}`,
+      type: "domain",
+      price: Number(domain.renewalPrice ?? domain.registrationPrice ?? 0),
+      serviceType: "domain",
+    });
+    setManageDomainModal(null);
   };
 
   const handleToggleLock = async (domain: MyDomain) => {
@@ -822,6 +820,18 @@ export default function ClientDomains() {
             <Button className="w-full mt-4" variant="outline" onClick={() => { setEppModal(null); setEppCode(null); setEppError(null); }}>Close</Button>
           </div>
         </div>
+      )}
+
+      {renewModalItem && (
+        <RenewalCartModal
+          item={renewModalItem}
+          onClose={() => setRenewModalItem(null)}
+          onSuccess={(invoiceId, invoiceNumber) => {
+            setRenewModalItem(null);
+            toast({ title: "Renewal order placed", description: `Invoice ${invoiceNumber} created successfully.` });
+            navigate(`/client/invoices/${invoiceId}`);
+          }}
+        />
       )}
     </div>
   );

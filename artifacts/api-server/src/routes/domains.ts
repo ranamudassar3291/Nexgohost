@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable } from "@workspace/db/schema";
+import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
@@ -337,6 +337,7 @@ router.put("/domains/:id/auto-renew", authenticate, async (req: AuthRequest, res
 router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
+    const { promoCode } = req.body || {};
     const [domain] = await db.select().from(domainsTable)
       .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
@@ -349,12 +350,31 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
       .where(eq(domainExtensionsTable.extension, tld)).limit(1);
     if (!pricing) { res.status(400).json({ error: `No pricing found for ${tld}` }); return; }
 
-    const renewPrice = Number(pricing.renewalPrice);
+    let renewPrice = Number(pricing.renewalPrice);
+    let discountAmount = 0;
+    let appliedPromo: string | null = null;
     const domainFqdn = `${domain.name}${domain.tld}`;
 
-    console.log("RENEW DEBUG:", { domain: domainFqdn, tld, price: renewPrice });
+    // Apply promo code if provided
+    if (promoCode) {
+      const [promo] = await db.select().from(promoCodesTable)
+        .where(eq(promoCodesTable.code, promoCode.toUpperCase())).limit(1);
+      if (
+        promo && promo.isActive &&
+        (!promo.usageLimit || promo.usedCount < promo.usageLimit) &&
+        (!promo.expiresAt || new Date() < promo.expiresAt)
+      ) {
+        const at = (promo as any).applicableTo ?? "all";
+        if (at === "all" || at === "domain") {
+          discountAmount = Number((renewPrice * promo.discountPercent / 100).toFixed(2));
+          renewPrice = Math.max(0, Number((renewPrice - discountAmount).toFixed(2)));
+          appliedPromo = promo.code;
+          await db.update(promoCodesTable).set({ usedCount: promo.usedCount + 1 }).where(eq(promoCodesTable.id, promo.id));
+        }
+      }
+    }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    console.log("RENEW DEBUG:", { domain: domainFqdn, tld, originalPrice: Number(pricing.renewalPrice), discount: discountAmount, finalPrice: renewPrice, promo: appliedPromo });
 
     const [order] = await db.insert(ordersTable).values({
       clientId,
@@ -363,7 +383,7 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
       itemName: `${domainFqdn} - Domain Renewal (1 year)`,
       amount: String(renewPrice),
       status: "pending",
-      notes: `Domain renewal for ${domainFqdn}`,
+      notes: `Domain renewal for ${domainFqdn}${appliedPromo ? ` (promo: ${appliedPromo})` : ""}`,
     }).returning();
 
     const invoiceNumber = generateInvoiceNumber();
@@ -379,10 +399,18 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
       total: String(renewPrice),
       status: "unpaid",
       dueDate,
-      items: [{ description: `${domainFqdn} - Domain Renewal (1 year)`, quantity: 1, unitPrice: renewPrice, total: renewPrice }],
+      items: [
+        {
+          description: `${domainFqdn} - Domain Renewal (1 year)`,
+          quantity: 1,
+          unitPrice: Number(pricing.renewalPrice),
+          total: Number(pricing.renewalPrice),
+        },
+        ...(discountAmount > 0 ? [{ description: `Promo: ${appliedPromo}`, quantity: 1, unitPrice: -discountAmount, total: -discountAmount }] : []),
+      ],
     } as any).returning();
 
-    console.log("RENEW DEBUG:", { domain: domainFqdn, price: renewPrice, invoiceId: invoice.id, invoiceNumber });
+    console.log("RENEW DEBUG:", { domain: domainFqdn, renewPrice, invoiceId: invoice.id, invoiceNumber, promo: appliedPromo });
 
     res.json({
       success: true,

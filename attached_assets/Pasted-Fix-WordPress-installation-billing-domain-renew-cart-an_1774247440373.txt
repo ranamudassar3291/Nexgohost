@@ -1,0 +1,119 @@
+Fix WordPress installation, billing, domain renew, cart, and promo code system. Remove all fake logic. Ensure all backend processes are real.
+
+========================
+1. WORDPRESS INSTALLATION (BACKEND FIX)
+========================
+- Remove fake "Installed" status.
+- Before showing "Installed", verify:
+   1. Database exists via cPanel API
+   2. wp-config.php exists
+   3. /wp-admin accessible
+
+- If any step fails:
+   - Status = "not_installed"
+   - Show "Install WordPress" button
+
+- On Install:
+   - Create MySQL DB via cPanel
+   - Create DB user + assign privileges
+   - Download WordPress files
+   - Extract files into public_html
+   - Generate wp-config.php with credentials
+   - Trigger wp-admin/install.php via HTTP request
+   - Encrypt and store admin username/password
+   - Status = "installed" only if all above succeed
+   - Use async job if install takes >20s
+   - Show progress in frontend ("Installing…")
+   - On failure → show "Retry Install"
+
+========================
+2. DOMAIN RENEW & BILLING FLOW (PROFESSIONAL)
+========================
+- Do NOT auto-generate invoice on click.
+- Click "Renew Domain" / "Renew Hosting":
+   1. Fetch correct price from DB (TLD table or service table)
+   2. Add item to **cart**
+      - item: domain/service
+      - price
+      - years
+   3. Display cart summary:
+      - Items
+      - Price
+      - Total
+      - Apply promo code
+   4. Only on "Place Order":
+      - Create order
+      - Generate invoice
+      - Invoice shows item price, total, status
+      - Link order → invoice
+      - Update admin panel
+
+========================
+3. PROMO CODE SYSTEM
+========================
+- Apply promo code in cart before placing order
+- Validate:
+   - Active
+   - Valid for item type
+   - Expiry date
+- Apply discount → update cart total → invoice uses discounted price
+
+========================
+4. PENDING SERVICES BLOCK
+========================
+- If domain or hosting = pending transfer:
+   - Disable management options (DNS, Nameservers, SSL, Renew, etc.)
+   - Show message: "Service is pending. Complete transfer/payment to manage."
+
+========================
+5. DOMAIN TRANSFER VALIDATION
+========================
+- Validate EPP:
+   - Min 8 chars, letters + numbers
+   - Reject invalid
+- Transfer Lock:
+   - Check DB
+   - locked → block transfer
+   - unlocked → allow
+
+- Price:
+   - Fetch from DB TLD table
+   - Client sees exact price (no hardcoded 10)
+
+========================
+6. CART + ORDER + INVOICE FLOW
+========================
+- Renew / New order → ADD to cart
+- Cart page shows:
+   - Item list
+   - Price
+   - Apply promo
+   - Total
+- Place Order → create Order → generate Invoice
+- Invoice must match cart summary
+- Admin panel sees order with correct price, type, and status
+
+========================
+7. DEBUG / LOGGING
+========================
+- WordPress install steps logged:
+   - DB creation
+   - File extraction
+   - Config generation
+   - HTTP install
+- Cart/Order logs:
+   console.log("CART DEBUG:", items, promo, total)
+- Domain transfer logs:
+   console.log("DOMAIN TRANSFER DEBUG:", domain, lockStatus, eppValid, price)
+
+========================
+GOAL
+========================
+- WordPress: Real backend install, progress shown, status correct
+- Billing: Cart → Order → Invoice professional flow
+- Renew: Price correctly fetched, summary shown
+- Pending services blocked
+- Promo codes functional
+- Domain transfer validated: lock + EPP real
+- Admin panel updated
+- Fake status removed everywhere
