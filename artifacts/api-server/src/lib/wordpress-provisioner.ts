@@ -43,8 +43,11 @@ interface CpanelCtx {
 
 // Sends a cPanel UAPI request via POST with JSON body.
 // cPanel UAPI URL: https://{hostname}:2083/execute/{Module}/{function}
-// Auth: HTTP Basic (username:password)
-// Body: JSON object with the API params
+// Auth: cPanel API token format — "cpanel username:API_TOKEN"
+//   ✅ Correct: Authorization: cpanel wscreati:XXXXTOKEN
+//   ❌ Wrong:   Authorization: Basic base64(user:pass)
+// The user is identified by the auth header — do NOT put "user" in the request body.
+// Body: JSON object with the API params (no "user" field)
 // Response: { status: 1 = success, 0 = error, errors: string[], data: any }
 async function cpanelUAPI(
   ctx: CpanelCtx,
@@ -53,7 +56,6 @@ async function cpanelUAPI(
   params: Record<string, string> = {},
 ): Promise<any> {
   const url = `${ctx.baseUrl}execute/${module}/${fn}`;
-  const creds = Buffer.from(`${ctx.username}:${ctx.password}`).toString("base64");
 
   console.log(`[cPanel UAPI] POST ${url}`);
   console.log(`[cPanel UAPI] Sending payload:`, JSON.stringify(params));
@@ -61,7 +63,7 @@ async function cpanelUAPI(
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${creds}`,
+      Authorization: `cpanel ${ctx.username}:${ctx.password}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(params),
@@ -258,28 +260,30 @@ async function cpanelProvision(
   let usedCpanelWpApi = false;
 
   // ── Pre-flight validation — fail fast before touching any API ─────────────
-  // "user" is always resolved: ctx.username from the service record takes priority;
-  // CPANEL_USER constant ("wscreati") is the guaranteed fallback so it is NEVER empty.
+  // The cPanel user is sent via Authorization header ("cpanel user:token"), NOT in the body.
+  // ctx.username / CPANEL_USER are still used to build the DB name prefix.
   const resolvedCpanelUser = (ctx.username || "").trim() || CPANEL_USER;
   const missingFields: string[] = [];
-  if (!domain)              missingFields.push("domain");
-  if (!wpUser)              missingFields.push("admin_user");
-  if (!wpPass)              missingFields.push("admin_pass");
-  if (!wpEmail)             missingFields.push("admin_email");
-  if (!resolvedCpanelUser)  missingFields.push("user");
+  if (!domain)  missingFields.push("domain");
+  if (!wpUser)  missingFields.push("admin_user");
+  if (!wpPass)  missingFields.push("admin_pass");
+  if (!wpEmail) missingFields.push("admin_email");
+  if (!ctx.username && !CPANEL_USER) missingFields.push("cpanel auth user (check CPANEL_USER env var)");
   if (missingFields.length > 0) {
     throw new Error(`Missing required fields for WordPress install: ${missingFields.join(", ")}`);
   }
 
-  console.log(`[WP] Resolved cPanel user: "${resolvedCpanelUser}" (service username="${ctx.username}", fallback="${CPANEL_USER}")`);
+  console.log(`[WP] cPanel auth user: "${resolvedCpanelUser}" (from service="${ctx.username}", fallback="${CPANEL_USER}")`);
+  console.log(`[WP] Auth header: cpanel ${resolvedCpanelUser}:***`);
 
   // Helper to build a fresh payload with a unique db_name / db_user each time.
   // Using timestamp + random ensures no two calls share a database name even
   // if the same service is retried immediately after a failure.
+  // NOTE: "user" is NOT included in the body — cPanel identifies the caller via
+  //       the Authorization header: "cpanel username:API_TOKEN"
   const cpPrefix = resolvedCpanelUser.replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
   function buildPayload(currentDbName: string, currentDbUser: string, currentDbPass: string) {
-    const payload = {
-      user:        resolvedCpanelUser,               // cPanel account username — ALWAYS present
+    return {
       domain,
       directory,
       admin_user:  wpUser,
@@ -290,13 +294,6 @@ async function cpanelProvision(
       db_user:     currentDbUser,
       db_pass:     currentDbPass,
     };
-
-    // Hard guard — this must never be empty before we fire the request
-    if (!payload.user) {
-      throw new Error("cPanel user missing in payload — cannot send WordPress install request");
-    }
-
-    return payload;
   }
 
   try {

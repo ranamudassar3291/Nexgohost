@@ -1,0 +1,87 @@
+❌ GALTI (jo tum kar rahe ho)
+body: JSON.stringify({
+  user: "wscreati",  // ❌ WRONG PLACE
+  domain: domain,
+  ...
+})
+✅ SAHI TARIKA
+1️⃣ Authorization header sahi karo
+headers: {
+  "Authorization": "cpanel wscreati:YOUR_API_TOKEN",
+  "Content-Type": "application/json"
+}
+
+👉 YAHI user hota hai — body wala nahi
+
+2️⃣ BODY se user hatao completely
+const payload = {
+  domain: domain,
+  directory: directory || "",
+  admin_user: admin_user,
+  admin_pass: admin_pass,
+  admin_email: admin_email,
+  name: site_name || "My WordPress Site"
+};
+3️⃣ IMPORTANT: Correct endpoint use karo
+https://yourdomain.com:2083/execute/WordPress/install
+4️⃣ FULL WORKING CODE
+import fetch from "node-fetch";
+
+const CPANEL_USER = "wscreati";
+const API_TOKEN = "YOUR_API_TOKEN";
+
+app.post("/install-wordpress", async (req, res) => {
+  const { domain, admin_user, admin_pass, admin_email, site_name } = req.body;
+
+  const payload = {
+    domain: domain,
+    directory: "",
+    admin_user: admin_user,
+    admin_pass: admin_pass,
+    admin_email: admin_email,
+    name: site_name || "My WordPress Site"
+  };
+
+  console.log("FINAL PAYLOAD:", payload);
+
+  try {
+    const response = await fetch("https://yourdomain.com:2083/execute/WordPress/install", {
+      method: "POST",
+      headers: {
+        "Authorization": `cpanel ${CPANEL_USER}:${API_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    console.log("CPANEL RESPONSE:", result);
+
+    if (result.status === 1) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, error: result.errors || result.error });
+    }
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+💥 🔴 IMPORTANT TRUTH
+
+👉 Error “Provide the user argument” tab aata hai jab:
+
+Authorization header missing ho ❌
+API token invalid ho ❌
+username galat ho ❌
+
+👉 NOT because of request body
+
+✅ CHECKLIST (abhi check karo)
+
+✔ API Token valid hai?
+✔ Username = wscreati correct hai?
+✔ Header exactly:
+
+Authorization: cpanel wscreati:API_TOKEN
+
+✔ Port 2083 use ho raha hai?
