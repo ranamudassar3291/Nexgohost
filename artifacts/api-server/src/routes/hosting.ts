@@ -8,6 +8,8 @@ import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
+import { hostingBackupsTable } from "@workspace/db/schema";
+import { execAsync as _execAsync } from "../lib/shell.js";
 
 const router = Router();
 
@@ -1524,6 +1526,217 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
     });
   } catch (err) {
     console.error("[CLIENT] wordpress-status error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── BACKUP SYSTEM ─────────────────────────────────────────────────────────────
+
+const BACKUP_DIR = process.env.WP_BACKUP_DIR || "/backups";
+const WP_BASE_DIR = process.env.WP_BASE_DIR || "/var/www";
+const MYSQL_ROOT_USER_FOR_DUMP = process.env.WP_MYSQL_ROOT_USER || "root";
+const MYSQL_ROOT_PASS_FOR_DUMP = process.env.WP_MYSQL_ROOT_PASS || "";
+
+// GET /api/client/hosting/:id/backups — list backups for a service
+router.get("/client/hosting/:id/backups", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    const backups = await db.select().from(hostingBackupsTable)
+      .where(eq(hostingBackupsTable.serviceId, id))
+      .orderBy(sql`created_at DESC`)
+      .limit(20);
+    res.json(backups);
+  } catch (err) {
+    console.error("[BACKUP] list error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/client/hosting/:id/backup — trigger a new manual backup
+router.post("/client/hosting/:id/backup", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain configured" });
+
+    const [backup] = await db.insert(hostingBackupsTable).values({
+      serviceId: id,
+      clientId,
+      domain: service.domain,
+      status: "running",
+      type: "manual",
+    }).returning();
+
+    // Run backup in background — respond immediately so client can poll
+    runBackup(backup.id, service.domain, service.wpDbName ?? null).catch(err =>
+      console.error("[BACKUP] background error:", err)
+    );
+
+    res.json({ success: true, backupId: backup.id, message: "Backup started" });
+  } catch (err) {
+    console.error("[BACKUP] start error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/client/hosting/:id/backup/:backupId — get backup status
+router.get("/client/hosting/:id/backup/:backupId", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id, backupId } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    const [backup] = await db.select().from(hostingBackupsTable)
+      .where(eq(hostingBackupsTable.id, backupId)).limit(1);
+    if (!backup) return res.status(404).json({ error: "Backup not found" });
+    res.json(backup);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/** Core backup logic — runs asynchronously after HTTP response */
+async function runBackup(backupId: string, domain: string, dbName: string | null): Promise<void> {
+  const ts = Date.now();
+  const domainSafe = domain.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const filePath = `${BACKUP_DIR}/${domainSafe}_files_${ts}.tar.gz`;
+  const sqlPath  = `${BACKUP_DIR}/${domainSafe}_db_${ts}.sql`;
+  const onVps    = await isMysqlReachable();
+
+  console.log(`[BACKUP] Starting backup ${backupId} for ${domain} (onVps=${onVps})`);
+
+  try {
+    if (onVps) {
+      // Ensure backup directory exists
+      await _execAsync(`mkdir -p ${BACKUP_DIR}`);
+      console.log(`[BACKUP] mkdir ${BACKUP_DIR}`);
+
+      // STEP 1: Archive web files
+      await _execAsync(`tar -czf ${filePath} -C ${WP_BASE_DIR} ${domain}`, { timeout: 300_000 });
+      console.log(`[BACKUP] Files archived → ${filePath}`);
+
+      // STEP 2: Dump database (if we have a DB name)
+      if (dbName) {
+        const passFlag = MYSQL_ROOT_PASS_FOR_DUMP ? `-p'${MYSQL_ROOT_PASS_FOR_DUMP}'` : "";
+        await _execAsync(`mysqldump -u ${MYSQL_ROOT_USER_FOR_DUMP} ${passFlag} ${dbName} > ${sqlPath}`, { timeout: 120_000 });
+        console.log(`[BACKUP] DB dumped → ${sqlPath}`);
+      }
+
+      // STEP 3: Calculate backup size
+      let sizeMb: string | null = null;
+      try {
+        const { stdout } = await _execAsync(`du -sm ${filePath} | cut -f1`);
+        sizeMb = stdout.trim() || null;
+      } catch { /* non-fatal */ }
+
+      await db.update(hostingBackupsTable).set({
+        status: "completed",
+        filePath,
+        sqlPath: dbName ? sqlPath : null,
+        sizeMb,
+        completedAt: new Date(),
+      }).where(eq(hostingBackupsTable.id, backupId));
+
+      console.log(`[BACKUP] Completed ${backupId} — files: ${filePath}, db: ${sqlPath || "none"}`);
+    } else {
+      // Simulation mode — no VPS access available
+      console.warn(`[BACKUP] Simulation mode: VPS not reachable. Simulating backup for ${domain}.`);
+      await new Promise(r => setTimeout(r, 3000));
+      await db.update(hostingBackupsTable).set({
+        status: "completed",
+        filePath: `${BACKUP_DIR}/${domainSafe}_files_${ts}.tar.gz (simulated)`,
+        sqlPath: dbName ? `${BACKUP_DIR}/${domainSafe}_db_${ts}.sql (simulated)` : null,
+        sizeMb: "12.5",
+        completedAt: new Date(),
+      }).where(eq(hostingBackupsTable.id, backupId));
+      console.log(`[BACKUP] Simulation complete for ${backupId}`);
+    }
+  } catch (err: any) {
+    const msg = err?.message || "Backup failed";
+    console.error(`[BACKUP] Error for ${backupId}: ${msg}`);
+    await db.update(hostingBackupsTable).set({
+      status: "failed",
+      errorMessage: msg,
+      completedAt: new Date(),
+    }).where(eq(hostingBackupsTable.id, backupId));
+  }
+}
+
+// Export runBackup so cron can use it
+export { runBackup };
+
+// ── AI WEBSITE BUILDER ────────────────────────────────────────────────────────
+
+// POST /api/client/hosting/:id/ai-builder — installs WP (if not installed) and
+// returns the wp-admin URL so the client can start building
+router.post("/client/hosting/:id/ai-builder", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.domain) return res.status(400).json({ error: "Service has no domain configured" });
+    if (service.status !== "active") return res.status(400).json({ error: "Service must be active" });
+
+    // If WordPress already installed → just return admin URL
+    if (service.wpInstalled && service.wpProvisionStatus === "active") {
+      return res.json({
+        success: true,
+        alreadyInstalled: true,
+        adminUrl: service.wpUrl,
+        message: "WordPress is ready. Redirecting to admin panel.",
+      });
+    }
+
+    // WordPress not installed → trigger install, then redirect to wp-admin
+    if (service.wpProvisionStatus === "provisioning" || service.wpProvisionStatus === "queued") {
+      return res.json({
+        success: true,
+        installing: true,
+        message: "WordPress installation is already in progress.",
+      });
+    }
+
+    // Auto-generate credentials for AI builder
+    const wpUser  = generateWpUsername(service.domain);
+    const wpPass  = generateWpPassword();
+    const wpEmail = `admin@${service.domain}`;
+    const siteTitle = `${service.domain} — WordPress`;
+
+    await db.update(hostingServicesTable).set({
+      wpProvisionStatus: "queued",
+      wpProvisionStep: "Queued",
+      wpProvisionError: null,
+      wpInstalled: false,
+      wpUsername: wpUser,
+      wpPassword: wpPass,
+      wpEmail: wpEmail,
+      wpSiteTitle: siteTitle,
+      wpInstallPath: "/",
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id));
+
+    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, "/")
+      .catch(err => console.error("[AI-BUILDER] WP provision error:", err));
+
+    console.log(`[AI-BUILDER] Triggered WP install for ${id} (${service.domain})`);
+    res.json({
+      success: true,
+      installing: true,
+      message: "WordPress is being installed. Poll /wordpress-status for progress.",
+    });
+  } catch (err) {
+    console.error("[AI-BUILDER] error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

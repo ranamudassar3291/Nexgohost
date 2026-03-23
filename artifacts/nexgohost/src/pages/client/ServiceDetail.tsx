@@ -11,6 +11,7 @@ import {
   KeyRound, Loader2, LayoutGrid, Eye, EyeOff, CheckCircle2,
   AlertTriangle, AlertCircle, X, XCircle, ArrowUpCircle, CheckCircle,
   Lock, ChevronDown, ChevronUp, Network, Plus, Trash2, Pencil,
+  Database, Download, Wand2, ArchiveRestore, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -157,6 +158,15 @@ export default function ServiceDetail() {
   // SSL reinstall state
   const [reinstallingSSL, setReinstallingSSL] = useState(false);
 
+  // Backup state
+  type Backup = { id: string; domain: string; status: string; type: string; filePath: string | null; sqlPath: string | null; sizeMb: string | null; createdAt: string; completedAt: string | null; errorMessage: string | null };
+  const [backups, setBackups] = useState<Backup[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [creatingBackup, setCreatingBackup] = useState(false);
+
+  // AI Builder state
+  const [aiBuilderLoading, setAiBuilderLoading] = useState(false);
+
   // Tab state
   const [activeTab, setActiveTab] = useState<"overview" | "dns">("overview");
 
@@ -185,6 +195,13 @@ export default function ServiceDetail() {
     if (!serviceId) return;
     fetchService();
   }, [serviceId]);
+
+  // Load backup history when service data arrives
+  useEffect(() => {
+    if (service?.id && service.status === "active") {
+      fetchBackups();
+    }
+  }, [service?.id]);
 
   // Verify WordPress status from server on every service load (never trust local state alone)
   useEffect(() => {
@@ -453,6 +470,62 @@ export default function ServiceDetail() {
       toast({ title: "Error", description: e.message, variant: "destructive" });
       setReinstallingSSL(false);
     }
+  }
+
+  async function fetchBackups() {
+    if (!service) return;
+    setBackupsLoading(true);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/backups`);
+      if (res.ok) setBackups(await res.json());
+    } catch { /* non-fatal */ } finally { setBackupsLoading(false); }
+  }
+
+  async function handleCreateBackup() {
+    if (!service) return;
+    setCreatingBackup(true);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/backup`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Backup failed");
+      toast({ title: "Backup started", description: "Your backup is being created in the background." });
+      // Poll until it transitions from "running"
+      const poll = setInterval(async () => {
+        const r = await authFetch(`/api/client/hosting/${service!.id}/backup/${data.backupId}`);
+        if (!r.ok) { clearInterval(poll); return; }
+        const b = await r.json();
+        if (b.status !== "running") {
+          clearInterval(poll);
+          setCreatingBackup(false);
+          fetchBackups();
+          if (b.status === "completed") toast({ title: "Backup complete", description: `${b.sizeMb ? b.sizeMb + " MB" : "Files"} backed up successfully.` });
+          else toast({ title: "Backup failed", description: b.errorMessage || "Unknown error", variant: "destructive" });
+        }
+      }, 3000);
+    } catch (e: any) {
+      toast({ title: "Backup error", description: e.message, variant: "destructive" });
+      setCreatingBackup(false);
+    }
+  }
+
+  async function handleAiBuilder() {
+    if (!service) return;
+    setAiBuilderLoading(true);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/ai-builder`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "AI Builder failed");
+      if (data.alreadyInstalled && data.adminUrl) {
+        window.open(data.adminUrl, "_blank");
+      } else if (data.installing) {
+        // WP install triggered — start polling so progress bar appears
+        toast({ title: "AI Builder", description: "WordPress is being installed. This takes 1–2 minutes." });
+        setWpProvisionData({ status: "queued", step: "Queued", error: null });
+        setWpPolling(true);
+      }
+    } catch (e: any) {
+      toast({ title: "AI Builder error", description: e.message, variant: "destructive" });
+    } finally { setAiBuilderLoading(false); }
   }
 
   async function handleToggleAutoRenew() {
@@ -1348,6 +1421,102 @@ export default function ServiceDetail() {
           </div>
         )}
       </div>
+
+      {/* ─── AI Website Builder ─── */}
+      {service.status === "active" && (
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-violet-500/10 border border-violet-500/20 rounded-xl flex items-center justify-center shrink-0">
+              <Wand2 size={18} className="text-violet-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">AI Website Builder</p>
+              <p className="text-sm text-muted-foreground">
+                {service.wpInstalled
+                  ? "WordPress is installed. Open the admin panel to start building."
+                  : "Automatically install WordPress and open the admin panel to build your site."}
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleAiBuilder}
+            disabled={aiBuilderLoading || wpPolling}
+            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            {aiBuilderLoading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+            {aiBuilderLoading
+              ? "Launching…"
+              : service.wpInstalled
+                ? "Open WordPress Admin"
+                : "Launch AI Website Builder"}
+          </Button>
+        </div>
+      )}
+
+      {/* ─── Backup System ─── */}
+      {service.status === "active" && (
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
+                <ArchiveRestore size={18} className="text-blue-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">Backups</p>
+                <p className="text-sm text-muted-foreground">
+                  Daily automatic backups run at 2 AM. Create a manual backup at any time.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCreateBackup}
+              disabled={creatingBackup || service.status !== "active"}
+              className="gap-1.5 shrink-0"
+            >
+              {creatingBackup ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              {creatingBackup ? "Creating…" : "Create Backup"}
+            </Button>
+          </div>
+
+          {/* Backup list */}
+          {backupsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={13} className="animate-spin" /> Loading backups…
+            </div>
+          ) : backups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No backups yet. Click "Create Backup" to create your first one.</p>
+          ) : (
+            <div className="space-y-2">
+              {backups.slice(0, 5).map(b => (
+                <div key={b.id} className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${b.status === "completed" ? "bg-green-400" : b.status === "failed" ? "bg-red-400" : "bg-yellow-400 animate-pulse"}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm text-foreground truncate">
+                        {b.type === "cron" ? "Scheduled" : "Manual"} backup
+                        {b.sizeMb ? ` — ${b.sizeMb} MB` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock size={10} />
+                        {format(new Date(b.createdAt), "MMM d, yyyy · HH:mm")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full border shrink-0 ${
+                    b.status === "completed" ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                    b.status === "failed"    ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                                               "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                  }`}>
+                    {b.status === "completed" ? "Done" : b.status === "failed" ? "Failed" : "Running"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Auto-Renew */}
       <div className="bg-card border border-border rounded-2xl p-5">

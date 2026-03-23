@@ -2,9 +2,12 @@ import { db } from "@workspace/db";
 import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
   cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
+  hostingBackupsTable,
 } from "@workspace/db/schema";
 import { eq, lte, sql, and, gte } from "drizzle-orm";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
+import { execAsync } from "./shell.js";
+import { isMysqlReachable } from "./wordpress-provisioner.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
   try {
@@ -327,6 +330,88 @@ export async function runUnsuspendRestoredCron(): Promise<void> {
   }
 }
 
+// ─── Task 6: Daily backup of all active WordPress services ───────────────────
+const BACKUP_DIR_CRON = process.env.WP_BACKUP_DIR || "/backups";
+const WP_BASE_DIR_CRON = process.env.WP_BASE_DIR || "/var/www";
+const MYSQL_ROOT_USER_CRON = process.env.WP_MYSQL_ROOT_USER || "root";
+const MYSQL_ROOT_PASS_CRON = process.env.WP_MYSQL_ROOT_PASS || "";
+
+export async function runDailyBackupCron(): Promise<void> {
+  try {
+    // Only run on VPS — skip silently in dev/sim mode
+    const mysqlOk = await isMysqlReachable();
+    if (!mysqlOk) {
+      await logCron("backup:daily", "skipped", "MySQL not reachable — skipping backup (dev/sim mode)");
+      return;
+    }
+
+    const services = await db.select().from(hostingServicesTable)
+      .where(and(
+        eq(hostingServicesTable.status, "active"),
+        eq(hostingServicesTable.wpInstalled, true),
+      ));
+
+    let backed = 0;
+    let failed = 0;
+
+    for (const svc of services) {
+      if (!svc.domain) continue;
+      const ts = Date.now();
+      const domainSafe = svc.domain.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const filePath = `${BACKUP_DIR_CRON}/${domainSafe}_files_${ts}.tar.gz`;
+      const sqlPath  = `${BACKUP_DIR_CRON}/${domainSafe}_db_${ts}.sql`;
+
+      const [backupRow] = await db.insert(hostingBackupsTable).values({
+        serviceId: svc.id,
+        clientId: svc.clientId,
+        domain: svc.domain,
+        status: "running",
+        type: "cron",
+      }).returning();
+
+      try {
+        await execAsync(`mkdir -p ${BACKUP_DIR_CRON}`);
+        await execAsync(`tar -czf ${filePath} -C ${WP_BASE_DIR_CRON} ${svc.domain}`, { timeout: 300_000 });
+
+        if (svc.wpDbName) {
+          const passFlag = MYSQL_ROOT_PASS_CRON ? `-p'${MYSQL_ROOT_PASS_CRON}'` : "";
+          await execAsync(`mysqldump -u ${MYSQL_ROOT_USER_CRON} ${passFlag} ${svc.wpDbName} > ${sqlPath}`, { timeout: 120_000 });
+        }
+
+        let sizeMb: string | null = null;
+        try {
+          const { stdout } = await execAsync(`du -sm ${filePath} | cut -f1`);
+          sizeMb = stdout.trim() || null;
+        } catch { /* non-fatal */ }
+
+        await db.update(hostingBackupsTable).set({
+          status: "completed",
+          filePath,
+          sqlPath: svc.wpDbName ? sqlPath : null,
+          sizeMb,
+          completedAt: new Date(),
+        }).where(eq(hostingBackupsTable.id, backupRow.id));
+
+        console.log(`[CRON/BACKUP] ${svc.domain} backed up → ${filePath}`);
+        backed++;
+      } catch (err: any) {
+        await db.update(hostingBackupsTable).set({
+          status: "failed",
+          errorMessage: err.message,
+          completedAt: new Date(),
+        }).where(eq(hostingBackupsTable.id, backupRow.id));
+        console.error(`[CRON/BACKUP] ${svc.domain} backup failed: ${err.message}`);
+        failed++;
+      }
+    }
+
+    await logCron("backup:daily", "success", `Backed up ${backed} service(s), ${failed} failed`);
+  } catch (err: any) {
+    await logCron("backup:daily", "failed", err.message);
+    console.error("[CRON] backup:daily error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
@@ -336,6 +421,7 @@ export async function runAllCronTasks(): Promise<void> {
     runUnsuspendRestoredCron(),
     runDomainRenewalCron(),
     runInvoiceRemindersCron(),
+    runDailyBackupCron(),
   ]);
   console.log("[CRON] All tasks completed.");
 }

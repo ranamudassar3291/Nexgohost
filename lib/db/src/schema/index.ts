@@ -24,3 +24,4 @@ export * from "./domain-transfers";
 export * from "./credits";
 export * from "./notifications";
 export * from "./activity-logs";
+export * from "./backups";

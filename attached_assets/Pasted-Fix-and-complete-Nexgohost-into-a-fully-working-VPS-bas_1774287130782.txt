@@ -1,0 +1,189 @@
+Fix and complete Nexgohost into a fully working VPS-based hosting panel with real backend execution.
+
+CRITICAL PROBLEMS:
+- WordPress install shows success but does nothing in backend
+- Orders are created but not provisioned
+- No persistent data saved correctly
+- No backups system
+- No AI builder
+- Frontend not synced with backend
+
+==================================================
+1. FIX WORDPRESS INSTALLER (REAL EXECUTION)
+==================================================
+
+- Use async/await for ALL steps
+- DO NOT return success early
+
+Steps:
+1. Create directory:
+   /var/www/{domain}/public_html
+
+2. Download WordPress:
+   wget https://wordpress.org/latest.zip
+
+3. Extract:
+   unzip latest.zip
+
+4. Move files:
+   mv wordpress/* public_html/
+
+5. Delete extra files:
+   rm -rf wordpress latest.zip
+
+6. Create MySQL database using mysql2 (NOT shell)
+
+7. Create wp-config.php using real DB credentials
+
+8. Set permissions:
+   chown -R www-data:www-data
+   chmod -R 755
+
+9. VERIFY:
+   - index.php exists
+   - wp-config.php exists
+
+10. ONLY THEN:
+   return success
+
+==================================================
+2. FIX ORDER → AUTO PROVISION SYSTEM
+==================================================
+
+After POST /orders:
+
+- Automatically trigger provisioning:
+   → create hosting directory
+   → install WordPress
+   → create DB
+
+- Save into DB:
+   hosting table:
+   - domain
+   - db_name
+   - db_user
+   - db_pass
+   - wp_admin
+   - wp_pass
+   - status = Active
+
+- Update order status → Completed
+
+==================================================
+3. FIX FRONTEND SYNC
+==================================================
+
+- Show REAL data from DB
+- No fake success
+- After install → redirect dashboard
+
+Dashboard shows:
+- Domain
+- Hosting status
+- “Login to WordPress”
+- “Backup”
+- “AI Builder”
+
+==================================================
+4. ADD DAILY BACKUP SYSTEM (FULL WORKING)
+==================================================
+
+Create endpoint:
+POST /backup/:domain
+
+Steps:
+1. Backup files:
+   tar -czf /backups/{domain}.tar.gz /var/www/{domain}
+
+2. Backup database:
+   mysqldump -u root -pPASSWORD db_name > /backups/{domain}.sql
+
+3. Combine:
+   zip both into single backup
+
+4. Save record in DB:
+   backups table:
+   - domain
+   - file_path
+   - created_at
+
+5. Add button in panel:
+   “Create Backup”
+
+==================================================
+5. ADD AUTO DAILY CRON BACKUP
+==================================================
+
+- Setup cron:
+   0 2 * * * run backup script daily
+
+==================================================
+6. ADD AI WEBSITE BUILDER (WORKING)
+==================================================
+
+Add button: “AI Website Builder”
+
+When clicked:
+1. Install WordPress (if not exists)
+2. Auto install theme + demo content:
+
+- Download starter template
+- Import demo site
+
+OR:
+- Install Elementor + starter templates plugin
+
+3. Auto login redirect:
+   /wp-admin
+
+==================================================
+7. FIX DATABASE PERSISTENCE
+==================================================
+
+- Every action MUST save in DB:
+   - orders
+   - hosting
+   - backups
+
+- No temporary frontend data
+
+==================================================
+8. ADD LOGGING SYSTEM
+==================================================
+
+Log every step:
+- DB creation
+- File download
+- Extract
+- Config creation
+
+If any step fails:
+→ STOP
+→ return real error
+
+==================================================
+9. SECURITY + VALIDATION
+==================================================
+
+- Validate domain
+- Prevent duplicate installs
+- If wp-config exists → skip install
+
+==================================================
+GOAL:
+==================================================
+
+User flow:
+
+Client → Order →
+System auto provisions →
+WordPress installs →
+Dashboard shows real data →
+Backup works →
+AI builder works →
+Everything saved in DB →
+NO fake success
+
+==================================================
+FINAL RESULT:
+Production-ready hosting panel like WHMCS + Hostinger
