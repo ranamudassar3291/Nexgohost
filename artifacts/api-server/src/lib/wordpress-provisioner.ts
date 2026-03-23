@@ -124,18 +124,31 @@ export async function provisionWordPress(
   installPath: string = "/",
   cpanelCtx?: CpanelCtx,
 ) {
-  const safeId = serviceId.replace(/-/g, "").substring(0, 12);
-  const dbName = `wp_${safeId}`;
-  const dbUser = `wp_${safeId}`;
+  // Short unique suffix derived from the service ID (no dashes, 8 chars)
+  const suffix = serviceId.replace(/-/g, "").substring(0, 8);
   const dbPass = generateWpPassword();
 
   try {
     if (!cpanelCtx) {
+      // Simulation mode — no real cPanel, prefix doesn't matter
+      const dbName = `wp_${suffix}`;
       console.log(`[WP] No cPanel context available for service ${serviceId} — running in simulation mode`);
       await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, dbName);
       return;
     }
+
+    // cPanel requires all database names and users to start with the account
+    // username prefix followed by underscore (e.g. "wscreati_wp_abc12345").
+    // Max total length cPanel enforces: 64 characters.
+    const cpPrefix = cpanelCtx.username.replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
+    const rawName = `${cpPrefix}_wp_${suffix}`;
+    const dbName = rawName.substring(0, 64);  // cPanel hard limit: 64 chars
+    const dbUser = rawName.substring(0, 64);  // dbUser follows same rules
+
     console.log(`[WP] Real cPanel provisioning for service ${serviceId} at ${cpanelCtx.baseUrl}`);
+    console.log(`[WP] DB Name: ${dbName}`);
+    console.log(`[WP] DB User: ${dbUser}`);
+
     await cpanelProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, dbName, dbUser, dbPass, cpanelCtx);
   } catch (err: any) {
     const msg = err?.message || "Unknown error during WordPress provisioning";
