@@ -106,10 +106,12 @@ export async function provisionWordPress(
   const dbPass = generateWpPassword();
 
   try {
-    if (WP_SIMULATE || !cpanelCtx) {
+    if (!cpanelCtx) {
+      console.log(`[WP] No cPanel context available for service ${serviceId} — running in simulation mode`);
       await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, dbName);
       return;
     }
+    console.log(`[WP] Real cPanel provisioning for service ${serviceId} at ${cpanelCtx.baseUrl}`);
     await cpanelProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, dbName, dbUser, dbPass, cpanelCtx);
   } catch (err: any) {
     const msg = err?.message || "Unknown error during WordPress provisioning";
@@ -138,7 +140,7 @@ export async function reinstallWordPress(
   console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
 
   try {
-    if (cpanelCtx && !WP_SIMULATE) {
+    if (cpanelCtx) {
       // Fetch existing DB name so we can drop it
       const [existing] = await db.select().from(hostingServicesTable)
         .where(eq(hostingServicesTable.id, serviceId)).limit(1);

@@ -1308,10 +1308,26 @@ router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, 
   }
 });
 
-// ── Helper: build cPanel context from a service record ────────────────────────
-function getCpanelCtx(service: any) {
-  if (!service.cpanelUrl || !service.username || !service.password) return undefined;
-  return { baseUrl: service.cpanelUrl.replace(/\/?$/, "/"), username: service.username, password: service.password };
+// ── Helper: build cPanel UAPI context from the resolved server + service credentials ──
+// This resolves the WHM server to get the correct hostname, then builds the cPanel
+// user-level API base URL (https://{hostname}:2083/) using the hosting account's
+// username and password. Falls back to undefined when no server or credentials exist,
+// causing the WordPress provisioner to run in simulation mode.
+async function buildCpanelCtx(service: typeof hostingServicesTable.$inferSelect) {
+  if (!service.username || !service.password) {
+    console.log(`[WP] No cPanel credentials on service ${service.id} (username=${service.username ? "set" : "missing"}, password=${service.password ? "set" : "missing"}) — will simulate`);
+    return undefined;
+  }
+  const server = await resolveServerForService(service);
+  if (!server || !server.hostname) {
+    console.log(`[WP] No server resolved for service ${service.id} — will simulate`);
+    return undefined;
+  }
+  // cPanel user-level API lives on port 2083 (not WHM port 2087)
+  const cpanelPort = 2083;
+  const baseUrl = `https://${server.hostname}:${cpanelPort}/`;
+  console.log(`[WP] Built cPanel context for service ${service.id}: baseUrl=${baseUrl}, user=${service.username}`);
+  return { baseUrl, username: service.username, password: service.password };
 }
 
 // GET /client/hosting/:id/wordpress-check — detect if WP is installed (cPanel file check)
@@ -1326,8 +1342,8 @@ router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: Auth
     const installPath = service.wpInstallPath ?? "/";
     let fileExists = dbInstalled;
 
-    const ctx = getCpanelCtx(service);
-    if (ctx && !process.env.WP_SIMULATE) {
+    const ctx = await buildCpanelCtx(service);
+    if (ctx) {
       fileExists = await checkWordPressInstalled(ctx, installPath);
     }
 
@@ -1388,7 +1404,8 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       updatedAt: new Date(),
     }).where(eq(hostingServicesTable.id, id));
 
-    const cpanelCtx = getCpanelCtx(service);
+    // Build real cPanel context from the resolved server — falls back to simulation if no server/credentials
+    const cpanelCtx = await buildCpanelCtx(service);
     provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx)
       .catch(err => console.error("[WP] Background provisioner threw:", err));
 
@@ -1432,7 +1449,7 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
 
     console.log(`[WP] Reinstall queued for service ${id} | domain=${service.domain}`);
 
-    const cpanelCtx = getCpanelCtx(service);
+    const cpanelCtx = await buildCpanelCtx(service);
     reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx)
       .catch(err => console.error("[WP] Background reinstaller threw:", err));
 
@@ -1458,8 +1475,8 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
     // For a terminal "active" status, do a real file check to confirm files actually exist.
     // This prevents showing "Installed" when files have been removed or install failed silently.
     if (status === "active" && service.wpInstalled) {
-      const ctx = getCpanelCtx(service);
-      if (ctx && !process.env.WP_SIMULATE) {
+      const ctx = await buildCpanelCtx(service);
+      if (ctx) {
         const fileExists = await checkWordPressInstalled(ctx, service.wpInstallPath ?? "/");
         if (!fileExists) {
           // DB says installed but files are gone — correct the DB and return not_installed
