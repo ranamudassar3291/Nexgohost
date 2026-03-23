@@ -360,6 +360,238 @@ export async function cpanelDeleteDnsRecord(server: ServerConfig, username: stri
   if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
 }
 
+// ─── cPanel UAPI Bridge (via WHM root) ───────────────────────────────────────
+// Calls cPanel UAPI functions on behalf of a specific cPanel user.
+// WHM proxies the call so no cPanel session token is needed — only the WHM
+// API token is required.
+//
+// UAPI URL shape via WHM:
+//   GET https://WHM_HOST:2087/json-api/cpanel
+//       ?api.version=1
+//       &user=CPANEL_USER
+//       &cpanel_jsonapi_apiversion=uapi
+//       &cpanel_jsonapi_module=MODULE
+//       &cpanel_jsonapi_func=FUNCTION
+//       &PARAM=VALUE ...
+//
+// Response envelope (UAPI via WHM):
+//   { "metadata": { "result": 1 }, "result": { "status": 1, "errors": null, "data": {} } }
+
+export async function cpanelUapi(
+  server: ServerConfig,
+  cpanelUser: string,
+  module: string,
+  func: string,
+  params: Record<string, string> = {},
+): Promise<any> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const query = new URLSearchParams({
+    "api.version": "1",
+    user: cpanelUser,
+    cpanel_jsonapi_apiversion: "uapi",
+    cpanel_jsonapi_module: module,
+    cpanel_jsonapi_func: func,
+    ...params,
+  });
+  const url = `https://${server.hostname}:${port}/json-api/cpanel?${query}`;
+  const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` }, 60_000);
+
+  let data: any;
+  try { data = JSON.parse(raw); } catch {
+    throw new Error(`cPanel UAPI (${module}::${func}) returned non-JSON: ${raw.substring(0, 200)}`);
+  }
+
+  // WHM-level error
+  if (data?.metadata?.result === 0) {
+    throw new Error(data.metadata?.reason || `cPanel UAPI (${module}::${func}) WHM-level error`);
+  }
+
+  // UAPI-level error
+  const uapiResult = data?.result ?? data;
+  if (uapiResult?.status === 0) {
+    const errs: string[] = uapiResult?.errors ?? [];
+    throw new Error(
+      errs.length > 0
+        ? errs.join("; ")
+        : `cPanel UAPI (${module}::${func}) failed — no error message returned`
+    );
+  }
+
+  return uapiResult?.data ?? uapiResult;
+}
+
+// ─── MySQL UAPI helpers ───────────────────────────────────────────────────────
+// cPanel ENFORCES prefix rules:
+//   DB name   → must start with "{cpanelUser}_"  (total ≤ 64 chars)
+//   DB user   → must start with "{cpanelUser}_"  (total ≤ 47 chars on cPanel)
+// The full prefixed name is what you pass to MySQL GRANT and wp-config.php.
+
+export function cpanelDbName(cpanelUser: string, suffix: string): string {
+  const full = `${cpanelUser}_${suffix}`;
+  return full.substring(0, 64);
+}
+
+export function cpanelDbUser(cpanelUser: string, suffix: string): string {
+  const full = `${cpanelUser}_${suffix}`;
+  return full.substring(0, 47);
+}
+
+export async function cpanelMysqlCreateDatabase(
+  server: ServerConfig,
+  cpanelUser: string,
+  dbFullName: string,   // already prefixed
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Mysql", "create_database", { name: dbFullName });
+}
+
+export async function cpanelMysqlCreateUser(
+  server: ServerConfig,
+  cpanelUser: string,
+  dbUserFull: string,   // already prefixed
+  dbPass: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Mysql", "create_user", {
+    name: dbUserFull,
+    password: dbPass,
+  });
+}
+
+export async function cpanelMysqlSetPrivileges(
+  server: ServerConfig,
+  cpanelUser: string,
+  dbFullName: string,
+  dbUserFull: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Mysql", "set_privileges_on_database", {
+    database:   dbFullName,
+    user:       dbUserFull,
+    privileges: "ALL PRIVILEGES",
+  });
+}
+
+export async function cpanelMysqlDeleteDatabase(
+  server: ServerConfig,
+  cpanelUser: string,
+  dbFullName: string,
+): Promise<void> {
+  try {
+    await cpanelUapi(server, cpanelUser, "Mysql", "delete_database", { name: dbFullName });
+  } catch (e: any) {
+    // non-fatal on reinstall — DB may not exist
+    console.warn(`[cPanel] delete_database (non-fatal): ${e.message}`);
+  }
+}
+
+export async function cpanelMysqlDeleteUser(
+  server: ServerConfig,
+  cpanelUser: string,
+  dbUserFull: string,
+): Promise<void> {
+  try {
+    await cpanelUapi(server, cpanelUser, "Mysql", "delete_user", { name: dbUserFull });
+  } catch (e: any) {
+    console.warn(`[cPanel] delete_user (non-fatal): ${e.message}`);
+  }
+}
+
+// ─── Fileman UAPI helpers ─────────────────────────────────────────────────────
+
+/** Upload a text file to a cPanel account via Fileman::save_file_content */
+export async function cpanelSaveFile(
+  server: ServerConfig,
+  cpanelUser: string,
+  filePath: string,   // e.g. /home/user/public_html/wp-config.php
+  content: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Fileman", "save_file_content", {
+    dir:     filePath.substring(0, filePath.lastIndexOf("/")),
+    file:    filePath.substring(filePath.lastIndexOf("/") + 1),
+    content: Buffer.from(content).toString("base64"),
+    encoding: "base64",
+  });
+}
+
+/** Check if a file exists via Fileman::list_files */
+export async function cpanelFileExists(
+  server: ServerConfig,
+  cpanelUser: string,
+  dirPath: string,
+  fileName: string,
+): Promise<boolean> {
+  try {
+    const data = await cpanelUapi(server, cpanelUser, "Fileman", "list_files", {
+      dir: dirPath,
+      include_mime: "0",
+    });
+    const files: any[] = Array.isArray(data) ? data : (data?.files ?? []);
+    return files.some((f: any) => f.file === fileName || f.name === fileName || f.path === fileName);
+  } catch {
+    return false;
+  }
+}
+
+// ─── Softaculous installer ────────────────────────────────────────────────────
+// Softaculous exposes a cPanel API2 module. We call it via the WHM proxy.
+// soft=26 is WordPress. Returns { error?, errcode?, install_dir?, admin_url? }.
+
+export async function cpanelSoftaculousInstallWordPress(
+  server: ServerConfig,
+  cpanelUser: string,
+  opts: {
+    domain: string;
+    path: string;         // e.g. "public_html" or "public_html/blog"
+    siteTitle: string;
+    wpAdmin: string;
+    wpPass: string;
+    wpEmail: string;
+    dbName: string;       // full prefixed name
+    dbUser: string;       // full prefixed name
+    dbPass: string;
+    dbHost?: string;
+  }
+): Promise<{ success: boolean; adminUrl?: string; error?: string }> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const query = new URLSearchParams({
+    "api.version": "1",
+    user: cpanelUser,
+    cpanel_jsonapi_user: cpanelUser,
+    cpanel_jsonapi_apiversion: "2",
+    cpanel_jsonapi_module: "softaculous",
+    cpanel_jsonapi_func: "api2_install",
+    soft: "26",              // WordPress
+    domain: opts.domain,
+    path: opts.path,
+    site_name: opts.siteTitle,
+    admin_username: opts.wpAdmin,
+    admin_pass: opts.wpPass,
+    admin_email: opts.wpEmail,
+    dbname: opts.dbName,
+    dbusername: opts.dbUser,
+    dbuserpasswd: opts.dbPass,
+    dbhost: opts.dbHost ?? "localhost",
+    auto_upgrade: "1",
+  });
+  const url = `https://${server.hostname}:${port}/json-api/cpanel?${query}`;
+
+  try {
+    const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` }, 180_000);
+    const data = JSON.parse(raw);
+
+    // Softaculous error detection
+    const innerData = data?.cpanelresult?.data?.[0] ?? data?.result?.[0]?.data ?? data;
+    if (innerData?.error) {
+      return { success: false, error: String(innerData.error) };
+    }
+
+    const adminUrl: string | undefined = innerData?.admin_url ?? innerData?.install_url ?? undefined;
+    return { success: true, adminUrl };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function cpanelCreateUserSession(
   server: ServerConfig,
   username: string,

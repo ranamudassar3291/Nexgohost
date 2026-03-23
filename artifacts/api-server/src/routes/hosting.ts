@@ -1420,13 +1420,28 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       updatedAt:         new Date(),
     }).where(eq(hostingServicesTable.id, id));
 
+    // ── Resolve cPanel server config (if this service is on a cPanel/WHM server) ──
+    // When the service has a resolved WHM server, we use cPanel UAPI for DB creation
+    // and Softaculous/Fileman for file deployment instead of direct shell access.
+    const wpServer = await resolveServerForService(service);
+    const cpanelCfg = (wpServer && wpServer.type === "cpanel" && wpServer.apiToken)
+      ? { server: toServerCfg(wpServer), cpanelUser: service.username! }
+      : null;
+
+    if (cpanelCfg) {
+      console.log(`[WP] cPanel server resolved: ${wpServer!.hostname} / cPanel user: ${service.username}`);
+    } else {
+      console.log(`[WP] No cPanel server — using VPS-direct or simulation path`);
+    }
+
     // ── SYNCHRONOUS PROVISION ─────────────────────────────────────────────────
     // provisionWordPress handles every real action:
-    //   Pre-flight → mkdir → download (wget/curl) → extract (unzip) → move files
-    //   → CREATE DATABASE + USER + GRANT → write wp-config.php → chmod → verify
+    //   Path 1 (cPanel): UAPI DB creation → Softaculous or PHP bootstrapper → verify wp-config.php
+    //   Path 2 (VPS):    Pre-flight → mkdir → download → extract → mysql2 DB → wp-config → verify
+    //   Path 3 (Dev):    Simulation with step-by-step delays
     // It writes the final status (active | failed) + any error message to the DB
     // before returning.  We then re-read the row to build the response.
-    await provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+    await provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCfg);
 
     // Re-read the updated row — provisionWordPress wrote the definitive state
     const [updated] = await db.select().from(hostingServicesTable)
@@ -1496,8 +1511,13 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
 
     console.log(`[WP] Reinstall starting for service ${id} | domain=${service.domain}`);
 
+    const wpServer2 = await resolveServerForService(service);
+    const cpanelCfg2 = (wpServer2 && wpServer2.type === "cpanel" && wpServer2.apiToken)
+      ? { server: toServerCfg(wpServer2), cpanelUser: service.username! }
+      : null;
+
     // Wipes old DB + files, then runs full synchronous provision
-    await reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+    await reinstallWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCfg2);
 
     // Re-read to get the definitive final state
     const [updated] = await db.select().from(hostingServicesTable)

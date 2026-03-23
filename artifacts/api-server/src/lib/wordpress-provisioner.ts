@@ -6,6 +6,7 @@ import mysql2 from "mysql2/promise";
 import { db } from "@workspace/db";
 import { hostingServicesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { cpanelProvisionWordPress, cpanelReinstallWordPress, type CpanelServerConfig } from "./cpanel-wordpress.js";
 
 const execAsync = promisify(exec);
 
@@ -208,41 +209,54 @@ function shellEsc(p: string): string {
 }
 
 // ── Main provisioner ───────────────────────────────────────────────────────────
+// Priority order when deciding which install path to take:
+//   1. cPanel server config provided → use cPanel UAPI + Softaculous/bootstrapper
+//   2. MySQL directly reachable on this server → use VPS-direct install
+//   3. Neither available → simulation mode (dev/Replit)
 
 export async function provisionWordPress(
-  serviceId: string,
-  domain: string,
-  siteTitle: string,
-  wpUser: string,
-  wpPass: string,
-  wpEmail: string,
+  serviceId:   string,
+  domain:      string,
+  siteTitle:   string,
+  wpUser:      string,
+  wpPass:      string,
+  wpEmail:     string,
   installPath: string = "/",
+  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string } | null = null,
 ) {
   try {
-    const mysqlOk = await isMysqlReachable();
-
-    if (!mysqlOk) {
-      console.warn(
-        `[WP] MySQL not reachable at ${MYSQL_HOST}:${MYSQL_PORT} — falling back to simulation mode.\n` +
-        `     To enable real installs, ensure MySQL is running and set:\n` +
-        `       WP_MYSQL_HOST=${MYSQL_HOST}\n` +
-        `       WP_MYSQL_PORT=${MYSQL_PORT}\n` +
-        `       WP_MYSQL_ROOT_USER=${MYSQL_ROOT_USER}\n` +
-        `       WP_MYSQL_ROOT_PASS=<your_mysql_root_password>`
-      );
-      await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+    // ── Path 1: cPanel / WHM server ──────────────────────────────────────────
+    if (cpanelCfg) {
+      console.log(`[WP] Using cPanel UAPI path for service ${serviceId} (user: ${cpanelCfg.cpanelUser})`);
+      await cpanelProvisionWordPress(cpanelCfg.server, {
+        serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
+        siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
+      });
       return;
     }
 
-    await vpsProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+    // ── Path 2: VPS-direct (MySQL on localhost) ───────────────────────────────
+    const mysqlOk = await isMysqlReachable();
+    if (mysqlOk) {
+      await vpsProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+      return;
+    }
+
+    // ── Path 3: Simulation mode (dev / Replit — no MySQL, no cPanel) ──────────
+    console.warn(
+      `[WP] No cPanel config and MySQL not reachable at ${MYSQL_HOST}:${MYSQL_PORT} — using simulation mode.\n` +
+      `     For a real VPS install set: WP_MYSQL_HOST / WP_MYSQL_ROOT_USER / WP_MYSQL_ROOT_PASS\n` +
+      `     For cPanel/WHM pass the server config through the install endpoint.`
+    );
+    await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
   } catch (err: any) {
     const msg = err?.message || "Unknown error during WordPress provisioning";
     console.error(`[WP] Provisioning failed for ${serviceId}:`, msg);
     await db.update(hostingServicesTable).set({
       wpProvisionStatus: "failed",
-      wpProvisionStep: null,
-      wpProvisionError: msg,
-      updatedAt: new Date(),
+      wpProvisionStep:   null,
+      wpProvisionError:  msg,
+      updatedAt:         new Date(),
     }).where(eq(hostingServicesTable.id, serviceId));
   }
 }
@@ -250,13 +264,14 @@ export async function provisionWordPress(
 // ── Reinstall ──────────────────────────────────────────────────────────────────
 
 export async function reinstallWordPress(
-  serviceId: string,
-  domain: string,
-  siteTitle: string,
-  wpUser: string,
-  wpPass: string,
-  wpEmail: string,
+  serviceId:   string,
+  domain:      string,
+  siteTitle:   string,
+  wpUser:      string,
+  wpPass:      string,
+  wpEmail:     string,
   installPath: string = "/",
+  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string } | null = null,
 ) {
   console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
 
@@ -265,6 +280,33 @@ export async function reinstallWordPress(
       .where(eq(hostingServicesTable.id, serviceId)).limit(1);
     const oldDbName = (existing as any)?.wpDbName;
 
+    // Reset DB state before wiping/reprovisioning
+    await db.update(hostingServicesTable).set({
+      wpInstalled:       false,
+      wpProvisionStatus: "queued",
+      wpProvisionStep:   "Queued",
+      wpProvisionError:  null,
+      wpUrl:             null,
+      wpDbName:          null,
+      wpUsername:        wpUser,
+      wpPassword:        wpPass,
+      wpEmail:           wpEmail,
+      wpSiteTitle:       siteTitle,
+      wpProvisionedAt:   null,
+      updatedAt:         new Date(),
+    } as any).where(eq(hostingServicesTable.id, serviceId));
+
+    // ── cPanel reinstall path ─────────────────────────────────────────────────
+    if (cpanelCfg) {
+      const oldDbUser = (existing as any)?.wpDbName?.replace(/wp\d{6}[a-z0-9]+$/, "wu" + ((existing as any)?.wpDbName?.match(/\d{6}[a-z0-9]+$/)?.[0] || ""));
+      await cpanelReinstallWordPress(cpanelCfg.server, {
+        serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
+        siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
+      }, oldDbName ?? null, null);
+      return;
+    }
+
+    // ── VPS-direct reinstall path ─────────────────────────────────────────────
     if (oldDbName) {
       console.log(`[WP] Dropping old database: ${oldDbName}`);
       try {
@@ -284,29 +326,14 @@ export async function reinstallWordPress(
       await run(`rm -rf ${shellEsc(publicHtml)}/*`, "Remove old WP files", { allowFail: true });
     }
 
-    await db.update(hostingServicesTable).set({
-      wpInstalled: false,
-      wpProvisionStatus: "queued",
-      wpProvisionStep: "Queued",
-      wpProvisionError: null,
-      wpUrl: null,
-      wpDbName: null,
-      wpUsername: wpUser,
-      wpPassword: wpPass,
-      wpEmail: wpEmail,
-      wpSiteTitle: siteTitle,
-      wpProvisionedAt: null,
-      updatedAt: new Date(),
-    } as any).where(eq(hostingServicesTable.id, serviceId));
-
-    await provisionWordPress(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+    await provisionWordPress(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, null);
   } catch (err: any) {
     const msg = err?.message || "Reinstall failed";
     console.error(`[WP] Reinstall failed for ${serviceId}:`, msg);
     await db.update(hostingServicesTable).set({
       wpProvisionStatus: "failed",
-      wpProvisionError: msg,
-      updatedAt: new Date(),
+      wpProvisionError:  msg,
+      updatedAt:         new Date(),
     }).where(eq(hostingServicesTable.id, serviceId));
   }
 }
