@@ -37,21 +37,45 @@ interface CpanelCtx {
   password: string;
 }
 
+// Sends a cPanel UAPI request via POST with JSON body.
+// cPanel UAPI URL: https://{hostname}:2083/execute/{Module}/{function}
+// Auth: HTTP Basic (username:password)
+// Body: JSON object with the API params
+// Response: { status: 1 = success, 0 = error, errors: string[], data: any }
 async function cpanelUAPI(
   ctx: CpanelCtx,
   module: string,
   fn: string,
   params: Record<string, string> = {},
 ): Promise<any> {
-  const qs = new URLSearchParams(params).toString();
-  const url = `${ctx.baseUrl}execute/${module}/${fn}?${qs}`;
+  const url = `${ctx.baseUrl}execute/${module}/${fn}`;
   const creds = Buffer.from(`${ctx.username}:${ctx.password}`).toString("base64");
+
+  console.log(`[cPanel UAPI] POST ${url}`);
+  console.log(`[cPanel UAPI] Sending payload:`, JSON.stringify(params));
+
   const resp = await fetch(url, {
-    headers: { Authorization: `Basic ${creds}`, "Content-Type": "application/json" },
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${creds}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params),
   });
-  if (!resp.ok) throw new Error(`cPanel API error: ${resp.status} ${resp.statusText}`);
+
+  if (!resp.ok) {
+    throw new Error(`cPanel API HTTP error: ${resp.status} ${resp.statusText} — URL: ${url}`);
+  }
+
   const json: any = await resp.json();
-  if (json.status === 0) throw new Error(json.errors?.[0] || "cPanel API returned an error");
+  console.log(`[cPanel UAPI] Response for ${module}/${fn}:`, JSON.stringify(json));
+
+  // cPanel UAPI: status=1 means success, anything else is an error
+  if (json.status !== 1) {
+    const errMsg = (json.errors && json.errors[0]) || json.error || `cPanel ${module}/${fn} returned status ${json.status}`;
+    throw new Error(errMsg);
+  }
+
   return json.data;
 }
 
@@ -218,16 +242,22 @@ async function cpanelProvision(
   await setStep(serviceId, "Creating database");
   let usedWordPressManager = false;
   try {
-    console.log(`[WP] Attempting cPanel WordPressManager/install for ${domain}`);
-    await cpanelUAPI(ctx, "WordPressManager", "install", {
+    // Build the exact payload cPanel WordPressManager/install expects.
+    // IMPORTANT: field is "name" (site title) — NOT "site_name", NOT "siteTitle".
+    const wptPayload = {
       domain,
-      directory,
+      directory,                                   // "" for root, "subdir" for /subdir
       admin_user: wpUser,
       admin_pass: wpPass,
       admin_email: wpEmail,
       language: "en",
-      name: siteTitle,   // ✅ correct field — NOT site_name
-    });
+      name: siteTitle || "My WordPress Site",      // ✅ "name" is the required site title field
+    };
+    console.log(`[WP] Attempting cPanel WordPressManager/install for ${domain}`);
+    console.log(`[WP] Payload:`, JSON.stringify(wptPayload));
+    const wptResult = await cpanelUAPI(ctx, "WordPressManager", "install", wptPayload);
+    console.log(`[WP] WordPressManager/install result:`, JSON.stringify(wptResult));
+    // Only mark as succeeded if API returned status=1 (enforced inside cpanelUAPI)
     usedWordPressManager = true;
     console.log(`[WP] WordPressManager/install succeeded for ${domain}`);
   } catch (wptErr: any) {
