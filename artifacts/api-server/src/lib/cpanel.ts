@@ -671,14 +671,14 @@ function redactPassword(params: string): string {
 /**
  * Parse Softaculous response (JSON or plain text) and return a typed result.
  *
- * Success conditions (in order):
- *   1. JSON with done === 1  (strict numeric check)
- *   2. Raw body contains "congratulations" (case-insensitive) — the string
- *      check from the reference Axios implementation:
- *        response.data.done || response.data.includes('congratulations')
+ * Success conditions (in order of priority):
+ *   1. JSON done === 1              (primary Softaculous success flag)
+ *   2. JSON status === 'success'    (alternate success field, per reference impl)
+ *   3. Plain-text "congratulations" (older Softaculous versions returning HTML)
  *
- * Failure: any other response including done: 0, done missing, non-JSON, etc.
- * The exact error text from Softaculous is always returned verbatim.
+ * Failure: everything else. The EXACT error text from Softaculous is returned
+ * verbatim — "Directory not empty", "Database already exists", etc. — so the UI
+ * can display the real reason rather than a generic "Failed" message.
  */
 function parseSoftaculousResponse(raw: string, opts: SoftaculousInstallOpts): {
   success: boolean; adminUrl?: string; insid?: string; error?: string
@@ -688,17 +688,27 @@ function parseSoftaculousResponse(raw: string, opts: SoftaculousInstallOpts): {
 
   // ── Try JSON first ────────────────────────────────────────────────────────
   let data: any = null;
-  try { data = JSON.parse(raw); } catch { /* fall through to string check */ }
+  try { data = JSON.parse(raw); } catch { /* fall through to plain-text checks */ }
 
   if (data !== null) {
-    // ── JSON: strict done === 1 check ──────────────────────────────────────
+    // ── Condition 1: done === 1 ──────────────────────────────────────────────
     if (Number(data?.done) === 1) {
       const adminUrl = data?.admin_url ?? data?.insurl ?? fallbackAdminUrl;
       console.log(`[Softaculous] ✓ done=1 — insid=${data?.insid ?? "n/a"} adminUrl=${adminUrl}`);
       return { success: true, adminUrl, insid: data?.insid != null ? String(data.insid) : undefined };
     }
 
-    // ── JSON: extract exact error message(s) ──────────────────────────────
+    // ── Condition 2: status === 'success' ────────────────────────────────────
+    // Matches: response.data.status === 'success' from the reference Axios impl
+    if (data?.status === "success") {
+      const adminUrl = data?.admin_url ?? data?.url ?? fallbackAdminUrl;
+      console.log(`[Softaculous] ✓ status=success — adminUrl=${adminUrl}`);
+      return { success: true, adminUrl };
+    }
+
+    // ── JSON failure: extract the exact Softaculous error message verbatim ───
+    // This is what produces "Directory not empty", "Database already exists",
+    // "Domain already has an installation" etc. in the UI.
     const msgs: string[] = [];
     if (data?.error)   msgs.push(String(data.error));
     if (data?.errors) {
@@ -709,23 +719,26 @@ function parseSoftaculousResponse(raw: string, opts: SoftaculousInstallOpts): {
     if (data?.done !== undefined && Number(data.done) !== 1) {
       msgs.push(`Softaculous reported done=${data.done}`);
     }
+    // Last resort: dump the raw JSON so the developer can see exactly what arrived
     if (msgs.length === 0) {
-      msgs.push(`Unexpected JSON response (no done/error fields): ${raw.substring(0, 400)}`);
+      msgs.push(`Softaculous returned JSON with no done/error/status fields: ${raw.substring(0, 400)}`);
     }
     return { success: false, error: msgs.join("; ") };
   }
 
-  // ── Non-JSON fallback: string matching ───────────────────────────────────
-  // Matches: response.data.includes('congratulations') from the reference impl
+  // ── Condition 3: "congratulations" in plain text/HTML ────────────────────
   if (/congratulations/i.test(raw)) {
-    console.log(`[Softaculous] ✓ Success detected via "congratulations" string in response`);
+    console.log(`[Softaculous] ✓ Success detected via "congratulations" string`);
     return { success: true, adminUrl: fallbackAdminUrl };
   }
 
-  // Extract the most informative error text from HTML/plain-text response
-  const htmlMsg = raw.match(/<div[^>]*class="[^"]*error[^"]*"[^>]*>([^<]+)/i)?.[1]?.trim()
-               || raw.match(/error[^:]*:\s*([^\n<]+)/i)?.[1]?.trim();
-  const errorText = htmlMsg || `Softaculous returned non-JSON response. First 400 chars: ${raw.substring(0, 400)}`;
+  // ── Plain-text failure: extract the best error description from HTML ──────
+  // Handles cases where Softaculous returns an HTML error page instead of JSON.
+  const htmlMsg = raw.match(/<div[^>]*class="[^"]*(?:error|alert)[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1]
+                   ?.replace(/<[^>]+>/g, "").trim()  // strip inner tags
+               || raw.match(/error[^:]*:\s*([^\n<]{10,})/i)?.[1]?.trim();
+  const errorText = htmlMsg
+    ?? `Softaculous returned a non-JSON response (first 400 chars): ${raw.substring(0, 400)}`;
 
   return { success: false, error: errorText };
 }
@@ -827,19 +840,22 @@ export async function cpanelSoftaculousInstallWordPress(
     console.log(`[Softaculous] cpsess obtained (${opts.cpanelApiToken ? "token" : "password"}): ${cpsessToken.substring(0, 16)}…`);
 
   } else {
-    // ── PATH C: WHM root create_user_session ──────────────────────────────────
-    console.log(`[Softaculous] Auth: WHM root token — calling create_user_session for ${cpanelUser}`);
-    try {
-      const sessionUrl = await cpanelCreateUserSession(server, cpanelUser, "cpaneld");
-      const match = sessionUrl.match(/\/(cpsess[A-Za-z0-9]+)\//);
-      if (!match) {
-        return { success: false, error: `Could not parse cpsess from WHM session URL: ${sessionUrl}` };
-      }
-      cpsessToken = match[1];
-      console.log(`[Softaculous] cpsess obtained via WHM: ${cpsessToken.substring(0, 16)}…`);
-    } catch (e: any) {
-      return { success: false, error: `WHM create_user_session failed: ${e.message}` };
-    }
+    // ── PATH C: No credentials provided — fail fast with an actionable message ─
+    // The WHM create_user_session path is intentionally NOT used here because it
+    // requires the WHM API token to have the create-user-session ACL, which most
+    // restricted tokens do not have — producing the "500 error from WHM" symptom.
+    //
+    // Provide one of:
+    //   cpanelApiToken — cPanel account API token (cPanel → Security → Manage API Tokens)
+    //   cpanelPassword — cPanel account password (used for Basic Auth, matches Axios pattern)
+    return {
+      success: false,
+      error:
+        "Softaculous installation requires either a cPanel API token or a cPanel account password. " +
+        "Pass 'cpanelApiToken' (from cPanel → Security → Manage API Tokens) or 'cpanelPassword' " +
+        "in the request body. Using the WHM root token for this call is not supported — it produces " +
+        "a 500 error because the WHM token typically lacks the create-user-session ACL.",
+    };
   }
 
   // ── STEP 2: Build the Softaculous request ─────────────────────────────────
@@ -892,7 +908,7 @@ export async function cpanelSoftaculousInstallWordPress(
 
     let res: { status: number; body: string; headers: Record<string, string | string[] | undefined> };
     try {
-      res = await httpsPostRaw(softUrl, softAuthHeader, bodyParams.toString(), 240_000);
+      res = await httpsPostRaw(softUrl, softAuthHeader, bodyParams.toString(), 120_000);
     } catch (e: any) {
       lastError = `Network error on attempt ${attempt}: ${e.message}`;
       console.error(`[Softaculous] ${lastError}`);
