@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { promisify } from "util";
 import { exec } from "child_process";
+import mysql2 from "mysql2/promise";
 import { db } from "@workspace/db";
 import { hostingServicesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -57,17 +58,26 @@ async function run(cmd: string, label: string): Promise<string> {
 }
 
 // ── MySQL helper ──────────────────────────────────────────────────────────────
-// Runs a SQL statement via the mysql CLI using root credentials.
-// No mysql2 dependency needed — the CLI is always available on a VPS.
+// Uses mysql2 library — no shell CLI needed, no escaping issues.
 
-function mysqlFlag(): string {
-  const passFlag = MYSQL_ROOT_PASS ? `-p${MYSQL_ROOT_PASS.replace(/'/g, "\\'")}` : "";
-  return `-h ${MYSQL_HOST} -u ${MYSQL_ROOT_USER} ${passFlag}`;
+async function getMysqlConn(): Promise<mysql2.Connection> {
+  return mysql2.createConnection({
+    host: MYSQL_HOST,
+    user: MYSQL_ROOT_USER,
+    password: MYSQL_ROOT_PASS || undefined,
+    multipleStatements: false,
+  });
 }
 
-async function mysqlRun(sql: string, label: string): Promise<void> {
-  const escaped = sql.replace(/"/g, '\\"');
-  await run(`mysql ${mysqlFlag()} -e "${escaped}"`, label);
+async function mysqlRun(sql: string, label: string, params: any[] = []): Promise<void> {
+  console.log(`[WP] ${label}: ${sql}${params.length ? ` params=${JSON.stringify(params)}` : ""}`);
+  const conn = await getMysqlConn();
+  try {
+    await conn.execute(sql, params);
+    console.log(`[WP] ${label}: OK`);
+  } finally {
+    await conn.end();
+  }
 }
 
 // ── Generate strong credentials ───────────────────────────────────────────────
@@ -177,8 +187,14 @@ export async function reinstallWordPress(
 
     if (oldDbName) {
       console.log(`[WP] Dropping old database: ${oldDbName}`);
-      try { await mysqlRun(`DROP DATABASE IF EXISTS \`${oldDbName}\``, "Drop old DB"); } catch { /* ignore */ }
-      try { await mysqlRun(`DROP USER IF EXISTS '${oldDbName}'@'localhost'`, "Drop old DB user"); } catch { /* ignore */ }
+      try {
+        const dropConn = await getMysqlConn();
+        await dropConn.query(`DROP DATABASE IF EXISTS \`${oldDbName}\``);
+        await dropConn.query(`DROP USER IF EXISTS '${oldDbName}'@'localhost'`);
+        await dropConn.end();
+      } catch (dropErr: any) {
+        console.warn(`[WP] Could not drop old DB/user (non-fatal): ${dropErr.message}`);
+      }
     }
 
     // Remove old WordPress files
@@ -243,12 +259,22 @@ async function vpsProvision(
   console.log(`[WP] DB Name: ${dbName}, DB User: ${dbUser}`);
 
   // STEP 1: Create MySQL database + user
+  // Uses mysql2 library directly — no shell CLI, no escaping issues.
   await setStep(serviceId, "Creating database");
-  await mysqlRun(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`, "Create DB");
-  await mysqlRun(`CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY '${dbPass.replace(/'/g, "\\'")}'`, "Create DB user");
-  await mysqlRun(`GRANT ALL PRIVILEGES ON \`${dbName}\`.* TO '${dbUser}'@'localhost'`, "Grant privileges");
-  await mysqlRun("FLUSH PRIVILEGES", "Flush privileges");
-  console.log(`[WP] Database created: ${dbName}`);
+  console.log(`[WP] Connecting to MySQL at ${MYSQL_HOST} as ${MYSQL_ROOT_USER}`);
+  const mysqlConn = await getMysqlConn();
+  try {
+    console.log(`[WP] Creating database: ${dbName}`);
+    await mysqlConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    console.log(`[WP] Creating user: ${dbUser}`);
+    await mysqlConn.query(`CREATE USER IF NOT EXISTS '${dbUser}'@'localhost' IDENTIFIED BY ?`, [dbPass]);
+    console.log(`[WP] Granting privileges on ${dbName} to ${dbUser}`);
+    await mysqlConn.query(`GRANT ALL PRIVILEGES ON \`${dbName}\`.* TO '${dbUser}'@'localhost'`);
+    await mysqlConn.query(`FLUSH PRIVILEGES`);
+    console.log(`[WP] Database setup complete: ${dbName} / ${dbUser}`);
+  } finally {
+    await mysqlConn.end();
+  }
 
   // STEP 2: Ensure public_html directory exists
   await setStep(serviceId, "Downloading WordPress");
