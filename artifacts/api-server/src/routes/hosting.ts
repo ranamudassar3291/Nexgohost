@@ -7,6 +7,7 @@ import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
+import { provisionWordPress } from "../lib/wordpress-provisioner.js";
 
 const router = Router();
 
@@ -1280,20 +1281,21 @@ router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, 
   }
 });
 
+// POST /client/hosting/:id/install-wordpress — kick off async WordPress provisioning
 router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
+    const { siteTitle = "My WordPress Site" } = req.body;
 
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
     if (!service.domain) return res.status(400).json({ error: "Service has no domain" });
     if (service.status !== "active") return res.status(400).json({ error: "Service must be active to install WordPress" });
+    if (service.wpProvisionStatus === "provisioning") return res.status(409).json({ error: "WordPress installation is already in progress" });
 
-    // Always auto-generate secure random credentials
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const wpUser = `wp_${randomSuffix}`;
+    const wpUser = `admin`;
     const wpPass = [
       Math.random().toString(36).substring(2, 8),
       Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -1301,22 +1303,65 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       "!@"[Math.floor(Math.random() * 2)],
     ].join("").substring(0, 16);
     const wpEmail = `admin@${service.domain}`;
-    const wpLoginUrl = `https://${service.domain}/wp-admin`;
 
+    // Mark as queued immediately so UI can start polling
     await db.update(hostingServicesTable).set({
-      wpInstalled: true,
-      wpUrl: wpLoginUrl,
+      wpProvisionStatus: "queued",
+      wpProvisionStep: "Queued",
+      wpProvisionError: null,
+      wpInstalled: false,
       wpUsername: wpUser,
       wpPassword: wpPass,
+      wpEmail: wpEmail,
+      wpSiteTitle: siteTitle,
       updatedAt: new Date(),
     }).where(eq(hostingServicesTable.id, id));
 
-    res.json({
-      success: true,
-      credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl },
-    });
+    // Fire-and-forget background provisioning
+    provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail)
+      .catch(err => console.error("[WP] Background provisioner threw:", err));
+
+    res.json({ success: true, queued: true, message: "WordPress installation started. Poll /wordpress-status for progress." });
   } catch (err) {
     console.error("[CLIENT] install-wordpress error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /client/hosting/:id/wordpress-status — poll provisioning progress
+router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    const status = service.wpProvisionStatus || "not_started";
+    const base = {
+      status,
+      step: service.wpProvisionStep,
+      error: service.wpProvisionError,
+      wpInstalled: service.wpInstalled,
+    };
+
+    if (status === "active" && service.wpInstalled) {
+      return res.json({
+        ...base,
+        credentials: {
+          loginUrl: service.wpUrl,
+          username: service.wpUsername,
+          password: service.wpPassword,
+          email: service.wpEmail,
+          siteTitle: service.wpSiteTitle,
+        },
+      });
+    }
+
+    res.json(base);
+  } catch (err) {
+    console.error("[CLIENT] wordpress-status error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });

@@ -1,5 +1,13 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 15)
+- **WordPress Provisioning Flow**: Full Docker-based WordPress auto-installer implemented. `POST /client/hosting/:id/install-wordpress` returns immediately (fire-and-forget) and sets `wpProvisionStatus="queued"`. Background `provisionWordPress()` in `wordpress-provisioner.ts` runs the 5-step sequence: Create database → Create container → Download WordPress → Configure → Run installer. `GET /client/hosting/:id/wordpress-status` polls real-time status and returns credentials on completion.
+- **WordPress provisioner steps**: 1) MySQL `CREATE DATABASE`+user grant, 2) `docker run -d wordpress:latest` with env vars, 3) Wait for container health (`/wp-admin/install.php`), 4) `curl POST` WP installer, 5) Save credentials to DB. On failure, error is stored in `wpProvisionError` field.
+- **WP schema fields added**: `wpEmail`, `wpSiteTitle`, `wpDbName`, `wpContainerId`, `wpPort`, `wpProvisionStatus`, `wpProvisionStep`, `wpProvisionError`, `wpProvisionedAt` added to `hostingServicesTable` and pushed to DB.
+- **Simulation mode**: `WP_SIMULATE=true` env var (set for dev/Replit) runs simulated 5-step provisioning with 2s delays per step. On a real server with Docker+MySQL, remove this flag for real provisioning.
+- **ServiceDetail.tsx WordPress UI**: Replaced instant install with step-by-step animated progress UI. Shows numbered steps with active spinner, done checkmarks, and in-progress pulse. Polls every 3s. Shows credential card on success with "Reveal password" button. Shows error + retry on failure. Site title input field before install. Status persists across page refreshes.
+- **Env var**: `WP_SIMULATE=true` set for development environment; `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_ROOT_USER`, `MYSQL_ROOT_PASSWORD` for production Docker deployments.
+
 ## Recent Changes (Session 14)
 - **Notification Bell UI**: `NotificationBell.tsx` component added to client header in `AppLayout.tsx`. Shows unread badge count (polls every 30s), dropdown with per-notification read/delete, "Mark all read" button, type-based icons (domain/order/invoice/ticket/hosting), and relative timestamps. Routes to linked page on click.
 - **Notifications wired to events**: `checkout.ts` sends order+invoice notifications on new orders; `tickets.ts` sends notification to client when admin replies; `cron.ts` sends domain renewal/expiry notifications. `createNotification()` helper is fire-and-forget in all routes.

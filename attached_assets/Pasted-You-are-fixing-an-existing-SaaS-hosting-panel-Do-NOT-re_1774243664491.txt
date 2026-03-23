@@ -1,0 +1,177 @@
+You are fixing an existing SaaS hosting panel. Do NOT rebuild. Only FIX broken logic and missing integrations.
+
+========================
+CRITICAL BUG FIXES (MUST FIX ALL)
+========================
+
+1. DNS MANAGEMENT (REMOVE CPANEL DEPENDENCY)
+------------------------------------------
+Current issue:
+"DNS management requires cPanel"
+
+Fix:
+- REMOVE cPanel dependency completely
+- Use Cloudflare API for DNS management instead
+
+Implement:
+- Fetch DNS records via Cloudflare API
+- Support:
+  - A
+  - CNAME
+  - MX
+  - TXT
+- Add functions:
+  getDNSRecords(domain)
+  addDNSRecord(domain, type, value)
+  deleteDNSRecord(recordId)
+
+UI must work without cPanel
+
+========================
+2. TLD PRICING MISMATCH FIX
+========================
+
+Issue:
+TLD pricing page shows one price, transfer shows another
+
+Fix:
+- Use SINGLE source of truth (TLD collection)
+
+Rules:
+- On domain transfer:
+  extract TLD → fetch from DB
+  use ONLY transferPrice
+
+Fix backend:
+const tld = "." + domain.split('.').pop();
+const pricing = await TLD.findOne({ extension: tld });
+
+if (!pricing) throw error
+
+return pricing.transferPrice;
+
+Remove all hardcoded pricing
+
+========================
+3. DOMAIN TRANSFER VALIDATION (CRITICAL FIX)
+========================
+
+Current issue:
+Fake domain + fake EPP passes
+
+Fix FULL validation logic:
+
+Step 1: Domain format validation
+Step 2: Domain existence check (WHOIS API or mock strict list)
+Step 3: Transfer lock simulation:
+   - Add field: lockStatus
+   - Random OR rule-based (but must show)
+
+Step 4: EPP validation:
+   - Must NOT accept random strings
+   - Rules:
+      length >= 8
+      must contain letters + numbers
+   - Reject invalid EPP
+
+If any fails → STOP process
+
+========================
+4. TRANSFER LOCK STATUS NOT SHOWING
+========================
+
+Fix:
+- Always return:
+  {
+    domain,
+    exists,
+    lockStatus: "locked" | "unlocked",
+    transferable: true/false
+  }
+
+- Show in UI before continue button
+
+========================
+5. INVOICE NOT GENERATING
+========================
+
+Fix order flow:
+
+On "Complete Order":
+
+1. Create Order
+2. Create Invoice
+3. Link invoice to order
+4. Save in DB
+
+Invoice must include:
+- domain
+- price
+- status: unpaid/paid
+
+Return invoice in response
+
+========================
+6. ORDER NOT SAVING PROPERLY
+========================
+
+Fix:
+- Ensure Order schema includes:
+  domain
+  type: "transfer"
+  status: "pending"
+  price
+  userId
+
+Save before redirect
+
+========================
+7. DOMAIN NOT SHOWING IN DASHBOARD
+========================
+
+Fix:
+- After order:
+  insert into Domains collection:
+    domain
+    status: "Pending Transfer"
+    lockStatus
+    userId
+
+- Fetch in dashboard:
+  GET /user/domains
+
+========================
+8. FORCE STRICT ERROR HANDLING
+========================
+
+- If ANY step fails:
+  return proper error message
+- Do NOT allow silent success
+
+========================
+9. DEBUG MODE ENABLE
+========================
+
+Add logs:
+console.log("TRANSFER DEBUG:", {
+  domain,
+  tld,
+  pricing,
+  lockStatus,
+  eppValid
+});
+
+========================
+GOAL:
+========================
+
+Fix all broken flows:
+- DNS works without cPanel
+- TLD pricing consistent
+- Fake domains rejected
+- Lock status visible
+- Invoice generated
+- Orders saved
+- Domains visible in dashboard
+
+DO NOT SKIP ANY FIX.
