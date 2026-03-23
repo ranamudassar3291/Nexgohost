@@ -92,6 +92,10 @@ async function cpanelUAPI(
 // Body: application/x-www-form-urlencoded  (querystring)
 // Response: serialized text — success is indicated by the word "done" in the body
 
+// Softaculous theme paths to try, in order of preference.
+// cPanel servers may use different themes (paper_lantern = legacy, jupiter = modern default).
+const SOFTACULOUS_THEMES = ["jupiter", "paper_lantern"];
+
 async function softaculousInstall(
   ctx: CpanelCtx,
   domain: string,
@@ -101,7 +105,6 @@ async function softaculousInstall(
   adminEmail: string,
   siteName: string,
 ): Promise<void> {
-  const url = `${ctx.baseUrl}frontend/paper_lantern/softaculous/index.live.php?api=serialize`;
   const creds = Buffer.from(`${ctx.username}:${ctx.password}`).toString("base64");
 
   const postData = new URLSearchParams({
@@ -110,39 +113,61 @@ async function softaculousInstall(
     protocol:       "https://",
     domain:         domain,
     dir:            directory,     // "" = root, "blog" = /blog subdir
-    admin_username: adminUser,     // NOTE: Softaculous uses admin_username, not admin_user
+    admin_username: adminUser,     // Softaculous uses admin_username (not admin_user)
     admin_pass:     adminPass,
     admin_email:    adminEmail,
-    site_name:      siteName || "My WordPress Site", // Softaculous uses site_name
+    site_name:      siteName || "My WordPress Site",
     dbprefix:       "wp_",
     language:       "en",
     auto_upgrade:   "1",
   });
 
-  console.log(`[Softaculous] POST ${url}`);
-  console.log(`FINAL PAYLOAD:`, postData.toString());
+  console.log("Softaculous Payload:", postData.toString());
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization:  `Basic ${creds}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: postData.toString(),
-  });
+  let lastErr = "";
 
-  const text = await resp.text();
-  console.log(`CPANEL RESPONSE:`, text.substring(0, 500));
+  for (const theme of SOFTACULOUS_THEMES) {
+    const url = `${ctx.baseUrl}frontend/${theme}/softaculous/index.live.php?api=serialize`;
+    console.log(`[Softaculous] Trying theme "${theme}" — POST ${url}`);
 
-  if (!resp.ok) {
-    throw new Error(`Softaculous HTTP error ${resp.status} ${resp.statusText}`);
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization:  `Basic ${creds}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: postData.toString(),
+      });
+
+      const text = await resp.text();
+      console.log("Softaculous Response:", text.substring(0, 1000));
+
+      if (!resp.ok) {
+        lastErr = `HTTP ${resp.status} ${resp.statusText}: ${text.substring(0, 200)}`;
+        console.warn(`[Softaculous] theme "${theme}" returned ${resp.status} — trying next theme`);
+        continue;
+      }
+
+      if (!text.includes("done")) {
+        lastErr = `Unexpected response (no "done"): ${text.substring(0, 400)}`;
+        console.warn(`[Softaculous] theme "${theme}" did not return "done" — trying next theme`);
+        continue;
+      }
+
+      // Success
+      console.log(`[Softaculous] WordPress installed successfully on ${domain} (theme: ${theme})`);
+      return;
+    } catch (fetchErr: any) {
+      // Network-level failure (connection refused, SSL error, DNS, etc.)
+      const cause = fetchErr.cause?.message || fetchErr.cause?.code || fetchErr.message;
+      lastErr = `Network error for theme "${theme}": ${cause}`;
+      console.warn(`[Softaculous] fetch failed for theme "${theme}": ${lastErr}`);
+    }
   }
 
-  if (!text.includes("done")) {
-    throw new Error(`Softaculous installation failed. Response snippet: ${text.substring(0, 300)}`);
-  }
-
-  console.log(`[Softaculous] WordPress installed successfully on ${domain}`);
+  // All themes exhausted
+  throw new Error(`Softaculous unavailable after trying all themes (${SOFTACULOUS_THEMES.join(", ")}). Last error: ${lastErr}`);
 }
 
 // ── Check if WordPress is already installed ────────────────────────────────────
@@ -339,75 +364,14 @@ async function cpanelProvision(
       );
     }
   } else {
-    // ── STRATEGY 2: Manual file-based install via cPanel UAPI ─────────────
-    // Fallback when WordPress/install UAPI is unavailable on the server.
-    // Database creation is NOT done here — we do not call Mysql API to avoid
-    // 403 permission errors. wp-config.php is written with placeholder DB
-    // credentials and the native WP installer creates the tables from there.
-    const publicHtml = installPath === "/" ? "/public_html" : `/public_html/${directory}`;
-
-    // STEP 1: Download WordPress
-    await setStep(serviceId, "Downloading WordPress");
-    console.log(`[WP] Downloading WordPress to ${publicHtml}`);
-    await cpanelUAPI(ctx, "Fileman", "run_command", {
-      command: `cd ${publicHtml} && curl -sL https://wordpress.org/latest.tar.gz -o /tmp/wordpress.tar.gz`,
-    });
-
-    // STEP 3: Extract WordPress files
-    await setStep(serviceId, "Extracting files");
-    console.log(`[WP] Extracting WordPress files`);
-    await cpanelUAPI(ctx, "Fileman", "run_command", {
-      command: `cd /tmp && tar -xzf wordpress.tar.gz && cp -rp wordpress/. ${publicHtml}/ && rm -rf wordpress wordpress.tar.gz`,
-    });
-
-    // STEP 4: Create wp-config.php with generated DB credentials.
-    // The database itself is NOT created here (no Mysql API calls) — the native
-    // WP install.php step below will write into an already-existing database.
-    // If no database exists the install.php form will surface the DB error clearly.
-    await setStep(serviceId, "Configuring WordPress");
-    console.log(`[WP] Creating wp-config.php`);
-    const fallbackDbName = `${resolvedCpanelUser}_wp_${Date.now().toString().slice(-6)}`.substring(0, 64);
-    const fallbackDbUser = `${resolvedCpanelUser}_u_${Date.now().toString().slice(-6)}`.substring(0, 64);
-    const fallbackDbPass = generateWpPassword();
-    const wpConfigContent = generateWpConfig(fallbackDbName, fallbackDbUser, fallbackDbPass, "localhost");
-    await cpanelUAPI(ctx, "Fileman", "save_file_content", {
-      dir: publicHtml,
-      file: "wp-config.php",
-      content: wpConfigContent,
-    });
-
-    // STEP 5: Run WordPress native installer (wp-admin/install.php)
-    await setStep(serviceId, "Running installer");
-    console.log(`[WP] Running WordPress native install.php`);
-    const installPayload = {
-      weblog_title:     siteTitle || "My WordPress Site", // native WP installer field
-      user_name:        wpUser,
-      admin_password:   wpPass,
-      admin_password2:  wpPass,
-      admin_email:      wpEmail,
-      blog_public:      "1",
-    };
-    console.log(`[WP] install.php payload:`, JSON.stringify(installPayload));
-    const installResp = await fetch(`${wpUrl}/wp-admin/install.php?step=2`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(installPayload),
-    });
-    if (!installResp.ok && installResp.status !== 302) {
-      throw new Error(`WordPress install.php failed (HTTP ${installResp.status}). Check domain resolves to this server.`);
-    }
-
-    // STEP 6: Verify — never save success without confirming files exist
-    await setStep(serviceId, "Verifying installation");
-    console.log(`[WP] Verifying installation`);
-    await new Promise(r => setTimeout(r, 3000));
-    const isInstalled = await checkWordPressInstalled(ctx, installPath);
-    if (!isInstalled) {
-      throw new Error(
-        "WordPress verification failed: wp-config.php not found after install. " +
-        "The installer may not have completed correctly."
-      );
-    }
+    // Softaculous was the only supported install method on this server.
+    // Direct cPanel UAPI file/database calls (Fileman/run_command, Mysql/create_database)
+    // are restricted on shared hosting and intentionally not attempted.
+    throw new Error(
+      "WordPress installation requires Softaculous, which could not be reached on this server. " +
+      "Ensure Softaculous is installed and the cPanel credentials (username + password) are correct. " +
+      "Contact your hosting provider if Softaculous access is restricted."
+    );
   }
 
   console.log(`[WP] Install verified ✓ for service ${serviceId} (${domain})`);
