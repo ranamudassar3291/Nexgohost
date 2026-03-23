@@ -139,20 +139,10 @@ export async function provisionWordPress(
       return;
     }
 
-    // cPanel requires all database names and users to start with the account
-    // username prefix (e.g. "wscreati"). Use timestamp + random to guarantee
-    // uniqueness across installs — never reuse the same name.
-    const cpPrefix = cpanelCtx.username.replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
-    const uniqueId = Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6);
-    const dbName = `${cpPrefix}_wp_${uniqueId}`.substring(0, 64); // cPanel hard limit: 64 chars
-    const dbUser = `${cpPrefix}_u_${uniqueId}`.substring(0, 64);  // separate user name
-    const dbPass = generateWpPassword();
-
     console.log(`[WP] Real cPanel provisioning for service ${serviceId} at ${cpanelCtx.baseUrl}`);
-    console.log(`[WP] Using DB: ${dbName}`);
-    console.log(`[WP] Using DB User: ${dbUser}`);
+    console.log(`[WP] cPanel will handle database creation automatically`);
 
-    await cpanelProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, dbName, dbUser, dbPass, cpanelCtx);
+    await cpanelProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCtx);
   } catch (err: any) {
     const msg = err?.message || "Unknown error during WordPress provisioning";
     console.error(`[WP] Provisioning failed for ${serviceId}:`, msg);
@@ -243,9 +233,6 @@ async function cpanelProvision(
   wpPass: string,
   wpEmail: string,
   installPath: string,
-  dbName: string,
-  dbUser: string,
-  dbPass: string,
   ctx: CpanelCtx,
 ) {
   const directory = installPath === "/" ? "" : installPath.replace(/^\//, "");
@@ -276,70 +263,32 @@ async function cpanelProvision(
   console.log(`[WP] cPanel auth user: "${resolvedCpanelUser}" (from service="${ctx.username}", fallback="${CPANEL_USER}")`);
   console.log(`[WP] Auth header: cpanel ${resolvedCpanelUser}:***`);
 
-  // Helper to build a fresh payload with a unique db_name / db_user each time.
-  // Using timestamp + random ensures no two calls share a database name even
-  // if the same service is retried immediately after a failure.
-  // NOTE: "user" is NOT included in the body — cPanel identifies the caller via
-  //       the Authorization header: "cpanel username:API_TOKEN"
-  const cpPrefix = resolvedCpanelUser.replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
-  function buildPayload(currentDbName: string, currentDbUser: string, currentDbPass: string) {
-    return {
-      domain,
-      directory,
-      admin_user:  wpUser,
-      admin_pass:  wpPass,
-      admin_email: wpEmail,
-      name:        siteTitle || "My WordPress Site", // cPanel requires "name", NOT "site_name"
-      db_name:     currentDbName,
-      db_user:     currentDbUser,
-      db_pass:     currentDbPass,
-    };
-  }
+  // Minimal payload — cPanel WordPress installer handles database creation automatically.
+  // Do NOT include db_name/db_user/db_pass — those cause 403 errors if the token
+  // lacks MySQL API permissions. The WordPress/install endpoint manages the DB itself.
+  // NOTE: "user" is NOT in the body — cPanel identifies the caller via the
+  //       Authorization header: "cpanel username:API_TOKEN"
+  const payload = {
+    domain,
+    directory,
+    admin_user:  wpUser,
+    admin_pass:  wpPass,
+    admin_email: wpEmail,
+    name:        siteTitle || "My WordPress Site", // "name" = site title, NOT "site_name"
+  };
 
   try {
-    const MAX_RETRIES = 2;
-    let attempt = 0;
+    console.log(`[WP] Calling WordPress/install for ${domain}`);
+    console.log(`FINAL PAYLOAD:`, JSON.stringify(payload));
 
-    while (attempt <= MAX_RETRIES) {
-      attempt++;
+    const rawResult = await cpanelUAPI(ctx, "WordPress", "install", payload);
+    console.log(`CPANEL RESPONSE:`, JSON.stringify(rawResult));
 
-      // Always generate a fresh unique db_name / db_user for every attempt so
-      // "database already exists" is impossible across retries.
-      const uid = Date.now().toString().slice(-6) + Math.random().toString(36).substring(2, 6);
-      const attemptDbName = `${cpPrefix}_wp_${uid}`.substring(0, 64);
-      const attemptDbUser = `${cpPrefix}_u_${uid}`.substring(0, 64);
-      const attemptDbPass = generateWpPassword();
-
-      const payload = buildPayload(attemptDbName, attemptDbUser, attemptDbPass);
-
-      console.log(`[WP] WordPress/install attempt ${attempt}/${MAX_RETRIES + 1} for ${domain}`);
-      console.log(`FINAL PAYLOAD:`, JSON.stringify(payload));
-
-      try {
-        const rawResult = await cpanelUAPI(ctx, "WordPress", "install", payload);
-        console.log(`CPANEL RESPONSE:`, JSON.stringify(rawResult));
-        // cpanelUAPI throws on status !== 1, so reaching here means success
-        dbName = attemptDbName;  // update outer variable so DB save uses correct name
-        dbUser = attemptDbUser;
-        usedCpanelWpApi = true;
-        console.log(`[WP] WordPress/install succeeded on attempt ${attempt} for ${domain}`);
-        break;
-      } catch (attemptErr: any) {
-        const lastErr = attemptErr.message || "Unknown error";
-        console.warn(`[WP] Attempt ${attempt} failed: ${lastErr}`);
-
-        // Auto-retry only on "already exists" conflicts — regenerate a fresh DB name
-        if (attempt <= MAX_RETRIES && /already exists/i.test(lastErr)) {
-          console.log(`[WP] DB name conflict detected — regenerating unique name for retry`);
-          continue;
-        }
-        // Any other error (or retries exhausted) → fall through to manual install
-        console.warn(`[WP] WordPress/install unavailable after ${attempt} attempt(s): ${lastErr} — falling back to manual install`);
-        break;
-      }
-    }
-  } catch (outerErr: any) {
-    console.warn(`[WP] WordPress UAPI setup error (${outerErr.message}) — falling back to manual install`);
+    // cpanelUAPI throws on status !== 1, so reaching here means success
+    usedCpanelWpApi = true;
+    console.log(`[WP] WordPress/install succeeded for ${domain}`);
+  } catch (wpErr: any) {
+    console.warn(`[WP] WordPress/install failed: ${wpErr.message} — falling back to manual install`);
   }
 
   if (usedCpanelWpApi) {
@@ -354,22 +303,14 @@ async function cpanelProvision(
       );
     }
   } else {
-    // ── STRATEGY 2: Manual install via cPanel UAPI ──────────────────────────
-    // Used when the WordPress UAPI module is unavailable on the server.
+    // ── STRATEGY 2: Manual file-based install via cPanel UAPI ─────────────
+    // Fallback when WordPress/install UAPI is unavailable on the server.
+    // Database creation is NOT done here — we do not call Mysql API to avoid
+    // 403 permission errors. wp-config.php is written with placeholder DB
+    // credentials and the native WP installer creates the tables from there.
     const publicHtml = installPath === "/" ? "/public_html" : `/public_html/${directory}`;
 
-    // STEP 1: Create MySQL database + user (with prefixed names)
-    console.log(`[WP] Creating database: ${dbName}`);
-    console.log(`[WP] DB Name: ${dbName}`);
-    console.log(`[WP] DB User: ${dbUser}`);
-    await cpanelUAPI(ctx, "Mysql", "create_database", { name: dbName });
-    await cpanelUAPI(ctx, "Mysql", "create_user", { name: dbUser, password: dbPass });
-    await cpanelUAPI(ctx, "Mysql", "set_privileges_on_database", {
-      database: dbName, dbuser: dbUser, privileges: "ALL PRIVILEGES",
-    });
-    console.log(`[WP] Database created: ${dbName}`);
-
-    // STEP 2: Download WordPress
+    // STEP 1: Download WordPress
     await setStep(serviceId, "Downloading WordPress");
     console.log(`[WP] Downloading WordPress to ${publicHtml}`);
     await cpanelUAPI(ctx, "Fileman", "run_command", {
@@ -383,10 +324,16 @@ async function cpanelProvision(
       command: `cd /tmp && tar -xzf wordpress.tar.gz && cp -rp wordpress/. ${publicHtml}/ && rm -rf wordpress wordpress.tar.gz`,
     });
 
-    // STEP 4: Create wp-config.php
+    // STEP 4: Create wp-config.php with generated DB credentials.
+    // The database itself is NOT created here (no Mysql API calls) — the native
+    // WP install.php step below will write into an already-existing database.
+    // If no database exists the install.php form will surface the DB error clearly.
     await setStep(serviceId, "Configuring WordPress");
     console.log(`[WP] Creating wp-config.php`);
-    const wpConfigContent = generateWpConfig(dbName, dbUser, dbPass, "localhost");
+    const fallbackDbName = `${resolvedCpanelUser}_wp_${Date.now().toString().slice(-6)}`.substring(0, 64);
+    const fallbackDbUser = `${resolvedCpanelUser}_u_${Date.now().toString().slice(-6)}`.substring(0, 64);
+    const fallbackDbPass = generateWpPassword();
+    const wpConfigContent = generateWpConfig(fallbackDbName, fallbackDbUser, fallbackDbPass, "localhost");
     await cpanelUAPI(ctx, "Fileman", "save_file_content", {
       dir: publicHtml,
       file: "wp-config.php",
