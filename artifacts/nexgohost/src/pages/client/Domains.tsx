@@ -5,7 +5,7 @@ import {
   Globe, Search, ShoppingCart, CheckCircle2, XCircle, AlertCircle,
   Loader2, Trash2, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
   Server, Plus, Minus, Save, Key, Copy, CheckCheck, ArrowLeft, ClipboardList,
-  ArrowRightLeft,
+  ArrowRightLeft, ShieldCheck, Lock, Network, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { useCurrency } from "@/context/CurrencyProvider";
 interface MyDomain {
   id: string; name: string; tld: string; status: string; registrationDate: string | null;
   expiryDate: string | null; autoRenew: boolean; nameservers: string[] | null;
+  lockStatus: string | null;
 }
 
 interface TldResult {
@@ -119,6 +120,9 @@ export default function ClientDomains() {
   const [eppCode, setEppCode] = useState<string | null>(null);
   const [eppLoading, setEppLoading] = useState(false);
   const [eppCopied, setEppCopied] = useState(false);
+  const [expandedDomainId, setExpandedDomainId] = useState<string | null>(null);
+  const [lockLoading, setLockLoading] = useState<string | null>(null);
+  const [lockOverrides, setLockOverrides] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -185,6 +189,19 @@ export default function ClientDomains() {
       toast({ title: `Auto-renew ${!current ? "enabled" : "disabled"}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleToggleLock = async (domain: MyDomain) => {
+    setLockLoading(domain.id);
+    try {
+      const data = await apiFetch(`/api/domains/${domain.id}/lock`, { method: "PUT" });
+      setLockOverrides(prev => ({ ...prev, [domain.id]: data.lockStatus }));
+      toast({ title: `Transfer lock ${data.lockStatus === "locked" ? "enabled" : "disabled"}`, description: `${domain.name}${domain.tld}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setLockLoading(null);
     }
   };
 
@@ -443,69 +460,160 @@ export default function ClientDomains() {
               const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
               const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft < 30;
+              const isExpanded = expandedDomainId === domain.id;
+              const lockStatus = lockOverrides[domain.id] ?? domain.lockStatus ?? "unlocked";
+              const isLocked = lockStatus === "locked";
               return (
-                <div key={domain.id} className="bg-card border border-border rounded-2xl p-6 hover:border-primary/30 transition-all group">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center text-2xl">
+                <div key={domain.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/20 transition-all">
+                  {/* Domain row */}
+                  <div className="flex items-start justify-between gap-4 p-5">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-2xl shrink-0">
                         {TLD_ICONS[domain.tld] || "🌐"}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-xl font-bold text-foreground font-mono">{domain.name}{domain.tld}</h3>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[domain.status] ?? "bg-secondary text-muted-foreground border-border"}`}>{statusLabels[domain.status] ?? domain.status}</span>
+                          <h3 className="text-lg font-bold text-foreground font-mono">{domain.name}{domain.tld}</h3>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[domain.status] ?? "bg-secondary text-muted-foreground border-border"}`}>
+                            {statusLabels[domain.status] ?? domain.status}
+                          </span>
                           {isExpiringSoon && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-500/10 text-orange-400 border border-orange-500/20">
                               <AlertCircle className="w-3 h-3" /> Expiring soon
                             </span>
                           )}
+                          {isLocked && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-400 border border-red-500/20">
+                              <BadgeCheck className="w-3 h-3" /> Transfer Locked
+                            </span>
+                          )}
                         </div>
-                        <p className="text-sm text-muted-foreground mt-0.5 font-mono">{domain.nameservers?.[0] || "ns1.nexgohost.com"}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate">
+                          {expiryDate ? `Expires ${format(expiryDate, "MMM d, yyyy")}` : ""}
+                          {daysLeft !== null && ` · ${daysLeft}d left`}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8">
-                        <RefreshCw size={12} /> Renew
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => setDnsModal(domain)}>
-                        <Server size={12} /> NS
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => openEppModal(domain)} title="Get EPP / Auth Code for domain transfer">
-                        <Key size={12} /> Auth
-                      </Button>
-                    </div>
+                    <button
+                      onClick={() => setExpandedDomainId(isExpanded ? null : domain.id)}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/30 hover:bg-primary/20 text-primary rounded-lg text-sm font-medium transition-colors"
+                    >
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      Manage Domain
+                    </button>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-5 border-t border-border/50">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Registered</p>
-                      <p className="text-sm font-medium">
-                        {domain.registrationDate ? format(new Date(domain.registrationDate), "MMM d, yyyy") : "N/A"}
-                      </p>
+
+                  {/* Expanded management panel */}
+                  {isExpanded && (
+                    <div className="border-t border-border bg-secondary/30 px-5 py-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+
+                        {/* Renew Domain */}
+                        <button
+                          className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+                          onClick={() => toast({ title: "Renewal", description: "Contact support to manually renew this domain." })}
+                        >
+                          <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            <RefreshCw size={15} className="text-green-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Renew Domain</p>
+                            <p className="text-xs text-muted-foreground">Extend expiry period</p>
+                          </div>
+                        </button>
+
+                        {/* Nameservers */}
+                        <button
+                          className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+                          onClick={() => setDnsModal(domain)}
+                        >
+                          <div className="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            <Server size={15} className="text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Nameservers</p>
+                            <p className="text-xs text-muted-foreground font-mono truncate">{domain.nameservers?.[0] || "ns1.nexgohost.com"}</p>
+                          </div>
+                        </button>
+
+                        {/* DNS Management */}
+                        <button
+                          className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+                          onClick={() => navigate(`/client/dns/${domain.id}`)}
+                        >
+                          <div className="w-9 h-9 bg-violet-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            <Network size={15} className="text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">DNS Management</p>
+                            <p className="text-xs text-muted-foreground">A, CNAME, MX records</p>
+                          </div>
+                        </button>
+
+                        {/* Get EPP Code */}
+                        <button
+                          className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+                          onClick={() => openEppModal(domain)}
+                        >
+                          <div className="w-9 h-9 bg-amber-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            <Key size={15} className="text-amber-400" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Get EPP Code</p>
+                            <p className="text-xs text-muted-foreground">Auth code for transfer</p>
+                          </div>
+                        </button>
+
+                        {/* Transfer Lock toggle */}
+                        <button
+                          disabled={lockLoading === domain.id}
+                          className={`flex items-center gap-3 p-3 bg-card border rounded-xl hover:bg-primary/5 transition-all text-left ${
+                            isLocked ? "border-red-500/30 hover:border-red-400/50" : "border-green-500/30 hover:border-green-400/50"
+                          }`}
+                          onClick={() => handleToggleLock(domain)}
+                        >
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isLocked ? "bg-red-500/10" : "bg-green-500/10"}`}>
+                            {lockLoading === domain.id
+                              ? <Loader2 size={15} className="animate-spin text-muted-foreground" />
+                              : isLocked
+                                ? <Lock size={15} className="text-red-400" />
+                                : <ShieldCheck size={15} className="text-green-400" />
+                            }
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Transfer Lock</p>
+                            <p className={`text-xs font-medium ${isLocked ? "text-red-400" : "text-green-400"}`}>
+                              {isLocked ? "ON — click to unlock" : "OFF — click to lock"}
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Auto Renew toggle */}
+                        <button
+                          className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
+                          onClick={() => toggleAutoRenew(domain.id, domain.autoRenew)}
+                        >
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${domain.autoRenew ? "bg-green-500/10" : "bg-secondary"}`}>
+                            <RotateCcw size={15} className={domain.autoRenew ? "text-green-400" : "text-muted-foreground"} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Auto-Renew</p>
+                            <p className={`text-xs font-medium ${domain.autoRenew ? "text-green-400" : "text-muted-foreground"}`}>
+                              {domain.autoRenew ? "Enabled" : "Disabled"}
+                            </p>
+                          </div>
+                        </button>
+
+                      </div>
+
+                      {/* Info row */}
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 pt-2 border-t border-border/50 text-xs text-muted-foreground">
+                        <span>Registered: {domain.registrationDate ? format(new Date(domain.registrationDate), "MMM d, yyyy") : "N/A"}</span>
+                        <span>Expires: {expiryDate ? format(expiryDate, "MMM d, yyyy") : "N/A"}</span>
+                        <span>NS: {domain.nameservers?.[0] || "ns1.nexgohost.com"}</span>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Expires</p>
-                      <p className={`text-sm font-medium ${isExpiringSoon ? "text-orange-400" : ""}`}>
-                        {expiryDate ? format(expiryDate, "MMM d, yyyy") : "N/A"}
-                        {daysLeft !== null && <span className="text-xs ml-1 text-muted-foreground">({daysLeft}d)</span>}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Auto Renew</p>
-                      <button
-                        onClick={() => toggleAutoRenew(domain.id, domain.autoRenew)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer hover:opacity-80 ${
-                          domain.autoRenew ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
-                        }`}
-                      >
-                        <RotateCcw size={11} />
-                        {domain.autoRenew ? "Enabled" : "Disabled"}
-                      </button>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Nameservers</p>
-                      <p className="text-sm font-medium">{domain.nameservers?.[0] || "ns1.nexgohost.com"}</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })

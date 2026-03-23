@@ -1,0 +1,184 @@
+Fix domain system completely. Do NOT rebuild. Only fix validation, pricing, and UI logic.
+
+========================
+1. DOMAIN VALIDATION (STRICT FIX)
+========================
+
+Current issue:
+Fake domain accepted
+
+Fix:
+
+Step 1: Validate format
+- Must be valid domain (regex)
+
+Step 2: Check existence
+- Use STRICT logic:
+  - Only allow domains that exist in database OR
+  - Use mock list of registered domains
+
+If domain NOT found:
+  return error "Domain is not registered"
+
+DO NOT allow random/fake domains
+
+========================
+2. EPP CODE VALIDATION (STRICT)
+========================
+
+Current issue:
+Fake EPP accepted
+
+Fix:
+
+Rules:
+- Minimum 8 characters
+- Must contain:
+   - letters
+   - numbers
+
+Regex:
+^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$
+
+If invalid:
+  return error "Invalid EPP code"
+
+========================
+3. TRANSFER LOCK FIX
+========================
+
+Current issue:
+Always shows OFF
+
+Fix:
+
+Add logic:
+
+If domain exists:
+   randomly assign OR store:
+   lockStatus = "locked" OR "unlocked"
+
+Rules:
+- If locked → block transfer
+- If unlocked → allow
+
+Return:
+{
+  domain,
+  exists: true,
+  lockStatus,
+  transferable: lockStatus === "unlocked"
+}
+
+========================
+4. TLD PRICING FIX (CRITICAL)
+========================
+
+Current issue:
+Client sees wrong price
+
+Fix:
+
+REMOVE:
+- Hardcoded prices
+- Static values
+
+ONLY use DB:
+
+const tld = "." + domain.split('.').pop();
+
+const pricing = await TLD.findOne({ extension: tld });
+
+if (!pricing) throw error
+
+const transferPrice = pricing.transferPrice;
+
+Return this price ONLY
+
+IMPORTANT:
+- Admin TLD table = single source of truth
+
+========================
+5. DOMAIN PAGE UI FIX (IMPORTANT)
+========================
+
+Current issue:
+All options showing directly
+
+Fix UI:
+
+Default:
+Show ONLY button:
+👉 "Manage Domain"
+
+When clicked:
+Expand panel showing:
+
+- Renew Domain
+- Nameservers
+- DNS Management
+- Get EPP Code
+- Transfer Lock (ON/OFF toggle)
+
+Use toggle UI (accordion/dropdown)
+
+========================
+6. DOMAIN MANAGEMENT FEATURES
+========================
+
+Add:
+
+- Toggle Transfer Lock:
+   ON → locked
+   OFF → unlocked
+
+- Nameserver update:
+   ns1 / ns2 fields
+
+- DNS management button:
+   open DNS panel
+
+- EPP code:
+   generate + show securely
+
+========================
+7. ORDER + INVOICE FIX
+========================
+
+When user submits transfer:
+
+MUST:
+
+1. Create Order
+2. Create Invoice
+3. Save both
+4. Return invoice
+
+Invoice fields:
+- domain
+- amount (from TLD)
+- status
+
+========================
+8. DEBUG LOGS (MANDATORY)
+========================
+
+console.log("DOMAIN CHECK:", {
+  domain,
+  exists,
+  lockStatus,
+  eppValid,
+  price
+});
+
+========================
+GOAL
+========================
+
+Fix:
+- Fake domain rejection
+- Fake EPP rejection
+- Correct lock status
+- Correct TLD pricing (admin = client)
+- Clean domain UI (manage button)
+- Proper invoice creation

@@ -59,6 +59,7 @@ function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) 
     status: d.status,
     autoRenew: d.autoRenew,
     nameservers: d.nameservers || [],
+    lockStatus: (d as any).lockStatus ?? "unlocked",
     moduleServerId: (d as any).moduleServerId ?? null,
   };
 }
@@ -531,7 +532,24 @@ router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async 
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// Client: get EPP / auth code for domain transfer
+// Client: toggle transfer lock on own domain
+router.put("/domains/:id/lock", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+    if (domain.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    const current = (domain as any).lockStatus ?? "unlocked";
+    const next = current === "locked" ? "unlocked" : "locked";
+    const [updated] = await db.update(domainsTable)
+      .set({ ...(next === "locked" ? { lockStatus: "locked" } : { lockStatus: "unlocked" }), updatedAt: new Date() } as any)
+      .where(eq(domainsTable.id, req.params.id))
+      .returning();
+    console.log(`[LOCK] Domain ${domain.name}${domain.tld} lock toggled: ${current} → ${next}`);
+    res.json({ lockStatus: next, domain: `${domain.name}${domain.tld}` });
+  } catch (err) { console.error("[LOCK]", err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Client: get EPP / auth code for own domain
 router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
   try {
     const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
@@ -539,10 +557,11 @@ router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== "admin" && domain.clientId !== req.user!.userId) {
       res.status(403).json({ error: "Forbidden" }); return;
     }
-    // Generate deterministic auth code from domain id (production would fetch from registrar)
+    // Deterministic EPP code derived from domain ID (production: fetch from registrar)
     const raw = domain.id.replace(/-/g, "");
-    const code = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`.toUpperCase();
-    res.json({ domainId: domain.id, domain: `${domain.name}${domain.tld}`, authCode: code });
+    const eppCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`.toUpperCase();
+    console.log(`[EPP] Code generated for ${domain.name}${domain.tld}`);
+    res.json({ domainId: domain.id, domain: `${domain.name}${domain.tld}`, eppCode });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

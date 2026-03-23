@@ -60,18 +60,59 @@ function determineLockStatus(domain: string): "locked" | "unlocked" {
   return hash % 5 === 0 ? "locked" : "unlocked";
 }
 
+// RDAP servers for real-time domain existence check
+const RDAP_SERVERS: Record<string, string> = {
+  ".com": "https://rdap.verisign.com/com/v1/domain/",
+  ".net": "https://rdap.verisign.com/net/v1/domain/",
+  ".org": "https://rdap.publicinterestregistry.org/rdap/domain/",
+  ".co": "https://rdap.nic.co/domain/",
+  ".io": "https://rdap.nic.io/domain/",
+  ".uk": "https://rdap.nominet.uk/uk/domain/",
+  ".pk": "https://rdap.pknic.net.pk/domain/",
+};
+
 /**
- * Check if a domain looks like a real registered domain.
- * Real check would use RDAP/WHOIS API. Here we use heuristics:
- * - Must be a valid format
- * - Single-character SLDs are suspicious
- * - Very new TLDs or nonsense SLDs are rejected
+ * Check if a domain is actually registered using RDAP.
+ * Returns: "registered" | "not_registered" | "unknown"
+ * "unknown" = RDAP not available for TLD or network error → allow through
  */
-function checkDomainExists(domain: string): boolean {
+async function checkDomainRegisteredViaRdap(domain: string): Promise<"registered" | "not_registered" | "unknown"> {
+  const tld = "." + domain.split(".").slice(1).join(".");
+  const server = RDAP_SERVERS[tld];
+  if (!server) return "unknown";  // no RDAP server for this TLD → can't verify
+
+  const url = `${server}${domain}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/rdap+json" },
+    }).finally(() => clearTimeout(timer));
+
+    if (res.status === 200) return "registered";   // domain exists in registry
+    if (res.status === 404) return "not_registered"; // domain not in registry
+    return "unknown"; // other status → uncertain
+  } catch {
+    return "unknown"; // timeout or network error → let through
+  }
+}
+
+/**
+ * Validate that a domain name itself looks plausible:
+ * - Name part must be >= 3 chars
+ * - Must not be all-numeric
+ * - TLD must be in our supported list
+ */
+function checkDomainHeuristics(domain: string): { valid: boolean; reason: string } {
   const name = extractName(domain);
-  if (!name || name.length < 2) return false;
-  if (/^[0-9]+$/.test(name)) return false;
-  return true;
+  if (!name || name.length < 3) {
+    return { valid: false, reason: "Domain name must be at least 3 characters long." };
+  }
+  if (/^[0-9]+$/.test(name)) {
+    return { valid: false, reason: "Domain name cannot be all numbers." };
+  }
+  return { valid: true, reason: "" };
 }
 
 /** Normalize TLD for pricing lookup: try with and without dot prefix */
@@ -109,20 +150,39 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       return;
     }
 
-    // STEP 2: Domain existence check
-    const exists = checkDomainExists(domain);
-    if (!exists) {
+    // STEP 2: Heuristic format/name check
+    const heuristic = checkDomainHeuristics(domain);
+    if (!heuristic.valid) {
+      res.status(400).json({ valid: false, exists: false, error: heuristic.reason });
+      return;
+    }
+
+    const domainName_ = extractName(domain);
+    const tld = extractTld(domain);
+
+    // STEP 3: TLD must be in our supported list
+    const pricingCheck = await getTransferPricing(tld);
+    if (!pricingCheck) {
       res.status(400).json({
         valid: false,
-        exists: false,
-        error: "Domain does not appear to be a valid registered domain.",
+        error: `TLD .${tld} is not supported for transfers. Check our supported TLD list.`,
       });
       return;
     }
 
-    // STEP 3: Check if domain already in our system
-    const domainName_ = extractName(domain);
-    const tld = extractTld(domain);
+    // STEP 4: Real domain existence check via RDAP
+    const rdapResult = await checkDomainRegisteredViaRdap(domain);
+    if (rdapResult === "not_registered") {
+      res.status(400).json({
+        valid: false,
+        exists: false,
+        error: "Domain is not registered. Only registered domains can be transferred.",
+      });
+      return;
+    }
+    // rdapResult === "unknown" → RDAP unavailable for this TLD → proceed
+
+    // STEP 5: Check if domain already in our system
     const [alreadyOwned] = await db.select().from(domainsTable)
       .where(eq(domainsTable.name, domainName_)).limit(1);
     if (alreadyOwned && alreadyOwned.tld === `.${tld}` || alreadyOwned && alreadyOwned.tld === tld) {
@@ -160,24 +220,15 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       return;
     }
 
-    // STEP 6: Get transfer price from DB (single source of truth — no hardcoded fallback)
-    const pricing = await getTransferPricing(tld);
-    if (!pricing) {
-      res.status(400).json({
-        valid: false,
-        error: `TLD .${tld} is not supported for transfers. Please check our supported TLD list.`,
-      });
-      return;
-    }
-
-    const transferPrice = Number(pricing.transferPrice);
+    // STEP 6: Pricing already fetched in STEP 3 — reuse it
+    const transferPrice = Number(pricingCheck.transferPrice);
 
     console.log("[TRANSFER DEBUG]", {
       domain,
       tld,
-      pricing: { tld: pricing.tld, transferPrice },
+      pricing: { tld: pricingCheck.tld, transferPrice },
       lockStatus,
-      exists,
+      rdapResult,
       eppValid: eppResult.valid,
     });
 
@@ -218,8 +269,24 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
     const name = extractName(domain);
     const tld = extractTld(domain);
 
-    if (!checkDomainExists(domain)) {
-      res.status(400).json({ error: "Domain does not appear to be a valid registered domain." });
+    // Heuristic check
+    const heuristic = checkDomainHeuristics(domain);
+    if (!heuristic.valid) {
+      res.status(400).json({ error: heuristic.reason });
+      return;
+    }
+
+    // TLD must be supported
+    const pricingCheck2 = await getTransferPricing(tld);
+    if (!pricingCheck2) {
+      res.status(400).json({ error: `TLD .${tld} is not supported for transfers.` });
+      return;
+    }
+
+    // Real existence check
+    const rdapCheck = await checkDomainRegisteredViaRdap(domain);
+    if (rdapCheck === "not_registered") {
+      res.status(400).json({ error: "Domain is not registered. Only registered domains can be transferred." });
       return;
     }
 
@@ -235,13 +302,8 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       return;
     }
 
-    const pricing = await getTransferPricing(tld);
-    if (!pricing) {
-      res.status(400).json({ error: `TLD .${tld} is not supported for transfers.` });
-      return;
-    }
-
-    const transferPrice = Number(pricing.transferPrice);
+    // Pricing already verified in step above — reuse pricingCheck2
+    const transferPrice = Number(pricingCheck2.transferPrice);
     const userId = req.user!.userId;
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -250,7 +312,7 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
     console.log("[TRANSFER DEBUG]", {
       domain,
       tld,
-      pricing: { tld: pricing.tld, transferPrice },
+      pricing: { tld: pricingCheck2.tld, transferPrice },
       lockStatus,
       eppValid: true,
     });
