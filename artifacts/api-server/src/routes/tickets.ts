@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { ticketsTable, ticketMessagesTable, usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -143,6 +144,12 @@ router.post("/tickets/:id/reply", authenticate, async (req: AuthRequest, res) =>
     await db.update(ticketsTable)
       .set({ status: newStatus, lastReply: new Date(), messagesCount: (ticket.messagesCount || 0) + 1, updatedAt: new Date() })
       .where(eq(ticketsTable.id, ticket.id));
+
+    // Notify the other party about the reply
+    if (user.role === "admin") {
+      // Admin replied — notify client
+      createNotification(ticket.clientId, "ticket", "Support Reply", `Admin replied to your ticket: "${ticket.subject}"`, `/client/tickets/${ticket.id}`).catch(() => {});
+    }
 
     res.status(201).json(formatMessage(msg));
   } catch (err) {

@@ -1,10 +1,16 @@
 import { db } from "@workspace/db";
 import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
-  cronLogsTable, emailLogsTable, hostingPlansTable,
+  cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
 } from "@workspace/db/schema";
 import { eq, lte, sql, and, gte } from "drizzle-orm";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
+
+async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
+  try {
+    await db.insert(notificationsTable).values({ userId, type, title, message, link: link || null });
+  } catch { /* non-fatal */ }
+}
 
 async function logCron(task: string, status: "success" | "failed" | "skipped", message?: string) {
   try {
@@ -42,6 +48,7 @@ export async function runBillingCron(): Promise<void> {
     const dueServices = await db.select().from(hostingServicesTable)
       .where(and(
         eq(hostingServicesTable.status, "active"),
+        eq(hostingServicesTable.autoRenew, true),
         gte(hostingServicesTable.nextDueDate, today),
         lte(hostingServicesTable.nextDueDate, tomorrow),
       ));
@@ -93,13 +100,8 @@ export async function runBillingCron(): Promise<void> {
         .set({ nextDueDate, updatedAt: new Date() })
         .where(eq(hostingServicesTable.id, service.id));
 
-      await logEmail(
-        service.clientId,
-        user.email,
-        "invoice_generated",
-        `Invoice ${invoiceNumber} – Service Renewal`,
-        service.id,
-      );
+      await logEmail(service.clientId, user.email, "invoice_generated", `Invoice ${invoiceNumber} – Service Renewal`, service.id);
+      notify(service.clientId, "invoice", "Invoice Generated", `Invoice ${invoiceNumber} for ${service.planName} renewal — Rs. ${amount}`, `/client/invoices`).catch(() => {});
 
       invoicesCreated++;
     }
@@ -193,9 +195,11 @@ export async function runDomainRenewalCron(): Promise<void> {
           .set({ expiryDate: newExpiry, nextDueDate: newExpiry, updatedAt: new Date() })
           .where(eq(domainsTable.id, domain.id));
         await logEmail(domain.clientId, user.email, "domain_renewed", `Domain ${domain.name}.${domain.tld} renewed`, domain.id);
+        notify(domain.clientId, "domain", "Domain Renewed", `${domain.name}.${domain.tld} has been auto-renewed for 1 year`, `/client/domains`).catch(() => {});
         renewed++;
       } else {
         await logEmail(domain.clientId, user.email, "domain_expiring", `Your domain ${domain.name}.${domain.tld} expires in 7 days`, domain.id);
+        notify(domain.clientId, "domain", "Domain Expiring Soon", `${domain.name}.${domain.tld} expires in 7 days. Enable auto-renew to keep it.`, `/client/domains`).catch(() => {});
         reminded++;
       }
     }

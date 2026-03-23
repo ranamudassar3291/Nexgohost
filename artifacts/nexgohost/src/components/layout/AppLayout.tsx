@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface LayoutProps {
   children: ReactNode;
@@ -312,18 +313,21 @@ export function AppLayout({ children, role }: LayoutProps) {
               </div>
             )}
             {role === "client" && (
-              <button
-                onClick={() => setLocation("/client/cart")}
-                className="relative p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-                title="View Cart"
-              >
-                <ShoppingCart size={18} />
-                {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
-                    {cartCount}
-                  </span>
-                )}
-              </button>
+              <>
+                <NotificationBell />
+                <button
+                  onClick={() => setLocation("/client/cart")}
+                  className="relative p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                  title="View Cart"
+                >
+                  <ShoppingCart size={18} />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+              </>
             )}
             <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20">
               {user?.firstName?.[0]}{user?.lastName?.[0]}

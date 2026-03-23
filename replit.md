@@ -1,5 +1,14 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 14)
+- **Notification Bell UI**: `NotificationBell.tsx` component added to client header in `AppLayout.tsx`. Shows unread badge count (polls every 30s), dropdown with per-notification read/delete, "Mark all read" button, type-based icons (domain/order/invoice/ticket/hosting), and relative timestamps. Routes to linked page on click.
+- **Notifications wired to events**: `checkout.ts` sends order+invoice notifications on new orders; `tickets.ts` sends notification to client when admin replies; `cron.ts` sends domain renewal/expiry notifications. `createNotification()` helper is fire-and-forget in all routes.
+- **Activity Log in Security page**: `Security.tsx` now fetches `/api/my/activity` and displays last 20 actions with success/failure icon, IP address, device type (mobile/desktop), timestamp, and action label. Loading and empty states handled.
+- **Notifications route fix**: Moved `/my/notifications/unread-count` and `/my/notifications/read-all` above parameterized `/:id` routes in `notifications.ts` to prevent incorrect route matching. Response field normalized to `unreadCount`.
+- **ServiceDetail.tsx — Tab System**: Overview and DNS Manager tabs added. Tab switching preserves component state; DNS tab lazy-loads on first activation.
+- **ServiceDetail.tsx — DNS Manager**: Full cPanel DNS zone editor — lists all DNS records in a table (type, name, address, TTL), add/edit/delete records via cPanel UAPI proxy. Edit form pre-fills record values. Gracefully shows error if no cPanel server is configured.
+- **ServiceDetail.tsx — Auto-Renew Toggle**: Auto-Renew card added with current status badge and Enable/Disable button. Calls `PUT /api/client/hosting/:id/auto-renew` and optimistically updates UI.
+
 ## Recent Changes (Session 13)
 - **otplib v13 migration**: `authenticator` singleton removed in otplib v13. Migrated all 2FA code in `auth.ts` to use `TOTP` class with `NobleCryptoPlugin` + `ScureBase32Plugin`, `generateSecret()` standalone, and `verify()` standalone function. All 2FA operations (setup, enable, disable, verify) fully working and tested.
 - **Checkout credits fix**: `referenceId` → `invoiceId` corrected in `checkout.ts` credit transaction insert (matches `creditTransactionsTable` schema).

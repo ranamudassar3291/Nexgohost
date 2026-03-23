@@ -59,6 +59,7 @@ export const hostingServicesTable = pgTable("hosting_services", {
   cancelRequested: boolean("cancel_requested").default(false),
   cancelReason: text("cancel_reason"),
   cancelRequestedAt: timestamp("cancel_requested_at"),
+  autoRenew: boolean("auto_renew").default(true),
   wpInstalled: boolean("wp_installed").default(false),
   wpUrl: text("wp_url"),
   wpUsername: text("wp_username"),

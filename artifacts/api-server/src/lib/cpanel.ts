@@ -274,6 +274,92 @@ export async function cpanelCheckDomainExists(
  * Returns the temporary login URL to redirect the client to.
  * Example response URL: https://server:2083/cpsessXXXX/login/?session=XXXX
  */
+// ─── DNS Management (UAPI ZoneEdit) ──────────────────────────────────────────
+
+export interface DnsRecord {
+  Line?: number;
+  type: string;
+  name: string;
+  address?: string;
+  cname?: string;
+  exchange?: string;
+  txtdata?: string;
+  ttl?: number;
+  preference?: number;
+}
+
+export async function cpanelGetDnsZone(server: ServerConfig, domain: string, username: string): Promise<DnsRecord[]> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const whmUrl = `https://${server.hostname}:${port}/json-api/cpanel?cpanel_jsonapi_version=2&cpanel_jsonapi_module=ZoneEdit&cpanel_jsonapi_func=fetchzone_records&domain=${encodeURIComponent(domain)}&customonly=0&api.version=1&user=${encodeURIComponent(username)}`;
+  const body = await httpsGet(whmUrl, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const data = JSON.parse(body);
+  const records: any[] = data?.cpanelresult?.data?.[0]?.record || data?.data?.record || data?.result?.[0]?.data?.record || [];
+  return records.map((r: any) => ({
+    Line: r.Line,
+    type: r.type,
+    name: r.name,
+    address: r.address,
+    cname: r.cname,
+    exchange: r.exchange,
+    txtdata: r.txtdata,
+    ttl: Number(r.ttl) || 14400,
+    preference: r.preference,
+  }));
+}
+
+export async function cpanelAddDnsRecord(server: ServerConfig, username: string, domain: string, record: Omit<DnsRecord, "Line">): Promise<void> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const params = new URLSearchParams({
+    "api.version": "1", user: username,
+    cpanel_jsonapi_version: "2", cpanel_jsonapi_module: "ZoneEdit", cpanel_jsonapi_func: "add_zone_record",
+    domain, type: record.type, name: record.name, ttl: String(record.ttl || 14400),
+    ...(record.address && { address: record.address }),
+    ...(record.cname && { cname: record.cname }),
+    ...(record.exchange && { exchange: record.exchange }),
+    ...(record.txtdata && { txtdata: record.txtdata }),
+    ...(record.preference && { preference: String(record.preference) }),
+  });
+  const url = `https://${server.hostname}:${port}/json-api/cpanel?${params.toString()}`;
+  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const data = JSON.parse(body);
+  if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
+}
+
+export async function cpanelEditDnsRecord(server: ServerConfig, username: string, domain: string, line: number, record: Omit<DnsRecord, "Line">): Promise<void> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const params = new URLSearchParams({
+    "api.version": "1", user: username,
+    cpanel_jsonapi_version: "2", cpanel_jsonapi_module: "ZoneEdit", cpanel_jsonapi_func: "edit_zone_record",
+    domain, Line: String(line), type: record.type, name: record.name, ttl: String(record.ttl || 14400),
+    ...(record.address && { address: record.address }),
+    ...(record.cname && { cname: record.cname }),
+    ...(record.exchange && { exchange: record.exchange }),
+    ...(record.txtdata && { txtdata: record.txtdata }),
+    ...(record.preference && { preference: String(record.preference) }),
+  });
+  const url = `https://${server.hostname}:${port}/json-api/cpanel?${params.toString()}`;
+  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const data = JSON.parse(body);
+  if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
+}
+
+export async function cpanelDeleteDnsRecord(server: ServerConfig, username: string, domain: string, line: number): Promise<void> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const params = new URLSearchParams({
+    "api.version": "1", user: username,
+    cpanel_jsonapi_version: "2", cpanel_jsonapi_module: "ZoneEdit", cpanel_jsonapi_func: "remove_zone_record",
+    domain, Line: String(line),
+  });
+  const url = `https://${server.hostname}:${port}/json-api/cpanel?${params.toString()}`;
+  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const data = JSON.parse(body);
+  if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
+}
+
 export async function cpanelCreateUserSession(
   server: ServerConfig,
   username: string,

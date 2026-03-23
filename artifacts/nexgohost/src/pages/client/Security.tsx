@@ -1,13 +1,29 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Shield, QrCode, CheckCircle, Loader2, Lock, Unlock, AlertTriangle, Copy, Eye, EyeOff, KeyRound } from "lucide-react";
+import { Shield, QrCode, CheckCircle, Loader2, Lock, Unlock, AlertTriangle, Copy, Eye, EyeOff, KeyRound, Activity, Monitor, Smartphone, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
 
 type Step2FA = "idle" | "scanning" | "verifying" | "done";
+
+interface ActivityLog {
+  id: string;
+  action: string;
+  ip: string | null;
+  userAgent: string | null;
+  status: string;
+  note: string | null;
+  createdAt: string;
+}
+
+function detectDevice(ua: string | null): "mobile" | "desktop" {
+  if (!ua) return "desktop";
+  return /android|iphone|ipad|mobile/i.test(ua) ? "mobile" : "desktop";
+}
 
 export default function Security() {
   const { toast } = useToast();
@@ -16,6 +32,12 @@ export default function Security() {
   const { data: user, isLoading } = useQuery<{ twoFactorEnabled: boolean; email: string; firstName: string }>({
     queryKey: ["me"],
     queryFn: () => apiFetch("/api/auth/me"),
+  });
+
+  const { data: activityLogs = [], isLoading: actLoading } = useQuery<ActivityLog[]>({
+    queryKey: ["activity-logs"],
+    queryFn: () => apiFetch("/api/my/activity"),
+    staleTime: 60000,
   });
 
   const [step, setStep] = useState<Step2FA>("idle");
@@ -268,6 +290,61 @@ export default function Security() {
             <p className="font-semibold text-foreground">Password</p>
             <p className="text-sm text-muted-foreground">Change your account password in the Account settings page.</p>
           </div>
+        </div>
+      </div>
+
+      {/* Activity Log */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="p-5 border-b border-border/60 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-secondary/60 border border-border flex items-center justify-center shrink-0">
+            <Activity size={18} className="text-primary" />
+          </div>
+          <div>
+            <p className="font-semibold text-foreground">Recent Activity</p>
+            <p className="text-sm text-muted-foreground">Your last 20 account actions and login events.</p>
+          </div>
+        </div>
+        <div className="divide-y divide-border/40">
+          {actLoading ? (
+            <div className="flex justify-center p-8">
+              <Loader2 size={20} className="animate-spin text-primary" />
+            </div>
+          ) : activityLogs.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">No recent activity found.</div>
+          ) : (
+            activityLogs.map(log => {
+              const isSuccess = log.status === "success";
+              const device = detectDevice(log.userAgent);
+              return (
+                <div key={log.id} className="flex items-start gap-3 px-5 py-3.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isSuccess ? "bg-green-500/10 border border-green-500/20" : "bg-red-500/10 border border-red-500/20"}`}>
+                    {isSuccess
+                      ? <CheckCircle2 size={14} className="text-green-400" />
+                      : <XCircle size={14} className="text-red-400" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-foreground capitalize">{log.action.replace(/_/g, " ")}</p>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {format(new Date(log.createdAt), "MMM d, HH:mm")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      {log.ip && <span className="text-[11px] text-muted-foreground font-mono">{log.ip}</span>}
+                      {log.userAgent && (
+                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          {device === "mobile" ? <Smartphone size={10} /> : <Monitor size={10} />}
+                          {device === "mobile" ? "Mobile" : "Desktop"}
+                        </span>
+                      )}
+                      {log.note && <span className="text-[11px] text-muted-foreground">· {log.note}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

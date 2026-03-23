@@ -112,6 +112,7 @@ function formatService(s: typeof hostingServicesTable.$inferSelect, clientName?:
     cancelRequested: s.cancelRequested,
     cancelReason: s.cancelReason,
     cancelRequestedAt: s.cancelRequestedAt?.toISOString(),
+    autoRenew: s.autoRenew ?? true,
     wpInstalled: s.wpInstalled ?? false,
     wpUrl: s.wpUrl,
     wpUsername: s.wpUsername,
@@ -354,6 +355,24 @@ router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (r
   } catch (err: any) {
     console.error("[ADMIN] terminate error:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Client: toggle auto-renew on own hosting service
+router.put("/client/hosting/:id/auto-renew", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, req.params.id), eq(hostingServicesTable.clientId, req.user!.userId))).limit(1);
+    if (!service) { res.status(404).json({ error: "Service not found" }); return; }
+    const autoRenew = req.body.autoRenew === true;
+    const [updated] = await db.update(hostingServicesTable)
+      .set({ autoRenew, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, service.id))
+      .returning();
+    res.json({ success: true, autoRenew: updated.autoRenew });
+  } catch (err: any) {
+    console.error("[HOSTING] auto-renew toggle error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 });
 

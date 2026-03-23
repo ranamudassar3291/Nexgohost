@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable } from "@workspace/db/schema";
+import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailVerificationCode } from "../lib/email.js";
@@ -134,6 +134,14 @@ router.post("/auth/resend-verification", authenticate, async (req: AuthRequest, 
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
+async function logActivity(userId: string, action: typeof activityLogsTable.$inferInsert["action"], req: any, status: "success" | "failed" = "success", note?: string) {
+  try {
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || null;
+    const userAgent = req.headers["user-agent"] || null;
+    await db.insert(activityLogsTable).values({ userId, action, ip, userAgent, status, note: note || null });
+  } catch { /* non-fatal */ }
+}
+
 router.post("/auth/login", async (req, res) => {
   try {
     const { email, password, totp } = req.body;
@@ -144,17 +152,22 @@ router.post("/auth/login", async (req, res) => {
     if (!user) { res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return; }
     if (user.status === "suspended") { res.status(401).json({ error: "Unauthorized", message: "Account suspended" }); return; }
     const valid = await comparePassword(password, user.passwordHash);
-    if (!valid) { res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return; }
+    if (!valid) {
+      logActivity(user.id, "login_failed", req, "failed", "Invalid password").catch(() => {});
+      res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
+    }
 
     // 2FA check
     if (user.twoFactorEnabled && user.twoFactorSecret) {
       if (!totp) {
-        // Signal client to ask for TOTP
         const tempToken = signToken({ userId: user.id, role: user.role, email: user.email });
         res.json({ requires2FA: true, tempToken }); return;
       }
       const valid2FA = await _otpVerify(totp, user.twoFactorSecret!);
-      if (!valid2FA) { res.status(401).json({ error: "Unauthorized", message: "Invalid authenticator code" }); return; }
+      if (!valid2FA) {
+        logActivity(user.id, "login_failed", req, "failed", "Invalid 2FA code").catch(() => {});
+        res.status(401).json({ error: "Unauthorized", message: "Invalid authenticator code" }); return;
+      }
     }
 
     // Block client login until email is verified (only when verification is enabled)
@@ -170,6 +183,7 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
+    logActivity(user.id, "login_success", req, "success").catch(() => {});
     const token = signToken({ userId: user.id, role: user.role, email: user.email });
     res.json({ token, requiresVerification: false, user: formatUser(user) });
   } catch (err) {

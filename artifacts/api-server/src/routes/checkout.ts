@@ -9,6 +9,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailInvoiceCreated, emailOrderCreated } from "../lib/email.js";
+import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -322,6 +323,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
       domain: domain || "To be configured",
       orderId: order.id.slice(0, 8).toUpperCase(),
     }).catch(console.warn);
+    createNotification(user.id, "order", "Order Placed", `Your order for ${plan.name} has been placed${paidWithCredits ? " and is now active" : " — awaiting payment"}`, `/client/orders`).catch(() => {});
+    createNotification(user.id, "invoice", "Invoice Created", `Invoice ${invoiceNumber} for Rs. ${finalAmount.toFixed(2)} has been generated`, `/client/invoices`).catch(() => {});
 
     res.status(201).json({
       success: true,

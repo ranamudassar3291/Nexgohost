@@ -26,6 +26,9 @@ import settingsRouter from "./settings.js";
 import affiliatesRouter from "./affiliates.js";
 import domainTransfersRouter from "./domain-transfers.js";
 import creditsRouter from "./credits.js";
+import notificationsRouter from "./notifications.js";
+import activityLogsRouter from "./activity-logs.js";
+import dnsRouter from "./dns.js";
 
 const router: IRouter = Router();
 
@@ -60,5 +63,8 @@ router.use(settingsRouter);
 router.use(affiliatesRouter);
 router.use(domainTransfersRouter);
 router.use(creditsRouter);
+router.use(notificationsRouter);
+router.use(activityLogsRouter);
+router.use(dnsRouter);
 
 export default router;
