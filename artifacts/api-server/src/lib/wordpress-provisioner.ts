@@ -8,6 +8,10 @@ const execAsync = promisify(exec);
 
 const WP_SIMULATE = process.env.WP_SIMULATE === "true";
 
+// Fallback cPanel account username used when the service record has no username set.
+// Override via CPANEL_USER env var for multi-server setups; defaults to "wscreati".
+const CPANEL_USER = process.env.CPANEL_USER || "wscreati";
+
 export const WP_STEPS = [
   { key: "database",  label: "Creating database" },
   { key: "download",  label: "Downloading WordPress" },
@@ -254,40 +258,50 @@ async function cpanelProvision(
   let usedCpanelWpApi = false;
 
   // ── Pre-flight validation — fail fast before touching any API ─────────────
+  // "user" is always resolved: ctx.username from the service record takes priority;
+  // CPANEL_USER constant ("wscreati") is the guaranteed fallback so it is NEVER empty.
+  const resolvedCpanelUser = (ctx.username || "").trim() || CPANEL_USER;
   const missingFields: string[] = [];
-  if (!domain)       missingFields.push("domain");
-  if (!wpUser)       missingFields.push("admin_user");
-  if (!wpPass)       missingFields.push("admin_pass");
-  if (!wpEmail)      missingFields.push("admin_email");
-  if (!ctx.username) missingFields.push("user");
+  if (!domain)              missingFields.push("domain");
+  if (!wpUser)              missingFields.push("admin_user");
+  if (!wpPass)              missingFields.push("admin_pass");
+  if (!wpEmail)             missingFields.push("admin_email");
+  if (!resolvedCpanelUser)  missingFields.push("user");
   if (missingFields.length > 0) {
-    // Hard error — do not attempt any fallback with incomplete data
     throw new Error(`Missing required fields for WordPress install: ${missingFields.join(", ")}`);
   }
+
+  console.log(`[WP] Resolved cPanel user: "${resolvedCpanelUser}" (service username="${ctx.username}", fallback="${CPANEL_USER}")`);
 
   // Helper to build a fresh payload with a unique db_name / db_user each time.
   // Using timestamp + random ensures no two calls share a database name even
   // if the same service is retried immediately after a failure.
-  const cpPrefix = ctx.username.replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
+  const cpPrefix = resolvedCpanelUser.replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
   function buildPayload(currentDbName: string, currentDbUser: string, currentDbPass: string) {
-    return {
+    const payload = {
+      user:        resolvedCpanelUser,               // cPanel account username — ALWAYS present
       domain,
       directory,
       admin_user:  wpUser,
       admin_pass:  wpPass,
       admin_email: wpEmail,
-      name:        siteTitle || "My WordPress Site",  // cPanel requires "name", NOT "site_name"
-      user:        ctx.username,                       // cPanel account username (REQUIRED)
+      name:        siteTitle || "My WordPress Site", // cPanel requires "name", NOT "site_name"
       db_name:     currentDbName,
       db_user:     currentDbUser,
       db_pass:     currentDbPass,
     };
+
+    // Hard guard — this must never be empty before we fire the request
+    if (!payload.user) {
+      throw new Error("cPanel user missing in payload — cannot send WordPress install request");
+    }
+
+    return payload;
   }
 
   try {
     const MAX_RETRIES = 2;
     let attempt = 0;
-    let lastErr: string = "";
 
     while (attempt <= MAX_RETRIES) {
       attempt++;
@@ -302,29 +316,28 @@ async function cpanelProvision(
       const payload = buildPayload(attemptDbName, attemptDbUser, attemptDbPass);
 
       console.log(`[WP] WordPress/install attempt ${attempt}/${MAX_RETRIES + 1} for ${domain}`);
-      console.log(`[WP] Using DB: ${attemptDbName}`);
-      console.log(`[WP] Final Payload:`, JSON.stringify(payload));
+      console.log(`FINAL PAYLOAD:`, JSON.stringify(payload));
 
       try {
-        const wpApiResult = await cpanelUAPI(ctx, "WordPress", "install", payload);
-        console.log(`[WP] WordPress/install result:`, JSON.stringify(wpApiResult));
+        const rawResult = await cpanelUAPI(ctx, "WordPress", "install", payload);
+        console.log(`CPANEL RESPONSE:`, JSON.stringify(rawResult));
         // cpanelUAPI throws on status !== 1, so reaching here means success
-        dbName = attemptDbName;  // update outer variable so DB save uses the right name
+        dbName = attemptDbName;  // update outer variable so DB save uses correct name
         dbUser = attemptDbUser;
         usedCpanelWpApi = true;
-        console.log(`[WP] WordPress/install succeeded on attempt ${attempt}`);
+        console.log(`[WP] WordPress/install succeeded on attempt ${attempt} for ${domain}`);
         break;
       } catch (attemptErr: any) {
-        lastErr = attemptErr.message || "Unknown error";
+        const lastErr = attemptErr.message || "Unknown error";
         console.warn(`[WP] Attempt ${attempt} failed: ${lastErr}`);
 
-        // Only auto-retry on "already exists" conflicts — other errors are fatal
+        // Auto-retry only on "already exists" conflicts — regenerate a fresh DB name
         if (attempt <= MAX_RETRIES && /already exists/i.test(lastErr)) {
           console.log(`[WP] DB name conflict detected — regenerating unique name for retry`);
           continue;
         }
-        // Non-retriable error or retries exhausted → fall through to manual install
-        console.warn(`[WP] WordPress/install not available after ${attempt} attempt(s): ${lastErr} — falling back to manual install`);
+        // Any other error (or retries exhausted) → fall through to manual install
+        console.warn(`[WP] WordPress/install unavailable after ${attempt} attempt(s): ${lastErr} — falling back to manual install`);
         break;
       }
     }
