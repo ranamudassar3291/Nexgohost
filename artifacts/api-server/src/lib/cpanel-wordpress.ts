@@ -24,11 +24,12 @@ import {
   cpanelSoftaculousInstallWordPress,
   cpanelSaveFile,
   cpanelFileExists,
+  type SoftaculousInstallOpts,
 } from "./cpanel.js";
 import { db } from "@workspace/db";
 import { hostingServicesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { WP_STEPS, generateWpPassword } from "./wordpress-provisioner.js";
+import { generateWpPassword } from "./wordpress-provisioner.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -267,19 +268,23 @@ export async function cpanelProvisionWordPress(
   let deployedVia = "none";
 
   // ── Strategy A: Softaculous ─────────────────────────────────────────────────
-  console.log(`[CP-WP] Attempting Softaculous installation…`);
-  const softResult = await cpanelSoftaculousInstallWordPress(server, cpanelUser, {
-    domain,
-    path:      `public_html${subPath}`,
-    siteTitle,
-    wpAdmin,
-    wpPass,
-    wpEmail,
-    dbName,
-    dbUser,
-    dbPass,
-    dbHost,
-  });
+  // Uses the exact parameter names from the Softaculous API spec:
+  //   softdomain, softdirectory, admin_username, admin_pass, admin_email, autoinstall=1
+  // The cpsess token is obtained automatically from WHM's create_user_session.
+  console.log(`[CP-WP] Attempting Softaculous Quick Install via cpsess session…`);
+  const softOpts: SoftaculousInstallOpts = {
+    softdomain:     domain,
+    softdirectory:  subPath.replace(/^\//, ""),  // strip leading slash ("" for root, "wp" for subdir)
+    site_name:      siteTitle,
+    admin_username: wpAdmin,
+    admin_pass:     wpPass,   // never logged — passed directly to HTTPS POST
+    admin_email:    wpEmail,
+    // Pass the DB we already created so Softaculous links to it rather than making a new one
+    softdb:        dbName,
+    dbusername:    dbUser,
+    dbuserpasswd:  dbPass,
+  };
+  const softResult = await cpanelSoftaculousInstallWordPress(server, cpanelUser, softOpts);
 
   if (softResult.success) {
     console.log(`[CP-WP] STEP DONE: Softaculous installed WordPress ✓`);
