@@ -1,0 +1,199 @@
+Build a production-ready hosting & domain SaaS platform using Node.js (Express) + MongoDB.
+
+========================
+1. DOMAIN TRANSFER (REAL REGISTRAR API)
+========================
+
+Integrate real registrar API (Namecheap or ResellerClub).
+
+Flow:
+
+1. User enters domain
+2. System calls API:
+   - Check domain exists
+   - Check transfer eligibility
+   - Check transfer lock status
+3. Show:
+   - Domain status
+   - Lock status (Locked / Unlocked)
+
+4. Connect TLD pricing page:
+   - Fetch transfer price dynamically from TLD pricing table
+   - Example:
+     .com → $8.99
+     .net → $10.99
+
+5. Validate EPP code:
+   - Send to registrar API
+
+6. On success:
+   - Create order
+   - Generate invoice
+   - Status = Pending Transfer
+
+7. Save domain in database:
+   - domain
+   - status
+   - lockStatus
+   - transferStatus
+
+========================
+2. TLD PRICING SYSTEM (IMPORTANT)
+========================
+
+Create TLD pricing table:
+
+Fields:
+- extension (.com, .net)
+- register price
+- renew price
+- transfer price
+
+Logic:
+- When user selects domain transfer → auto fetch price from this table
+- Must be editable by admin
+
+========================
+3. SSL AUTO SETUP (REAL)
+========================
+
+Use Let's Encrypt via Certbot or API:
+
+Flow:
+- When hosting activated:
+    - Auto issue SSL
+    - Install certificate
+- Add buttons:
+    - Activate SSL
+    - Reissue SSL
+
+Store:
+- sslStatus
+- expiryDate
+
+========================
+4. WORDPRESS AUTO INSTALL (REAL)
+========================
+
+Use cPanel API:
+
+Flow:
+1. Create hosting account
+2. Create MySQL DB
+3. Download WordPress
+4. Configure wp-config.php
+5. Install WordPress
+
+Save:
+- wp_admin_url
+- username/password
+
+Client dashboard:
+- "Login to WordPress" button
+
+========================
+5. AFFILIATE CREDIT WALLET (REAL)
+========================
+
+- Store credits in user account
+- On affiliate payout:
+    → Add to credits (NOT external payment)
+
+Wallet system:
+- credits balance
+- transaction history
+
+Usage:
+- Domain purchase
+- Hosting purchase
+
+========================
+6. PAYMENT SYSTEM
+========================
+
+- Payment gateways (Stripe / manual / crypto optional)
+- OR:
+- Use internal credits
+
+Invoice:
+- Auto generate
+- Auto mark paid if credits used
+
+========================
+7. MODULAR SYSTEM (LIKE WHMCS)
+========================
+
+Admin can upload ZIP modules:
+
+A. Server Modules:
+- cPanel
+- DirectAdmin
+
+Functions:
+- createAccount()
+- suspendAccount()
+- terminateAccount()
+- installSSL()
+- installWordpress()
+
+B. Payment Modules:
+- processPayment()
+- callbackHandler()
+
+Auto-load modules dynamically
+
+========================
+8. CLIENT DASHBOARD (WHMCS STYLE)
+========================
+
+Sections:
+
+1. Domains:
+   - Transfer status
+   - Lock status
+   - EPP status
+
+2. Hosting:
+   - Server status
+   - SSL status
+   - WordPress install
+
+3. Affiliate:
+   - Earnings
+   - Credits
+
+4. Billing:
+   - Invoices
+   - Payments
+
+5. Security:
+   - Enable 2FA (TOTP)
+
+========================
+9. ADMIN PANEL
+========================
+
+- Manage TLD pricing
+- Manage domains
+- Manage orders
+- Manage modules
+- Approve affiliate payouts
+- Manage servers
+
+========================
+10. SECURITY (IMPORTANT)
+========================
+
+- JWT authentication
+- Password hashing
+- TOTP 2FA
+- Secure API routes
+
+========================
+GOAL:
+Create a fully working real SaaS platform with:
+- Real domain transfer API
+- Dynamic TLD pricing integration
+- SSL + WordPress auto setup
+- Affiliate wallet system
+- Modular architecture
