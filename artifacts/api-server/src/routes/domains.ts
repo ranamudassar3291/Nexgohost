@@ -59,7 +59,7 @@ function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) 
     status: d.status,
     autoRenew: d.autoRenew,
     nameservers: d.nameservers || [],
-    lockStatus: (d as any).lockStatus ?? "unlocked",
+    lockStatus: (d as any).lockStatus ?? "locked",
     moduleServerId: (d as any).moduleServerId ?? null,
   };
 }
@@ -681,6 +681,15 @@ router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
     if (req.user!.role !== "admin" && domain.clientId !== req.user!.userId) {
       res.status(403).json({ error: "Forbidden" }); return;
+    }
+    // Block EPP retrieval when domain has transfer lock enabled
+    const lockStatus = (domain as any).lockStatus ?? "locked";
+    if (lockStatus === "locked") {
+      console.log(`[EPP] Blocked for ${domain.name}${domain.tld} — transfer lock is enabled`);
+      return res.status(403).json({
+        error: "Transfer lock is enabled. Disable the transfer lock before retrieving the EPP code.",
+        lockStatus: "locked",
+      });
     }
     // Deterministic EPP code derived from domain ID (production: fetch from registrar)
     const raw = domain.id.replace(/-/g, "");

@@ -1,0 +1,158 @@
+Fix system to REMOVE all fake logic. Backend must verify everything before success.
+
+========================
+1. WORDPRESS INSTALL (REAL ONLY - NO FAKE)
+========================
+
+CRITICAL RULE:
+- DO NOT mark installed until actual install completes
+
+IMPLEMENT REAL FLOW:
+
+Step 1: Call cPanel API → create database
+Step 2: Create DB user
+Step 3: Assign privileges
+Step 4: Download WordPress files to public_html
+Step 5: Extract files
+Step 6: Create wp-config.php
+Step 7: Trigger install.php (HTTP request)
+
+IMPORTANT:
+- Installation MUST take real time (20–60 seconds)
+- Use async job / queue system
+
+========================
+2. INSTALL STATUS FIX (CRITICAL BUG)
+========================
+
+REMOVE:
+- any hardcoded "installed"
+
+ADD REAL CHECK:
+
+Check:
+- /public_html/wp-config.php exists
+- /public_html/wp-admin exists
+
+If BOTH exist → installed
+Else → NOT installed
+
+========================
+3. INSTALL PROGRESS SYSTEM (IMPORTANT)
+========================
+
+Add install status:
+
+- pending
+- installing
+- installed
+- failed
+
+Flow:
+
+Click install →
+status = installing →
+run backend job →
+on success → installed
+on fail → failed
+
+Frontend must poll:
+GET /wordpress/status
+
+========================
+4. BLOCK FAKE SUCCESS
+========================
+
+If any step fails:
+- DO NOT continue
+- DO NOT show success
+
+Return error:
+"WordPress installation failed at step X"
+
+========================
+5. FORCE BACKEND VALIDATION
+========================
+
+Before marking installed:
+
+Verify:
+- DB exists
+- wp-config.php exists
+- wp-admin accessible
+
+If not:
+status = failed
+
+========================
+6. DOMAIN TRANSFER FIX (REALISTIC)
+========================
+
+Current issue:
+EPP + lock fake
+
+Fix:
+
+EPP VALIDATION:
+- Min 8 chars
+- Letters + numbers
+- Reject random invalid strings
+
+LOCK STATUS:
+- Store in DB per domain
+- Default = locked
+
+TRANSFER RULE:
+- locked → block transfer
+- unlocked → allow
+
+========================
+7. TLD PRICE FIX (AGAIN FORCE)
+========================
+
+Remove ALL static pricing
+
+ONLY:
+
+const tld = "." + domain.split('.').pop();
+const pricing = await TLD.findOne({ extension: tld });
+
+return pricing.transferPrice;
+
+========================
+8. DEBUG LOGGING (MANDATORY)
+========================
+
+console.log("WP INSTALL:", step, status);
+
+console.log("DOMAIN TRANSFER:", {
+  domain,
+  lockStatus,
+  eppValid,
+  price
+});
+
+========================
+9. UI FIX
+========================
+
+WordPress UI must show:
+
+- Not Installed → Install button
+- Installing → Loader + progress
+- Installed → Login button
+- Failed → Retry button
+
+NO fake states allowed
+
+========================
+GOAL
+========================
+
+Make system fully real:
+
+- WordPress installs physically (DB + files)
+- Status always accurate
+- No fake success
+- Transfer validation enforced
+- Pricing correct

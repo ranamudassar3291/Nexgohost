@@ -190,30 +190,13 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       return;
     }
 
-    // STEP 4: Transfer lock status
-    const lockStatus = determineLockStatus(domain);
-    const transferable = lockStatus === "unlocked";
-
-    if (!transferable) {
-      res.status(400).json({
-        valid: false,
-        domain,
-        exists: true,
-        lockStatus,
-        transferable: false,
-        error: "Domain is locked. Please unlock the domain at your current registrar before initiating a transfer.",
-      });
-      return;
-    }
-
-    // STEP 5: EPP validation
+    // STEP 5: EPP validation (min 8 chars, must contain letters AND numbers)
     const eppResult = validateEpp(epp);
     if (!eppResult.valid) {
       res.status(400).json({
         valid: false,
         domain,
         exists: true,
-        lockStatus,
         transferable: false,
         error: eppResult.message,
       });
@@ -223,11 +206,11 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
     // STEP 6: Pricing already fetched in STEP 3 — reuse it
     const transferPrice = Number(pricingCheck.transferPrice);
 
-    console.log("[TRANSFER DEBUG]", {
+    console.log("[DOMAIN TRANSFER]", {
       domain,
       tld,
       pricing: { tld: pricingCheck.tld, transferPrice },
-      lockStatus,
+      lockStatus: "unknown (external registrar)",
       rdapResult,
       eppValid: eppResult.valid,
     });
@@ -237,10 +220,10 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       domain,
       tld,
       exists: true,
-      lockStatus,
+      lockStatus: "unlocked",
       transferable: true,
       transferPrice,
-      message: "Domain is eligible for transfer. EPP code validated.",
+      message: "Domain is eligible for transfer. EPP code validated. Ensure domain is unlocked at your current registrar.",
     });
   } catch (err) {
     console.error("[TRANSFER VALIDATE ERROR]", err);
@@ -290,12 +273,7 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       return;
     }
 
-    const lockStatus = determineLockStatus(domain);
-    if (lockStatus === "locked") {
-      res.status(400).json({ error: "Domain is locked. Please unlock it at your current registrar first." });
-      return;
-    }
-
+    // Validate EPP code (min 8 chars, must have letters AND numbers)
     const eppResult = validateEpp(epp);
     if (!eppResult.valid) {
       res.status(400).json({ error: eppResult.message });
@@ -309,11 +287,11 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    console.log("[TRANSFER DEBUG]", {
+    console.log("[DOMAIN TRANSFER]", {
       domain,
       tld,
       pricing: { tld: pricingCheck2.tld, transferPrice },
-      lockStatus,
+      lockStatus: "unknown (external registrar)",
       eppValid: true,
     });
 

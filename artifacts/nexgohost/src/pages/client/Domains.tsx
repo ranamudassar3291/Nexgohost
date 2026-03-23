@@ -118,6 +118,7 @@ export default function ClientDomains() {
   const [dnsModal, setDnsModal] = useState<MyDomain | null>(null);
   const [eppModal, setEppModal] = useState<MyDomain | null>(null);
   const [eppCode, setEppCode] = useState<string | null>(null);
+  const [eppError, setEppError] = useState<string | null>(null);
   const [eppLoading, setEppLoading] = useState(false);
   const [eppCopied, setEppCopied] = useState(false);
   const [manageDomainModal, setManageDomainModal] = useState<MyDomain | null>(null);
@@ -167,13 +168,16 @@ export default function ClientDomains() {
   const openEppModal = async (domain: MyDomain) => {
     setEppModal(domain);
     setEppCode(null);
+    setEppError(null);
     setEppCopied(false);
     setEppLoading(true);
     try {
       const data = await apiFetch(`/api/domains/${domain.id}/epp`);
       setEppCode(data.eppCode || null);
-    } catch { setEppCode(null); }
-    finally { setEppLoading(false); }
+    } catch (err: any) {
+      setEppCode(null);
+      setEppError(err?.message || "Failed to retrieve EPP code.");
+    } finally { setEppLoading(false); }
   };
 
   const copyEppCode = async () => {
@@ -777,7 +781,7 @@ export default function ClientDomains() {
                   <p className="text-xs text-muted-foreground font-mono">{eppModal.name}{eppModal.tld}</p>
                 </div>
               </div>
-              <button onClick={() => { setEppModal(null); setEppCode(null); }} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => { setEppModal(null); setEppCode(null); setEppError(null); }} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -790,6 +794,14 @@ export default function ClientDomains() {
                   <Loader2 size={16} className="animate-spin" />
                   <span className="text-sm">Fetching auth code…</span>
                 </div>
+              ) : eppError ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 text-red-400">
+                    <Lock size={15} className="shrink-0 mt-0.5" />
+                    <p className="text-sm font-medium">{eppError}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">To get the EPP code, first disable the transfer lock in the domain management panel.</p>
+                </div>
               ) : eppCode ? (
                 <div className="flex items-center justify-between gap-3">
                   <code className="font-mono text-base font-bold text-primary tracking-wider break-all">{eppCode}</code>
@@ -801,11 +813,13 @@ export default function ClientDomains() {
                 <p className="text-sm text-muted-foreground text-center py-2">Unable to retrieve auth code.</p>
               )}
             </div>
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>This code is valid for domain transfer only. Keep it private.</span>
-            </div>
-            <Button className="w-full mt-4" variant="outline" onClick={() => { setEppModal(null); setEppCode(null); }}>Close</Button>
+            {!eppError && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                <span>This code is valid for domain transfer only. Keep it private.</span>
+              </div>
+            )}
+            <Button className="w-full mt-4" variant="outline" onClick={() => { setEppModal(null); setEppCode(null); setEppError(null); }}>Close</Button>
           </div>
         </div>
       )}

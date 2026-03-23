@@ -1226,7 +1226,7 @@ export default function ServiceDetail() {
                 )}
               </div>
             </div>
-            <Button variant="outline" onClick={() => setWpProvisionData(null)} className="gap-2">
+            <Button variant="outline" onClick={() => setWpProvisionData({ status: "not_started", step: null, error: null })} className="gap-2">
               <RefreshCw size={14} /> Retry Install
             </Button>
           </div>

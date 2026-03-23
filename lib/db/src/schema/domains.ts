@@ -14,7 +14,7 @@ export const domainsTable = pgTable("domains", {
   expiryDate: timestamp("expiry_date"),
   nextDueDate: timestamp("next_due_date"),
   status: domainStatusEnum("status").notNull().default("pending"),
-  lockStatus: text("lock_status").default("unlocked"),
+  lockStatus: text("lock_status").default("locked"),
   autoRenew: boolean("auto_renew").default(true),
   nameservers: text("nameservers").array().default([]),
   moduleServerId: text("module_server_id"),
