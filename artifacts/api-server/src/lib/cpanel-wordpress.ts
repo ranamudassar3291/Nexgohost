@@ -54,8 +54,15 @@ export interface CpanelWpInstallOptions {
    * When provided it is used instead of WHM root create_user_session, which
    * requires the WHM token to have the create-user-session ACL — the cause of
    * the "No data returned from cPanel Service" 500 error.
+   * Auth header: "Authorization: cpanel {user}:{token}"
    */
   cpanelApiToken?: string;
+  /**
+   * cPanel account password (alternative to cpanelApiToken).
+   * Equivalent to Axios auth: { username: cpanel_user, password: cpanel_pass }.
+   * Auth header: "Authorization: Basic base64({user}:{password})"
+   */
+  cpanelPassword?: string;
 }
 
 // ── Step tracker ───────────────────────────────────────────────────────────────
@@ -210,7 +217,7 @@ export async function cpanelProvisionWordPress(
 ): Promise<void> {
   const {
     serviceId, domain, cpanelUser, siteTitle, wpAdmin, wpPass, wpEmail, installPath,
-    cpanelApiToken,
+    cpanelApiToken, cpanelPassword,
   } = opts;
 
   // Resolve public_html path on the cPanel server
@@ -295,8 +302,9 @@ export async function cpanelProvisionWordPress(
     softdb:         dbName,
     dbusername:     dbUser,
     dbuserpasswd:   dbPass,
-    // Forward the cPanel API token if available (bypasses WHM root permission requirement)
+    // Auth credentials — one is enough; API token is preferred over password
     ...(cpanelApiToken && { cpanelApiToken }),
+    ...(cpanelPassword && { cpanelPassword }),
   };
   const softResult = await cpanelSoftaculousInstallWordPress(server, cpanelUser, softOpts);
 

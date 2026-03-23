@@ -222,16 +222,18 @@ export async function provisionWordPress(
   wpPass:      string,
   wpEmail:     string,
   installPath: string = "/",
-  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string } | null = null,
+  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string; cpanelPassword?: string } | null = null,
 ) {
   try {
     // ── Path 1: cPanel / WHM server ──────────────────────────────────────────
     if (cpanelCfg) {
-      console.log(`[WP] Using cPanel path for service ${serviceId} (user: ${cpanelCfg.cpanelUser}, apiToken=${cpanelCfg.cpanelApiToken ? "provided" : "not set — will use WHM session"})`);
+      const authMode = cpanelCfg.cpanelApiToken ? "API Token" : cpanelCfg.cpanelPassword ? "Password/Basic Auth" : "WHM session";
+      console.log(`[WP] Using cPanel path for service ${serviceId} (user: ${cpanelCfg.cpanelUser}, auth: ${authMode})`);
       await cpanelProvisionWordPress(cpanelCfg.server, {
         serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
         siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
         cpanelApiToken: cpanelCfg.cpanelApiToken,
+        cpanelPassword: cpanelCfg.cpanelPassword,
       });
       return;
     }
@@ -272,7 +274,7 @@ export async function reinstallWordPress(
   wpPass:      string,
   wpEmail:     string,
   installPath: string = "/",
-  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string } | null = null,
+  cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string; cpanelPassword?: string } | null = null,
 ) {
   console.log(`[WP] Reinstalling WordPress for service ${serviceId}`);
 
@@ -304,6 +306,7 @@ export async function reinstallWordPress(
         serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
         siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
         cpanelApiToken: cpanelCfg.cpanelApiToken,
+        cpanelPassword: cpanelCfg.cpanelPassword,
       }, oldDbName ?? null, null);
       return;
     }

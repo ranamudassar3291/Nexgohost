@@ -1372,6 +1372,10 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       // root tokens that lack the create-user-session ACL.
       // Generate in cPanel → Security → Manage API Tokens.
       cpanelApiToken,
+      // Optional: cPanel account password — alternative to cpanelApiToken.
+      // Equivalent to Axios auth: { username: cpanel_user, password: cpanel_pass }.
+      // Use this when an API token is not available.
+      cpanelPassword,
     } = req.body;
 
     console.log(`[WP] Incoming install request for service ${id}:`, {
@@ -1431,7 +1435,12 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
     // and Softaculous/Fileman for file deployment instead of direct shell access.
     const wpServer = await resolveServerForService(service);
     const cpanelCfg = (wpServer && wpServer.type === "cpanel" && wpServer.apiToken)
-      ? { server: toServerCfg(wpServer), cpanelUser: service.username!, cpanelApiToken: cpanelApiToken?.trim() || undefined }
+      ? {
+          server:         toServerCfg(wpServer),
+          cpanelUser:     service.username!,
+          cpanelApiToken: cpanelApiToken?.trim()  || undefined,
+          cpanelPassword: cpanelPassword?.trim()  || undefined,
+        }
       : null;
 
     if (cpanelCfg) {
@@ -1501,6 +1510,7 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
       adminEmail,
       installPath = "/",
       cpanelApiToken: cpanelApiToken2,
+      cpanelPassword: cpanelPassword2,
     } = req.body;
 
     const [service] = await db.select().from(hostingServicesTable)
@@ -1520,7 +1530,12 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
 
     const wpServer2 = await resolveServerForService(service);
     const cpanelCfg2 = (wpServer2 && wpServer2.type === "cpanel" && wpServer2.apiToken)
-      ? { server: toServerCfg(wpServer2), cpanelUser: service.username!, cpanelApiToken: cpanelApiToken2?.trim() || undefined }
+      ? {
+          server:         toServerCfg(wpServer2),
+          cpanelUser:     service.username!,
+          cpanelApiToken: cpanelApiToken2?.trim() || undefined,
+          cpanelPassword: cpanelPassword2?.trim() || undefined,
+        }
       : null;
 
     // Wipes old DB + files, then runs full synchronous provision

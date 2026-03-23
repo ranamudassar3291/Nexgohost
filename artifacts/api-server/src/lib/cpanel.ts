@@ -640,8 +640,20 @@ export interface SoftaculousInstallOpts {
    * requires a WHM root token with the create-user-session ACL.
    *
    * Generate one in cPanel → Security → Manage API Tokens.
+   * Auth header sent: "Authorization: cpanel {user}:{token}"
    */
   cpanelApiToken?: string;
+  /**
+   * cPanel account password (alternative to cpanelApiToken).
+   * Uses HTTP Basic Auth to call /login/?login_only=1 and obtain a cpsess
+   * token — the same flow as the reference Axios implementation:
+   *   auth: { username: cpanel_user, password: cpanel_pass }
+   *
+   * cpanelApiToken is preferred when available (does not expose the password).
+   * cpanelPassword is the fallback for environments that do not have API tokens.
+   * Auth header sent: "Authorization: Basic base64({user}:{password})"
+   */
+  cpanelPassword?: string;
 }
 
 /** 8-character random alphanumeric string for unique DB name generation */
@@ -657,48 +669,65 @@ function redactPassword(params: string): string {
 }
 
 /**
- * Parse Softaculous JSON response and return a typed result.
- * STRICT: only done === 1 (number) is treated as success.
+ * Parse Softaculous response (JSON or plain text) and return a typed result.
+ *
+ * Success conditions (in order):
+ *   1. JSON with done === 1  (strict numeric check)
+ *   2. Raw body contains "congratulations" (case-insensitive) — the string
+ *      check from the reference Axios implementation:
+ *        response.data.done || response.data.includes('congratulations')
+ *
+ * Failure: any other response including done: 0, done missing, non-JSON, etc.
+ * The exact error text from Softaculous is always returned verbatim.
  */
-function parseSoftaculousJson(raw: string, opts: SoftaculousInstallOpts): {
+function parseSoftaculousResponse(raw: string, opts: SoftaculousInstallOpts): {
   success: boolean; adminUrl?: string; insid?: string; error?: string
 } {
-  let data: any;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    return { success: false, error: `Softaculous returned non-JSON body (first 400 chars): ${raw.substring(0, 400)}` };
+  const adminPath = opts.softdirectory ? `/${opts.softdirectory}/wp-admin` : "/wp-admin";
+  const fallbackAdminUrl = `https://${opts.softdomain}${adminPath}`;
+
+  // ── Try JSON first ────────────────────────────────────────────────────────
+  let data: any = null;
+  try { data = JSON.parse(raw); } catch { /* fall through to string check */ }
+
+  if (data !== null) {
+    // ── JSON: strict done === 1 check ──────────────────────────────────────
+    if (Number(data?.done) === 1) {
+      const adminUrl = data?.admin_url ?? data?.insurl ?? fallbackAdminUrl;
+      console.log(`[Softaculous] ✓ done=1 — insid=${data?.insid ?? "n/a"} adminUrl=${adminUrl}`);
+      return { success: true, adminUrl, insid: data?.insid != null ? String(data.insid) : undefined };
+    }
+
+    // ── JSON: extract exact error message(s) ──────────────────────────────
+    const msgs: string[] = [];
+    if (data?.error)   msgs.push(String(data.error));
+    if (data?.errors) {
+      const arr = Array.isArray(data.errors) ? data.errors : Object.values(data.errors);
+      arr.forEach((e: any) => msgs.push(String(e)));
+    }
+    if (data?.message) msgs.push(String(data.message));
+    if (data?.done !== undefined && Number(data.done) !== 1) {
+      msgs.push(`Softaculous reported done=${data.done}`);
+    }
+    if (msgs.length === 0) {
+      msgs.push(`Unexpected JSON response (no done/error fields): ${raw.substring(0, 400)}`);
+    }
+    return { success: false, error: msgs.join("; ") };
   }
 
-  // ── STRICT success check: done must equal the number 1 ───────────────────
-  if (Number(data?.done) === 1) {
-    const adminPath = opts.softdirectory ? `/${opts.softdirectory}/wp-admin` : "/wp-admin";
-    const adminUrl  = data?.admin_url ?? data?.insurl ?? `https://${opts.softdomain}${adminPath}`;
-    console.log(`[Softaculous] ✓ done=1 — insid=${data?.insid ?? "n/a"} adminUrl=${adminUrl}`);
-    return { success: true, adminUrl, insid: data?.insid != null ? String(data.insid) : undefined };
+  // ── Non-JSON fallback: string matching ───────────────────────────────────
+  // Matches: response.data.includes('congratulations') from the reference impl
+  if (/congratulations/i.test(raw)) {
+    console.log(`[Softaculous] ✓ Success detected via "congratulations" string in response`);
+    return { success: true, adminUrl: fallbackAdminUrl };
   }
 
-  // ── Extract the exact error message(s) ───────────────────────────────────
-  const msgs: string[] = [];
+  // Extract the most informative error text from HTML/plain-text response
+  const htmlMsg = raw.match(/<div[^>]*class="[^"]*error[^"]*"[^>]*>([^<]+)/i)?.[1]?.trim()
+               || raw.match(/error[^:]*:\s*([^\n<]+)/i)?.[1]?.trim();
+  const errorText = htmlMsg || `Softaculous returned non-JSON response. First 400 chars: ${raw.substring(0, 400)}`;
 
-  // done=0 with an explicit error field
-  if (data?.error)   msgs.push(String(data.error));
-  if (data?.errors) {
-    const arr = Array.isArray(data.errors) ? data.errors : Object.values(data.errors);
-    arr.forEach((e: any) => msgs.push(String(e)));
-  }
-  if (data?.message) msgs.push(String(data.message));
-
-  // done field present but not 1
-  if (data?.done !== undefined && Number(data.done) !== 1) {
-    msgs.push(`Softaculous reported done=${data.done}`);
-  }
-
-  if (msgs.length === 0) {
-    msgs.push(`Unexpected response (no done/error fields): ${raw.substring(0, 400)}`);
-  }
-
-  return { success: false, error: msgs.join("; ") };
+  return { success: false, error: errorText };
 }
 
 export async function cpanelSoftaculousInstallWordPress(
@@ -717,33 +746,60 @@ export async function cpanelSoftaculousInstallWordPress(
   console.log(`[Softaculous] DB suffix: ${dbSuffix} (cPanel will prefix with "${cpanelUser}_")`);
 
   // ── STEP 1: Obtain a cpsess session token ─────────────────────────────────
-  // PRIMARY path: cPanel user API token → /login/?login_only=1
-  // FALLBACK path: WHM root token → create_user_session
+  //
+  // Three auth paths, in priority order:
+  //
+  //  A) cpanelApiToken   → Authorization: cpanel {user}:{token}
+  //     GET /login/?login_only=1
+  //     → JSON { security_token: "/cpsessXXXX" }
+  //
+  //  B) cpanelPassword   → Authorization: Basic base64({user}:{pass})
+  //     Same endpoint — matches the Axios reference implementation pattern:
+  //       auth: { username: cpanel_user, password: cpanel_pass }
+  //     → JSON { security_token: "/cpsessXXXX" }
+  //
+  //  C) WHM fallback     → WHM root create_user_session
+  //     Requires WHM token to have the create-user-session ACL.
+
   let cpsessToken: string;
 
-  if (opts.cpanelApiToken) {
-    // ── PRIMARY: Direct cPanel API Token authentication ──────────────────────
-    // No WHM root permission required.
-    // Header format: "Authorization: cpanel {username}:{api_token}"
-    const loginUrl = `${baseUrl}/login/?login_only=1`;
-    const authHeader = `cpanel ${cpanelUser}:${opts.cpanelApiToken}`;
+  if (opts.cpanelApiToken || opts.cpanelPassword) {
+    // ── PATH A or B: Direct cPanel login using token or password ─────────────
+    let Authorization: string;
+    let authLabel: string;
 
-    console.log(`[Softaculous] Auth: cPanel API Token (user=${cpanelUser}) — calling ${loginUrl}`);
+    if (opts.cpanelApiToken) {
+      // Path A — cPanel API Token
+      Authorization = `cpanel ${cpanelUser}:${opts.cpanelApiToken}`;
+      authLabel = `cPanel API Token (user=${cpanelUser})`;
+    } else {
+      // Path B — Basic Auth with cPanel username + password
+      // Equivalent to Axios: auth: { username: cpanel_user, password: cpanel_pass }
+      const encoded = Buffer.from(`${cpanelUser}:${opts.cpanelPassword}`).toString("base64");
+      Authorization = `Basic ${encoded}`;
+      authLabel = `Basic Auth (user=${cpanelUser}, pass=****)`;
+    }
+
+    const loginUrl = `${baseUrl}/login/?login_only=1`;
+    console.log(`[Softaculous] Auth: ${authLabel} — GET ${loginUrl}`);
 
     let loginRes: { status: number; body: string; headers: Record<string, string | string[] | undefined> };
     try {
-      loginRes = await httpsGetRaw(loginUrl, { "Authorization": authHeader }, 30_000);
+      loginRes = await httpsGetRaw(loginUrl, { "Authorization": Authorization }, 30_000);
     } catch (e: any) {
       return { success: false, error: `cPanel login endpoint unreachable: ${e.message}` };
     }
 
-    console.log(`[Softaculous] Login response status: ${loginRes.status}`);
+    console.log(`[Softaculous] Login response HTTP ${loginRes.status}`);
     console.log(`[Softaculous] Login response body: ${loginRes.body.substring(0, 500)}`);
 
     if (loginRes.status >= 400) {
+      const hint = opts.cpanelPassword
+        ? "Check the cPanel username and password."
+        : "Check the cPanel API token (cPanel → Security → Manage API Tokens).";
       return {
         success: false,
-        error: `cPanel login rejected API token — HTTP ${loginRes.status}: ${loginRes.body.substring(0, 200)}`,
+        error: `cPanel login rejected credentials — HTTP ${loginRes.status}: ${loginRes.body.substring(0, 200)}. ${hint}`,
       };
     }
 
@@ -758,7 +814,6 @@ export async function cpanelSoftaculousInstallWordPress(
     const secToken: string | undefined =
       loginData?.security_token ??
       loginData?.token          ??
-      // Some cPanel versions return the full redirect URL instead
       (loginData?.redirect as string | undefined)?.match(/\/cpsess[A-Za-z0-9]+/)?.[0];
 
     if (!secToken) {
@@ -768,12 +823,11 @@ export async function cpanelSoftaculousInstallWordPress(
       };
     }
 
-    // security_token is "/cpsessXXXXXX" — strip the leading slash
-    cpsessToken = secToken.replace(/^\//, "");
-    console.log(`[Softaculous] cpsess obtained via API Token: ${cpsessToken.substring(0, 16)}…`);
+    cpsessToken = secToken.replace(/^\//, "");  // strip leading slash
+    console.log(`[Softaculous] cpsess obtained (${opts.cpanelApiToken ? "token" : "password"}): ${cpsessToken.substring(0, 16)}…`);
 
   } else {
-    // ── FALLBACK: WHM root create_user_session ────────────────────────────────
+    // ── PATH C: WHM root create_user_session ──────────────────────────────────
     console.log(`[Softaculous] Auth: WHM root token — calling create_user_session for ${cpanelUser}`);
     try {
       const sessionUrl = await cpanelCreateUserSession(server, cpanelUser, "cpaneld");
@@ -789,10 +843,14 @@ export async function cpanelSoftaculousInstallWordPress(
   }
 
   // ── STEP 2: Build the Softaculous request ─────────────────────────────────
-  // Exact endpoint format from Softaculous documentation:
+  // URL matches the reference implementation exactly:
   //   POST https://SERVER:2083/{cpsessXXXX}/softaculous/index.php
-  //        ?act=software&soft=26&autoinstall=1
-  const softUrl = `${baseUrl}/${cpsessToken}/softaculous/index.php?act=software&soft=26&autoinstall=1`;
+  //        ?act=software&soft=26&autoinstall=1&api=json
+  //
+  // ?api=json tells Softaculous to always respond with JSON, not HTML — the
+  // same purpose as return_json=1 in the body, but some versions only respect
+  // the query-string flag.
+  const softUrl = `${baseUrl}/${cpsessToken}/softaculous/index.php?act=software&soft=26&autoinstall=1&api=json`;
 
   const bodyParams = new URLSearchParams({
     softdomain:     opts.softdomain,
@@ -804,12 +862,19 @@ export async function cpanelSoftaculousInstallWordPress(
     softdb:         dbSuffix,
     ...(opts.dbusername   && { dbusername:   opts.dbusername }),
     ...(opts.dbuserpasswd && { dbuserpasswd: opts.dbuserpasswd }),
-    return_json:    "1",                 // request JSON response from Softaculous
+    return_json:    "1",
   });
 
-  const authHeader = opts.cpanelApiToken
-    ? { "Authorization": `cpanel ${cpanelUser}:${opts.cpanelApiToken}` }
-    : {};   // session is already embedded in the cpsess URL for WHM path
+  // For password auth, also send the Authorization header on the Softaculous
+  // POST itself — same as how Axios auth: {} attaches it to every request.
+  const softAuthHeader: Record<string, string> = {};
+  if (opts.cpanelApiToken) {
+    softAuthHeader["Authorization"] = `cpanel ${cpanelUser}:${opts.cpanelApiToken}`;
+  } else if (opts.cpanelPassword) {
+    const encoded = Buffer.from(`${cpanelUser}:${opts.cpanelPassword}`).toString("base64");
+    softAuthHeader["Authorization"] = `Basic ${encoded}`;
+  }
+  // WHM path: cpsess in URL is enough — no extra Authorization header needed
 
   console.log(`[Softaculous] POST ${softUrl}`);
   console.log(`[Softaculous] Payload: ${redactPassword(bodyParams.toString())}`);
@@ -827,7 +892,7 @@ export async function cpanelSoftaculousInstallWordPress(
 
     let res: { status: number; body: string; headers: Record<string, string | string[] | undefined> };
     try {
-      res = await httpsPostRaw(softUrl, authHeader, bodyParams.toString(), 240_000);
+      res = await httpsPostRaw(softUrl, softAuthHeader, bodyParams.toString(), 240_000);
     } catch (e: any) {
       lastError = `Network error on attempt ${attempt}: ${e.message}`;
       console.error(`[Softaculous] ${lastError}`);
@@ -850,7 +915,7 @@ export async function cpanelSoftaculousInstallWordPress(
     }
 
     // ── Parse the response ─────────────────────────────────────────────────
-    const result = parseSoftaculousJson(trimmed, opts);
+    const result = parseSoftaculousResponse(trimmed, opts);
 
     if (result.success) {
       return result;
