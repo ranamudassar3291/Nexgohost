@@ -1,0 +1,153 @@
+FINAL GOAL FLOW
+Order Page
+→ Show Product Groups
+Select Group
+→ Show Packages (only from that group)
+Select Product
+→ Show:
+Register Domain
+Transfer Domain
+Next Step
+→ Show selected plan details
+Checkout
+→ Save order + create hosting
+🗄️ 1️⃣ DATABASE STRUCTURE (VERY IMPORTANT)
+CREATE TABLE product_groups (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100)
+);
+
+CREATE TABLE products (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  group_id INT,
+  name VARCHAR(100),
+  price DECIMAL(10,2),
+  type VARCHAR(50) -- shared, reseller, vps
+);
+
+CREATE TABLE orders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  client_id INT,
+  product_id INT,
+  domain VARCHAR(100),
+  domain_type VARCHAR(20), -- register / transfer
+  status VARCHAR(20),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+⚙️ 2️⃣ BACKEND APIs (NODE.JS)
+🔹 Get Product Groups
+app.get("/api/groups", async (req, res) => {
+  const [rows] = await db.query("SELECT * FROM product_groups");
+  res.json(rows);
+});
+🔹 Get Products by Group
+app.get("/api/products/:groupId", async (req, res) => {
+  const [rows] = await db.query(
+    "SELECT * FROM products WHERE group_id = ?",
+    [req.params.groupId]
+  );
+  res.json(rows);
+});
+🔹 Create Order
+app.post("/api/order", async (req, res) => {
+  const { client_id, product_id, domain, domain_type } = req.body;
+
+  await db.query(
+    "INSERT INTO orders (client_id, product_id, domain, domain_type, status) VALUES (?, ?, ?, ?, ?)",
+    [client_id, product_id, domain, domain_type, "Pending"]
+  );
+
+  res.json({ success: true, message: "Order Created" });
+});
+🌐 3️⃣ FRONTEND FLOW (IMPORTANT)
+🟢 STEP 1: SHOW GROUPS
+<h2>Select Category</h2>
+<div id="groups"></div>
+
+<script>
+async function loadGroups() {
+  const res = await fetch("/api/groups");
+  const groups = await res.json();
+
+  let html = "";
+  groups.forEach(g => {
+    html += `<button onclick="selectGroup(${g.id})">${g.name}</button><br>`;
+  });
+
+  document.getElementById("groups").innerHTML = html;
+}
+
+function selectGroup(id) {
+  window.location.href = "/order.html?group=" + id;
+}
+
+loadGroups();
+</script>
+🟢 STEP 2: SHOW PRODUCTS + DOMAIN OPTIONS
+<h2>Select Plan</h2>
+<div id="products"></div>
+
+<h3>Domain</h3>
+<input id="domain" placeholder="example.com">
+
+<select id="domainType">
+  <option value="register">Register</option>
+  <option value="transfer">Transfer</option>
+</select>
+
+<button onclick="nextStep()">Continue</button>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const groupId = params.get("group");
+
+async function loadProducts() {
+  const res = await fetch(`/api/products/${groupId}`);
+  const products = await res.json();
+
+  let html = "";
+  products.forEach(p => {
+    html += `<div>
+      <input type="radio" name="product" value="${p.id}">
+      ${p.name} - $${p.price}
+    </div>`;
+  });
+
+  document.getElementById("products").innerHTML = html;
+}
+
+function nextStep() {
+  const product = document.querySelector('input[name="product"]:checked').value;
+  const domain = document.getElementById("domain").value;
+  const type = document.getElementById("domainType").value;
+
+  localStorage.setItem("order", JSON.stringify({ product, domain, type }));
+
+  window.location.href = "/checkout.html";
+}
+
+loadProducts();
+</script>
+🟢 STEP 3: CHECKOUT PAGE
+<h2>Confirm Order</h2>
+<button onclick="placeOrder()">Place Order</button>
+
+<script>
+async function placeOrder() {
+  const order = JSON.parse(localStorage.getItem("order"));
+
+  const res = await fetch("/api/order", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      client_id: 1,
+      product_id: order.product,
+      domain: order.domain,
+      domain_type: order.type
+    })
+  });
+
+  const result = await res.json();
+  alert(result.message);
+}
+</script>
