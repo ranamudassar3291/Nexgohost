@@ -141,6 +141,19 @@ export async function checkWordPressInstalled(
   return fs.existsSync(configPath);
 }
 
+// ── MySQL reachability check ──────────────────────────────────────────────────
+
+async function isMysqlReachable(): Promise<boolean> {
+  try {
+    const conn = await getMysqlConn();
+    await conn.ping();
+    await conn.end();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Main provisioner ──────────────────────────────────────────────────────────
 
 export async function provisionWordPress(
@@ -153,6 +166,23 @@ export async function provisionWordPress(
   installPath: string = "/",
 ) {
   try {
+    // Check if MySQL is reachable before attempting real install.
+    // When running on Replit (dev), MySQL is not available — fall back to simulation.
+    // When deployed on the actual VPS, MySQL is at localhost and real install runs.
+    const mysqlOk = await isMysqlReachable();
+
+    if (!mysqlOk) {
+      console.warn(
+        `[WP] MySQL not reachable at ${MYSQL_HOST}:3306 — falling back to simulation mode.\n` +
+        `     To enable real installs, ensure MySQL is running and set:\n` +
+        `       WP_MYSQL_HOST=${MYSQL_HOST}\n` +
+        `       WP_MYSQL_ROOT_USER=${MYSQL_ROOT_USER}\n` +
+        `       WP_MYSQL_ROOT_PASS=<your_mysql_root_password>`
+      );
+      await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+      return;
+    }
+
     await vpsProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
   } catch (err: any) {
     const msg = err?.message || "Unknown error during WordPress provisioning";
@@ -220,6 +250,7 @@ export async function reinstallWordPress(
       updatedAt: new Date(),
     } as any).where(eq(hostingServicesTable.id, serviceId));
 
+    // Use the same MySQL-aware provisioner (auto-falls back to simulation if MySQL unreachable)
     await provisionWordPress(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
   } catch (err: any) {
     const msg = err?.message || "Reinstall failed";
