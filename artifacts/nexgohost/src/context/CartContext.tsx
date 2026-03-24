@@ -23,7 +23,7 @@ interface CartContextType {
   count: number;
 }
 
-const STORAGE_KEY = "nexgohost_cart";
+const STORAGE_KEY = "noehost_cart";
 
 const CartContext = createContext<CartContextType>({
   items: [],

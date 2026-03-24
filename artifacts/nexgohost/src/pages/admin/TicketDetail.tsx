@@ -64,8 +64,14 @@ export default function AdminTicketDetail() {
             <div key={msg.id} className={`flex ${msg.senderRole === "admin" ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[80%] rounded-2xl p-4 ${msg.senderRole === "admin" ? "bg-primary/10 border border-primary/20" : "bg-secondary border border-border"}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold text-foreground">{msg.senderName}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${msg.senderRole === "admin" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>{msg.senderRole}</span>
+                  <span className="text-xs font-semibold text-foreground">
+                    {msg.senderRole === "admin"
+                      ? (msg.senderName ? msg.senderName.replace(/nexgohost/gi, "Noehost") : "Noehost Support")
+                      : msg.senderName}
+                  </span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${msg.senderRole === "admin" ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}>
+                    {msg.senderRole === "admin" ? "support" : msg.senderRole}
+                  </span>
                   <span className="text-xs text-muted-foreground">{format(new Date(msg.createdAt), "MMM d, h:mm a")}</span>
                 </div>
                 <p className="text-sm text-foreground whitespace-pre-wrap">{msg.message}</p>

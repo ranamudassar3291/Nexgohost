@@ -277,7 +277,7 @@ export default function AddOrder() {
                 <option value="">Select a package…</option>
                 {packages.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name} — ${Number(p.price).toFixed(2)}/mo{p.yearlyPrice ? ` | $${Number(p.yearlyPrice).toFixed(2)}/yr` : ""}
+                    {p.name} — {formatPrice(Number(p.price))}/mo{p.yearlyPrice ? ` | ${formatPrice(Number(p.yearlyPrice))}/yr` : ""}
                     {p.module && p.module !== "none" ? ` [${p.module}]` : ""}
                   </option>
                 ))}
@@ -348,7 +348,7 @@ export default function AddOrder() {
                   {cycle}
                   {selectedPackage && (
                     <span className="ml-2 text-xs opacity-70">
-                      ${cycle === "yearly" && selectedPackage.yearlyPrice ? Number(selectedPackage.yearlyPrice).toFixed(2) : Number(selectedPackage.price).toFixed(2)}
+                      {cycle === "yearly" && selectedPackage.yearlyPrice ? formatPrice(Number(selectedPackage.yearlyPrice)) : formatPrice(Number(selectedPackage.price))}
                     </span>
                   )}
                 </button>
@@ -358,7 +358,7 @@ export default function AddOrder() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Amount ($) *</label>
+              <label className="text-sm font-medium text-foreground/80">Amount *</label>
               <Input type="number" step="0.01" min="0" value={form.amount} onChange={set("amount")} placeholder="9.99"
                 className={errors.amount ? "border-destructive" : ""} />
               {errors.amount && <p className="text-xs text-destructive">{errors.amount}</p>}

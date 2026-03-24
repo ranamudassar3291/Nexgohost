@@ -165,7 +165,9 @@ export default function ClientTicketDetail() {
                 <div className={`rounded-2xl p-4 ${isStaff ? "bg-card border border-border rounded-tl-sm" : "bg-primary/10 border border-primary/20 rounded-tr-sm"}`}>
                   <div className="flex items-center justify-between gap-4 mb-2">
                     <span className={`text-xs font-semibold ${isStaff ? "text-primary" : "text-foreground"}`}>
-                      {msg.senderName || (isStaff ? "Support Team" : "Client")}
+                      {isStaff
+                        ? (msg.senderName ? msg.senderName.replace(/nexgohost/gi, "Noehost") : "Noehost Support")
+                        : (msg.senderName || "Client")}
                     </span>
                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <Clock size={10} /> {format(new Date(msg.createdAt), "MMM d, h:mm a")}

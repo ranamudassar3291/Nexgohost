@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 interface Order {
   id: string; type: string; itemName: string; amount: number;
@@ -34,6 +35,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
 export default function ClientOrders() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ["client-orders"],
@@ -110,7 +112,7 @@ export default function ClientOrders() {
                         <div className="font-medium text-foreground">{order.itemName}</div>
                         {order.notes && <div className="text-xs text-muted-foreground mt-0.5">{order.notes}</div>}
                       </td>
-                      <td className="p-4 font-semibold">${Number(order.amount).toFixed(2)}</td>
+                      <td className="p-4 font-semibold">{formatPrice(Number(order.amount))}</td>
                       <td className="p-4 text-muted-foreground">
                         {format(new Date(order.createdAt), "MMM d, yyyy")}
                       </td>
