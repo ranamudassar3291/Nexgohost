@@ -202,17 +202,41 @@ router.post("/admin/whmcs/preview", authenticate, requireAdmin, async (req: Auth
   try {
     const { whmcsUrl, identifier, secret } = req.body;
     if (!whmcsUrl || !identifier || !secret) { res.status(400).json({ error: "Missing credentials" }); return; }
-    const [c, p, s, d, inv, o, t] = await Promise.all([
+    const [c, p, s, d, inv, o] = await Promise.all([
       whmcsCall(whmcsUrl, identifier, secret, "GetClients", { limitnum: 1 }),
       whmcsCall(whmcsUrl, identifier, secret, "GetProducts", { limitnum: 1 }),
       whmcsCall(whmcsUrl, identifier, secret, "GetClientsProducts", { limitnum: 1 }),
       whmcsCall(whmcsUrl, identifier, secret, "GetClientsDomains", { limitnum: 1 }),
       whmcsCall(whmcsUrl, identifier, secret, "GetInvoices", { limitnum: 1 }),
       whmcsCall(whmcsUrl, identifier, secret, "GetOrders", { limitnum: 1 }),
-      whmcsCall(whmcsUrl, identifier, secret, "GetTickets", { limitnum: 1 }),
     ]);
     let ext = 0;
     try { const tld = await whmcsCall(whmcsUrl, identifier, secret, "GetTldPricing"); ext = Object.keys(tld.pricing ?? {}).length; } catch {}
+
+    // Tickets: try multiple approaches — WHMCS may restrict by dept or status
+    let ticketCount = 0;
+    for (const params of [
+      { limitnum: 1, ignore_dept_assignments: "1" },
+      { limitnum: 1, status: "All" },
+      { limitnum: 1 },
+    ]) {
+      try {
+        const t = await whmcsCall(whmcsUrl, identifier, secret, "GetTickets", params);
+        const n = parseInt(t.totalresults ?? t.numreturned ?? "0");
+        if (n > ticketCount) ticketCount = n;
+        if (ticketCount > 0) break;
+      } catch {}
+    }
+    // Also try counting each status separately as fallback
+    if (ticketCount === 0) {
+      for (const status of ["Open", "Answered", "Customer-Reply", "On Hold", "In Progress", "Closed"]) {
+        try {
+          const t = await whmcsCall(whmcsUrl, identifier, secret, "GetTickets", { limitnum: 1, status, ignore_dept_assignments: "1" });
+          ticketCount += parseInt(t.totalresults ?? "0");
+        } catch {}
+      }
+    }
+
     res.json({
       clients: parseInt(c.totalresults ?? "0"),
       plans: parseInt(p.totalresults ?? "0"),
@@ -220,7 +244,7 @@ router.post("/admin/whmcs/preview", authenticate, requireAdmin, async (req: Auth
       domains: parseInt(d.totalresults ?? "0"),
       invoices: parseInt(inv.totalresults ?? "0"),
       orders: parseInt(o.totalresults ?? "0"),
-      tickets: parseInt(t.totalresults ?? "0"),
+      tickets: ticketCount,
       extensions: ext,
     });
   } catch (err: any) { res.status(400).json({ error: err.message }); }
@@ -652,7 +676,11 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       if (importTickets) {
         step("Importing support tickets", 9);
         try {
-          const tickets = await whmcsPages(whmcsUrl, identifier, secret, "GetTickets", "tickets", "ticket");
+          // Fetch all tickets across all statuses using ignore_dept_assignments
+          // to bypass department-level permission filters in WHMCS
+          const tickets = await whmcsPages(whmcsUrl, identifier, secret, "GetTickets", "tickets", "ticket", {
+            ignore_dept_assignments: "1",
+          });
           job.total = tickets.length;
           log(`Found ${tickets.length} tickets`);
 

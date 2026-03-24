@@ -319,6 +319,13 @@ export default function WhmcsImport() {
                 </div>
               ))}
             </div>
+            {/* Client count note */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-xs text-blue-300 space-y-1">
+              <p><strong>Client count</strong>: Includes ALL statuses (Active, Inactive, Closed). WHMCS admin panel only shows Active by default — that's why the number may look higher.</p>
+              {(preview?.tickets ?? 0) === 0 && (
+                <p><strong>Tickets showing 0?</strong> — Go to WHMCS Admin → Setup → Staff Management → API Credentials and make sure the "Support" module is enabled for your API key. Then re-scan.</p>
+              )}
+            </div>
             <div className="flex gap-3">
               <button onClick={() => setStep(1)} className="flex items-center gap-2 px-4 py-2.5 bg-[#0f0f1a] border border-[#2a2a4a] rounded-lg text-sm">
                 <ArrowLeft size={16} /> Back
