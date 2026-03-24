@@ -507,6 +507,14 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     staleTime: 60_000,
   });
 
+  const { data: creditData } = useQuery<{ creditBalance: string }>({
+    queryKey: ["my-credits"],
+    queryFn: () => apiFetch("/api/my/credits"),
+    enabled: step === 3,
+    staleTime: 30_000,
+  });
+  const creditBalance = parseFloat(creditData?.creditBalance ?? "0");
+
   // ── Direct-link auto-selection effects ────────────────────────────────────
 
   // /order/group/:id — pre-select the matching group once groups load
@@ -1594,8 +1602,49 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
             <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
               <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Payment Method</span>
             </div>
-            <div className="p-4">
-              {paymentMethods.length === 0 ? (
+            <div className="p-4 space-y-3">
+              {/* Pay via Wallet — shown when user has sufficient balance */}
+              {creditBalance > 0 && (
+                <button
+                  onClick={() => setPaymentMethodId(paymentMethodId === "credits" ? null : "credits")}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
+                  style={paymentMethodId === "credits"
+                    ? { borderColor: P, background: `${P}07` }
+                    : { borderColor: "#E5E7EB", background: "#fff" }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: paymentMethodId === "credits" ? `${P}15` : "#F3F4F6" }}>
+                    <Wallet size={18} style={{ color: P }}/>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[13px] font-bold text-gray-900">Pay via Wallet</p>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border text-white" style={{ background: P, borderColor: P }}>
+                        INSTANT
+                      </span>
+                    </div>
+                    {(() => {
+                      const planAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
+                      const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
+                      const domAmt = isDomFree ? 0 : (cartDomain?.price ?? 0);
+                      const total = planAmt + domAmt;
+                      const hasSufficient = creditBalance >= total;
+                      return (
+                        <p className="text-[11px] mt-0.5" style={{ color: hasSufficient ? "#16a34a" : "#dc2626" }}>
+                          {hasSufficient
+                            ? `Balance: ${formatPrice(creditBalance)} — enough to cover this order`
+                            : `Balance: ${formatPrice(creditBalance)} — insufficient for this order (${formatPrice(total)} required)`}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${paymentMethodId === "credits" ? "" : "border-gray-300"}`}
+                    style={paymentMethodId === "credits" ? { background: P, borderColor: P } : {}}>
+                    {paymentMethodId === "credits" && <Check size={10} strokeWidth={3} className="text-white"/>}
+                  </div>
+                </button>
+              )}
+
+              {paymentMethods.length === 0 && creditBalance === 0 ? (
                 <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-700">
                   <AlertCircle size={14}/> No payment methods configured. Please contact support.
                 </div>

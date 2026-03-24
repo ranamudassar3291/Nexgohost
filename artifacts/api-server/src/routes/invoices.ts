@@ -166,6 +166,31 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
       .where(eq(invoicesTable.id, req.params.id))
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Auto-credit wallet if this is an "Account Deposit" invoice
+    try {
+      const items = (updated.items ?? []) as Array<{ description: string; total: number }>;
+      const isDeposit = items.some(it => it.description === "Account Deposit");
+      if (isDeposit) {
+        const depositAmt = parseFloat(updated.total);
+        const [u] = await db.select({ creditBalance: usersTable.creditBalance })
+          .from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+        const newBal = (parseFloat(u?.creditBalance ?? "0") + depositAmt).toFixed(2);
+        await db.update(usersTable)
+          .set({ creditBalance: newBal, updatedAt: new Date() })
+          .where(eq(usersTable.id, updated.clientId));
+        await db.insert(creditTransactionsTable).values({
+          userId: updated.clientId,
+          amount: String(depositAmt),
+          type: "admin_add",
+          description: `Wallet top-up — invoice ${updated.invoiceNumber}`,
+          invoiceId: updated.id,
+          performedBy: req.user!.userId,
+        });
+        console.log(`[WALLET] Credited Rs. ${depositAmt} to user ${updated.clientId} from deposit invoice ${updated.invoiceNumber}`);
+      }
+    } catch (e) { console.error("[WALLET] deposit credit error:", e); }
+
     // Handle downstream: renewal order → extend domain expiry, hosting → provision
     try {
       const [order] = updated.orderId
@@ -213,6 +238,40 @@ router.post("/invoices/:id/pay", authenticate, async (req: AuthRequest, res) => 
       transactionId: tx.id,
       message: "Payment notification submitted. Our team will verify and activate your service.",
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: create a wallet deposit invoice (Add Funds)
+router.post("/my/invoices/deposit", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { amount } = req.body || {};
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt < 100 || amt > 100000) {
+      res.status(400).json({ error: "Amount must be between 100 and 100,000" }); return;
+    }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    invoiceCounter++;
+    const invoiceNumber = `DEP-${Date.now()}-${invoiceCounter}`;
+    const due = new Date(); due.setDate(due.getDate() + 7);
+    const items = [{ description: "Account Deposit", quantity: 1, unitPrice: amt, total: amt }];
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber,
+      clientId: userId,
+      amount: String(amt),
+      tax: "0",
+      total: String(amt),
+      status: "unpaid",
+      dueDate: due,
+      items,
+    }).returning();
+
+    res.status(201).json(formatInvoice(invoice, `${user.firstName} ${user.lastName}`));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

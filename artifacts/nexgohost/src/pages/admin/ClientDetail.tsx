@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
 import {
   ArrowLeft, User, Mail, Building, Phone, Calendar, Server, Globe, FileText,
   MessageSquare, ShoppingCart, Loader2, Edit2, Trash2, PauseCircle, PlayCircle,
   Send, Zap, XCircle, Shield, TrendingUp, TrendingDown, Key, CheckCircle,
-  CreditCard, Plus, ExternalLink, AlertTriangle,
+  CreditCard, Plus, ExternalLink, AlertTriangle, Wallet, ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,9 +62,32 @@ export default function AdminClientDetail() {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
 
+  const [walletAmt, setWalletAmt] = useState("");
+  const [walletType, setWalletType] = useState<"admin_add" | "admin_deduct" | "refund">("admin_add");
+  const [walletDesc, setWalletDesc] = useState("");
+
   const { data: client, isLoading } = useQuery<ClientFull>({
     queryKey: ["admin-client", id],
     queryFn: () => apiFetch(`/api/admin/clients/${id}`),
+  });
+
+  const { data: creditData, refetch: refetchCredits } = useQuery<{ creditBalance: string; transactions: any[] }>({
+    queryKey: ["admin-client-credits", id],
+    queryFn: () => apiFetch(`/api/admin/users/${id}/credits`),
+    enabled: !!id,
+  });
+
+  const walletMutation = useMutation({
+    mutationFn: () => apiFetch(`/api/admin/users/${id}/credits`, {
+      method: "POST",
+      body: JSON.stringify({ amount: parseFloat(walletAmt), type: walletType, description: walletDesc || undefined }),
+    }),
+    onSuccess: (res: any) => {
+      refetchCredits();
+      setWalletAmt(""); setWalletDesc("");
+      toast({ title: "Balance updated", description: `New balance: Rs. ${parseFloat(res.creditBalance).toFixed(2)}` });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const action = async (url: string, method = "POST", body?: any) => {
@@ -214,6 +237,70 @@ export default function AdminClientDetail() {
                 <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
               </div>
             ))}
+          </div>
+
+          {/* Wallet / Credit Balance */}
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Wallet size={15} className="text-primary"/>
+                </div>
+                <span className="text-sm font-bold text-foreground">Account Wallet</span>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-extrabold text-primary">
+                  {formatPrice(parseFloat(creditData?.creditBalance ?? "0"))}
+                </p>
+                <p className="text-[10px] text-muted-foreground">Current Balance</p>
+              </div>
+            </div>
+
+            {/* Adjust balance form */}
+            <div className="space-y-2.5 pt-2 border-t border-border/50">
+              <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Adjust Balance</p>
+              <div className="flex gap-1">
+                {(["admin_add", "admin_deduct", "refund"] as const).map(t => (
+                  <button key={t} onClick={() => setWalletType(t)}
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${walletType === t ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
+                    {t === "admin_add" ? "+ Add" : t === "admin_deduct" ? "− Deduct" : "↩ Refund"}
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-muted-foreground">Rs.</span>
+                <Input value={walletAmt} onChange={e => setWalletAmt(e.target.value)} type="number" min={100} max={100000}
+                  placeholder="Amount (100 – 1,00,000)" className="pl-10 h-9 text-sm bg-background"/>
+              </div>
+              <Input value={walletDesc} onChange={e => setWalletDesc(e.target.value)}
+                placeholder="Reason (e.g. Promotional Credit)" className="h-9 text-sm bg-background"/>
+              <Button size="sm" className="w-full bg-primary text-white text-xs"
+                onClick={() => walletMutation.mutate()}
+                disabled={walletMutation.isPending || !walletAmt || parseFloat(walletAmt) < 100}>
+                {walletMutation.isPending ? <><Loader2 size={12} className="animate-spin mr-1"/> Processing…</> : "Apply Adjustment"}
+              </Button>
+            </div>
+
+            {/* Recent credit transactions */}
+            {(creditData?.transactions ?? []).length > 0 && (
+              <div className="pt-2 border-t border-border/50 space-y-2">
+                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Recent Transactions</p>
+                {(creditData?.transactions ?? []).slice(0, 5).map((tx: any) => {
+                  const isIn = ["admin_add", "affiliate_payout", "refund"].includes(tx.type);
+                  return (
+                    <div key={tx.id} className="flex items-center justify-between gap-2 text-[11px]">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">{tx.description || tx.type}</p>
+                        <p className="text-muted-foreground">{format(new Date(tx.createdAt), "MMM d, h:mm a")}</p>
+                      </div>
+                      <span className={`font-extrabold shrink-0 ${isIn ? "text-emerald-500" : "text-red-400"}`}>
+                        {isIn ? "+" : "−"}Rs. {parseFloat(tx.amount).toFixed(0)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
