@@ -469,17 +469,6 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const freeDomainEligible = !!selectedPlan?.freeDomainEnabled && selectedCycle === "yearly";
   const [freeDomainClaimed, setFreeDomainClaimed] = useState(false);
 
-  // Force-free domain: compute TLD eligibility independent of the "claim" UI flow
-  const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
-  const _planFreeTlds: string[] = (selectedPlan as any)?.freeDomainTlds?.length
-    ? (selectedPlan as any).freeDomainTlds
-    : DEFAULT_FREE_TLDS;
-  const _cartDomTld = cartDomain?.fullName?.includes(".")
-    ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")).toLowerCase()
-    : "";
-  // isDomForceFree: true whenever plan+cycle+TLD all qualify — regardless of UI claim flow
-  const isDomForceFree = freeDomainEligible && cartDomain?.mode === "register" && !!_cartDomTld && _planFreeTlds.includes(_cartDomTld);
-
   // Domain
   const [domainMode,  setDomainMode]  = useState<DomainMode>(null);
   const [domainQ,     setDomainQ]     = useState("");
@@ -490,6 +479,17 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const [txDomain,    setTxDomain]    = useState("");
   const [eppCode,     setEppCode]     = useState("");
   const [cartDomain,  setCartDomainRaw] = useState<CartDomain | null>(loadDomain);
+
+  // Force-free domain: compute TLD eligibility independent of the "claim" UI flow
+  const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+  const _planFreeTlds: string[] = (selectedPlan as any)?.freeDomainTlds?.length
+    ? (selectedPlan as any).freeDomainTlds
+    : DEFAULT_FREE_TLDS;
+  const _cartDomTld = cartDomain?.fullName?.includes(".")
+    ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")).toLowerCase()
+    : "";
+  // isDomForceFree: true whenever plan+cycle+TLD all qualify — regardless of UI claim flow
+  const isDomForceFree = freeDomainEligible && cartDomain?.mode === "register" && !!_cartDomTld && _planFreeTlds.includes(_cartDomTld);
 
   // Payment & order
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);

@@ -33,7 +33,7 @@ const TX_CONFIG: Record<string, { label: string; icon: React.ElementType; color:
   deposit:          { label: "Wallet Deposit",     icon: ArrowDownLeft, color: "text-emerald-600", bg: "bg-emerald-50",  direction: "in"  },
 };
 
-const DEFAULT_PRESET_AMOUNTS = [500, 1000, 2500, 5000];
+const DEFAULT_PRESET_AMOUNTS = [270, 500, 1000, 2500, 5000];
 
 export default function Credits() {
   const { formatPrice } = useCurrency();
@@ -41,7 +41,7 @@ export default function Credits() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState("270");
   const [amountError, setAmountError] = useState("");
 
   const { data, isLoading } = useQuery<{ creditBalance: string; transactions: CreditTransaction[] }>({
@@ -168,12 +168,20 @@ export default function Credits() {
               type="number"
               value={amount}
               onChange={e => { setAmount(e.target.value); setAmountError(""); }}
-              placeholder={`Enter amount (min Rs. ${minDeposit.toLocaleString()})`}
+              placeholder={`Min Rs. ${minDeposit.toLocaleString()}`}
               min={minDeposit}
               max={maxDeposit}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-input bg-background text-[14px] font-semibold focus:outline-none transition-all"
-              onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
-              onBlur={e  => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.boxShadow = ""; }}
+              className={`w-full pl-12 pr-4 py-3 rounded-xl border bg-background text-[14px] font-semibold focus:outline-none transition-all ${amountError ? "border-red-400 ring-2 ring-red-200" : "border-input"}`}
+              onFocus={e => {
+                if (!amountError) {
+                  e.currentTarget.style.borderColor = P;
+                  e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`;
+                }
+              }}
+              onBlur={e  => {
+                e.currentTarget.style.borderColor = "";
+                e.currentTarget.style.boxShadow = "";
+              }}
             />
           </div>
           <button
@@ -188,9 +196,15 @@ export default function Credits() {
           </button>
         </div>
 
+        {/* Limit hint */}
+        <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted-foreground">
+          <span>Min: <span className="font-semibold text-foreground/80">Rs. {minDeposit.toLocaleString()}</span></span>
+          <span>Max: <span className="font-semibold text-foreground/80">Rs. {maxDeposit.toLocaleString()}</span></span>
+        </div>
+
         {amountError && (
-          <div className="flex items-center gap-2 mt-3 text-[12.5px] text-red-500">
-            <AlertCircle size={13}/> {amountError}
+          <div className="flex items-center gap-2 mt-2 p-2.5 bg-red-50 border border-red-200 rounded-xl text-[12.5px] text-red-600 font-medium">
+            <AlertCircle size={13} className="shrink-0"/> {amountError}
           </div>
         )}
 
