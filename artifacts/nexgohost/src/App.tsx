@@ -83,6 +83,7 @@ import Security from "@/pages/client/Security";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import DomainDns from "@/pages/client/DomainDns";
 import Homepage from "@/pages/public/Homepage";
+import VpsHosting from "@/pages/public/VpsHosting";
 import OrderFlow from "@/pages/public/OrderFlow";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
@@ -131,6 +132,18 @@ function OrderByPid() {
   return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
 }
 
+// VPS direct-link: /order/vps/:planId — pre-select a VPS plan
+function OrderByVpsPlan() {
+  const { planId } = useParams<{ planId: string }>();
+  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={planId}/></CheckoutLayout>;
+}
+
+// WHMCS-style VPS: /order/config/index.php?vps_id=UUID
+function OrderByVpsId() {
+  const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
+  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
+}
+
 // ─── Router Root ──────────────────────────────────────────────────────────────
 // FLAT route tree — no nested Switch wildcards.
 // Wouter v3 strips the matched prefix in nested Switches (wildcard routes),
@@ -148,6 +161,7 @@ function RouterRoot() {
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />
       <Route path="/reset-password"   component={ResetPassword}   />
+      <Route path="/vps"              component={VpsHosting}      />
       <Route path="/order"            component={OrderFlow}       />
 
       <Route path="/login">
@@ -310,6 +324,9 @@ function RouterRoot() {
       <Route path="/order/add/:packageId" component={OrderByPackage}/>
       {/* WHMCS-style clean URL: /order/config/index.php?pid=UUID */}
       <Route path="/order/config/index.php" component={OrderByPid}/>
+      {/* VPS direct links: /order/vps/:planId and ?vps_id=UUID */}
+      <Route path="/order/vps/:planId" component={OrderByVpsPlan}/>
+      <Route path="/order/vps" component={OrderByVpsId}/>
 
       <Route path="/client/orders/new">
         <CheckoutLayout><NewOrder /></CheckoutLayout>

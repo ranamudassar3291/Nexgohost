@@ -485,21 +485,25 @@ interface NewOrderProps {
   initialGroupId?: string;
   /** Auto-select a specific plan and skip to domain step (/order/add/:id) */
   initialPackageId?: string;
+  /** Auto-select a VPS plan by ID and skip straight to configure step (/order/vps/:id) */
+  initialVpsPlanId?: string;
 }
 
-export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderProps = {}) {
+export default function NewOrder({ initialGroupId, initialPackageId, initialVpsPlanId }: NewOrderProps = {}) {
   const [, setLocation] = useLocation();
   const { addItem, removeItem } = useCart();
   const { formatPrice } = useCurrency();
 
   // Direct-link modes: skip step 0 (service selection) when params are present
-  const isDirectLink = !!(initialGroupId || initialPackageId);
+  const isDirectLink   = !!(initialGroupId || initialPackageId);
+  const isVpsDirectLink = !!initialVpsPlanId;
 
   // ── Wizard state ──────────────────────────────────────────────────────────
   // When coming from /order/add/:id → jump straight to domain step (2)
   // When coming from /order/group/:id → start at plan step (1)
-  const [step,    setStep]    = useState<0|1|2|3>(initialPackageId ? 2 : isDirectLink ? 1 : 0);
-  const [service, setService] = useState<ServiceType | null>(isDirectLink ? "hosting" : null);
+  // When coming from /order/vps/:id → jump to VPS configure step (2)
+  const [step,    setStep]    = useState<0|1|2|3>(isVpsDirectLink ? 2 : initialPackageId ? 2 : isDirectLink ? 1 : 0);
+  const [service, setService] = useState<ServiceType | null>(isVpsDirectLink ? "vps" : isDirectLink ? "hosting" : null);
 
   // While waiting for /order/add/:id plan to load, show spinner
   const [directLinkReady, setDirectLinkReady] = useState(!initialPackageId);
@@ -602,19 +606,19 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const { data: vpsPlans = [], isLoading: vpsPlansLoading } = useQuery<VpsPlan[]>({
     queryKey: ["vps-plans"],
     queryFn: () => fetch("/api/vps-plans").then(r => r.json()),
-    enabled: service === "vps",
+    enabled: service === "vps" || isVpsDirectLink,
     staleTime: 120_000,
   });
   const { data: vpsOsTemplates = [] } = useQuery<VpsOsTemplate[]>({
     queryKey: ["vps-os-templates"],
     queryFn: () => fetch("/api/vps-os-templates").then(r => r.json()),
-    enabled: service === "vps" && step >= 2,
+    enabled: (service === "vps" && step >= 2) || (isVpsDirectLink && step >= 2),
     staleTime: 120_000,
   });
   const { data: vpsLocations = [] } = useQuery<VpsLocation[]>({
     queryKey: ["vps-locations"],
     queryFn: () => fetch("/api/vps-locations").then(r => r.json()),
-    enabled: service === "vps" && step >= 2,
+    enabled: (service === "vps" && step >= 2) || (isVpsDirectLink && step >= 2),
     staleTime: 120_000,
   });
 
@@ -647,6 +651,17 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     setDirectLinkReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPackageId, allPlans]);
+
+  // /order/vps/:id — auto-select VPS plan and jump to configure step
+  useEffect(() => {
+    if (!initialVpsPlanId || vpsPlans.length === 0 || selectedVpsPlan) return;
+    const plan = vpsPlans.find(p => p.id === initialVpsPlanId);
+    if (plan) {
+      setSelectedVpsPlan(plan);
+      setVpsSelectedCycle("yearly");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialVpsPlanId, vpsPlans]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
@@ -1400,145 +1415,242 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VPS — STEP 1: Choose Plan
+  // VPS — STEP 1: Choose Plan  (Hostinger-style)
   // ─────────────────────────────────────────────────────────────────────────────
 
   function renderStep1Vps() {
-    const STANDARD_FEATURES = ["Full Root Access", "DDoS Protection", "Dedicated IP"];
+    const allPlans = vpsPlans;
+    const midIdx   = Math.floor(allPlans.length / 2);
+
+    // Compute save-percentage for the yearly toggle badge
+    const maxSavePct = allPlans.reduce((best, plan) => {
+      if (!plan.yearlyPrice || !plan.price) return best;
+      const pct = Math.round((1 - plan.yearlyPrice / (plan.price * 12)) * 100);
+      return pct > best ? pct : best;
+    }, 0);
+
     return (
       <motion.div key="vps1" {...fade}>
-        <div className="text-center mb-8 max-w-xl mx-auto">
-          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Choose Your VPS Plan</h1>
-          <p className="text-gray-500 text-[15px]">High-performance KVM servers with guaranteed resources and full root access.</p>
+        {/* Hero header */}
+        <div className="text-center mb-8 max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 text-[12px] font-bold px-4 py-1.5 rounded-full mb-4 border border-purple-200">
+            <Zap size={11} className="fill-current"/> KVM-Powered Cloud Servers
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3 leading-tight">
+            High-Performance <span style={{ color: P }}>VPS Hosting</span>
+          </h1>
+          <p className="text-gray-500 text-[15px]">
+            Full root access · Dedicated IP · DDoS protection · Instant setup
+          </p>
         </div>
 
         {vpsPlansLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
-            {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-100 rounded-2xl animate-pulse"/>)}
+            {[1,2,3].map(i => <div key={i} className="h-80 bg-gray-100 rounded-3xl animate-pulse"/>)}
           </div>
-        ) : vpsPlans.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">No VPS plans available yet. Please check back soon.</div>
+        ) : allPlans.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">
+            <Server size={36} className="mx-auto mb-3 opacity-30"/>
+            No VPS plans available yet. Please check back soon.
+          </div>
         ) : (
           <>
-            {/* Billing cycle toggle */}
-            <div className="flex justify-center mb-6">
-              <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
-                {(["monthly", "yearly"] as const).map(c => (
-                  <button key={c} onClick={() => setVpsSelectedCycle(c)}
-                    className="px-5 py-2 rounded-lg text-[13px] font-semibold transition-all"
-                    style={vpsSelectedCycle === c ? { background: P, color: "#fff", boxShadow: PSHADOW } : { color: "#6B7280" }}>
-                    {c === "monthly" ? "Monthly" : "Yearly"}
-                    {c === "yearly" && <span className="ml-1.5 text-[10px] font-bold bg-amber-400 text-amber-900 rounded-full px-1.5 py-0.5">Save more</span>}
-                  </button>
-                ))}
+            {/* Billing cycle toggle — prominent with save badge */}
+            <div className="flex flex-col items-center gap-2 mb-8">
+              <div className="inline-flex bg-gray-100 rounded-2xl p-1.5 gap-1">
+                <button onClick={() => setVpsSelectedCycle("monthly")}
+                  className="relative px-8 py-2.5 rounded-xl text-[13px] font-bold transition-all"
+                  style={vpsSelectedCycle === "monthly"
+                    ? { background: "#fff", color: "#111", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }
+                    : { color: "#9CA3AF" }}>
+                  Monthly
+                </button>
+                <button onClick={() => setVpsSelectedCycle("yearly")}
+                  className="relative px-8 py-2.5 rounded-xl text-[13px] font-bold transition-all"
+                  style={vpsSelectedCycle === "yearly"
+                    ? { background: P, color: "#fff", boxShadow: PSHADOW }
+                    : { color: "#9CA3AF" }}>
+                  Yearly
+                  {maxSavePct > 0 && (
+                    <span className="absolute -top-2.5 -right-2.5 text-[10px] font-extrabold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">
+                      -{maxSavePct}%
+                    </span>
+                  )}
+                </button>
               </div>
+              {vpsSelectedCycle === "yearly" && maxSavePct > 0 && (
+                <motion.p {...fade} className="text-[12px] text-green-600 font-semibold flex items-center gap-1">
+                  <Check size={11} strokeWidth={2.5}/> You save up to {maxSavePct}% with annual billing
+                </motion.p>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
-              {vpsPlans.map((plan, i) => {
+            {/* Plan cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto items-stretch">
+              {allPlans.map((plan, i) => {
                 const monthlyPrice = plan.price;
-                const yearlyPrice = plan.yearlyPrice;
+                const yearlyPrice  = plan.yearlyPrice;
                 const displayPrice = vpsSelectedCycle === "yearly" && yearlyPrice ? yearlyPrice : monthlyPrice;
-                const isSelected = selectedVpsPlan?.id === plan.id;
-                const isMiddle = i === 1 || (vpsPlans.length === 1 && i === 0);
-                const saveAmt = plan.saveAmount ?? (yearlyPrice != null ? Math.max(0, monthlyPrice * 12 - yearlyPrice) : null);
+                const monthlyEquiv = vpsSelectedCycle === "yearly" && yearlyPrice ? yearlyPrice / 12 : monthlyPrice;
+                const saveAmt      = plan.saveAmount ?? (yearlyPrice != null ? Math.max(0, monthlyPrice * 12 - yearlyPrice) : null);
+                const savePct      = yearlyPrice && monthlyPrice ? Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100) : 0;
+                const isSelected   = selectedVpsPlan?.id === plan.id;
+                const isPopular    = i === midIdx && allPlans.length > 1;
+
                 return (
                   <motion.button key={plan.id}
                     onClick={() => setSelectedVpsPlan(isSelected ? null : plan)}
-                    className="relative flex flex-col rounded-2xl bg-white text-left transition-all duration-200 focus:outline-none"
-                    style={{
-                      border: isSelected ? `2px solid ${P}` : isMiddle ? `2px solid ${P}66` : "1px solid #E5E7EB",
-                      padding: isMiddle ? "28px 22px 22px" : "22px 20px 20px",
-                      boxShadow: isSelected ? `0 8px 32px ${P}25` : isMiddle ? "0 4px 16px rgba(0,0,0,0.08)" : "",
-                    }}
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    {isMiddle && !isSelected && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-0.5 text-white text-[10.5px] font-bold rounded-full" style={{ background: P }}>
-                        <Star size={9} strokeWidth={2.5}/> MOST POPULAR
+                    className="relative flex flex-col rounded-3xl text-left focus:outline-none overflow-hidden"
+                    style={isPopular
+                      ? {
+                          background: `linear-gradient(145deg, #7B2FFF 0%, #5010D0 60%, #3D0BA8 100%)`,
+                          boxShadow: `0 20px 60px ${P}45`,
+                          border: isSelected ? "2.5px solid #fff" : "2.5px solid rgba(255,255,255,0.25)",
+                          padding: "32px 24px 24px",
+                        }
+                      : {
+                          background: isSelected ? `linear-gradient(145deg, ${P}08, ${P}03)` : "#fff",
+                          border: isSelected ? `2.5px solid ${P}` : "1.5px solid #E5E7EB",
+                          boxShadow: isSelected ? `0 12px 40px ${P}22` : "0 2px 8px rgba(0,0,0,0.04)",
+                          padding: "24px 20px 20px",
+                        }}
+                    whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}
+                    transition={{ duration: 0.18 }}>
+
+                    {/* Popular ribbon */}
+                    {isPopular && (
+                      <div className="absolute top-0 left-0 right-0 py-1.5 text-center text-[10.5px] font-extrabold text-white/90 uppercase tracking-widest"
+                        style={{ background: "rgba(255,255,255,0.12)", letterSpacing: "0.12em" }}>
+                        ⚡ Most Popular
                       </div>
                     )}
+                    {isPopular && <div className="h-5"/>}
+
+                    {/* Selected badge */}
                     {isSelected && (
-                      <div className="absolute -top-3 right-4 flex items-center gap-1 px-2.5 py-0.5 text-white text-[10.5px] font-bold rounded-full bg-green-500">
-                        <Check size={9}/> Selected
-                      </div>
-                    )}
-                    {/* Save badge */}
-                    {vpsSelectedCycle === "yearly" && saveAmt != null && saveAmt > 0 && (
-                      <div className="absolute top-4 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                        Save Rs. {Math.round(saveAmt).toLocaleString()}
+                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                        style={{ background: isPopular ? "rgba(255,255,255,0.25)" : P, color: "#fff" }}>
+                        <Check size={8}/> Selected
                       </div>
                     )}
 
-                    {/* Plan name */}
-                    <h3 className="text-[16px] font-extrabold text-gray-900 mb-1">{plan.name}</h3>
-                    {plan.description && <p className="text-[12px] text-gray-500 mb-3">{plan.description}</p>}
+                    {/* Yearly save badge */}
+                    {!isSelected && vpsSelectedCycle === "yearly" && savePct > 0 && (
+                      <div className="absolute top-3 right-3 text-[10px] font-extrabold px-2 py-0.5 rounded-full"
+                        style={isPopular
+                          ? { background: "rgba(255,220,50,0.9)", color: "#7a4200" }
+                          : { background: "#FEF3C7", color: "#92400E" }}>
+                        Save {savePct}%
+                      </div>
+                    )}
 
-                    {/* Price */}
+                    {/* Plan header */}
                     <div className="mb-4">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-[28px] font-extrabold text-gray-900">{formatPrice(displayPrice)}</span>
-                        <span className="text-[12px] text-gray-400">/{vpsSelectedCycle === "yearly" ? "yr" : "mo"}</span>
-                      </div>
-                      {vpsSelectedCycle === "yearly" && (
-                        <div className="text-[11.5px] text-gray-400">{formatPrice(monthlyPrice)}/mo when billed monthly</div>
+                      <h3 className={`text-[15px] font-extrabold mb-1 ${isPopular ? "text-white" : "text-gray-900"}`}>
+                        {plan.name}
+                      </h3>
+                      {plan.description && (
+                        <p className={`text-[11.5px] leading-snug ${isPopular ? "text-white/70" : "text-gray-400"}`}>
+                          {plan.description}
+                        </p>
                       )}
                     </div>
 
-                    {/* Specs */}
-                    <div className="grid grid-cols-2 gap-2 mb-4">
+                    {/* Price block */}
+                    <div className="mb-5">
+                      {vpsSelectedCycle === "yearly" && yearlyPrice && monthlyPrice > 0 && (
+                        <div className={`text-[11.5px] line-through mb-0.5 ${isPopular ? "text-white/50" : "text-gray-400"}`}>
+                          {formatPrice(monthlyPrice)}/mo
+                        </div>
+                      )}
+                      <div className="flex items-end gap-1.5">
+                        <span className={`text-[36px] font-extrabold leading-none tracking-tight ${isPopular ? "text-white" : "text-gray-900"}`}>
+                          {formatPrice(monthlyEquiv)}
+                        </span>
+                        <span className={`text-[13px] font-medium mb-1 ${isPopular ? "text-white/70" : "text-gray-400"}`}>/mo</span>
+                      </div>
+                      {vpsSelectedCycle === "yearly" && yearlyPrice && (
+                        <div className={`text-[11px] mt-1 font-medium ${isPopular ? "text-white/75" : "text-gray-400"}`}>
+                          Billed {formatPrice(yearlyPrice)}/year
+                          {saveAmt != null && saveAmt > 0 && (
+                            <span className={`ml-1.5 font-extrabold ${isPopular ? "text-yellow-300" : "text-green-600"}`}>
+                              · Save {formatPrice(saveAmt)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {vpsSelectedCycle === "monthly" && (
+                        <div className={`text-[10.5px] mt-1 ${isPopular ? "text-white/60" : "text-gray-400"}`}>
+                          Billed monthly · No contract
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Specs — 2×2 grid */}
+                    <div className="grid grid-cols-2 gap-2 mb-5">
                       {[
-                        { icon: Cpu, label: `${plan.cpuCores} vCPU${plan.cpuCores > 1 ? "s" : ""}` },
-                        { icon: MemoryStick, label: `${plan.ramGb} GB RAM` },
-                        { icon: HardDrive, label: `${plan.storageGb} GB NVMe` },
-                        { icon: Wifi, label: `${plan.bandwidthTb ?? 1} TB BW` },
+                        { icon: Cpu,          label: `${plan.cpuCores} vCPU${plan.cpuCores !== 1 ? "s" : ""}` },
+                        { icon: MemoryStick,  label: `${plan.ramGb} GB RAM` },
+                        { icon: HardDrive,    label: `${plan.storageGb} GB NVMe` },
+                        { icon: Wifi,         label: `${plan.bandwidthTb ?? 1} TB BW` },
                       ].map(({ icon: Icon, label }) => (
-                        <div key={label} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5">
-                          <Icon size={11} style={{ color: P }} className="shrink-0"/>
-                          <span className="text-[11.5px] font-medium text-gray-700">{label}</span>
+                        <div key={label} className="flex items-center gap-1.5 rounded-xl px-2.5 py-2"
+                          style={isPopular
+                            ? { background: "rgba(255,255,255,0.12)" }
+                            : { background: `${P}09`, border: `1px solid ${P}18` }}>
+                          <Icon size={12} className={isPopular ? "text-white/80" : ""} style={isPopular ? {} : { color: P }} />
+                          <span className={`text-[11.5px] font-semibold ${isPopular ? "text-white/90" : "text-gray-700"}`}>{label}</span>
                         </div>
                       ))}
                     </div>
 
-                    {/* Virtualization badge */}
-                    <div className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mb-3">
+                    {/* KVM badge */}
+                    <div className={`text-[10px] font-bold uppercase tracking-widest mb-4 ${isPopular ? "text-white/50" : "text-gray-400"}`}>
                       {plan.virtualization ?? "KVM"} Virtualization
                     </div>
 
-                    {/* Standard features */}
-                    <div className="space-y-1.5 mb-4">
-                      {STANDARD_FEATURES.map(f => (
-                        <div key={f} className="flex items-center gap-2 text-[12px] text-gray-600">
-                          <Check size={10} strokeWidth={2.5} style={{ color: P }}/> {f}
-                        </div>
-                      ))}
-                      {plan.features.filter(f => !STANDARD_FEATURES.includes(f)).map(f => (
-                        <div key={f} className="flex items-center gap-2 text-[12px] text-gray-600">
-                          <Check size={10} strokeWidth={2.5} style={{ color: P }}/> {f}
+                    {/* Features list */}
+                    <div className="space-y-2 mb-5 flex-1">
+                      {plan.features.slice(0, 5).map(f => (
+                        <div key={f} className={`flex items-center gap-2 text-[12px] ${isPopular ? "text-white/85" : "text-gray-600"}`}>
+                          <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                            style={isPopular ? { background: "rgba(255,255,255,0.2)" } : { background: `${P}18` }}>
+                            <Check size={9} strokeWidth={2.5} className={isPopular ? "text-white" : ""} style={isPopular ? {} : { color: P }}/>
+                          </div>
+                          {f}
                         </div>
                       ))}
                     </div>
 
-                    {/* CTA */}
-                    <div className="mt-auto w-full py-2.5 rounded-xl text-[13px] font-bold text-center transition-all"
-                      style={isSelected
-                        ? { background: P, color: "#fff" }
-                        : { background: `${P}12`, color: P }}>
-                      {isSelected ? "✓ Plan Selected" : "Choose Plan"}
+                    {/* CTA button */}
+                    <div className="w-full py-3 rounded-2xl text-[13px] font-extrabold text-center transition-all mt-auto"
+                      style={isPopular
+                        ? (isSelected
+                            ? { background: "rgba(255,255,255,0.25)", color: "#fff", border: "1.5px solid rgba(255,255,255,0.5)" }
+                            : { background: "#fff", color: P })
+                        : (isSelected
+                            ? { background: P, color: "#fff", boxShadow: PSHADOW }
+                            : { background: `${P}10`, color: P, border: `1.5px solid ${P}30` })}>
+                      {isSelected ? "✓ Plan Selected" : "Get Started →"}
                     </div>
                   </motion.button>
                 );
               })}
             </div>
 
-            {/* Trust badges */}
-            <div className="flex flex-wrap justify-center gap-5 mt-8 text-[12px] text-gray-400">
-              <span className="flex items-center gap-1.5"><Shield size={11}/> Full Root Access</span>
-              <span>·</span>
-              <span className="flex items-center gap-1.5"><Zap size={11}/> Instant Provisioning</span>
-              <span>·</span>
-              <span className="flex items-center gap-1.5"><Key size={11}/> Dedicated IP</span>
-              <span>·</span>
-              <span className="flex items-center gap-1.5"><Lock size={11}/> DDoS Protection</span>
+            {/* Trust bar */}
+            <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2 mt-10 text-[12px] text-gray-400">
+              {[
+                { icon: Shield, text: "DDoS Protected" },
+                { icon: Zap,    text: "Instant Setup" },
+                { icon: Key,    text: "Full Root Access" },
+                { icon: Lock,   text: "30-Day Guarantee" },
+                { icon: Globe,  text: "99.9% Uptime SLA" },
+              ].map(({ icon: Icon, text }) => (
+                <span key={text} className="flex items-center gap-1.5">
+                  <Icon size={11} style={{ color: P }}/> {text}
+                </span>
+              ))}
             </div>
           </>
         )}

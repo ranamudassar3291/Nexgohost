@@ -2,6 +2,7 @@ import app from "./app";
 import { refreshExchangeRates } from "./routes/currencies.js";
 import { runAllCronTasks } from "./lib/cron.js";
 import { seedMissingTemplates } from "./routes/email-templates.js";
+import { seedVpsData } from "./lib/seedVps.js";
 
 const rawPort = process.env["PORT"];
 
@@ -52,5 +53,10 @@ app.listen(port, async () => {
     console.log("[TEMPLATES] Default email templates ready");
   }).catch((err: any) => {
     console.warn("[TEMPLATES] Seed failed (non-fatal):", err.message);
+  });
+
+  // Seed default VPS plans / OS templates / locations (only if empty)
+  seedVpsData().catch((err: any) => {
+    console.warn("[VPS] Seed failed (non-fatal):", err.message);
   });
 });

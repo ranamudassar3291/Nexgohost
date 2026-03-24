@@ -1,5 +1,29 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 20)
+- **VPS Plan Cards — Hostinger-Style Redesign** (`NewOrder.tsx` → `renderStep1Vps()`):
+  - Dark purple gradient on the "Most Popular" (middle) card: `linear-gradient(145deg, #7B2FFF, #5010D0, #3D0BA8)`.
+  - Prominent **billing toggle** with `-50%` badge floating on the Yearly button.
+  - Green "Save up to X%" confirmation message when yearly is active.
+  - Each card: strikethrough original monthly price → large `Rs. X,XXX /mo` → billed yearly total → save amount in gold text.
+  - Spec chips (vCPUs / RAM / NVMe / Bandwidth) in a 2×2 grid inside each card.
+  - Feature list with circular checkmark badges, KVM virtualization tag.
+  - CTA button: white on popular card, purple on others. Trust bar below all cards.
+- **`?vps_id` / `/order/vps/:planId` Direct Links**:
+  - New `initialVpsPlanId` prop on `NewOrder` → auto-selects VPS plan + switches to yearly cycle + jumps to step 2 (OS + location).
+  - VPS plans query `enabled` condition updated to also fire when `isVpsDirectLink` is true.
+  - `OrderByVpsPlan` component reads `:planId` route param.
+  - `OrderByVpsId` component reads `?vps_id` query param (WHMCS-style).
+  - Routes registered: `/order/vps/:planId` and `/order/vps?vps_id=UUID`.
+- **Public VPS Hosting Page** (`/vps` → `artifacts/nexgohost/src/pages/public/VpsHosting.tsx`):
+  - Sticky navbar with Home / VPS Hosting / Order links + Login / Get Started buttons.
+  - Full-width dark gradient hero with gradient headline, trust pills, 2 CTAs.
+  - Live plan cards fetched from `/api/vps-plans` with billing toggle, save badges, spec chips, features, and "Get Started →" linking to `/order/vps/:planId`.
+  - 6-feature grid section, OS templates (6) + global locations (4) two-column panel.
+  - Animated FAQ accordion.
+  - Dark purple CTA banner + minimal footer.
+  - Registered as public route in `App.tsx`.
+
 ## Recent Changes (Session 19)
 - **Affiliate Program — Full Rebuild (Hostinger-quality)**:
   - **Schema** (`lib/db/src/schema/affiliates.ts`): Added `affiliateGroupCommissionsTable` (per-product-group commission rates), `payoutMethodEnum` (wallet/bank), extended `affiliateWithdrawalsTable` with `payoutMethod`, `accountTitle`, `accountNumber`, `bankName`. DB migrated.
