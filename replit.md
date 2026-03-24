@@ -1,5 +1,16 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 17)
+- **Order Wizard — Mobile Responsiveness + Live Order Summary Sidebar**: Full rewrite of `OrderFlow.tsx`.
+  - **Progress bar**: Wrapped in `overflow-x-auto` with `min-w-[280px]` so it scrolls horizontally on very small screens rather than wrapping.
+  - **Step 0 cards**: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` — stack vertically on mobile, 2-col on tablet, 3-col on desktop.
+  - **All buttons/inputs**: `w-full` on mobile, `sm:w-auto` or `flex-row` on wider screens. Tabs are `overflow-x-auto` scrollable with `whitespace-nowrap`.
+  - **Two-column layout**: Steps 1 & 2 (hosting/domain) use `lg:grid-cols-[1fr_300px]` — main content + sidebar. Transfer flow stays single-column.
+  - **Desktop sidebar** (`hidden lg:block`): Sticky (`top-20`) right panel with `#F8F9FA` background, border, rounded corners. Shows plan row and/or domain row each with X remove button, running total in PKR (`formatPrice()`), and purple "Continue to Checkout" CTA (disabled when cart empty).
+  - **Mobile bottom bar** (`lg:hidden fixed bottom-0`): Compact white bar with truncated item name + total + purple "Checkout" button. Main content has `pb-24` padding to avoid occlusion.
+  - **Cart state**: `selectedPlan` (in-memory + CartContext) + `cartDomain: { fullName, price }` (stored in `localStorage` under `order_wizard_domain` key). Both removed via X buttons. Removing plan calls `removeItem()` from CartContext and returns to step 1.
+  - **Domain add**: Clicking "Select" in domain search sets `cartDomain` before routing to checkout.
+
 ## Recent Changes (Session 16)
 - **Multi-step Order Flow `/order`**: New standalone public page (no auth required, no sidebar) at `artifacts/nexgohost/src/pages/public/OrderFlow.tsx`. Registered as a flat route in `App.tsx`.
   - **Step 1 — Choose Service**: 3 big cards (Hosting Services, Register a Domain, Transfer a Domain) with icons, highlights, and CTA buttons.
