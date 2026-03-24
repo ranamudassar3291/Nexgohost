@@ -74,7 +74,7 @@ export default function Credits() {
     const amt = parseFloat(amount);
     setAmountError("");
     if (!amount || isNaN(amt)) { setAmountError("Please enter an amount."); return; }
-    if (amt < 100) { setAmountError("Minimum deposit is Rs. 100."); return; }
+    if (amt < 270) { setAmountError("Minimum deposit is Rs. 270."); return; }
     if (amt > 100000) { setAmountError("Maximum deposit is Rs. 1,00,000."); return; }
     depositMutation.mutate(amt);
   };
@@ -158,8 +158,8 @@ export default function Credits() {
               type="number"
               value={amount}
               onChange={e => { setAmount(e.target.value); setAmountError(""); }}
-              placeholder="Enter amount (min 100)"
-              min={100}
+              placeholder="Enter amount (min Rs. 270)"
+              min={270}
               max={100000}
               className="w-full pl-12 pr-4 py-3 rounded-xl border border-input bg-background text-[14px] font-semibold focus:outline-none transition-all"
               onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}

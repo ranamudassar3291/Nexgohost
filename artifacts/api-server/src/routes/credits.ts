@@ -35,8 +35,8 @@ router.post("/my/credits/generate-invoice", authenticate, async (req: AuthReques
     const userId = req.user!.userId;
     const { amount } = req.body || {};
     const amt = parseFloat(amount);
-    if (isNaN(amt) || amt < 100 || amt > 100000) {
-      res.status(400).json({ error: "Amount must be between Rs. 100 and Rs. 1,00,000" }); return;
+    if (isNaN(amt) || amt < 270 || amt > 100000) {
+      res.status(400).json({ error: "Minimum deposit is Rs. 270. Maximum is Rs. 1,00,000." }); return;
     }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }

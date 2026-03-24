@@ -159,8 +159,22 @@ async function handleCheckout(req: AuthRequest, res: any) {
       baseAmount = Number(plan.price) * (months === 1 ? 1 : months);
     }
 
+    // Free domain TLD enforcement: only allow Rs. 0 if TLD is in the plan's eligible list
+    const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+    const planFreeTlds: string[] = (plan as any).freeDomainTlds ?? [];
+    const effectiveFreeTlds = planFreeTlds.length > 0 ? planFreeTlds : DEFAULT_FREE_TLDS;
+    let effectiveFreeDomain = freeDomain;
+    if (effectiveFreeDomain && domain && registerDomain && !transferDomain) {
+      const domTld = domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : "";
+      if (!effectiveFreeTlds.includes(domTld)) {
+        effectiveFreeDomain = false;
+      }
+    }
+    if (effectiveFreeDomain && cycle !== "yearly") effectiveFreeDomain = false;
+    if (effectiveFreeDomain && !(plan as any).freeDomainEnabled) effectiveFreeDomain = false;
+
     // Domain add-on amount: look up authoritative TLD price for transfers; 0 for free-domain-eligible registrations
-    let domainAddon = freeDomain ? 0 : (typeof clientDomainAmount === "number" ? clientDomainAmount : 0);
+    let domainAddon = effectiveFreeDomain ? 0 : (typeof clientDomainAmount === "number" ? clientDomainAmount : 0);
     if (transferDomain && domain && domain.includes(".")) {
       const tld = domain.slice(domain.indexOf(".")).toLowerCase();
       const [tldRow] = await db.select().from(domainExtensionsTable)
@@ -207,7 +221,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     const noteParts: string[] = [];
     if (promoDetails) noteParts.push(`Promo: ${promoDetails.code} (-${promoDetails.discountPercent}%)`);
     if (cycle !== "monthly") noteParts.push(`Billing: ${cycle}`);
-    if (freeDomain && domain) noteParts.push(`Free domain: ${domain}`);
+    if (effectiveFreeDomain && domain) noteParts.push(`Free domain: ${domain}`);
     else if (domain && transferDomain) noteParts.push(`Transfer: ${domain}`);
     else if (domain) noteParts.push(`Domain: ${domain}`);
     const notes = noteParts.join(", ");
@@ -233,7 +247,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     // If the plan offers a free domain with yearly billing, and the user didn't claim one now,
     // mark freeDomainAvailable so they can claim it from the dashboard later.
     const isFreeDomainEligible = (plan as any).freeDomainEnabled === true && cycle === "yearly";
-    const freeDomainClaimed = freeDomain && (registerDomain || false) && !transferDomain;
+    const freeDomainClaimed = effectiveFreeDomain && (registerDomain || false) && !transferDomain;
     const shouldSetFreeDomainAvailable = isFreeDomainEligible && !freeDomainClaimed;
 
     const [service] = await db.insert(hostingServicesTable).values({
@@ -267,7 +281,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       const domDesc = transferDomain ? `Domain Transfer: ${domain}` : `Domain Registration: ${domain}`;
       invoiceItems.push({ description: domDesc, quantity: 1, unitPrice: domainAddon, total: domainAddon });
     }
-    if (freeDomain && domain) {
+    if (effectiveFreeDomain && domain) {
       invoiceItems.push({
         description: `Domain Registration: ${domain} (FREE with yearly plan)`,
         quantity: 1,
@@ -473,7 +487,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       summary: {
         packageName: plan.name,
         domain: domain || null,
-        freeDomain: freeDomain && domain ? true : false,
+        freeDomain: effectiveFreeDomain && domain ? true : false,
         baseAmount,
         domainAmount: domainAddon,
         discountAmount: Number(discountAmount.toFixed(2)),

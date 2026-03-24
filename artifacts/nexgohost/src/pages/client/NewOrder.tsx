@@ -534,7 +534,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // /order/add/:id — auto-select plan + yearly cycle + skip to domain step
   useEffect(() => {
     if (!initialPackageId || allPlans.length === 0 || selectedPlan) return;
-    const plan = allPlans.find(p => p.id === initialPackageId);
+    const plan = allPlans.find((p, idx) => p.id === initialPackageId || String(idx + 1) === initialPackageId);
     if (!plan) {
       setDirectLinkError(`Package "${initialPackageId}" was not found or is no longer available.`);
       setDirectLinkReady(true);
@@ -1318,9 +1318,11 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                     </div>
                     <p className="text-[12.5px] text-green-700 leading-relaxed">
                       Your yearly plan includes one free domain registration.
-                      {selectedPlan?.freeDomainTlds && selectedPlan.freeDomainTlds.length > 0
-                        ? ` Available extensions: ${selectedPlan.freeDomainTlds.join(", ")}`
-                        : " Choose any available extension below."}
+                      {(() => {
+                        const _planTlds = selectedPlan?.freeDomainTlds ?? [];
+                        const _effTlds = _planTlds.length > 0 ? _planTlds : [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+                        return ` Eligible extensions: ${_effTlds.join(", ")}`;
+                      })()}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -1383,11 +1385,14 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                 <ArrowLeft size={13}/> Change option
               </button>
               {freeDomainClaimed ? (
-                <div className="flex items-center gap-2 p-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-[12.5px] font-semibold text-green-700">
-                  <Gift size={14}/> Free domain — search below to claim it at no charge!
-                  {selectedPlan?.freeDomainTlds && selectedPlan.freeDomainTlds.length > 0 && (
-                    <span className="ml-1 text-green-600 font-normal">Eligible: {selectedPlan.freeDomainTlds.join(", ")}</span>
-                  )}
+                <div className="flex flex-wrap items-start gap-2 p-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-[12.5px] font-semibold text-green-700">
+                  <Gift size={14} className="shrink-0 mt-0.5"/> 
+                  <span className="flex-1">
+                    Free domain — search below to claim it at no charge!{" "}
+                    <span className="font-normal text-green-600">
+                      Eligible: {(() => { const _p = selectedPlan?.freeDomainTlds ?? []; return (_p.length > 0 ? _p : [".com",".net",".org",".pk",".net.pk",".org.pk",".co"]).join(", "); })()}
+                    </span>
+                  </span>
                 </div>
               ) : freeDomainEligible ? (
                 <div className="flex items-center gap-2 p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-700">
@@ -1412,20 +1417,26 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
               {domError && <p className="text-[13px] text-red-500 mb-3 flex items-center gap-1.5"><AlertCircle size={13}/> {domError}</p>}
               {domChecking && <div className="text-center py-6"><Loader2 size={20} className="animate-spin" style={{ color: freeDomainClaimed ? "#16a34a" : P }}/></div>}
               {domResults && !domChecking && (() => {
-                const freeTlds = selectedPlan?.freeDomainTlds ?? [];
+                const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+                const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
+                const effectiveFreeTlds = planFreeTlds.length > 0 ? planFreeTlds : DEFAULT_FREE_TLDS;
                 const allResults = domResults.filter(r => r.registrationPrice > 0);
-                const visibleResults = freeDomainClaimed && freeTlds.length > 0
-                  ? allResults.filter(r => freeTlds.includes(r.tld))
-                  : allResults.slice(0, 8);
+                const visibleResults = allResults.slice(0, 8);
                 return (
                   <div className="space-y-2">
+                    {freeDomainClaimed && (
+                      <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-green-50 border border-green-200 mb-3">
+                        <Gift size={14} className="text-green-600 shrink-0 mt-0.5"/>
+                        <p className="text-[12px] text-green-700 leading-relaxed">
+                          <span className="font-bold">Free Domain Offer:</span> Extensions eligible at Rs. 0 — <span className="font-semibold">{effectiveFreeTlds.join(", ")}</span>. Other extensions are available at their regular price.
+                        </p>
+                      </div>
+                    )}
                     {visibleResults.length === 0 && (
-                      <p className="text-[13px] text-gray-400 text-center py-4">
-                        No results for the eligible extensions ({freeTlds.join(", ")}). Try a different name.
-                      </p>
+                      <p className="text-[13px] text-gray-400 text-center py-4">No results found. Try a different name.</p>
                     )}
                     {visibleResults.map(r => {
-                      const isFreeExt = freeDomainClaimed && (freeTlds.length === 0 || freeTlds.includes(r.tld));
+                      const isFreeExt = freeDomainClaimed && effectiveFreeTlds.includes(r.tld);
                       return (
                         <div key={r.tld}
                           className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
@@ -1436,6 +1447,11 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                           <div className="flex items-center gap-0.5 flex-1 min-w-0">
                             <span className="text-[14px] font-bold text-gray-900">{searched}</span>
                             <span className="text-[14px] font-bold" style={{ color: isFreeExt ? "#16a34a" : P }}>{r.tld}</span>
+                            {freeDomainClaimed && (
+                              <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFreeExt ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                                {isFreeExt ? "Free Eligible" : "Paid"}
+                              </span>
+                            )}
                           </div>
                           <div className="shrink-0">
                             {r.available
@@ -1601,10 +1617,15 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                     </p>
                     {isDomFree && (
                       <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1 font-semibold">
-                        <Gift size={10}/> Included with your hosting plan
+                        <Gift size={10}/> Selected extension ({cartDomain.fullName.includes(".") ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")) : ""}) is eligible for your Free Domain offer
                       </p>
                     )}
-                    {!isDomFree && cartDomain.mode === "register" && (
+                    {!isDomFree && freeDomainEligible && freeDomainClaimed && cartDomain.mode === "register" && (
+                      <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-semibold">
+                        <AlertCircle size={10}/> Selected extension ({cartDomain.fullName.includes(".") ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")) : ""}) is not included in the Free Domain offer
+                      </p>
+                    )}
+                    {!isDomFree && cartDomain.mode === "register" && !freeDomainClaimed && (
                       <p className="text-[11px] text-gray-400 mt-1">Renewal price shown during checkout annually.</p>
                     )}
                   </div>
