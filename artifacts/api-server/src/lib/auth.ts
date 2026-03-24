@@ -8,8 +8,35 @@ export function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
-export function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
+  if (!hash) return false;
+
+  // Standard bcrypt ($2a$ or $2b$ — Node.js native)
+  if (hash.startsWith("$2a$") || hash.startsWith("$2b$")) {
+    return bcrypt.compare(password, hash);
+  }
+  // WHMCS PHP bcrypt: $2y$ is PHP's bcrypt — identical to $2b$ in content
+  if (hash.startsWith("$2y$")) {
+    return bcrypt.compare(password, hash.replace("$2y$", "$2b$"));
+  }
+  // WHMCS legacy MD5 double-hash: md5(md5(password))
+  // Stored during import as "whmcs_md5:<32-char-hex>"
+  if (hash.startsWith("whmcs_md5:")) {
+    const { createHash } = await import("crypto");
+    const md5Hash = hash.slice(10); // strip prefix
+    const inner = createHash("md5").update(password).digest("hex");
+    const outer = createHash("md5").update(inner).digest("hex");
+    if (outer === md5Hash) return true;
+    // Also try single md5 (some WHMCS installs)
+    const single = createHash("md5").update(password).digest("hex");
+    return single === md5Hash;
+  }
+  // Try bcrypt as last resort (handles any $2* variant we haven't caught)
+  try {
+    return await bcrypt.compare(password, hash);
+  } catch {
+    return false;
+  }
 }
 
 export function signToken(payload: { userId: string; role: string; email: string }): string {
