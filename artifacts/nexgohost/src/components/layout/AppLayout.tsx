@@ -56,6 +56,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "Product Groups",     href: "/admin/product-groups",     icon: (() => null) as any },
       { name: "Affiliates",         href: "/admin/affiliates",         icon: (() => null) as any },
       { name: "Domain Transfers",   href: "/admin/domain-transfers",   icon: (() => null) as any },
+      { name: "Credit Management",  href: "/admin/credits",            icon: (() => null) as any },
     ],
   },
   {

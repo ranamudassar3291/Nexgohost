@@ -56,6 +56,7 @@ import CronLogs from "@/pages/admin/CronLogs";
 import ServerLogs from "@/pages/admin/ServerLogs";
 import AdminAffiliates from "@/pages/admin/Affiliates";
 import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
+import AdminCredits from "@/pages/admin/Credits";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -345,6 +346,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/domain-transfers">
         <AdminPage><AdminDomainTransfers /></AdminPage>
+      </Route>
+      <Route path="/admin/credits">
+        <AdminPage><AdminCredits /></AdminPage>
       </Route>
 
       {/* ── OAuth callback — public ── */}

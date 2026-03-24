@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Users, Link2, TrendingUp, DollarSign, Copy, Check, ExternalLink,
-  AlertCircle, Loader2, Share2, Gift, ArrowDownCircle, Clock,
+  AlertCircle, Loader2, Share2, Gift, ArrowDownCircle, Clock, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,9 @@ export default function Affiliate() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawMsg, setWithdrawMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferMsg, setTransferMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const baseUrl = window.location.origin;
 
@@ -96,6 +99,24 @@ export default function Affiliate() {
       setWithdrawMsg({ type: "err", text: e.message || "Failed to submit withdrawal." });
     } finally {
       setWithdrawing(false);
+    }
+  };
+
+  const transferToWallet = async () => {
+    setTransferring(true);
+    setTransferMsg(null);
+    try {
+      const res = await apiFetch("/api/affiliate/transfer-to-wallet", {
+        method: "POST",
+        body: JSON.stringify({ amount: parseFloat(transferAmount) }),
+      });
+      setTransferMsg({ type: "ok", text: `Rs. ${parseFloat(res.transferred).toFixed(0)} transferred to your wallet instantly!` });
+      setTransferAmount("");
+      loadData();
+    } catch (e: any) {
+      setTransferMsg({ type: "err", text: e.message || "Failed to transfer." });
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -213,11 +234,54 @@ export default function Affiliate() {
         <p className="text-xs text-muted-foreground">Commissions will be paid to this PayPal address once approved by the admin.</p>
       </div>
 
+      {/* Transfer to Wallet (instant) */}
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Wallet size={18} className="text-primary" />
+          <div>
+            <h2 className="font-semibold text-foreground">Transfer to Wallet</h2>
+            <p className="text-xs text-muted-foreground">Instantly move earnings to your account wallet — use for any service.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-secondary/40 rounded-xl px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Withdrawable balance:</span>
+          <span className="font-bold text-blue-400">{formatPrice(approvedBalance)}</span>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            min="100"
+            step="1"
+            placeholder="Amount to transfer (min Rs. 100)"
+            value={transferAmount}
+            onChange={e => setTransferAmount(e.target.value)}
+            className="bg-background/60 border-border"
+            disabled={transferring}
+          />
+          <Button
+            onClick={transferToWallet}
+            disabled={transferring || !transferAmount || parseFloat(transferAmount) < 100 || parseFloat(transferAmount) > approvedBalance}
+            className="shrink-0 gap-1 bg-primary"
+          >
+            {transferring ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+            Transfer
+          </Button>
+        </div>
+        {transferMsg && (
+          <p className={`text-xs font-medium ${transferMsg.type === "ok" ? "text-green-400" : "text-red-400"}`}>
+            {transferMsg.text}
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Minimum transfer: Rs. 100. Earnings are added to your wallet instantly.
+        </p>
+      </div>
+
       {/* Withdrawal request */}
       <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
         <div className="flex items-center gap-2">
           <ArrowDownCircle size={18} className="text-primary" />
-          <h2 className="font-semibold text-foreground">Request Withdrawal</h2>
+          <h2 className="font-semibold text-foreground">Request PayPal Withdrawal</h2>
         </div>
         <div className="flex items-center gap-3 bg-secondary/40 rounded-xl px-4 py-3 text-sm">
           <span className="text-muted-foreground">Withdrawable balance:</span>

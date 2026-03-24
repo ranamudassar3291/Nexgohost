@@ -27,9 +27,10 @@ interface CreditTransaction {
 const TX_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string; direction: "in" | "out" }> = {
   affiliate_payout: { label: "Affiliate Payout",   icon: Gift,          color: "text-emerald-600", bg: "bg-emerald-50",  direction: "in"  },
   invoice_payment:  { label: "Invoice Payment",    icon: ShoppingBag,   color: "text-orange-500",  bg: "bg-orange-50",   direction: "out" },
-  admin_add:        { label: "Credits Added",      icon: Plus,          color: "text-violet-600",  bg: "bg-violet-50",   direction: "in"  },
+  admin_add:        { label: "Bonus Credit",       icon: Plus,          color: "text-violet-600",  bg: "bg-violet-50",   direction: "in"  },
   admin_deduct:     { label: "Credits Deducted",   icon: ArrowUpRight,  color: "text-red-500",     bg: "bg-red-50",      direction: "out" },
   refund:           { label: "Refund",             icon: ArrowDownLeft, color: "text-emerald-600", bg: "bg-emerald-50",  direction: "in"  },
+  deposit:          { label: "Wallet Deposit",     icon: ArrowDownLeft, color: "text-emerald-600", bg: "bg-emerald-50",  direction: "in"  },
 };
 
 const PRESET_AMOUNTS = [500, 1000, 2500, 5000];
@@ -55,7 +56,7 @@ export default function Credits() {
   const totalOut = txs.filter(t => TX_CONFIG[t.type]?.direction === "out").reduce((s, t) => s + parseFloat(t.amount), 0);
 
   const depositMutation = useMutation({
-    mutationFn: (amt: number) => apiFetch("/api/my/invoices/deposit", {
+    mutationFn: (amt: number) => apiFetch("/api/my/credits/generate-invoice", {
       method: "POST",
       body: JSON.stringify({ amount: amt }),
     }),

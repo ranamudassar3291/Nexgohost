@@ -340,6 +340,60 @@ router.post("/affiliate/withdraw", authenticate, async (req: AuthRequest, res) =
   }
 });
 
+// ── Client: Instantly transfer affiliate earnings to wallet ───────────────────
+router.post("/affiliate/transfer-to-wallet", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { amount } = req.body || {};
+    const requested = parseFloat(amount);
+
+    if (!amount || isNaN(requested) || requested <= 0) {
+      res.status(400).json({ error: "Invalid amount" }); return;
+    }
+    if (requested < 100) {
+      res.status(400).json({ error: "Minimum transfer amount is Rs. 100" }); return;
+    }
+
+    const affiliate = await getOrCreateAffiliate(userId);
+    if (!affiliate) { res.status(404).json({ error: "Affiliate account not found" }); return; }
+
+    const totalEarnings = parseFloat(affiliate.totalEarnings ?? "0");
+    const pendingEarnings = parseFloat(affiliate.pendingEarnings ?? "0");
+    const paidEarnings = parseFloat(affiliate.paidEarnings ?? "0");
+    const approvedBalance = totalEarnings - pendingEarnings - paidEarnings;
+
+    if (requested > approvedBalance + 0.001) {
+      res.status(400).json({ error: `Insufficient balance. Available: Rs. ${approvedBalance.toFixed(2)}` }); return;
+    }
+
+    const [user] = await db.select({ creditBalance: usersTable.creditBalance }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const newCreditBalance = (parseFloat(user.creditBalance ?? "0") + requested).toFixed(2);
+    const newPaidEarnings = (paidEarnings + requested).toFixed(2);
+
+    await Promise.all([
+      db.update(usersTable)
+        .set({ creditBalance: newCreditBalance, updatedAt: new Date() })
+        .where(eq(usersTable.id, userId)),
+      db.update(affiliatesTable)
+        .set({ paidEarnings: newPaidEarnings })
+        .where(eq(affiliatesTable.id, affiliate.id)),
+      db.insert(creditTransactionsTable).values({
+        userId,
+        amount: String(requested.toFixed(2)),
+        type: "affiliate_payout",
+        description: `Affiliate earnings transferred to wallet`,
+      }),
+    ]);
+
+    res.json({ success: true, newBalance: newCreditBalance, transferred: requested.toFixed(2) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ── Admin: List all withdrawals ────────────────────────────────────────────────
 // IMPORTANT: Must be before /admin/affiliates/:id
 router.get("/admin/affiliates/withdrawals/all", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
