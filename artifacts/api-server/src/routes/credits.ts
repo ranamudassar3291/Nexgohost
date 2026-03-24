@@ -1,8 +1,18 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, creditTransactionsTable, invoicesTable } from "@workspace/db/schema";
+import { usersTable, creditTransactionsTable, invoicesTable, settingsTable } from "@workspace/db/schema";
 import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
+
+async function getWalletLimits(): Promise<{ min: number; max: number }> {
+  const rows = await db.select().from(settingsTable);
+  const map: Record<string, string> = {};
+  for (const r of rows) if (r.key && r.value) map[r.key] = r.value;
+  return {
+    min: Number(map["wallet_min_deposit"] ?? "270"),
+    max: Number(map["wallet_max_deposit"] ?? "100000"),
+  };
+}
 
 const router = Router();
 
@@ -35,8 +45,9 @@ router.post("/my/credits/generate-invoice", authenticate, async (req: AuthReques
     const userId = req.user!.userId;
     const { amount } = req.body || {};
     const amt = parseFloat(amount);
-    if (isNaN(amt) || amt < 270 || amt > 100000) {
-      res.status(400).json({ error: "Minimum deposit is Rs. 270. Maximum is Rs. 1,00,000." }); return;
+    const limits = await getWalletLimits();
+    if (isNaN(amt) || amt < limits.min || amt > limits.max) {
+      res.status(400).json({ error: `Minimum deposit is Rs. ${limits.min.toLocaleString()}. Maximum is Rs. ${limits.max.toLocaleString()}.` }); return;
     }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
@@ -44,11 +55,12 @@ router.post("/my/credits/generate-invoice", authenticate, async (req: AuthReques
     invoiceCounter++;
     const invoiceNumber = `DEP-${Date.now()}-${invoiceCounter}`;
     const due = new Date(); due.setDate(due.getDate() + 7);
-    const items = [{ description: "Account Credit Deposit", quantity: 1, unitPrice: amt, total: amt }];
+    const items = [{ description: "Account Deposit", quantity: 1, unitPrice: amt, total: amt }];
 
     const [invoice] = await db.insert(invoicesTable).values({
       invoiceNumber,
       clientId: userId,
+      invoiceType: "deposit",
       amount: String(amt),
       tax: "0",
       total: String(amt),

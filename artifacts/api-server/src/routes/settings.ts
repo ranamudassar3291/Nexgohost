@@ -7,6 +7,22 @@ import { desc } from "drizzle-orm";
 
 const router = Router();
 
+// GET /api/settings/wallet — public endpoint: wallet deposit limits
+router.get("/settings/wallet", async (_req, res) => {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string | null> = {};
+    for (const r of rows) map[r.key] = r.value;
+    res.json({
+      wallet_min_deposit: Number(map["wallet_min_deposit"] ?? "270"),
+      wallet_max_deposit: Number(map["wallet_max_deposit"] ?? "100000"),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load wallet settings" });
+  }
+});
+
 // GET /api/admin/settings — return all email config (password masked)
 router.get("/admin/settings", authenticate, requireAdmin, async (_req, res) => {
   try {
@@ -28,6 +44,8 @@ router.get("/admin/settings", authenticate, requireAdmin, async (_req, res) => {
       google_allowed_domains: map["google_allowed_domains"]  ?? "",
       google_configured:      !!(map["google_client_id"] && map["google_client_secret"]),
       email_verification_enabled: map["email_verification_enabled"] === undefined ? true : map["email_verification_enabled"] === "true",
+      wallet_min_deposit: Number(map["wallet_min_deposit"] ?? "270"),
+      wallet_max_deposit: Number(map["wallet_max_deposit"] ?? "100000"),
     });
   } catch (err) {
     console.error(err);
@@ -43,6 +61,7 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
       smtp_from, smtp_from_name, smtp_encryption,
       google_client_id, google_client_secret, google_allowed_domains,
       email_verification_enabled,
+      wallet_min_deposit, wallet_max_deposit,
     } = req.body;
 
     const pairs: { key: string; value: string }[] = [];
@@ -62,6 +81,8 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
     }
     if (google_allowed_domains !== undefined) pairs.push({ key: "google_allowed_domains", value: google_allowed_domains });
     if (email_verification_enabled !== undefined) pairs.push({ key: "email_verification_enabled", value: String(email_verification_enabled) });
+    if (wallet_min_deposit !== undefined) pairs.push({ key: "wallet_min_deposit", value: String(Number(wallet_min_deposit)) });
+    if (wallet_max_deposit !== undefined) pairs.push({ key: "wallet_max_deposit", value: String(Number(wallet_max_deposit)) });
 
     for (const pair of pairs) {
       await db

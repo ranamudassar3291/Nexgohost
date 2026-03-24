@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight, MailCheck } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight, MailCheck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -16,7 +16,11 @@ async function apiFetch(url: string, opts?: RequestInit) {
 }
 
 interface Me { twoFactorEnabled: boolean; emailVerified: boolean; email: string; }
-interface PlatformSettings { email_verification_enabled: boolean; }
+interface PlatformSettings {
+  email_verification_enabled: boolean;
+  wallet_min_deposit: number;
+  wallet_max_deposit: number;
+}
 
 export default function AdminSettings() {
   const { toast } = useToast();
@@ -99,6 +103,30 @@ export default function AdminSettings() {
   };
 
   const is2FAEnabled = me?.twoFactorEnabled;
+
+  // ── Wallet Settings ───────────────────────────────────────────────────────
+  const [walletMin, setWalletMin] = useState<string>("");
+  const [walletMax, setWalletMax] = useState<string>("");
+  const [savingWallet, setSavingWallet] = useState(false);
+
+  // Populate wallet fields from platform settings
+  const walletMinValue = walletMin !== "" ? walletMin : String(platformSettings?.wallet_min_deposit ?? 270);
+  const walletMaxValue = walletMax !== "" ? walletMax : String(platformSettings?.wallet_max_deposit ?? 100000);
+
+  const handleSaveWallet = async () => {
+    const min = Number(walletMinValue);
+    const max = Number(walletMaxValue);
+    if (isNaN(min) || min < 1) { toast({ title: "Invalid minimum", description: "Minimum deposit must be at least 1", variant: "destructive" }); return; }
+    if (isNaN(max) || max <= min) { toast({ title: "Invalid maximum", description: "Maximum must be greater than minimum", variant: "destructive" }); return; }
+    setSavingWallet(true);
+    try {
+      await apiFetch("/api/admin/settings", { method: "PUT", body: JSON.stringify({ wallet_min_deposit: min, wallet_max_deposit: max }) });
+      await refetchPlatformSettings();
+      toast({ title: "Wallet limits saved", description: `Min: Rs. ${min.toLocaleString()}, Max: Rs. ${max.toLocaleString()}` });
+    } catch (err: any) {
+      toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+    } finally { setSavingWallet(false); }
+  };
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -276,6 +304,51 @@ export default function AdminSettings() {
               <p className="text-muted-foreground">• No OTP email sent</p>
               <p className="text-muted-foreground">• Existing verified accounts are unaffected</p>
             </div>
+          </div>
+        </div>
+
+        {/* Wallet Settings */}
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-green-500/10 rounded-lg"><Wallet className="w-5 h-5 text-green-500" /></div>
+            <div>
+              <h3 className="font-semibold text-foreground">Wallet Settings</h3>
+              <p className="text-xs text-muted-foreground">Set deposit limits for client wallet top-ups</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Minimum Deposit (PKR)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">Rs.</span>
+                <Input
+                  type="number" min="1"
+                  value={walletMinValue}
+                  onChange={e => setWalletMin(e.target.value)}
+                  className="pl-10 bg-background border-border"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Clients cannot deposit less than this amount</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Maximum Deposit (PKR)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">Rs.</span>
+                <Input
+                  type="number" min="1"
+                  value={walletMaxValue}
+                  onChange={e => setWalletMax(e.target.value)}
+                  className="pl-10 bg-background border-border"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Clients cannot deposit more than this amount</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={handleSaveWallet} disabled={savingWallet} className="bg-primary hover:bg-primary/90">
+              {savingWallet ? <><Loader2 size={15} className="animate-spin mr-2"/>Saving…</> : "Save Wallet Limits"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">Current: Rs. {Number(walletMinValue).toLocaleString()} – Rs. {Number(walletMaxValue).toLocaleString()}</p>
           </div>
         </div>
 

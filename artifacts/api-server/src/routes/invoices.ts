@@ -170,7 +170,13 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
     // Auto-credit wallet if this is an "Account Deposit" invoice
     try {
       const items = (updated.items ?? []) as Array<{ description: string; total: number }>;
-      const isDeposit = items.some(it => it.description === "Account Deposit");
+      const isDeposit =
+        (updated as any).invoiceType === "deposit" ||
+        items.some(it =>
+          it.description === "Account Deposit" ||
+          it.description === "Account Credit Deposit" ||
+          it.description?.toLowerCase().includes("deposit")
+        );
       if (isDeposit) {
         const depositAmt = parseFloat(updated.total);
         const [u] = await db.select({ creditBalance: usersTable.creditBalance })

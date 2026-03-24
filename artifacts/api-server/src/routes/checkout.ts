@@ -162,7 +162,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
     // Free domain TLD enforcement — all 3 conditions must pass:
     // 1. Plan has freeDomainEnabled
     // 2. Billing cycle is yearly
-    // 3. TLD is in the plan's freeDomainTlds list OR has isFreeWithHosting=true in the TLD table
+    // 3. TLD is in the plan's freeDomainTlds list OR in DEFAULT_FREE_TLDS (fallback) OR has isFreeWithHosting=true in DB
+    const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
     let effectiveFreeDomain = freeDomain;
     if (effectiveFreeDomain && !(plan as any).freeDomainEnabled) effectiveFreeDomain = false;
     if (effectiveFreeDomain && cycle !== "yearly") effectiveFreeDomain = false;
@@ -172,10 +173,12 @@ async function handleCheckout(req: AuthRequest, res: any) {
       if (planFreeTlds.length > 0) {
         if (!planFreeTlds.includes(domTld)) effectiveFreeDomain = false;
       } else {
-        const [tldRow] = await db.select({ isFree: domainExtensionsTable.isFreeWithHosting })
-          .from(domainExtensionsTable)
-          .where(eq(domainExtensionsTable.extension, domTld)).limit(1);
-        if (!tldRow?.isFree) effectiveFreeDomain = false;
+        if (!DEFAULT_FREE_TLDS.includes(domTld)) {
+          const [tldRow] = await db.select({ isFree: domainExtensionsTable.isFreeWithHosting })
+            .from(domainExtensionsTable)
+            .where(eq(domainExtensionsTable.extension, domTld)).limit(1);
+          if (!tldRow?.isFree) effectiveFreeDomain = false;
+        }
       }
     }
 

@@ -1452,8 +1452,9 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                       <p className="text-[13px] text-gray-400 text-center py-4">No results found. Try a different name.</p>
                     )}
                     {visibleResults.map(r => {
+                      const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
                       const isFreeByPlan  = planFreeTlds.length > 0 && planFreeTlds.includes(r.tld);
-                      const isFreeByTld   = planFreeTlds.length === 0 && (r.isFreeWithHosting ?? false);
+                      const isFreeByTld   = planFreeTlds.length === 0 && (DEFAULT_FREE_TLDS.includes(r.tld) || (r.isFreeWithHosting ?? false));
                       const isFreeExt     = freeDomainClaimed && freeDomainEligible && (isFreeByPlan || isFreeByTld);
                       const domainPrice   = isFreeExt ? 0 : r.registrationPrice;
                       return (
@@ -1830,7 +1831,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // Root render
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const isFreeDom = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register";
+  const isFreeDom = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
 
   // Direct-link: show spinner while plan is being fetched + auto-selected
   if (!directLinkReady) {

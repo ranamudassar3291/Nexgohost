@@ -33,7 +33,7 @@ const TX_CONFIG: Record<string, { label: string; icon: React.ElementType; color:
   deposit:          { label: "Wallet Deposit",     icon: ArrowDownLeft, color: "text-emerald-600", bg: "bg-emerald-50",  direction: "in"  },
 };
 
-const PRESET_AMOUNTS = [500, 1000, 2500, 5000];
+const DEFAULT_PRESET_AMOUNTS = [500, 1000, 2500, 5000];
 
 export default function Credits() {
   const { formatPrice } = useCurrency();
@@ -48,6 +48,16 @@ export default function Credits() {
     queryKey: ["my-credits"],
     queryFn: () => apiFetch("/api/my/credits"),
   });
+
+  const { data: walletLimits } = useQuery<{ wallet_min_deposit: number; wallet_max_deposit: number }>({
+    queryKey: ["wallet-limits"],
+    queryFn: () => apiFetch("/api/settings/wallet"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const minDeposit = walletLimits?.wallet_min_deposit ?? 270;
+  const maxDeposit = walletLimits?.wallet_max_deposit ?? 100000;
+  const PRESET_AMOUNTS = DEFAULT_PRESET_AMOUNTS.filter(a => a >= minDeposit && a <= maxDeposit);
 
   const balance = parseFloat(data?.creditBalance ?? "0");
   const txs = data?.transactions ?? [];
@@ -74,8 +84,8 @@ export default function Credits() {
     const amt = parseFloat(amount);
     setAmountError("");
     if (!amount || isNaN(amt)) { setAmountError("Please enter an amount."); return; }
-    if (amt < 270) { setAmountError("Minimum deposit is Rs. 270."); return; }
-    if (amt > 100000) { setAmountError("Maximum deposit is Rs. 1,00,000."); return; }
+    if (amt < minDeposit) { setAmountError(`Minimum deposit is Rs. ${minDeposit.toLocaleString()}.`); return; }
+    if (amt > maxDeposit) { setAmountError(`Maximum deposit is Rs. ${maxDeposit.toLocaleString()}.`); return; }
     depositMutation.mutate(amt);
   };
 
@@ -158,9 +168,9 @@ export default function Credits() {
               type="number"
               value={amount}
               onChange={e => { setAmount(e.target.value); setAmountError(""); }}
-              placeholder="Enter amount (min Rs. 270)"
-              min={270}
-              max={100000}
+              placeholder={`Enter amount (min Rs. ${minDeposit.toLocaleString()})`}
+              min={minDeposit}
+              max={maxDeposit}
               className="w-full pl-12 pr-4 py-3 rounded-xl border border-input bg-background text-[14px] font-semibold focus:outline-none transition-all"
               onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
               onBlur={e  => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.boxShadow = ""; }}

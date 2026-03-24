@@ -12,6 +12,7 @@ export const invoicesTable = pgTable("invoices", {
   clientId: text("client_id").notNull(),
   orderId: text("order_id"),
   serviceId: text("service_id"),
+  invoiceType: text("invoice_type").default("hosting"),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   tax: numeric("tax", { precision: 10, scale: 2 }).default("0"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull(),
