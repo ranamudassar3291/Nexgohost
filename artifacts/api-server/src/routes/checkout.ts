@@ -196,7 +196,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
           expiryDate,
           status: "pending",
           autoRenew: true,
-          nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+          nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
         });
       } catch { /* non-fatal — domain may already exist */ }
     }
@@ -435,7 +435,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
         expiryDate,
         status: "pending",
         autoRenew: true,
-        nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+        nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
       });
     } catch { /* non-fatal — domain may already exist */ }
 

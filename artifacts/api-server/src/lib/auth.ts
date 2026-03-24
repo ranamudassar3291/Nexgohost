@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env["JWT_SECRET"] || "nexgohost-secret-key-change-in-production";
+const JWT_SECRET = process.env["JWT_SECRET"] || "noehost-secret-key-change-in-production";
 
 export function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);

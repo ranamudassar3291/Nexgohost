@@ -202,7 +202,7 @@ router.post("/admin/clients/:id/send-email", authenticate, requireAdmin, async (
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.params.id)).limit(1);
     if (!user) { res.status(404).json({ error: "Client not found" }); return; }
-    const { subject = "Message from Nexgohost", message = "Thank you for being our client." } = req.body;
+    const { subject = "Message from Noehost", message = "Thank you for being our client." } = req.body;
     await emailGeneric(user.email, subject, `${user.firstName} ${user.lastName}`, message).catch(console.warn);
     res.json({ success: true, message: "Email sent successfully" });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }

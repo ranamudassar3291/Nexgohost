@@ -94,7 +94,7 @@ export default function Register() {
     try {
       await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code }) });
       login(tempToken);
-      toast({ title: "Email verified!", description: "Welcome to Nexgohost." });
+      toast({ title: "Email verified!", description: "Welcome to Noehost." });
       setLocation("/client/dashboard");
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
@@ -130,10 +130,10 @@ export default function Register() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-primary to-purple-600 rounded-2xl shadow-lg shadow-primary/30 mb-4">
-            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost" className="w-9 h-9" />
+            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-9 h-9" />
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground">Create Account</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Join Nexgohost to deploy and manage your infrastructure</p>
+          <p className="text-muted-foreground mt-1 text-sm">Join Noehost to deploy and manage your infrastructure</p>
         </div>
 
         <div className="bg-card border border-border rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">

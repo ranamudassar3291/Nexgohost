@@ -540,7 +540,7 @@ export default function ClientDomains() {
             <div className="bg-card border border-border border-dashed rounded-3xl p-12 text-center">
               <ArrowRightLeft className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
               <h3 className="text-xl font-bold text-foreground">No transfer requests</h3>
-              <p className="text-muted-foreground mt-2">Initiate a domain transfer to bring your domains to Nexgohost.</p>
+              <p className="text-muted-foreground mt-2">Initiate a domain transfer to bring your domains to Noehost.</p>
               <Button onClick={() => navigate("/client/domains/transfer")} className="mt-6 bg-primary text-white gap-2">
                 <ArrowRightLeft size={16} /> Transfer a Domain
               </Button>
@@ -672,7 +672,7 @@ export default function ClientDomains() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">Nameservers</p>
-                        <p className="text-xs text-muted-foreground font-mono truncate">{md.nameservers?.[0] ?? "ns1.nexgohost.com"}</p>
+                        <p className="text-xs text-muted-foreground font-mono truncate">{md.nameservers?.[0] ?? "ns1.noehost.com"}</p>
                       </div>
                     </button>
 
@@ -1196,7 +1196,7 @@ function DnsModal({ domain, onClose, onSaved }: {
   const { toast } = useToast();
   const defaultNs = domain.nameservers?.length
     ? [...domain.nameservers, "", ""].slice(0, Math.max(domain.nameservers.length + 1, 4))
-    : ["ns1.nexgohost.com", "ns2.nexgohost.com", "", ""];
+    : ["ns1.noehost.com", "ns2.noehost.com", "", ""];
 
   const [nameservers, setNameservers] = useState<string[]>(defaultNs);
   const [saving, setSaving] = useState(false);

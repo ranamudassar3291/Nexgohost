@@ -206,7 +206,7 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
       expiryDate,
       status: "active",
       autoRenew: true,
-      nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+      nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
     }).returning();
 
     const [order] = await db.insert(ordersTable).values({
@@ -581,7 +581,7 @@ router.post("/admin/domains", authenticate, requireAdmin, async (req: AuthReques
       nextDueDate: nextDueDate ? new Date(nextDueDate) : undefined,
       status,
       autoRenew,
-      nameservers: ["ns1.nexgohost.com", "ns2.nexgohost.com"],
+      nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
     }).returning();
     res.status(201).json(formatDomain(domain, `${user.firstName} ${user.lastName}`));
   } catch (err) {

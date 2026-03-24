@@ -208,7 +208,7 @@ router.get("/auth/2fa/setup", authenticate, async (req: AuthRequest, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
     const secret = otpGenerateSecret();
-    const otpauth = await _makeTotp(secret).toURI({ label: user.email, issuer: "Nexgohost" });
+    const otpauth = await _makeTotp(secret).toURI({ label: user.email, issuer: "Noehost" });
     const qrCode = await QRCode.toDataURL(otpauth);
     // Store secret temporarily (not enabled until verified)
     await db.update(usersTable).set({ twoFactorSecret: secret, updatedAt: new Date() }).where(eq(usersTable.id, user.id));

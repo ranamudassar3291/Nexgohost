@@ -258,7 +258,7 @@ export default function EmailConfiguration() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">From Name</label>
-                  <Input value={cfg.smtp_from_name} onChange={set("smtp_from_name")} placeholder="Nexgohost" className="bg-background" />
+                  <Input value={cfg.smtp_from_name} onChange={set("smtp_from_name")} placeholder="Noehost" className="bg-background" />
                 </div>
               </div>
 
@@ -288,7 +288,7 @@ export default function EmailConfiguration() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">From Name</label>
-                  <Input value={cfg.smtp_from_name} onChange={set("smtp_from_name")} placeholder="Nexgohost" className="bg-background" />
+                  <Input value={cfg.smtp_from_name} onChange={set("smtp_from_name")} placeholder="Noehost" className="bg-background" />
                 </div>
               </div>
               <Button onClick={handleSave} disabled={saving} className="gap-2">

@@ -41,7 +41,7 @@ const FEATURES = [
 ];
 
 const TESTIMONIALS = [
-  { name: "Ahmed Khan",      role: "E-commerce Owner", rating: 5, text: "Nexgohost has been the perfect hosting partner. My store loads incredibly fast and I've had zero downtime in 2 years." },
+  { name: "Ahmed Khan",      role: "E-commerce Owner", rating: 5, text: "Noehost has been the perfect hosting partner. My store loads incredibly fast and I've had zero downtime in 2 years." },
   { name: "Sarah Johnson",   role: "Web Developer",    rating: 5, text: "The cPanel interface is clean and the support team always resolves issues within minutes. Highly recommended!" },
   { name: "Muhammad Ali",    role: "Blogger",          rating: 5, text: "Switched from another host and couldn't be happier. The value for money is unbeatable and the speed is phenomenal." },
 ];
@@ -64,7 +64,7 @@ const FAQS = [
     a: "Absolutely. Every hosting account includes a free Let's Encrypt SSL certificate. We also offer premium Comodo/RapidSSL certificates for businesses that need extended validation or wildcard coverage.",
   },
   {
-    q: "Can I migrate my existing website to Nexgohost?",
+    q: "Can I migrate my existing website to Noehost?",
     a: "Yes, we offer free website migration for all new customers. Our technical team will handle the full migration — files, databases, emails — with minimal downtime. Just open a support ticket after signing up.",
   },
   {
@@ -172,7 +172,7 @@ export default function Homepage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-primary/30">N</div>
-            <span className="font-display font-bold text-xl text-foreground">Nexgohost</span>
+            <span className="font-display font-bold text-xl text-foreground">Noehost</span>
           </div>
 
           <nav className="hidden md:flex items-center gap-6">
@@ -431,7 +431,7 @@ export default function Homepage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium mb-4">
-              <Star size={14} /> Why Nexgohost
+              <Star size={14} /> Why Noehost
             </div>
             <h2 className="text-4xl font-display font-bold text-foreground mb-4">Everything You Need to Succeed Online</h2>
             <p className="text-muted-foreground text-lg max-w-xl mx-auto">Enterprise-grade infrastructure at prices that work for everyone.</p>
@@ -502,7 +502,7 @@ export default function Homepage() {
       <section className="py-20 px-4 sm:px-6 bg-gradient-to-r from-primary/20 via-purple-600/15 to-transparent border-y border-primary/10">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl font-display font-bold text-foreground mb-4">Ready to Launch Your Website?</h2>
-          <p className="text-muted-foreground text-lg mb-8">Join 50,000+ customers who trust Nexgohost for their online presence.</p>
+          <p className="text-muted-foreground text-lg mb-8">Join 50,000+ customers who trust Noehost for their online presence.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="bg-primary hover:bg-primary/90 text-lg px-8 shadow-lg shadow-primary/25"
               onClick={() => setLocation("/register")}>
@@ -523,7 +523,7 @@ export default function Homepage() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-lg shadow-primary/20">N</div>
-                <span className="font-display font-bold text-xl">Nexgohost</span>
+                <span className="font-display font-bold text-xl">Noehost</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">Pakistan's premier web hosting provider with enterprise-grade infrastructure and 24/7 expert support.</p>
             </div>
@@ -548,7 +548,7 @@ export default function Homepage() {
             ))}
           </div>
           <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Nexgohost. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Noehost. All rights reserved.</p>
             <div className="flex gap-6">
               <button className="hover:text-foreground transition-colors">Privacy Policy</button>
               <button className="hover:text-foreground transition-colors">Terms of Service</button>

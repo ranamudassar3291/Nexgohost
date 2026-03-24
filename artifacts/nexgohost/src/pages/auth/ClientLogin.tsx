@@ -159,7 +159,7 @@ export default function ClientLogin() {
 
           <div className="relative z-10 flex flex-col items-center mb-8">
             <div className="relative mb-4">
-              <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost" className="w-16 h-16 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+              <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-16 h-16 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
               <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center border-2 border-background">
                 <UserCheck size={12} className="text-white" />
               </div>

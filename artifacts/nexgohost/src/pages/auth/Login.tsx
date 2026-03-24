@@ -89,7 +89,7 @@ export default function Login() {
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-600/20 rounded-full blur-[60px]" />
 
           <div className="relative z-10 flex flex-col items-center mb-8">
-            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost" className="w-16 h-16 mb-4 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-16 h-16 mb-4 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
             <h1 className="text-3xl font-display font-bold text-foreground text-center">Welcome Back</h1>
             <p className="text-muted-foreground text-center mt-2">Sign in to manage your hosting</p>
           </div>
@@ -101,7 +101,7 @@ export default function Login() {
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-foreground/80 ml-1">Email Address</label>
                   <Input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="admin@nexgohost.com"
+                    placeholder="admin@noehost.com"
                     className="bg-background/50 border-white/10 focus:border-primary h-12 rounded-xl text-base" />
                 </div>
                 <div className="space-y-1">

@@ -180,7 +180,7 @@ export default function AdminClientDetail() {
                   <Edit2 size={13} /> Edit
                 </Button>
                 <Button size="sm" variant="outline" className="gap-1.5 text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
-                  onClick={() => action(`/api/admin/clients/${id}/send-email`, "POST", { subject: "Message from Nexgohost", message: "Hello!" })}>
+                  onClick={() => action(`/api/admin/clients/${id}/send-email`, "POST", { subject: "Message from Noehost", message: "Hello!" })}>
                   <Send size={13} /> Email
                 </Button>
                 {client.status === "active" ? (

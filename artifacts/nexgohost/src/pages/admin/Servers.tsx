@@ -310,11 +310,11 @@ export default function Servers() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">NS1</label>
-                      <Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" />
+                      <Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.noehost.com" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">NS2</label>
-                      <Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" />
+                      <Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.noehost.com" />
                     </div>
                   </div>
                 )}
@@ -331,7 +331,7 @@ export default function Servers() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">Hostname *</label>
-                      <Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.nexgohost.com" />
+                      <Input value={serverForm.hostname} onChange={setS("hostname")} placeholder="server01.noehost.com" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">IP Address</label>
@@ -370,8 +370,8 @@ export default function Servers() {
 
                 {!is20i && (
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.nexgohost.com" /></div>
-                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.nexgohost.com" /></div>
+                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS1</label><Input value={serverForm.ns1} onChange={setS("ns1")} placeholder="ns1.noehost.com" /></div>
+                    <div className="space-y-1.5"><label className="text-sm font-medium text-foreground/80">NS2</label><Input value={serverForm.ns2} onChange={setS("ns2")} placeholder="ns2.noehost.com" /></div>
                   </div>
                 )}
 

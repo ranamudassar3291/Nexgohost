@@ -72,7 +72,7 @@ export default function DomainTransfer() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">Domain Transfer</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Transfer your existing domain to Nexgohost</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Transfer your existing domain to Noehost</p>
       </div>
 
       {/* Progress steps */}

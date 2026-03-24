@@ -125,7 +125,7 @@ export function AppLayout({ children, role }: LayoutProps) {
           N
         </div>
         <div>
-          <h1 className="font-display font-bold text-xl text-foreground tracking-tight">Nexgohost</h1>
+          <h1 className="font-display font-bold text-xl text-foreground tracking-tight">Noehost</h1>
           <p className="text-[10px] text-primary font-semibold tracking-widest uppercase">
             {role === "admin" ? "Admin Portal" : "Client Portal"}
           </p>
@@ -242,7 +242,7 @@ export function AppLayout({ children, role }: LayoutProps) {
       <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-xs">N</div>
-          <span className="font-display font-bold text-lg text-foreground">Nexgohost</span>
+          <span className="font-display font-bold text-lg text-foreground">Noehost</span>
         </div>
         <div className="flex items-center gap-1">
           {role === "client" && (

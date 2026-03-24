@@ -184,13 +184,13 @@ export default function InvoiceDetail() {
                   <Building2 size={20} className="text-white" />
                 </div>
                 <div>
-                  <div className="font-bold text-foreground text-lg">Nexgohost</div>
+                  <div className="font-bold text-foreground text-lg">Noehost</div>
                   <div className="text-xs text-muted-foreground">Professional Hosting Solutions</div>
                 </div>
               </div>
               <div className="text-sm text-muted-foreground space-y-0.5">
-                <p>billing@nexgohost.com</p>
-                <p>support@nexgohost.com</p>
+                <p>billing@noehost.com</p>
+                <p>support@noehost.com</p>
               </div>
             </div>
             <div className="text-right">
@@ -398,7 +398,7 @@ export default function InvoiceDetail() {
 
         {/* Footer */}
         <div className="border-t border-border/50 p-5 text-center text-xs text-muted-foreground">
-          Thank you for your business! Questions? Contact billing@nexgohost.com | nexgohost.com
+          Thank you for your business! Questions? Contact billing@noehost.com | noehost.com
         </div>
       </div>
     </motion.div>

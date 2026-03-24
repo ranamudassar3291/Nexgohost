@@ -37,7 +37,7 @@ const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder:
   ],
   bank_transfer: [
     { key: "bankName",       label: "Bank Name",       placeholder: "Meezan Bank / HBL / UBL" },
-    { key: "accountTitle",   label: "Account Title",   placeholder: "Nexgohost (Pvt) Ltd" },
+    { key: "accountTitle",   label: "Account Title",   placeholder: "Noehost (Pvt) Ltd" },
     { key: "accountNumber",  label: "Account Number",  placeholder: "0123456789" },
     { key: "iban",           label: "IBAN",            placeholder: "PK00XXXX0000000000000000" },
     { key: "swiftCode",      label: "SWIFT/BIC Code",  placeholder: "MEZNPKKA (optional)" },

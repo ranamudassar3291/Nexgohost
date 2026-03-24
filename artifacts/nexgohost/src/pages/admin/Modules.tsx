@@ -76,7 +76,7 @@ export default function Modules() {
       </div>
 
       <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 text-sm text-foreground/70">
-        Modules connect Nexgohost to your hosting control panels. Configure your server credentials under <button onClick={() => setLocation("/admin/servers")} className="text-primary hover:underline font-medium">Servers</button>, then the selected module handles account provisioning automatically when orders are approved.
+        Modules connect Noehost to your hosting control panels. Configure your server credentials under <button onClick={() => setLocation("/admin/servers")} className="text-primary hover:underline font-medium">Servers</button>, then the selected module handles account provisioning automatically when orders are approved.
       </div>
 
       <div className="grid gap-5">

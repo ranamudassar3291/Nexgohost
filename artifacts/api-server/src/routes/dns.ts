@@ -121,7 +121,7 @@ router.get("/hosting/:id/dns", authenticate, async (req: AuthRequest, res) => {
         { type: "A", name: domain, value: service.serverIp || "127.0.0.1", ttl: 3600 },
         { type: "A", name: `www.${domain}`, value: service.serverIp || "127.0.0.1", ttl: 3600 },
         { type: "MX", name: domain, value: `mail.${domain}`, ttl: 3600, priority: 10 },
-        { type: "TXT", name: domain, value: "v=spf1 include:nexgohost.com ~all", ttl: 3600 },
+        { type: "TXT", name: domain, value: "v=spf1 include:noehost.com ~all", ttl: 3600 },
       ];
       const inserted = await db.insert(dnsRecordsTable).values(
         defaults.map(d => ({ serviceId: service.id, domain, ...d }))

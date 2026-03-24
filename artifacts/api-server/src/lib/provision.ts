@@ -447,8 +447,8 @@ export async function provisionHostingService(
       username,
       password,
       cpanelUrl,
-      ns1: server?.ns1 || "ns1.nexgohost.com",
-      ns2: server?.ns2 || "ns2.nexgohost.com",
+      ns1: server?.ns1 || "ns1.noehost.com",
+      ns2: server?.ns2 || "ns2.noehost.com",
       webmailUrl,
     }, { clientId: user.id, referenceId: serviceId });
   } catch (emailErr: any) {

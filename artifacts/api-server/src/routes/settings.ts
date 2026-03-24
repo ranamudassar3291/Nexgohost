@@ -126,17 +126,17 @@ router.post("/admin/settings/smtp/test", authenticate, requireAdmin, async (req:
     const { clearSmtpCache, sendEmail } = await import("../lib/email.js");
     clearSmtpCache();
 
-    const to = req.body.to || (req as any).user?.email || "admin@nexgohost.com";
+    const to = req.body.to || (req as any).user?.email || "admin@noehost.com";
     const result = await sendEmail({
       to,
       subject: "Test Email from Billing System",
       html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;background:#0f0a1f;color:#e2e0f0;border-radius:16px">
-        <h2 style="color:#a855f7;margin:0 0 12px">Test Email — Nexgohost</h2>
+        <h2 style="color:#a855f7;margin:0 0 12px">Test Email — Noehost</h2>
         <p style="color:#b0a0d0;margin:0 0 16px">Hello,</p>
         <p style="color:#b0a0d0;margin:0 0 16px">This is a test email to verify your SMTP configuration.</p>
         <p style="color:#b0a0d0;margin:0 0 16px">If you received this email, your email system is working correctly.</p>
         <hr style="border:none;border-top:1px solid #2d1f5a;margin:20px 0" />
-        <p style="color:#6b5a8a;font-size:13px;margin:0">Sent at ${new Date().toUTCString()} · Nexgohost Billing System</p>
+        <p style="color:#6b5a8a;font-size:13px;margin:0">Sent at ${new Date().toUTCString()} · Noehost Billing System</p>
       </div>`,
       emailType: "test",
     });

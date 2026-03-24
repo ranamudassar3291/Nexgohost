@@ -78,8 +78,8 @@ async function getSmtpConfig(): Promise<SmtpConfig> {
     port:        Number(map["smtp_port"] || process.env.SMTP_PORT || "587"),
     user:        map["smtp_user"]      || process.env.SMTP_USER || "",
     pass:        map["smtp_pass"]      || process.env.SMTP_PASS || "",
-    from:        map["smtp_from"]      || process.env.SMTP_FROM || "noreply@nexgohost.com",
-    fromName:    map["smtp_from_name"] || process.env.SMTP_FROM_NAME || "Nexgohost",
+    from:        map["smtp_from"]      || process.env.SMTP_FROM || "noreply@noehost.com",
+    fromName:    map["smtp_from_name"] || process.env.SMTP_FROM_NAME || "Noehost",
     encryption:  (map["smtp_encryption"] || "tls") as SmtpConfig["encryption"],
     mailerType:  (map["mailer_type"]     || "smtp") as SmtpConfig["mailerType"],
   };
@@ -126,8 +126,8 @@ function createTransport(cfg: SmtpConfig): nodemailer.Transporter | null {
 }
 
 function buildFromAddress(cfg: SmtpConfig): string {
-  const name = cfg.fromName || "Nexgohost";
-  const addr = cfg.from || "noreply@nexgohost.com";
+  const name = cfg.fromName || "Noehost";
+  const addr = cfg.from || "noreply@noehost.com";
   return `${name} <${addr}>`;
 }
 
@@ -261,7 +261,7 @@ export async function sendTemplatedEmail(
 }
 
 // ─── Convenience helpers ──────────────────────────────────────────────────────
-const COMPANY = "Nexgohost";
+const COMPANY = "Noehost";
 
 /**
  * Send email verification code.
@@ -285,7 +285,7 @@ export async function emailInvoiceCreated(to: string, vars: {
 }) {
   return sendTemplatedEmail("invoice-created", to, {
     company_name: COMPANY,
-    client_area_url: vars.clientAreaUrl || "https://nexgohost.com/client",
+    client_area_url: vars.clientAreaUrl || "https://noehost.com/client",
     client_name: vars.clientName,
     invoice_id: vars.invoiceId,
     amount: vars.amount,
@@ -346,7 +346,7 @@ export async function emailServiceSuspended(to: string, vars: {
     client_name: vars.clientName,
     domain: vars.domain,
     reason: vars.reason,
-    client_area_url: vars.clientAreaUrl || "https://nexgohost.com/client",
+    client_area_url: vars.clientAreaUrl || "https://noehost.com/client",
   });
 }
 

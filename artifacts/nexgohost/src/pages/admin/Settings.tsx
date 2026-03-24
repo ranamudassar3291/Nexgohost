@@ -116,9 +116,9 @@ export default function AdminSettings() {
             <h3 className="font-semibold text-foreground">Company Settings</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Company Name</label><Input defaultValue="Nexgohost" className="bg-background border-border" /></div>
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Support Email</label><Input defaultValue="support@nexgohost.com" className="bg-background border-border" /></div>
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Company URL</label><Input defaultValue="https://nexgohost.com" className="bg-background border-border" /></div>
+            <div className="space-y-1"><label className="text-sm text-muted-foreground">Company Name</label><Input defaultValue="Noehost" className="bg-background border-border" /></div>
+            <div className="space-y-1"><label className="text-sm text-muted-foreground">Support Email</label><Input defaultValue="support@noehost.com" className="bg-background border-border" /></div>
+            <div className="space-y-1"><label className="text-sm text-muted-foreground">Company URL</label><Input defaultValue="https://noehost.com" className="bg-background border-border" /></div>
             <div className="space-y-1"><label className="text-sm text-muted-foreground">Phone Number</label><Input defaultValue="+1-555-0100" className="bg-background border-border" /></div>
           </div>
           <Button className="mt-4">Save Changes</Button>

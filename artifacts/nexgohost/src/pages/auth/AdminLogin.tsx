@@ -100,7 +100,7 @@ export default function AdminLogin() {
 
           <div className="relative z-10 flex flex-col items-center mb-8">
             <div className="relative mb-4">
-              <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost" className="w-16 h-16 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+              <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-16 h-16 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
               <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center border-2 border-background">
                 <ShieldCheck size={12} className="text-primary-foreground" />
               </div>
@@ -138,7 +138,7 @@ export default function AdminLogin() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-foreground/80 ml-1">Admin Email</label>
-                    <Input type="email" required value={email} onChange={e => { setEmail(e.target.value); setInlineError(null); }} placeholder="admin@nexgohost.com"
+                    <Input type="email" required value={email} onChange={e => { setEmail(e.target.value); setInlineError(null); }} placeholder="admin@noehost.com"
                       className="bg-background/50 border-white/10 h-12 rounded-xl text-base" />
                   </div>
                   <div className="space-y-1">

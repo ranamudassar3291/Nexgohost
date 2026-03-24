@@ -16,7 +16,7 @@ const DEFAULT_TEMPLATES = [
 <div style="max-width:600px;margin:auto;background:white;padding:30px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
 
 <div style="text-align:center;margin-bottom:24px">
-  <h1 style="color:#6c5ce7;font-size:28px;margin:0;letter-spacing:-0.5px">Nexgohost</h1>
+  <h1 style="color:#6c5ce7;font-size:28px;margin:0;letter-spacing:-0.5px">Noehost</h1>
 </div>
 
 <h2 style="color:#333;font-size:20px;margin-bottom:8px">Verify your email address</h2>
@@ -38,7 +38,7 @@ const DEFAULT_TEMPLATES = [
 
 <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
 
-<p style="font-size:12px;color:#999;margin:0">This email was sent automatically by the Nexgohost billing system. Please do not reply to this email.</p>
+<p style="font-size:12px;color:#999;margin:0">This email was sent automatically by the Noehost billing system. Please do not reply to this email.</p>
 
 </div>
 </div>`,
@@ -370,23 +370,23 @@ router.post("/admin/email-templates/:id/test", authenticate, requireAdmin, async
       amount: "$9.99",
       due_date: "Jan 31, 2025",
       payment_date: "Jan 15, 2025",
-      company_name: "Nexgohost",
+      company_name: "Noehost",
       domain: "example.com",
       username: "jsmith001",
       password: "••••••••",
-      cpanel_url: "https://server.nexgohost.com:2083",
-      ns1: "ns1.nexgohost.com",
-      ns2: "ns2.nexgohost.com",
-      webmail_url: "https://server.nexgohost.com/webmail",
+      cpanel_url: "https://server.noehost.com:2083",
+      ns1: "ns1.noehost.com",
+      ns2: "ns2.noehost.com",
+      webmail_url: "https://server.noehost.com/webmail",
       service_name: "Starter Plan",
       order_id: "ORD-12345",
-      reset_link: "https://nexgohost.com/reset/sample-link",
+      reset_link: "https://noehost.com/reset/sample-link",
       ticket_number: "TKT-001",
       ticket_subject: "Help with DNS",
       department: "Technical",
       reply_body: "Thank you for contacting us...",
-      ticket_url: "https://nexgohost.com/tickets/001",
-      client_area_url: "https://nexgohost.com/client",
+      ticket_url: "https://noehost.com/tickets/001",
+      client_area_url: "https://noehost.com/client",
       reason: "Overdue invoice",
       cancel_date: "Jan 31, 2025",
     };

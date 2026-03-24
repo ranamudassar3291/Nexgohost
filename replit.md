@@ -1,4 +1,4 @@
-# Nexgohost - Hosting & Client Management Platform
+# Noehost - Hosting & Client Management Platform
 
 ## Recent Changes (Session 15)
 - **WordPress Provisioning Flow**: Full Docker-based WordPress auto-installer implemented. `POST /client/hosting/:id/install-wordpress` returns immediately (fire-and-forget) and sets `wpProvisionStatus="queued"`. Background `provisionWordPress()` in `wordpress-provisioner.ts` runs the 5-step sequence: Create database → Create container → Download WordPress → Configure → Run installer. `GET /client/hosting/:id/wordpress-status` polls real-time status and returns credentials on completion.
@@ -112,7 +112,7 @@ A complete WHMCS-style hosting and client management platform built on a pnpm wo
 
 ## Demo Credentials
 
-- **Admin**: `admin@nexgohost.com` / `admin123`
+- **Admin**: `admin@noehost.com` / `admin123`
 - **Client 1**: `john@example.com` / `client123`
 - **Client 2**: `jane@example.com` / `client123`
 
