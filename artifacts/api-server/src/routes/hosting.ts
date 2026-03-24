@@ -1428,10 +1428,12 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
     }).where(eq(hostingServicesTable.id, id));
 
     // ── Resolve cPanel server config (if this service is on a cPanel/WHM server) ──
-    // When the service has a resolved WHM server, we use cPanel UAPI for DB creation
-    // and Softaculous/Fileman for file deployment instead of direct shell access.
+    // Softaculous authenticates via the cPanel-level cpanelPassword or cpanelApiToken
+    // (provided by the user in the request body), NOT via the WHM root API token stored
+    // in the server record.  So we only require the server hostname here — apiToken is
+    // NOT required for Softaculous to work.
     const wpServer = await resolveServerForService(service);
-    const cpanelCfg = (wpServer && wpServer.type === "cpanel" && wpServer.apiToken)
+    const cpanelCfg = (wpServer && wpServer.type === "cpanel")
       ? {
           server:         toServerCfg(wpServer),
           cpanelUser:     service.username!,
@@ -1441,7 +1443,7 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       : null;
 
     if (cpanelCfg) {
-      console.log(`[WP] cPanel server resolved: ${wpServer!.hostname} / cPanel user: ${service.username}`);
+      console.log(`[WP] cPanel server resolved: ${wpServer!.hostname} / cPanel user: ${service.username} / auth: ${cpanelApiToken ? "API Token" : cpanelPassword ? "Password" : "none"}`);
     } else {
       console.log(`[WP] No cPanel server — using VPS-direct or simulation path`);
     }
@@ -1530,7 +1532,8 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
     console.log(`[WP] Reinstall starting for service ${id} | domain=${service.domain}`);
 
     const wpServer2 = await resolveServerForService(service);
-    const cpanelCfg2 = (wpServer2 && wpServer2.type === "cpanel" && wpServer2.apiToken)
+    // Same as the install route: WHM apiToken not required — Softaculous uses cpanelPassword
+    const cpanelCfg2 = (wpServer2 && wpServer2.type === "cpanel")
       ? {
           server:         toServerCfg(wpServer2),
           cpanelUser:     service.username!,

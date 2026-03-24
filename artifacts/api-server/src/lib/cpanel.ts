@@ -848,15 +848,26 @@ export async function cpanelSoftaculousInstallWordPress(
       const parsed = parseSoftaculousResponse(r1.body.trim(), opts);
       if (parsed.success) return parsed;
 
-      // Semantic failure from Softaculous (e.g. "Directory not empty")
-      // Don't try fallback strategies — retrying won't change the outcome.
-      const isRealError = !/session|unauthorized|forbidden|login/i.test(parsed.error ?? "");
-      if (isRealError) {
+      // Distinguish between semantic WordPress errors (don't retry) and
+      // infrastructure errors from cPanel itself (do fall through to Strategy 2/3).
+      //
+      // "No data returned from cPanel Service" = cPanel JSON-API bridge could not
+      // reach the Softaculous module (e.g. Softaculous not exposed via API2, or
+      // the function name doesn't match this Softaculous version). Strategy 2/3
+      // bypass this by obtaining a cpsess token and POSTing directly to
+      // /softaculous/index.php — so falling through is correct here.
+      //
+      // Real Softaculous errors that should NOT be retried (directory/db already exist):
+      //   "Directory is not empty", "Database already exists", "Domain already installed"
+      const isInfraError = /no data returned|module not found|softaculous.*not (installed|available)|not installed/i.test(parsed.error ?? "");
+      const isAuthError   = /session|unauthorized|forbidden|login/i.test(parsed.error ?? "");
+
+      if (!isInfraError && !isAuthError) {
         console.warn(`[Softaculous] Strategy 1 semantic failure — not retrying: ${parsed.error}`);
         return parsed;
       }
 
-      console.warn(`[Softaculous] Strategy 1 auth/session error, trying Strategy 2: ${parsed.error}`);
+      console.warn(`[Softaculous] Strategy 1 infra/auth error, trying Strategy 2: ${parsed.error}`);
     } else {
       console.warn(`[Softaculous] Strategy 1 server error (HTTP ${r1.status}) — trying Strategy 2`);
     }
