@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, numeric, pgEnum, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, numeric, pgEnum, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -6,6 +6,8 @@ export const affiliateStatusEnum = pgEnum("affiliate_status", ["active", "suspen
 export const commissionTypeEnum = pgEnum("commission_type", ["fixed", "percentage"]);
 export const commissionStatusEnum = pgEnum("commission_status", ["pending", "approved", "paid", "rejected"]);
 export const referralStatusEnum = pgEnum("referral_status", ["registered", "converted", "invalid"]);
+export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "approved", "paid", "rejected"]);
+export const payoutMethodEnum = pgEnum("payout_method", ["wallet", "bank"]);
 
 export const affiliatesTable = pgTable("affiliates", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -55,15 +57,28 @@ export const affiliateClicksTable = pgTable("affiliate_clicks", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "approved", "paid", "rejected"]);
-
 export const affiliateWithdrawalsTable = pgTable("affiliate_withdrawals", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   affiliateId: text("affiliate_id").notNull(),
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
   status: withdrawalStatusEnum("status").notNull().default("pending"),
+  payoutMethod: payoutMethodEnum("payout_method").notNull().default("bank"),
   paypalEmail: text("paypal_email"),
+  accountTitle: text("account_title"),
+  accountNumber: text("account_number"),
+  bankName: text("bank_name"),
   adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const affiliateGroupCommissionsTable = pgTable("affiliate_group_commissions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  groupId: text("group_id").notNull().unique(),
+  groupName: text("group_name").notNull(),
+  commissionType: commissionTypeEnum("commission_type_gc").notNull().default("fixed"),
+  commissionValue: numeric("commission_value_gc", { precision: 10, scale: 2 }).notNull().default("500"),
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

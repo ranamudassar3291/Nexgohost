@@ -46,12 +46,36 @@ export default function Register() {
 
     const params = new URLSearchParams(window.location.search);
     const ref = params.get("ref");
+
+    const getCookie = (name: string): string | null => {
+      const match = document.cookie.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
+      return match ? decodeURIComponent(match[1]) : null;
+    };
+
+    const setCookie = (name: string, value: string, days: number) => {
+      const expires = new Date();
+      expires.setDate(expires.getDate() + days);
+      document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+    };
+
     if (ref) {
       setRefCode(ref);
       localStorage.setItem("referralCode", ref);
-      fetch("/api/affiliate/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: ref }) }).catch(() => {});
+      fetch("/api/affiliate/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: ref }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          const days = typeof d?.cookieDays === "number" ? d.cookieDays : 30;
+          setCookie("referralCode", ref, days);
+        })
+        .catch(() => {
+          setCookie("referralCode", ref, 30);
+        });
     } else {
-      const stored = localStorage.getItem("referralCode");
+      const stored = localStorage.getItem("referralCode") || getCookie("referralCode");
       if (stored) setRefCode(stored);
     }
   }, []);
@@ -89,7 +113,10 @@ export default function Register() {
       const payload = { ...formData, ...(refCode ? { refCode } : {}) };
       const data = await apiFetch("/api/auth/register", null, { method: "POST", body: JSON.stringify(payload) });
       setTempToken(data.token);
-      if (refCode) localStorage.removeItem("referralCode");
+      if (refCode) {
+        localStorage.removeItem("referralCode");
+        document.cookie = "referralCode=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
+      }
       if (data.requiresVerification) {
         setStep("verify");
         startCountdown();

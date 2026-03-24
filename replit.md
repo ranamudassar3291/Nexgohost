@@ -1,5 +1,14 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 19)
+- **Affiliate Program — Full Rebuild (Hostinger-quality)**:
+  - **Schema** (`lib/db/src/schema/affiliates.ts`): Added `affiliateGroupCommissionsTable` (per-product-group commission rates), `payoutMethodEnum` (wallet/bank), extended `affiliateWithdrawalsTable` with `payoutMethod`, `accountTitle`, `accountNumber`, `bankName`. DB migrated.
+  - **Backend** (`artifacts/api-server/src/routes/affiliates.ts`): Complete rewrite. New endpoints: `GET/PUT /admin/affiliates/settings` (payout threshold + cookie days via `settingsTable`), `GET /admin/affiliates/group-commissions`, `PUT /admin/affiliates/group-commissions/:groupId` (upsert per-group rates), `GET /admin/affiliates/commissions/all`, `GET /admin/affiliates/withdrawals/all`, `PUT /admin/affiliates/commissions/:id/reject` (new), bank withdrawal endpoint, reject/approve/pay withdrawal with admin notes. `GET /affiliate` now returns `settings` + `groupCommissions` alongside existing data.
+  - **Checkout commission** (`artifacts/api-server/src/routes/checkout.ts`): Now checks per-group commission from `affiliateGroupCommissionsTable` before falling back to affiliate personal rate.
+  - **Client Affiliate.tsx** — Complete redesign: Referral link card with cookie duration shown, 3 stat cards (Available Balance, Pending, Paid Out), 3 traffic cards (Clicks/Signups/Conversions), progress bar to payout threshold, commission rates per group, payout section (Instant Wallet vs Bank/JazzCash form), tabbed history (Commissions/Referrals/Withdrawals).
+  - **Admin Affiliates.tsx** — Full rebuild: Stats row, 4-tab layout (Affiliates/Commissions/Withdrawals/Settings). Commissions tab has Approve + Reject buttons. Withdrawals tab shows full bank details + Approve/Reject/Pay dialog with admin notes. Settings tab: global payout threshold, cookie days, per-group commission editor (inline select + value edit).
+  - **Register.tsx cookie tracking**: Real browser cookie (30-day default, dynamically set from server `cookieDays` setting) written in addition to localStorage. Cleared on successful registration.
+
 ## Recent Changes (Session 18)
 - **`/client/orders/new` — Complete Rebuild** (`artifacts/nexgohost/src/pages/client/NewOrder.tsx`): 4-step wizard inside the authenticated client layout.
   - **4-step progress bar** (Choose Service → Choose Plan → Domain & Config → Checkout): Scrollable on mobile, purple active step with ring, grey inactive, check icon for completed steps.

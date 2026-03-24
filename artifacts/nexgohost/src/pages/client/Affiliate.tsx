@@ -1,429 +1,498 @@
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  Users, Link2, TrendingUp, DollarSign, Copy, Check, ExternalLink,
-  AlertCircle, Loader2, Share2, Gift, ArrowDownCircle, Clock, Wallet,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useCurrency } from "@/context/CurrencyProvider";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import { useCurrency } from "@/context/CurrencyProvider";
+import {
+  Copy, Link, TrendingUp, Clock, CheckCircle, Wallet, Building2, Users,
+  MousePointerClick, RefreshCw, ArrowUpRight, ChevronDown, ChevronUp,
+} from "lucide-react";
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    approved: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    paid: "bg-green-500/10 text-green-400 border-green-500/20",
-    rejected: "bg-red-500/10 text-red-400 border-red-500/20",
-    registered: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    converted: "bg-green-500/10 text-green-400 border-green-500/20",
-    validating: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  };
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || "bg-secondary text-muted-foreground border-transparent"}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
+interface AffiliateData {
+  id: string;
+  referralCode: string;
+  status: string;
+  commissionType: string;
+  commissionValue: string;
+  totalEarnings: string;
+  pendingEarnings: string;
+  paidEarnings: string;
+  totalClicks: number;
+  totalSignups: number;
+  totalConversions: number;
+  paypalEmail: string | null;
+}
+interface Commission {
+  id: string;
+  amount: string;
+  status: string;
+  description: string | null;
+  createdAt: string;
+}
+interface Referral {
+  id: string;
+  status: string;
+  createdAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+}
+interface Withdrawal {
+  id: string;
+  amount: string;
+  status: string;
+  payoutMethod: string;
+  accountTitle: string | null;
+  accountNumber: string | null;
+  bankName: string | null;
+  createdAt: string;
+  adminNotes: string | null;
+}
+interface GroupCommission {
+  groupId: string;
+  groupName: string;
+  commissionType: string;
+  commissionValue: string;
+  isActive: boolean;
+}
+interface Settings {
+  payoutThreshold: number;
+  cookieDays: number;
 }
 
+const statusBadge = (s: string) => {
+  const map: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-700",
+    approved: "bg-blue-100 text-blue-700",
+    paid: "bg-green-100 text-green-700",
+    rejected: "bg-red-100 text-red-700",
+    converted: "bg-green-100 text-green-700",
+    registered: "bg-gray-100 text-gray-600",
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${map[s] ?? "bg-gray-100 text-gray-600"}`}>
+      {s}
+    </span>
+  );
+};
+
+const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" });
+
 export default function Affiliate() {
+  const { toast } = useToast();
   const { formatPrice } = useCurrency();
-  const [data, setData] = useState<any>(null);
-  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+
+  const [affiliate, setAffiliate] = useState<AffiliateData | null>(null);
+  const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [groupCommissions, setGroupCommissions] = useState<GroupCommission[]>([]);
+  const [settings, setSettings] = useState<Settings>({ payoutThreshold: 2000, cookieDays: 30 });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [paypalEmail, setPaypalEmail] = useState("");
-  const [savingPayout, setSavingPayout] = useState(false);
-  const [payoutMsg, setPayoutMsg] = useState<string | null>(null);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawMsg, setWithdrawMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferring, setTransferring] = useState(false);
-  const [transferMsg, setTransferMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [activePayoutTab, setActivePayoutTab] = useState<"wallet" | "bank">("wallet");
+  const [showAllCommissions, setShowAllCommissions] = useState(false);
 
-  const baseUrl = window.location.origin;
+  const [walletAmt, setWalletAmt] = useState("");
+  const [walletLoading, setWalletLoading] = useState(false);
 
-  const loadData = async () => {
+  const [bankAmt, setBankAmt] = useState("");
+  const [bankTitle, setBankTitle] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankLoading, setBankLoading] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
-      const [aff, wdraw] = await Promise.all([
+      const [aff, wds] = await Promise.all([
         apiFetch("/api/affiliate"),
         apiFetch("/api/affiliate/withdrawals"),
       ]);
-      setData(aff);
-      setPaypalEmail(aff.affiliate?.paypalEmail || "");
-      setWithdrawals(wdraw.withdrawals || []);
+      setAffiliate(aff.affiliate);
+      setCommissions(aff.commissions || []);
+      setReferrals(aff.referrals || []);
+      setGroupCommissions(aff.groupCommissions || []);
+      setSettings(aff.settings || { payoutThreshold: 2000, cookieDays: 30 });
+      setWithdrawals(wds.withdrawals || []);
     } catch (e: any) {
-      setError(e.message);
+      toast({ title: "Error", description: e.message || "Failed to load affiliate data", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  useEffect(() => { loadData(); }, []);
-
-  const referralLink = data ? `${baseUrl}/register?ref=${data.affiliate.referralCode}` : "";
-
-  const copy = () => {
-    navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const savePayout = async () => {
-    setSavingPayout(true);
-    setPayoutMsg(null);
-    try {
-      await apiFetch("/api/affiliate", { method: "PUT", body: JSON.stringify({ paypalEmail }) });
-      setPayoutMsg("Payout info saved.");
-    } catch (e: any) {
-      setPayoutMsg(e.message || "Failed to save.");
-    } finally {
-      setSavingPayout(false);
-    }
-  };
-
-  const requestWithdrawal = async () => {
-    setWithdrawing(true);
-    setWithdrawMsg(null);
-    try {
-      await apiFetch("/api/affiliate/withdraw", {
-        method: "POST",
-        body: JSON.stringify({ amount: parseFloat(withdrawAmount) }),
-      });
-      setWithdrawMsg({ type: "ok", text: "Withdrawal request submitted! Admin will process it shortly." });
-      setWithdrawAmount("");
-      loadData();
-    } catch (e: any) {
-      setWithdrawMsg({ type: "err", text: e.message || "Failed to submit withdrawal." });
-    } finally {
-      setWithdrawing(false);
-    }
-  };
-
-  const transferToWallet = async () => {
-    setTransferring(true);
-    setTransferMsg(null);
-    try {
-      const res = await apiFetch("/api/affiliate/transfer-to-wallet", {
-        method: "POST",
-        body: JSON.stringify({ amount: parseFloat(transferAmount) }),
-      });
-      setTransferMsg({ type: "ok", text: `Rs. ${parseFloat(res.transferred).toFixed(0)} transferred to your wallet instantly!` });
-      setTransferAmount("");
-      loadData();
-    } catch (e: any) {
-      setTransferMsg({ type: "err", text: e.message || "Failed to transfer." });
-    } finally {
-      setTransferring(false);
-    }
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="h-6 w-6 animate-spin text-purple-600" />
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="flex items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive">
-        <AlertCircle size={18} /> {error}
-      </div>
-    );
-  }
+  if (!affiliate) return <div className="p-6 text-center text-gray-500">Failed to load affiliate account.</div>;
 
-  const { affiliate, commissions = [], referrals = [] } = data;
+  const referralUrl = `${window.location.origin}/?ref=${affiliate.referralCode}`;
+  const totalEarnings = parseFloat(affiliate.totalEarnings || "0");
+  const pendingEarnings = parseFloat(affiliate.pendingEarnings || "0");
+  const paidEarnings = parseFloat(affiliate.paidEarnings || "0");
+  const availableBalance = Math.max(totalEarnings - pendingEarnings - paidEarnings, 0);
+  const threshold = settings.payoutThreshold;
+  const progressPct = Math.min((availableBalance / threshold) * 100, 100);
 
-  const approvedBalance = parseFloat(affiliate.totalEarnings || "0")
-    - parseFloat(affiliate.pendingEarnings || "0")
-    - parseFloat(affiliate.paidEarnings || "0");
+  const copyLink = () => {
+    navigator.clipboard.writeText(referralUrl);
+    toast({ title: "Copied!", description: "Referral link copied to clipboard" });
+  };
+  const copyCode = () => {
+    navigator.clipboard.writeText(affiliate.referralCode);
+    toast({ title: "Copied!", description: "Referral code copied" });
+  };
 
-  const stats = [
-    { label: "Total Clicks", value: affiliate.totalClicks, icon: TrendingUp, color: "text-blue-400" },
-    { label: "Signups", value: affiliate.totalSignups, icon: Users, color: "text-purple-400" },
-    { label: "Conversions", value: affiliate.totalConversions, icon: Gift, color: "text-green-400" },
-    { label: "Total Earnings", value: formatPrice(parseFloat(affiliate.totalEarnings || "0")), icon: DollarSign, color: "text-yellow-400" },
-  ];
+  const handleWalletTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(walletAmt);
+    if (!walletAmt || isNaN(amt) || amt <= 0) { toast({ title: "Invalid amount", variant: "destructive" }); return; }
+    setWalletLoading(true);
+    try {
+      await apiFetch("/api/affiliate/transfer-to-wallet", null, { method: "POST", body: JSON.stringify({ amount: amt }) });
+      toast({ title: "Transferred!", description: `${formatPrice(amt)} added to your wallet` });
+      setWalletAmt("");
+      fetchData();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Transfer failed", variant: "destructive" });
+    } finally { setWalletLoading(false); }
+  };
+
+  const handleBankWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(bankAmt);
+    if (!bankAmt || isNaN(amt)) { toast({ title: "Invalid amount", variant: "destructive" }); return; }
+    setBankLoading(true);
+    try {
+      await apiFetch("/api/affiliate/withdraw", null, {
+        method: "POST", body: JSON.stringify({ amount: amt, accountTitle: bankTitle, accountNumber: bankAccount, bankName }),
+      });
+      toast({ title: "Request submitted!", description: "Your withdrawal will be processed within 3-5 business days." });
+      setBankAmt(""); setBankTitle(""); setBankAccount(""); setBankName("");
+      fetchData();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Request failed", variant: "destructive" });
+    } finally { setBankLoading(false); }
+  };
+
+  const displayedCommissions = showAllCommissions ? commissions : commissions.slice(0, 5);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-4xl">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Affiliate Program</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Earn {affiliate.commissionType === "percentage" ? `${affiliate.commissionValue}%` : formatPrice(parseFloat(affiliate.commissionValue))} commission on every referral purchase
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">Affiliate Program</h1>
+        <p className="text-gray-500 mt-1">Earn commissions by referring clients to our hosting plans.</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map(s => (
-          <div key={s.label} className="bg-card border border-border rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <s.icon size={16} className={s.color} />
-              <span className="text-xs text-muted-foreground">{s.label}</span>
+      {/* Referral Link */}
+      <Card className="border-purple-100 bg-gradient-to-br from-purple-50 to-white">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Link className="h-5 w-5 text-purple-600" />
             </div>
-            <div className="text-2xl font-display font-bold text-foreground">{s.value}</div>
+            <div>
+              <p className="font-semibold text-gray-900">Your Referral Link</p>
+              <p className="text-sm text-gray-500">Share this link to start earning commissions</p>
+            </div>
           </div>
-        ))}
-      </div>
+          <div className="flex gap-2">
+            <Input value={referralUrl} readOnly className="font-mono text-sm bg-white" />
+            <Button onClick={copyLink} className="bg-[#701AFE] hover:bg-[#5e14d4] shrink-0">
+              <Copy className="h-4 w-4 mr-1" /> Copy
+            </Button>
+          </div>
+          <div className="flex items-center gap-4 mt-3">
+            <div className="text-sm text-gray-500">
+              Code:{" "}
+              <button onClick={copyCode} className="font-mono font-semibold text-purple-700 hover:underline">
+                {affiliate.referralCode}
+              </button>
+            </div>
+            <div className="text-sm text-gray-500 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {settings.cookieDays}-day cookie tracking
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Earnings breakdown */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Pending (Awaiting Approval)", value: affiliate.pendingEarnings, color: "text-yellow-400" },
-          { label: "Withdrawable Balance", value: String(approvedBalance), color: "text-blue-400" },
-          { label: "Total Paid Out", value: affiliate.paidEarnings, color: "text-green-400" },
-        ].map(e => (
-          <div key={e.label} className="bg-card border border-border rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground mb-1">{e.label}</p>
-            <p className={`text-xl font-bold ${e.color}`}>{formatPrice(parseFloat(e.value || "0"))}</p>
-          </div>
+          { label: "Available Balance", value: availableBalance, sub: "Ready to withdraw", icon: Wallet, color: "text-green-500" },
+          { label: "Pending Commissions", value: pendingEarnings, sub: "Awaiting admin approval", icon: Clock, color: "text-yellow-500" },
+          { label: "Total Paid Out", value: paidEarnings, sub: "All-time withdrawals", icon: CheckCircle, color: "text-blue-500" },
+        ].map(({ label, value, sub, icon: Icon, color }) => (
+          <Card key={label}>
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm text-gray-500">{label}</span>
+                <Icon className={`h-4 w-4 ${color}`} />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{formatPrice(value)}</p>
+              <p className="text-xs text-gray-400 mt-1">{sub}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Referral link */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <Link2 size={18} className="text-primary" />
-          <h2 className="font-semibold text-foreground">Your Referral Link</h2>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            value={referralLink}
-            readOnly
-            className="bg-background/60 border-border text-sm font-mono"
-          />
-          <Button variant="outline" size="icon" onClick={copy} className="shrink-0">
-            {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-          </Button>
-          <Button variant="outline" size="icon" asChild className="shrink-0">
-            <a href={referralLink} target="_blank" rel="noopener noreferrer">
-              <ExternalLink size={16} />
-            </a>
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Share this link. When someone registers using it, they're tracked as your referral.
-          Commission is generated when they make their first purchase.
-        </p>
+      {/* Traffic Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Total Clicks", value: affiliate.totalClicks, icon: MousePointerClick, color: "text-orange-500" },
+          { label: "Signups", value: affiliate.totalSignups, icon: Users, color: "text-blue-500" },
+          { label: "Conversions", value: affiliate.totalConversions, icon: TrendingUp, color: "text-green-500" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label}>
+            <CardContent className="pt-4 pb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">{label}</span>
+                <Icon className={`h-4 w-4 ${color}`} />
+              </div>
+              <p className="text-xl font-bold text-gray-900">{value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Payout info */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <DollarSign size={18} className="text-primary" />
-          <h2 className="font-semibold text-foreground">Payout Information</h2>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="email"
-            placeholder="your@paypal.com"
-            value={paypalEmail}
-            onChange={e => setPaypalEmail(e.target.value)}
-            className="bg-background/60 border-border"
-          />
-          <Button onClick={savePayout} disabled={savingPayout} className="shrink-0">
-            {savingPayout ? <Loader2 size={14} className="animate-spin" /> : "Save"}
-          </Button>
-        </div>
-        {payoutMsg && <p className="text-xs text-green-400">{payoutMsg}</p>}
-        <p className="text-xs text-muted-foreground">Commissions will be paid to this PayPal address once approved by the admin.</p>
-      </div>
-
-      {/* Transfer to Wallet (instant) */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Wallet size={18} className="text-primary" />
-          <div>
-            <h2 className="font-semibold text-foreground">Transfer to Wallet</h2>
-            <p className="text-xs text-muted-foreground">Instantly move earnings to your account wallet — use for any service.</p>
+      {/* Progress Bar */}
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="font-semibold text-gray-800">Progress to Minimum Payout</p>
+              <p className="text-sm text-gray-500">Minimum payout threshold: {formatPrice(threshold)}</p>
+            </div>
+            <span className="text-sm font-medium text-purple-700">{Math.round(progressPct)}%</span>
           </div>
-        </div>
-        <div className="flex items-center gap-3 bg-secondary/40 rounded-xl px-4 py-3 text-sm">
-          <span className="text-muted-foreground">Withdrawable balance:</span>
-          <span className="font-bold text-blue-400">{formatPrice(approvedBalance)}</span>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            min="100"
-            step="1"
-            placeholder="Amount to transfer (min Rs. 100)"
-            value={transferAmount}
-            onChange={e => setTransferAmount(e.target.value)}
-            className="bg-background/60 border-border"
-            disabled={transferring}
-          />
-          <Button
-            onClick={transferToWallet}
-            disabled={transferring || !transferAmount || parseFloat(transferAmount) < 100 || parseFloat(transferAmount) > approvedBalance}
-            className="shrink-0 gap-1 bg-primary"
-          >
-            {transferring ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-            Transfer
-          </Button>
-        </div>
-        {transferMsg && (
-          <p className={`text-xs font-medium ${transferMsg.type === "ok" ? "text-green-400" : "text-red-400"}`}>
-            {transferMsg.text}
+          <Progress value={progressPct} className="h-3 [&>div]:bg-[#701AFE]" />
+          <p className="text-xs text-gray-400 mt-2">
+            {availableBalance >= threshold
+              ? "You've reached the minimum payout threshold! You can withdraw now."
+              : `${formatPrice(threshold - availableBalance)} more needed to reach the minimum threshold.`}
           </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Minimum transfer: Rs. 100. Earnings are added to your wallet instantly.
-        </p>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Withdrawal request */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <ArrowDownCircle size={18} className="text-primary" />
-          <h2 className="font-semibold text-foreground">Request PayPal Withdrawal</h2>
-        </div>
-        <div className="flex items-center gap-3 bg-secondary/40 rounded-xl px-4 py-3 text-sm">
-          <span className="text-muted-foreground">Withdrawable balance:</span>
-          <span className="font-bold text-blue-400">{formatPrice(approvedBalance)}</span>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            min="1"
-            step="0.01"
-            placeholder="Amount to withdraw (Rs.)"
-            value={withdrawAmount}
-            onChange={e => setWithdrawAmount(e.target.value)}
-            className="bg-background/60 border-border"
-            disabled={withdrawing}
-          />
-          <Button
-            onClick={requestWithdrawal}
-            disabled={withdrawing || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
-            className="shrink-0 gap-1"
-          >
-            {withdrawing ? <Loader2 size={14} className="animate-spin" /> : <ArrowDownCircle size={14} />}
-            Withdraw
-          </Button>
-        </div>
-        {withdrawMsg && (
-          <p className={`text-xs ${withdrawMsg.type === "ok" ? "text-green-400" : "text-red-400"}`}>
-            {withdrawMsg.text}
-          </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Minimum withdrawal: Rs. 500. Only approved commissions can be withdrawn. You must have a PayPal email saved.
-        </p>
-      </div>
+      {/* Commission Rates */}
+      {groupCommissions.filter(g => g.isActive).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Commission Structure</CardTitle>
+            <CardDescription>Earn these commissions for each successful referral per product category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {groupCommissions.filter(g => g.isActive).map(g => (
+                <div key={g.groupId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <span className="font-medium text-gray-700 text-sm">{g.groupName}</span>
+                  <span className="font-bold text-purple-700 text-sm">
+                    {g.commissionType === "percentage" ? `${g.commissionValue}%` : formatPrice(parseFloat(g.commissionValue))}
+                    <span className="text-xs font-normal text-gray-400 ml-1">/ order</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Withdrawal history */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-border flex items-center gap-2">
-          <Clock size={18} className="text-primary" />
-          <h2 className="font-semibold text-foreground">Withdrawal History</h2>
-        </div>
-        {withdrawals.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground text-sm">No withdrawal requests yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">PayPal</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Notes</th>
-                  <th className="px-5 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {withdrawals.map((w: any) => (
-                  <tr key={w.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="px-5 py-3 font-bold text-foreground">{formatPrice(parseFloat(w.amount))}</td>
-                    <td className="px-5 py-3 text-muted-foreground text-xs">{w.paypalEmail || "—"}</td>
-                    <td className="px-5 py-3"><StatusBadge status={w.status} /></td>
-                    <td className="px-5 py-3 text-muted-foreground text-xs">{w.adminNotes || "—"}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{new Date(w.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Payout Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Request Payout</CardTitle>
+          <CardDescription>Choose how you'd like to receive your affiliate earnings</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-5">
+            {(["wallet", "bank"] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActivePayoutTab(tab)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                  activePayoutTab === tab
+                    ? "border-purple-500 bg-purple-50 text-purple-700"
+                    : "border-gray-200 hover:border-gray-300 text-gray-600"
+                }`}
+              >
+                {tab === "wallet" ? <><Wallet className="h-4 w-4" /> Instant Wallet</> : <><Building2 className="h-4 w-4" /> Bank / JazzCash</>}
+              </button>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* Referrals table */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Share2 size={18} className="text-primary" />
-            <h2 className="font-semibold text-foreground">Your Referrals</h2>
-          </div>
-        </div>
-        {referrals.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground text-sm">No referrals yet. Share your link to get started.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="px-5 py-3">Name</th>
-                  <th className="px-5 py-3">Email</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {referrals.map((r: any) => (
-                  <tr key={r.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">{r.firstName} {r.lastName}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{r.email}</td>
-                    <td className="px-5 py-3"><StatusBadge status={r.status} /></td>
-                    <td className="px-5 py-3 text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          {activePayoutTab === "wallet" && (
+            <form onSubmit={handleWalletTransfer} className="space-y-4">
+              <div className="p-3 bg-green-50 rounded-lg border border-green-100 text-sm text-green-700">
+                <strong>Instant transfer</strong> — Earnings go directly to your account wallet credits.
+              </div>
+              <div>
+                <Label>Transfer Amount (Rs.)</Label>
+                <Input
+                  type="number" min="100" step="0.01" max={availableBalance}
+                  value={walletAmt} onChange={e => setWalletAmt(e.target.value)}
+                  placeholder={`Min Rs. 100, Max ${formatPrice(availableBalance)}`}
+                  className="mt-1"
+                />
+                <p className="text-xs text-gray-400 mt-1">Available balance: {formatPrice(availableBalance)}</p>
+              </div>
+              <Button type="submit" disabled={walletLoading || availableBalance < 100} className="w-full bg-[#701AFE] hover:bg-[#5e14d4]">
+                {walletLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <ArrowUpRight className="h-4 w-4 mr-2" />}
+                Transfer to Wallet
+              </Button>
+            </form>
+          )}
 
-      {/* Commissions table */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <DollarSign size={18} className="text-primary" />
-            <h2 className="font-semibold text-foreground">Commission History</h2>
-          </div>
-        </div>
-        {commissions.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground text-sm">No commissions yet. They appear when referred users make purchases.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="px-5 py-3">Description</th>
-                  <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {commissions.map((c: any) => (
-                  <tr key={c.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="px-5 py-3 text-foreground">{c.description || "Commission"}</td>
-                    <td className="px-5 py-3 font-medium text-green-400">{formatPrice(parseFloat(c.amount))}</td>
-                    <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
-                    <td className="px-5 py-3 text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </motion.div>
+          {activePayoutTab === "bank" && (
+            <form onSubmit={handleBankWithdrawal} className="space-y-4">
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
+                Bank/JazzCash withdrawals processed manually within <strong>3-5 business days</strong>. Min: {formatPrice(threshold)}.
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label>Withdrawal Amount (Rs.)</Label>
+                  <Input type="number" min={threshold} step="0.01" max={availableBalance}
+                    value={bankAmt} onChange={e => setBankAmt(e.target.value)}
+                    placeholder={`Min ${formatPrice(threshold)}`} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Bank / Provider Name</Label>
+                  <Input value={bankName} onChange={e => setBankName(e.target.value)}
+                    placeholder="e.g. HBL, Meezan, JazzCash" className="mt-1" />
+                </div>
+                <div>
+                  <Label>Account Title</Label>
+                  <Input value={bankTitle} onChange={e => setBankTitle(e.target.value)}
+                    placeholder="Account holder name" className="mt-1" />
+                </div>
+                <div>
+                  <Label>Account / IBAN Number</Label>
+                  <Input value={bankAccount} onChange={e => setBankAccount(e.target.value)}
+                    placeholder="Account number or IBAN" className="mt-1" />
+                </div>
+              </div>
+              <Button type="submit" disabled={bankLoading || availableBalance < threshold} className="w-full bg-[#701AFE] hover:bg-[#5e14d4]">
+                {bankLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Building2 className="h-4 w-4 mr-2" />}
+                Submit Withdrawal Request
+              </Button>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Tabs */}
+      <Tabs defaultValue="commissions">
+        <TabsList>
+          <TabsTrigger value="commissions">Commissions ({commissions.length})</TabsTrigger>
+          <TabsTrigger value="referrals">Referrals ({referrals.length})</TabsTrigger>
+          <TabsTrigger value="withdrawals">Withdrawals ({withdrawals.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="commissions">
+          <Card>
+            <CardContent className="pt-4">
+              {commissions.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No commissions yet. Share your link to start earning!</p>
+              ) : (
+                <>
+                  <div className="space-y-0">
+                    {displayedCommissions.map(c => (
+                      <div key={c.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{c.description || "Commission"}</p>
+                          <p className="text-xs text-gray-400">{fmtDate(c.createdAt)}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {statusBadge(c.status)}
+                          <span className="font-semibold text-gray-900 text-sm">{formatPrice(parseFloat(c.amount))}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {commissions.length > 5 && (
+                    <Button variant="ghost" size="sm" className="mt-3 w-full text-purple-600"
+                      onClick={() => setShowAllCommissions(v => !v)}>
+                      {showAllCommissions
+                        ? <><ChevronUp className="h-4 w-4 mr-1" /> Show less</>
+                        : <><ChevronDown className="h-4 w-4 mr-1" /> Show all {commissions.length}</>}
+                    </Button>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="referrals">
+          <Card>
+            <CardContent className="pt-4">
+              {referrals.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No referrals yet.</p>
+              ) : (
+                <div className="space-y-0">
+                  {referrals.map(r => (
+                    <div key={r.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {r.firstName && r.lastName ? `${r.firstName} ${r.lastName}` : r.email || "Anonymous"}
+                        </p>
+                        <p className="text-xs text-gray-400">{fmtDate(r.createdAt)}</p>
+                      </div>
+                      {statusBadge(r.status)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="withdrawals">
+          <Card>
+            <CardContent className="pt-4">
+              {withdrawals.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No withdrawal requests yet.</p>
+              ) : (
+                <div className="space-y-0">
+                  {withdrawals.map(w => (
+                    <div key={w.id} className="flex items-start justify-between py-3 border-b last:border-0">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          {w.payoutMethod === "wallet"
+                            ? <Wallet className="h-3.5 w-3.5 text-purple-500" />
+                            : <Building2 className="h-3.5 w-3.5 text-blue-500" />}
+                          <p className="text-sm font-medium text-gray-800">
+                            {w.payoutMethod === "wallet" ? "Wallet Transfer" : `${w.bankName || "Bank"} — ${w.accountTitle || ""}`}
+                          </p>
+                        </div>
+                        {w.accountNumber && <p className="text-xs text-gray-400 ml-5">{w.accountNumber}</p>}
+                        <p className="text-xs text-gray-400 mt-0.5">{fmtDate(w.createdAt)}</p>
+                        {w.adminNotes && <p className="text-xs text-gray-500 mt-1 italic">Note: {w.adminNotes}</p>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {statusBadge(w.status)}
+                        <span className="font-semibold text-gray-900 text-sm">{formatPrice(parseFloat(w.amount))}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

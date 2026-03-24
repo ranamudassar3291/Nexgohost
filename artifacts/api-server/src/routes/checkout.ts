@@ -4,7 +4,7 @@ import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
   domainExtensionsTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable,
-  creditTransactionsTable,
+  creditTransactionsTable, affiliateGroupCommissionsTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
@@ -407,9 +407,23 @@ async function handleCheckout(req: AuthRequest, res: any) {
           const [affiliate] = await db.select().from(affiliatesTable)
             .where(eq(affiliatesTable.id, referral.affiliateId)).limit(1);
           if (affiliate && affiliate.status === "active") {
-            const commAmt = affiliate.commissionType === "percentage"
-              ? finalAmount * (parseFloat(affiliate.commissionValue) / 100)
-              : parseFloat(affiliate.commissionValue);
+            // Check for per-group commission rate first, fallback to affiliate personal rate
+            let commType = affiliate.commissionType;
+            let commValue = parseFloat(affiliate.commissionValue);
+
+            if (plan?.groupId) {
+              const [groupComm] = await db.select().from(affiliateGroupCommissionsTable)
+                .where(eq(affiliateGroupCommissionsTable.groupId, plan.groupId)).limit(1);
+              if (groupComm && groupComm.isActive) {
+                commType = groupComm.commissionType;
+                commValue = parseFloat(groupComm.commissionValue);
+              }
+            }
+
+            const commAmt = commType === "percentage"
+              ? finalAmount * (commValue / 100)
+              : commValue;
+
             if (commAmt > 0) {
               await db.insert(affiliateCommissionsTable).values({
                 affiliateId: affiliate.id,

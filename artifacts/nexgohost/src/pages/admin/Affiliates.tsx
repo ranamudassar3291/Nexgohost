@@ -1,380 +1,701 @@
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Users, DollarSign, Check, X, Settings, Loader2, AlertCircle, TrendingUp, ChevronDown, ChevronUp, ArrowDownCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useCurrency } from "@/context/CurrencyProvider";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import { useCurrency } from "@/context/CurrencyProvider";
+import {
+  Users, DollarSign, Check, X, Settings, TrendingUp, RefreshCw,
+  Building2, Wallet, Save, Pencil,
+} from "lucide-react";
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active: "bg-green-500/10 text-green-400 border-green-500/20",
-    suspended: "bg-red-500/10 text-red-400 border-red-500/20",
-    pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    approved: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    paid: "bg-green-500/10 text-green-400 border-green-500/20",
-    rejected: "bg-red-500/10 text-red-400 border-red-500/20",
-  };
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || "bg-secondary text-muted-foreground border-transparent"}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface AffiliateRow {
+  id: string; userId: string; referralCode: string; status: string;
+  commissionType: string; commissionValue: string;
+  totalEarnings: string; pendingEarnings: string; paidEarnings: string;
+  totalClicks: number; totalSignups: number; totalConversions: number;
+  firstName: string | null; lastName: string | null; email: string | null;
+  notes: string | null; createdAt: string;
+}
+interface CommissionRow {
+  id: string; affiliateId: string; orderId: string | null;
+  amount: string; status: string; description: string | null;
+  createdAt: string; paidAt: string | null;
+  referralCode: string | null; affiliateEmail: string | null;
+  firstName: string | null; lastName: string | null;
+}
+interface WithdrawalRow {
+  id: string; affiliateId: string; amount: string; status: string;
+  payoutMethod: string; paypalEmail: string | null;
+  accountTitle: string | null; accountNumber: string | null; bankName: string | null;
+  adminNotes: string | null; createdAt: string;
+  referralCode: string | null; firstName: string | null; lastName: string | null; email: string | null;
+}
+interface GroupCommission {
+  groupId: string; groupName: string; commissionType: string;
+  commissionValue: string; isActive: boolean; id: string | null;
 }
 
-type Tab = "affiliates" | "commissions" | "withdrawals";
+const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" });
 
-export default function Affiliates() {
+const StatusBadge = ({ status }: { status: string }) => {
+  const map: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-700 border-yellow-200",
+    approved: "bg-blue-100 text-blue-700 border-blue-200",
+    paid: "bg-green-100 text-green-700 border-green-200",
+    rejected: "bg-red-100 text-red-700 border-red-200",
+    active: "bg-green-100 text-green-700 border-green-200",
+    suspended: "bg-red-100 text-red-700 border-red-200",
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium capitalize ${map[status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+      {status}
+    </span>
+  );
+};
+
+export default function AdminAffiliates() {
+  const { toast } = useToast();
   const { formatPrice } = useCurrency();
-  const [tab, setTab] = useState<Tab>("affiliates");
-  const [affiliates, setAffiliates] = useState<any[]>([]);
-  const [commissions, setCommissions] = useState<any[]>([]);
-  const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Record<string, any>>({});
-  const [saving, setSaving] = useState<string | null>(null);
-  const [actioning, setActioning] = useState<string | null>(null);
 
-  const load = async () => {
+  const [affiliates, setAffiliates] = useState<AffiliateRow[]>([]);
+  const [commissions, setCommissions] = useState<CommissionRow[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
+  const [groupCommissions, setGroupCommissions] = useState<GroupCommission[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Settings state
+  const [payoutThreshold, setPayoutThreshold] = useState("2000");
+  const [cookieDays, setCookieDays] = useState("30");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
+  // Edit affiliate dialog
+  const [editAff, setEditAff] = useState<AffiliateRow | null>(null);
+  const [editStatus, setEditStatus] = useState("active");
+  const [editCommType, setEditCommType] = useState("fixed");
+  const [editCommValue, setEditCommValue] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Withdraw action dialog
+  const [withdrawDialog, setWithdrawDialog] = useState<{ w: WithdrawalRow; action: "approve" | "pay" | "reject" } | null>(null);
+  const [withdrawNote, setWithdrawNote] = useState("");
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+
+  // Commission action loading
+  const [commLoading, setCommLoading] = useState<string | null>(null);
+
+  // Group commission edit
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [groupEdits, setGroupEdits] = useState<Record<string, { commissionType: string; commissionValue: string }>>({});
+
+  const fetchAll = async () => {
     setLoading(true);
     try {
-      const [aff, comm, wdraw] = await Promise.all([
+      const [affs, comms, wds, grpComms, sett] = await Promise.all([
         apiFetch("/api/admin/affiliates"),
         apiFetch("/api/admin/affiliates/commissions/all"),
         apiFetch("/api/admin/affiliates/withdrawals/all"),
+        apiFetch("/api/admin/affiliates/group-commissions"),
+        apiFetch("/api/admin/affiliates/settings"),
       ]);
-      setAffiliates(aff.affiliates || []);
-      setCommissions(comm.commissions || []);
-      setWithdrawals(wdraw.withdrawals || []);
+      setAffiliates(affs.affiliates || []);
+      setCommissions(comms.commissions || []);
+      setWithdrawals(wds.withdrawals || []);
+      setGroupCommissions(grpComms.groupCommissions || []);
+      setPayoutThreshold(String(sett.payoutThreshold ?? 2000));
+      setCookieDays(String(sett.cookieDays ?? 30));
     } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  const saveAffiliate = async (id: string) => {
-    setSaving(id);
+  // ── Settings ─────────────────────────────────────────────────────────────────
+  const saveSettings = async () => {
+    setSettingsSaving(true);
     try {
-      await apiFetch(`/api/admin/affiliates/${id}`, {
+      await apiFetch("/api/admin/affiliates/settings", null, {
         method: "PUT",
-        body: JSON.stringify(editValues[id] || {}),
+        body: JSON.stringify({ payoutThreshold: parseFloat(payoutThreshold), cookieDays: parseInt(cookieDays) }),
       });
-      await load();
-      setExpandedId(null);
+      toast({ title: "Settings saved" });
     } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setSaving(null);
-    }
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSettingsSaving(false); }
   };
 
-  const approveCommission = async (id: string) => {
-    setActioning(id);
+  // ── Group Commissions ──────────────────────────────────────────────────────────
+  const saveGroupCommission = async (groupId: string, groupName: string) => {
+    const edit = groupEdits[groupId];
+    if (!edit) return;
     try {
-      await apiFetch(`/api/admin/affiliates/commissions/${id}/approve`, { method: "PUT" });
-      await load();
+      await apiFetch(`/api/admin/affiliates/group-commissions/${groupId}`, null, {
+        method: "PUT",
+        body: JSON.stringify({ commissionType: edit.commissionType, commissionValue: edit.commissionValue, groupName }),
+      });
+      toast({ title: "Commission rate updated" });
+      setEditingGroup(null);
+      fetchAll();
     } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setActioning(null);
+      toast({ title: "Error", description: e.message, variant: "destructive" });
     }
   };
 
-  const payCommission = async (id: string) => {
-    setActioning(id);
+  // ── Edit Affiliate ─────────────────────────────────────────────────────────────
+  const openEditAff = (a: AffiliateRow) => {
+    setEditAff(a);
+    setEditStatus(a.status);
+    setEditCommType(a.commissionType);
+    setEditCommValue(a.commissionValue);
+    setEditNotes(a.notes ?? "");
+  };
+  const saveEditAff = async () => {
+    if (!editAff) return;
+    setEditSaving(true);
     try {
-      await apiFetch(`/api/admin/affiliates/commissions/${id}/pay`, { method: "PUT" });
-      await load();
+      await apiFetch(`/api/admin/affiliates/${editAff.id}`, null, {
+        method: "PUT",
+        body: JSON.stringify({ status: editStatus, commissionType: editCommType, commissionValue: editCommValue, notes: editNotes }),
+      });
+      toast({ title: "Affiliate updated" });
+      setEditAff(null);
+      fetchAll();
     } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setActioning(null);
-    }
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setEditSaving(false); }
   };
 
-  const approveWithdrawal = async (id: string) => {
-    setActioning(id);
+  // ── Commission Actions ──────────────────────────────────────────────────────────
+  const handleCommissionAction = async (id: string, action: "approve" | "reject" | "pay") => {
+    setCommLoading(id + action);
     try {
-      await apiFetch(`/api/admin/affiliates/withdrawals/${id}/approve`, { method: "PUT" });
-      await load();
+      await apiFetch(`/api/admin/affiliates/commissions/${id}/${action}`, null, { method: "PUT" });
+      toast({ title: action === "approve" ? "Commission approved" : action === "reject" ? "Commission rejected" : "Commission marked as paid" });
+      fetchAll();
     } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setActioning(null);
-    }
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setCommLoading(null); }
   };
 
-  const payWithdrawal = async (id: string) => {
-    setActioning(id);
+  // ── Withdrawal Actions ──────────────────────────────────────────────────────────
+  const handleWithdrawalAction = async () => {
+    if (!withdrawDialog) return;
+    const { w, action } = withdrawDialog;
+    setWithdrawLoading(true);
     try {
-      await apiFetch(`/api/admin/affiliates/withdrawals/${id}/pay`, { method: "PUT" });
-      await load();
+      await apiFetch(`/api/admin/affiliates/withdrawals/${w.id}/${action}`, null, {
+        method: "PUT",
+        body: JSON.stringify({ adminNotes: withdrawNote || undefined }),
+      });
+      toast({ title: action === "approve" ? "Withdrawal approved" : action === "pay" ? "Marked as paid" : "Withdrawal rejected" });
+      setWithdrawDialog(null);
+      setWithdrawNote("");
+      fetchAll();
     } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setActioning(null);
-    }
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setWithdrawLoading(false); }
   };
 
-  const rejectWithdrawal = async (id: string) => {
-    setActioning(id);
-    try {
-      await apiFetch(`/api/admin/affiliates/withdrawals/${id}/reject`, { method: "PUT" });
-      await load();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setActioning(null);
-    }
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  }
-
-  if (error) {
-    return <div className="flex items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive"><AlertCircle size={18} /> {error}</div>;
-  }
-
-  const totalEarnings = affiliates.reduce((s, a) => s + parseFloat(a.totalEarnings || "0"), 0);
-  const totalPending = affiliates.reduce((s, a) => s + parseFloat(a.pendingEarnings || "0"), 0);
+  // ── Summary Stats ──────────────────────────────────────────────────────────────
+  const totalPending = commissions.filter(c => c.status === "pending").length;
+  const totalWithdrawalsPending = withdrawals.filter(w => w.status === "pending").length;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Affiliate Management</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Manage affiliates, commissions, and payouts</p>
-        </div>
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Affiliate Management</h1>
+        <p className="text-gray-500 mt-1">Manage affiliates, commissions, and payouts</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Affiliates", value: affiliates.length, icon: Users, color: "text-blue-400" },
-          { label: "Active", value: affiliates.filter(a => a.status === "active").length, icon: TrendingUp, color: "text-green-400" },
-          { label: "Total Commissions", value: formatPrice(totalEarnings), icon: DollarSign, color: "text-yellow-400" },
-          { label: "Pending Payout", value: formatPrice(totalPending), icon: DollarSign, color: "text-orange-400" },
-        ].map(s => (
-          <div key={s.label} className="bg-card border border-border rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <s.icon size={16} className={s.color} />
-              <span className="text-xs text-muted-foreground">{s.label}</span>
-            </div>
-            <div className="text-2xl font-display font-bold text-foreground">{s.value}</div>
-          </div>
+          { label: "Total Affiliates", value: affiliates.length, icon: Users, color: "text-purple-500" },
+          { label: "Pending Commissions", value: totalPending, icon: DollarSign, color: "text-yellow-500" },
+          { label: "Pending Withdrawals", value: totalWithdrawalsPending, icon: Building2, color: "text-blue-500" },
+          { label: "Total Conversions", value: affiliates.reduce((a, b) => a + b.totalConversions, 0), icon: TrendingUp, color: "text-green-500" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label}>
+            <CardContent className="pt-4 pb-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500">{label}</p>
+                <p className="text-2xl font-bold text-gray-900">{value}</p>
+              </div>
+              <Icon className={`h-6 w-6 ${color}`} />
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-secondary/50 rounded-xl p-1 w-fit flex-wrap">
-        {(["affiliates", "commissions", "withdrawals"] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-            {t === "withdrawals"
-              ? `Withdrawals${withdrawals.filter(w => w.status === "pending").length ? ` (${withdrawals.filter(w => w.status === "pending").length})` : ""}`
-              : t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center h-40">
+          <RefreshCw className="h-6 w-6 animate-spin text-purple-600" />
+        </div>
+      ) : (
+        <Tabs defaultValue="affiliates">
+          <TabsList>
+            <TabsTrigger value="affiliates">Affiliates ({affiliates.length})</TabsTrigger>
+            <TabsTrigger value="commissions">
+              Commissions {totalPending > 0 && <span className="ml-1 bg-yellow-500 text-white text-xs rounded-full px-1.5">{totalPending}</span>}
+            </TabsTrigger>
+            <TabsTrigger value="withdrawals">
+              Withdrawals {totalWithdrawalsPending > 0 && <span className="ml-1 bg-blue-500 text-white text-xs rounded-full px-1.5">{totalWithdrawalsPending}</span>}
+            </TabsTrigger>
+            <TabsTrigger value="settings"><Settings className="h-3.5 w-3.5 mr-1" />Settings</TabsTrigger>
+          </TabsList>
 
-      {tab === "affiliates" && (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          {affiliates.length === 0 ? (
-            <div className="p-10 text-center text-muted-foreground text-sm">No affiliates yet.</div>
-          ) : (
-            <div className="divide-y divide-border">
-              {affiliates.map(a => (
-                <div key={a.id}>
-                  <div className="p-4 flex items-center gap-4 hover:bg-secondary/30 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-foreground">{a.firstName} {a.lastName}</span>
-                        <StatusBadge status={a.status} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{a.email} · Code: <span className="font-mono text-foreground">{a.referralCode}</span></p>
-                    </div>
-                    <div className="hidden sm:flex items-center gap-6 text-sm text-muted-foreground">
-                      <div className="text-center">
-                        <div className="font-bold text-foreground">{a.totalClicks}</div>
-                        <div className="text-xs">Clicks</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold text-foreground">{a.totalSignups}</div>
-                        <div className="text-xs">Signups</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold text-green-400">{formatPrice(parseFloat(a.totalEarnings || "0"))}</div>
-                        <div className="text-xs">Earnings</div>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => {
-                      setExpandedId(expandedId === a.id ? null : a.id);
-                      if (!editValues[a.id]) setEditValues(ev => ({ ...ev, [a.id]: { status: a.status, commissionType: a.commissionType, commissionValue: a.commissionValue } }));
-                    }}>
-                      {expandedId === a.id ? <ChevronUp size={16} /> : <Settings size={16} />}
-                    </Button>
+          {/* ── Affiliates Tab ── */}
+          <TabsContent value="affiliates">
+            <Card>
+              <CardContent className="pt-4">
+                {affiliates.length === 0 ? (
+                  <p className="text-center text-gray-400 py-10">No affiliates yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 border-b">
+                          <th className="pb-2 pr-4 font-medium">Affiliate</th>
+                          <th className="pb-2 pr-4 font-medium">Code</th>
+                          <th className="pb-2 pr-4 font-medium">Status</th>
+                          <th className="pb-2 pr-4 font-medium">Commission</th>
+                          <th className="pb-2 pr-4 font-medium">Clicks/Conv</th>
+                          <th className="pb-2 pr-4 font-medium">Earnings</th>
+                          <th className="pb-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {affiliates.map(a => {
+                          const avail = Math.max(
+                            parseFloat(a.totalEarnings || "0") - parseFloat(a.pendingEarnings || "0") - parseFloat(a.paidEarnings || "0"), 0
+                          );
+                          return (
+                            <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
+                              <td className="py-3 pr-4">
+                                <p className="font-medium text-gray-800">{a.firstName} {a.lastName}</p>
+                                <p className="text-xs text-gray-400">{a.email}</p>
+                              </td>
+                              <td className="py-3 pr-4 font-mono text-xs text-purple-600">{a.referralCode}</td>
+                              <td className="py-3 pr-4"><StatusBadge status={a.status} /></td>
+                              <td className="py-3 pr-4 text-xs">
+                                {a.commissionType === "percentage" ? `${a.commissionValue}%` : formatPrice(parseFloat(a.commissionValue))}
+                              </td>
+                              <td className="py-3 pr-4 text-xs text-gray-500">{a.totalClicks} / {a.totalConversions}</td>
+                              <td className="py-3 pr-4">
+                                <p className="text-xs text-gray-500">Total: {formatPrice(parseFloat(a.totalEarnings || "0"))}</p>
+                                <p className="text-xs text-green-600">Avail: {formatPrice(avail)}</p>
+                              </td>
+                              <td className="py-3">
+                                <Button variant="ghost" size="sm" onClick={() => openEditAff(a)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                  {expandedId === a.id && (
-                    <div className="p-4 bg-secondary/20 border-t border-border space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Status</label>
-                          <select
-                            value={editValues[a.id]?.status || a.status}
-                            onChange={e => setEditValues(ev => ({ ...ev, [a.id]: { ...ev[a.id], status: e.target.value } }))}
-                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground">
-                            <option value="active">Active</option>
-                            <option value="suspended">Suspended</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Commission Type</label>
-                          <select
-                            value={editValues[a.id]?.commissionType || a.commissionType}
-                            onChange={e => setEditValues(ev => ({ ...ev, [a.id]: { ...ev[a.id], commissionType: e.target.value } }))}
-                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground">
-                            <option value="percentage">Percentage (%)</option>
-                            <option value="fixed">Fixed Amount</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs text-muted-foreground">Commission Value</label>
-                          <Input
-                            type="number" step="0.01" min="0"
-                            value={editValues[a.id]?.commissionValue ?? a.commissionValue}
-                            onChange={e => setEditValues(ev => ({ ...ev, [a.id]: { ...ev[a.id], commissionValue: e.target.value } }))}
-                            className="bg-background border-border"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => saveAffiliate(a.id)} disabled={saving === a.id} className="gap-1">
-                          {saving === a.id ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setExpandedId(null)}>Cancel</Button>
-                      </div>
+          {/* ── Commissions Tab ── */}
+          <TabsContent value="commissions">
+            <Card>
+              <CardContent className="pt-4">
+                {commissions.length === 0 ? (
+                  <p className="text-center text-gray-400 py-10">No commissions yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 border-b">
+                          <th className="pb-2 pr-4 font-medium">Affiliate</th>
+                          <th className="pb-2 pr-4 font-medium">Description</th>
+                          <th className="pb-2 pr-4 font-medium">Amount</th>
+                          <th className="pb-2 pr-4 font-medium">Status</th>
+                          <th className="pb-2 pr-4 font-medium">Date</th>
+                          <th className="pb-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {commissions.map(c => (
+                          <tr key={c.id} className="border-b last:border-0 hover:bg-gray-50">
+                            <td className="py-3 pr-4">
+                              <p className="font-medium text-gray-800">{c.firstName} {c.lastName}</p>
+                              <p className="text-xs text-gray-400 font-mono">{c.referralCode}</p>
+                            </td>
+                            <td className="py-3 pr-4 text-xs text-gray-600 max-w-[200px]">{c.description || "—"}</td>
+                            <td className="py-3 pr-4 font-semibold">{formatPrice(parseFloat(c.amount))}</td>
+                            <td className="py-3 pr-4"><StatusBadge status={c.status} /></td>
+                            <td className="py-3 pr-4 text-xs text-gray-400">{fmtDate(c.createdAt)}</td>
+                            <td className="py-3">
+                              <div className="flex gap-1">
+                                {c.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm" variant="outline"
+                                      className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                                      disabled={commLoading === c.id + "approve"}
+                                      onClick={() => handleCommissionAction(c.id, "approve")}
+                                    >
+                                      {commLoading === c.id + "approve" ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm" variant="outline"
+                                      className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
+                                      disabled={commLoading === c.id + "reject"}
+                                      onClick={() => handleCommissionAction(c.id, "reject")}
+                                    >
+                                      {commLoading === c.id + "reject" ? <RefreshCw className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                                {c.status === "approved" && (
+                                  <Button
+                                    size="sm" variant="outline"
+                                    className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                                    disabled={commLoading === c.id + "pay"}
+                                    onClick={() => handleCommissionAction(c.id, "pay")}
+                                  >
+                                    Mark Paid
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Withdrawals Tab ── */}
+          <TabsContent value="withdrawals">
+            <Card>
+              <CardContent className="pt-4">
+                {withdrawals.length === 0 ? (
+                  <p className="text-center text-gray-400 py-10">No withdrawals yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 border-b">
+                          <th className="pb-2 pr-4 font-medium">Affiliate</th>
+                          <th className="pb-2 pr-4 font-medium">Method / Details</th>
+                          <th className="pb-2 pr-4 font-medium">Amount</th>
+                          <th className="pb-2 pr-4 font-medium">Status</th>
+                          <th className="pb-2 pr-4 font-medium">Date</th>
+                          <th className="pb-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withdrawals.map(w => (
+                          <tr key={w.id} className="border-b last:border-0 hover:bg-gray-50">
+                            <td className="py-3 pr-4">
+                              <p className="font-medium text-gray-800">{w.firstName} {w.lastName}</p>
+                              <p className="text-xs text-gray-400">{w.email}</p>
+                            </td>
+                            <td className="py-3 pr-4">
+                              <div className="flex items-center gap-1 text-xs">
+                                {w.payoutMethod === "wallet"
+                                  ? <><Wallet className="h-3.5 w-3.5 text-purple-500" /> Wallet</>
+                                  : <><Building2 className="h-3.5 w-3.5 text-blue-500" /> {w.bankName || "Bank"}</>}
+                              </div>
+                              {w.payoutMethod !== "wallet" && (
+                                <>
+                                  {w.accountTitle && <p className="text-xs text-gray-500">{w.accountTitle}</p>}
+                                  {w.accountNumber && <p className="text-xs font-mono text-gray-400">{w.accountNumber}</p>}
+                                </>
+                              )}
+                              {w.adminNotes && <p className="text-xs text-gray-400 italic mt-0.5">{w.adminNotes}</p>}
+                            </td>
+                            <td className="py-3 pr-4 font-semibold">{formatPrice(parseFloat(w.amount))}</td>
+                            <td className="py-3 pr-4"><StatusBadge status={w.status} /></td>
+                            <td className="py-3 pr-4 text-xs text-gray-400">{fmtDate(w.createdAt)}</td>
+                            <td className="py-3">
+                              <div className="flex gap-1">
+                                {w.status === "pending" && (
+                                  <>
+                                    <Button
+                                      size="sm" variant="outline"
+                                      className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                                      onClick={() => { setWithdrawDialog({ w, action: "approve" }); setWithdrawNote(""); }}
+                                    >
+                                      <Check className="h-3 w-3 mr-1" /> Approve
+                                    </Button>
+                                    <Button
+                                      size="sm" variant="outline"
+                                      className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
+                                      onClick={() => { setWithdrawDialog({ w, action: "reject" }); setWithdrawNote(""); }}
+                                    >
+                                      <X className="h-3 w-3 mr-1" /> Reject
+                                    </Button>
+                                  </>
+                                )}
+                                {w.status === "approved" && (
+                                  <Button
+                                    size="sm" variant="outline"
+                                    className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
+                                    onClick={() => { setWithdrawDialog({ w, action: "pay" }); setWithdrawNote(""); }}
+                                  >
+                                    Mark Paid
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Settings Tab ── */}
+          <TabsContent value="settings">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Global settings */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-purple-600" />
+                    Global Program Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label>Minimum Payout Threshold (Rs.)</Label>
+                    <Input
+                      type="number" min="0" step="100"
+                      value={payoutThreshold}
+                      onChange={e => setPayoutThreshold(e.target.value)}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Affiliates cannot withdraw below this amount</p>
+                  </div>
+                  <div>
+                    <Label>Referral Cookie Duration (days)</Label>
+                    <Input
+                      type="number" min="1" max="365"
+                      value={cookieDays}
+                      onChange={e => setCookieDays(e.target.value)}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">How long the referral cookie persists after clicking the link</p>
+                  </div>
+                  <Button
+                    onClick={saveSettings}
+                    disabled={settingsSaving}
+                    className="w-full bg-[#701AFE] hover:bg-[#5e14d4]"
+                  >
+                    {settingsSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Group commissions */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-purple-600" />
+                    Commission Rates by Product Group
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {groupCommissions.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-4 text-center">No product groups configured.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {groupCommissions.map(g => {
+                        const isEditing = editingGroup === g.groupId;
+                        const edit = groupEdits[g.groupId] ?? { commissionType: g.commissionType, commissionValue: g.commissionValue };
+                        return (
+                          <div key={g.groupId} className="border rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-medium text-sm text-gray-800">{g.groupName}</p>
+                              {!isEditing ? (
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="h-7 text-xs text-purple-600"
+                                  onClick={() => {
+                                    setEditingGroup(g.groupId);
+                                    setGroupEdits(prev => ({
+                                      ...prev,
+                                      [g.groupId]: { commissionType: g.commissionType, commissionValue: g.commissionValue },
+                                    }));
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                              ) : (
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-green-600"
+                                    onClick={() => saveGroupCommission(g.groupId, g.groupName)}>
+                                    <Save className="h-3 w-3 mr-1" /> Save
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-400"
+                                    onClick={() => setEditingGroup(null)}>
+                                    Cancel
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                            {isEditing ? (
+                              <div className="flex gap-2">
+                                <Select
+                                  value={edit.commissionType}
+                                  onValueChange={v => setGroupEdits(p => ({ ...p, [g.groupId]: { ...edit, commissionType: v } }))}
+                                >
+                                  <SelectTrigger className="h-8 text-xs w-36">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="fixed">Fixed (Rs.)</SelectItem>
+                                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="number" min="0" step="0.01"
+                                  value={edit.commissionValue}
+                                  onChange={e => setGroupEdits(p => ({ ...p, [g.groupId]: { ...edit, commissionValue: e.target.value } }))}
+                                  className="h-8 text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <p className="text-sm text-purple-700 font-semibold">
+                                {g.commissionType === "percentage"
+                                  ? `${g.commissionValue}% per order`
+                                  : `${formatPrice(parseFloat(g.commissionValue))} per order`}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </div>
-              ))}
+                </CardContent>
+              </Card>
             </div>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
       )}
 
-      {tab === "commissions" && (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          {commissions.length === 0 ? (
-            <div className="p-10 text-center text-muted-foreground text-sm">No commissions yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="px-5 py-3">Affiliate</th>
-                    <th className="px-5 py-3">Description</th>
-                    <th className="px-5 py-3">Amount</th>
-                    <th className="px-5 py-3">Status</th>
-                    <th className="px-5 py-3">Date</th>
-                    <th className="px-5 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {commissions.map((c: any) => (
-                    <tr key={c.id} className="hover:bg-secondary/30 transition-colors">
-                      <td className="px-5 py-3">
-                        <div className="font-medium text-foreground">{c.firstName} {c.lastName}</div>
-                        <div className="text-xs text-muted-foreground">{c.referralCode}</div>
-                      </td>
-                      <td className="px-5 py-3 text-muted-foreground">{c.description || "Commission"}</td>
-                      <td className="px-5 py-3 font-bold text-green-400">{formatPrice(parseFloat(c.amount))}</td>
-                      <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
-                      <td className="px-5 py-3 text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</td>
-                      <td className="px-5 py-3">
-                        <div className="flex gap-1">
-                          {c.status === "pending" && (
-                            <Button size="sm" variant="outline" onClick={() => approveCommission(c.id)} disabled={actioning === c.id} className="gap-1 text-xs h-7">
-                              {actioning === c.id ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Approve
-                            </Button>
-                          )}
-                          {c.status === "approved" && (
-                            <Button size="sm" onClick={() => payCommission(c.id)} disabled={actioning === c.id} className="gap-1 text-xs h-7">
-                              {actioning === c.id ? <Loader2 size={10} className="animate-spin" /> : <DollarSign size={10} />} Mark Paid
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* Edit Affiliate Dialog */}
+      <Dialog open={!!editAff} onOpenChange={o => { if (!o) setEditAff(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Affiliate</DialogTitle>
+            <DialogDescription>{editAff?.email}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Status</Label>
+              <Select value={editStatus} onValueChange={setEditStatus}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </div>
-      )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Commission Type</Label>
+                <Select value={editCommType} onValueChange={setEditCommType}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">Fixed (Rs.)</SelectItem>
+                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Commission Value</Label>
+                <Input type="number" min="0" step="0.01"
+                  value={editCommValue} onChange={e => setEditCommValue(e.target.value)}
+                  className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label>Internal Notes</Label>
+              <Textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} className="mt-1" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAff(null)}>Cancel</Button>
+            <Button onClick={saveEditAff} disabled={editSaving} className="bg-[#701AFE] hover:bg-[#5e14d4]">
+              {editSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null} Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {tab === "withdrawals" && (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          {withdrawals.length === 0 ? (
-            <div className="p-10 text-center text-muted-foreground text-sm">No withdrawal requests yet.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="px-5 py-3">Affiliate</th>
-                    <th className="px-5 py-3">Amount</th>
-                    <th className="px-5 py-3">PayPal</th>
-                    <th className="px-5 py-3">Status</th>
-                    <th className="px-5 py-3">Date</th>
-                    <th className="px-5 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {withdrawals.map((w: any) => (
-                    <tr key={w.id} className="hover:bg-secondary/30 transition-colors">
-                      <td className="px-5 py-3">
-                        <div className="font-medium text-foreground">{w.firstName} {w.lastName}</div>
-                        <div className="text-xs text-muted-foreground">{w.email}</div>
-                      </td>
-                      <td className="px-5 py-3 font-bold text-orange-400">{formatPrice(parseFloat(w.amount))}</td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground">{w.paypalEmail || "—"}</td>
-                      <td className="px-5 py-3"><StatusBadge status={w.status} /></td>
-                      <td className="px-5 py-3 text-muted-foreground">{new Date(w.createdAt).toLocaleDateString()}</td>
-                      <td className="px-5 py-3">
-                        <div className="flex gap-1 flex-wrap">
-                          {w.status === "pending" && (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => approveWithdrawal(w.id)} disabled={actioning === w.id} className="gap-1 text-xs h-7">
-                                {actioning === w.id ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />} Approve
-                              </Button>
-                              <Button size="sm" variant="destructive" onClick={() => rejectWithdrawal(w.id)} disabled={actioning === w.id} className="gap-1 text-xs h-7">
-                                {actioning === w.id ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />} Reject
-                              </Button>
-                            </>
-                          )}
-                          {w.status === "approved" && (
-                            <Button size="sm" onClick={() => payWithdrawal(w.id)} disabled={actioning === w.id} className="gap-1 text-xs h-7">
-                              {actioning === w.id ? <Loader2 size={10} className="animate-spin" /> : <ArrowDownCircle size={10} />} Mark Paid
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-    </motion.div>
+      {/* Withdrawal Action Dialog */}
+      <Dialog open={!!withdrawDialog} onOpenChange={o => { if (!o) setWithdrawDialog(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {withdrawDialog?.action === "approve" ? "Approve Withdrawal"
+                : withdrawDialog?.action === "pay" ? "Mark as Paid"
+                  : "Reject Withdrawal"}
+            </DialogTitle>
+            {withdrawDialog && (
+              <DialogDescription>
+                {formatPrice(parseFloat(withdrawDialog.w.amount))} — {withdrawDialog.w.firstName} {withdrawDialog.w.lastName}
+                {withdrawDialog.w.payoutMethod !== "wallet" && withdrawDialog.w.bankName && (
+                  <> via {withdrawDialog.w.bankName}</>
+                )}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="py-2">
+            <Label>Admin Note (optional)</Label>
+            <Textarea
+              value={withdrawNote}
+              onChange={e => setWithdrawNote(e.target.value)}
+              placeholder="Add a note for the affiliate..."
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWithdrawDialog(null)}>Cancel</Button>
+            <Button
+              onClick={handleWithdrawalAction}
+              disabled={withdrawLoading}
+              className={withdrawDialog?.action === "reject"
+                ? "bg-red-600 hover:bg-red-700 text-white"
+                : "bg-[#701AFE] hover:bg-[#5e14d4]"}
+            >
+              {withdrawLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+              {withdrawDialog?.action === "approve" ? "Approve" : withdrawDialog?.action === "pay" ? "Mark Paid" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
