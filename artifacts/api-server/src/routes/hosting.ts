@@ -1415,9 +1415,8 @@ router.get("/client/hosting/:id/domains", authenticate, async (req: AuthRequest,
 });
 
 // ── Guided Install: generate Softaculous WordPress URL (opens in new tab) ─────
-// Uses WHM create_user_session to build a live cpsess token, then returns the
-// full Softaculous WordPress install page URL so the client can install manually
-// via the official cPanel interface.
+// Prefers the bypass-login URL (no session needed, never expires).
+// Falls back to WHM session-based URL only if no password is stored.
 router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
@@ -1429,16 +1428,12 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
     if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
 
     const server = await resolveServerForService(service);
-    if (!server || !server.apiToken) {
-      const fallbackUrl = service.cpanelUrl ?? (server?.hostname ? `https://${server.hostname}:2083` : null);
-      if (fallbackUrl) return res.json({ url: fallbackUrl, fallback: true });
-      return res.status(400).json({ error: "No cPanel server found. Contact support." });
-    }
+    if (!server) return res.status(400).json({ error: "No cPanel server found. Contact support." });
 
     const { domain: targetDomain } = req.body as { domain?: string };
     const useDomain = targetDomain || service.domain;
 
-    // ── Prefer bypass-login URL (no session needed, works even when WHM UAPI fails) ──
+    // ── FIRST: bypass-login URL — no session, no expiry, works even without WHM API token ──
     if (service.password) {
       const gotoUri = `softaculous/index.php?act=software&soft=26&softdomain=${encodeURIComponent(useDomain)}`;
       const url = `https://${server.hostname}:2083/login/?user=${encodeURIComponent(service.username)}&pass=${encodeURIComponent(service.password)}&goto_uri=${encodeURIComponent(gotoUri)}`;
@@ -1446,7 +1441,12 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
       return res.json({ url });
     }
 
-    // ── Fall back to WHM session-based URL if no password stored ──
+    // ── FALLBACK: WHM session URL (requires API token, URL may expire) ──
+    if (!server.apiToken) {
+      const base = service.cpanelUrl ?? `https://${server.hostname}:2083`;
+      console.warn(`[WP-SOFTACULOUS-URL] No password or API token — returning base cPanel URL for service ${id}`);
+      return res.json({ url: base, fallback: true });
+    }
     const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
     const url = await cpanelGetSoftaculousInstallUrl(serverCfg, service.username, useDomain);
     console.log(`[WP-SOFTACULOUS-URL] Session URL for service ${id} domain=${useDomain}`);
@@ -1607,39 +1607,35 @@ router.post("/client/hosting/:id/sitejet-url", authenticate, async (req: AuthReq
     if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
 
     const server = await resolveServerForService(service);
-    if (!server || !server.apiToken) {
-      // Fallback: return base cPanel URL if we can't generate a session
-      const fallback = service.cpanelUrl ?? (server?.hostname ? `https://${server.hostname}:2083` : null);
-      if (fallback) return res.json({ url: `${fallback}/frontend/paper_lantern/sitejet/index.html`, fallback: true });
-      return res.status(400).json({ error: "No cPanel server found. Contact support." });
-    }
+    if (!server) return res.status(400).json({ error: "No cPanel server found. Contact support." });
 
     const useDomain = targetDomain || service.domain;
 
-    // ── Prefer bypass-login URL (works even when WHM session creation fails) ──
+    // ── FIRST: bypass-login URL — no session, no expiry, works even without WHM API token ──
     if (service.password) {
-      const gotoUri = useDomain
-        ? `sitejet/index.html?domain=${encodeURIComponent(useDomain)}`
-        : "sitejet/index.html";
+      const gotoUri = `sitejet/index.html`;
       const url = `https://${server.hostname}:2083/login/?user=${encodeURIComponent(service.username)}&pass=${encodeURIComponent(service.password)}&goto_uri=${encodeURIComponent(gotoUri)}`;
       console.log(`[SITEJET-URL] Bypass-login URL for service ${id} domain=${useDomain}`);
       return res.json({ url });
     }
 
-    // ── Fall back to WHM session-based URL if no password stored ─────────────
+    // ── FALLBACK: WHM session-based URL (requires API token, URL may expire) ──
+    if (!server.apiToken) {
+      const base = service.cpanelUrl ?? `https://${server.hostname}:2083`;
+      console.warn(`[SITEJET-URL] No password or API token — returning base cPanel URL for service ${id}`);
+      return res.json({ url: `${base}/frontend/paper_lantern/sitejet/index.html`, fallback: true });
+    }
     const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
     try {
       const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, "cpaneld");
       const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
       if (!match) throw new Error("Could not extract cpsess token from cPanel login URL.");
       const cpsess = match[1];
-      const domainParam = useDomain ? `?domain=${encodeURIComponent(useDomain)}` : "";
-      const url = `https://${server.hostname}:2083/${cpsess}/sitejet/index.html#/${domainParam}`;
-      console.log(`[SITEJET-URL] Session URL for service ${id} domain=${useDomain}`);
+      const url = `https://${server.hostname}:2083/${cpsess}/sitejet/index.html`;
+      console.log(`[SITEJET-URL] Session URL for service ${id}`);
       return res.json({ url });
     } catch (sessionErr: any) {
       console.error(`[SITEJET-URL] Session creation failed: ${sessionErr.message}`);
-      // Last-resort: return the base cPanel URL so the button still does something useful
       const base = service.cpanelUrl ?? `https://${server.hostname}:2083`;
       return res.json({ url: `${base}/frontend/paper_lantern/sitejet/index.html`, fallback: true });
     }
