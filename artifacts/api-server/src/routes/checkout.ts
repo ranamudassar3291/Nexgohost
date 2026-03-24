@@ -44,7 +44,18 @@ async function handleCheckout(req: AuthRequest, res: any) {
 
     // ── Domain-only order (no hosting plan) ─────────────────────────────────
     if (!packageId && domain) {
-      const domainPrice = typeof clientDomainAmount === "number" ? clientDomainAmount : 0;
+      // Always look up the authoritative TLD price server-side — never trust the client amount
+      let domainPrice = typeof clientDomainAmount === "number" ? clientDomainAmount : 0;
+      if (domain.includes(".")) {
+        const tld = domain.slice(domain.indexOf(".")).toLowerCase();
+        const [tldRow] = await db.select().from(domainExtensionsTable)
+          .where(eq(domainExtensionsTable.extension, tld)).limit(1);
+        if (tldRow) {
+          domainPrice = transferDomain
+            ? Number(tldRow.transferPrice)
+            : Number(tldRow.registerPrice);
+        }
+      }
       const finalAmount = Math.max(0, domainPrice);
 
       const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
@@ -148,8 +159,14 @@ async function handleCheckout(req: AuthRequest, res: any) {
       baseAmount = Number(plan.price) * (months === 1 ? 1 : months);
     }
 
-    // Domain add-on amount (0 if free domain with yearly)
-    const domainAddon = freeDomain ? 0 : (typeof clientDomainAmount === "number" ? clientDomainAmount : 0);
+    // Domain add-on amount: look up authoritative TLD price for transfers; 0 for free-domain-eligible registrations
+    let domainAddon = freeDomain ? 0 : (typeof clientDomainAmount === "number" ? clientDomainAmount : 0);
+    if (transferDomain && domain && domain.includes(".")) {
+      const tld = domain.slice(domain.indexOf(".")).toLowerCase();
+      const [tldRow] = await db.select().from(domainExtensionsTable)
+        .where(eq(domainExtensionsTable.extension, tld)).limit(1);
+      if (tldRow) domainAddon = Number(tldRow.transferPrice);
+    }
 
     let discountAmount = 0;
     let promoDetails: { code: string; discountPercent: number } | null = null;
@@ -198,6 +215,12 @@ async function handleCheckout(req: AuthRequest, res: any) {
     const nextDueDate = new Date();
     nextDueDate.setMonth(nextDueDate.getMonth() + months);
 
+    // If the plan offers a free domain with yearly billing, and the user didn't claim one now,
+    // mark freeDomainAvailable so they can claim it from the dashboard later.
+    const isFreeDomainEligible = (plan as any).freeDomainEnabled === true && cycle === "yearly";
+    const freeDomainClaimed = freeDomain && (registerDomain || false) && !transferDomain;
+    const shouldSetFreeDomainAvailable = isFreeDomainEligible && !freeDomainClaimed;
+
     const [service] = await db.insert(hostingServicesTable).values({
       clientId: req.user!.userId,
       orderId: order.id,
@@ -207,6 +230,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       status: "pending",
       billingCycle: cycle,
       nextDueDate,
+      freeDomainAvailable: shouldSetFreeDomainAvailable,
     }).returning();
 
     // 3. Create invoice (due in 7 days)

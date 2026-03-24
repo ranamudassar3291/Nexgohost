@@ -120,6 +120,7 @@ function formatService(s: typeof hostingServicesTable.$inferSelect, clientName?:
     wpUrl: s.wpUrl,
     wpUsername: s.wpUsername,
     wpPassword: s.wpPassword,
+    freeDomainAvailable: s.freeDomainAvailable ?? false,
     createdAt: s.createdAt.toISOString(),
   };
 }
@@ -922,6 +923,24 @@ router.get("/client/hosting/:id", authenticate, async (req: AuthRequest, res) =>
     if (!service) return res.status(404).json({ error: "Service not found" });
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     return res.json(formatService(service, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: mark free domain as claimed (sets freeDomainAvailable = false)
+router.post("/client/hosting/:id/claim-free-domain", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, req.user!.userId)))
+      .limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.freeDomainAvailable) return res.status(400).json({ error: "No free domain available for this service" });
+    await db.update(hostingServicesTable).set({ freeDomainAvailable: false, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+    return res.json({ ok: true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });

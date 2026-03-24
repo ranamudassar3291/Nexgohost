@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -16,7 +16,7 @@ interface Order {
 interface HostingService {
   id: string; planName: string; domain: string | null; status: string;
   cpanelUrl: string | null; webmailUrl: string | null; username: string | null;
-  nextDueDate: string | null; billingCycle: string;
+  nextDueDate: string | null; billingCycle: string; freeDomainAvailable: boolean;
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -71,12 +71,24 @@ export default function ClientDashboard() {
   });
   const creditBalance = parseFloat(creditsData?.creditBalance ?? "0");
 
-  const { data: activeServices = [] } = useQuery<HostingService[]>({
+  const queryClient = useQueryClient();
+  const { data: allServices = [] } = useQuery<HostingService[]>({
     queryKey: ["client-services-dashboard"],
-    queryFn: () => apiFetch("/api/client/hosting").then(d =>
-      (d || []).filter((s: HostingService) => s.status === "active")
-    ),
+    queryFn: () => apiFetch("/api/client/hosting").then(d => d || []),
   });
+  const activeServices = allServices.filter(s => s.status === "active");
+  const freeDomainService = allServices.find(s => s.freeDomainAvailable);
+
+  async function handleClaimFreeDomain() {
+    if (!freeDomainService) return;
+    try {
+      await apiFetch(`/api/client/hosting/${freeDomainService.id}/claim-free-domain`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["client-services-dashboard"] });
+      navigate("/client/orders/new?freeDomain=1");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  }
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   if (!stats) return null;
@@ -149,6 +161,26 @@ export default function ClientDashboard() {
             </div>
           </div>
         </Link>
+      )}
+
+      {/* Free Domain Notification */}
+      {freeDomainService && (
+        <div className="rounded-2xl p-5 flex items-center gap-4 border"
+          style={{ background: "linear-gradient(135deg, #f3ebff 0%, #ede0ff 100%)", borderColor: "#c084fc" }}>
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border"
+            style={{ background: "#701AFE15", borderColor: "#701AFE40" }}>
+            <Gift size={22} style={{ color: "#701AFE" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: "#701AFE" }}>You have 1 Free Domain waiting to be claimed!</p>
+            <p className="text-xs text-purple-700 mt-0.5">Your <span className="font-semibold">{freeDomainService.planName}</span> yearly plan includes a free domain registration. Claim it now before it expires.</p>
+          </div>
+          <button onClick={handleClaimFreeDomain}
+            className="shrink-0 px-4 py-2 text-[13px] font-bold text-white rounded-xl shadow transition-all hover:opacity-90"
+            style={{ background: "#701AFE", boxShadow: "0 4px 14px rgba(112,26,254,0.28)" }}>
+            Claim Now
+          </button>
+        </div>
       )}
 
       {/* Active Hosting Services Quick Access */}

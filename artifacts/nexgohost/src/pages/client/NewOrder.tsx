@@ -53,6 +53,7 @@ interface TldResult {
 interface TldPricing {
   tld: string; registrationPrice: number; renewalPrice: number;
   register2YearPrice: number | null; register3YearPrice: number | null;
+  transferPrice: number;
 }
 
 interface PaymentMethod {
@@ -250,9 +251,13 @@ function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canC
               <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
                 <div>
                   <p className="text-[13px] font-semibold text-black">{domain.fullName}</p>
-                  <p className="text-[11px] text-gray-400">{freeDomain ? "Free Domain" : "Domain · 1 Year"}</p>
+                  <p className="text-[11px] text-gray-400">
+                    {freeDomain ? "Free Domain Included" : domain.mode === "transfer" ? "Domain Transfer · 1-yr ext." : "Domain · 1 Year"}
+                  </p>
                 </div>
-                <span className="text-[14px] font-extrabold">{freeDomain || domain.price === 0 ? <span className="text-green-600">Free</span> : fmt(domain.price)}</span>
+                <span className="text-[14px] font-extrabold">
+                  {freeDomain ? <span className="text-green-600">Free</span> : fmt(domain.price)}
+                </span>
               </div>
             )}
             {plan?.renewalPrice && (
@@ -354,10 +359,12 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
             <div className="flex items-start justify-between gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-bold text-black truncate">{domain.fullName}</p>
-                <p className="text-[11px] text-gray-400">{freeDomain ? "Free Domain Included" : "Domain · 1 Year"}</p>
+                <p className="text-[11px] text-gray-400">
+                  {freeDomain ? "Free Domain Included" : domain.mode === "transfer" ? "Domain Transfer" : "Domain · 1 Year"}
+                </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                {freeDomain || domain.price === 0
+                {freeDomain
                   ? <span className="text-[12px] font-bold text-green-600">FREE</span>
                   : <span className="text-[13px] font-extrabold">{fmt(domain.price)}</span>}
                 <button onClick={onRmDom} className="w-4 h-4 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors">
@@ -489,7 +496,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const { data: tldPricing = [] } = useQuery<TldPricing[]>({
     queryKey: ["tld-pricing"],
     queryFn: async () => (await fetch("/api/domains/pricing")).json(),
-    enabled: service === "domain" || step >= 2,
+    enabled: service === "domain" || service === "transfer" || step >= 2,
     staleTime: 300_000,
   });
 
@@ -623,7 +630,8 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   }
 
   function selectDomain(name: string, price: number, mode: DomainMode) {
-    const actualPrice = freeDomainEligible && freeDomainClaimed ? 0 : price;
+    // Free domain only applies to registrations, never to transfers
+    const actualPrice = (freeDomainEligible && freeDomainClaimed && mode === "register") ? 0 : price;
     setCartDomain({ fullName: name, price: actualPrice, mode });
     setDomainMode(mode ?? "register");
   }
@@ -1115,7 +1123,11 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
       e.preventDefault();
       if (!txDomain.includes(".") || !eppCode.trim()) return;
       sessionStorage.setItem("transfer_epp", eppCode);
-      selectDomain(txDomain, 0, "transfer");
+      // Look up the authoritative transfer price from TLD pricing table
+      const tld = txDomain.slice(txDomain.indexOf(".")).toLowerCase();
+      const tldRow = tldPricing.find(t => t.tld === tld);
+      const transferPrice = tldRow?.transferPrice ?? tldRow?.registrationPrice ?? 0;
+      selectDomain(txDomain, transferPrice, "transfer");
       setDomainPendingUpsell(true);
     }
     return (
@@ -1382,7 +1394,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                       onBlur={e  => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}/>
                   </div>
                 </div>
-                <button onClick={() => { if (!txDomain.includes(".")) return; setCartDomain({ fullName: txDomain, price: 0, mode: "transfer" }); setDomainMode("transfer"); setStep(3); }}
+                <button onClick={() => { if (!txDomain.includes(".")) return; const _tld = txDomain.slice(txDomain.indexOf(".")).toLowerCase(); const _row = tldPricing.find(t => t.tld === _tld); const _txPrice = _row?.transferPrice ?? _row?.registrationPrice ?? 0; setCartDomain({ fullName: txDomain, price: _txPrice, mode: "transfer" }); setDomainMode("transfer"); setStep(3); }}
                   disabled={!txDomain.includes(".")}
                   className="w-full py-3 text-white rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ background: P }}>
@@ -1437,7 +1449,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   function renderStep3() {
     const planAmt   = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
-    const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.price === 0;
+    const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
     const domAmt    = isDomFree ? 0 : (cartDomain?.price ?? 0);
     const total     = planAmt + domAmt;
     const renewAt   = selectedPlan?.renewalPrice ?? selectedPlan?.yearlyPrice ?? null;
@@ -1488,17 +1500,22 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                        "Existing domain (nameservers update)"}
                     </p>
                     {isDomFree && (
-                      <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1 font-semibold"><Gift size={10}/> Free domain included with your yearly plan</p>
+                      <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1 font-semibold">
+                        <Gift size={10}/> Included with your hosting plan
+                      </p>
                     )}
                     {!isDomFree && cartDomain.mode === "register" && (
                       <p className="text-[11px] text-gray-400 mt-1">Renewal price shown during checkout annually.</p>
                     )}
                   </div>
                   <div className="text-right shrink-0 ml-4">
-                    {isDomFree || cartDomain.price === 0
-                      ? <p className="text-[16px] font-extrabold text-green-600">Rs. 0.00</p>
-                      : <p className="text-[16px] font-extrabold text-gray-900">{formatPrice(cartDomain.price)}</p>}
-                    {isDomFree && <p className="text-[11px] text-green-500 font-semibold">FREE</p>}
+                    {isDomFree
+                      ? <>
+                          <p className="text-[16px] font-extrabold text-green-600">Rs. 0.00</p>
+                          <p className="text-[11px] text-green-500 font-semibold">FREE</p>
+                        </>
+                      : <p className="text-[16px] font-extrabold text-gray-900">{formatPrice(cartDomain.price)}</p>
+                    }
                   </div>
                 </div>
               )}
@@ -1602,7 +1619,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // Root render
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const isFreeDom = freeDomainEligible && freeDomainClaimed;
+  const isFreeDom = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register";
 
   // Direct-link: show spinner while plan is being fetched + auto-selected
   if (!directLinkReady) {
