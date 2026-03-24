@@ -5,7 +5,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -1436,9 +1436,20 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
     }
 
     const { domain: targetDomain } = req.body as { domain?: string };
+    const useDomain = targetDomain || service.domain;
+
+    // ── Prefer bypass-login URL (no session needed, works even when WHM UAPI fails) ──
+    if (service.password) {
+      const gotoUri = `softaculous/index.php?act=software&soft=26&softdomain=${encodeURIComponent(useDomain)}`;
+      const url = `https://${server.hostname}:2083/login/?user=${encodeURIComponent(service.username)}&pass=${encodeURIComponent(service.password)}&goto_uri=${encodeURIComponent(gotoUri)}`;
+      console.log(`[WP-SOFTACULOUS-URL] Bypass-login URL for service ${id} domain=${useDomain}`);
+      return res.json({ url });
+    }
+
+    // ── Fall back to WHM session-based URL if no password stored ──
     const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
-    const url = await cpanelGetSoftaculousInstallUrl(serverCfg, service.username, targetDomain || service.domain);
-    console.log(`[WP-SOFTACULOUS-URL] Generated for service ${id} domain=${targetDomain || service.domain}`);
+    const url = await cpanelGetSoftaculousInstallUrl(serverCfg, service.username, useDomain);
+    console.log(`[WP-SOFTACULOUS-URL] Session URL for service ${id} domain=${useDomain}`);
     return res.json({ url });
   } catch (err: any) {
     const msg = err.message || "Failed to generate Softaculous URL";
@@ -1447,99 +1458,89 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
   }
 });
 
-// ── Detect WordPress installation via Fileman::list_files ──────────────────
-// Accepts optional { domain } body to check a subdomain's directory.
-// Resolves the docroot using DomainInfo::domains_data; falls back to derived path.
-// On success, marks the service as wpInstalled=true in the database.
+// ── Detect WordPress installation via Fileman::stat on port 2083 ─────────────
+// Uses cPanel direct API (Basic Auth with user:password) so it works even when
+// WHM UAPI proxy returns "No data returned from cPanel Service".
+// NEVER returns 500 — always returns { installed: false } on any API failure.
 router.post("/client/hosting/:id/wp-detect", authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const clientId = req.user!.userId;
-    const { domain: targetDomain } = req.body as { domain?: string };
+  const { id } = req.params;
+  const clientId = req.user!.userId;
+  const { domain: targetDomain } = req.body as { domain?: string };
 
-    const [service] = await db.select().from(hostingServicesTable)
-      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
-    if (!service) return res.status(404).json({ error: "Service not found" });
-    if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
+  // Resolve service
+  const [service] = await db.select().from(hostingServicesTable)
+    .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+  if (!service) return res.status(404).json({ error: "Service not found" });
+  if (!service.username) return res.json({ installed: false, error: "No cPanel username configured." });
 
-    const server = await resolveServerForService(service);
-    if (!server || !server.apiToken) {
-      return res.status(400).json({ error: "No cPanel server with API token found. Contact support." });
+  const server = await resolveServerForService(service);
+  if (!server) return res.json({ installed: false, error: "No cPanel server configured." });
+
+  // Derive the docroot for the selected domain
+  const checkDomain  = targetDomain || service.domain;
+  const isMainDomain = checkDomain === service.domain;
+  let docroot = `/home/${service.username}/public_html`;
+  if (!isMainDomain) {
+    const prefix = checkDomain.replace(`.${service.domain}`, "");
+    if (prefix && prefix !== checkDomain) {
+      docroot = `/home/${service.username}/public_html/${prefix}`;
     }
+  }
+  const wpConfigPath = `${docroot}/wp-config.php`;
 
-    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
-
-    // Resolve the docroot for the selected domain
-    let docroot = `/home/${service.username}/public_html`;
-    const checkDomain = targetDomain || service.domain;
-    const isMainDomain = checkDomain === service.domain;
-
-    if (!isMainDomain) {
-      // Try to get exact docroot from DomainInfo::domains_data
-      try {
-        const dd = await cpanelUapi(serverCfg, service.username, "DomainInfo", "domains_data", {});
-        const list: any[] = Array.isArray(dd) ? dd : (dd?.domains_data ?? dd?.data ?? []);
-        const match = list.find((d: any) => d.domain === checkDomain);
-        if (match?.docroot) {
-          docroot = match.docroot;
-        } else {
-          // Fallback: derive from subdomain prefix
-          // sub.example.com → public_html/sub
-          const mainDomain = service.domain;
-          const prefix = checkDomain.replace(`.${mainDomain}`, "");
-          if (prefix && prefix !== checkDomain) {
-            docroot = `/home/${service.username}/public_html/${prefix}`;
-          }
-        }
-      } catch {
-        // Derive from prefix as fallback
-        const mainDomain = service.domain;
-        const prefix = checkDomain.replace(`.${mainDomain}`, "");
-        if (prefix && prefix !== checkDomain) {
-          docroot = `/home/${service.username}/public_html/${prefix}`;
-        }
-      }
-    }
-
-    let installed = false;
-    try {
-      const data = await cpanelUapi(serverCfg, service.username, "Fileman", "list_files", {
-        dir: docroot,
-        include_mime: "0",
-      });
-      const files: any[] = Array.isArray(data) ? data : (data?.files ?? []);
-      installed = files.some((f: any) =>
-        f.file === "wp-config.php" || f.name === "wp-config.php" || f.path === "wp-config.php"
-      );
-      console.log(`[WP-DETECT] Checked ${files.length} files in ${docroot} — wp-config.php found: ${installed}`);
-    } catch (fileman_err: any) {
-      console.warn(`[WP-DETECT] Fileman::list_files failed for ${docroot}: ${fileman_err.message}`);
-      return res.status(500).json({ error: `Could not check files: ${fileman_err.message}` });
-    }
-
+  // ── Strategy 1: cPanel direct API (port 2083, Basic Auth) ─────────────────
+  if (service.password) {
+    const installed = await cpanelFileExists(server.hostname, service.username, service.password, wpConfigPath);
+    console.log(`[WP-DETECT] Fileman::stat (direct) — ${wpConfigPath} found: ${installed}`);
     if (installed) {
-      const wpUrl = `https://${checkDomain}/wp-admin`;
       await db.update(hostingServicesTable).set({
         wpInstalled:       true,
         wpProvisionStatus: "active",
         wpProvisionStep:   "Completed",
         wpProvisionError:  null,
-        wpUrl,
+        wpUrl:             `https://${checkDomain}/wp-admin`,
         wpInstallPath:     "/",
         wpProvisionedAt:   new Date(),
         updatedAt:         new Date(),
       }).where(eq(hostingServicesTable.id, id));
-      console.log(`[WP-DETECT] WordPress detected and marked active for service ${id} (${checkDomain})`);
+      console.log(`[WP-DETECT] Marked active for service ${id} (${checkDomain})`);
     }
-
-    return res.json({ installed, checkedDir: docroot, domain: checkDomain });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Detection failed" });
+    return res.json({ installed, checkedPath: wpConfigPath, domain: checkDomain });
   }
+
+  // ── Strategy 2: WHM UAPI proxy (Fileman::list_files) ──────────────────────
+  if (server.apiToken) {
+    try {
+      const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+      const data = await cpanelUapi(serverCfg, service.username, "Fileman", "list_files", { dir: docroot, include_mime: "0" });
+      const files: any[] = Array.isArray(data) ? data : (data?.files ?? []);
+      const installed = files.some((f: any) => f.file === "wp-config.php" || f.name === "wp-config.php" || f.path === "wp-config.php");
+      console.log(`[WP-DETECT] WHM Fileman::list_files — ${files.length} files, wp-config.php found: ${installed}`);
+      if (installed) {
+        await db.update(hostingServicesTable).set({
+          wpInstalled:       true,
+          wpProvisionStatus: "active",
+          wpProvisionStep:   "Completed",
+          wpProvisionError:  null,
+          wpUrl:             `https://${checkDomain}/wp-admin`,
+          wpInstallPath:     "/",
+          wpProvisionedAt:   new Date(),
+          updatedAt:         new Date(),
+        }).where(eq(hostingServicesTable.id, id));
+      }
+      return res.json({ installed, checkedPath: wpConfigPath, domain: checkDomain });
+    } catch (e: any) {
+      console.warn(`[WP-DETECT] WHM Fileman fallback failed: ${e.message} — returning installed:false`);
+    }
+  }
+
+  // ── All strategies exhausted — return false (never 500) ───────────────────
+  return res.json({ installed: false, checkedPath: wpConfigPath, domain: checkDomain });
 });
 
-// ── Get WordPress admin URL — Softaculous SSO or direct /wp-admin ──────────
-// Tries one-click Softaculous SSO login first; falls back to the direct wp-admin URL.
+// ── Get WordPress admin URL — Softaculous bypass-login SSO or direct ────────
+// Tries Softaculous sign_as (one-click) using the bypass-login URL + insid.
+// Falls back to direct /wp-admin via bypass-login. Never returns 500.
 router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
@@ -1552,17 +1553,40 @@ router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRe
 
     const { domain: targetDomain } = req.body as { domain?: string };
     const lookupDomain = targetDomain || service.domain;
-    const fallbackUrl  = `https://${lookupDomain}/wp-admin`;
     const server = await resolveServerForService(service);
 
-    if (!server || !server.apiToken || server.type !== "cpanel") {
-      return res.json({ url: fallbackUrl, method: "direct" });
+    // Helper: build bypass-login URL for any goto_uri
+    const bypassLogin = (gotoUri: string) =>
+      `https://${server!.hostname}:2083/login/?user=${encodeURIComponent(service.username!)}&pass=${encodeURIComponent(service.password!)}&goto_uri=${encodeURIComponent(gotoUri)}`;
+
+    // ── If password is available, use bypass-login approach ──────────────────
+    if (service.password && server) {
+      // Try to get the Softaculous insid for SSO
+      if (server.apiToken) {
+        const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+        const insid = await cpanelGetSoftaculousInsid(serverCfg, service.username, lookupDomain);
+        if (insid) {
+          const url = bypassLogin(`softaculous/index.php?act=sign_as&insid=${insid}`);
+          console.log(`[WP-ADMIN-URL] Softaculous SSO bypass-login for service ${id} insid=${insid}`);
+          return res.json({ url, method: "softaculous_sso" });
+        }
+      }
+      // Fallback: direct wp-admin via bypass-login
+      const url = bypassLogin(`${lookupDomain}/wp-admin/`);
+      console.log(`[WP-ADMIN-URL] Direct /wp-admin bypass-login for service ${id}`);
+      return res.json({ url, method: "direct" });
     }
 
-    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
-    const result = await cpanelGetWpAdminUrl(serverCfg, service.username, lookupDomain, fallbackUrl);
-    console.log(`[WP-ADMIN-URL] ${result.method} URL for service ${id} domain=${lookupDomain}`);
-    return res.json(result);
+    // ── No password stored — fall back to session-based SSO ──────────────────
+    if (server?.apiToken) {
+      const fallbackUrl = service.wpUrl || `https://${lookupDomain}/wp-admin`;
+      const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+      const result = await cpanelGetWpAdminUrl(serverCfg, service.username, lookupDomain, fallbackUrl);
+      console.log(`[WP-ADMIN-URL] ${result.method} session URL for service ${id} domain=${lookupDomain}`);
+      return res.json(result);
+    }
+
+    return res.json({ url: `https://${lookupDomain}/wp-admin`, method: "direct" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to get admin URL" });
   }

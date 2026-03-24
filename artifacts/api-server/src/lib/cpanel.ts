@@ -570,24 +570,6 @@ export async function cpanelSaveFile(
   });
 }
 
-/** Check if a file exists via Fileman::list_files */
-export async function cpanelFileExists(
-  server: ServerConfig,
-  cpanelUser: string,
-  dirPath: string,
-  fileName: string,
-): Promise<boolean> {
-  try {
-    const data = await cpanelUapi(server, cpanelUser, "Fileman", "list_files", {
-      dir: dirPath,
-      include_mime: "0",
-    });
-    const files: any[] = Array.isArray(data) ? data : (data?.files ?? []);
-    return files.some((f: any) => f.file === fileName || f.name === fileName || f.path === fileName);
-  } catch {
-    return false;
-  }
-}
 
 // ─── Softaculous installer ────────────────────────────────────────────────────
 //
@@ -1023,6 +1005,77 @@ export async function cpanelSoftaculousInstallWordPress(
   }
 
   return { success: false, error: lastError };
+}
+
+/**
+ * Check if a file exists on a cPanel account using the cPanel UAPI Fileman::stat
+ * endpoint directly on port 2083 with Basic Auth (username:password).
+ * Does NOT require a WHM API token. Never throws — returns false on any error.
+ */
+export async function cpanelFileExists(
+  hostname: string,
+  cpanelUser: string,
+  cpanelPassword: string,
+  filePath: string,
+): Promise<boolean> {
+  try {
+    const auth = Buffer.from(`${cpanelUser}:${cpanelPassword}`).toString("base64");
+    const url  = `https://${hostname}:2083/execute/Fileman/stat?path=${encodeURIComponent(filePath)}`;
+    const raw  = await httpsGet(url, { Authorization: `Basic ${auth}` }, 30_000);
+    let data: any;
+    try { data = JSON.parse(raw); } catch { return false; }
+    // UAPI returns status:1 on success and populates data with file metadata
+    if (data?.status === 1 && data?.data) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Look up the Softaculous installation ID (insid) for a specific domain.
+ * Creates a cPanel user session then queries the Softaculous installations API.
+ * Returns null (never throws) if the insid cannot be determined.
+ */
+export async function cpanelGetSoftaculousInsid(
+  server: ServerConfig,
+  cpanelUser: string,
+  domain: string,
+): Promise<string | null> {
+  try {
+    const loginUrl = await cpanelCreateUserSession(server, cpanelUser, "cpaneld");
+    const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
+    if (!match) return null;
+
+    const cpsess = match[1];
+    const base   = `https://${server.hostname}:2083`;
+    const listRes = await httpsGetRaw(
+      `${base}/${cpsess}/softaculous/index.php?act=installations&api=json`,
+      {},
+      30_000,
+    );
+    if (listRes.status !== 200 || !listRes.body.trim()) return null;
+
+    let installations: any = null;
+    try { installations = JSON.parse(listRes.body); } catch { return null; }
+    if (!installations || typeof installations !== "object") return null;
+
+    for (const key of Object.keys(installations)) {
+      const inst = installations[key];
+      if (!inst) continue;
+      const domainMatches =
+        inst.softdomain === domain ||
+        (typeof inst.softurl === "string" && inst.softurl.includes(domain));
+      if (domainMatches) {
+        const insid = inst.insid ?? key;
+        console.log(`[CP] Softaculous insid=${insid} found for domain=${domain}`);
+        return String(insid);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
