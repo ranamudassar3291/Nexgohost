@@ -394,7 +394,7 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
               className="w-full py-3 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 transition-all"
               style={canContinue && !loading ? { background: P, color: "#fff", boxShadow: PSHADOW } : { background: "#F3F4F6", color: "#9CA3AF", cursor: "not-allowed" }}>
               {loading ? <Loader2 size={14} className="animate-spin"/> : <ShoppingCart size={13}/>}
-              {canContinue ? ctaLabel : "Select a plan to continue"}
+              {canContinue ? ctaLabel : step === 2 ? "Choose a domain option" : step === 3 ? "Select a payment method" : "Select a plan to continue"}
             </button>
             {canContinue && (
               <p className="text-[10px] text-gray-400 text-center mt-2.5 flex items-center justify-center gap-1">
@@ -435,6 +435,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   // While waiting for /order/add/:id plan to load, show spinner
   const [directLinkReady, setDirectLinkReady] = useState(!initialPackageId);
+  const [directLinkError, setDirectLinkError] = useState("");
 
   // Groups & Plan
   const [selectedGroup,  setSelectedGroup]  = useState<ProductGroup | null>(null);
@@ -512,7 +513,11 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   useEffect(() => {
     if (!initialPackageId || allPlans.length === 0 || selectedPlan) return;
     const plan = allPlans.find(p => p.id === initialPackageId);
-    if (!plan) { setDirectLinkReady(true); return; }
+    if (!plan) {
+      setDirectLinkError(`Package "${initialPackageId}" was not found or is no longer available.`);
+      setDirectLinkReady(true);
+      return;
+    }
     const cycles = (["monthly","quarterly","semiannual","yearly"] as BillingCycle[])
       .filter(c => planPrice(plan, c) > 0);
     const cycle: BillingCycle = cycles.includes("yearly") ? "yearly" : (cycles[0] ?? "yearly");
@@ -661,7 +666,13 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
       setCartDomain(null);
       setLocation(`/client/invoices/${data.invoiceId}`);
     },
-    onError: (err: Error) => setOrderError(err.message),
+    onError: (err: Error) => {
+      if (err.message === "Unauthorized" || err.message.toLowerCase().includes("unauthorized") || err.message.includes("401")) {
+        setLocation(`/client/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+      } else {
+        setOrderError(err.message);
+      }
+    },
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1599,6 +1610,22 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
       <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
         <Loader2 size={36} className="animate-spin" style={{ color: P }}/>
         <p className="text-[14px] text-gray-500">Loading your package…</p>
+      </div>
+    );
+  }
+
+  // Direct-link: plan ID not found
+  if (directLinkError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center">
+        <AlertCircle size={40} className="text-red-400"/>
+        <p className="text-[16px] font-semibold text-gray-800">Package not found</p>
+        <p className="text-[13px] text-gray-500 max-w-xs">{directLinkError}</p>
+        <button onClick={() => setLocation("/client/orders/new")}
+          className="mt-2 px-6 py-2.5 rounded-xl text-[13px] font-bold text-white"
+          style={{ background: P }}>
+          Browse all plans
+        </button>
       </div>
     );
   }

@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Package, Plus, ToggleLeft, ToggleRight, Trash2, Pencil, Server, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Package, Plus, ToggleLeft, ToggleRight, Trash2, Pencil, Server, CheckCircle, XCircle, Loader2, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
 
+interface ProductGroup { id: string; name: string; }
+
 interface HostingPlan {
   id: string; name: string; description: string | null;
+  groupId: string | null;
   price: number; yearlyPrice: number | null; quarterlyPrice: number | null; semiannualPrice: number | null;
   billingCycle: string; diskSpace: string; bandwidth: string;
   emailAccounts: number | null; databases: number | null; isActive: boolean; createdAt: string;
@@ -21,6 +24,13 @@ async function fetchPlans(): Promise<HostingPlan[]> {
   return res.json();
 }
 
+async function fetchGroups(): Promise<ProductGroup[]> {
+  const token = localStorage.getItem("token");
+  const res = await fetch("/api/admin/product-groups", { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export default function Packages() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -28,6 +38,9 @@ export default function Packages() {
   const { formatPrice } = useCurrency();
 
   const { data: plans = [], isLoading } = useQuery({ queryKey: ["admin-packages"], queryFn: fetchPlans });
+  const { data: groups = [] } = useQuery({ queryKey: ["admin-product-groups"], queryFn: fetchGroups });
+
+  const groupMap = Object.fromEntries(groups.map(g => [g.id, g.name]));
 
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -96,7 +109,16 @@ export default function Packages() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">{plan.name}</h3>
-                      <p className="text-xs text-muted-foreground">{tiers.length} billing option{tiers.length !== 1 ? "s" : ""}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {plan.groupId && groupMap[plan.groupId] ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                            <Tag size={8} /> {groupMap[plan.groupId]}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/60">No group</span>
+                        )}
+                        <span className="text-xs text-muted-foreground">{tiers.length} billing option{tiers.length !== 1 ? "s" : ""}</span>
+                      </div>
                     </div>
                   </div>
                   <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${plan.isActive ? "bg-green-500/10 text-green-400" : "bg-muted text-muted-foreground"}`}>

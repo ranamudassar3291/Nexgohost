@@ -107,15 +107,17 @@ function ClientPage({ children }: { children: React.ReactNode }) {
 
 // ─── Direct Order-Link wrappers ───────────────────────────────────────────────
 // /order/group/:groupId  — shows only plans in that group (like WHMCS ?gid=1)
+// /order/add/:packageId  — auto-selects plan + skips to domain step (?pid=5)
+// Both are publicly accessible (allowGuest=true) — auth is only required when
+// the user actually submits the order (enforced by the API).
 function OrderByGroup() {
   const { groupId } = useParams<{ groupId: string }>();
-  return <CheckoutLayout><NewOrder initialGroupId={groupId}/></CheckoutLayout>;
+  return <CheckoutLayout allowGuest><NewOrder initialGroupId={groupId}/></CheckoutLayout>;
 }
 
-// /order/add/:packageId  — auto-selects plan + skips to domain step (?pid=5)
 function OrderByPackage() {
   const { packageId } = useParams<{ packageId: string }>();
-  return <CheckoutLayout><NewOrder initialPackageId={packageId}/></CheckoutLayout>;
+  return <CheckoutLayout allowGuest><NewOrder initialPackageId={packageId}/></CheckoutLayout>;
 }
 
 // ─── Router Root ──────────────────────────────────────────────────────────────

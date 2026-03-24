@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
 
+interface ProductGroup { id: string; name: string; }
 interface ServerRecord { id: string; name: string; type: string; status: string; }
 interface Plan { id: string; name: string; monthlyPrice: number; yearlyPrice: number; }
 
@@ -78,6 +79,9 @@ export default function EditPackage() {
 
   const [selectedServerGroupId, setSelectedServerGroupId] = useState<string>("");
 
+  // Product groups for the group dropdown
+  const [groups, setGroups] = useState<ProductGroup[]>([]);
+
   // Free domain & renewal settings
   const [renewalEnabled, setRenewalEnabled] = useState(true);
   const [freeDomainEnabled, setFreeDomainEnabled] = useState(false);
@@ -88,6 +92,11 @@ export default function EditPackage() {
   const toggleFreeTld = (tld: string) => {
     setFreeDomainTlds(prev => prev.includes(tld) ? prev.filter(t => t !== tld) : [...prev, tld]);
   };
+
+  // Fetch product groups for the dropdown
+  useEffect(() => {
+    apiFetch("/api/admin/product-groups").then(setGroups).catch(() => {});
+  }, []);
 
   // Ref to restore the server selection after initial load
   const restoredServerId = useRef<string>("");
@@ -334,6 +343,15 @@ export default function EditPackage() {
             <Input value={form.name} onChange={set("name")} placeholder="Starter Plan"
               className={errors.name ? "border-destructive" : ""} />
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Product Group</label>
+            <select value={form.groupId} onChange={set("groupId")}
+              className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">No group</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
           </div>
 
           <div className="space-y-1.5">

@@ -2,16 +2,19 @@
  * Distraction-free checkout layout — no sidebar, no dashboard header.
  * Shows only: Noehost logo + secure indicators.
  * The page inside renders its own step bar and content.
+ *
+ * allowGuest: when true, unauthenticated visitors can browse (used for
+ * public direct-order links like /order/add/:id and /order/group/:id).
+ * When false (default), requires login before rendering.
  */
 import { ReactNode } from "react";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { Redirect } from "wouter";
 
-interface Props { children: ReactNode; }
+interface Props { children: ReactNode; allowGuest?: boolean; }
 
-export function CheckoutLayout({ children }: Props) {
+export function CheckoutLayout({ children, allowGuest = false }: Props) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -21,7 +24,8 @@ export function CheckoutLayout({ children }: Props) {
       </div>
     );
   }
-  if (!user) return <Redirect to="/client/login"/>;
+
+  if (!user && !allowGuest) return <Redirect to="/client/login"/>;
 
   return (
     <div className="min-h-screen bg-[#F8F9FB]" style={{ fontFamily: "'Inter', 'Public Sans', sans-serif" }}>
@@ -29,17 +33,15 @@ export function CheckoutLayout({ children }: Props) {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
           {/* Logo */}
-          <Link href="/client/dashboard">
-            <a className="flex items-center gap-2.5 no-underline">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-white text-[15px] shadow-lg"
-                style={{ background: "linear-gradient(135deg, #701AFE 0%, #9b59ff 100%)" }}>
-                N
-              </div>
-              <span className="text-[17px] font-extrabold text-gray-900 tracking-tight">Noehost</span>
-            </a>
+          <Link href={user ? "/client/dashboard" : "/"} className="flex items-center gap-2.5 no-underline">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-white text-[15px] shadow-lg"
+              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9b59ff 100%)" }}>
+              N
+            </div>
+            <span className="text-[17px] font-extrabold text-gray-900 tracking-tight">Noehost</span>
           </Link>
 
-          {/* Trust signals */}
+          {/* Trust signals + optional Sign In link for guests */}
           <div className="flex items-center gap-3 sm:gap-5 text-[12px] text-gray-500">
             <span className="hidden sm:flex items-center gap-1.5">
               <ShieldCheck size={14} className="text-green-500"/> SSL Secured
@@ -49,6 +51,12 @@ export function CheckoutLayout({ children }: Props) {
             </span>
             <span className="hidden sm:block text-gray-300">|</span>
             <span className="hidden sm:block">30-Day Money-Back</span>
+            {!user && allowGuest && (
+              <>
+                <span className="text-gray-300">|</span>
+                <Link href="/client/login" className="font-semibold text-[#701AFE] hover:underline no-underline">Sign in</Link>
+              </>
+            )}
           </div>
         </div>
       </header>
