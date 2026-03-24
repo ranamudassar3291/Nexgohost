@@ -68,6 +68,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Migration",
+    items: [
+      { name: "WHMCS Import",     href: "/admin/whmcs-import",     icon: (() => null) as any },
+    ],
+  },
+  {
     label: "Analytics & Logs",
     items: [
       { name: "Reports",          href: "/admin/reports",          icon: (() => null) as any },

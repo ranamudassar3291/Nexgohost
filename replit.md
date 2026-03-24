@@ -1,5 +1,28 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 22)
+- **WHMCS Import System** — Full WHMCS-to-Nexgohost migration via API credentials:
+  - **Backend** (`artifacts/api-server/src/routes/whmcsImport.ts`):
+    - `POST /api/admin/whmcs/test` — Test WHMCS API connection (returns client count)
+    - `POST /api/admin/whmcs/preview` — Preview counts of all importable data
+    - `POST /api/admin/whmcs/import` — Start async migration job (returns jobId)
+    - `GET /api/admin/whmcs/import/:jobId/status` — Poll job progress + live logs
+    - `GET /api/admin/whmcs/jobs` — List recent import jobs
+    - Full field mapping: WHMCS clients → users, products → hosting_plans, services → hosting_services, domains → domains, invoices → invoices, servers → servers
+    - Pagination: fetches ALL records across multiple WHMCS API pages (250/page)
+    - Conflict handling: skip or update existing clients by email
+    - Imported clients get temp password `WhmcsMigrated@[whmcs_id]`
+    - Status/billing cycle mapping: Active→active, Monthly→monthly, Paid→paid, etc.
+  - **Frontend** (`artifacts/nexgohost/src/pages/admin/WhmcsImport.tsx`):
+    - 5-step professional wizard: Connect → Preview → Configure → Import → Done
+    - Step 1: WHMCS URL + API Identifier + API Secret with show/hide toggle
+    - Step 2: Live preview of counts (clients, plans, services, domains, invoices)
+    - Step 3: Configure what to import + conflict handling options (checkboxes)
+    - Step 4: Live progress with animated counter cards + streaming log console
+    - Step 5: Full import summary with per-entity counts, log, temp-password notice
+  - **Navigation**: Added "Migration" section to admin nav → "WHMCS Import" at `/admin/whmcs-import`
+  - **App.tsx**: Added WhmcsImport import and route at `/admin/whmcs-import`
+
 ## Recent Changes (Session 21)
 - **VPS Database Expanded**:
   - `vps_locations` table: Added `city`, `datacenter`, `network_speed`, `latency_ms` columns (ALTER TABLE).

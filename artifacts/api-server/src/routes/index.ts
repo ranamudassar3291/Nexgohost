@@ -30,6 +30,7 @@ import notificationsRouter from "./notifications.js";
 import activityLogsRouter from "./activity-logs.js";
 import dnsRouter from "./dns.js";
 import vpsRouter from "./vps.js";
+import whmcsImportRouter from "./whmcsImport.js";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(notificationsRouter);
 router.use(activityLogsRouter);
 router.use(dnsRouter);
 router.use(vpsRouter);
+router.use(whmcsImportRouter);
 
 export default router;

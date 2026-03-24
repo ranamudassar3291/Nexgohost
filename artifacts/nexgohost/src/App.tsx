@@ -37,6 +37,7 @@ import AddInvoice from "@/pages/admin/AddInvoice";
 import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AdminMigrations from "@/pages/admin/Migrations";
+import WhmcsImport from "@/pages/admin/WhmcsImport";
 import AdminSettings from "@/pages/admin/Settings";
 import EmailConfiguration from "@/pages/admin/EmailConfiguration";
 import GoogleOAuth from "@/pages/admin/GoogleOAuth";
@@ -224,6 +225,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/migrations">
         <AdminPage><AdminMigrations /></AdminPage>
+      </Route>
+      <Route path="/admin/whmcs-import">
+        <AdminPage><WhmcsImport /></AdminPage>
       </Route>
       <Route path="/admin/promo-codes">
         <AdminPage><AdminPromoCodes /></AdminPage>
