@@ -77,6 +77,7 @@ import Security from "@/pages/client/Security";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import DomainDns from "@/pages/client/DomainDns";
 import Homepage from "@/pages/public/Homepage";
+import OrderFlow from "@/pages/public/OrderFlow";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
 import { queryClient } from "@/lib/query-client";
@@ -120,6 +121,7 @@ function RouterRoot() {
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />
       <Route path="/reset-password"   component={ResetPassword}   />
+      <Route path="/order"            component={OrderFlow}       />
 
       <Route path="/login">
         {!isLoading && user ? (

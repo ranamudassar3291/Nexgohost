@@ -1,5 +1,17 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 16)
+- **Multi-step Order Flow `/order`**: New standalone public page (no auth required, no sidebar) at `artifacts/nexgohost/src/pages/public/OrderFlow.tsx`. Registered as a flat route in `App.tsx`.
+  - **Step 1 — Choose Service**: 3 big cards (Hosting Services, Register a Domain, Transfer a Domain) with icons, highlights, and CTA buttons.
+  - **Step 2a — Hosting Type**: Shared / Reseller / VPS selector cards.
+  - **Step 2b — Hosting Plans**: Full plan picker (fetches `/api/packages`, filters by type heuristic), billing cycle toggle, per-plan pricing in PKR, "Most Popular" badge, adds to `CartContext` (localStorage).
+  - **Step 2c — Domain Choice** (after plan selected): 3 options — Register New Domain, Use Existing Domain, Skip for Now — all lead to checkout/cart.
+  - **Step 2 — Domain Search**: Search bar → shows all TLD pricing from `/api/domains/pricing` (public), period selector (1/2/3 years), "Add to Cart" per TLD. Saves domain name to `sessionStorage` and redirects to `/client/domains`.
+  - **Step 2 — Transfer**: Domain name + EPP code form, validation, step-by-step guide, redirects to domain transfers page.
+  - **Auth-aware checkout**: If JWT token in `localStorage` → redirect to `/client/cart` or `/client/domains`; if not logged in → redirect to `/register?next=...`.
+  - **Progress bar**: 3-step visual (Choose Service → Customize → Checkout) with purple active step, check icons for completed steps.
+  - **Design**: Standalone white page, Noehost logo header, `#701AFE` purple brand, gray-50 background, card hover effects with purple border/shadow.
+
 ## Recent Changes (Session 15)
 - **WordPress Provisioning Flow**: Full Docker-based WordPress auto-installer implemented. `POST /client/hosting/:id/install-wordpress` returns immediately (fire-and-forget) and sets `wpProvisionStatus="queued"`. Background `provisionWordPress()` in `wordpress-provisioner.ts` runs the 5-step sequence: Create database → Create container → Download WordPress → Configure → Run installer. `GET /client/hosting/:id/wordpress-status` polls real-time status and returns credentials on completion.
 - **WordPress provisioner steps**: 1) MySQL `CREATE DATABASE`+user grant, 2) `docker run -d wordpress:latest` with env vars, 3) Wait for container health (`/wp-admin/install.php`), 4) `curl POST` WP installer, 5) Save credentials to DB. On failure, error is stored in `wpProvisionError` field.
