@@ -57,6 +57,10 @@ import ServerLogs from "@/pages/admin/ServerLogs";
 import AdminAffiliates from "@/pages/admin/Affiliates";
 import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
 import AdminCredits from "@/pages/admin/Credits";
+import VpsPlans from "@/pages/admin/VpsPlans";
+import AddVpsPlan from "@/pages/admin/AddVpsPlan";
+import VpsOsTemplates from "@/pages/admin/VpsOsTemplates";
+import VpsLocations from "@/pages/admin/VpsLocations";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -223,6 +227,21 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/modules">
         <AdminPage><Modules /></AdminPage>
+      </Route>
+      <Route path="/admin/vps/add">
+        <AdminPage><AddVpsPlan /></AdminPage>
+      </Route>
+      <Route path="/admin/vps/:id/edit">
+        <AdminPage><AddVpsPlan /></AdminPage>
+      </Route>
+      <Route path="/admin/vps/os-templates">
+        <AdminPage><VpsOsTemplates /></AdminPage>
+      </Route>
+      <Route path="/admin/vps/locations">
+        <AdminPage><VpsLocations /></AdminPage>
+      </Route>
+      <Route path="/admin/vps">
+        <AdminPage><VpsPlans /></AdminPage>
       </Route>
       <Route path="/admin/reports">
         <AdminPage><AdminReports /></AdminPage>

@@ -16,7 +16,7 @@ import {
   Star, ArrowLeft, ShoppingCart, Receipt, Lock,
   AlertCircle, CheckCircle2, Key, Shield, Zap, Users, ChevronRight,
   CreditCard, Tag, Wallet, Landmark, Bitcoin, Smartphone, Gift,
-  ChevronUp, ChevronDown, RefreshCw,
+  ChevronUp, ChevronDown, RefreshCw, Cpu, MemoryStick, HardDrive, Wifi, MonitorCog,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useCart, type BillingCycle, CYCLE_LABELS, CYCLE_SUFFIX } from "@/context/CartContext";
@@ -24,7 +24,7 @@ import { useCurrency } from "@/context/CurrencyProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ServiceType = "hosting" | "domain" | "transfer";
+type ServiceType = "hosting" | "domain" | "transfer" | "vps";
 type DomainMode  = "register" | "transfer" | "existing" | null;
 
 interface ProductGroup {
@@ -70,6 +70,16 @@ interface PaymentMethod {
 }
 
 interface CartDomain { fullName: string; price: number; originalPrice?: number; mode: DomainMode; }
+
+interface VpsPlan {
+  id: string; name: string; description: string | null;
+  price: number; yearlyPrice: number | null;
+  cpuCores: number; ramGb: number; storageGb: number; bandwidthTb: number | null;
+  virtualization: string | null; features: string[]; saveAmount: number | null;
+  osTemplateIds: string[]; locationIds: string[]; isActive: boolean;
+}
+interface VpsOsTemplate { id: string; name: string; version: string; iconUrl: string | null; }
+interface VpsLocation { id: string; countryName: string; countryCode: string; flagIcon: string | null; }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -134,11 +144,12 @@ const slideUp: MotionBase  = { initial: { opacity: 0, y: 16 }, animate: { opacit
 
 // ─── Step Progress Bar ────────────────────────────────────────────────────────
 
-function StepBar({ active }: { active: number }) {
+function StepBar({ active, labels }: { active: number; labels?: string[] }) {
+  const displayLabels = labels ?? STEP_LABELS;
   return (
     <div className="overflow-x-auto pb-1 mb-8">
       <div className="flex items-start justify-center min-w-[360px]">
-        {STEP_LABELS.map((label, i) => {
+        {displayLabels.map((label, i) => {
           const done = i < active; const cur = i === active;
           return (
             <div key={label} className="flex items-start">
@@ -154,7 +165,7 @@ function StepBar({ active }: { active: number }) {
                   {label}
                 </span>
               </div>
-              {i < STEP_LABELS.length - 1 && (
+              {i < displayLabels.length - 1 && (
                 <div className={`w-10 sm:w-14 h-0.5 mt-[18px] shrink-0 transition-colors duration-500 ${done ? "bg-[#701AFE]" : "bg-gray-200"}`}/>
               )}
             </div>
@@ -216,14 +227,15 @@ interface MobileSummaryProps {
   freeDomain: boolean; fmt: (n: number) => string;
   ctaLabel: string; canContinue: boolean; onContinue: () => void;
   loading?: boolean;
+  vpsPlan?: VpsPlan | null; vpsCycle?: "monthly" | "yearly"; vpsPrice?: number;
 }
 
-function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canContinue, onContinue, loading }: MobileSummaryProps) {
+function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canContinue, onContinue, loading, vpsPlan, vpsCycle, vpsPrice }: MobileSummaryProps) {
   const [expanded, setExpanded] = useState(false);
   const planAmt  = plan ? planPrice(plan, cycle) : 0;
   const domAmt   = freeDomain ? 0 : (domain?.price ?? 0);
-  const total    = planAmt + domAmt;
-  const hasItems = !!plan || !!domain;
+  const total    = vpsPlan ? (vpsPrice ?? 0) : planAmt + domAmt;
+  const hasItems = !!plan || !!domain || !!vpsPlan;
 
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 z-40">
@@ -240,7 +252,16 @@ function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canC
               <span className="text-[13px] font-bold text-gray-800 uppercase tracking-wider">Order Summary</span>
               <button onClick={() => setExpanded(false)} className="text-gray-400 hover:text-gray-600"><ChevronDown size={18}/></button>
             </div>
-            {plan && (
+            {vpsPlan && (
+              <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
+                <div>
+                  <p className="text-[13px] font-semibold text-black">{vpsPlan.name}</p>
+                  <p className="text-[11px] text-gray-400">VPS · {vpsCycle === "yearly" ? "Yearly" : "Monthly"}</p>
+                </div>
+                <span className="text-[14px] font-extrabold">{fmt(vpsPrice ?? 0)}</span>
+              </div>
+            )}
+            {plan && !vpsPlan && (
               <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
                 <div>
                   <p className="text-[13px] font-semibold text-black">{plan.name}</p>
@@ -282,12 +303,12 @@ function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canC
             <button onClick={() => setExpanded(!expanded)} className="flex-1 min-w-0 text-left group">
               <div className="flex items-center gap-1">
                 <p className="text-[12px] font-bold text-black truncate">
-                  {plan?.name ?? domain?.fullName ?? ""}
-                  {plan && domain ? ` + ${domain.fullName}` : ""}
+                  {vpsPlan?.name ?? plan?.name ?? domain?.fullName ?? ""}
+                  {plan && domain && !vpsPlan ? ` + ${domain.fullName}` : ""}
                 </p>
                 {expanded ? <ChevronDown size={13} className="text-gray-400 shrink-0"/> : <ChevronUp size={13} className="text-gray-400 shrink-0"/>}
               </div>
-              <p className="text-[13px] font-extrabold" style={{ color: P }}>{fmt(total)} <span className="text-[11px] font-medium text-gray-400">/ {CYCLE_LABELS[cycle].toLowerCase()}</span></p>
+              <p className="text-[13px] font-extrabold" style={{ color: P }}>{fmt(total)} <span className="text-[11px] font-medium text-gray-400">/ {vpsPlan ? (vpsCycle === "yearly" ? "year" : "month") : CYCLE_LABELS[cycle].toLowerCase()}</span></p>
             </button>
             <button onClick={onContinue} disabled={!canContinue || loading}
               className="shrink-0 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white flex items-center gap-1.5 transition-all"
@@ -316,15 +337,18 @@ interface SidebarProps {
   step: number; fmt: (n: number) => string;
   onRmPlan: () => void; onRmDom: () => void;
   ctaLabel: string; canContinue: boolean; onContinue: () => void; loading?: boolean;
+  // VPS
+  vpsPlan?: VpsPlan | null; vpsCycle?: "monthly" | "yearly"; vpsPrice?: number;
+  onRmVps?: () => void;
 }
 
-function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, step, fmt, onRmPlan, onRmDom, ctaLabel, canContinue, onContinue, loading }: SidebarProps) {
+function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, step, fmt, onRmPlan, onRmDom, ctaLabel, canContinue, onContinue, loading, vpsPlan, vpsCycle, vpsPrice, onRmVps }: SidebarProps) {
   const activePlan  = plan ?? pendingPlan;
   const activeCycle = plan ? cycle : pendingCycle;
   const planAmt     = activePlan ? planPrice(activePlan, activeCycle) : 0;
   const domAmt      = freeDomain ? 0 : (domain?.price ?? 0);
-  const total       = planAmt + domAmt;
-  const hasItems    = !!activePlan || !!domain;
+  const total       = vpsPlan ? (vpsPrice ?? 0) : planAmt + domAmt;
+  const hasItems    = !!activePlan || !!domain || !!vpsPlan;
   const renewAt     = activePlan?.renewalPrice ?? activePlan?.yearlyPrice ?? null;
 
   return (
@@ -344,8 +368,29 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
             </div>
           )}
 
+          {/* VPS plan row */}
+          {vpsPlan && (
+            <div className="flex items-start justify-between gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-bold text-black truncate">
+                  <Cpu size={10} className="inline mr-1" style={{ color: P }}/>{vpsPlan.name}
+                </p>
+                <p className="text-[11px] text-gray-400">{vpsCycle === "yearly" ? "Yearly" : "Monthly"} billing · VPS</p>
+                <p className="text-[10.5px] text-gray-400">{vpsPlan.cpuCores} vCPU · {vpsPlan.ramGb}GB RAM · {vpsPlan.storageGb}GB NVMe</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[13px] font-extrabold">{fmt(vpsPrice ?? 0)}</span>
+                {onRmVps && (
+                  <button onClick={onRmVps} className="w-4 h-4 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors">
+                    <X size={9}/>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Plan row */}
-          {activePlan && (
+          {activePlan && !vpsPlan && (
             <div className="flex items-start justify-between gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-bold text-black truncate">{activePlan.name}</p>
@@ -403,7 +448,9 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
                 <span className="text-[13px] font-semibold text-gray-500">Total</span>
                 <span className="text-[20px] font-extrabold text-black">{fmt(total)}</span>
               </div>
-              <p className="text-[11px] text-right text-gray-400 mt-0.5">per {CYCLE_LABELS[activeCycle].toLowerCase()}</p>
+              <p className="text-[11px] text-right text-gray-400 mt-0.5">
+                per {vpsPlan ? (vpsCycle === "yearly" ? "year" : "month") : CYCLE_LABELS[activeCycle].toLowerCase()}
+              </p>
             </div>
           </div>
         )}
@@ -506,6 +553,12 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // show "Want to add hosting?" before moving to checkout
   const [domainPendingUpsell, setDomainPendingUpsell] = useState(false);
 
+  // VPS flow
+  const [selectedVpsPlan,   setSelectedVpsPlan]   = useState<VpsPlan | null>(null);
+  const [vpsSelectedCycle,  setVpsSelectedCycle]  = useState<"monthly" | "yearly">("yearly");
+  const [selectedOsTemplate, setSelectedOsTemplate] = useState<VpsOsTemplate | null>(null);
+  const [selectedLocation,  setSelectedLocation]  = useState<VpsLocation | null>(null);
+
   function setCartDomain(d: CartDomain | null) { setCartDomainRaw(d); saveDomain(d); }
 
   // ── Queries ───────────────────────────────────────────────────────────────
@@ -545,6 +598,25 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     staleTime: 30_000,
   });
   const creditBalance = parseFloat(creditData?.creditBalance ?? "0");
+
+  const { data: vpsPlans = [], isLoading: vpsPlansLoading } = useQuery<VpsPlan[]>({
+    queryKey: ["vps-plans"],
+    queryFn: () => fetch("/api/vps-plans").then(r => r.json()),
+    enabled: service === "vps",
+    staleTime: 120_000,
+  });
+  const { data: vpsOsTemplates = [] } = useQuery<VpsOsTemplate[]>({
+    queryKey: ["vps-os-templates"],
+    queryFn: () => fetch("/api/vps-os-templates").then(r => r.json()),
+    enabled: service === "vps" && step >= 2,
+    staleTime: 120_000,
+  });
+  const { data: vpsLocations = [] } = useQuery<VpsLocation[]>({
+    queryKey: ["vps-locations"],
+    queryFn: () => fetch("/api/vps-locations").then(r => r.json()),
+    enabled: service === "vps" && step >= 2,
+    staleTime: 120_000,
+  });
 
   // ── Direct-link auto-selection effects ────────────────────────────────────
 
@@ -594,21 +666,29 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // Step completion gates
   const step1Complete = !!pendingPlan;
   const step2Complete = domainMode !== null;
-  const _step3Total = Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) - promoDiscount);
+  const _vpsPrice = selectedVpsPlan
+    ? (vpsSelectedCycle === "yearly" && selectedVpsPlan.yearlyPrice ? selectedVpsPlan.yearlyPrice : selectedVpsPlan.price)
+    : 0;
+  const _step3Total = service === "vps" && selectedVpsPlan
+    ? Math.max(0, _vpsPrice - promoDiscount)
+    : Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) - promoDiscount);
   const _walletSufficient = paymentMethodId !== "credits" || creditBalance >= _step3Total;
-  const step3Complete = !!paymentMethodId && (!!selectedPlan || !!cartDomain) && _walletSufficient;
+  const step3Complete = !!paymentMethodId && (!!selectedPlan || !!cartDomain || (service === "vps" && !!selectedVpsPlan)) && _walletSufficient;
   const activeCycle   = step >= 2 ? selectedCycle : pendingCycle;
-  // Show sidebar whenever there's something to show: hosting plan selected or domain in cart
-  const showSidebar   = (step >= 1 && service === "hosting") || step === 3;
+  const showSidebar   = (step >= 1 && (service === "hosting" || service === "vps")) || step === 3;
 
   function ctaLabel() {
+    if (step === 1 && service === "vps") return "Configure Server";
     if (step === 1) return "Continue to Domain Setup";
+    if (step === 2 && service === "vps") return "Continue to Payment";
     if (step === 2) return "Continue to Payment";
-    if (step === 3) return isDomainOnly ? "Complete Domain Order" : "Place Order";
+    if (step === 3) return (isDomainOnly || (service === "vps" && selectedVpsPlan)) ? "Place Order" : isDomainOnly ? "Complete Domain Order" : "Place Order";
     return "Continue";
   }
   function canContinue() {
+    if (step === 1 && service === "vps") return !!selectedVpsPlan;
     if (step === 1) return step1Complete;
+    if (step === 2 && service === "vps") return !!selectedOsTemplate && !!selectedLocation;
     if (step === 2) return step2Complete;
     if (step === 3) return step3Complete;
     return false;
@@ -679,6 +759,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   function handleSidebarContinue() {
     if (step === 1 && service === "hosting") confirmStep1();
+    else if (step === 1 && service === "vps") { if (selectedVpsPlan) setStep(2); }
     else if (step === 2) setStep(3);
     else if (step === 3) { setOrderError(""); orderMutation.mutate(); }
   }
@@ -716,9 +797,22 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   const orderMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedPlan && !cartDomain) throw new Error("Nothing in cart");
+      if (!selectedPlan && !cartDomain && !(service === "vps" && selectedVpsPlan)) throw new Error("Nothing in cart");
 
       const body: Record<string, unknown> = { paymentMethodId };
+
+      // VPS order
+      if (service === "vps" && selectedVpsPlan) {
+        body.vpsPlanId    = selectedVpsPlan.id;
+        body.billingCycle = vpsSelectedCycle;
+        body.vpsOsTemplate = selectedOsTemplate ? `${selectedOsTemplate.name} ${selectedOsTemplate.version}` : null;
+        body.vpsLocation   = selectedLocation?.countryName ?? null;
+        if (promoCode.trim()) body.promoCode = promoCode.trim();
+        const r = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || "Checkout failed");
+        return d;
+      }
 
       if (selectedPlan) {
         body.packageId    = selectedPlan.id;
@@ -779,6 +873,13 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
         title: "Domain Transfer",
         desc: "Move your domain to Noehost and receive a free 1-year extension.",
         bullets: ["Free 1-year extension", "Keep your domain live", "Simple EPP process", "Lower renewal prices"],
+      },
+      {
+        id: "vps" as ServiceType, popular: false,
+        icon: <Cpu size={22} strokeWidth={1.6} style={{ color: P }}/>,
+        title: "VPS Hosting",
+        desc: "KVM-powered cloud servers with full root access, dedicated IP, and DDoS protection.",
+        bullets: ["Full Root Access", "DDoS Protection", "Dedicated IP", "NVMe SSD Storage"],
       },
     ];
 
@@ -1294,6 +1395,251 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
             </motion.div>
           )}
         </AnimatePresence>
+      </motion.div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // VPS — STEP 1: Choose Plan
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  function renderStep1Vps() {
+    const STANDARD_FEATURES = ["Full Root Access", "DDoS Protection", "Dedicated IP"];
+    return (
+      <motion.div key="vps1" {...fade}>
+        <div className="text-center mb-8 max-w-xl mx-auto">
+          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Choose Your VPS Plan</h1>
+          <p className="text-gray-500 text-[15px]">High-performance KVM servers with guaranteed resources and full root access.</p>
+        </div>
+
+        {vpsPlansLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+            {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-100 rounded-2xl animate-pulse"/>)}
+          </div>
+        ) : vpsPlans.length === 0 ? (
+          <div className="text-center py-16 text-gray-400">No VPS plans available yet. Please check back soon.</div>
+        ) : (
+          <>
+            {/* Billing cycle toggle */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex bg-gray-100 rounded-xl p-1 gap-1">
+                {(["monthly", "yearly"] as const).map(c => (
+                  <button key={c} onClick={() => setVpsSelectedCycle(c)}
+                    className="px-5 py-2 rounded-lg text-[13px] font-semibold transition-all"
+                    style={vpsSelectedCycle === c ? { background: P, color: "#fff", boxShadow: PSHADOW } : { color: "#6B7280" }}>
+                    {c === "monthly" ? "Monthly" : "Yearly"}
+                    {c === "yearly" && <span className="ml-1.5 text-[10px] font-bold bg-amber-400 text-amber-900 rounded-full px-1.5 py-0.5">Save more</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+              {vpsPlans.map((plan, i) => {
+                const monthlyPrice = plan.price;
+                const yearlyPrice = plan.yearlyPrice;
+                const displayPrice = vpsSelectedCycle === "yearly" && yearlyPrice ? yearlyPrice : monthlyPrice;
+                const isSelected = selectedVpsPlan?.id === plan.id;
+                const isMiddle = i === 1 || (vpsPlans.length === 1 && i === 0);
+                const saveAmt = plan.saveAmount ?? (yearlyPrice != null ? Math.max(0, monthlyPrice * 12 - yearlyPrice) : null);
+                return (
+                  <motion.button key={plan.id}
+                    onClick={() => setSelectedVpsPlan(isSelected ? null : plan)}
+                    className="relative flex flex-col rounded-2xl bg-white text-left transition-all duration-200 focus:outline-none"
+                    style={{
+                      border: isSelected ? `2px solid ${P}` : isMiddle ? `2px solid ${P}66` : "1px solid #E5E7EB",
+                      padding: isMiddle ? "28px 22px 22px" : "22px 20px 20px",
+                      boxShadow: isSelected ? `0 8px 32px ${P}25` : isMiddle ? "0 4px 16px rgba(0,0,0,0.08)" : "",
+                    }}
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    {isMiddle && !isSelected && (
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-0.5 text-white text-[10.5px] font-bold rounded-full" style={{ background: P }}>
+                        <Star size={9} strokeWidth={2.5}/> MOST POPULAR
+                      </div>
+                    )}
+                    {isSelected && (
+                      <div className="absolute -top-3 right-4 flex items-center gap-1 px-2.5 py-0.5 text-white text-[10.5px] font-bold rounded-full bg-green-500">
+                        <Check size={9}/> Selected
+                      </div>
+                    )}
+                    {/* Save badge */}
+                    {vpsSelectedCycle === "yearly" && saveAmt != null && saveAmt > 0 && (
+                      <div className="absolute top-4 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Save Rs. {Math.round(saveAmt).toLocaleString()}
+                      </div>
+                    )}
+
+                    {/* Plan name */}
+                    <h3 className="text-[16px] font-extrabold text-gray-900 mb-1">{plan.name}</h3>
+                    {plan.description && <p className="text-[12px] text-gray-500 mb-3">{plan.description}</p>}
+
+                    {/* Price */}
+                    <div className="mb-4">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[28px] font-extrabold text-gray-900">{formatPrice(displayPrice)}</span>
+                        <span className="text-[12px] text-gray-400">/{vpsSelectedCycle === "yearly" ? "yr" : "mo"}</span>
+                      </div>
+                      {vpsSelectedCycle === "yearly" && (
+                        <div className="text-[11.5px] text-gray-400">{formatPrice(monthlyPrice)}/mo when billed monthly</div>
+                      )}
+                    </div>
+
+                    {/* Specs */}
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      {[
+                        { icon: Cpu, label: `${plan.cpuCores} vCPU${plan.cpuCores > 1 ? "s" : ""}` },
+                        { icon: MemoryStick, label: `${plan.ramGb} GB RAM` },
+                        { icon: HardDrive, label: `${plan.storageGb} GB NVMe` },
+                        { icon: Wifi, label: `${plan.bandwidthTb ?? 1} TB BW` },
+                      ].map(({ icon: Icon, label }) => (
+                        <div key={label} className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <Icon size={11} style={{ color: P }} className="shrink-0"/>
+                          <span className="text-[11.5px] font-medium text-gray-700">{label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Virtualization badge */}
+                    <div className="text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mb-3">
+                      {plan.virtualization ?? "KVM"} Virtualization
+                    </div>
+
+                    {/* Standard features */}
+                    <div className="space-y-1.5 mb-4">
+                      {STANDARD_FEATURES.map(f => (
+                        <div key={f} className="flex items-center gap-2 text-[12px] text-gray-600">
+                          <Check size={10} strokeWidth={2.5} style={{ color: P }}/> {f}
+                        </div>
+                      ))}
+                      {plan.features.filter(f => !STANDARD_FEATURES.includes(f)).map(f => (
+                        <div key={f} className="flex items-center gap-2 text-[12px] text-gray-600">
+                          <Check size={10} strokeWidth={2.5} style={{ color: P }}/> {f}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* CTA */}
+                    <div className="mt-auto w-full py-2.5 rounded-xl text-[13px] font-bold text-center transition-all"
+                      style={isSelected
+                        ? { background: P, color: "#fff" }
+                        : { background: `${P}12`, color: P }}>
+                      {isSelected ? "✓ Plan Selected" : "Choose Plan"}
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            {/* Trust badges */}
+            <div className="flex flex-wrap justify-center gap-5 mt-8 text-[12px] text-gray-400">
+              <span className="flex items-center gap-1.5"><Shield size={11}/> Full Root Access</span>
+              <span>·</span>
+              <span className="flex items-center gap-1.5"><Zap size={11}/> Instant Provisioning</span>
+              <span>·</span>
+              <span className="flex items-center gap-1.5"><Key size={11}/> Dedicated IP</span>
+              <span>·</span>
+              <span className="flex items-center gap-1.5"><Lock size={11}/> DDoS Protection</span>
+            </div>
+          </>
+        )}
+      </motion.div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // VPS — STEP 2: Configure Server (OS + Location)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  function renderStep2Vps() {
+    const allOs = vpsOsTemplates.length > 0 ? vpsOsTemplates : [
+      { id: "ubuntu-22", name: "Ubuntu", version: "22.04 LTS", iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420" },
+      { id: "ubuntu-20", name: "Ubuntu", version: "20.04 LTS", iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420" },
+      { id: "debian-12", name: "Debian", version: "12 Bookworm", iconUrl: "https://cdn.simpleicons.org/debian/A81D33" },
+      { id: "centos-9",  name: "CentOS", version: "Stream 9",    iconUrl: "https://cdn.simpleicons.org/centos/262577" },
+      { id: "win-2022",  name: "Windows Server", version: "2022", iconUrl: "https://cdn.simpleicons.org/windows/0078D4" },
+    ];
+    const allLocs = vpsLocations.length > 0 ? vpsLocations : [
+      { id: "us", countryName: "United States", countryCode: "US", flagIcon: "🇺🇸" },
+      { id: "de", countryName: "Germany",        countryCode: "DE", flagIcon: "🇩🇪" },
+      { id: "gb", countryName: "United Kingdom", countryCode: "GB", flagIcon: "🇬🇧" },
+      { id: "sg", countryName: "Singapore",      countryCode: "SG", flagIcon: "🇸🇬" },
+    ];
+    return (
+      <motion.div key="vps2" {...fade}>
+        <div className="text-center mb-6 max-w-xl mx-auto">
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-2">Configure Your Server</h1>
+          <p className="text-gray-500 text-[14px]">Choose the operating system and data center location for your VPS.</p>
+        </div>
+
+        {/* OS Selection */}
+        <div className="mb-8">
+          <h2 className="text-[15px] font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <MonitorCog size={16} style={{ color: P }}/> Operating System
+            {selectedOsTemplate && <span className="text-[12px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ {selectedOsTemplate.name} {selectedOsTemplate.version}</span>}
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {allOs.map(os => {
+              const isSelected = selectedOsTemplate?.id === os.id;
+              return (
+                <button key={os.id} onClick={() => setSelectedOsTemplate(isSelected ? null : os as VpsOsTemplate)}
+                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border bg-white text-center transition-all duration-200"
+                  style={isSelected
+                    ? { border: `2px solid ${P}`, background: `${P}08`, boxShadow: `0 4px 16px ${P}20` }
+                    : { border: "1px solid #E5E7EB" }}>
+                  {os.iconUrl ? (
+                    <img src={os.iconUrl} alt={os.name} className="w-9 h-9 object-contain"/>
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-gray-200 flex items-center justify-center text-gray-400">
+                      <MonitorCog size={16}/>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-[12.5px] font-bold text-gray-800">{os.name}</div>
+                    <div className="text-[11px] text-gray-400">{os.version}</div>
+                  </div>
+                  {isSelected && <div className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: P }}>Selected</div>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Location Selection */}
+        <div className="mb-8">
+          <h2 className="text-[15px] font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <Globe size={16} style={{ color: P }}/> Data Center Location
+            {selectedLocation && <span className="text-[12px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ {selectedLocation.countryName}</span>}
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {allLocs.map(loc => {
+              const isSelected = selectedLocation?.id === loc.id;
+              return (
+                <button key={loc.id} onClick={() => setSelectedLocation(isSelected ? null : loc as VpsLocation)}
+                  className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border bg-white text-left transition-all duration-200"
+                  style={isSelected
+                    ? { border: `2px solid ${P}`, background: `${P}08`, boxShadow: `0 4px 16px ${P}20` }
+                    : { border: "1px solid #E5E7EB" }}>
+                  <span className="text-[24px] leading-none">{loc.flagIcon ?? "🌐"}</span>
+                  <div>
+                    <div className="text-[12.5px] font-bold text-gray-800">{loc.countryName}</div>
+                    <div className="text-[11px] text-gray-400">{loc.countryCode}</div>
+                  </div>
+                  {isSelected && <Check size={12} style={{ color: P }} className="ml-auto shrink-0"/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {(!selectedOsTemplate || !selectedLocation) && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-700 flex items-center gap-2">
+            <AlertCircle size={13}/>
+            {!selectedOsTemplate && !selectedLocation
+              ? "Please select an OS and a data center location to continue."
+              : !selectedOsTemplate ? "Please select an operating system."
+              : "Please select a data center location."}
+          </div>
+        )}
       </motion.div>
     );
   }
@@ -1907,7 +2253,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   return (
     <div className={showSidebar ? "pb-24 lg:pb-0" : ""}>
-      <StepBar active={step}/>
+      <StepBar active={step} labels={service === "vps" ? ["Service", "Choose Plan", "Configure", "Review & Pay"] : undefined}/>
 
       <div className={showSidebar ? "lg:grid lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_300px] lg:gap-8 lg:items-start" : ""}>
 
@@ -1918,7 +2264,9 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
             {step === 1 && service === "hosting"  && renderStep1Hosting()}
             {step === 1 && service === "domain"   && renderStep1Domain()}
             {step === 1 && service === "transfer" && renderStep1Transfer()}
-            {step === 2                           && renderStep2()}
+            {step === 1 && service === "vps"      && renderStep1Vps()}
+            {step === 2 && service === "vps"      && renderStep2Vps()}
+            {step === 2 && service !== "vps"      && renderStep2()}
             {step === 3                           && renderStep3()}
           </AnimatePresence>
         </div>
@@ -1940,6 +2288,10 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
             canContinue={canContinue()}
             onContinue={handleSidebarContinue}
             loading={orderMutation.isPending}
+            vpsPlan={service === "vps" ? selectedVpsPlan : null}
+            vpsCycle={vpsSelectedCycle}
+            vpsPrice={_vpsPrice}
+            onRmVps={() => setSelectedVpsPlan(null)}
           />
         )}
       </div>
@@ -1956,6 +2308,9 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
           canContinue={canContinue()}
           onContinue={handleSidebarContinue}
           loading={orderMutation.isPending}
+          vpsPlan={service === "vps" ? selectedVpsPlan : null}
+          vpsCycle={vpsSelectedCycle}
+          vpsPrice={_vpsPrice}
         />
       )}
     </div>

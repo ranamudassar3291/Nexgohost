@@ -29,6 +29,7 @@ import creditsRouter from "./credits.js";
 import notificationsRouter from "./notifications.js";
 import activityLogsRouter from "./activity-logs.js";
 import dnsRouter from "./dns.js";
+import vpsRouter from "./vps.js";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(creditsRouter);
 router.use(notificationsRouter);
 router.use(activityLogsRouter);
 router.use(dnsRouter);
+router.use(vpsRouter);
 
 export default router;

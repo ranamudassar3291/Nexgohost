@@ -26,3 +26,4 @@ export * from "./notifications";
 export * from "./activity-logs";
 export * from "./backups";
 export * from "./password-resets";
+export * from "./vps";

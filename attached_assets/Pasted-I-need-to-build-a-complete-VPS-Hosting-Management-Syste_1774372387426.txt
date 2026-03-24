@@ -1,0 +1,60 @@
+I need to build a complete VPS Hosting Management System in the backend and Admin Panel. This must be a 'Plug-and-Play' setup.
+
+1. Database Schema for VPS:
+
+Create a vps_plans table with these fields: id, name, price, cpu_cores, ram_gb, storage_gb, bandwidth_tb, virtualization (KVM), and icons.
+
+Create a vps_os_templates table: id, name (Ubuntu, CentOS, Windows), version, and icon_url.
+
+Create a vps_locations table: id, country_name, country_code, and flag_icon.
+
+2. Admin Panel VPS Creator:
+
+Create an 'Add VPS Plan' form in the Admin Panel with all the above fields.
+
+Include a multi-select for Available OS and Available Locations for each plan.
+
+Add a 'Save' amount field (e.g., 'Save 40%') to display on the frontend.
+
+3. Ordering Logic:
+
+Integrate VPS plans into the existing cart system.
+
+When a user orders VPS, they must select: OS Template and Data Center Location before checkout.
+
+Store these selections in the user_services table so I can manage them later."
+
+Prompt 2: Frontend UI/UX (Hostinger Style VPS Plans)
+"Now, design the VPS Hosting Frontend using a high-end, modern UI/UX (Hostinger style).
+
+1. 3-Tier Pricing Table:
+
+Create 3 professional VPS plans: 'VPS Starter', 'VPS Business', and 'VPS Enterprise'.
+
+For each plan, show:
+
+Large Price (e.g., Rs. 1,500/mo).
+
+'Save' Badge (e.g., Save 50%).
+
+List of specs with clean icons (CPU, RAM, SSD, Bandwidth).
+
+A 'Choose Plan' button that leads to configuration.
+
+2. VPS Configuration Page (Step-by-Step):
+
+After choosing a plan, show a professional 'Configure Your Server' page.
+
+OS Selection: Use clean cards with logos (Ubuntu, Debian, Windows Server, etc.).
+
+Location Selection: Use cards with country flags (USA, Germany, UK, Singapore).
+
+Summary Sidebar: Show the total price updating in real-time based on the plan.
+
+3. Visual Style:
+
+Use Noehost Purple (#701AFE) for primary buttons and hover effects.
+
+Use a clean white background with soft shadows for the plan cards.
+
+Add 'Full Root Access', 'DDoS Protection', and 'Dedicated IP' as standard feature icons on all plans.

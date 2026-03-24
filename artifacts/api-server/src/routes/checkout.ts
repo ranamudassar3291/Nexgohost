@@ -4,7 +4,7 @@ import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
   domainExtensionsTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable,
-  creditTransactionsTable, affiliateGroupCommissionsTable,
+  creditTransactionsTable, affiliateGroupCommissionsTable, vpsPlansTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
@@ -130,6 +130,115 @@ async function handleCheckout(req: AuthRequest, res: any) {
       }
 
       try { await createNotification(req.user!.userId, "order_placed", `Domain order placed: ${domain}`, `/client/invoices/${invoice.id}`); } catch {}
+      res.json({ orderId: order.id, invoiceId: invoice.id });
+      return;
+    }
+
+    // ── VPS order ─────────────────────────────────────────────────────────────
+    const vpsPlanId    = req.body.vpsPlanId;
+    const vpsOsTemplate = req.body.vpsOsTemplate ?? null;
+    const vpsLocation  = req.body.vpsLocation ?? null;
+
+    if (vpsPlanId) {
+      const [vpsPlan] = await db.select().from(vpsPlansTable)
+        .where(eq(vpsPlansTable.id, vpsPlanId)).limit(1);
+      if (!vpsPlan || !vpsPlan.isActive) {
+        res.status(404).json({ error: "VPS plan not found or unavailable" });
+        return;
+      }
+
+      const cycle: string = billingCycleRaw || "monthly";
+      let vpsAmount: number;
+      if (cycle === "yearly" && vpsPlan.yearlyPrice) {
+        vpsAmount = Number(vpsPlan.yearlyPrice);
+      } else {
+        vpsAmount = Number(vpsPlan.price);
+      }
+
+      // Promo code
+      let vpsDiscount = 0;
+      if (promoCode) {
+        const [promo] = await db.select().from(promoCodesTable)
+          .where(eq(promoCodesTable.code, promoCode.toUpperCase())).limit(1);
+        if (promo && promo.isActive && (promo.usageCount < (promo.maxUses ?? Infinity))) {
+          vpsDiscount = Math.round(vpsAmount * (Number(promo.discountPercent) / 100) * 100) / 100;
+        }
+      }
+      const finalVpsAmount = Math.max(0, vpsAmount - vpsDiscount);
+
+      // Credits payment
+      if (paymentMethodId === "credits" && finalVpsAmount > 0) {
+        const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
+          .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
+        if (bal < finalVpsAmount) {
+          res.status(400).json({ error: `Insufficient credits. Balance: Rs. ${bal.toFixed(2)}, Required: Rs. ${finalVpsAmount.toFixed(2)}.` });
+          return;
+        }
+      }
+
+      const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const invoiceNumber = `INV-${dateStr}-${rand}`;
+
+      const [order] = await db.insert(ordersTable).values({
+        clientId: req.user!.userId,
+        type: "hosting",
+        itemId: vpsPlan.id,
+        itemName: vpsPlan.name,
+        amount: String(finalVpsAmount.toFixed(2)),
+        billingCycle: cycle,
+        status: "pending",
+        notes: `VPS Order | OS: ${vpsOsTemplate ?? "any"} | DC: ${vpsLocation ?? "any"}`,
+      }).returning();
+
+      const [invoice] = await db.insert(invoicesTable).values({
+        invoiceNumber,
+        clientId: req.user!.userId,
+        orderId: order.id,
+        serviceId: null,
+        amount: String(finalVpsAmount.toFixed(2)),
+        total: String(finalVpsAmount.toFixed(2)),
+        status: "unpaid",
+        dueDate,
+        items: [{ description: `VPS Hosting: ${vpsPlan.name} (${cycle})`, quantity: 1, unitPrice: vpsAmount, total: finalVpsAmount }],
+      }).returning();
+
+      await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+
+      const [service] = await db.insert(hostingServicesTable).values({
+        clientId: req.user!.userId,
+        orderId: order.id,
+        planId: vpsPlan.id,
+        planName: vpsPlan.name,
+        status: "pending",
+        billingCycle: cycle,
+        serviceType: "vps",
+        vpsPlanId: vpsPlan.id,
+        vpsOsTemplate: vpsOsTemplate,
+        vpsLocation: vpsLocation,
+        startDate: new Date(),
+        expiryDate: (() => { const d = new Date(); if (cycle === "yearly") d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); return d; })(),
+      }).returning();
+
+      await db.update(invoicesTable).set({ serviceId: service.id, updatedAt: new Date() }).where(eq(invoicesTable.id, invoice.id));
+
+      // Auto-pay with credits
+      if (paymentMethodId === "credits" && finalVpsAmount > 0) {
+        const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
+          .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
+        await db.update(usersTable).set({ creditBalance: String((bal - finalVpsAmount).toFixed(2)), updatedAt: new Date() })
+          .where(eq(usersTable.id, req.user!.userId));
+        await db.insert(creditTransactionsTable).values({
+          userId: req.user!.userId, amount: String(finalVpsAmount.toFixed(2)), type: "invoice_payment",
+          description: `Payment for VPS order: ${vpsPlan.name}`, invoiceId: invoice.id,
+        });
+        await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+          .where(eq(invoicesTable.id, invoice.id));
+        await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+      }
+
+      try { await createNotification(req.user!.userId, "order_placed", `VPS order placed: ${vpsPlan.name}`, `/client/invoices/${invoice.id}`); } catch {}
       res.json({ orderId: order.id, invoiceId: invoice.id });
       return;
     }

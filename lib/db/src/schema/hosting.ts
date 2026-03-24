@@ -77,6 +77,10 @@ export const hostingServicesTable = pgTable("hosting_services", {
   wpProvisionedAt: timestamp("wp_provisioned_at"),
   wpInstallPath: text("wp_install_path").default("/"),
   wpPasswordRevealed: boolean("wp_password_revealed").default(false),
+  serviceType: text("service_type").default("shared"),
+  vpsPlanId: text("vps_plan_id"),
+  vpsOsTemplate: text("vps_os_template"),
+  vpsLocation: text("vps_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -64,6 +64,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "Servers",          href: "/admin/servers",          icon: (() => null) as any },
       { name: "Modules",          href: "/admin/modules",          icon: (() => null) as any },
+      { name: "VPS Plans",        href: "/admin/vps",              icon: (() => null) as any },
     ],
   },
   {
