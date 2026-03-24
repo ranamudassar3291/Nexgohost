@@ -1366,17 +1366,14 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
       adminUsername,
       adminPassword,
       adminEmail,
-      installPath = "/",
-      // Optional: cPanel account's own API token.
-      // Fixes "No data returned from cPanel Service" 500 errors caused by WHM
-      // root tokens that lack the create-user-session ACL.
-      // Generate in cPanel → Security → Manage API Tokens.
+      // Normalise: frontend sends "" for root (softdirectory:""), "/" also means root.
+      // Both are treated identically — stored as "/" in the DB for consistency.
+      installPath: rawInstallPath,
       cpanelApiToken,
-      // Optional: cPanel account password — alternative to cpanelApiToken.
-      // Equivalent to Axios auth: { username: cpanel_user, password: cpanel_pass }.
-      // Use this when an API token is not available.
       cpanelPassword,
     } = req.body;
+    // Treat both "" and "/" as site root; any other value is a subdirectory path
+    const installPath = (!rawInstallPath || rawInstallPath === "/") ? "/" : rawInstallPath;
 
     console.log(`[WP] Incoming install request for service ${id}:`, {
       siteTitle,

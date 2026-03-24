@@ -122,7 +122,7 @@ export default function ServiceDetail() {
   const [wpAdminUsername, setWpAdminUsername] = useState("");
   const [wpAdminPassword, setWpAdminPassword] = useState("");
   const [wpAdminEmail, setWpAdminEmail] = useState("");
-  const [wpInstallPath, setWpInstallPath] = useState("/");
+  const [wpInstallPath, setWpInstallPath] = useState("");
   const [showWpPassInForm, setShowWpPassInForm] = useState(false);
   const [showReinstallConfirm, setShowReinstallConfirm] = useState(false);
   const [wpReinstallLoading, setWpReinstallLoading] = useState(false);
@@ -1411,7 +1411,8 @@ export default function ServiceDetail() {
                   onChange={e => setWpInstallPath(e.target.value)}
                   className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
                 >
-                  <option value="/">/ (site root)</option>
+                  {/* Empty string = root of public_html — softdirectory:"" sent to Softaculous */}
+                  <option value="">/ (site root — recommended)</option>
                   <option value="/blog">/blog</option>
                   <option value="/wordpress">/wordpress</option>
                   <option value="/wp">/wp</option>

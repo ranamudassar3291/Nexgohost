@@ -220,9 +220,12 @@ export async function cpanelProvisionWordPress(
     cpanelApiToken, cpanelPassword,
   } = opts;
 
-  const subPath    = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;
+  // Normalise installPath: treat both "" and "/" as "install at document root".
+  // subPath = "" means public_html root. Any other value (e.g. "/blog") is a subdirectory.
+  const normPath   = (installPath === "" || installPath === "/") ? "/" : installPath;
+  const subPath    = normPath === "/" ? "" : `/${normPath.replace(/^\//, "")}`;
   const publicHtml = `/home/${cpanelUser}/public_html${subPath}`;
-  const wpUrl      = installPath === "/" ? `https://${domain}` : `https://${domain}${subPath}`;
+  const wpUrl      = subPath === "" ? `https://${domain}` : `https://${domain}${subPath}`;
   const adminUrl   = `${wpUrl}/wp-admin`;
 
   // ── Uniform DB credentials (user requirement) ──────────────────────────────

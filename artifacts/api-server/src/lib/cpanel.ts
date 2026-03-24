@@ -817,10 +817,15 @@ export async function cpanelSoftaculousInstallWordPress(
     cpanel_jsonapi_user:       cpanelUser,
     cpanel_jsonapi_apiversion: "2",
     cpanel_jsonapi_module:     "Softaculous",
-    cpanel_jsonapi_func:       "api2_install",
+    // Correct function name for Softaculous via cPanel API2 JSON bridge.
+    // "api2_install" is wrong — the function is just "install".
+    // The api2_ prefix is only used in UAPI-to-API2 bridging, not here.
+    cpanel_jsonapi_func:       "install",
     soft:                      "26",
     autoinstall:               "1",
     softdomain:                opts.softdomain,
+    // Empty string = install in /public_html root (no subdirectory).
+    // Any other value (e.g. "blog") installs into /public_html/blog.
     softdirectory:             opts.softdirectory ?? "",
     site_name:                 opts.site_name,
     admin_username:            opts.admin_username,
