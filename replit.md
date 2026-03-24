@@ -1,5 +1,17 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 18)
+- **`/client/orders/new` — Complete Rebuild** (`artifacts/nexgohost/src/pages/client/NewOrder.tsx`): 4-step wizard inside the authenticated client layout.
+  - **4-step progress bar** (Choose Service → Choose Plan → Domain & Config → Checkout): Scrollable on mobile, purple active step with ring, grey inactive, check icon for completed steps.
+  - **Step 0 — Choose Service**: 3 vertical cards (Web Hosting / Domain Registration / Domain Transfer). White #FFFFFF background, 15px border-radius, purple glow on hover via JS mouse events (since Tailwind can't do arbitrary box-shadow on hover for custom colors). Pre-selected "Most Popular" badge on Web Hosting card with purple border.
+  - **Step 1 — Hosting Plans (Hostinger-style 3-column grid)**: Tab selector (Shared/Reseller/VPS), plan cards with "Recommended" badge on middle card, giant `Rs. X,XXX /mo` price in black, billing cycle pills, feature list with purple checkmarks at 10px gap, full-width purple "Get Started" button. Mobile: stacks to 1 per row.
+  - **Step 1 — Domain Registration**: Full-width search bar + purple "Check Availability" button. TLD pricing pills shown while idle. Results as **horizontal bars** (Hostinger-style): `domain.com | Available (green badge) | Rs. price | Add to Cart button`.
+  - **Step 1 — Transfer**: EPP code form with step-by-step guide panel.
+  - **Step 2 — Domain & Config** (after hosting plan selected): Plan confirmation banner, Register/Existing/Skip mode selector, horizontal-bar domain search results, existing domain input.
+  - **Sticky Order Summary sidebar** (desktop right, `#FAFAFA` bg + 1px border) + **mobile fixed bottom bar**: Shows Selected Service / Plan / Domain with X remove buttons, PKR total, "Proceed to Checkout" CTA (disabled when empty).
+  - **localStorage persistence**: `order_wizard_domain` key stores cart domain across refreshes. CartContext handles hosting plan via `noehost_cart`.
+  - **Typography**: `font-family: 'Inter', sans-serif` explicitly applied. All currency via `formatPrice()` from `useCurrency()`.
+
 ## Recent Changes (Session 17)
 - **Order Wizard — Mobile Responsiveness + Live Order Summary Sidebar**: Full rewrite of `OrderFlow.tsx`.
   - **Progress bar**: Wrapped in `overflow-x-auto` with `min-w-[280px]` so it scrolls horizontally on very small screens rather than wrapping.
