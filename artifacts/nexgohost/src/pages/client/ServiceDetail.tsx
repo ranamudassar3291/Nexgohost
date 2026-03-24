@@ -123,6 +123,10 @@ export default function ServiceDetail() {
     step: string | null;
     error: string | null;
   } | null>(null);
+  // Domain list for the WordPress installer dropdown
+  const [wpDomains, setWpDomains] = useState<{ domain: string; docroot: string; type: string }[]>([]);
+  const [wpDomainsLoading, setWpDomainsLoading] = useState(false);
+  const [wpSelectedDomain, setWpSelectedDomain] = useState("");
 
   // Password change state
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -204,6 +208,31 @@ export default function ServiceDetail() {
     }
   }, [service?.id]);
 
+  // Fetch all domains/subdomains for the WordPress installer dropdown
+  useEffect(() => {
+    if (!service?.id || service.status !== "active") return;
+    let cancelled = false;
+    async function fetchDomains() {
+      setWpDomainsLoading(true);
+      try {
+        const res = await authFetch(`/api/client/hosting/${service!.id}/domains`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const list: { domain: string; docroot: string; type: string }[] = data.domains ?? [];
+        if (!cancelled) {
+          setWpDomains(list);
+          // Default selection: prefer main domain, fall back to first item
+          const main = list.find(d => d.type === "main") ?? list[0];
+          if (main) setWpSelectedDomain(main.domain);
+        }
+      } catch { /* non-fatal */ } finally {
+        if (!cancelled) setWpDomainsLoading(false);
+      }
+    }
+    fetchDomains();
+    return () => { cancelled = true; };
+  }, [service?.id, service?.status]);
+
   async function fetchService() {
     try {
       setLoading(true);
@@ -251,11 +280,16 @@ export default function ServiceDetail() {
   }
 
   // Open the official cPanel Softaculous WordPress installer in a new tab
+  // Passes the selected domain so Softaculous pre-selects it
   async function handleOpenSoftaculous() {
     if (!service) return;
     setWpInstallerLoading(true);
     try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/wp-softaculous-url`, { method: "POST" });
+      const res = await authFetch(`/api/client/hosting/${service.id}/wp-softaculous-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: wpSelectedDomain || service.domain }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not generate installer URL");
       window.open(data.url, "_blank");
@@ -266,20 +300,28 @@ export default function ServiceDetail() {
     }
   }
 
-  // Detect WordPress by checking for wp-config.php via cPanel UAPI Fileman
+  // Detect WordPress by checking for wp-config.php in the selected domain's directory
   async function handleDetectWordPress() {
     if (!service) return;
     setWpCheckLoading(true);
+    const checkDomain = wpSelectedDomain || service.domain;
     try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/wp-detect`, { method: "POST" });
+      const res = await authFetch(`/api/client/hosting/${service.id}/wp-detect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: checkDomain }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Detection failed");
       if (data.installed) {
         setWpProvisionData({ status: "active", step: "Completed", error: null });
         fetchService();
-        toast({ title: "WordPress Detected", description: "Your WordPress installation has been confirmed." });
+        toast({ title: "WordPress Detected", description: `WordPress found on ${checkDomain}.` });
       } else {
-        toast({ title: "Not found yet", description: "wp-config.php was not found in /public_html. Complete the installation in Softaculous first." });
+        toast({
+          title: "Not found yet",
+          description: `wp-config.php was not found in ${data.checkedDir ?? "the selected directory"}. Complete the installation in Softaculous first.`,
+        });
       }
     } catch (e: any) {
       toast({ title: "Detection failed", description: e.message, variant: "destructive" });
@@ -292,15 +334,19 @@ export default function ServiceDetail() {
   async function handleOpenWpAdmin() {
     if (!service) return;
     setWpAdminLoading(true);
+    const adminDomain = wpSelectedDomain || service.domain;
     try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/wp-admin-url`, { method: "POST" });
+      const res = await authFetch(`/api/client/hosting/${service.id}/wp-admin-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: adminDomain }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not get admin URL");
       window.open(data.url, "_blank");
     } catch (e: any) {
-      // Last resort: open /wp-admin directly
-      const fallback = service.wpUrl || `https://${service.domain}/wp-admin`;
-      window.open(fallback, "_blank");
+      // Last resort: open /wp-admin directly on the selected domain
+      window.open(`https://${adminDomain}/wp-admin`, "_blank");
     } finally {
       setWpAdminLoading(false);
     }
@@ -1060,11 +1106,32 @@ export default function ServiceDetail() {
           </div>
         </div>
 
+        {/* Domain selector — shown in all states when multiple domains are available */}
+        {wpDomains.length > 1 && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground/70">Domain / Subdomain</label>
+            <select
+              value={wpSelectedDomain}
+              onChange={e => setWpSelectedDomain(e.target.value)}
+              className="w-full max-w-sm h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+              disabled={wpDomainsLoading}
+            >
+              {wpDomains.map(d => (
+                <option key={d.domain} value={d.domain}>
+                  {d.domain}{d.type === "main" ? " (main)" : d.type === "sub" ? " (subdomain)" : " (addon)"}
+                </option>
+              ))}
+            </select>
+            {wpDomainsLoading && <p className="text-xs text-muted-foreground">Loading domains…</p>}
+          </div>
+        )}
+
         {/* ─── Installed: show WordPress Admin button ─── */}
         {wpProvisionData?.status === "active" ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              WordPress is installed on <strong className="text-foreground">{service.domain}</strong>. Use the button below for one-click login to your WordPress dashboard.
+              WordPress is installed. Use the button below for one-click login to your WordPress dashboard
+              {wpSelectedDomain ? <> on <strong className="text-foreground">{wpSelectedDomain}</strong></> : ""}.
             </p>
             <Button onClick={handleOpenWpAdmin} disabled={wpAdminLoading} className="gap-2">
               {wpAdminLoading ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />}
@@ -1075,13 +1142,20 @@ export default function ServiceDetail() {
           /* ─── Not installed: guided install flow ─── */
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Install WordPress on <strong className="text-foreground">{service.domain}</strong> using the official cPanel Softaculous installer, then click <strong className="text-foreground">Check if Installed</strong> to confirm.
+              Install WordPress on{" "}
+              <strong className="text-foreground">{wpSelectedDomain || service.domain}</strong>{" "}
+              using the official cPanel Softaculous installer, then click{" "}
+              <strong className="text-foreground">Check if Installed</strong> to confirm.
             </p>
 
             {/* Step 1 */}
             <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2">
               <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Step 1 — Open Softaculous Installer</p>
-              <p className="text-xs text-muted-foreground">Opens the cPanel Softaculous WordPress installer in a new tab. Complete the installation there and return here.</p>
+              <p className="text-xs text-muted-foreground">
+                Opens the cPanel Softaculous WordPress installer in a new tab
+                {wpSelectedDomain ? <>, pre-selecting <strong>{wpSelectedDomain}</strong></> : ""}.
+                Complete the installation there and return here.
+              </p>
               <Button
                 onClick={handleOpenSoftaculous}
                 disabled={wpInstallerLoading || service.status !== "active"}
@@ -1098,7 +1172,10 @@ export default function ServiceDetail() {
             {/* Step 2 */}
             <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2">
               <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Step 2 — Confirm Installation</p>
-              <p className="text-xs text-muted-foreground">After finishing the Softaculous installer, click below to verify WordPress is present on your server.</p>
+              <p className="text-xs text-muted-foreground">
+                After finishing the Softaculous installer, click below to verify WordPress is present
+                {wpSelectedDomain ? <> in the <strong>{wpSelectedDomain}</strong> directory</> : ""}.
+              </p>
               <Button
                 variant="outline"
                 onClick={handleDetectWordPress}

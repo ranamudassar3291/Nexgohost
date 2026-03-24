@@ -1350,6 +1350,70 @@ router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: Auth
   }
 });
 
+// ── List all cPanel domains + docroots for the domain dropdown ────────────────
+// Uses DomainInfo::domains_data UAPI call; falls back to just the primary domain.
+router.get("/client/hosting/:id/domains", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const clientId = req.user!.userId;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
+
+    const server = await resolveServerForService(service);
+    if (!server || !server.apiToken) {
+      return res.json({ domains: [{ domain: service.domain, docroot: `/home/${service.username}/public_html`, type: "main" }] });
+    }
+
+    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+
+    try {
+      const data = await cpanelUapi(serverCfg, service.username, "DomainInfo", "domains_data", {});
+      const list: any[] = Array.isArray(data) ? data : (data?.domains_data ?? data?.data ?? []);
+      if (list.length > 0) {
+        const domains = list.map((d: any) => ({
+          domain:  d.domain,
+          docroot: d.docroot ?? d.document_root ?? `/home/${service.username}/public_html`,
+          type:    d.type ?? "addon",
+        }));
+        return res.json({ domains });
+      }
+    } catch (uapiErr: any) {
+      console.warn(`[DOMAINS] DomainInfo::domains_data failed: ${uapiErr.message} — falling back`);
+    }
+
+    // Fallback: list_domains gives sub/addon/parked domain names without docroots
+    try {
+      const data = await cpanelUapi(serverCfg, service.username, "DomainInfo", "list_domains", {});
+      const mainDomain  = data?.main_domain  ?? service.domain;
+      const subDomains: string[]   = data?.sub_domains   ?? [];
+      const addonDomains: string[] = data?.addon_domains  ?? [];
+
+      const domains = [
+        { domain: mainDomain, docroot: `/home/${service.username}/public_html`, type: "main" },
+        ...subDomains.map((d: string) => {
+          // Subdomain prefix is the part before the root domain
+          const prefix = d.replace(`.${mainDomain}`, "").replace(`.${service.domain}`, "");
+          return { domain: d, docroot: `/home/${service.username}/public_html/${prefix}`, type: "sub" };
+        }),
+        ...addonDomains.map((d: string) => ({
+          domain: d, docroot: `/home/${service.username}/public_html`, type: "addon",
+        })),
+      ];
+      return res.json({ domains });
+    } catch (listErr: any) {
+      console.warn(`[DOMAINS] list_domains failed: ${listErr.message}`);
+    }
+
+    // Final fallback: just the primary domain
+    return res.json({ domains: [{ domain: service.domain, docroot: `/home/${service.username}/public_html`, type: "main" }] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list domains" });
+  }
+});
+
 // ── Guided Install: generate Softaculous WordPress URL (opens in new tab) ─────
 // Uses WHM create_user_session to build a live cpsess token, then returns the
 // full Softaculous WordPress install page URL so the client can install manually
@@ -1371,9 +1435,10 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
       return res.status(400).json({ error: "No cPanel server found. Contact support." });
     }
 
+    const { domain: targetDomain } = req.body as { domain?: string };
     const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
-    const url = await cpanelGetSoftaculousInstallUrl(serverCfg, service.username);
-    console.log(`[WP-SOFTACULOUS-URL] Generated for service ${id}`);
+    const url = await cpanelGetSoftaculousInstallUrl(serverCfg, service.username, targetDomain || service.domain);
+    console.log(`[WP-SOFTACULOUS-URL] Generated for service ${id} domain=${targetDomain || service.domain}`);
     return res.json({ url });
   } catch (err: any) {
     const msg = err.message || "Failed to generate Softaculous URL";
@@ -1383,12 +1448,14 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
 });
 
 // ── Detect WordPress installation via Fileman::list_files ──────────────────
-// Checks /home/{cpanelUser}/public_html for wp-config.php using cPanel UAPI.
+// Accepts optional { domain } body to check a subdomain's directory.
+// Resolves the docroot using DomainInfo::domains_data; falls back to derived path.
 // On success, marks the service as wpInstalled=true in the database.
 router.post("/client/hosting/:id/wp-detect", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const clientId = req.user!.userId;
+    const { domain: targetDomain } = req.body as { domain?: string };
 
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
@@ -1402,38 +1469,70 @@ router.post("/client/hosting/:id/wp-detect", authenticate, async (req: AuthReque
 
     const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
 
+    // Resolve the docroot for the selected domain
+    let docroot = `/home/${service.username}/public_html`;
+    const checkDomain = targetDomain || service.domain;
+    const isMainDomain = checkDomain === service.domain;
+
+    if (!isMainDomain) {
+      // Try to get exact docroot from DomainInfo::domains_data
+      try {
+        const dd = await cpanelUapi(serverCfg, service.username, "DomainInfo", "domains_data", {});
+        const list: any[] = Array.isArray(dd) ? dd : (dd?.domains_data ?? dd?.data ?? []);
+        const match = list.find((d: any) => d.domain === checkDomain);
+        if (match?.docroot) {
+          docroot = match.docroot;
+        } else {
+          // Fallback: derive from subdomain prefix
+          // sub.example.com → public_html/sub
+          const mainDomain = service.domain;
+          const prefix = checkDomain.replace(`.${mainDomain}`, "");
+          if (prefix && prefix !== checkDomain) {
+            docroot = `/home/${service.username}/public_html/${prefix}`;
+          }
+        }
+      } catch {
+        // Derive from prefix as fallback
+        const mainDomain = service.domain;
+        const prefix = checkDomain.replace(`.${mainDomain}`, "");
+        if (prefix && prefix !== checkDomain) {
+          docroot = `/home/${service.username}/public_html/${prefix}`;
+        }
+      }
+    }
+
     let installed = false;
     try {
       const data = await cpanelUapi(serverCfg, service.username, "Fileman", "list_files", {
-        dir: `/home/${service.username}/public_html`,
+        dir: docroot,
         include_mime: "0",
       });
       const files: any[] = Array.isArray(data) ? data : (data?.files ?? []);
       installed = files.some((f: any) =>
         f.file === "wp-config.php" || f.name === "wp-config.php" || f.path === "wp-config.php"
       );
-      console.log(`[WP-DETECT] Checked ${files.length} files in /public_html — wp-config.php found: ${installed}`);
+      console.log(`[WP-DETECT] Checked ${files.length} files in ${docroot} — wp-config.php found: ${installed}`);
     } catch (fileman_err: any) {
-      console.warn(`[WP-DETECT] Fileman::list_files failed: ${fileman_err.message}`);
+      console.warn(`[WP-DETECT] Fileman::list_files failed for ${docroot}: ${fileman_err.message}`);
       return res.status(500).json({ error: `Could not check files: ${fileman_err.message}` });
     }
 
     if (installed) {
-      const wpUrl = service.wpUrl || `https://${service.domain}/wp-admin`;
+      const wpUrl = `https://${checkDomain}/wp-admin`;
       await db.update(hostingServicesTable).set({
         wpInstalled:       true,
         wpProvisionStatus: "active",
         wpProvisionStep:   "Completed",
         wpProvisionError:  null,
         wpUrl,
-        wpInstallPath:     service.wpInstallPath ?? "/",
+        wpInstallPath:     "/",
         wpProvisionedAt:   new Date(),
         updatedAt:         new Date(),
       }).where(eq(hostingServicesTable.id, id));
-      console.log(`[WP-DETECT] WordPress detected and marked active for service ${id} (${service.domain})`);
+      console.log(`[WP-DETECT] WordPress detected and marked active for service ${id} (${checkDomain})`);
     }
 
-    return res.json({ installed });
+    return res.json({ installed, checkedDir: docroot, domain: checkDomain });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Detection failed" });
   }
@@ -1451,7 +1550,9 @@ router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRe
     if (!service) return res.status(404).json({ error: "Service not found" });
     if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
 
-    const fallbackUrl = service.wpUrl || `https://${service.domain}/wp-admin`;
+    const { domain: targetDomain } = req.body as { domain?: string };
+    const lookupDomain = targetDomain || service.domain;
+    const fallbackUrl  = `https://${lookupDomain}/wp-admin`;
     const server = await resolveServerForService(service);
 
     if (!server || !server.apiToken || server.type !== "cpanel") {
@@ -1459,8 +1560,8 @@ router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRe
     }
 
     const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
-    const result = await cpanelGetWpAdminUrl(serverCfg, service.username, service.domain, fallbackUrl);
-    console.log(`[WP-ADMIN-URL] ${result.method} URL for service ${id}`);
+    const result = await cpanelGetWpAdminUrl(serverCfg, service.username, lookupDomain, fallbackUrl);
+    console.log(`[WP-ADMIN-URL] ${result.method} URL for service ${id} domain=${lookupDomain}`);
     return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to get admin URL" });

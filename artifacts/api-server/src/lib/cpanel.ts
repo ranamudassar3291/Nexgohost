@@ -1033,12 +1033,14 @@ export async function cpanelSoftaculousInstallWordPress(
 export async function cpanelGetSoftaculousInstallUrl(
   server: ServerConfig,
   cpanelUser: string,
+  targetDomain?: string,
 ): Promise<string> {
   const loginUrl = await cpanelCreateUserSession(server, cpanelUser, "cpaneld");
   const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
   if (!match) throw new Error(`Could not extract cpsess from login URL: ${loginUrl.substring(0, 200)}`);
   const cpsess = match[1];
-  return `https://${server.hostname}:2083/${cpsess}/softaculous/index.php?act=software&soft=26`;
+  const domainParam = targetDomain ? `&softdomain=${encodeURIComponent(targetDomain)}` : "";
+  return `https://${server.hostname}:2083/${cpsess}/softaculous/index.php?act=software&soft=26${domainParam}`;
 }
 
 /**
