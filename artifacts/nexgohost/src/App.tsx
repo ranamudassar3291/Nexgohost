@@ -15,6 +15,8 @@ import Forbidden from "@/pages/errors/Forbidden";
 import AdminLogin from "@/pages/auth/AdminLogin";
 import ClientLogin from "@/pages/auth/ClientLogin";
 import Register from "@/pages/auth/Register";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
 
 // Admin pages
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -113,9 +115,11 @@ function RouterRoot() {
   return (
     <Switch>
       {/* ── Auth pages ── */}
-      <Route path="/admin/login"  component={AdminLogin}  />
-      <Route path="/client/login" component={ClientLogin} />
-      <Route path="/register"     component={Register}    />
+      <Route path="/admin/login"      component={AdminLogin}      />
+      <Route path="/client/login"     component={ClientLogin}     />
+      <Route path="/register"         component={Register}        />
+      <Route path="/forgot-password"  component={ForgotPassword}  />
+      <Route path="/reset-password"   component={ResetPassword}   />
 
       <Route path="/login">
         {!isLoading && user ? (

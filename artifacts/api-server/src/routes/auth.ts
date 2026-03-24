@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
+import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, type AuthRequest } from "../lib/auth.js";
-import { emailVerificationCode } from "../lib/email.js";
+import { emailVerificationCode, sendEmail } from "../lib/email.js";
+import crypto from "node:crypto";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
 const _otplib = _require("otplib") as any;
@@ -606,6 +607,100 @@ router.post("/auth/google", async (req, res) => {
     await logAuthEvent({ email: googleUser.email, action: "google_login", method: "google", status: "error", ipAddress: ip, userAgent: ua, details: err.message });
     res.status(500).json({ error: "Server error during sign-in. Please try again." });
   }
+});
+
+// ─── Forgot Password ──────────────────────────────────────────────────────────
+// POST /api/auth/forgot-password
+// Generates a secure reset token, stores it with a 1-hour expiry, and emails the user.
+router.post("/auth/forgot-password", async (req, res) => {
+  const { email } = req.body as { email?: string };
+  if (!email || !/\S+@\S+\.\S+/.test(email)) {
+    return res.status(400).json({ error: "A valid email address is required." });
+  }
+
+  // Always return 200 to prevent email enumeration attacks
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim())).limit(1);
+  if (!user) {
+    return res.json({ message: "If an account with that email exists, a reset link has been sent." });
+  }
+
+  // Generate a cryptographically secure token
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  // Invalidate any previous tokens for this user by inserting a new one
+  await db.insert(passwordResetsTable).values({ token, userId: user.id, expiresAt });
+
+  // Build the reset link
+  const baseUrl = process.env["APP_URL"] || "https://noehost.com";
+  const resetLink = `${baseUrl}/reset-password?token=${token}`;
+
+  // Send the email
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Reset your Noehost password",
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden">
+          <div style="background:#701AFE;padding:28px 32px">
+            <h1 style="color:#fff;font-size:22px;margin:0;font-weight:700">Noehost</h1>
+          </div>
+          <div style="padding:32px">
+            <h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 8px">Reset your password</h2>
+            <p style="color:#6b7280;font-size:14px;margin:0 0 24px">Hi ${user.firstName}, we received a request to reset the password for your account. Click the button below — this link expires in 1 hour.</p>
+            <a href="${resetLink}" style="display:inline-block;background:#701AFE;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Reset Password</a>
+            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+            <p style="color:#d1d5db;font-size:11px;margin:8px 0 0">Or copy this link: ${resetLink}</p>
+          </div>
+        </div>
+      `,
+    });
+    console.log(`[AUTH] Password reset email sent to ${user.email}`);
+  } catch (emailErr: any) {
+    console.error(`[AUTH] Failed to send reset email: ${emailErr.message}`);
+  }
+
+  return res.json({ message: "If an account with that email exists, a reset link has been sent." });
+});
+
+// ─── Reset Password ───────────────────────────────────────────────────────────
+// POST /api/auth/reset-password
+// Verifies the token, hashes the new password, updates the user, marks token as used.
+router.post("/auth/reset-password", async (req, res) => {
+  const { token, password } = req.body as { token?: string; password?: string };
+  if (!token || !password) {
+    return res.status(400).json({ error: "Token and new password are required." });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters." });
+  }
+
+  // Find a valid, unused token that hasn't expired
+  const [reset] = await db.select().from(passwordResetsTable).where(
+    and(
+      eq(passwordResetsTable.token, token),
+      gt(passwordResetsTable.expiresAt, new Date()),
+    )
+  ).limit(1);
+
+  if (!reset || reset.usedAt) {
+    return res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  // Update the user's password
+  await db.update(usersTable)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(usersTable.id, reset.userId));
+
+  // Mark token as used
+  await db.update(passwordResetsTable)
+    .set({ usedAt: new Date() })
+    .where(eq(passwordResetsTable.token, token));
+
+  console.log(`[AUTH] Password reset successful for userId=${reset.userId}`);
+  return res.json({ message: "Password updated successfully. You can now sign in." });
 });
 
 export default router;

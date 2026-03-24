@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation, Redirect } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Loader2, ArrowRight, AlertCircle, UserCheck,
+  Loader2, ArrowRight, AlertCircle,
   Smartphone, RefreshCw, MailCheck, Eye, EyeOff,
   Server, Globe, Shield, Zap,
 } from "lucide-react";
@@ -200,7 +200,7 @@ export default function ClientLogin() {
             {/* ── Step: password ── */}
             {step === "password" && (
               <motion.div key="pw" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <h1 className="text-3xl font-bold text-black mb-1">Welcome back</h1>
+                <h1 className="text-[2rem] font-extrabold text-black mb-1 leading-tight tracking-tight">Welcome back</h1>
                 <p className="text-gray-500 text-sm mb-8">Sign in to your Noehost account</p>
 
                 {error && (
@@ -282,7 +282,7 @@ export default function ClientLogin() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                    className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#701AFE]/30"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : <><span>Sign in</span><ArrowRight size={16} /></>}
                   </button>
@@ -375,13 +375,6 @@ export default function ClientLogin() {
 
           </AnimatePresence>
 
-          {/* Client portal badge */}
-          {step === "password" && (
-            <div className="mt-8 flex items-center justify-center gap-1.5 text-xs text-gray-400">
-              <UserCheck size={12} />
-              <span>Client portal · <a href="/admin/login" className="hover:text-gray-600 transition-colors">Admin login</a></span>
-            </div>
-          )}
         </div>
       </div>
     </div>
