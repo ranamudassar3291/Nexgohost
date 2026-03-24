@@ -1614,21 +1614,35 @@ router.post("/client/hosting/:id/sitejet-url", authenticate, async (req: AuthReq
       return res.status(400).json({ error: "No cPanel server found. Contact support." });
     }
 
-    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
-
-    // Create a cPanel user session to get a live cpsess token
-    const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, "cpaneld");
-    const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
-    if (!match) throw new Error("Could not extract cpsess token from cPanel login URL.");
-    const cpsess = match[1];
-
-    // Build the Sitejet URL; append domain as a hash-fragment query param if provided
     const useDomain = targetDomain || service.domain;
-    const domainParam = useDomain ? `?domain=${encodeURIComponent(useDomain)}` : "";
-    const url = `https://${server.hostname}:2083/${cpsess}/sitejet/index.html#/${domainParam}`;
 
-    console.log(`[SITEJET-URL] Generated for service ${id} domain=${useDomain}`);
-    return res.json({ url });
+    // ── Prefer bypass-login URL (works even when WHM session creation fails) ──
+    if (service.password) {
+      const gotoUri = useDomain
+        ? `sitejet/index.html?domain=${encodeURIComponent(useDomain)}`
+        : "sitejet/index.html";
+      const url = `https://${server.hostname}:2083/login/?user=${encodeURIComponent(service.username)}&pass=${encodeURIComponent(service.password)}&goto_uri=${encodeURIComponent(gotoUri)}`;
+      console.log(`[SITEJET-URL] Bypass-login URL for service ${id} domain=${useDomain}`);
+      return res.json({ url });
+    }
+
+    // ── Fall back to WHM session-based URL if no password stored ─────────────
+    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+    try {
+      const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, "cpaneld");
+      const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
+      if (!match) throw new Error("Could not extract cpsess token from cPanel login URL.");
+      const cpsess = match[1];
+      const domainParam = useDomain ? `?domain=${encodeURIComponent(useDomain)}` : "";
+      const url = `https://${server.hostname}:2083/${cpsess}/sitejet/index.html#/${domainParam}`;
+      console.log(`[SITEJET-URL] Session URL for service ${id} domain=${useDomain}`);
+      return res.json({ url });
+    } catch (sessionErr: any) {
+      console.error(`[SITEJET-URL] Session creation failed: ${sessionErr.message}`);
+      // Last-resort: return the base cPanel URL so the button still does something useful
+      const base = service.cpanelUrl ?? `https://${server.hostname}:2083`;
+      return res.json({ url: `${base}/frontend/paper_lantern/sitejet/index.html`, fallback: true });
+    }
   } catch (err: any) {
     const msg = err.message || "Failed to generate Sitejet URL";
     console.error(`[SITEJET-URL] ${msg}`);
