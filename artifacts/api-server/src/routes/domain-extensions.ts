@@ -18,6 +18,7 @@ function formatExt(row: typeof domainExtensionsTable.$inferSelect) {
     renew3YearPrice: row.renew3YearPrice,
     transferPrice: row.transferPrice,
     privacyEnabled: row.privacyEnabled,
+    isFreeWithHosting: row.isFreeWithHosting ?? false,
     status: row.status,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -41,7 +42,8 @@ router.get("/domain-extensions", async (_req, res) => {
 // POST /api/admin/domain-extensions
 router.post("/admin/domain-extensions", authenticate, requireAdmin, async (req, res) => {
   const { extension, registerPrice, register2YearPrice, register3YearPrice,
-          renewalPrice, renew2YearPrice, renew3YearPrice, transferPrice, status } = req.body;
+          renewalPrice, renew2YearPrice, renew3YearPrice, transferPrice,
+          privacyEnabled, isFreeWithHosting, status } = req.body;
   if (!extension || !registerPrice || !renewalPrice || !transferPrice) {
     return res.status(400).json({ error: "extension, registerPrice, renewalPrice, transferPrice are required" });
   }
@@ -56,6 +58,8 @@ router.post("/admin/domain-extensions", authenticate, requireAdmin, async (req, 
       renew2YearPrice: renew2YearPrice ? String(renew2YearPrice) : null,
       renew3YearPrice: renew3YearPrice ? String(renew3YearPrice) : null,
       transferPrice: String(transferPrice),
+      privacyEnabled: privacyEnabled !== undefined ? Boolean(privacyEnabled) : true,
+      isFreeWithHosting: isFreeWithHosting !== undefined ? Boolean(isFreeWithHosting) : false,
       status: status || "active",
     }).returning();
     res.status(201).json(formatExt(record));
@@ -69,7 +73,8 @@ router.post("/admin/domain-extensions", authenticate, requireAdmin, async (req, 
 router.put("/admin/domain-extensions/:id", authenticate, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { extension, registerPrice, register2YearPrice, register3YearPrice,
-          renewalPrice, renew2YearPrice, renew3YearPrice, transferPrice, status, privacyEnabled } = req.body;
+          renewalPrice, renew2YearPrice, renew3YearPrice, transferPrice,
+          status, privacyEnabled, isFreeWithHosting } = req.body;
   const updates: Record<string, unknown> = {};
   if (extension !== undefined) updates.extension = extension.startsWith(".") ? extension.toLowerCase() : `.${extension}`.toLowerCase();
   if (registerPrice !== undefined) updates.registerPrice = String(registerPrice);
@@ -80,7 +85,8 @@ router.put("/admin/domain-extensions/:id", authenticate, requireAdmin, async (re
   if (renew3YearPrice !== undefined) updates.renew3YearPrice = renew3YearPrice ? String(renew3YearPrice) : null;
   if (transferPrice !== undefined) updates.transferPrice = String(transferPrice);
   if (status !== undefined) updates.status = status;
-  if (privacyEnabled !== undefined) updates.privacyEnabled = privacyEnabled;
+  if (privacyEnabled !== undefined) updates.privacyEnabled = Boolean(privacyEnabled);
+  if (isFreeWithHosting !== undefined) updates.isFreeWithHosting = Boolean(isFreeWithHosting);
   updates.updatedAt = new Date();
   const [record] = await db.update(domainExtensionsTable).set(updates).where(eq(domainExtensionsTable.id, id)).returning();
   if (!record) return res.status(404).json({ error: "Not found" });

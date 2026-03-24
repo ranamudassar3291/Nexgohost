@@ -18,6 +18,7 @@ interface DomainExtension {
   renew3YearPrice: string | null;
   transferPrice: string;
   privacyEnabled: boolean;
+  isFreeWithHosting: boolean;
   status: "active" | "inactive";
 }
 
@@ -32,7 +33,7 @@ const EMPTY = {
   extension: "",
   registerPrice: "", register2YearPrice: "", register3YearPrice: "",
   renewalPrice: "", renew2YearPrice: "", renew3YearPrice: "",
-  transferPrice: "", privacyEnabled: true,
+  transferPrice: "", privacyEnabled: true, isFreeWithHosting: false,
 };
 
 export default function DomainExtensions() {
@@ -69,6 +70,7 @@ export default function DomainExtensions() {
         renew3YearPrice: form.renew3YearPrice || null,
         transferPrice: form.transferPrice,
         privacyEnabled: form.privacyEnabled,
+        isFreeWithHosting: form.isFreeWithHosting,
       };
       if (editId) {
         await apiFetch(`/api/admin/domain-extensions/${editId}`, { method: "PUT", body: JSON.stringify(body) });
@@ -96,6 +98,7 @@ export default function DomainExtensions() {
       renew3YearPrice: ext.renew3YearPrice || "",
       transferPrice: ext.transferPrice,
       privacyEnabled: ext.privacyEnabled,
+      isFreeWithHosting: ext.isFreeWithHosting ?? false,
     });
     setShowForm(true);
   };
@@ -111,11 +114,13 @@ export default function DomainExtensions() {
     }
   };
 
-  const handleToggle = async (ext: DomainExtension, field: "status" | "privacyEnabled") => {
+  const handleToggle = async (ext: DomainExtension, field: "status" | "privacyEnabled" | "isFreeWithHosting") => {
     try {
       const body = field === "status"
         ? { status: ext.status === "active" ? "inactive" : "active" }
-        : { privacyEnabled: !ext.privacyEnabled };
+        : field === "privacyEnabled"
+          ? { privacyEnabled: !ext.privacyEnabled }
+          : { isFreeWithHosting: !ext.isFreeWithHosting };
       await apiFetch(`/api/admin/domain-extensions/${ext.id}`, { method: "PUT", body: JSON.stringify(body) });
       queryClient.invalidateQueries({ queryKey: ["admin-domain-extensions"] });
     } catch (err: any) {
@@ -200,6 +205,18 @@ export default function DomainExtensions() {
               </button>
             </div>
 
+            <div className="flex items-center gap-3 p-3 bg-green-500/5 border border-green-500/20 rounded-xl max-w-md">
+              <Globe size={16} className="text-green-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Free with Hosting</p>
+                <p className="text-xs text-muted-foreground">Offered free on eligible yearly plans (when plan has no TLD list)</p>
+              </div>
+              <button type="button" onClick={() => setForm(f => ({ ...f, isFreeWithHosting: !f.isFreeWithHosting }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.isFreeWithHosting ? "bg-green-500" : "bg-muted"}`}>
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.isFreeWithHosting ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                 {saving && <Loader2 size={16} className="animate-spin mr-2" />}
@@ -225,15 +242,16 @@ export default function DomainExtensions() {
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 3yr</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Transfer</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Privacy</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Free w/ Hosting</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Status</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={11} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
+                <tr><td colSpan={12} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
               ) : extensions.length === 0 ? (
-                <tr><td colSpan={11} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
+                <tr><td colSpan={12} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
               ) : extensions.map(ext => (
                 <tr key={ext.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="p-4 font-mono font-semibold text-primary">{ext.extension}</td>
@@ -249,6 +267,13 @@ export default function DomainExtensions() {
                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.privacyEnabled ? "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
                       {ext.privacyEnabled ? <Shield size={11} /> : <ShieldOff size={11} />}
                       {ext.privacyEnabled ? "Free" : "Off"}
+                    </button>
+                  </td>
+                  <td className="p-4">
+                    <button onClick={() => handleToggle(ext, "isFreeWithHosting")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.isFreeWithHosting ? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
+                      <Globe size={11} />
+                      {ext.isFreeWithHosting ? "Yes" : "No"}
                     </button>
                   </td>
                   <td className="p-4">

@@ -159,19 +159,25 @@ async function handleCheckout(req: AuthRequest, res: any) {
       baseAmount = Number(plan.price) * (months === 1 ? 1 : months);
     }
 
-    // Free domain TLD enforcement: only allow Rs. 0 if TLD is in the plan's eligible list
-    const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
-    const planFreeTlds: string[] = (plan as any).freeDomainTlds ?? [];
-    const effectiveFreeTlds = planFreeTlds.length > 0 ? planFreeTlds : DEFAULT_FREE_TLDS;
+    // Free domain TLD enforcement — all 3 conditions must pass:
+    // 1. Plan has freeDomainEnabled
+    // 2. Billing cycle is yearly
+    // 3. TLD is in the plan's freeDomainTlds list OR has isFreeWithHosting=true in the TLD table
     let effectiveFreeDomain = freeDomain;
+    if (effectiveFreeDomain && !(plan as any).freeDomainEnabled) effectiveFreeDomain = false;
+    if (effectiveFreeDomain && cycle !== "yearly") effectiveFreeDomain = false;
     if (effectiveFreeDomain && domain && registerDomain && !transferDomain) {
       const domTld = domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : "";
-      if (!effectiveFreeTlds.includes(domTld)) {
-        effectiveFreeDomain = false;
+      const planFreeTlds: string[] = (plan as any).freeDomainTlds ?? [];
+      if (planFreeTlds.length > 0) {
+        if (!planFreeTlds.includes(domTld)) effectiveFreeDomain = false;
+      } else {
+        const [tldRow] = await db.select({ isFree: domainExtensionsTable.isFreeWithHosting })
+          .from(domainExtensionsTable)
+          .where(eq(domainExtensionsTable.extension, domTld)).limit(1);
+        if (!tldRow?.isFree) effectiveFreeDomain = false;
       }
     }
-    if (effectiveFreeDomain && cycle !== "yearly") effectiveFreeDomain = false;
-    if (effectiveFreeDomain && !(plan as any).freeDomainEnabled) effectiveFreeDomain = false;
 
     // Domain add-on amount: look up authoritative TLD price for transfers; 0 for free-domain-eligible registrations
     let domainAddon = effectiveFreeDomain ? 0 : (typeof clientDomainAmount === "number" ? clientDomainAmount : 0);

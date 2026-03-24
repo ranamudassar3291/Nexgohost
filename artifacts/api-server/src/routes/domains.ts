@@ -118,6 +118,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
             renewalPrice: Number(p.renewalPrice),
             renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
             renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
+            isFreeWithHosting: p.isFreeWithHosting ?? false,
           };
         }
         const status = await checkRdapAvailability(rawName, p.extension);
@@ -131,6 +132,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
           renewalPrice: Number(p.renewalPrice),
           renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
           renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
+          isFreeWithHosting: p.isFreeWithHosting ?? false,
         };
       })
     );

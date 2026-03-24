@@ -49,6 +49,7 @@ interface TldResult {
   tld: string; available: boolean;
   registrationPrice: number; renewalPrice: number;
   register2YearPrice: number | null; register3YearPrice: number | null;
+  isFreeWithHosting?: boolean;
 }
 
 interface TldPricing {
@@ -68,7 +69,7 @@ interface PaymentMethod {
   };
 }
 
-interface CartDomain { fullName: string; price: number; mode: DomainMode; }
+interface CartDomain { fullName: string; price: number; originalPrice?: number; mode: DomainMode; }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -253,11 +254,18 @@ function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canC
                 <div>
                   <p className="text-[13px] font-semibold text-black">{domain.fullName}</p>
                   <p className="text-[11px] text-gray-400">
-                    {freeDomain ? "Free Domain Included" : domain.mode === "transfer" ? "Domain Transfer · 1-yr ext." : "Domain · 1 Year"}
+                    {freeDomain ? "🎁 Free Domain Included" : domain.mode === "transfer" ? "Domain Transfer · 1-yr ext." : "Domain · 1 Year"}
                   </p>
                 </div>
                 <span className="text-[14px] font-extrabold">
-                  {freeDomain ? <span className="text-green-600">Free</span> : fmt(domain.price)}
+                  {freeDomain
+                    ? <div className="text-right">
+                        {domain.originalPrice && domain.originalPrice > 0 && (
+                          <span className="block text-[10px] text-gray-400 line-through">{fmt(domain.originalPrice)}</span>
+                        )}
+                        <span className="text-green-600 font-extrabold">FREE</span>
+                      </div>
+                    : fmt(domain.price)}
                 </span>
               </div>
             )}
@@ -361,12 +369,17 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-bold text-black truncate">{domain.fullName}</p>
                 <p className="text-[11px] text-gray-400">
-                  {freeDomain ? "Free Domain Included" : domain.mode === "transfer" ? "Domain Transfer" : "Domain · 1 Year"}
+                  {freeDomain ? "🎁 Free Domain Included" : domain.mode === "transfer" ? "Domain Transfer" : "Domain · 1 Year"}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {freeDomain
-                  ? <span className="text-[12px] font-bold text-green-600">FREE</span>
+                  ? <div className="text-right">
+                      {domain.originalPrice && domain.originalPrice > 0 && (
+                        <span className="block text-[10px] text-gray-400 line-through">{fmt(domain.originalPrice)}</span>
+                      )}
+                      <span className="text-[12px] font-extrabold text-green-600">FREE</span>
+                    </div>
                   : <span className="text-[13px] font-extrabold">{fmt(domain.price)}</span>}
                 <button onClick={onRmDom} className="w-4 h-4 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors">
                   <X size={9}/>
@@ -645,10 +658,9 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     setDomChecking(false);
   }
 
-  function selectDomain(name: string, price: number, mode: DomainMode) {
-    // Free domain only applies to registrations, never to transfers
-    const actualPrice = (freeDomainEligible && freeDomainClaimed && mode === "register") ? 0 : price;
-    setCartDomain({ fullName: name, price: actualPrice, mode });
+  function selectDomain(name: string, price: number, mode: DomainMode, originalPrice?: number) {
+    // Price is pre-computed by the caller (0 for free-eligible TLDs, market price otherwise)
+    setCartDomain({ fullName: name, price, originalPrice: originalPrice ?? price, mode });
     setDomainMode(mode ?? "register");
   }
 
@@ -1419,16 +1431,20 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
               {domResults && !domChecking && (() => {
                 const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
                 const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
-                const effectiveFreeTlds = planFreeTlds.length > 0 ? planFreeTlds : DEFAULT_FREE_TLDS;
                 const allResults = domResults.filter(r => r.registrationPrice > 0);
                 const visibleResults = allResults.slice(0, 8);
+                const eligibleTldLabels = planFreeTlds.length > 0
+                  ? planFreeTlds
+                  : visibleResults.filter(r => r.isFreeWithHosting).map(r => r.tld).length > 0
+                    ? visibleResults.filter(r => r.isFreeWithHosting).map(r => r.tld)
+                    : DEFAULT_FREE_TLDS;
                 return (
                   <div className="space-y-2">
                     {freeDomainClaimed && (
                       <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-green-50 border border-green-200 mb-3">
                         <Gift size={14} className="text-green-600 shrink-0 mt-0.5"/>
                         <p className="text-[12px] text-green-700 leading-relaxed">
-                          <span className="font-bold">Free Domain Offer:</span> Extensions eligible at Rs. 0 — <span className="font-semibold">{effectiveFreeTlds.join(", ")}</span>. Other extensions are available at their regular price.
+                          <span className="font-bold">Free Domain Offer:</span> Extensions eligible at Rs. 0 — <span className="font-semibold">{eligibleTldLabels.join(", ")}</span>. Other extensions charge their regular price.
                         </p>
                       </div>
                     )}
@@ -1436,7 +1452,10 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                       <p className="text-[13px] text-gray-400 text-center py-4">No results found. Try a different name.</p>
                     )}
                     {visibleResults.map(r => {
-                      const isFreeExt = freeDomainClaimed && effectiveFreeTlds.includes(r.tld);
+                      const isFreeByPlan  = planFreeTlds.length > 0 && planFreeTlds.includes(r.tld);
+                      const isFreeByTld   = planFreeTlds.length === 0 && (r.isFreeWithHosting ?? false);
+                      const isFreeExt     = freeDomainClaimed && freeDomainEligible && (isFreeByPlan || isFreeByTld);
+                      const domainPrice   = isFreeExt ? 0 : r.registrationPrice;
                       return (
                         <div key={r.tld}
                           className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
@@ -1448,8 +1467,8 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                             <span className="text-[14px] font-bold text-gray-900">{searched}</span>
                             <span className="text-[14px] font-bold" style={{ color: isFreeExt ? "#16a34a" : P }}>{r.tld}</span>
                             {freeDomainClaimed && (
-                              <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFreeExt ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                                {isFreeExt ? "Free Eligible" : "Paid"}
+                              <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFreeExt ? "bg-green-100 text-green-700" : "bg-orange-50 text-orange-500"}`}>
+                                {isFreeExt ? "✓ Free Eligible" : "Regular Price"}
                               </span>
                             )}
                           </div>
@@ -1461,13 +1480,16 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                           <div className="flex items-center gap-2.5 shrink-0">
                             <div className="text-right">
                               {isFreeExt
-                                ? <p className="text-[13px] font-extrabold text-green-600">FREE</p>
+                                ? <>
+                                    <p className="text-[11px] text-gray-400 line-through">{formatPrice(r.registrationPrice)}</p>
+                                    <p className="text-[13px] font-extrabold text-green-600">FREE</p>
+                                  </>
                                 : <p className="text-[13px] font-extrabold">{formatPrice(r.registrationPrice)}/yr</p>}
                               <p className="text-[10px] text-gray-400">Renews {formatPrice(r.renewalPrice)}/yr</p>
                             </div>
                             {r.available && (
                               <button
-                                onClick={() => { selectDomain(`${searched}${r.tld}`, isFreeExt ? 0 : r.registrationPrice, "register"); setStep(3); }}
+                                onClick={() => { selectDomain(`${searched}${r.tld}`, domainPrice, "register", r.registrationPrice); setStep(3); }}
                                 className="px-3.5 py-1.5 text-white text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90"
                                 style={{ background: isFreeExt ? "#16a34a" : P }}>
                                 {isFreeExt ? <Gift size={11}/> : <ShoppingCart size={11}/>}
@@ -1632,8 +1654,11 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                   <div className="text-right shrink-0 ml-4">
                     {isDomFree
                       ? <>
-                          <p className="text-[16px] font-extrabold text-green-600">Rs. 0.00</p>
-                          <p className="text-[11px] text-green-500 font-semibold">FREE</p>
+                          {cartDomain.originalPrice && cartDomain.originalPrice > 0 && (
+                            <p className="text-[12px] text-gray-400 line-through">{formatPrice(cartDomain.originalPrice)}</p>
+                          )}
+                          <p className="text-[16px] font-extrabold text-green-600">FREE</p>
+                          <p className="text-[11px] text-green-500 font-semibold">Rs. 0.00</p>
                         </>
                       : <p className="text-[16px] font-extrabold text-gray-900">{formatPrice(cartDomain.price)}</p>
                     }
