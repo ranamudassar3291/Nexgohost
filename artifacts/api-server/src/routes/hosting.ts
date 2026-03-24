@@ -1568,6 +1568,50 @@ router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRe
   }
 });
 
+// ── Sitejet Builder SSO URL ────────────────────────────────────────────────
+// Generates a one-click login URL directly to the cPanel Sitejet Builder.
+// Accepts optional { domain } in the body so the builder opens for a specific domain.
+router.post("/client/hosting/:id/sitejet-url", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const clientId = req.user!.userId;
+    const { domain: targetDomain } = req.body as { domain?: string };
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
+
+    const server = await resolveServerForService(service);
+    if (!server || !server.apiToken) {
+      // Fallback: return base cPanel URL if we can't generate a session
+      const fallback = service.cpanelUrl ?? (server?.hostname ? `https://${server.hostname}:2083` : null);
+      if (fallback) return res.json({ url: `${fallback}/frontend/paper_lantern/sitejet/index.html`, fallback: true });
+      return res.status(400).json({ error: "No cPanel server found. Contact support." });
+    }
+
+    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+
+    // Create a cPanel user session to get a live cpsess token
+    const loginUrl = await cpanelCreateUserSession(serverCfg, service.username, "cpaneld");
+    const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
+    if (!match) throw new Error("Could not extract cpsess token from cPanel login URL.");
+    const cpsess = match[1];
+
+    // Build the Sitejet URL; append domain as a hash-fragment query param if provided
+    const useDomain = targetDomain || service.domain;
+    const domainParam = useDomain ? `?domain=${encodeURIComponent(useDomain)}` : "";
+    const url = `https://${server.hostname}:2083/${cpsess}/sitejet/index.html#/${domainParam}`;
+
+    console.log(`[SITEJET-URL] Generated for service ${id} domain=${useDomain}`);
+    return res.json({ url });
+  } catch (err: any) {
+    const msg = err.message || "Failed to generate Sitejet URL";
+    console.error(`[SITEJET-URL] ${msg}`);
+    return res.status(500).json({ error: msg });
+  }
+});
+
 // POST /client/hosting/:id/install-wordpress
 // Synchronous controller — awaits every step (DB creation, file extraction, wp-config write)
 // before responding. Returns 200 + credentials on success, or the EXACT error on failure.

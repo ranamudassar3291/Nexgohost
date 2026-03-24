@@ -123,10 +123,12 @@ export default function ServiceDetail() {
     step: string | null;
     error: string | null;
   } | null>(null);
-  // Domain list for the WordPress installer dropdown
+  // Domain list for the WordPress installer / Sitejet domain dropdown
   const [wpDomains, setWpDomains] = useState<{ domain: string; docroot: string; type: string }[]>([]);
   const [wpDomainsLoading, setWpDomainsLoading] = useState(false);
   const [wpSelectedDomain, setWpSelectedDomain] = useState("");
+  // Sitejet Builder
+  const [sitejetLoading, setSitejetLoading] = useState(false);
 
   // Password change state
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -349,6 +351,27 @@ export default function ServiceDetail() {
       window.open(`https://${adminDomain}/wp-admin`, "_blank");
     } finally {
       setWpAdminLoading(false);
+    }
+  }
+
+  // Open cPanel Sitejet Builder via SSO for the selected domain
+  async function handleOpenSitejet() {
+    if (!service) return;
+    setSitejetLoading(true);
+    const useDomain = wpSelectedDomain || service.domain;
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/sitejet-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: useDomain }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not generate Sitejet URL");
+      window.open(data.url, "_blank");
+    } catch (e: any) {
+      toast({ title: "Cannot open Sitejet", description: e.message, variant: "destructive" });
+    } finally {
+      setSitejetLoading(false);
     }
   }
 
@@ -1190,7 +1213,7 @@ export default function ServiceDetail() {
         )}
       </div>
 
-      {/* ─── AI Website Builder ─── */}
+      {/* ─── AI Website Builder (Sitejet) ─── */}
       {service.status === "active" && (
         <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
           <div className="flex items-center gap-3">
@@ -1200,19 +1223,20 @@ export default function ServiceDetail() {
             <div>
               <p className="font-semibold text-foreground">AI Website Builder</p>
               <p className="text-sm text-muted-foreground">
-                {service.wpInstalled
-                  ? "WordPress is installed. Click to open the admin panel and start building."
-                  : "Install WordPress first, then use this to open your admin panel and start building."}
+                Build your website visually using the cPanel Sitejet Builder — no installation required.
+                {wpSelectedDomain && wpSelectedDomain !== service.domain && (
+                  <> Opens for <strong className="text-foreground">{wpSelectedDomain}</strong>.</>
+                )}
               </p>
             </div>
           </div>
           <Button
-            onClick={handleOpenWpAdmin}
-            disabled={wpAdminLoading || !service.wpInstalled}
-            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
+            onClick={handleOpenSitejet}
+            disabled={sitejetLoading}
+            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
           >
-            {wpAdminLoading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-            {wpAdminLoading ? "Opening…" : "Open WordPress Admin"}
+            {sitejetLoading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
+            {sitejetLoading ? "Opening…" : "Open Sitejet Builder"}
           </Button>
         </div>
       )}
