@@ -60,6 +60,14 @@ const VPS_FAQS = [
 
 const fade = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3 } };
 
+interface VpsOsTemplate {
+  id: string; name: string; version: string; iconUrl: string | null;
+}
+interface VpsLocation {
+  id: string; countryName: string; countryCode: string; flagIcon: string | null;
+  city: string | null; datacenter: string | null; networkSpeed: string;
+}
+
 export default function VpsHosting() {
   const [, setLocation] = useLocation();
   const { formatPrice }  = useCurrency();
@@ -71,6 +79,18 @@ export default function VpsHosting() {
     queryKey: ["vps-plans-public"],
     queryFn:  () => fetch("/api/vps-plans").then(r => r.json()),
     staleTime: 120_000,
+  });
+
+  const { data: osTemplates = [] } = useQuery<VpsOsTemplate[]>({
+    queryKey: ["vps-os-templates-public"],
+    queryFn:  () => fetch("/api/vps-os-templates").then(r => r.json()),
+    staleTime: 300_000,
+  });
+
+  const { data: locations = [] } = useQuery<VpsLocation[]>({
+    queryKey: ["vps-locations-public"],
+    queryFn:  () => fetch("/api/vps-locations").then(r => r.json()),
+    staleTime: 300_000,
   });
 
   const midIdx = Math.floor(plans.length / 2);
@@ -179,7 +199,7 @@ export default function VpsHosting() {
 
           {/* Trust pills */}
           <div className="flex flex-wrap justify-center gap-4 mt-12 text-[12px] text-purple-300">
-            {["Full Root Access", "4 Global Locations", "99.9% Uptime SLA", "30-Day Guarantee", "Instant Setup"].map(t => (
+            {["Full Root Access", "13 Global Locations", "16 OS Templates", "99.9% Uptime SLA", "Instant Setup"].map(t => (
               <span key={t} className="flex items-center gap-1.5">
                 <Check size={10} strokeWidth={2.5}/> {t}
               </span>
@@ -389,42 +409,65 @@ export default function VpsHosting() {
         style={{ background: "linear-gradient(135deg, #F5F0FF 0%, #FAFAFA 100%)" }}>
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            {/* OS Templates */}
             <div>
-              <h3 className="text-[20px] font-extrabold text-gray-900 mb-2">6 OS Templates</h3>
+              <h3 className="text-[20px] font-extrabold text-gray-900 mb-2">
+                {osTemplates.length > 0 ? `${osTemplates.length} OS Templates` : "OS Templates"}
+              </h3>
               <p className="text-gray-500 text-[13px] mb-5">Deploy with your preferred operating system in seconds.</p>
               <div className="grid grid-cols-2 gap-2.5">
-                {[
-                  { logo: "🐧", name: "Ubuntu 22.04 LTS" },
-                  { logo: "🐧", name: "Ubuntu 20.04 LTS" },
-                  { logo: "🌀", name: "Debian 12" },
-                  { logo: "🎩", name: "CentOS 7" },
-                  { logo: "🦅", name: "AlmaLinux 9" },
-                  { logo: "🪟", name: "Windows Server 2022" },
-                ].map(({ logo, name }) => (
-                  <div key={name} className="flex items-center gap-2.5 bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-[12.5px] font-medium text-gray-700">
-                    <span className="text-[18px]">{logo}</span> {name}
+                {(osTemplates.length > 0 ? osTemplates : [
+                  { id: "u22", name: "Ubuntu",         version: "22.04 LTS",   iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420" },
+                  { id: "deb", name: "Debian",         version: "12 Bookworm", iconUrl: "https://cdn.simpleicons.org/debian/A81D33" },
+                  { id: "al9", name: "AlmaLinux",      version: "9",           iconUrl: "https://cdn.simpleicons.org/almalinux/ACE3B0" },
+                  { id: "win", name: "Windows Server", version: "2022",        iconUrl: "https://cdn.simpleicons.org/windows/0078D4" },
+                ]).slice(0, 12).map(os => (
+                  <div key={os.id} className="flex items-center gap-2.5 bg-white border border-gray-100 rounded-xl px-3 py-2.5 text-[12.5px] font-medium text-gray-700 hover:border-purple-200 transition-colors">
+                    {os.iconUrl ? (
+                      <img src={os.iconUrl} alt={os.name} className="w-5 h-5 object-contain shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}/>
+                    ) : (
+                      <span className="text-[16px]">🐧</span>
+                    )}
+                    <span className="truncate">{os.name} {os.version}</span>
                   </div>
                 ))}
               </div>
+              {osTemplates.length > 12 && (
+                <p className="text-[11px] text-gray-400 mt-2">+ {osTemplates.length - 12} more OS templates available</p>
+              )}
             </div>
+
+            {/* Locations */}
             <div>
-              <h3 className="text-[20px] font-extrabold text-gray-900 mb-2">4 Global Locations</h3>
+              <h3 className="text-[20px] font-extrabold text-gray-900 mb-2">
+                {locations.length > 0 ? `${locations.length} Global Locations` : "Global Locations"}
+              </h3>
               <p className="text-gray-500 text-[13px] mb-5">Pick the data center closest to your audience.</p>
-              <div className="space-y-3">
-                {[
-                  { flag: "🇺🇸", name: "United States", city: "New York · Los Angeles" },
-                  { flag: "🇬🇧", name: "United Kingdom", city: "London" },
-                  { flag: "🇩🇪", name: "Germany",        city: "Frankfurt" },
-                  { flag: "🇸🇬", name: "Singapore",      city: "Singapore" },
-                ].map(({ flag, name, city }) => (
-                  <div key={name} className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3">
-                    <span className="text-[22px]">{flag}</span>
-                    <div>
-                      <div className="text-[13px] font-bold text-gray-800">{name}</div>
-                      <div className="text-[11.5px] text-gray-400">{city}</div>
+              <div className="grid grid-cols-1 gap-2.5">
+                {(locations.length > 0 ? locations : [
+                  { id: "us", countryName: "United States", countryCode: "US", flagIcon: "🇺🇸", city: "New York", datacenter: "Equinix NY5", networkSpeed: "10 Gbps" },
+                  { id: "gb", countryName: "United Kingdom", countryCode: "GB", flagIcon: "🇬🇧", city: "London",   datacenter: "Telehouse North", networkSpeed: "10 Gbps" },
+                  { id: "de", countryName: "Germany",        countryCode: "DE", flagIcon: "🇩🇪", city: "Frankfurt",datacenter: "DE-CIX Frankfurt", networkSpeed: "10 Gbps" },
+                  { id: "sg", countryName: "Singapore",      countryCode: "SG", flagIcon: "🇸🇬", city: "Singapore",datacenter: "Equinix SG1", networkSpeed: "10 Gbps" },
+                ]).slice(0, 9).map(loc => (
+                  <div key={loc.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 hover:border-purple-200 transition-colors">
+                    <span className="text-[22px] shrink-0">{loc.flagIcon ?? "🌍"}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-bold text-gray-800">{loc.countryName}</div>
+                      <div className="text-[11px] text-gray-400 truncate">
+                        {loc.city && <span>{loc.city}</span>}
+                        {loc.city && loc.datacenter && <span className="mx-1">·</span>}
+                        {loc.datacenter && <span>{loc.datacenter}</span>}
+                      </div>
                     </div>
+                    {loc.networkSpeed && (
+                      <span className="text-[10.5px] font-bold text-purple-500 shrink-0">{loc.networkSpeed}</span>
+                    )}
                   </div>
                 ))}
+                {locations.length > 9 && (
+                  <p className="text-[11px] text-gray-400 px-1">+ {locations.length - 9} more locations available</p>
+                )}
               </div>
             </div>
           </div>

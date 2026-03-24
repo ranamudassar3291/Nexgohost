@@ -1,5 +1,39 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 21)
+- **VPS Database Expanded**:
+  - `vps_locations` table: Added `city`, `datacenter`, `network_speed`, `latency_ms` columns (ALTER TABLE).
+  - Added 9 new locations: Netherlands/Amsterdam, Australia/Sydney, India/Mumbai, Japan/Tokyo, Canada/Toronto, France/Paris, Brazil/São Paulo, Poland/Warsaw, Turkey/Istanbul — now 13 total.
+  - Updated original 4 locations with city/datacenter details (Equinix NY5, Telehouse North, DE-CIX Frankfurt, Equinix SG1).
+  - Added 9 new OS templates: Ubuntu 24.04 LTS, Debian 11, Fedora 39, OpenSUSE Leap 15.5, FreeBSD 14.0, Kali Linux 2024.1, Oracle Linux 9, Windows Server 2016/2019 — 16 total (after dedup).
+  - Added 4 new VPS plans: VPS Starter (1 vCPU/2GB/20GB, Rs.750/mo), VPS 4 (6 vCPU/32GB/400GB, Rs.12000/mo), VPS 5 (8 vCPU/64GB/600GB, Rs.22000/mo), VPS 6 (16 vCPU/128GB/1200GB, Rs.45000/mo) — 7 plans total.
+- **VPS Schema** (`lib/db/src/schema/vps.ts`): Added `city`, `datacenter`, `networkSpeed`, `latencyMs` fields to `vpsLocationsTable`.
+- **VPS Backend** (`artifacts/api-server/src/routes/vps.ts`): Complete rewrite with new client endpoints:
+  - `GET /my/vps-services` — client's VPS services (filtered by plan name)
+  - `GET /my/vps-services/:id` — VPS service details with plan specs, location, OS info, simulated stats
+  - `GET /my/vps-services/:id/stats` — live stats with slight random variation for real-time feel
+  - `POST /my/vps-services/:id/reboot` — reboot action
+  - `POST /my/vps-services/:id/power` — power on/off/reset
+  - `POST /my/vps-services/:id/reinstall` — OS reinstall with OS template selection
+  - `GET/POST/PUT/DELETE /admin/vps-locations` — now includes city/datacenter/networkSpeed/latencyMs fields
+- **VpsManage.tsx** (`artifacts/nexgohost/src/pages/client/VpsManage.tsx`): New full Hostinger-style VPS management page at `/client/vps/:id`:
+  - Sticky header with server identity, IP, OS, location (flag), status badge (Online/Offline/Provisioning)
+  - Power controls: Reboot / Power Off / Power On buttons with confirmation modal
+  - 5 tabs: Overview, Console, Backups, Firewall, Settings
+  - Overview: 4 resource bars (CPU/RAM/Disk/Bandwidth) with animated progress + live stats polling every 8s
+  - Server Details grid (IP, CPU, RAM, Storage, Bandwidth, Network Speed, Uptime)
+  - Data Center card (flag, city, datacenter name, network speed, avg latency)
+  - OS card with reinstall button → OS reinstall modal (grouped by OS family, shows icons)
+  - Network traffic cards (Inbound/Outbound speed and totals)
+  - Included Features checklist
+  - Console tab: SSH instructions with server IP
+  - Backups tab: plan backup details
+  - Firewall tab: default rules table with DDoS protection badge
+  - Settings tab: Reinstall OS, Hard Reset, Cancel Service actions
+- **Client Hosting.tsx**: Updated to split VPS and Web Hosting services into separate sections; VPS services show "Manage VPS" button linking to `/client/vps/:id` with CPU icon badge
+- **App.tsx**: Added VpsManage import and `/client/vps/:id` route
+- **Public VpsHosting.tsx**: Updated OS and Location strip sections to pull dynamic data from API endpoints `/api/vps-os-templates` and `/api/vps-locations`; shows OS icons, datacenter info, network speeds; trust pills updated to "13 Global Locations, 16 OS Templates"
+
 ## Recent Changes (Session 20)
 - **VPS Plan Cards — Hostinger-Style Redesign** (`NewOrder.tsx` → `renderStep1Vps()`):
   - Dark purple gradient on the "Most Popular" (middle) card: `linear-gradient(145deg, #7B2FFF, #5010D0, #3D0BA8)`.

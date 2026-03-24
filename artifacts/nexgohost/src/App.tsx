@@ -82,6 +82,7 @@ import Credits from "@/pages/client/Credits";
 import Security from "@/pages/client/Security";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import DomainDns from "@/pages/client/DomainDns";
+import VpsManage from "@/pages/client/VpsManage";
 import Homepage from "@/pages/public/Homepage";
 import VpsHosting from "@/pages/public/VpsHosting";
 import OrderFlow from "@/pages/public/OrderFlow";
@@ -294,6 +295,9 @@ function RouterRoot() {
       {/* ── Client routes (each individually guarded) ── */}
       <Route path="/client/dashboard">
         <ClientPage><ClientDashboard /></ClientPage>
+      </Route>
+      <Route path="/client/vps/:id">
+        <ClientPage><VpsManage /></ClientPage>
       </Route>
       <Route path="/client/hosting/:id">
         <ClientPage><ClientServiceDetail /></ClientPage>

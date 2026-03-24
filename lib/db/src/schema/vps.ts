@@ -34,10 +34,14 @@ export const vpsLocationsTable = pgTable("vps_locations", {
   countryName: text("country_name").notNull(),
   countryCode: text("country_code").notNull(),
   flagIcon: text("flag_icon"),
+  city: text("city"),
+  datacenter: text("datacenter"),
+  networkSpeed: text("network_speed").default("1 Gbps"),
+  latencyMs: integer("latency_ms").default(10),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type VpsPlan     = typeof vpsPlansTable.$inferSelect;
+export type VpsPlan      = typeof vpsPlansTable.$inferSelect;
 export type VpsOsTemplate = typeof vpsOsTemplatesTable.$inferSelect;
-export type VpsLocation = typeof vpsLocationsTable.$inferSelect;
+export type VpsLocation  = typeof vpsLocationsTable.$inferSelect;
