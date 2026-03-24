@@ -42,6 +42,7 @@ interface Plan {
   emailAccounts: number | null; databases: number | null;
   features: string[];
   freeDomainEnabled: boolean; freeDomainTlds: string[];
+  saveAmount: number | null;
 }
 
 interface TldResult {
@@ -471,6 +472,12 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const [promoCode,       setPromoCode]        = useState("");
   const [orderError,      setOrderError]        = useState("");
 
+  // Promo validation state
+  const [promoApplied,   setPromoApplied]   = useState(false);
+  const [promoDiscount,  setPromoDiscount]  = useState(0);
+  const [promoLoading,   setPromoLoading]   = useState(false);
+  const [promoError,     setPromoError]     = useState("");
+
   // Domain-first upsell: after user picks a domain in the domain/transfer flow,
   // show "Want to add hosting?" before moving to checkout
   const [domainPendingUpsell, setDomainPendingUpsell] = useState(false);
@@ -607,6 +614,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     setSelectedCycle(pendingCycle);
     setFreeDomainClaimed(false);
     setDomainMode(null); setCartDomain(null); setDomResults(null);
+    setPromoApplied(false); setPromoDiscount(0); setPromoCode(""); setPromoError("");
     setStep(2);
   }
 
@@ -648,6 +656,36 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     if (step === 1 && service === "hosting") confirmStep1();
     else if (step === 2) setStep(3);
     else if (step === 3) { setOrderError(""); orderMutation.mutate(); }
+  }
+
+  // ── Promo code validation ──────────────────────────────────────────────────
+  async function handleApplyPromo() {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
+    setPromoApplied(false);
+    setPromoDiscount(0);
+    try {
+      const planAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
+      const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
+      const domAmt = isDomFree ? 0 : (cartDomain?.price ?? 0);
+      const amount = planAmt + domAmt;
+      const params = new URLSearchParams({ code: promoCode.trim(), amount: String(amount), serviceType: "hosting" });
+      if (selectedPlan?.groupId) params.set("groupId", selectedPlan.groupId);
+      if (cartDomain?.fullName) {
+        const tld = cartDomain.fullName.includes(".") ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")) : "";
+        if (tld) params.set("tld", tld);
+      }
+      const res = await fetch(`/api/promo-codes/validate?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok || data.error) { setPromoError(data.error || "Invalid promo code"); return; }
+      setPromoDiscount(data.discountAmount ?? 0);
+      setPromoApplied(true);
+    } catch {
+      setPromoError("Failed to validate promo code");
+    } finally {
+      setPromoLoading(false);
+    }
   }
 
   // ── Order submission ──────────────────────────────────────────────────────
@@ -871,11 +909,19 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                       {isRec && !isSel && <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: P }}>Best Value</span>}
                     </div>
                     {plan.description && <p className="text-[12px] text-gray-400 mb-2">{plan.description}</p>}
-                    {plan.freeDomainEnabled && (
-                      <div className="flex items-center gap-1.5 mt-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 w-fit">
-                        <Gift size={11}/> Free domain with Yearly
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {plan.freeDomainEnabled && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 w-fit">
+                          <Gift size={11}/> Free domain with Yearly
+                        </div>
+                      )}
+                      {plan.saveAmount && plan.saveAmount > 0 && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white w-fit"
+                          style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
+                          Save {formatPrice(plan.saveAmount)}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-end gap-1 mt-3">
                       <span className="text-[38px] font-extrabold text-gray-900 leading-none">{formatPrice(monthly)}</span>
                       <span className="text-[13px] text-gray-400 mb-1.5">/mo</span>
@@ -1504,7 +1550,8 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     const planAmt   = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
     const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
     const domAmt    = isDomFree ? 0 : (cartDomain?.price ?? 0);
-    const total     = planAmt + domAmt;
+    const subtotal  = planAmt + domAmt;
+    const total     = Math.max(0, subtotal - promoDiscount);
     const renewAt   = selectedPlan?.renewalPrice ?? selectedPlan?.yearlyPrice ?? null;
 
     return (
@@ -1572,6 +1619,15 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                   </div>
                 </div>
               )}
+              {promoApplied && promoDiscount > 0 && (
+                <div className="flex items-center justify-between px-5 py-3 bg-green-50/50">
+                  <div className="flex items-center gap-2">
+                    <Tag size={13} className="text-green-600"/>
+                    <span className="text-[13px] font-semibold text-green-700">Promo: {promoCode}</span>
+                  </div>
+                  <span className="text-[14px] font-bold text-green-600">-{formatPrice(promoDiscount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between px-5 py-4 bg-gray-50">
                 <span className="text-[15px] font-extrabold text-gray-900">Total Due Today</span>
                 <span className="text-[22px] font-extrabold text-gray-900">{formatPrice(total)}</span>
@@ -1591,10 +1647,25 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                   onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
                   onBlur={e  => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}/>
               </div>
-              <button className="px-4 py-2.5 text-[13px] font-semibold rounded-xl border border-gray-200 text-gray-600 bg-white hover:border-[#701AFE]/40 hover:text-[#701AFE] transition-all">
-                Apply
+              <button onClick={handleApplyPromo} disabled={promoLoading || !promoCode.trim()}
+                className="px-4 py-2.5 text-[13px] font-semibold rounded-xl border transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={promoApplied
+                  ? { borderColor: "#16a34a", background: "#f0fdf4", color: "#16a34a" }
+                  : { borderColor: "#E5E7EB", background: "#fff", color: "#4B5563" }}>
+                {promoLoading ? <Loader2 size={13} className="animate-spin"/> : promoApplied ? <Check size={13}/> : null}
+                {promoApplied ? "Applied" : "Apply"}
               </button>
             </div>
+            {promoError && (
+              <p className="mt-2 text-[12px] text-red-500 flex items-center gap-1">
+                <AlertCircle size={11}/> {promoError}
+              </p>
+            )}
+            {promoApplied && promoDiscount > 0 && (
+              <p className="mt-2 text-[12px] text-green-600 flex items-center gap-1 font-semibold">
+                <CheckCircle2 size={11}/> Promo applied! You save {formatPrice(promoDiscount)}.
+              </p>
+            )}
           </div>
 
           {/* ── Payment methods ── */}

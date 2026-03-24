@@ -177,9 +177,24 @@ async function handleCheckout(req: AuthRequest, res: any) {
       if (promo && promo.isActive) {
         const limitOk = promo.usageLimit === null || promo.usedCount < promo.usageLimit;
         const notExpired = !promo.expiresAt || new Date() <= promo.expiresAt;
-        if (limitOk && notExpired) {
-          discountAmount = baseAmount * (promo.discountPercent / 100);
-          promoDetails = { code: promo.code, discountPercent: promo.discountPercent };
+        // Group scope check
+        const applicableGroupId = (promo as any).applicableGroupId;
+        const groupOk = !applicableGroupId || applicableGroupId === plan.groupId;
+        // Domain TLD scope check (only if code is domain-scoped and there's a domain)
+        const applicableDomainTld = (promo as any).applicableDomainTld;
+        const domainTld = domain && domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : null;
+        const tldOk = !applicableDomainTld || !domainTld || applicableDomainTld.toLowerCase() === domainTld;
+        if (limitOk && notExpired && groupOk && tldOk) {
+          const discountType = (promo as any).discountType ?? "percent";
+          if (discountType === "fixed") {
+            discountAmount = Math.min(Number((promo as any).fixedAmount ?? 0), baseAmount);
+          } else {
+            discountAmount = baseAmount * (promo.discountPercent / 100);
+          }
+          const displayDiscount = discountType === "fixed"
+            ? `Rs. ${discountAmount.toFixed(0)}`
+            : `-${promo.discountPercent}%`;
+          promoDetails = { code: promo.code, discountPercent: promo.discountPercent, discountType, discountAmount: Number(discountAmount.toFixed(2)), displayDiscount } as any;
           await db.update(promoCodesTable)
             .set({ usedCount: promo.usedCount + 1 })
             .where(eq(promoCodesTable.id, promo.id));
@@ -261,8 +276,12 @@ async function handleCheckout(req: AuthRequest, res: any) {
       });
     }
     if (promoDetails) {
+      const pd = promoDetails as any;
+      const discLabel = pd.discountType === "fixed"
+        ? `Rs. ${Number(pd.discountAmount ?? discountAmount).toFixed(0)} OFF`
+        : `-${pd.discountPercent}%`;
       invoiceItems.push({
-        description: `Promo code: ${promoDetails.code} (-${promoDetails.discountPercent}%)`,
+        description: `Promo code: ${promoDetails.code} (${discLabel})`,
         quantity: 1,
         unitPrice: -discountAmount,
         total: -discountAmount,

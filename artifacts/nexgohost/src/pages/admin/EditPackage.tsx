@@ -55,7 +55,7 @@ export default function EditPackage() {
 
   const [form, setForm] = useState({
     name: "", description: "", price: "", yearlyPrice: "", quarterlyPrice: "", semiannualPrice: "",
-    renewalPrice: "",
+    renewalPrice: "", saveAmount: "",
     billingCycle: "monthly",
     groupId: "",
     diskSpace: "", bandwidth: "",
@@ -113,6 +113,7 @@ export default function EditPackage() {
           quarterlyPrice: data.quarterlyPrice ? String(data.quarterlyPrice) : "",
           semiannualPrice: data.semiannualPrice ? String(data.semiannualPrice) : "",
           renewalPrice: data.renewalPrice ? String(data.renewalPrice) : "",
+          saveAmount: data.saveAmount ? String(data.saveAmount) : "",
           billingCycle: data.billingCycle || "monthly",
           groupId: data.groupId || "",
           diskSpace: data.diskSpace || "",
@@ -291,6 +292,7 @@ export default function EditPackage() {
           features,
           renewalEnabled,
           renewalPrice: form.renewalPrice ? Number(form.renewalPrice) : null,
+          saveAmount: form.saveAmount ? Number(form.saveAmount) : null,
           freeDomainEnabled,
           freeDomainTlds,
         }),
@@ -635,6 +637,14 @@ export default function EditPackage() {
                 className="h-10" />
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Show Save Amount <span className="text-muted-foreground text-xs font-normal">— displays a "Save Rs. X" badge on plan cards</span></label>
+            <Input type="number" step="0.01" min="0" placeholder="e.g. 1000 — leave blank to hide badge"
+              value={form.saveAmount}
+              onChange={e => setForm(f => ({ ...f, saveAmount: e.target.value }))}
+              className="h-10" />
+          </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-xl">

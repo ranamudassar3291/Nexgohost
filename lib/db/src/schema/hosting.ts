@@ -32,6 +32,7 @@ export const hostingPlansTable = pgTable("hosting_plans", {
   renewalPrice: numeric("renewal_price", { precision: 10, scale: 2 }),
   freeDomainEnabled: boolean("free_domain_enabled").default(false),
   freeDomainTlds: text("free_domain_tlds").array().default([]),
+  saveAmount: numeric("save_amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

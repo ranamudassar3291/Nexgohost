@@ -51,7 +51,7 @@ export default function AddPackage() {
   const [groups, setGroups] = useState<ProductGroup[]>([]);
   const [form, setForm] = useState({
     name: "", description: "", price: "", yearlyPrice: "", quarterlyPrice: "", semiannualPrice: "",
-    renewalPrice: "",
+    renewalPrice: "", saveAmount: "",
     billingCycle: "monthly",
     groupId: "",
     diskSpace: "10 GB", bandwidth: "100 GB",
@@ -195,6 +195,7 @@ export default function AddPackage() {
           features,
           renewalEnabled,
           renewalPrice: form.renewalPrice ? Number(form.renewalPrice) : null,
+          saveAmount: form.saveAmount ? Number(form.saveAmount) : null,
           freeDomainEnabled,
           freeDomainTlds,
         }),
@@ -516,6 +517,14 @@ export default function AddPackage() {
                 className="h-10" />
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Show Save Amount <span className="text-muted-foreground text-xs font-normal">— displays a "Save Rs. X" badge on plan cards</span></label>
+            <Input type="number" step="0.01" min="0" placeholder="e.g. 1000 — leave blank to hide badge"
+              value={form.saveAmount}
+              onChange={e => setForm(f => ({ ...f, saveAmount: e.target.value }))}
+              className="h-10" />
+          </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-secondary/30 border border-border rounded-xl">
