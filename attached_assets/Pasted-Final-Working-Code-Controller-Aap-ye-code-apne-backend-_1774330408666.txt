@@ -1,0 +1,62 @@
+Final Working Code (Controller)
+Aap ye code apne backend controller mein replace kar dein. Yeh "Real" installation karega:
+
+JavaScript
+const axios = require('axios');
+const https = require('https');
+
+const agent = new https.Agent({ rejectUnauthorized: false });
+
+exports.installWordPress = async (req, res) => {
+    const { server_ip, cp_user, cp_pass, domain, wp_user, wp_pass, wp_email } = req.body;
+
+    try {
+        // 1. Softaculous API Request (Using cPanel Port 2083)
+        const softApiUrl = `https://${server_ip}:2083/json-api/cpanel`;
+        
+        // Parameters for WordPress (Soft ID 26)
+        const params = {
+            'cpanel_jsonapi_user': cp_user,
+            'cpanel_jsonapi_apiversion': '3',
+            'cpanel_jsonapi_module': 'Softaculous',
+            'cpanel_jsonapi_func': 'install',
+            'soft': '26',
+            'autoinstall': '1',
+            'softdomain': domain,
+            'softdirectory': '', // Empty for Root
+            'admin_username': wp_user,
+            'admin_pass': wp_pass,
+            'admin_email': wp_email,
+            'softdb': 'wp' + Math.floor(Math.random() * 99) // Auto DB name
+        };
+
+        const response = await axios.get(softApiUrl, {
+            params: params,
+            auth: { username: cp_user, password: cp_pass },
+            httpsAgent: agent,
+            timeout: 120000 
+        });
+
+        // 2. Check for Softaculous Errors
+        const data = response.data;
+        
+        if (data.metadata && data.metadata.result === 1) {
+             return res.status(200).json({
+                success: true,
+                message: "WordPress Installed Successfully!",
+                login_url: `https://${domain}/wp-admin`
+            });
+        } else {
+            // Agar install nahi hua toh real reason batao
+            const errorReason = data.metadata.reason || "Directory not empty or DB error";
+            throw new Error(errorReason);
+        }
+
+    } catch (error) {
+        console.error("Install Failed:", error.message);
+        res.status(500).json({
+            success: false,
+            message: `Installation Failed: ${error.message}`
+        });
+    }
+};
