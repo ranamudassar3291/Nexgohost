@@ -1025,6 +1025,77 @@ export async function cpanelSoftaculousInstallWordPress(
   return { success: false, error: lastError };
 }
 
+/**
+ * Generate a Softaculous WordPress install URL for a cPanel user.
+ * Creates a WHM user session and returns the Softaculous WordPress install URL
+ * so the client can install WordPress directly via the official cPanel interface.
+ */
+export async function cpanelGetSoftaculousInstallUrl(
+  server: ServerConfig,
+  cpanelUser: string,
+): Promise<string> {
+  const loginUrl = await cpanelCreateUserSession(server, cpanelUser, "cpaneld");
+  const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
+  if (!match) throw new Error(`Could not extract cpsess from login URL: ${loginUrl.substring(0, 200)}`);
+  const cpsess = match[1];
+  return `https://${server.hostname}:2083/${cpsess}/softaculous/index.php?act=software&soft=26`;
+}
+
+/**
+ * Get a WordPress admin URL for a cPanel user.
+ * Tries Softaculous SSO (one-click login) first; falls back to direct /wp-admin.
+ * SSO flow: WHM session → cpsess → list Softaculous installs → find insid → SSO link.
+ */
+export async function cpanelGetWpAdminUrl(
+  server: ServerConfig,
+  cpanelUser: string,
+  domain: string,
+  fallbackUrl: string,
+): Promise<{ url: string; method: "softaculous_sso" | "direct" }> {
+  try {
+    const loginUrl = await cpanelCreateUserSession(server, cpanelUser, "cpaneld");
+    const match = loginUrl.match(/(cpsess[A-Za-z0-9]+)/);
+    if (!match) return { url: fallbackUrl, method: "direct" };
+
+    const cpsess = match[1];
+    const base   = `https://${server.hostname}:2083`;
+
+    // List all Softaculous installations for this cPanel account
+    const listRes = await httpsGetRaw(
+      `${base}/${cpsess}/softaculous/index.php?act=installations&api=json`,
+      {},
+      30_000,
+    );
+
+    if (listRes.status === 200 && listRes.body.trim()) {
+      let installations: any = null;
+      try { installations = JSON.parse(listRes.body); } catch {}
+
+      if (installations && typeof installations === "object") {
+        for (const key of Object.keys(installations)) {
+          const inst = installations[key];
+          if (!inst) continue;
+          const domainMatches =
+            inst.softdomain === domain ||
+            (typeof inst.softurl === "string" && inst.softurl.includes(domain));
+          if (domainMatches) {
+            const insid  = inst.insid ?? key;
+            const ssoUrl = `${base}/${cpsess}/softaculous/index.php?act=sso&insid=${insid}`;
+            console.log(`[CP] Softaculous SSO generated for domain=${domain} insid=${insid}`);
+            return { url: ssoUrl, method: "softaculous_sso" };
+          }
+        }
+      }
+    }
+
+    console.log(`[CP] No Softaculous install found for domain=${domain} — using direct wp-admin`);
+    return { url: fallbackUrl, method: "direct" };
+  } catch (err: any) {
+    console.warn(`[CP] cpanelGetWpAdminUrl error: ${err.message} — using fallback`);
+    return { url: fallbackUrl, method: "direct" };
+  }
+}
+
 export async function cpanelCreateUserSession(
   server: ServerConfig,
   username: string,

@@ -5,7 +5,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -1347,6 +1347,123 @@ router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: Auth
   } catch (err) {
     console.error("[WP] wordpress-check error:", err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Guided Install: generate Softaculous WordPress URL (opens in new tab) ─────
+// Uses WHM create_user_session to build a live cpsess token, then returns the
+// full Softaculous WordPress install page URL so the client can install manually
+// via the official cPanel interface.
+router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const clientId = req.user!.userId;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
+
+    const server = await resolveServerForService(service);
+    if (!server || !server.apiToken) {
+      const fallbackUrl = service.cpanelUrl ?? (server?.hostname ? `https://${server.hostname}:2083` : null);
+      if (fallbackUrl) return res.json({ url: fallbackUrl, fallback: true });
+      return res.status(400).json({ error: "No cPanel server found. Contact support." });
+    }
+
+    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+    const url = await cpanelGetSoftaculousInstallUrl(serverCfg, service.username);
+    console.log(`[WP-SOFTACULOUS-URL] Generated for service ${id}`);
+    return res.json({ url });
+  } catch (err: any) {
+    const msg = err.message || "Failed to generate Softaculous URL";
+    console.error(`[WP-SOFTACULOUS-URL] ${msg}`);
+    return res.status(500).json({ error: msg });
+  }
+});
+
+// ── Detect WordPress installation via Fileman::list_files ──────────────────
+// Checks /home/{cpanelUser}/public_html for wp-config.php using cPanel UAPI.
+// On success, marks the service as wpInstalled=true in the database.
+router.post("/client/hosting/:id/wp-detect", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const clientId = req.user!.userId;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
+
+    const server = await resolveServerForService(service);
+    if (!server || !server.apiToken) {
+      return res.status(400).json({ error: "No cPanel server with API token found. Contact support." });
+    }
+
+    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+
+    let installed = false;
+    try {
+      const data = await cpanelUapi(serverCfg, service.username, "Fileman", "list_files", {
+        dir: `/home/${service.username}/public_html`,
+        include_mime: "0",
+      });
+      const files: any[] = Array.isArray(data) ? data : (data?.files ?? []);
+      installed = files.some((f: any) =>
+        f.file === "wp-config.php" || f.name === "wp-config.php" || f.path === "wp-config.php"
+      );
+      console.log(`[WP-DETECT] Checked ${files.length} files in /public_html — wp-config.php found: ${installed}`);
+    } catch (fileman_err: any) {
+      console.warn(`[WP-DETECT] Fileman::list_files failed: ${fileman_err.message}`);
+      return res.status(500).json({ error: `Could not check files: ${fileman_err.message}` });
+    }
+
+    if (installed) {
+      const wpUrl = service.wpUrl || `https://${service.domain}/wp-admin`;
+      await db.update(hostingServicesTable).set({
+        wpInstalled:       true,
+        wpProvisionStatus: "active",
+        wpProvisionStep:   "Completed",
+        wpProvisionError:  null,
+        wpUrl,
+        wpInstallPath:     service.wpInstallPath ?? "/",
+        wpProvisionedAt:   new Date(),
+        updatedAt:         new Date(),
+      }).where(eq(hostingServicesTable.id, id));
+      console.log(`[WP-DETECT] WordPress detected and marked active for service ${id} (${service.domain})`);
+    }
+
+    return res.json({ installed });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Detection failed" });
+  }
+});
+
+// ── Get WordPress admin URL — Softaculous SSO or direct /wp-admin ──────────
+// Tries one-click Softaculous SSO login first; falls back to the direct wp-admin URL.
+router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const clientId = req.user!.userId;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.username) return res.status(400).json({ error: "No cPanel username linked to this service." });
+
+    const fallbackUrl = service.wpUrl || `https://${service.domain}/wp-admin`;
+    const server = await resolveServerForService(service);
+
+    if (!server || !server.apiToken || server.type !== "cpanel") {
+      return res.json({ url: fallbackUrl, method: "direct" });
+    }
+
+    const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken! };
+    const result = await cpanelGetWpAdminUrl(serverCfg, service.username, service.domain, fallbackUrl);
+    console.log(`[WP-ADMIN-URL] ${result.method} URL for service ${id}`);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to get admin URL" });
   }
 });
 
