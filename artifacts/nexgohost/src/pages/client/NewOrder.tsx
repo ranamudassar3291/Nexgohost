@@ -463,6 +463,10 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const [promoCode,       setPromoCode]        = useState("");
   const [orderError,      setOrderError]        = useState("");
 
+  // Domain-first upsell: after user picks a domain in the domain/transfer flow,
+  // show "Want to add hosting?" before moving to checkout
+  const [domainPendingUpsell, setDomainPendingUpsell] = useState(false);
+
   function setCartDomain(d: CartDomain | null) { setCartDomainRaw(d); saveDomain(d); }
 
   // ── Queries ───────────────────────────────────────────────────────────────
@@ -533,17 +537,21 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     setSelectedGroup(groups[0]);
   }
 
+  // Whether the user is on a domain-only checkout (no hosting plan in cart)
+  const isDomainOnly = !selectedPlan && !!cartDomain;
+
   // Step completion gates
   const step1Complete = !!pendingPlan;
   const step2Complete = domainMode !== null;
-  const step3Complete = !!paymentMethodId;
+  const step3Complete = !!paymentMethodId && (!!selectedPlan || !!cartDomain);
   const activeCycle   = step >= 2 ? selectedCycle : pendingCycle;
-  const showSidebar   = step >= 1 && service !== "transfer";
+  // Show sidebar whenever there's something to show: hosting plan selected or domain in cart
+  const showSidebar   = (step >= 1 && service === "hosting") || step === 3;
 
   function ctaLabel() {
     if (step === 1) return "Continue to Domain Setup";
     if (step === 2) return "Continue to Payment";
-    if (step === 3) return "Place Order";
+    if (step === 3) return isDomainOnly ? "Complete Domain Order" : "Place Order";
     return "Continue";
   }
   function canContinue() {
@@ -616,7 +624,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   }
 
   function handleSidebarContinue() {
-    if (step === 1) confirmStep1();
+    if (step === 1 && service === "hosting") confirmStep1();
     else if (step === 2) setStep(3);
     else if (step === 3) { setOrderError(""); orderMutation.mutate(); }
   }
@@ -625,26 +633,31 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   const orderMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedPlan) throw new Error("No plan selected");
-      const body: Record<string, unknown> = {
-        packageId:       selectedPlan.id,
-        billingCycle:    selectedCycle,
-        paymentMethodId: paymentMethodId,
-      };
-      if (promoCode.trim())  body.promoCode = promoCode.trim();
+      if (!selectedPlan && !cartDomain) throw new Error("Nothing in cart");
+
+      const body: Record<string, unknown> = { paymentMethodId };
+
+      if (selectedPlan) {
+        body.packageId    = selectedPlan.id;
+        body.billingCycle = selectedCycle;
+      }
+      if (promoCode.trim()) body.promoCode = promoCode.trim();
       if (cartDomain) {
         body.domain         = cartDomain.fullName;
         body.registerDomain = cartDomain.mode === "register";
+        body.transferDomain = cartDomain.mode === "transfer";
         body.freeDomain     = freeDomainEligible && freeDomainClaimed;
         body.domainAmount   = freeDomainEligible && freeDomainClaimed ? 0 : cartDomain.price;
+        if (cartDomain.mode === "transfer" && eppCode.trim()) body.eppCode = eppCode.trim();
       }
+
       const r = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Checkout failed");
       return d;
     },
     onSuccess: (data) => {
-      removeItem(selectedPlan!.id);
+      if (selectedPlan) removeItem(selectedPlan.id);
       setCartDomain(null);
       setLocation(`/client/invoices/${data.invoiceId}`);
     },
@@ -1031,7 +1044,10 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                   </div>
                   {r.available && (
                     <button
-                      onClick={() => { selectDomain(`${searched}${r.tld}`, r.registrationPrice, "register"); setLocation("/client/cart"); }}
+                      onClick={() => {
+                        selectDomain(`${searched}${r.tld}`, r.registrationPrice, "register");
+                        setDomainPendingUpsell(true);
+                      }}
                       className="px-4 py-2 text-white text-[12px] font-bold rounded-xl flex items-center gap-1.5 hover:opacity-90 transition-all"
                       style={{ background: P }}>
                       <ShoppingCart size={13}/> Add to Cart
@@ -1042,6 +1058,39 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
             ))}
           </motion.div>
         )}
+
+        {/* ── Upsell: "Add hosting?" after domain is added to cart ── */}
+        <AnimatePresence>
+          {domainPendingUpsell && cartDomain && (
+            <motion.div key="upsell" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }}
+              className="mt-6 p-5 bg-white rounded-2xl border-2" style={{ borderColor: P }}>
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${P}12` }}>
+                  <CheckCircle2 size={22} className="text-green-500"/>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">
+                    <span className="font-extrabold" style={{ color: P }}>{cartDomain.fullName}</span> added to cart!
+                  </p>
+                  <p className="text-[13px] text-gray-500 mb-4">Would you also like to add web hosting for this domain?</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => { setDomainPendingUpsell(false); setService("hosting"); }}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white transition-all"
+                      style={{ background: P, boxShadow: PSHADOW }}>
+                      <Server size={14}/> Yes, Add Hosting
+                    </button>
+                    <button
+                      onClick={() => { setDomainPendingUpsell(false); setStep(3); }}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold border border-gray-200 text-gray-600 hover:border-gray-300 transition-all">
+                      <Receipt size={14}/> No, Go to Checkout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   }
@@ -1053,11 +1102,10 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   function renderStep1Transfer() {
     function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
-      if (!txDomain.includes(".")) return;
-      if (!eppCode.trim()) return;
-      sessionStorage.setItem("transfer_domain", txDomain);
+      if (!txDomain.includes(".") || !eppCode.trim()) return;
       sessionStorage.setItem("transfer_epp", eppCode);
-      setLocation("/client/domains?tab=transfers");
+      selectDomain(txDomain, 0, "transfer");
+      setDomainPendingUpsell(true);
     }
     return (
       <motion.div key="s1-tx" {...fade}>
@@ -1103,9 +1151,42 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
           <button type="submit" disabled={!txDomain.includes(".") || !eppCode.trim()}
             className="w-full py-3.5 text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
             style={{ background: P, boxShadow: PSHADOW }}>
-            <ArrowRightLeft size={15}/> Start Domain Transfer
+            <ArrowRightLeft size={15}/> Continue with Transfer
           </button>
         </form>
+
+        {/* ── Upsell: "Add hosting?" after transfer domain is added ── */}
+        <AnimatePresence>
+          {domainPendingUpsell && cartDomain && (
+            <motion.div key="tx-upsell" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }}
+              className="mt-6 p-5 bg-white rounded-2xl border-2" style={{ borderColor: P }}>
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${P}12` }}>
+                  <CheckCircle2 size={22} className="text-green-500"/>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">
+                    Transfer for <span className="font-extrabold" style={{ color: P }}>{cartDomain.fullName}</span> queued!
+                  </p>
+                  <p className="text-[13px] text-gray-500 mb-4">Would you also like to add hosting for this domain?</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => { setDomainPendingUpsell(false); setService("hosting"); }}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white transition-all"
+                      style={{ background: P, boxShadow: PSHADOW }}>
+                      <Server size={14}/> Yes, Add Hosting
+                    </button>
+                    <button
+                      onClick={() => { setDomainPendingUpsell(false); setStep(3); }}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold border border-gray-200 text-gray-600 hover:border-gray-300 transition-all">
+                      <Receipt size={14}/> No, Go to Checkout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   }
@@ -1352,9 +1433,10 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
     return (
       <motion.div key="s3" {...fade}>
-        <button onClick={() => setStep(2)}
+        <button
+          onClick={() => isDomainOnly ? setStep(1) : setStep(2)}
           className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
-          <ArrowLeft size={13}/> Back to domain setup
+          <ArrowLeft size={13}/> {isDomainOnly ? "Back to domain search" : "Back to domain setup"}
         </button>
         <div className="text-center mb-7">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1.5">Review & Pay</h2>

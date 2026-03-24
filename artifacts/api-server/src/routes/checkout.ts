@@ -19,18 +19,13 @@ async function handleCheckout(req: AuthRequest, res: any) {
     const {
       packageId, domain, promoCode, paymentMethodId,
       billingPeriod = 1, billingCycle: billingCycleRaw,
-      registerDomain, freeDomain, domainAmount: clientDomainAmount,
+      registerDomain, transferDomain, freeDomain,
+      domainAmount: clientDomainAmount, eppCode,
     } = req.body;
 
-    if (!packageId) {
-      res.status(400).json({ error: "packageId is required" });
-      return;
-    }
-
-    const [plan] = await db.select().from(hostingPlansTable)
-      .where(eq(hostingPlansTable.id, packageId)).limit(1);
-    if (!plan || !plan.isActive) {
-      res.status(404).json({ error: "Package not found or no longer available" });
+    // ── Validation ───────────────────────────────────────────────────────────
+    if (!packageId && !domain) {
+      res.status(400).json({ error: "Either packageId or domain is required" });
       return;
     }
 
@@ -38,13 +33,102 @@ async function handleCheckout(req: AuthRequest, res: any) {
       .where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    if (paymentMethodId) {
+    if (paymentMethodId && paymentMethodId !== "credits") {
       const [pm] = await db.select().from(paymentMethodsTable)
         .where(eq(paymentMethodsTable.id, paymentMethodId)).limit(1);
       if (!pm || !pm.isActive) {
         res.status(400).json({ error: "Selected payment method is not available" });
         return;
       }
+    }
+
+    // ── Domain-only order (no hosting plan) ─────────────────────────────────
+    if (!packageId && domain) {
+      const domainPrice = typeof clientDomainAmount === "number" ? clientDomainAmount : 0;
+      const finalAmount = Math.max(0, domainPrice);
+
+      const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const invoiceNumber = `INV-${dateStr}-${rand}`;
+
+      const domainLabel = transferDomain ? `Domain Transfer: ${domain}` : `Domain Registration: ${domain}`;
+      const invoiceItems: any[] = [{
+        description: domainLabel,
+        quantity: 1, unitPrice: domainPrice, total: domainPrice,
+      }];
+
+      const [order] = await db.insert(ordersTable).values({
+        clientId: req.user!.userId,
+        type: "domain",
+        itemId: null,
+        itemName: domain,
+        domain: domain,
+        amount: String(finalAmount.toFixed(2)),
+        billingCycle: "yearly",
+        status: "pending",
+        notes: transferDomain ? `Transfer EPP provided` : undefined,
+      }).returning();
+
+      const [invoice] = await db.insert(invoicesTable).values({
+        invoiceNumber,
+        clientId: req.user!.userId,
+        orderId: order.id,
+        serviceId: null,
+        amount: String(finalAmount.toFixed(2)),
+        total: String(finalAmount.toFixed(2)),
+        status: "unpaid",
+        dueDate,
+        items: invoiceItems,
+      }).returning();
+
+      await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+
+      if (registerDomain && domain.includes(".")) {
+        try {
+          const dotIdx = domain.indexOf(".");
+          await db.insert(domainsTable).values({
+            clientId: req.user!.userId,
+            name: domain.slice(0, dotIdx).toLowerCase(),
+            tld: domain.slice(dotIdx).toLowerCase(),
+            registrationDate: new Date(),
+            expiryDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
+            status: "pending", autoRenew: true,
+            nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+          });
+        } catch { /* non-fatal */ }
+      }
+
+      // Auto-pay with credits
+      if (paymentMethodId === "credits" && finalAmount > 0) {
+        const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
+          .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
+        if (bal < finalAmount) {
+          res.status(400).json({ error: `Insufficient credits. Balance: Rs. ${bal.toFixed(2)}, Required: Rs. ${finalAmount.toFixed(2)}.` });
+          return;
+        }
+        await db.update(usersTable).set({ creditBalance: String((bal - finalAmount).toFixed(2)), updatedAt: new Date() })
+          .where(eq(usersTable.id, req.user!.userId));
+        await db.insert(creditTransactionsTable).values({
+          userId: req.user!.userId, amount: String(finalAmount.toFixed(2)), type: "invoice_payment",
+          description: `Payment for ${domain} order`, invoiceId: invoice.id,
+        });
+        await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+          .where(eq(invoicesTable.id, invoice.id));
+        await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+      }
+
+      try { await createNotification(req.user!.userId, "order_placed", `Domain order placed: ${domain}`, `/client/invoices/${invoice.id}`); } catch {}
+      res.json({ orderId: order.id, invoiceId: invoice.id });
+      return;
+    }
+
+    // ── Hosting order (packageId provided) ───────────────────────────────────
+    const [plan] = await db.select().from(hostingPlansTable)
+      .where(eq(hostingPlansTable.id, packageId)).limit(1);
+    if (!plan || !plan.isActive) {
+      res.status(404).json({ error: "Package not found or no longer available" });
+      return;
     }
 
     // Determine billing cycle
@@ -92,6 +176,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     if (promoDetails) noteParts.push(`Promo: ${promoDetails.code} (-${promoDetails.discountPercent}%)`);
     if (cycle !== "monthly") noteParts.push(`Billing: ${cycle}`);
     if (freeDomain && domain) noteParts.push(`Free domain: ${domain}`);
+    else if (domain && transferDomain) noteParts.push(`Transfer: ${domain}`);
     else if (domain) noteParts.push(`Domain: ${domain}`);
     const notes = noteParts.join(", ");
 
@@ -140,12 +225,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
       },
     ];
     if (domain && domainAddon > 0) {
-      invoiceItems.push({
-        description: `Domain Registration: ${domain}`,
-        quantity: 1,
-        unitPrice: domainAddon,
-        total: domainAddon,
-      });
+      const domDesc = transferDomain ? `Domain Transfer: ${domain}` : `Domain Registration: ${domain}`;
+      invoiceItems.push({ description: domDesc, quantity: 1, unitPrice: domainAddon, total: domainAddon });
     }
     if (freeDomain && domain) {
       invoiceItems.push({
@@ -180,7 +261,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
 
     // 4. Insert domain record when registering a domain
-    if (registerDomain && domain && domain.includes(".")) {
+    if ((registerDomain || transferDomain) && domain && domain.includes(".")) {
       try {
         const dotIdx = domain.indexOf(".");
         const domainName = domain.slice(0, dotIdx);
@@ -194,7 +275,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
           tld: domainTld.toLowerCase(),
           registrationDate: regDate,
           expiryDate,
-          status: "pending",
+          status: transferDomain ? "transferring" : "pending",
           autoRenew: true,
           nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
         });
