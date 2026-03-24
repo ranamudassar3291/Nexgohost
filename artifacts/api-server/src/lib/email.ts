@@ -383,13 +383,14 @@ export async function emailWelcome(
 
 export async function emailDomainRegistered(
   to: string,
-  vars: { clientName: string; domain: string; expiryDate: string; dnsUrl?: string },
+  vars: { clientName: string; domain: string; registrationDate?: string; expiryDate: string; dnsUrl?: string },
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("domain-registered", to, {
     company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
+    registration_date: vars.registrationDate || new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
     expiry_date: vars.expiryDate,
     dns_url: vars.dnsUrl || "https://noehost.com/client/domains",
   }, meta);
@@ -433,4 +434,95 @@ export async function emailPasswordReset(
     client_name: vars.clientName,
     reset_link: vars.resetLink,
   });
+}
+
+export async function emailResellerHostingCreated(
+  to: string,
+  vars: {
+    clientName: string;
+    username: string;
+    password: string;
+    whmUrl: string;
+    cpanelUrl: string;
+    maxAccounts: string;
+    diskSpace: string;
+    bandwidth: string;
+    serverIp: string;
+    ns1: string;
+    ns2: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("reseller-hosting-created", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    username: vars.username,
+    password: vars.password,
+    whm_url: vars.whmUrl,
+    cpanel_url: vars.cpanelUrl,
+    max_accounts: vars.maxAccounts,
+    disk_space: vars.diskSpace,
+    bandwidth: vars.bandwidth,
+    server_ip: vars.serverIp,
+    ns1: vars.ns1,
+    ns2: vars.ns2,
+  }, meta);
+}
+
+export async function emailVpsCreated(
+  to: string,
+  vars: {
+    clientName: string;
+    serverIp: string;
+    sshPort: string;
+    rootPassword: string;
+    serverHostname: string;
+    os: string;
+    cpuCores: string;
+    ram: string;
+    diskSpace: string;
+    bandwidth: string;
+    vpsPanelUrl?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("vps-created", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    server_ip: vars.serverIp,
+    ssh_port: vars.sshPort,
+    root_password: vars.rootPassword,
+    server_hostname: vars.serverHostname,
+    os: vars.os,
+    cpu_cores: vars.cpuCores,
+    ram: vars.ram,
+    disk_space: vars.diskSpace,
+    bandwidth: vars.bandwidth,
+    vps_panel_url: vars.vpsPanelUrl || "https://noehost.com/client/vps",
+  }, meta);
+}
+
+export async function emailWordPressInstalled(
+  to: string,
+  vars: {
+    clientName: string;
+    domain: string;
+    siteUrl: string;
+    wpAdminUrl: string;
+    wpUsername: string;
+    wpPassword: string;
+    wpVersion?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("wordpress-installed", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    site_url: vars.siteUrl,
+    wp_admin_url: vars.wpAdminUrl,
+    wp_username: vars.wpUsername,
+    wp_password: vars.wpPassword,
+    wp_version: vars.wpVersion || "6.7",
+  }, meta);
 }

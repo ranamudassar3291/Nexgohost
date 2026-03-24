@@ -2,15 +2,18 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { emailTemplatesTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { sendEmail } from "../lib/email.js";
 
 const router = Router();
 
-// ─── Shared Layout ────────────────────────────────────────────────────────────
-// Purple + white Hostinger-style wrapper used by every template.
-// Content is injected into the white card body.
+// ─── Layout & Helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Master layout: white-bg card, centered Noehost logo header,
+ * purple accent line, body content, Quick Support section, footer.
+ * All email-client safe — uses only inline styles and HTML tables.
+ */
 function layout(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -19,50 +22,80 @@ function layout(content: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Noehost</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Inter,'Helvetica Neue',Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f5f5;padding:40px 16px">
+<body style="margin:0;padding:0;background-color:#f2f2f2;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f2f2;padding:36px 16px">
   <tr>
     <td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:4px;overflow:hidden;border:1px solid #e5e5e5">
 
-        <!-- ── HEADER ─────────────────────────────────────────────────── -->
+        <!-- ───── HEADER: white bg, centered logo ───── -->
         <tr>
-          <td style="background:#701AFE;padding:26px 40px;text-align:center">
-            <span style="font-family:Inter,'Helvetica Neue',Arial,sans-serif;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-0.5px">Noehost</span>
+          <td style="background:#ffffff;padding:32px 40px 20px;text-align:center;border-bottom:3px solid #701AFE">
+            <span style="font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:28px;font-weight:800;color:#701AFE;letter-spacing:-0.5px">Noehost</span>
           </td>
         </tr>
 
-        <!-- ── BODY ──────────────────────────────────────────────────── -->
+        <!-- ───── BODY ───── -->
         <tr>
-          <td style="padding:40px 40px 32px;color:#222222;font-family:Inter,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.7">
+          <td style="padding:36px 40px 28px;color:#333333;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.75">
             ${content}
           </td>
         </tr>
 
-        <!-- ── FOOTER ────────────────────────────────────────────────── -->
+        <!-- ───── QUICK SUPPORT ───── -->
         <tr>
-          <td style="background:#f9f9f9;border-top:1px solid #eeeeee;padding:28px 40px;text-align:center">
+          <td style="background:#faf8ff;border-top:1px solid #ede9ff;padding:20px 40px">
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td align="center" style="padding-bottom:16px">
-                  <!-- Twitter/X -->
-                  <a href="https://twitter.com/noehost" style="display:inline-block;margin:0 5px;width:34px;height:34px;background:#701AFE;border-radius:50%;text-align:center;line-height:34px;text-decoration:none;font-family:Arial;font-size:14px;font-weight:700;color:#ffffff">X</a>
-                  <!-- Facebook -->
-                  <a href="https://facebook.com/noehost" style="display:inline-block;margin:0 5px;width:34px;height:34px;background:#701AFE;border-radius:50%;text-align:center;line-height:34px;text-decoration:none;font-family:Arial;font-size:15px;font-weight:700;color:#ffffff">f</a>
-                  <!-- LinkedIn -->
-                  <a href="https://linkedin.com/company/noehost" style="display:inline-block;margin:0 5px;width:34px;height:34px;background:#701AFE;border-radius:50%;text-align:center;line-height:34px;text-decoration:none;font-family:Arial;font-size:12px;font-weight:700;color:#ffffff">in</a>
+                <td style="font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#555555;padding-bottom:10px">
+                  &#128587; Quick Support
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="padding-right:12px">
+                        <a href="https://wa.me/923001234567" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:600;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+                          &#128222; WhatsApp
+                        </a>
+                      </td>
+                      <td>
+                        <a href="https://noehost.com/client/tickets/new" style="display:inline-block;background:#701AFE;color:#ffffff;text-decoration:none;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:600;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+                          &#127915; Open a Ticket
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ───── FOOTER ───── -->
+        <tr>
+          <td style="background:#f8f8f8;border-top:1px solid #e5e5e5;padding:24px 40px;text-align:center">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="center" style="padding-bottom:14px">
+                  <a href="https://twitter.com/noehost" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:#701AFE;border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:13px;font-weight:700">X</a>
+                  <a href="https://facebook.com/noehost" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:#701AFE;border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:14px;font-weight:700">f</a>
+                  <a href="https://linkedin.com/company/noehost" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:#701AFE;border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:11px;font-weight:700">in</a>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding-bottom:8px">
+                  <a href="https://noehost.com/kb" style="color:#701AFE;text-decoration:none;font-size:12px;font-family:Inter,Arial,sans-serif;font-weight:500">Knowledge Base</a>
+                  <span style="color:#cccccc;margin:0 8px">&middot;</span>
+                  <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none;font-size:12px;font-family:Inter,Arial,sans-serif;font-weight:500">Support</a>
+                  <span style="color:#cccccc;margin:0 8px">&middot;</span>
+                  <a href="https://noehost.com/unsubscribe" style="color:#999999;text-decoration:underline;font-size:12px;font-family:Inter,Arial,sans-serif">Unsubscribe</a>
                 </td>
               </tr>
               <tr>
                 <td align="center">
-                  <p style="margin:0 0 8px;color:#aaaaaa;font-size:12px;font-family:Inter,Arial,sans-serif">© 2026 Noehost. All rights reserved.</p>
-                  <p style="margin:0;font-size:12px;font-family:Inter,Arial,sans-serif">
-                    <a href="https://noehost.com/unsubscribe" style="color:#aaaaaa;text-decoration:underline">Unsubscribe</a>
-                    <span style="color:#dddddd;margin:0 6px">&middot;</span>
-                    <a href="https://noehost.com/privacy" style="color:#aaaaaa;text-decoration:underline">Privacy Policy</a>
-                    <span style="color:#dddddd;margin:0 6px">&middot;</span>
-                    <a href="https://noehost.com/client" style="color:#aaaaaa;text-decoration:underline">Client Area</a>
-                  </p>
+                  <span style="color:#aaaaaa;font-size:12px;font-family:Inter,Arial,sans-serif">&copy; 2026 Noehost. All rights reserved.</span>
                 </td>
               </tr>
             </table>
@@ -77,70 +110,116 @@ function layout(content: string): string {
 </html>`;
 }
 
-// Reusable CTA button (table-based for email client compatibility)
+/** Large primary CTA button */
 function btn(label: string, url: string): string {
   return `
-<table cellpadding="0" cellspacing="0" border="0" style="margin:28px auto 0">
+<table cellpadding="0" cellspacing="0" border="0" style="margin:28px auto 4px">
   <tr>
-    <td align="center" style="background:#701AFE;border-radius:8px">
-      <a href="${url}" style="display:inline-block;padding:14px 36px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;font-family:Inter,'Helvetica Neue',Arial,sans-serif;letter-spacing:0.1px">${label}</a>
+    <td align="center" style="background:#701AFE;border-radius:6px">
+      <a href="${url}" style="display:inline-block;padding:15px 44px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:0.2px">${label}</a>
     </td>
   </tr>
 </table>`;
 }
 
-// Details table (key-value rows)
-function detailsTable(rows: string[]): string {
+/** Secondary/outlined CTA button */
+function btnOutline(label: string, url: string): string {
   return `
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f6ff;border:1px solid #e5deff;border-radius:10px;margin:24px 0">
-  ${rows.join("\n")}
-</table>`;
-}
-
-function detailRow(label: string, value: string, first = false): string {
-  const border = first ? "" : "border-top:1px solid #eeeeee;";
-  return `<tr>
-    <td style="padding:12px 20px;color:#777777;font-size:13px;font-family:Inter,Arial,sans-serif;${border}">${label}</td>
-    <td style="padding:12px 20px;font-weight:600;color:#222222;font-size:13px;text-align:right;font-family:Inter,Arial,sans-serif;${border}">${value}</td>
-  </tr>`;
-}
-
-// Orange/red warning box
-function alertBox(icon: string, title: string, subtitle?: string): string {
-  return `
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;margin-bottom:24px">
+<table cellpadding="0" cellspacing="0" border="0" style="margin:10px auto 4px">
   <tr>
-    <td align="center" style="padding:24px 20px">
-      <p style="margin:0 0 6px;font-size:30px">${icon}</p>
-      <p style="margin:0 0 2px;font-size:18px;font-weight:700;color:#c53030;font-family:Inter,Arial,sans-serif">${title}</p>
-      ${subtitle ? `<p style="margin:6px 0 0;font-size:13px;color:#9b2c2c;font-family:Inter,Arial,sans-serif">${subtitle}</p>` : ""}
+    <td align="center" style="background:#ffffff;border-radius:6px;border:2px solid #701AFE">
+      <a href="${url}" style="display:inline-block;padding:12px 36px;color:#701AFE;font-size:14px;font-weight:600;text-decoration:none;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">${label}</a>
     </td>
   </tr>
 </table>`;
 }
 
-// Green success box
-function successBox(icon: string, title: string, subtitle?: string): string {
-  return `
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:10px;margin-bottom:24px">
+/** Structured info table (purple-tinted header + rows) */
+function infoTable(title: string, rows: Array<{ label: string; value: string }>): string {
+  const rowsHtml = rows.map((r, i) => `
   <tr>
-    <td align="center" style="padding:24px 20px">
-      <p style="margin:0 0 6px;font-size:30px">${icon}</p>
-      <p style="margin:0 0 2px;font-size:18px;font-weight:700;color:#276749;font-family:Inter,Arial,sans-serif">${title}</p>
-      ${subtitle ? `<p style="margin:6px 0 0;font-size:13px;color:#276749;font-family:Inter,Arial,sans-serif">${subtitle}</p>` : ""}
+    <td style="padding:11px 18px;font-size:13px;color:#666666;font-family:Inter,Arial,sans-serif;${i > 0 ? "border-top:1px solid #eeeeee" : ""};width:40%">${r.label}</td>
+    <td style="padding:11px 18px;font-size:13px;font-weight:600;color:#222222;font-family:Inter,Arial,sans-serif;${i > 0 ? "border-top:1px solid #eeeeee" : ""};text-align:right;word-break:break-all">${r.value}</td>
+  </tr>`).join("");
+
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e0d9ff;border-radius:6px;overflow:hidden;margin:20px 0">
+  <tr>
+    <td colspan="2" style="background:#701AFE;padding:10px 18px">
+      <span style="font-size:12px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:1.2px;font-family:Inter,Arial,sans-serif">${title}</span>
     </td>
   </tr>
+  ${rowsHtml}
 </table>`;
 }
 
-// Monospace code box (verification codes, credentials)
+/** Credential row — monospace value (for usernames, passwords, IPs) */
+function cred(label: string, value: string): { label: string; value: string } {
+  return { label, value: `<span style="font-family:'Courier New',Courier,monospace;color:#701AFE">${value}</span>` };
+}
+
+/** Monospace OTP code box */
 function codeBox(label: string, value: string): string {
   return `
 <table cellpadding="0" cellspacing="0" border="0" style="margin:28px auto">
   <tr>
-    <td align="center" style="background:#f8f6ff;border:2px solid #701AFE;border-radius:12px;padding:20px 48px">
-      <p style="margin:0 0 6px;font-size:11px;font-weight:600;color:#701AFE;text-transform:uppercase;letter-spacing:2px;font-family:Inter,Arial,sans-serif">${label}</p>
-      <p style="margin:0;font-size:38px;font-weight:700;letter-spacing:10px;color:#222222;font-family:'Courier New',monospace">${value}</p>
+    <td align="center" style="background:#f8f6ff;border:2px solid #701AFE;border-radius:8px;padding:18px 52px">
+      <p style="margin:0 0 5px;font-size:11px;font-weight:700;color:#701AFE;text-transform:uppercase;letter-spacing:2px;font-family:Inter,Arial,sans-serif">${label}</p>
+      <p style="margin:0;font-size:40px;font-weight:700;letter-spacing:10px;color:#222222;font-family:'Courier New',Courier,monospace">${value}</p>
+    </td>
+  </tr>
+</table>`;
+}
+
+/** Urgent banner for suspension/termination */
+function urgentBanner(icon: string, heading: string, subtext: string, color = "#d97706"): string {
+  const bg = color === "#d97706" ? "#fffbeb" : "#fff7f7";
+  const border = color === "#d97706" ? "#fde68a" : "#fecaca";
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bg};border:1px solid ${border};border-left:4px solid ${color};border-radius:4px;margin-bottom:24px">
+  <tr>
+    <td style="padding:16px 20px">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="font-size:26px;padding-right:14px;vertical-align:middle">${icon}</td>
+          <td style="vertical-align:middle">
+            <p style="margin:0 0 2px;font-size:15px;font-weight:700;color:${color};font-family:Inter,Arial,sans-serif">${heading}</p>
+            <p style="margin:0;font-size:13px;color:#555555;font-family:Inter,Arial,sans-serif">${subtext}</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+}
+
+/** Success banner */
+function successBanner(icon: string, heading: string, subtext: string): string {
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0fff4;border:1px solid #9ae6b4;border-left:4px solid #38a169;border-radius:4px;margin-bottom:24px">
+  <tr>
+    <td style="padding:16px 20px">
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="font-size:26px;padding-right:14px;vertical-align:middle">${icon}</td>
+          <td style="vertical-align:middle">
+            <p style="margin:0 0 2px;font-size:15px;font-weight:700;color:#276749;font-family:Inter,Arial,sans-serif">${heading}</p>
+            <p style="margin:0;font-size:13px;color:#555555;font-family:Inter,Arial,sans-serif">${subtext}</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+}
+
+/** Info highlight box */
+function infoBox(content: string): string {
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f6ff;border:1px solid #e0d9ff;border-left:4px solid #701AFE;border-radius:4px;margin:20px 0">
+  <tr>
+    <td style="padding:14px 18px;font-size:13px;color:#444444;font-family:Inter,Arial,sans-serif;line-height:1.7">
+      ${content}
     </td>
   </tr>
 </table>`;
@@ -149,17 +228,18 @@ function codeBox(label: string, value: string): string {
 // ─── DEFAULT TEMPLATES ────────────────────────────────────────────────────────
 
 const DEFAULT_TEMPLATES = [
+
   // ── 1. Email Verification ─────────────────────────────────────────────────
   {
     name: "Email Verification",
     slug: "email-verification",
-    subject: "Verify your email address — Noehost",
+    subject: "Verify your Noehost account",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">Verify your email</h2>
+<h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">Verify your email address</h2>
 <p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">Thank you for creating a Noehost account. To complete your registration, enter the verification code below. This code expires in <strong>10 minutes</strong>.</p>
+<p style="margin:0 0 4px;color:#333333">Thanks for signing up with Noehost! Please use the verification code below to complete your registration. This code expires in <strong>10 minutes</strong>.</p>
 ${codeBox("Your Verification Code", "{{verification_code}}")}
-<p style="color:#888888;font-size:13px;margin:24px 0 0">If you did not create this account, you can safely ignore this email — no action is needed.</p>
+<p style="color:#888888;font-size:13px;margin:20px 0 0">If you did not create a Noehost account, you can safely ignore this email.</p>
 `),
     variables: ["{{client_name}}", "{{verification_code}}"],
   },
@@ -168,33 +248,38 @@ ${codeBox("Your Verification Code", "{{verification_code}}")}
   {
     name: "Welcome to Noehost",
     slug: "welcome",
-    subject: "Welcome to Noehost, {{client_name}}!",
+    subject: "Welcome to Noehost, {{client_name}}! Your account is ready",
     body: layout(`
-${successBox("🎉", "Welcome to Noehost!", "Your account is ready")}
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 16px;color:#555555">We're thrilled to have you on board. Your Noehost account is all set up and ready to go. Here's what you can do from your dashboard:</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px">
+${successBanner("🎉", "Welcome to Noehost!", "Your account has been created successfully")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 18px;color:#333333">We're excited to have you on board. Here's what you can manage from your Noehost dashboard:</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px">
   <tr>
-    <td style="padding:10px 0;border-bottom:1px solid #eeeeee">
-      <span style="display:inline-block;width:28px;height:28px;background:#f0ebff;border-radius:6px;text-align:center;line-height:28px;font-size:14px;margin-right:12px;vertical-align:middle">🌐</span>
-      <span style="color:#222222;font-size:14px;font-family:Inter,Arial,sans-serif;vertical-align:middle">Manage your hosting services and domains</span>
+    <td style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+      <span style="display:inline-block;background:#f0ebff;border-radius:5px;padding:4px 10px;font-size:13px;color:#701AFE;font-weight:600;margin-right:10px">🌐</span>
+      <span style="color:#333333;font-size:14px;font-family:Inter,Arial,sans-serif">Shared, Reseller &amp; VPS Hosting</span>
     </td>
   </tr>
   <tr>
-    <td style="padding:10px 0;border-bottom:1px solid #eeeeee">
-      <span style="display:inline-block;width:28px;height:28px;background:#f0ebff;border-radius:6px;text-align:center;line-height:28px;font-size:14px;margin-right:12px;vertical-align:middle">📄</span>
-      <span style="color:#222222;font-size:14px;font-family:Inter,Arial,sans-serif;vertical-align:middle">View and pay invoices instantly</span>
+    <td style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+      <span style="display:inline-block;background:#f0ebff;border-radius:5px;padding:4px 10px;font-size:13px;color:#701AFE;font-weight:600;margin-right:10px">🔒</span>
+      <span style="color:#333333;font-size:14px;font-family:Inter,Arial,sans-serif">Domain Registration &amp; DNS Management</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+      <span style="display:inline-block;background:#f0ebff;border-radius:5px;padding:4px 10px;font-size:13px;color:#701AFE;font-weight:600;margin-right:10px">📄</span>
+      <span style="color:#333333;font-size:14px;font-family:Inter,Arial,sans-serif">Invoices, Payments &amp; Billing (PKR)</span>
     </td>
   </tr>
   <tr>
     <td style="padding:10px 0">
-      <span style="display:inline-block;width:28px;height:28px;background:#f0ebff;border-radius:6px;text-align:center;line-height:28px;font-size:14px;margin-right:12px;vertical-align:middle">🛡️</span>
-      <span style="color:#222222;font-size:14px;font-family:Inter,Arial,sans-serif;vertical-align:middle">Get 24/7 expert support whenever you need it</span>
+      <span style="display:inline-block;background:#f0ebff;border-radius:5px;padding:4px 10px;font-size:13px;color:#701AFE;font-weight:600;margin-right:10px">🛡️</span>
+      <span style="color:#333333;font-size:14px;font-family:Inter,Arial,sans-serif">24/7 Expert Support via Ticket &amp; WhatsApp</span>
     </td>
   </tr>
 </table>
 ${btn("Go to My Dashboard", "{{dashboard_url}}")}
-<p style="color:#888888;font-size:13px;margin:28px 0 0;text-align:center">Need help? <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none">Open a support ticket</a> and our team will be happy to assist.</p>
 `),
     variables: ["{{client_name}}", "{{dashboard_url}}"],
   },
@@ -203,18 +288,18 @@ ${btn("Go to My Dashboard", "{{dashboard_url}}")}
   {
     name: "Invoice Generated",
     slug: "invoice-created",
-    subject: "New Invoice #{{invoice_id}} — Payment Due {{due_date}}",
+    subject: "Invoice #{{invoice_id}} — Payment Due {{due_date}}",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">New Invoice Generated</h2>
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">A new invoice has been created for your account. Please review the details below and complete payment before the due date to avoid any service interruption.</p>
-${detailsTable([
-  detailRow("Invoice Number", "#{{invoice_id}}", true),
-  detailRow("Amount Due", `<span style="color:#701AFE;font-size:15px">{{amount}}</span>`, false),
-  detailRow("Due Date", `<span style="color:#e53e3e">{{due_date}}</span>`, false),
+<h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">New Invoice Generated</h2>
+<p style="margin:0 0 14px;color:#555555">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">A new invoice has been created for your account. Please complete your payment before the due date to avoid any service interruption.</p>
+${infoTable("Invoice Summary", [
+  { label: "Invoice Number", value: "#{{invoice_id}}" },
+  { label: "Amount Due", value: `<span style="color:#701AFE;font-size:15px;font-weight:700">Rs. {{amount}}</span>` },
+  { label: "Due Date", value: `<span style="color:#d97706;font-weight:600">{{due_date}}</span>` },
 ])}
-${btn("View &amp; Pay Invoice", "{{client_area_url}}")}
-<p style="color:#888888;font-size:13px;margin:24px 0 0;text-align:center">If you have any questions about this invoice, please <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none">contact our billing team</a>.</p>
+${btn("Pay Invoice Now", "{{client_area_url}}")}
+<p style="color:#888888;font-size:12px;margin:16px 0 0;text-align:center">Payments are accepted in PKR via bank transfer, JazzCash, EasyPaisa, and card.</p>
 `),
     variables: ["{{client_name}}", "{{invoice_id}}", "{{amount}}", "{{due_date}}", "{{client_area_url}}"],
   },
@@ -223,19 +308,19 @@ ${btn("View &amp; Pay Invoice", "{{client_area_url}}")}
   {
     name: "Payment Confirmation",
     slug: "invoice-paid",
-    subject: "Payment Confirmed — Invoice #{{invoice_id}}",
+    subject: "Payment Confirmed — Invoice #{{invoice_id}} ✓",
     body: layout(`
-${successBox("✅", "Payment Received", "Thank you for your payment!")}
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">We've successfully received your payment. Here's your receipt for your records:</p>
-${detailsTable([
-  detailRow("Invoice Number", "#{{invoice_id}}", true),
-  detailRow("Amount Paid", `<span style="color:#276749;font-size:15px;font-weight:700">{{amount}}</span>`, false),
-  detailRow("Payment Date", "{{payment_date}}", false),
-  detailRow("Status", `<span style="color:#276749;font-weight:700">&#10003; Paid</span>`, false),
+${successBanner("✅", "Payment Received", "Your invoice has been paid successfully")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">We have successfully received your payment. Here is your receipt for your records:</p>
+${infoTable("Payment Receipt", [
+  { label: "Invoice Number", value: "#{{invoice_id}}" },
+  { label: "Amount Paid", value: `<span style="color:#38a169;font-size:15px;font-weight:700">Rs. {{amount}}</span>` },
+  { label: "Payment Date", value: "{{payment_date}}" },
+  { label: "Status", value: `<span style="color:#38a169;font-weight:700">&#10003; Paid</span>` },
 ])}
-${btn("View Receipt", "https://noehost.com/client/invoices")}
-<p style="color:#888888;font-size:13px;margin:24px 0 0;text-align:center">Your services are now active and running. If you have any questions, we're always here to help.</p>
+${btnOutline("Download Receipt", "https://noehost.com/client/invoices")}
+<p style="color:#888888;font-size:13px;margin:20px 0 0;text-align:center">Your services are now active. Thank you for choosing Noehost!</p>
 `),
     variables: ["{{client_name}}", "{{invoice_id}}", "{{amount}}", "{{payment_date}}"],
   },
@@ -246,60 +331,47 @@ ${btn("View Receipt", "https://noehost.com/client/invoices")}
     slug: "order-created",
     subject: "Order Confirmed — {{service_name}} is being set up",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">Order Confirmed!</h2>
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">Thank you for your order! We've received it and our team is setting up your service. You'll receive a separate email with your login credentials once everything is ready.</p>
-${detailsTable([
-  detailRow("Order Number", "#{{order_id}}", true),
-  detailRow("Service", "{{service_name}}", false),
-  detailRow("Domain", `<span style="color:#701AFE">{{domain}}</span>`, false),
-  detailRow("Status", `<span style="color:#d97706;font-weight:700">&#8987; Setting Up</span>`, false),
+${successBanner("🛒", "Order Received!", "We're setting up your service now")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Thank you for your order! Our team is provisioning your service. You will receive a separate email with your full login credentials once the account is activated.</p>
+${infoTable("Order Details", [
+  { label: "Order Number", value: "#{{order_id}}" },
+  { label: "Service", value: "{{service_name}}" },
+  { label: "Domain", value: `<span style="color:#701AFE">{{domain}}</span>` },
+  { label: "Status", value: `<span style="color:#d97706;font-weight:600">&#8987; Provisioning</span>` },
 ])}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f6ff;border-radius:10px;padding:16px 20px;margin:4px 0 0">
-  <tr>
-    <td style="color:#555555;font-size:13px;font-family:Inter,Arial,sans-serif">
-      <strong style="color:#701AFE">⚡ What happens next?</strong><br>
-      Our system will automatically provision your hosting account. You'll receive your cPanel credentials and nameservers within minutes.
-    </td>
-  </tr>
-</table>
-${btn("Track Your Order", "https://noehost.com/client/orders")}
+${infoBox("<strong style='color:#701AFE'>&#9889; What happens next?</strong><br>Your account is being created automatically. Expect your hosting credentials in the next few minutes. Domain propagation may take 24–48 hours after that.")}
+${btn("Track Order Status", "https://noehost.com/client/orders")}
 `),
     variables: ["{{client_name}}", "{{service_name}}", "{{domain}}", "{{order_id}}"],
   },
 
-  // ── 6. Hosting Created ────────────────────────────────────────────────────
+  // ── 6. Shared Hosting Activated ───────────────────────────────────────────
   {
-    name: "Hosting Account Ready",
+    name: "Shared Hosting Activated",
     slug: "hosting-created",
-    subject: "🚀 Your hosting for {{domain}} is ready!",
+    subject: "🚀 Your Hosting Account is Ready — {{domain}}",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">Your Hosting is Live!</h2>
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">Great news — your hosting account for <strong style="color:#222222">{{domain}}</strong> has been successfully activated. Here are your account details. Keep these safe!</p>
+${successBanner("🚀", "Your Shared Hosting is Live!", "Your account has been activated and is ready to use")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Your hosting account for <strong>{{domain}}</strong> is fully set up. Below are your login details — please keep them safe and do not share them with anyone.</p>
 
-<p style="margin:16px 0 8px;font-size:13px;font-weight:600;color:#701AFE;text-transform:uppercase;letter-spacing:1px">&#128272; Login Credentials</p>
-${detailsTable([
-  detailRow("Domain", "{{domain}}", true),
-  detailRow("Username", `<span style="font-family:'Courier New',monospace;color:#701AFE">{{username}}</span>`, false),
-  detailRow("Password", `<span style="font-family:'Courier New',monospace;color:#701AFE">{{password}}</span>`, false),
-  detailRow("cPanel URL", `<a href="{{cpanel_url}}" style="color:#701AFE;text-decoration:none;font-family:'Courier New',monospace">{{cpanel_url}}</a>`, false),
-  detailRow("Webmail", `<a href="{{webmail_url}}" style="color:#701AFE;text-decoration:none">{{webmail_url}}</a>`, false),
+${infoTable("Control Panel Credentials", [
+  { label: "Domain Name", value: `<span style="color:#701AFE">{{domain}}</span>` },
+  cred("cPanel Username", "{{username}}"),
+  cred("cPanel Password", "{{password}}"),
+  { label: "cPanel URL", value: `<a href="{{cpanel_url}}" style="color:#701AFE;text-decoration:none">{{cpanel_url}}</a>` },
+  { label: "Webmail URL", value: `<a href="{{webmail_url}}" style="color:#701AFE;text-decoration:none">{{webmail_url}}</a>` },
 ])}
 
-<p style="margin:16px 0 8px;font-size:13px;font-weight:600;color:#e07b00;text-transform:uppercase;letter-spacing:1px">&#127758; Nameservers (update at your registrar)</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fffbf0;border:1px solid #fde68a;border-radius:10px;margin-bottom:24px">
-  <tr>
-    <td style="padding:12px 20px;color:#777777;font-size:13px">Primary</td>
-    <td style="padding:12px 20px;font-weight:600;color:#222222;font-size:13px;text-align:right;font-family:'Courier New',monospace">{{ns1}}</td>
-  </tr>
-  <tr>
-    <td style="padding:12px 20px;color:#777777;font-size:13px;border-top:1px solid #fde68a">Secondary</td>
-    <td style="padding:12px 20px;font-weight:600;color:#222222;font-size:13px;text-align:right;border-top:1px solid #fde68a;font-family:'Courier New',monospace">{{ns2}}</td>
-  </tr>
-</table>
-<p style="color:#888888;font-size:12px;margin:0 0 20px">DNS propagation can take 24–48 hours. Your site will be live once propagation is complete.</p>
-${btn("Open cPanel", "{{cpanel_url}}")}
+${infoTable("Nameservers (Update at Your Domain Registrar)", [
+  cred("Primary NS", "{{ns1}}"),
+  cred("Secondary NS", "{{ns2}}"),
+])}
+
+<p style="margin:0 0 4px;color:#555555;font-size:13px">&#9432; DNS propagation can take 24–48 hours. Your website will go live once propagation is complete.</p>
+${btn("Login to cPanel", "{{cpanel_url}}")}
+${btnOutline("Manage Hosting", "https://noehost.com/client/hosting")}
 `),
     variables: ["{{client_name}}", "{{domain}}", "{{username}}", "{{password}}", "{{cpanel_url}}", "{{ns1}}", "{{ns2}}", "{{webmail_url}}"],
   },
@@ -308,27 +380,24 @@ ${btn("Open cPanel", "{{cpanel_url}}")}
   {
     name: "Domain Registration Successful",
     slug: "domain-registered",
-    subject: "🎉 Congratulations! {{domain}} is yours",
+    subject: "🎉 Congratulations! {{domain}} is now yours",
     body: layout(`
-${successBox("🌐", "Your domain is registered!", "{{domain}}")}
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">Congratulations! Your domain <strong style="color:#701AFE">{{domain}}</strong> has been successfully registered and is now yours.</p>
-${detailsTable([
-  detailRow("Domain Name", `<span style="color:#701AFE;font-weight:700">{{domain}}</span>`, true),
-  detailRow("Expiry Date", "{{expiry_date}}", false),
-  detailRow("Status", `<span style="color:#276749;font-weight:700">&#10003; Active</span>`, false),
+${successBanner("🌐", "Domain Registered Successfully!", "Your domain is now active and under your control")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Congratulations! Your domain <strong style="color:#701AFE">{{domain}}</strong> has been successfully registered and is now active.</p>
+
+${infoTable("Domain Details", [
+  { label: "Domain Name", value: `<strong style="color:#701AFE">{{domain}}</strong>` },
+  { label: "Registration Date", value: "{{registration_date}}" },
+  { label: "Expiry Date", value: "{{expiry_date}}" },
+  { label: "Status", value: `<span style="color:#38a169;font-weight:700">&#10003; Active</span>` },
+  { label: "Auto-Renew", value: "Enabled" },
 ])}
-<p style="margin:8px 0 16px;color:#555555">You can manage your DNS records, set up email forwarding, and configure your domain settings from your client area:</p>
+
+${infoBox("<strong style='color:#701AFE'>&#128161; Next Steps</strong><br>Point your domain to your hosting by updating the nameservers in your DNS settings, or use our DNS editor to add A, CNAME, or MX records directly.")}
 ${btn("Manage DNS Settings", "{{dns_url}}")}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f6ff;border-radius:10px;margin:24px 0 0">
-  <tr>
-    <td style="padding:16px 20px;color:#555555;font-size:13px;font-family:Inter,Arial,sans-serif">
-      <strong style="color:#701AFE">💡 Tip:</strong> Point your domain to your hosting by updating the nameservers, or use our DNS editor to add A, CNAME, or MX records directly.
-    </td>
-  </tr>
-</table>
 `),
-    variables: ["{{client_name}}", "{{domain}}", "{{expiry_date}}", "{{dns_url}}"],
+    variables: ["{{client_name}}", "{{domain}}", "{{registration_date}}", "{{expiry_date}}", "{{dns_url}}"],
   },
 
   // ── 8. Password Reset ─────────────────────────────────────────────────────
@@ -337,44 +406,37 @@ ${btn("Manage DNS Settings", "{{dns_url}}")}
     slug: "password-reset",
     subject: "Reset your Noehost password",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">Reset your password</h2>
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">We received a request to reset the password for your Noehost account. Click the button below to choose a new password. This link expires in <strong>1 hour</strong>.</p>
+<h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">Reset Your Password</h2>
+<p style="margin:0 0 14px;color:#555555">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">We received a request to reset the password for your Noehost account. Click the button below to create a new password. This link expires in <strong>1 hour</strong>.</p>
 ${btn("Reset My Password", "{{reset_link}}")}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0">
-  <tr>
-    <td style="background:#f8f6ff;border-radius:10px;padding:16px 20px">
-      <p style="margin:0 0 4px;font-size:12px;color:#777777;font-family:Inter,Arial,sans-serif">If the button doesn't work, copy and paste this link into your browser:</p>
-      <p style="margin:0;font-size:12px;font-family:'Courier New',monospace;word-break:break-all"><a href="{{reset_link}}" style="color:#701AFE;text-decoration:none">{{reset_link}}</a></p>
-    </td>
-  </tr>
-</table>
-<p style="color:#e53e3e;font-size:13px;margin:20px 0 0">&#9888; If you did not request a password reset, please ignore this email. Your password will remain unchanged.</p>
+${infoBox(`<strong>Button not working?</strong> Copy and paste this link into your browser:<br><a href="{{reset_link}}" style="color:#701AFE;text-decoration:none;word-break:break-all;font-size:12px">{{reset_link}}</a>`)}
+<p style="color:#e53e3e;font-size:13px;margin:16px 0 0">&#9888; If you did not request a password reset, please ignore this email. Your password will not be changed.</p>
 `),
     variables: ["{{client_name}}", "{{reset_link}}"],
   },
 
-  // ── 9. Ticket Reply ───────────────────────────────────────────────────────
+  // ── 9. Support Ticket Reply ───────────────────────────────────────────────
   {
     name: "Support Ticket Reply",
     slug: "ticket-reply",
     subject: "Re: [#{{ticket_number}}] {{ticket_subject}}",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">New Reply to Your Ticket</h2>
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">Our support team has replied to your ticket. Here's a summary:</p>
-${detailsTable([
-  detailRow("Ticket #", "{{ticket_number}}", true),
-  detailRow("Subject", "{{ticket_subject}}", false),
-  detailRow("Department", `<span style="color:#701AFE">{{department}}</span>`, false),
+<h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">New Reply to Your Support Ticket</h2>
+<p style="margin:0 0 14px;color:#555555">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Our support team has responded to your ticket. Here's a summary:</p>
+${infoTable("Ticket Info", [
+  { label: "Ticket Number", value: "#{{ticket_number}}" },
+  { label: "Subject", value: "{{ticket_subject}}" },
+  { label: "Department", value: `<span style="color:#701AFE">{{department}}</span>` },
 ])}
-<p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#701AFE;text-transform:uppercase;letter-spacing:1px">&#128172; Reply from Noehost Support</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fafafa;border-left:4px solid #701AFE;border-radius:0 10px 10px 0;margin-bottom:24px">
+<p style="margin:4px 0 8px;font-size:13px;font-weight:700;color:#701AFE;text-transform:uppercase;letter-spacing:0.8px;font-family:Inter,Arial,sans-serif">&#128172; Staff Reply</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fafafa;border-left:4px solid #701AFE;border-radius:0 6px 6px 0;margin-bottom:20px">
   <tr>
-    <td style="padding:16px 20px;color:#444444;font-size:14px;font-family:Inter,Arial,sans-serif;line-height:1.7">{{reply_body}}</td>
+    <td style="padding:16px 20px;color:#333333;font-size:14px;font-family:Inter,Arial,sans-serif;line-height:1.75">{{reply_body}}</td>
   </tr>
 </table>
-${btn("View &amp; Reply to Ticket", "{{ticket_url}}")}
+${btn("Reply to Ticket", "{{ticket_url}}")}
 `),
     variables: ["{{client_name}}", "{{ticket_number}}", "{{ticket_subject}}", "{{department}}", "{{reply_body}}", "{{ticket_url}}"],
   },
@@ -383,19 +445,18 @@ ${btn("View &amp; Reply to Ticket", "{{ticket_url}}")}
   {
     name: "Service Suspended",
     slug: "service-suspended",
-    subject: "Action Required: Your service for {{domain}} has been suspended",
+    subject: "URGENT: Your service for {{domain}} has been suspended",
     body: layout(`
-${alertBox("⚠️", "Service Suspended", "Immediate action required")}
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">Your hosting service for <strong style="color:#222222">{{domain}}</strong> has been temporarily suspended. Here are the details:</p>
-${detailsTable([
-  detailRow("Domain", "{{domain}}", true),
-  detailRow("Suspension Reason", `<span style="color:#e53e3e">{{reason}}</span>`, false),
-  detailRow("Status", `<span style="color:#e53e3e;font-weight:700">&#9888; Suspended</span>`, false),
+${urgentBanner("⚠️", "Urgent: Service Suspended", "Action is required to restore your service", "#d97706")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Your hosting service for <strong>{{domain}}</strong> has been temporarily suspended. Your data remains intact and will be restored immediately once the issue is resolved.</p>
+${infoTable("Suspension Details", [
+  { label: "Domain", value: "{{domain}}" },
+  { label: "Reason", value: `<span style="color:#d97706;font-weight:600">{{reason}}</span>` },
+  { label: "Status", value: `<span style="color:#d97706;font-weight:700">&#9888; Suspended</span>` },
 ])}
-<p style="margin:8px 0 16px;color:#555555">To reactivate your service, please pay any outstanding invoices or resolve the issue causing the suspension. Your data is safe and will be restored immediately upon reactivation.</p>
+<p style="margin:4px 0 16px;color:#333333"><strong>To reactivate your service:</strong> please pay any outstanding invoices or contact our support team to resolve the issue.</p>
 ${btn("Reactivate My Service", "{{client_area_url}}")}
-<p style="color:#888888;font-size:13px;margin:24px 0 0;text-align:center">Need help? <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none">Open a support ticket</a> and we'll assist you right away.</p>
 `),
     variables: ["{{client_name}}", "{{domain}}", "{{reason}}", "{{client_area_url}}"],
   },
@@ -406,24 +467,17 @@ ${btn("Reactivate My Service", "{{client_area_url}}")}
     slug: "service-terminated",
     subject: "Notice: Your service for {{domain}} has been terminated",
     body: layout(`
-${alertBox("🗑️", "Service Terminated", "This action is permanent")}
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">We're writing to inform you that your hosting service for <strong style="color:#222222">{{domain}}</strong> has been permanently terminated.</p>
-${detailsTable([
-  detailRow("Service", "{{service_name}}", true),
-  detailRow("Domain", "{{domain}}", false),
-  detailRow("Termination Date", "{{termination_date}}", false),
-  detailRow("Status", `<span style="color:#9b2c2c;font-weight:700">&#10005; Terminated</span>`, false),
+${urgentBanner("🗑️", "Notice: Service Terminated", "This is a permanent action — all data has been removed", "#dc2626")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">We are writing to inform you that your hosting service for <strong>{{domain}}</strong> has been permanently terminated as of <strong>{{termination_date}}</strong>.</p>
+${infoTable("Termination Details", [
+  { label: "Service", value: "{{service_name}}" },
+  { label: "Domain", value: "{{domain}}" },
+  { label: "Termination Date", value: "{{termination_date}}" },
+  { label: "Status", value: `<span style="color:#dc2626;font-weight:700">&#10005; Terminated</span>` },
 ])}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff5f5;border:1px solid #feb2b2;border-radius:10px;margin:0 0 20px">
-  <tr>
-    <td style="padding:16px 20px;color:#742a2a;font-size:13px;font-family:Inter,Arial,sans-serif;line-height:1.7">
-      <strong>&#9888; Important:</strong> All associated data, files, databases, and email accounts have been permanently deleted and cannot be recovered.
-    </td>
-  </tr>
-</table>
-<p style="margin:0 0 16px;color:#555555">If you believe this termination was in error, or if you'd like to start fresh with a new hosting plan, please contact our support team immediately.</p>
-${btn("Contact Support", "https://noehost.com/client/tickets")}
+${infoBox("<strong style='color:#dc2626'>&#9888; Important:</strong> All associated files, databases, email accounts, and configurations have been permanently deleted and cannot be recovered. If you believe this was done in error, please contact support immediately.")}
+${btn("Contact Support", "https://noehost.com/client/tickets/new")}
 `),
     variables: ["{{client_name}}", "{{domain}}", "{{service_name}}", "{{termination_date}}"],
   },
@@ -432,26 +486,19 @@ ${btn("Contact Support", "https://noehost.com/client/tickets")}
   {
     name: "Cancellation Confirmation",
     slug: "service-cancelled",
-    subject: "Cancellation Confirmed — {{domain}}",
+    subject: "Cancellation Confirmed — {{service_name}}",
     body: layout(`
-<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222">Cancellation Confirmed</h2>
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">We've processed your cancellation request. We're sorry to see you go! Here's a summary:</p>
-${detailsTable([
-  detailRow("Service", "{{service_name}}", true),
-  detailRow("Domain", "{{domain}}", false),
-  detailRow("Cancellation Date", "{{cancel_date}}", false),
-  detailRow("Status", `<span style="color:#d97706;font-weight:700">&#10003; Cancellation Confirmed</span>`, false),
+<h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">Cancellation Confirmed</h2>
+<p style="margin:0 0 14px;color:#555555">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">We've processed your cancellation request. We're sorry to see you go — if there's anything we could have done better, please let us know.</p>
+${infoTable("Cancellation Details", [
+  { label: "Service", value: "{{service_name}}" },
+  { label: "Domain", value: "{{domain}}" },
+  { label: "Cancellation Date", value: "{{cancel_date}}" },
+  { label: "Status", value: `<span style="color:#555555;font-weight:600">&#10003; Cancellation Confirmed</span>` },
 ])}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f6ff;border-radius:10px;margin:0 0 20px">
-  <tr>
-    <td style="padding:16px 20px;color:#555555;font-size:13px;font-family:Inter,Arial,sans-serif;line-height:1.7">
-      <strong style="color:#701AFE">You're always welcome back!</strong> If you change your mind, you can create a new order anytime from your client area.
-    </td>
-  </tr>
-</table>
+${infoBox("<strong style='color:#701AFE'>You're always welcome back!</strong><br>If you change your mind, you can place a new order anytime from your client area. We'd love to serve you again.")}
 ${btn("Explore New Plans", "https://noehost.com/client/new-order")}
-<p style="color:#888888;font-size:13px;margin:24px 0 0;text-align:center">Thank you for being a Noehost customer. We hope to serve you again in the future.</p>
 `),
     variables: ["{{client_name}}", "{{domain}}", "{{service_name}}", "{{cancel_date}}"],
   },
@@ -460,36 +507,134 @@ ${btn("Explore New Plans", "https://noehost.com/client/new-order")}
   {
     name: "Refund Processed",
     slug: "refund-processed",
-    subject: "Refund of {{refund_amount}} has been processed",
+    subject: "Refund of Rs. {{refund_amount}} has been processed",
     body: layout(`
-${successBox("💰", "Refund Processed", "Your refund is on its way")}
-<p style="margin:0 0 16px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 8px;color:#555555">We've successfully processed your refund. Here are the details:</p>
-${detailsTable([
-  detailRow("Refund Amount", `<span style="color:#276749;font-size:15px;font-weight:700">{{refund_amount}}</span>`, true),
-  detailRow("Related Invoice", "#{{invoice_id}}", false),
-  detailRow("Refund Date", "{{refund_date}}", false),
-  detailRow("Payment Method", "{{payment_method}}", false),
+${successBanner("💰", "Refund Processed", "Your refund is on its way")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">We have successfully processed your refund. Here are the details:</p>
+${infoTable("Refund Details", [
+  { label: "Refund Amount", value: `<span style="color:#38a169;font-size:15px;font-weight:700">Rs. {{refund_amount}}</span>` },
+  { label: "Related Invoice", value: "#{{invoice_id}}" },
+  { label: "Refund Date", value: "{{refund_date}}" },
+  { label: "Payment Method", value: "{{payment_method}}" },
 ])}
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:10px;margin:0 0 20px">
-  <tr>
-    <td style="padding:16px 20px;color:#276749;font-size:13px;font-family:Inter,Arial,sans-serif;line-height:1.7">
-      <strong>&#128336; Processing Time:</strong> Refunds typically appear in your account within 5–10 business days, depending on your payment provider.
-    </td>
-  </tr>
-</table>
+${infoBox("<strong>&#128336; Processing Time:</strong> Refunds typically appear in your account within 5–10 business days, depending on your bank or payment provider.")}
 ${btn("View Billing History", "https://noehost.com/client/invoices")}
-<p style="color:#888888;font-size:13px;margin:24px 0 0;text-align:center">If you have any questions about this refund, please <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none">contact our billing team</a>.</p>
 `),
     variables: ["{{client_name}}", "{{refund_amount}}", "{{invoice_id}}", "{{refund_date}}", "{{payment_method}}"],
   },
+
+  // ── 14. Reseller Hosting Activated (NEW) ─────────────────────────────────
+  {
+    name: "Reseller Hosting Activated",
+    slug: "reseller-hosting-created",
+    subject: "🚀 Your Reseller Hosting Account is Ready — {{domain}}",
+    body: layout(`
+${successBanner("🏢", "Reseller Hosting Account Live!", "Your WHM control panel is ready to use")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Your Reseller Hosting account has been provisioned. You now have full WHM access to create and manage hosting accounts for your clients.</p>
+
+${infoTable("WHM Login Details", [
+  cred("WHM Username", "{{username}}"),
+  cred("WHM Password", "{{password}}"),
+  { label: "WHM URL", value: `<a href="{{whm_url}}" style="color:#701AFE;text-decoration:none">{{whm_url}}</a>` },
+  { label: "cPanel URL", value: `<a href="{{cpanel_url}}" style="color:#701AFE;text-decoration:none">{{cpanel_url}}</a>` },
+])}
+
+${infoTable("Account Resources", [
+  { label: "Max Accounts", value: `<strong>{{max_accounts}}</strong> hosting accounts` },
+  { label: "Disk Space", value: `<strong>{{disk_space}}</strong>` },
+  { label: "Bandwidth", value: `<strong>{{bandwidth}}</strong>` },
+  { label: "IP Address", value: `<span style="font-family:'Courier New',monospace;color:#701AFE">{{server_ip}}</span>` },
+])}
+
+${infoTable("Nameservers (Point your clients' domains here)", [
+  cred("NS1", "{{ns1}}"),
+  cred("NS2", "{{ns2}}"),
+])}
+
+${infoBox(`<strong style='color:#701AFE'>&#128161; How to create your first client account:</strong><br>
+1. Log into WHM at <a href="{{whm_url}}" style="color:#701AFE;text-decoration:none">{{whm_url}}</a><br>
+2. Go to <strong>Account Functions → Create a New Account</strong><br>
+3. Fill in the domain, username, and password for your client<br>
+4. Assign a hosting package and click <strong>Create</strong><br>
+Your client will receive their cPanel credentials automatically.`)}
+${btn("Login to WHM", "{{whm_url}}")}
+`),
+    variables: ["{{client_name}}", "{{username}}", "{{password}}", "{{whm_url}}", "{{cpanel_url}}", "{{max_accounts}}", "{{disk_space}}", "{{bandwidth}}", "{{server_ip}}", "{{ns1}}", "{{ns2}}"],
+  },
+
+  // ── 15. VPS Server Activated (NEW) ───────────────────────────────────────
+  {
+    name: "VPS Server Activated",
+    slug: "vps-created",
+    subject: "🖥️ Your VPS Server is Online — {{server_hostname}}",
+    body: layout(`
+${successBanner("🖥️", "VPS Server is Online!", "Your dedicated server has been provisioned")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Your VPS server has been provisioned and is now online. Below are your server credentials. Keep these details secure — do not share them with anyone.</p>
+
+${infoTable("Server Access Details", [
+  cred("Dedicated IP Address", "{{server_ip}}"),
+  cred("SSH Port", "{{ssh_port}}"),
+  cred("Root Username", "root"),
+  cred("Root Password", "{{root_password}}"),
+  { label: "Hostname", value: `<span style="font-family:'Courier New',monospace;color:#701AFE">{{server_hostname}}</span>` },
+  { label: "Operating System", value: "{{os}}" },
+])}
+
+${infoTable("Server Resources", [
+  { label: "CPU Cores", value: "{{cpu_cores}}" },
+  { label: "RAM", value: "{{ram}}" },
+  { label: "Disk Space (SSD)", value: "{{disk_space}}" },
+  { label: "Monthly Bandwidth", value: "{{bandwidth}}" },
+])}
+
+${infoBox(`<strong style='color:#701AFE'>&#128295; How to connect to your VPS:</strong><br>
+<strong>Linux/Mac:</strong> Open Terminal and run:<br>
+<code style="font-family:'Courier New',monospace;background:#f0ebff;padding:2px 6px;border-radius:3px;font-size:13px">ssh root@{{server_ip}} -p {{ssh_port}}</code><br><br>
+<strong>Windows:</strong> Use <a href="https://www.putty.org" style="color:#701AFE;text-decoration:none">PuTTY</a> with IP <code style="font-family:'Courier New',monospace">{{server_ip}}</code> and port <code style="font-family:'Courier New',monospace">{{ssh_port}}</code>.<br><br>
+<strong>Reboot/Console:</strong> Log into your client area to access the VPS console, reboot, or reinstall the OS.`)}
+${btn("Manage VPS", "{{vps_panel_url}}")}
+`),
+    variables: ["{{client_name}}", "{{server_ip}}", "{{ssh_port}}", "{{root_password}}", "{{server_hostname}}", "{{os}}", "{{cpu_cores}}", "{{ram}}", "{{disk_space}}", "{{bandwidth}}", "{{vps_panel_url}}"],
+  },
+
+  // ── 16. WordPress Installation Success (NEW) ─────────────────────────────
+  {
+    name: "WordPress Installation Successful",
+    slug: "wordpress-installed",
+    subject: "✅ WordPress Installed on {{domain}} — Ready to Go!",
+    body: layout(`
+${successBanner("📝", "WordPress is Installed!", "Your site is live and ready to customize")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">WordPress has been successfully installed on your domain <strong style="color:#701AFE">{{domain}}</strong>. You can now log into your WordPress dashboard and start building your website.</p>
+
+${infoTable("WordPress Site Details", [
+  { label: "Site URL", value: `<a href="{{site_url}}" style="color:#701AFE;text-decoration:none">{{site_url}}</a>` },
+  { label: "WP Admin URL", value: `<a href="{{wp_admin_url}}" style="color:#701AFE;text-decoration:none">{{wp_admin_url}}</a>` },
+  cred("Admin Username", "{{wp_username}}"),
+  cred("Admin Password", "{{wp_password}}"),
+  { label: "WordPress Version", value: "{{wp_version}}" },
+])}
+
+${infoBox(`<strong style='color:#701AFE'>&#128161; Getting Started Tips:</strong><br>
+1. Log into your admin panel and change your password immediately<br>
+2. Go to <strong>Appearance → Themes</strong> to install a theme<br>
+3. Install essential plugins: Yoast SEO, WooCommerce, Wordfence Security<br>
+4. Go to <strong>Settings → General</strong> to configure your site title and tagline`)}
+${btn("View My Website", "{{site_url}}")}
+${btnOutline("Go to WP Admin", "{{wp_admin_url}}")}
+`),
+    variables: ["{{client_name}}", "{{domain}}", "{{site_url}}", "{{wp_admin_url}}", "{{wp_username}}", "{{wp_password}}", "{{wp_version}}"],
+  },
+
 ];
 
 // ─── Seeder ───────────────────────────────────────────────────────────────────
 /**
- * Insert missing templates and force-update all default templates to the
- * latest design. Admin-created custom templates (slugs not in DEFAULT_TEMPLATES)
- * are never touched.
+ * Insert missing default templates and force-refresh all existing default
+ * templates to the latest design. Admin-created custom slugs are never touched.
  */
 export async function seedMissingTemplates() {
   const existing = await db
@@ -502,9 +647,6 @@ export async function seedMissingTemplates() {
     await db.insert(emailTemplatesTable).values(toInsert);
   }
 
-  // Force-update all default templates to the latest design.
-  // Only default slugs are touched; admin-created custom templates are skipped.
-  const defaultSlugs = new Set(DEFAULT_TEMPLATES.map(t => t.slug));
   for (const t of DEFAULT_TEMPLATES) {
     if (existingMap.has(t.slug)) {
       await db
@@ -514,7 +656,7 @@ export async function seedMissingTemplates() {
     }
   }
 
-  console.log(`[TEMPLATES] ${toInsert.length} new template(s) inserted, ${defaultSlugs.size} template(s) refreshed`);
+  console.log(`[TEMPLATES] ${toInsert.length} new | ${DEFAULT_TEMPLATES.length} refreshed`);
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -582,17 +724,21 @@ router.post("/admin/email-templates/:id/test", authenticate, requireAdmin, async
     const testTo = req.body.email || req.user!.email;
 
     const samples: Record<string, string> = {
-      client_name:       "Alex Johnson",
+      client_name:       "Ali Hassan",
       verification_code: "847291",
-      invoice_id:        "INV-2025-001",
-      amount:            "Rs. 2,999.00",
-      due_date:          "January 31, 2026",
-      payment_date:      "January 15, 2026",
+      invoice_id:        "INV-2026-001",
+      amount:            "2,999.00",
+      refund_amount:     "999.00",
+      due_date:          "31 January 2026",
+      payment_date:      "15 January 2026",
       company_name:      "Noehost",
       domain:            "example.com",
-      username:          "alexj001",
+      registration_date: "15 January 2026",
+      expiry_date:       "15 January 2027",
+      username:          "alihassan01",
       password:          "Secure@Pass1",
       cpanel_url:        "https://server1.noehost.com:2083",
+      whm_url:           "https://server1.noehost.com:2087",
       ns1:               "ns1.noehost.com",
       ns2:               "ns2.noehost.com",
       webmail_url:       "https://server1.noehost.com/webmail",
@@ -602,18 +748,35 @@ router.post("/admin/email-templates/:id/test", authenticate, requireAdmin, async
       ticket_number:     "TKT-00149",
       ticket_subject:    "Help with DNS configuration",
       department:        "Technical Support",
-      reply_body:        "Thank you for contacting Noehost Support. We have reviewed your request and updated your DNS settings. Please allow up to 24 hours for propagation to complete.",
+      reply_body:        "Thank you for contacting Noehost Support. We have reviewed your DNS configuration and updated the A records for your domain. Please allow up to 24 hours for full propagation.",
       ticket_url:        "https://noehost.com/client/tickets/TKT-00149",
       client_area_url:   "https://noehost.com/client/invoices",
-      reason:            "Overdue invoice (INV-2025-001)",
-      cancel_date:       "January 31, 2026",
-      termination_date:  "January 31, 2026",
-      expiry_date:       "January 15, 2027",
+      reason:            "Overdue invoice (INV-2026-001)",
+      cancel_date:       "31 January 2026",
+      termination_date:  "31 January 2026",
       dns_url:           "https://noehost.com/client/domains",
       dashboard_url:     "https://noehost.com/client/dashboard",
-      refund_amount:     "Rs. 999.00",
-      refund_date:       "January 15, 2026",
-      payment_method:    "Credit Card (Visa ****4242)",
+      refund_date:       "15 January 2026",
+      payment_method:    "JazzCash (****4242)",
+      // Reseller
+      max_accounts:      "50",
+      disk_space:        "100 GB SSD",
+      bandwidth:         "1 TB",
+      server_ip:         "198.51.100.42",
+      // VPS
+      ssh_port:          "22",
+      root_password:     "V@ps3cur3!",
+      server_hostname:   "vps1.noehost.com",
+      os:                "Ubuntu 22.04 LTS",
+      cpu_cores:         "4 vCores",
+      ram:               "8 GB DDR4",
+      vps_panel_url:     "https://noehost.com/client/vps",
+      // WordPress
+      site_url:          "https://example.com",
+      wp_admin_url:      "https://example.com/wp-admin",
+      wp_username:       "admin",
+      wp_password:       "WP@Secure1",
+      wp_version:        "6.7.1",
     };
 
     const rendered = (s: string) => s
