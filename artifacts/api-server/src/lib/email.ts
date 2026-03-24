@@ -368,3 +368,69 @@ export async function emailCancellationConfirmed(to: string, vars: {
     cancel_date: vars.cancelDate,
   });
 }
+
+export async function emailWelcome(
+  to: string,
+  vars: { clientName: string; dashboardUrl?: string },
+  meta?: { clientId?: string },
+) {
+  return sendTemplatedEmail("welcome", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    dashboard_url: vars.dashboardUrl || "https://noehost.com/client/dashboard",
+  }, meta);
+}
+
+export async function emailDomainRegistered(
+  to: string,
+  vars: { clientName: string; domain: string; expiryDate: string; dnsUrl?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("domain-registered", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    expiry_date: vars.expiryDate,
+    dns_url: vars.dnsUrl || "https://noehost.com/client/domains",
+  }, meta);
+}
+
+export async function emailServiceTerminated(
+  to: string,
+  vars: { clientName: string; domain: string; serviceName: string; terminationDate: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("service-terminated", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    service_name: vars.serviceName,
+    termination_date: vars.terminationDate,
+  }, meta);
+}
+
+export async function emailRefundProcessed(
+  to: string,
+  vars: { clientName: string; refundAmount: string; invoiceId: string; refundDate: string; paymentMethod: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("refund-processed", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    refund_amount: vars.refundAmount,
+    invoice_id: vars.invoiceId,
+    refund_date: vars.refundDate,
+    payment_method: vars.paymentMethod,
+  }, meta);
+}
+
+export async function emailPasswordReset(
+  to: string,
+  vars: { clientName: string; resetLink: string },
+) {
+  return sendTemplatedEmail("password-reset", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    reset_link: vars.resetLink,
+  });
+}

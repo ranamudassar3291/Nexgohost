@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
 import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, type AuthRequest } from "../lib/auth.js";
-import { emailVerificationCode, sendEmail } from "../lib/email.js";
+import { emailVerificationCode, emailPasswordReset, sendEmail } from "../lib/email.js";
 import crypto from "node:crypto";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
@@ -635,25 +635,11 @@ router.post("/auth/forgot-password", async (req, res) => {
   const baseUrl = process.env["APP_URL"] || "https://noehost.com";
   const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
-  // Send the email
+  // Send the email via the password-reset template
   try {
-    await sendEmail({
-      to: user.email,
-      subject: "Reset your Noehost password",
-      html: `
-        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden">
-          <div style="background:#701AFE;padding:28px 32px">
-            <h1 style="color:#fff;font-size:22px;margin:0;font-weight:700">Noehost</h1>
-          </div>
-          <div style="padding:32px">
-            <h2 style="font-size:20px;font-weight:700;color:#111827;margin:0 0 8px">Reset your password</h2>
-            <p style="color:#6b7280;font-size:14px;margin:0 0 24px">Hi ${user.firstName}, we received a request to reset the password for your account. Click the button below — this link expires in 1 hour.</p>
-            <a href="${resetLink}" style="display:inline-block;background:#701AFE;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">Reset Password</a>
-            <p style="color:#9ca3af;font-size:12px;margin:24px 0 0">If you didn't request this, you can safely ignore this email. Your password won't change.</p>
-            <p style="color:#d1d5db;font-size:11px;margin:8px 0 0">Or copy this link: ${resetLink}</p>
-          </div>
-        </div>
-      `,
+    await emailPasswordReset(user.email, {
+      clientName: user.firstName || user.email,
+      resetLink,
     });
     console.log(`[AUTH] Password reset email sent to ${user.email}`);
   } catch (emailErr: any) {
