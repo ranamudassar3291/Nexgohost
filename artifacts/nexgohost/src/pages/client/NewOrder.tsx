@@ -8,7 +8,7 @@
  * Free domain: shown when plan.freeDomainEnabled && cycle === "yearly".
  * Pricing: 100% dynamic from API, inc. TLD pricing from admin TLD table.
  */
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
 import {
@@ -412,14 +412,29 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function NewOrder() {
+interface NewOrderProps {
+  /** Pre-filter plan step to a specific admin group ID (/order/group/:id) */
+  initialGroupId?: string;
+  /** Auto-select a specific plan and skip to domain step (/order/add/:id) */
+  initialPackageId?: string;
+}
+
+export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderProps = {}) {
   const [, setLocation] = useLocation();
   const { addItem, removeItem } = useCart();
   const { formatPrice } = useCurrency();
 
+  // Direct-link modes: skip step 0 (service selection) when params are present
+  const isDirectLink = !!(initialGroupId || initialPackageId);
+
   // ── Wizard state ──────────────────────────────────────────────────────────
-  const [step,    setStep]    = useState<0|1|2|3>(0);
-  const [service, setService] = useState<ServiceType | null>(null);
+  // When coming from /order/add/:id → jump straight to domain step (2)
+  // When coming from /order/group/:id → start at plan step (1)
+  const [step,    setStep]    = useState<0|1|2|3>(initialPackageId ? 2 : isDirectLink ? 1 : 0);
+  const [service, setService] = useState<ServiceType | null>(isDirectLink ? "hosting" : null);
+
+  // While waiting for /order/add/:id plan to load, show spinner
+  const [directLinkReady, setDirectLinkReady] = useState(!initialPackageId);
 
   // Groups & Plan
   const [selectedGroup,  setSelectedGroup]  = useState<ProductGroup | null>(null);
@@ -480,6 +495,32 @@ export default function NewOrder() {
     staleTime: 60_000,
   });
 
+  // ── Direct-link auto-selection effects ────────────────────────────────────
+
+  // /order/group/:id — pre-select the matching group once groups load
+  useEffect(() => {
+    if (!initialGroupId || groups.length === 0 || selectedGroup) return;
+    const grp = groups.find(g => g.id === initialGroupId);
+    if (grp) setSelectedGroup(grp);
+  }, [initialGroupId, groups, selectedGroup]);
+
+  // /order/add/:id — auto-select plan + yearly cycle + skip to domain step
+  useEffect(() => {
+    if (!initialPackageId || allPlans.length === 0 || selectedPlan) return;
+    const plan = allPlans.find(p => p.id === initialPackageId);
+    if (!plan) { setDirectLinkReady(true); return; }
+    const cycles = (["monthly","quarterly","semiannual","yearly"] as BillingCycle[])
+      .filter(c => planPrice(plan, c) > 0);
+    const cycle: BillingCycle = cycles.includes("yearly") ? "yearly" : (cycles[0] ?? "yearly");
+    setPendingPlan(plan);
+    setPendingCycle(cycle);
+    setSelectedPlan(plan);
+    setSelectedCycle(cycle);
+    addItem({ id: plan.id, name: plan.name, price: planPrice(plan, cycle), cycle });
+    setDirectLinkReady(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPackageId, allPlans]);
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   // Plans filtered by selected group
@@ -487,8 +528,8 @@ export default function NewOrder() {
     ? allPlans.filter(p => p.groupId === selectedGroup.id)
     : allPlans;
 
-  // Auto-select first group when groups load
-  if (groups.length > 0 && !selectedGroup && service === "hosting") {
+  // Auto-select first group when groups load (only when NOT using initialGroupId)
+  if (groups.length > 0 && !selectedGroup && service === "hosting" && !initialGroupId) {
     setSelectedGroup(groups[0]);
   }
 
@@ -697,10 +738,19 @@ export default function NewOrder() {
 
     return (
       <motion.div key="s1-host" {...fade}>
-        <button onClick={() => { setStep(0); setService(null); setPendingPlan(null); }}
-          className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
-          <ArrowLeft size={13}/> Back to services
-        </button>
+        {!isDirectLink && (
+          <button onClick={() => { setStep(0); setService(null); setPendingPlan(null); }}
+            className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
+            <ArrowLeft size={13}/> Back to services
+          </button>
+        )}
+        {initialGroupId && selectedGroup && (
+          <div className="mb-5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[12px] font-semibold border"
+            style={{ background: `${P}10`, border: `1px solid ${P}30`, color: P }}>
+            <Star size={11} fill={P} stroke="none"/>
+            Viewing: {selectedGroup.name}
+          </div>
+        )}
         <div className="text-center mb-7">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1.5">Choose Your Hosting Plan</h2>
           <p className="text-[14px] text-gray-500">Click a plan, then confirm your billing period below.</p>
@@ -1460,6 +1510,16 @@ export default function NewOrder() {
   // ─────────────────────────────────────────────────────────────────────────────
 
   const isFreeDom = freeDomainEligible && freeDomainClaimed;
+
+  // Direct-link: show spinner while plan is being fetched + auto-selected
+  if (!directLinkReady) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
+        <Loader2 size={36} className="animate-spin" style={{ color: P }}/>
+        <p className="text-[14px] text-gray-500">Loading your package…</p>
+      </div>
+    );
+  }
 
   return (
     <div className={showSidebar ? "pb-24 lg:pb-0" : ""}>

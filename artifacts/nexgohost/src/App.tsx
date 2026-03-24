@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, useParams, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -103,6 +103,19 @@ function ClientPage({ children }: { children: React.ReactNode }) {
   if (!user) return <Redirect to="/client/login" />;
   if (user.role !== "client") return <Forbidden requiredRole="client" attemptedPath={location} />;
   return <AppLayout role="client">{children}</AppLayout>;
+}
+
+// ─── Direct Order-Link wrappers ───────────────────────────────────────────────
+// /order/group/:groupId  — shows only plans in that group (like WHMCS ?gid=1)
+function OrderByGroup() {
+  const { groupId } = useParams<{ groupId: string }>();
+  return <CheckoutLayout><NewOrder initialGroupId={groupId}/></CheckoutLayout>;
+}
+
+// /order/add/:packageId  — auto-selects plan + skips to domain step (?pid=5)
+function OrderByPackage() {
+  const { packageId } = useParams<{ packageId: string }>();
+  return <CheckoutLayout><NewOrder initialPackageId={packageId}/></CheckoutLayout>;
 }
 
 // ─── Router Root ──────────────────────────────────────────────────────────────
@@ -264,6 +277,10 @@ function RouterRoot() {
       <Route path="/client/migrations">
         <ClientPage><ClientMigrations /></ClientPage>
       </Route>
+      {/* Direct order-link routes — like WHMCS ?gid=1 / ?pid=5 */}
+      <Route path="/order/group/:groupId" component={OrderByGroup}/>
+      <Route path="/order/add/:packageId" component={OrderByPackage}/>
+
       <Route path="/client/orders/new">
         <CheckoutLayout><NewOrder /></CheckoutLayout>
       </Route>
