@@ -1,5 +1,14 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 23)
+- **WHMCS Import — Tickets + Original Numbers**: Added Step 9 (Support Tickets) and hardened all number/date/status preservation:
+  - **Tickets**: `GetTickets` (paginated) + `GetTicket` per ticket for message replies. Preserves WHMCS `tid` as ticket_number, status (Open/Closed/Answered/Customer-Reply/On Hold), priority, department, dates, and all reply messages with admin/client sender role.
+  - **Original invoice numbers**: `buildInvoiceNumber()` uses WHMCS `invoicenum` if set, else `INV{id}` (zero-padded). Duplicate fallback appends `-W{id}`.
+  - **All dates preserved**: Registration, due, expiry, creation dates all exact from WHMCS — no new Date() fallbacks unless WHMCS returns null/0000-00-00.
+  - **All statuses preserved**: Services (Active/Suspended/Terminated/Pending), domains (Active/Expired/Redemption/Cancelled), invoices (Paid/Unpaid/Cancelled/Refunded/Collections), tickets (Open/Closed/Answered/Customer-Reply/On Hold).
+  - **9-step migration**: TLD Extensions → Hosting Plans → Servers → Clients → Hosting Services → Domains → Orders → Invoices → Tickets
+  - **Frontend**: Added `importTickets` option, Tickets counter in live progress grid, Tickets card in final results, updated preview to show ticket count.
+
 ## Recent Changes (Session 22)
 - **WHMCS Import System** — Full WHMCS-to-Nexgohost migration via API credentials:
   - **Backend** (`artifacts/api-server/src/routes/whmcsImport.ts`):
@@ -8,18 +17,14 @@
     - `POST /api/admin/whmcs/import` — Start async migration job (returns jobId)
     - `GET /api/admin/whmcs/import/:jobId/status` — Poll job progress + live logs
     - `GET /api/admin/whmcs/jobs` — List recent import jobs
-    - Full field mapping: WHMCS clients → users, products → hosting_plans, services → hosting_services, domains → domains, invoices → invoices, servers → servers
+    - Full field mapping: WHMCS clients → users, products → hosting_plans, services → hosting_services, domains → domains, invoices → invoices, servers → servers, tickets → tickets + ticket_messages
     - Pagination: fetches ALL records across multiple WHMCS API pages (250/page)
-    - Conflict handling: skip or update existing clients by email
-    - Imported clients get temp password `WhmcsMigrated@[whmcs_id]`
+    - Conflict handling: skip or update existing clients by email; onConflictDoNothing for tickets/messages
+    - Password: bcrypt $2y$ → $2b$ (same algorithm), MD5 stored as `whmcs_md5:hash` prefix
     - Status/billing cycle mapping: Active→active, Monthly→monthly, Paid→paid, etc.
   - **Frontend** (`artifacts/nexgohost/src/pages/admin/WhmcsImport.tsx`):
     - 5-step professional wizard: Connect → Preview → Configure → Import → Done
-    - Step 1: WHMCS URL + API Identifier + API Secret with show/hide toggle
-    - Step 2: Live preview of counts (clients, plans, services, domains, invoices)
-    - Step 3: Configure what to import + conflict handling options (checkboxes)
-    - Step 4: Live progress with animated counter cards + streaming log console
-    - Step 5: Full import summary with per-entity counts, log, temp-password notice
+    - 9 import steps: TLDs, Plans, Servers, Clients, Services, Domains, Orders, Invoices, Tickets
   - **Navigation**: Added "Migration" section to admin nav → "WHMCS Import" at `/admin/whmcs-import`
   - **App.tsx**: Added WhmcsImport import and route at `/admin/whmcs-import`
 

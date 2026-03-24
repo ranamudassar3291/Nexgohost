@@ -5,18 +5,18 @@ import {
   CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw,
   Server, Users, Globe, FileText, Package, ArrowRight,
   ArrowLeft, Link, Key, Eye, EyeOff, ClipboardList,
-  Shield, Zap, ChevronDown, ChevronUp, ShoppingCart, Tag,
+  Shield, Zap, ChevronDown, ChevronUp, ShoppingCart, Tag, MessageSquare,
 } from "lucide-react";
 
 interface Credentials { whmcsUrl: string; identifier: string; secret: string; }
 interface Preview {
   clients: number; plans: number; services: number; domains: number;
-  invoices: number; orders: number; extensions: number;
+  invoices: number; orders: number; extensions: number; tickets: number;
 }
 interface ImportResult {
   extensions: number; plans: number; servers: number; clients: number;
   services: number; domains: number; orders: number; invoices: number;
-  skipped: number; errors: number;
+  tickets: number; skipped: number; errors: number;
 }
 interface JobStatus {
   jobId: string; status: "running" | "completed" | "failed";
@@ -28,7 +28,7 @@ interface ImportOptions {
   importExtensions: boolean; importPlans: boolean; importServers: boolean;
   importClients: boolean; importPasswords: boolean; importServices: boolean;
   importDomains: boolean; importOrders: boolean; importInvoices: boolean;
-  skipExistingClients: boolean;
+  importTickets: boolean; skipExistingClients: boolean;
 }
 
 function StepBadge({ n, label, active, done }: { n: number; label: string; active: boolean; done: boolean }) {
@@ -98,7 +98,7 @@ export default function WhmcsImport() {
     importExtensions: true, importPlans: true, importServers: true,
     importClients: true, importPasswords: true, importServices: true,
     importDomains: true, importOrders: true, importInvoices: true,
-    skipExistingClients: true,
+    importTickets: true, skipExistingClients: true,
   });
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -159,8 +159,8 @@ export default function WhmcsImport() {
       setJobId(r.jobId);
       setJobStatus({
         jobId: r.jobId, status: "running", step: "Starting…", stepIndex: 0,
-        totalSteps: 8, current: 0, total: 0, logs: [],
-        result: { extensions: 0, plans: 0, servers: 0, clients: 0, services: 0, domains: 0, orders: 0, invoices: 0, skipped: 0, errors: 0 },
+        totalSteps: 9, current: 0, total: 0, logs: [],
+        result: { extensions: 0, plans: 0, servers: 0, clients: 0, services: 0, domains: 0, orders: 0, invoices: 0, tickets: 0, skipped: 0, errors: 0 },
         startedAt: new Date().toISOString(),
       });
       setStep(4);
@@ -175,8 +175,9 @@ export default function WhmcsImport() {
     { icon: Users,        label: "Clients",          value: preview.clients,    color: "text-blue-400",    bg: "bg-blue-500/10",    border: "border-blue-500/30" },
     { icon: Server,       label: "Hosting Services", value: preview.services,   color: "text-green-400",   bg: "bg-green-500/10",   border: "border-green-500/30" },
     { icon: Globe,        label: "Domains",          value: preview.domains,    color: "text-yellow-400",  bg: "bg-yellow-500/10",  border: "border-yellow-500/30" },
-    { icon: ShoppingCart, label: "Orders",           value: preview.orders,     color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-500/30" },
-    { icon: FileText,     label: "Invoices",         value: preview.invoices,   color: "text-pink-400",    bg: "bg-pink-500/10",    border: "border-pink-500/30" },
+    { icon: ShoppingCart,   label: "Orders",           value: preview.orders,   color: "text-orange-400",  bg: "bg-orange-500/10",  border: "border-orange-500/30" },
+    { icon: FileText,       label: "Invoices",         value: preview.invoices, color: "text-pink-400",    bg: "bg-pink-500/10",    border: "border-pink-500/30" },
+    { icon: MessageSquare,  label: "Tickets",          value: preview.tickets ?? 0,  color: "text-teal-400",    bg: "bg-teal-500/10",    border: "border-teal-500/30" },
   ] : [];
 
   return (
@@ -190,7 +191,7 @@ export default function WhmcsImport() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">WHMCS Full Migration</h1>
-            <p className="text-gray-400 text-sm">Import all WHMCS data — plans, clients, services, domains, orders, invoices — in one shot</p>
+            <p className="text-gray-400 text-sm">Import all WHMCS data — plans, clients, services, domains, orders, invoices, tickets — in one shot with original numbers & dates</p>
           </div>
         </div>
 
@@ -284,7 +285,8 @@ export default function WhmcsImport() {
                 { icon: Users,        title: "Clients",          desc: "Accounts with credit balances & original passwords" },
                 { icon: Server,       title: "Hosting Services", desc: "Active/suspended services with due dates & server assignment" },
                 { icon: Globe,        title: "Domains",          desc: "All domains with nameservers, expiry & due dates preserved" },
-                { icon: ShoppingCart, title: "Orders & Invoices", desc: "Complete order history, invoices with paid/unpaid status" },
+                { icon: ShoppingCart,  title: "Orders & Invoices", desc: "Complete order history, invoices with ORIGINAL invoice numbers" },
+                { icon: MessageSquare, title: "Support Tickets",   desc: "All tickets with messages, dates, status & original ticket IDs" },
               ].map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="bg-[#0f0f1a] border border-[#2a2a4a] rounded-xl p-3 flex gap-2">
                   <div className="p-1.5 bg-purple-600/20 rounded-lg h-fit"><Icon size={14} className="text-purple-400" /></div>
@@ -346,7 +348,8 @@ export default function WhmcsImport() {
                 { key: "importServices",   label: "Hosting Services",           desc: "Import all active/suspended/terminated services with due dates",          icon: Server },
                 { key: "importDomains",    label: "Domains",                    desc: "Import all domains with nameservers and expiry dates",                    icon: Globe },
                 { key: "importOrders",     label: "Orders",                     desc: "Import all orders and link to clients/services",                          icon: ShoppingCart },
-                { key: "importInvoices",   label: "Invoices",                   desc: "Import all invoices with paid/unpaid status and due dates",               icon: FileText },
+                { key: "importInvoices",   label: "Invoices",                   desc: "Import invoices with ORIGINAL WHMCS invoice numbers, paid/unpaid status", icon: FileText },
+                { key: "importTickets",    label: "Support Tickets",            desc: "Import all tickets with messages, replies, dates, status & ticket IDs",    icon: MessageSquare },
               ] as const).map(({ key, label, desc, icon: Icon }) => (
                 <label key={key} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${options[key] ? "border-purple-500/50 bg-purple-500/5" : "border-[#2a2a4a] bg-[#0f0f1a]"}`}>
                   <input type="checkbox" checked={options[key]} onChange={e => setOptions(o => ({ ...o, [key]: e.target.checked }))} className="accent-purple-500 w-4 h-4" />
@@ -418,6 +421,7 @@ export default function WhmcsImport() {
                 { l: "Domains",  v: jobStatus.result.domains },
                 { l: "Orders",   v: jobStatus.result.orders },
                 { l: "Invoices", v: jobStatus.result.invoices },
+                { l: "Tickets",  v: jobStatus.result.tickets },
                 { l: "Errors",   v: jobStatus.result.errors },
               ].map(({ l, v }) => (
                 <div key={l} className="bg-[#0f0f1a] border border-[#2a2a4a] rounded-lg p-2 text-center">
@@ -482,7 +486,8 @@ export default function WhmcsImport() {
                 { icon: Server,       label: "Services",         value: jobStatus.result.services,   color: "text-green-400" },
                 { icon: Globe,        label: "Domains",          value: jobStatus.result.domains,    color: "text-yellow-400" },
                 { icon: ShoppingCart, label: "Orders",           value: jobStatus.result.orders,     color: "text-orange-400" },
-                { icon: FileText,     label: "Invoices",         value: jobStatus.result.invoices,   color: "text-pink-400" },
+                { icon: FileText,      label: "Invoices",  value: jobStatus.result.invoices, color: "text-pink-400" },
+                { icon: MessageSquare, label: "Tickets",   value: jobStatus.result.tickets,  color: "text-teal-400" },
               ].map(({ icon: Icon, label, value, color }) => (
                 <div key={label} className="bg-[#0f0f1a] border border-[#2a2a4a] rounded-xl p-3">
                   <div className={`flex items-center gap-1.5 text-xs font-medium ${color} mb-1`}>
