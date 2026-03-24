@@ -8,6 +8,7 @@ import { CartProvider } from "@/context/CartContext";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { CheckoutLayout } from "@/components/layout/CheckoutLayout";
 import NotFound from "@/pages/not-found";
 import Forbidden from "@/pages/errors/Forbidden";
 
@@ -264,7 +265,7 @@ function RouterRoot() {
         <ClientPage><ClientMigrations /></ClientPage>
       </Route>
       <Route path="/client/orders/new">
-        <ClientPage><NewOrder /></ClientPage>
+        <CheckoutLayout><NewOrder /></CheckoutLayout>
       </Route>
       <Route path="/client/orders">
         <ClientPage><ClientOrders /></ClientPage>
