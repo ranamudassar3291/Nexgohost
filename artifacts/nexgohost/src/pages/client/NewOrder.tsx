@@ -469,6 +469,17 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   const freeDomainEligible = !!selectedPlan?.freeDomainEnabled && selectedCycle === "yearly";
   const [freeDomainClaimed, setFreeDomainClaimed] = useState(false);
 
+  // Force-free domain: compute TLD eligibility independent of the "claim" UI flow
+  const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+  const _planFreeTlds: string[] = (selectedPlan as any)?.freeDomainTlds?.length
+    ? (selectedPlan as any).freeDomainTlds
+    : DEFAULT_FREE_TLDS;
+  const _cartDomTld = cartDomain?.fullName?.includes(".")
+    ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")).toLowerCase()
+    : "";
+  // isDomForceFree: true whenever plan+cycle+TLD all qualify — regardless of UI claim flow
+  const isDomForceFree = freeDomainEligible && cartDomain?.mode === "register" && !!_cartDomTld && _planFreeTlds.includes(_cartDomTld);
+
   // Domain
   const [domainMode,  setDomainMode]  = useState<DomainMode>(null);
   const [domainQ,     setDomainQ]     = useState("");
@@ -583,7 +594,9 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // Step completion gates
   const step1Complete = !!pendingPlan;
   const step2Complete = domainMode !== null;
-  const step3Complete = !!paymentMethodId && (!!selectedPlan || !!cartDomain);
+  const _step3Total = Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) - promoDiscount);
+  const _walletSufficient = paymentMethodId !== "credits" || creditBalance >= _step3Total;
+  const step3Complete = !!paymentMethodId && (!!selectedPlan || !!cartDomain) && _walletSufficient;
   const activeCycle   = step >= 2 ? selectedCycle : pendingCycle;
   // Show sidebar whenever there's something to show: hosting plan selected or domain in cart
   const showSidebar   = (step >= 1 && service === "hosting") || step === 3;
@@ -679,8 +692,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
     setPromoDiscount(0);
     try {
       const planAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
-      const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
-      const domAmt = isDomFree ? 0 : (cartDomain?.price ?? 0);
+      const domAmt = isDomForceFree ? 0 : (cartDomain?.price ?? 0);
       const amount = planAmt + domAmt;
       const params = new URLSearchParams({ code: promoCode.trim(), amount: String(amount), serviceType: "hosting" });
       if (selectedPlan?.groupId) params.set("groupId", selectedPlan.groupId);
@@ -717,8 +729,8 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
         body.domain         = cartDomain.fullName;
         body.registerDomain = cartDomain.mode === "register";
         body.transferDomain = cartDomain.mode === "transfer";
-        body.freeDomain     = freeDomainEligible && freeDomainClaimed;
-        body.domainAmount   = freeDomainEligible && freeDomainClaimed ? 0 : cartDomain.price;
+        body.freeDomain     = isDomForceFree;
+        body.domainAmount   = isDomForceFree ? 0 : cartDomain.price;
         if (cartDomain.mode === "transfer" && eppCode.trim()) body.eppCode = eppCode.trim();
       }
 
@@ -927,12 +939,18 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                           <Gift size={11}/> Free domain with Yearly
                         </div>
                       )}
-                      {plan.saveAmount && plan.saveAmount > 0 && (
-                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white w-fit"
-                          style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
-                          Save {formatPrice(plan.saveAmount)}
-                        </div>
-                      )}
+                      {(() => {
+                        const manualSave = (plan as any).saveAmount;
+                        const yearlyP = planPrice(plan, "yearly");
+                        const autoSave = (plan.price > 0 && yearlyP > 0) ? (plan.price * 12) - yearlyP : 0;
+                        const displaySave = manualSave > 0 ? Number(manualSave) : autoSave;
+                        return displaySave > 0 ? (
+                          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white w-fit"
+                            style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
+                            Save {formatPrice(displaySave)}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                     <div className="flex items-end gap-1 mt-3">
                       <span className="text-[38px] font-extrabold text-gray-900 leading-none">{formatPrice(monthly)}</span>
@@ -1587,7 +1605,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
 
   function renderStep3() {
     const planAmt   = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
-    const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
+    const isDomFree = isDomForceFree;
     const domAmt    = isDomFree ? 0 : (cartDomain?.price ?? 0);
     const subtotal  = planAmt + domAmt;
     const total     = Math.max(0, subtotal - promoDiscount);
@@ -1622,6 +1640,19 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                         <RefreshCw size={10}/> Renews at {formatPrice(renewAt)}/year
                       </p>
                     )}
+                    {(() => {
+                      const saveAmt = (selectedPlan as any).saveAmount > 0
+                        ? Number((selectedPlan as any).saveAmount)
+                        : selectedCycle === "yearly" && selectedPlan.price > 0
+                          ? (selectedPlan.price * 12) - planAmt
+                          : 0;
+                      return saveAmt > 0 ? (
+                        <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-lg text-[10.5px] font-bold text-white"
+                          style={{ background: "linear-gradient(135deg,#f59e0b,#d97706)" }}>
+                          🎉 You save {formatPrice(saveAmt)}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="text-right shrink-0 ml-4">
                     <p className="text-[16px] font-extrabold text-gray-900">{formatPrice(planAmt)}</p>
@@ -1721,46 +1752,61 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
               <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Payment Method</span>
             </div>
             <div className="p-4 space-y-3">
-              {/* Pay via Wallet — shown when user has sufficient balance */}
-              {creditBalance > 0 && (
-                <button
-                  onClick={() => setPaymentMethodId(paymentMethodId === "credits" ? null : "credits")}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
-                  style={paymentMethodId === "credits"
-                    ? { borderColor: P, background: `${P}07` }
-                    : { borderColor: "#E5E7EB", background: "#fff" }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: paymentMethodId === "credits" ? `${P}15` : "#F3F4F6" }}>
-                    <Wallet size={18} style={{ color: P }}/>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[13px] font-bold text-gray-900">Pay via Wallet</p>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border text-white" style={{ background: P, borderColor: P }}>
-                        INSTANT
-                      </span>
-                    </div>
-                    {(() => {
-                      const planAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
-                      const isDomFree = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
-                      const domAmt = isDomFree ? 0 : (cartDomain?.price ?? 0);
-                      const total = planAmt + domAmt;
-                      const hasSufficient = creditBalance >= total;
-                      return (
-                        <p className="text-[11px] mt-0.5" style={{ color: hasSufficient ? "#16a34a" : "#dc2626" }}>
-                          {hasSufficient
-                            ? `Balance: ${formatPrice(creditBalance)} — enough to cover this order`
-                            : `Balance: ${formatPrice(creditBalance)} — insufficient for this order (${formatPrice(total)} required)`}
+              {/* Pay via Wallet */}
+              {(() => {
+                const _walletPlanAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
+                const _walletDomAmt  = isDomForceFree ? 0 : (cartDomain?.price ?? 0);
+                const _walletTotal   = Math.max(0, _walletPlanAmt + _walletDomAmt - promoDiscount);
+                const hasSufficient  = creditBalance >= _walletTotal;
+                const showWallet     = creditBalance > 0 || true; // always show wallet option
+                return showWallet ? (
+                  <div>
+                    <button
+                      onClick={() => {
+                        if (!hasSufficient && _walletTotal > 0) return;
+                        setPaymentMethodId(paymentMethodId === "credits" ? null : "credits");
+                      }}
+                      disabled={!hasSufficient && _walletTotal > 0}
+                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none disabled:cursor-not-allowed"
+                      style={paymentMethodId === "credits"
+                        ? { borderColor: P, background: `${P}07` }
+                        : hasSufficient || _walletTotal === 0
+                          ? { borderColor: "#E5E7EB", background: "#fff" }
+                          : { borderColor: "#E5E7EB", background: "#F9FAFB", opacity: 0.75 }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: paymentMethodId === "credits" ? `${P}15` : "#F3F4F6" }}>
+                        <Wallet size={18} style={{ color: paymentMethodId === "credits" ? P : "#6B7280" }}/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-bold text-gray-900">Pay with Wallet Balance</p>
+                          {hasSufficient && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: P }}>INSTANT</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] mt-0.5 font-semibold" style={{ color: creditBalance > 0 ? (hasSufficient ? "#16a34a" : "#dc2626") : "#6B7280" }}>
+                          {creditBalance > 0 ? `${formatPrice(creditBalance)} available` : "Rs. 0 available"}
+                          {!hasSufficient && _walletTotal > 0 && ` — need ${formatPrice(_walletTotal - creditBalance)} more`}
                         </p>
-                      );
-                    })()}
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${paymentMethodId === "credits" ? "" : "border-gray-300"}`}
+                        style={paymentMethodId === "credits" ? { background: P, borderColor: P } : {}}>
+                        {paymentMethodId === "credits" && <Check size={10} strokeWidth={3} className="text-white"/>}
+                      </div>
+                    </button>
+                    {!hasSufficient && _walletTotal > 0 && (
+                      <div className="mt-2 flex items-center gap-2 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                        <AlertCircle size={12} className="shrink-0"/>
+                        Insufficient balance.{" "}
+                        <a href="/client/billing" className="underline font-semibold hover:text-amber-900" onClick={e => { e.preventDefault(); setLocation("/client/billing"); }}>
+                          Add Funds
+                        </a>
+                        {" "}to use wallet payment.
+                      </div>
+                    )}
                   </div>
-                  <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${paymentMethodId === "credits" ? "" : "border-gray-300"}`}
-                    style={paymentMethodId === "credits" ? { background: P, borderColor: P } : {}}>
-                    {paymentMethodId === "credits" && <Check size={10} strokeWidth={3} className="text-white"/>}
-                  </div>
-                </button>
-              )}
+                ) : null;
+              })()}
 
               {paymentMethods.length === 0 && creditBalance === 0 ? (
                 <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-700">
@@ -1831,7 +1877,7 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
   // Root render
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const isFreeDom = freeDomainEligible && freeDomainClaimed && cartDomain?.mode === "register" && cartDomain?.price === 0;
+  const isFreeDom = isDomForceFree;
 
   // Direct-link: show spinner while plan is being fetched + auto-selected
   if (!directLinkReady) {
