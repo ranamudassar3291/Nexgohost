@@ -108,8 +108,8 @@ function ClientPage({ children }: { children: React.ReactNode }) {
 // ─── Direct Order-Link wrappers ───────────────────────────────────────────────
 // /order/group/:groupId  — shows only plans in that group (like WHMCS ?gid=1)
 // /order/add/:packageId  — auto-selects plan + skips to domain step (?pid=5)
-// Both are publicly accessible (allowGuest=true) — auth is only required when
-// the user actually submits the order (enforced by the API).
+// /order/config/index.php?pid=ID — WHMCS-style clean link (reads ?pid query param)
+// All are publicly accessible (allowGuest=true) — auth only required at submit.
 function OrderByGroup() {
   const { groupId } = useParams<{ groupId: string }>();
   return <CheckoutLayout allowGuest><NewOrder initialGroupId={groupId}/></CheckoutLayout>;
@@ -118,6 +118,12 @@ function OrderByGroup() {
 function OrderByPackage() {
   const { packageId } = useParams<{ packageId: string }>();
   return <CheckoutLayout allowGuest><NewOrder initialPackageId={packageId}/></CheckoutLayout>;
+}
+
+// WHMCS-style: /order/config/index.php?pid=UUID
+function OrderByPid() {
+  const pid = new URLSearchParams(window.location.search).get("pid") ?? "";
+  return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
 }
 
 // ─── Router Root ──────────────────────────────────────────────────────────────
@@ -282,6 +288,8 @@ function RouterRoot() {
       {/* Direct order-link routes — like WHMCS ?gid=1 / ?pid=5 */}
       <Route path="/order/group/:groupId" component={OrderByGroup}/>
       <Route path="/order/add/:packageId" component={OrderByPackage}/>
+      {/* WHMCS-style clean URL: /order/config/index.php?pid=UUID */}
+      <Route path="/order/config/index.php" component={OrderByPid}/>
 
       <Route path="/client/orders/new">
         <CheckoutLayout><NewOrder /></CheckoutLayout>

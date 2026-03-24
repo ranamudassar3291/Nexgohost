@@ -1237,60 +1237,86 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
           </div>
         </div>
 
-        {/* Free domain banner */}
-        {freeDomainEligible && (
-          <motion.div {...slideUp}
-            className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 mb-6 rounded-2xl border-2 border-green-300 bg-gradient-to-r from-green-50 to-emerald-50">
-            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-              <Gift size={20} className="text-green-600"/>
-            </div>
-            <div className="flex-1">
-              <p className="text-[14px] font-bold text-green-800">🎉 Congratulations! You qualify for a FREE domain!</p>
-              <p className="text-[12px] text-green-600 mt-0.5">
-                Your yearly plan includes one free domain registration.
-                {selectedPlan?.freeDomainTlds && selectedPlan.freeDomainTlds.length > 0
-                  ? ` Available extensions: ${selectedPlan.freeDomainTlds.join(", ")}`
-                  : " Choose from our available extensions below."}
-              </p>
-            </div>
-            <button
-              onClick={() => { setFreeDomainClaimed(true); setDomainMode("register"); setDomResults(null); }}
-              className="shrink-0 px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all"
-              style={{ background: "#16a34a" }}>
-              Claim Free Domain
-            </button>
-          </motion.div>
-        )}
-
-        {/* Don't claim — option later */}
-        {freeDomainEligible && !freeDomainClaimed && (
-          <p className="text-[12px] text-gray-400 mb-5">
-            Not ready? You can claim your free domain from the <span className="font-semibold text-gray-600">Client Dashboard → My Domains</span> section later.
-          </p>
-        )}
-
         <div className="text-center mb-7">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1.5">Domain Setup</h2>
           <p className="text-[14px] text-gray-500">Choose how to connect a domain to your hosting plan.</p>
         </div>
 
-        {/* Option cards */}
+        {/* Option cards — free domain-aware */}
         {!domainMode && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-            {[
-              { mode: "register" as DomainMode, icon: <Search size={18} style={{ color: P }}/>, title: freeDomainClaimed ? "Claim Free Domain" : "Register New Domain", desc: freeDomainClaimed ? "Search & claim your FREE domain." : "Search and register a new domain." },
-              { mode: "transfer" as DomainMode, icon: <ArrowRightLeft size={18} style={{ color: P }}/>, title: "Transfer Domain", desc: "Move an existing domain with EPP code." },
-              { mode: "existing" as DomainMode, icon: <Globe size={18} style={{ color: P }}/>, title: "Use Existing Domain", desc: "I already own a domain — I'll update nameservers." },
-            ].map(opt => (
-              <button key={opt.mode as string} onClick={() => setDomainMode(opt.mode)}
-                className="text-left bg-white border border-gray-200 rounded-2xl p-5 transition-all focus:outline-none"
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = P; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 16px rgba(112,26,254,0.10)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: "rgba(112,26,254,0.08)" }}>{opt.icon}</div>
-                <h3 className="text-[14px] font-bold text-gray-900 mb-1">{opt.title}</h3>
-                <p className="text-[12px] text-gray-500 leading-relaxed">{opt.desc}</p>
+          <div className={`grid grid-cols-1 gap-3 mb-5 ${freeDomainEligible ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+            {/* Free domain card — only when eligible */}
+            {freeDomainEligible && (
+              <button
+                onClick={() => { setFreeDomainClaimed(true); setDomainMode("register"); setDomResults(null); }}
+                className="text-left rounded-2xl p-5 transition-all focus:outline-none col-span-1 sm:col-span-2 border-2"
+                style={{ background: "linear-gradient(135deg,#f0fdf4,#dcfce7)", borderColor: "#16a34a" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px rgba(22,163,74,0.18)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ""; }}>
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                    <Gift size={22} className="text-green-600"/>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-[15px] font-extrabold text-green-900">🎁 Claim My Free Domain</h3>
+                      <span className="text-[10px] font-bold text-white bg-green-600 px-2 py-0.5 rounded-full">FREE</span>
+                    </div>
+                    <p className="text-[12.5px] text-green-700 leading-relaxed">
+                      Your yearly plan includes one free domain registration.
+                      {selectedPlan?.freeDomainTlds && selectedPlan.freeDomainTlds.length > 0
+                        ? ` Available extensions: ${selectedPlan.freeDomainTlds.join(", ")}`
+                        : " Choose any available extension below."}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-[20px] font-extrabold text-green-600">FREE</span>
+                    <p className="text-[10px] text-green-500">1st year included</p>
+                  </div>
+                </div>
               </button>
-            ))}
+            )}
+
+            {/* Register with payment */}
+            <button
+              onClick={() => { setFreeDomainClaimed(false); setDomainMode("register"); setDomResults(null); }}
+              className="text-left bg-white border border-gray-200 rounded-2xl p-5 transition-all focus:outline-none"
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = P; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 16px rgba(112,26,254,0.10)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: "rgba(112,26,254,0.08)" }}>
+                <Search size={18} style={{ color: P }}/>
+              </div>
+              <h3 className="text-[14px] font-bold text-gray-900 mb-1">Register New Domain</h3>
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                {freeDomainEligible ? "Pay & register a different domain (keep free domain for later)." : "Search and register a new domain."}
+              </p>
+            </button>
+
+            {/* Transfer */}
+            <button
+              onClick={() => setDomainMode("transfer")}
+              className="text-left bg-white border border-gray-200 rounded-2xl p-5 transition-all focus:outline-none"
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = P; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 16px rgba(112,26,254,0.10)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: "rgba(112,26,254,0.08)" }}>
+                <ArrowRightLeft size={18} style={{ color: P }}/>
+              </div>
+              <h3 className="text-[14px] font-bold text-gray-900 mb-1">Transfer Domain</h3>
+              <p className="text-[12px] text-gray-500 leading-relaxed">Move an existing domain with EPP code.</p>
+            </button>
+
+            {/* Use existing */}
+            <button
+              onClick={() => setDomainMode("existing")}
+              className="text-left bg-white border border-gray-200 rounded-2xl p-5 transition-all focus:outline-none"
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = P; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 16px rgba(112,26,254,0.10)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: "rgba(112,26,254,0.08)" }}>
+                <Globe size={18} style={{ color: P }}/>
+              </div>
+              <h3 className="text-[14px] font-bold text-gray-900 mb-1">Use Existing Domain</h3>
+              <p className="text-[12px] text-gray-500 leading-relaxed">I already own a domain — I'll update nameservers.</p>
+            </button>
           </div>
         )}
 
@@ -1298,15 +1324,22 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
           {/* Register / Free domain search */}
           {domainMode === "register" && (
             <motion.div key="reg" {...fade} className="max-w-xl">
-              <button onClick={() => { setDomainMode(null); setDomResults(null); }}
+              <button onClick={() => { setDomainMode(null); setDomResults(null); setFreeDomainClaimed(false); }}
                 className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-gray-700 mb-4 font-medium transition-colors">
                 <ArrowLeft size={13}/> Change option
               </button>
-              {freeDomainClaimed && (
+              {freeDomainClaimed ? (
                 <div className="flex items-center gap-2 p-3 mb-4 bg-green-50 border border-green-200 rounded-xl text-[12.5px] font-semibold text-green-700">
-                  <Gift size={14}/> Free domain will be applied at no charge!
+                  <Gift size={14}/> Free domain — search below to claim it at no charge!
+                  {selectedPlan?.freeDomainTlds && selectedPlan.freeDomainTlds.length > 0 && (
+                    <span className="ml-1 text-green-600 font-normal">Eligible: {selectedPlan.freeDomainTlds.join(", ")}</span>
+                  )}
                 </div>
-              )}
+              ) : freeDomainEligible ? (
+                <div className="flex items-center gap-2 p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-700">
+                  <Gift size={14} className="shrink-0"/> Your free domain slot is saved for later — you are paying for this registration.
+                </div>
+              ) : null}
               <form onSubmit={e => { e.preventDefault(); checkDomain(); }} className="flex flex-col sm:flex-row gap-2 mb-5">
                 <div className="relative flex-1">
                   <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
@@ -1318,54 +1351,66 @@ export default function NewOrder({ initialGroupId, initialPackageId }: NewOrderP
                 </div>
                 <button type="submit" disabled={domChecking || !domainQ.trim()}
                   className="w-full sm:w-auto px-5 py-3 text-white rounded-xl text-[13px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
-                  style={{ background: P }}>
+                  style={{ background: freeDomainClaimed ? "#16a34a" : P }}>
                   {domChecking ? <Loader2 size={14} className="animate-spin"/> : <Search size={14}/>} Check
                 </button>
               </form>
               {domError && <p className="text-[13px] text-red-500 mb-3 flex items-center gap-1.5"><AlertCircle size={13}/> {domError}</p>}
-              {domChecking && <div className="text-center py-6"><Loader2 size={20} className="animate-spin" style={{ color: P }}/></div>}
-              {domResults && !domChecking && (
-                <div className="space-y-2">
-                  {domResults.filter(r => r.registrationPrice > 0).slice(0, 7).map(r => {
-                    const isFreeExt = freeDomainClaimed && (
-                      !selectedPlan?.freeDomainTlds?.length || selectedPlan.freeDomainTlds.includes(r.tld)
-                    );
-                    return (
-                      <div key={r.tld}
-                        className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
-                          r.available ? "border-gray-200 hover:border-[#701AFE]/30" : "opacity-45 border-gray-100"
-                        }`}>
-                        <div className="flex items-center gap-0.5 flex-1 min-w-0">
-                          <span className="text-[14px] font-bold text-gray-900">{searched}</span>
-                          <span className="text-[14px] font-bold" style={{ color: P }}>{r.tld}</span>
-                        </div>
-                        <div className="shrink-0">
-                          {r.available
-                            ? <span className="flex items-center gap-1 text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><Check size={10} strokeWidth={2.5}/> Available</span>
-                            : <span className="text-[11px] font-bold text-red-400 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Taken</span>}
-                        </div>
-                        <div className="flex items-center gap-2.5 shrink-0">
-                          <div className="text-right">
-                            {isFreeExt
-                              ? <p className="text-[13px] font-extrabold text-green-600">FREE</p>
-                              : <p className="text-[13px] font-extrabold">{formatPrice(r.registrationPrice)}/yr</p>}
-                            <p className="text-[10px] text-gray-400">Renews {formatPrice(r.renewalPrice)}/yr</p>
+              {domChecking && <div className="text-center py-6"><Loader2 size={20} className="animate-spin" style={{ color: freeDomainClaimed ? "#16a34a" : P }}/></div>}
+              {domResults && !domChecking && (() => {
+                const freeTlds = selectedPlan?.freeDomainTlds ?? [];
+                const allResults = domResults.filter(r => r.registrationPrice > 0);
+                const visibleResults = freeDomainClaimed && freeTlds.length > 0
+                  ? allResults.filter(r => freeTlds.includes(r.tld))
+                  : allResults.slice(0, 8);
+                return (
+                  <div className="space-y-2">
+                    {visibleResults.length === 0 && (
+                      <p className="text-[13px] text-gray-400 text-center py-4">
+                        No results for the eligible extensions ({freeTlds.join(", ")}). Try a different name.
+                      </p>
+                    )}
+                    {visibleResults.map(r => {
+                      const isFreeExt = freeDomainClaimed && (freeTlds.length === 0 || freeTlds.includes(r.tld));
+                      return (
+                        <div key={r.tld}
+                          className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
+                            r.available
+                              ? isFreeExt ? "border-green-200 hover:border-green-400" : "border-gray-200 hover:border-[#701AFE]/30"
+                              : "opacity-45 border-gray-100"
+                          }`}>
+                          <div className="flex items-center gap-0.5 flex-1 min-w-0">
+                            <span className="text-[14px] font-bold text-gray-900">{searched}</span>
+                            <span className="text-[14px] font-bold" style={{ color: isFreeExt ? "#16a34a" : P }}>{r.tld}</span>
                           </div>
-                          {r.available && (
-                            <button
-                              onClick={() => { selectDomain(`${searched}${r.tld}`, isFreeExt ? 0 : r.registrationPrice, "register"); setStep(3); }}
-                              className="px-3.5 py-1.5 text-white text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90"
-                              style={{ background: isFreeExt ? "#16a34a" : P }}>
-                              {isFreeExt ? <Gift size={11}/> : <ShoppingCart size={11}/>}
-                              {isFreeExt ? "Claim Free" : "Select"}
-                            </button>
-                          )}
+                          <div className="shrink-0">
+                            {r.available
+                              ? <span className="flex items-center gap-1 text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><Check size={10} strokeWidth={2.5}/> Available</span>
+                              : <span className="text-[11px] font-bold text-red-400 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Taken</span>}
+                          </div>
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <div className="text-right">
+                              {isFreeExt
+                                ? <p className="text-[13px] font-extrabold text-green-600">FREE</p>
+                                : <p className="text-[13px] font-extrabold">{formatPrice(r.registrationPrice)}/yr</p>}
+                              <p className="text-[10px] text-gray-400">Renews {formatPrice(r.renewalPrice)}/yr</p>
+                            </div>
+                            {r.available && (
+                              <button
+                                onClick={() => { selectDomain(`${searched}${r.tld}`, isFreeExt ? 0 : r.registrationPrice, "register"); setStep(3); }}
+                                className="px-3.5 py-1.5 text-white text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90"
+                                style={{ background: isFreeExt ? "#16a34a" : P }}>
+                                {isFreeExt ? <Gift size={11}/> : <ShoppingCart size={11}/>}
+                                {isFreeExt ? "Claim Free" : "Select"}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </motion.div>
           )}
 
