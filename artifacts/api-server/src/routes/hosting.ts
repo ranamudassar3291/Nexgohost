@@ -1456,13 +1456,14 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
     //   Path 3 (Dev):    Simulation with step-by-step delays
     // It writes the final status (active | failed) + any error message to the DB
     // before returning.  We then re-read the row to build the response.
-    await provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCfg);
+    const { insid } = await provisionWordPress(id, service.domain, siteTitle, wpUser, wpPass, wpEmail, installPath, cpanelCfg);
 
     // Re-read the updated row — provisionWordPress wrote the definitive state
     const [updated] = await db.select().from(hostingServicesTable)
       .where(eq(hostingServicesTable.id, id)).limit(1);
 
     if (!updated || updated.wpProvisionStatus === "failed") {
+      // Return the EXACT error from Softaculous/provisioner — not a generic 500
       const errorMsg = (updated as any)?.wpProvisionError || "Installation failed — no further details available.";
       console.error(`[WP] Install returned failed status for ${id}: ${errorMsg}`);
       return res.status(500).json({
@@ -1472,7 +1473,9 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
     }
 
     // ── All steps succeeded — return credentials ──────────────────────────────
-    console.log(`[WP] Install completed successfully for ${id}`);
+    // insid is the Softaculous Installation ID (if installed via Softaculous).
+    // The AI Website Builder button uses this to link directly to the WP admin.
+    console.log(`[WP] Install completed successfully for ${id}${insid ? ` (Softaculous insid=${insid})` : ""}`);
     return res.json({
       success: true,
       installed: true,
@@ -1484,6 +1487,7 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
         siteTitle:   updated.wpSiteTitle,
         installPath: updated.wpInstallPath,
         dbName:      updated.wpDbName,
+        ...(insid && { insid }),    // Softaculous Installation ID — use for AI Builder auto-login
       },
     });
 

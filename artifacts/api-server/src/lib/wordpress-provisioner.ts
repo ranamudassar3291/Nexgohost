@@ -223,26 +223,26 @@ export async function provisionWordPress(
   wpEmail:     string,
   installPath: string = "/",
   cpanelCfg:   { server: CpanelServerConfig; cpanelUser: string; cpanelApiToken?: string; cpanelPassword?: string } | null = null,
-) {
+): Promise<{ insid?: string }> {
   try {
     // ── Path 1: cPanel / WHM server ──────────────────────────────────────────
     if (cpanelCfg) {
-      const authMode = cpanelCfg.cpanelApiToken ? "API Token" : cpanelCfg.cpanelPassword ? "Password/Basic Auth" : "WHM session";
+      const authMode = cpanelCfg.cpanelApiToken ? "API Token" : cpanelCfg.cpanelPassword ? "Password/Basic Auth" : "none";
       console.log(`[WP] Using cPanel path for service ${serviceId} (user: ${cpanelCfg.cpanelUser}, auth: ${authMode})`);
-      await cpanelProvisionWordPress(cpanelCfg.server, {
+      const result = await cpanelProvisionWordPress(cpanelCfg.server, {
         serviceId, domain, cpanelUser: cpanelCfg.cpanelUser,
         siteTitle, wpAdmin: wpUser, wpPass, wpEmail, installPath,
         cpanelApiToken: cpanelCfg.cpanelApiToken,
         cpanelPassword: cpanelCfg.cpanelPassword,
       });
-      return;
+      return { insid: result.insid };
     }
 
     // ── Path 2: VPS-direct (MySQL on localhost) ───────────────────────────────
     const mysqlOk = await isMysqlReachable();
     if (mysqlOk) {
       await vpsProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
-      return;
+      return {};
     }
 
     // ── Path 3: Simulation mode (dev / Replit — no MySQL, no cPanel) ──────────
@@ -252,6 +252,7 @@ export async function provisionWordPress(
       `     For cPanel/WHM pass the server config through the install endpoint.`
     );
     await simulateProvision(serviceId, domain, siteTitle, wpUser, wpPass, wpEmail, installPath);
+    return {};
   } catch (err: any) {
     const msg = err?.message || "Unknown error during WordPress provisioning";
     console.error(`[WP] Provisioning failed for ${serviceId}:`, msg);
@@ -261,6 +262,7 @@ export async function provisionWordPress(
       wpProvisionError:  msg,
       updatedAt:         new Date(),
     }).where(eq(hostingServicesTable.id, serviceId));
+    return {};
   }
 }
 

@@ -214,38 +214,117 @@ echo json_encode(['ok'=>true,'log'=>$log]);
 export async function cpanelProvisionWordPress(
   server: CpanelServerConfig,
   opts: CpanelWpInstallOptions,
-): Promise<void> {
+): Promise<{ insid?: string }> {
   const {
     serviceId, domain, cpanelUser, siteTitle, wpAdmin, wpPass, wpEmail, installPath,
     cpanelApiToken, cpanelPassword,
   } = opts;
 
-  // Resolve public_html path on the cPanel server
   const subPath    = installPath === "/" ? "" : `/${installPath.replace(/^\//, "")}`;
   const publicHtml = `/home/${cpanelUser}/public_html${subPath}`;
   const wpUrl      = installPath === "/" ? `https://${domain}` : `https://${domain}${subPath}`;
   const adminUrl   = `${wpUrl}/wp-admin`;
 
-  // Unique suffix for DB names
-  const uid     = `${Date.now().toString().slice(-6)}${Math.random().toString(36).substring(2, 5)}`;
-  const dbName  = cpanelDbName(cpanelUser, `wp${uid}`);
-  const dbUser  = cpanelDbUser(cpanelUser, `wu${uid}`);
-  const dbPass  = generateWpPassword();
-  const dbHost  = "localhost";
+  // ── Uniform DB credentials (user requirement) ──────────────────────────────
+  // The same admin_username and admin_pass from the form are used for BOTH
+  // the WordPress admin account AND the MySQL database user.
+  //
+  // softdb format: first 5 chars of wpAdmin + 2-digit random number (10–99)
+  //   e.g. wpAdmin="admin01" → softdb="admin37"
+  //   cPanel will automatically prefix it with "${cpanelUser}_" when storing.
+  //
+  // dbusername = wpAdmin  (short name — cPanel prefixes it automatically)
+  // dbuserpasswd = wpPass (same password used for MySQL user and WP admin)
+  const dbSuffix    = `${wpAdmin.substring(0, 5)}${Math.floor(Math.random() * 90 + 10)}`;
+  const shortDbUser = wpAdmin;
+  const dbPass      = wpPass;       // uniform: same password for WP admin + MySQL user
+  const dbHost      = "localhost";
+
+  // Full prefixed names — only needed if Softaculous fails and we create the DB manually via UAPI
+  const dbNameFull  = cpanelDbName(cpanelUser, dbSuffix);
+  const dbUserFull  = cpanelDbUser(cpanelUser, shortDbUser);
 
   console.log(`[CP-WP] ── cPanel WP provisioning ──────────────────────────────`);
-  console.log(`[CP-WP] Service:    ${serviceId}`);
+  console.log(`[CP-WP] Service:     ${serviceId}`);
   console.log(`[CP-WP] cPanel user: ${cpanelUser}  /  Domain: ${domain}`);
-  console.log(`[CP-WP] DB: name=${dbName}  user=${dbUser}`);
-  console.log(`[CP-WP] WHM: ${server.hostname}:${server.port}`);
+  console.log(`[CP-WP] softdb:      ${dbSuffix} (cPanel will store as ${cpanelUser}_${dbSuffix})`);
+  console.log(`[CP-WP] dbusername:  ${shortDbUser} (uniform credentials — same as WP admin user)`);
+  console.log(`[CP-WP] Auth:        ${cpanelApiToken ? "cPanel API Token" : cpanelPassword ? "Basic Auth (password)" : "none"}`);
 
-  // ── STEP 1: Create MySQL database via UAPI ──────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STRATEGY 1: Softaculous with autoinstall=1 (preferred)
+  //
+  // autoinstall=1 tells Softaculous to handle EVERYTHING automatically:
+  //   - Create the MySQL database (using softdb suffix, cPanel prefixes it)
+  //   - Create the MySQL user (using dbusername, cPanel prefixes it)
+  //   - Grant ALL PRIVILEGES on that database to the user
+  //   - Extract WordPress files into the correct directory
+  //   - Write wp-config.php with the correct DB credentials
+  //   - Run the WordPress installer
+  //
+  // We do NOT pre-create the DB via UAPI here — that would create conflicts
+  // ("database already exists") and requires WHM-level permissions that often
+  // trigger the "500 error from WHM" symptom on restricted accounts.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  await setStep(serviceId, "Installing WordPress via Softaculous");
+
+  const softOpts: SoftaculousInstallOpts = {
+    softdomain:    domain,
+    softdirectory: subPath.replace(/^\//, ""),  // "" for root, "site001" for /site001
+    site_name:     siteTitle,
+    admin_username: wpAdmin,
+    admin_pass:    wpPass,                // never logged — redacted in all console output
+    admin_email:   wpEmail,
+    softdb:        dbSuffix,              // short suffix; Softaculous + cPanel auto-prefix it
+    dbusername:    shortDbUser,           // uniform: same as WP admin username
+    dbuserpasswd:  dbPass,               // uniform: same as WP admin password
+    ...(cpanelApiToken && { cpanelApiToken }),
+    ...(cpanelPassword && { cpanelPassword }),
+  };
+
+  const softResult = await cpanelSoftaculousInstallWordPress(server, cpanelUser, softOpts);
+
+  if (softResult.success) {
+    console.log(`[CP-WP] ✓ Softaculous installed WordPress (insid=${softResult.insid ?? "n/a"})`);
+
+    await db.update(hostingServicesTable).set({
+      wpInstalled:       true,
+      wpProvisionStatus: "active",
+      wpProvisionStep:   "Completed",
+      wpProvisionError:  null,
+      wpUrl:             softResult.adminUrl ?? adminUrl,
+      wpUsername:        wpAdmin,
+      wpPassword:        wpPass,
+      wpEmail:           wpEmail,
+      wpSiteTitle:       siteTitle,
+      wpDbName:          dbNameFull,   // store full prefixed name for reference
+      wpInstallPath:     installPath,
+      wpProvisionedAt:   new Date(),
+      updatedAt:         new Date(),
+    }).where(eq(hostingServicesTable.id, serviceId));
+
+    console.log(`[CP-WP] ── WordPress provisioned via Softaculous for ${serviceId} (${domain}) ──`);
+    return { insid: softResult.insid };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FALLBACK: Softaculous unavailable → UAPI manual DB creation + PHP bootstrapper
+  //
+  // Only reached when Softaculous is not installed on the server, or it
+  // returns a real semantic error (not auth/session — those already failed
+  // Strategy 1/2/3 in cpanelSoftaculousInstallWordPress).
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  console.warn(`[CP-WP] Softaculous failed: ${softResult.error}`);
+  console.warn(`[CP-WP] Falling back to UAPI manual DB creation + PHP bootstrapper.`);
+
+  // ── FALLBACK STEP 2: Create MySQL database via UAPI ───────────────────────
   await setStep(serviceId, "Creating database");
   try {
-    await cpanelMysqlCreateDatabase(server, cpanelUser, dbName);
-    console.log(`[CP-WP] STEP DONE: Mysql::create_database → ${dbName}`);
+    await cpanelMysqlCreateDatabase(server, cpanelUser, dbNameFull);
+    console.log(`[CP-WP] STEP DONE: Mysql::create_database → ${dbNameFull}`);
   } catch (e: any) {
-    // "Database already exists" is acceptable on retry
     if (/already exist/i.test(e.message)) {
       console.warn(`[CP-WP] DB already exists — continuing (${e.message})`);
     } else {
@@ -253,11 +332,11 @@ export async function cpanelProvisionWordPress(
     }
   }
 
-  // ── STEP 2: Create MySQL user via UAPI ─────────────────────────────────────
+  // ── FALLBACK STEP 3: Create MySQL user via UAPI ────────────────────────────
   await setStep(serviceId, "Creating database user");
   try {
-    await cpanelMysqlCreateUser(server, cpanelUser, dbUser, dbPass);
-    console.log(`[CP-WP] STEP DONE: Mysql::create_user → ${dbUser}`);
+    await cpanelMysqlCreateUser(server, cpanelUser, dbUserFull, dbPass);
+    console.log(`[CP-WP] STEP DONE: Mysql::create_user → ${dbUserFull}`);
   } catch (e: any) {
     if (/already exist/i.test(e.message)) {
       console.warn(`[CP-WP] DB user already exists — continuing`);
@@ -266,118 +345,71 @@ export async function cpanelProvisionWordPress(
     }
   }
 
-  // ── STEP 3: Grant ALL PRIVILEGES via UAPI ──────────────────────────────────
+  // ── FALLBACK STEP 4: Grant ALL PRIVILEGES via UAPI ─────────────────────────
   await setStep(serviceId, "Assigning database privileges");
   try {
-    await cpanelMysqlSetPrivileges(server, cpanelUser, dbName, dbUser);
+    await cpanelMysqlSetPrivileges(server, cpanelUser, dbNameFull, dbUserFull);
     console.log(`[CP-WP] STEP DONE: Mysql::set_privileges_on_database — ALL PRIVILEGES`);
   } catch (e: any) {
     throw new Error(`Grant privileges failed: ${e.message}`);
   }
 
-  // ── STEP 4: Deploy WordPress files ─────────────────────────────────────────
-  // Strategy A: Softaculous Quick Install (preferred — handles everything)
-  // Strategy B: PHP bootstrapper uploaded via Fileman (universal fallback)
+  // ── FALLBACK STEP 5: Deploy WordPress via PHP bootstrapper ─────────────────
+  await setStep(serviceId, "Uploading WordPress installer");
 
-  await setStep(serviceId, "Deploying WordPress files");
-  let deployedVia = "none";
+  const token  = Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 18);
+  const script = buildBootstrapperScript({ token, dbName: dbNameFull, dbUser: dbUserFull, dbPass, dbHost, siteTitle, wpAdmin, wpPass, wpEmail, publicHtml });
+  const scriptFilename = `_whsetup_${token.substring(0, 8)}.php`;
+  const scriptRemotePath = `/home/${cpanelUser}/public_html/${scriptFilename}`;
 
-  // ── Strategy A: Softaculous ─────────────────────────────────────────────────
-  // Uses exact Softaculous API parameter names: softdomain, softdirectory,
-  // admin_username, admin_pass, admin_email, autoinstall=1.
-  //
-  // Auth:
-  //   If cpanelApiToken is provided → uses "Authorization: cpanel user:token"
-  //   to call /login/?login_only=1 directly (no WHM root permission needed).
-  //   Otherwise falls back to WHM's create_user_session.
-  console.log(`[CP-WP] Attempting Softaculous Quick Install${cpanelApiToken ? " (cPanel API Token auth)" : " (WHM session auth)"}…`);
-  const softOpts: SoftaculousInstallOpts = {
-    softdomain:     domain,
-    softdirectory:  subPath.replace(/^\//, ""),  // strip leading slash ("" for root, "wp" for /wp)
-    site_name:      siteTitle,
-    admin_username: wpAdmin,
-    admin_pass:     wpPass,          // never logged — redacted in all console output
-    admin_email:    wpEmail,
-    // Pass the DB we already created so Softaculous links to it rather than auto-creating
-    softdb:         dbName,
-    dbusername:     dbUser,
-    dbuserpasswd:   dbPass,
-    // Auth credentials — one is enough; API token is preferred over password
-    ...(cpanelApiToken && { cpanelApiToken }),
-    ...(cpanelPassword && { cpanelPassword }),
-  };
-  const softResult = await cpanelSoftaculousInstallWordPress(server, cpanelUser, softOpts);
-
-  if (softResult.success) {
-    console.log(`[CP-WP] STEP DONE: Softaculous installed WordPress ✓`);
-    deployedVia = "softaculous";
-  } else {
-    console.warn(`[CP-WP] Softaculous unavailable or failed: ${softResult.error}. Falling back to PHP bootstrapper.`);
+  console.log(`[CP-WP] Uploading bootstrapper → ${scriptRemotePath}`);
+  try {
+    await cpanelSaveFile(server, cpanelUser, scriptRemotePath, script);
+    console.log(`[CP-WP] Bootstrapper uploaded`);
+  } catch (e: any) {
+    throw new Error(`Could not upload installer script via cPanel Fileman: ${e.message}`);
   }
 
-  // ── Strategy B: PHP bootstrapper via Fileman ────────────────────────────────
-  if (deployedVia === "none") {
-    await setStep(serviceId, "Uploading WordPress installer");
+  await setStep(serviceId, "Running WordPress installer");
+  const triggerUrl = `https://${domain}/${scriptFilename}?_wh_token=${token}`;
+  console.log(`[CP-WP] Triggering bootstrapper at ${triggerUrl}`);
 
-    const token  = Math.random().toString(36).substring(2, 18) + Math.random().toString(36).substring(2, 18);
-    const script = buildBootstrapperScript({ token, dbName, dbUser, dbPass, dbHost, siteTitle, wpAdmin, wpPass, wpEmail, publicHtml });
-    const scriptFilename = `_whsetup_${token.substring(0, 8)}.php`;
-    const scriptRemotePath = `/home/${cpanelUser}/public_html/${scriptFilename}`;
+  let deployedVia = "bootstrapper";
+  try {
+    const resp = await fetch(triggerUrl, { signal: AbortSignal.timeout(240_000) });
+    const text = await resp.text();
+    console.log(`[CP-WP] Bootstrapper response (HTTP ${resp.status}):`, text.substring(0, 400));
 
-    console.log(`[CP-WP] Uploading bootstrapper → ${scriptRemotePath}`);
-    try {
-      await cpanelSaveFile(server, cpanelUser, scriptRemotePath, script);
-      console.log(`[CP-WP] Bootstrapper uploaded`);
-    } catch (e: any) {
-      throw new Error(`Could not upload installer script via cPanel Fileman: ${e.message}`);
+    let json: any;
+    try { json = JSON.parse(text); } catch { /* HTML response — check for PHP errors */ }
+
+    if (json) {
+      if (!json.ok) {
+        throw new Error(`Installer script failed: ${json.error || "unknown error"}. Log: ${(json.log || []).join(", ")}`);
+      }
+      console.log(`[CP-WP] Bootstrapper succeeded. Steps: ${(json.log || []).join(" → ")}`);
+    } else if (!resp.ok || /\bfatal\b|\bwarning\b|\bparse error\b/i.test(text)) {
+      throw new Error(`Installer script returned a PHP error. Response: ${text.substring(0, 300)}`);
     }
-
-    // Trigger the bootstrapper over HTTP
-    await setStep(serviceId, "Running WordPress installer");
-    const triggerUrl = `https://${domain}/${scriptFilename}?_wh_token=${token}`;
-    console.log(`[CP-WP] Triggering bootstrapper at ${triggerUrl}`);
-
-    try {
-      const resp = await fetch(triggerUrl, { signal: AbortSignal.timeout(240_000) });
-      const text = await resp.text();
-      console.log(`[CP-WP] Bootstrapper response (HTTP ${resp.status}):`, text.substring(0, 400));
-
-      let json: any;
-      try { json = JSON.parse(text); } catch { /* HTML response — check for PHP errors */ }
-
-      if (json) {
-        if (!json.ok) {
-          throw new Error(`Installer script failed: ${json.error || "unknown error"}. Log: ${(json.log || []).join(", ")}`);
-        }
-        console.log(`[CP-WP] Bootstrapper succeeded. Steps: ${(json.log || []).join(" → ")}`);
-      } else if (!resp.ok || /\bfatal\b|\bwarning\b|\bparse error\b/i.test(text)) {
-        throw new Error(`Installer script returned a PHP error. Response: ${text.substring(0, 300)}`);
+    console.log(`[CP-WP] STEP DONE: PHP bootstrapper installed WordPress ✓`);
+  } catch (e: any) {
+    if (/timed out|ENOTFOUND|network|fetch/i.test(e.message)) {
+      console.warn(`[CP-WP] HTTP trigger failed (${e.message}) — uploading wp-config.php directly`);
+      const wpConfig = buildWpConfig(dbNameFull, dbUserFull, dbPass, dbHost);
+      const wpConfigPath = `/home/${cpanelUser}/public_html${subPath}/wp-config.php`;
+      try {
+        await cpanelSaveFile(server, cpanelUser, wpConfigPath, wpConfig);
+        deployedVia = "fileman-config-only";
+        console.log(`[CP-WP] wp-config.php written via Fileman (files need manual extraction).`);
+      } catch (cfgErr: any) {
+        throw new Error(`All deployment methods failed. Last error: ${e.message}. wp-config write also failed: ${cfgErr.message}`);
       }
-      deployedVia = "bootstrapper";
-      console.log(`[CP-WP] STEP DONE: PHP bootstrapper installed WordPress ✓`);
-    } catch (e: any) {
-      // If the trigger URL fails (e.g. domain not propagated), fall back to direct Fileman upload
-      if (/timed out|ENOTFOUND|network|fetch/i.test(e.message)) {
-        console.warn(`[CP-WP] HTTP trigger failed (${e.message}) — uploading wp-config.php directly via Fileman`);
-        // Upload wp-config.php directly — user will need to complete WP setup on first visit
-        const wpConfig = buildWpConfig(dbName, dbUser, dbPass, dbHost);
-        const wpConfigPath = `/home/${cpanelUser}/public_html${subPath}/wp-config.php`;
-        try {
-          await cpanelSaveFile(server, cpanelUser, wpConfigPath, wpConfig);
-          deployedVia = "fileman-config-only";
-          console.log(`[CP-WP] wp-config.php written via Fileman (files need manual extraction).`);
-        } catch (cfgErr: any) {
-          throw new Error(`All deployment methods failed. Last error: ${e.message}. wp-config write also failed: ${cfgErr.message}`);
-        }
-      } else {
-        throw e;
-      }
+    } else {
+      throw e;
     }
   }
 
-  // ── STEP 5: Verify wp-config.php exists ────────────────────────────────────
-  // This is the definitive check — if wp-config.php is not present, the install
-  // is NOT complete regardless of what any prior step reported.
+  // ── FALLBACK STEP 6: Verify wp-config.php ───────────────────────────────────
   await setStep(serviceId, "Verifying installation");
 
   const wpConfigDir  = `/home/${cpanelUser}/public_html${subPath}`;
@@ -385,9 +417,7 @@ export async function cpanelProvisionWordPress(
   console.log(`[CP-WP] Checking ${wpConfigDir}/${wpConfigFile} via Fileman::list_files…`);
 
   const wpConfigExists = await cpanelFileExists(server, cpanelUser, wpConfigDir, wpConfigFile);
-
   if (!wpConfigExists) {
-    // Hard failure — the file is the only reliable indicator that WP is ready.
     throw new Error(
       `Installation verification failed: wp-config.php not found in ${wpConfigDir}. ` +
       `Deployed via: ${deployedVia}. ` +
@@ -396,7 +426,6 @@ export async function cpanelProvisionWordPress(
   }
   console.log(`[CP-WP] STEP DONE: wp-config.php verified ✓ (deployed via ${deployedVia})`);
 
-  // ── Save success to DB — only after verification ────────────────────────────
   await db.update(hostingServicesTable).set({
     wpInstalled:       true,
     wpProvisionStatus: "active",
@@ -407,13 +436,14 @@ export async function cpanelProvisionWordPress(
     wpPassword:        wpPass,
     wpEmail:           wpEmail,
     wpSiteTitle:       siteTitle,
-    wpDbName:          dbName,
+    wpDbName:          dbNameFull,
     wpInstallPath:     installPath,
     wpProvisionedAt:   new Date(),
     updatedAt:         new Date(),
   }).where(eq(hostingServicesTable.id, serviceId));
 
-  console.log(`[CP-WP] ── WordPress fully provisioned for ${serviceId} (${domain}) via ${deployedVia} ──`);
+  console.log(`[CP-WP] ── WordPress provisioned via ${deployedVia} for ${serviceId} (${domain}) ──`);
+  return {};
 }
 
 // ── cPanel reinstall: drop old DB/user, then reprovision ──────────────────────
@@ -423,7 +453,7 @@ export async function cpanelReinstallWordPress(
   opts: CpanelWpInstallOptions,
   oldDbName?: string | null,
   oldDbUser?: string | null,
-): Promise<void> {
+): Promise<{ insid?: string }> {
   console.log(`[CP-WP] Reinstall starting for ${opts.serviceId}`);
 
   if (oldDbName) {
@@ -435,5 +465,5 @@ export async function cpanelReinstallWordPress(
     console.log(`[CP-WP] Old DB user removed: ${oldDbUser}`);
   }
 
-  await cpanelProvisionWordPress(server, opts);
+  return cpanelProvisionWordPress(server, opts);
 }

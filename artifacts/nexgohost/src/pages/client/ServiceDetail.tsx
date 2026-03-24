@@ -130,7 +130,7 @@ export default function ServiceDetail() {
     status: string;
     step: string | null;
     error: string | null;
-    credentials?: { loginUrl: string | null; username: string | null; password: string | null; email: string | null; siteTitle: string | null; installPath?: string | null };
+    credentials?: { loginUrl: string | null; username: string | null; password: string | null; email: string | null; siteTitle: string | null; installPath?: string | null; insid?: string | null };
   } | null>(null);
 
   // Password change state
@@ -380,6 +380,7 @@ export default function ServiceDetail() {
             email:       data.credentials.email,
             siteTitle:   data.credentials.siteTitle,
             installPath: data.credentials.installPath,
+            insid:       data.credentials.insid ?? null,   // Softaculous Installation ID
           },
         });
         toast({ title: "WordPress Installed", description: "Your WordPress site is ready!" });
@@ -1503,13 +1504,28 @@ export default function ServiceDetail() {
               <p className="font-semibold text-foreground">AI Website Builder</p>
               <p className="text-sm text-muted-foreground">
                 {service.wpInstalled
-                  ? "WordPress is installed. Open the admin panel to start building."
+                  ? "WordPress is installed. Click to open the admin panel and start building."
                   : "Automatically install WordPress and open the admin panel to build your site."}
               </p>
+              {/* Show Softaculous Installation ID when available — useful for Softaculous management */}
+              {service.wpInstalled && wpProvisionData?.credentials?.insid && (
+                <p className="text-xs text-muted-foreground/60 mt-0.5">
+                  Softaculous ID: {wpProvisionData.credentials.insid}
+                </p>
+              )}
             </div>
           </div>
           <Button
-            onClick={handleAiBuilder}
+            onClick={() => {
+              // If WordPress is already installed, go directly to the admin URL.
+              // status: result 1 from Softaculous → wpUrl is the /wp-admin URL.
+              if (service.wpInstalled && service.wpUrl) {
+                window.open(service.wpUrl, "_blank");
+                return;
+              }
+              // Otherwise trigger the AI Builder flow (installs WP, then opens admin)
+              handleAiBuilder();
+            }}
             disabled={aiBuilderLoading || wpPolling}
             className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
           >
