@@ -32,7 +32,7 @@ const CurrencyContext = createContext<{
   currency: FALLBACK_CURRENCIES.PKR,
   setCurrency: () => {},
   allCurrencies: Object.values(FALLBACK_CURRENCIES),
-  formatPrice: (a) => `Rs. ${a.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+  formatPrice: (a) => { const n = isNaN(a) || a == null ? 0 : a; return `Rs. ${n.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; },
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
@@ -92,7 +92,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }
 
   function formatPrice(amount: number) {
-    const converted = amount * currency.rate;
+    const safe = isNaN(amount) || amount === null || amount === undefined ? 0 : amount;
+    const converted = safe * currency.rate;
     const formatted = converted.toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,

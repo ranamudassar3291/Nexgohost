@@ -669,8 +669,8 @@ function InvoiceViewModal({ inv, onClose }: { inv: any; onClose: () => void }) {
                     <tr key={i} className="border-t border-border/40">
                       <td className="px-3 py-2.5 text-foreground">{item.description}</td>
                       <td className="px-3 py-2.5 text-right text-muted-foreground">{item.quantity ?? 1}</td>
-                      <td className="px-3 py-2.5 text-right text-muted-foreground">{formatPrice(item.unitPrice ?? item.total)}</td>
-                      <td className="px-3 py-2.5 text-right font-semibold">{formatPrice(item.total)}</td>
+                      <td className="px-3 py-2.5 text-right text-muted-foreground">{formatPrice(Number(item.unitPrice ?? item.amount ?? item.total ?? 0))}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold">{formatPrice(Number(item.total ?? item.amount ?? 0))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -950,7 +950,7 @@ export default function AdminClientDetail() {
                   <div key={tx.id} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground truncate max-w-[140px]">{tx.description || tx.type}</span>
                     <span className={tx.type === "admin_deduct" ? "text-red-400 font-medium" : "text-green-400 font-medium"}>
-                      {tx.type === "admin_deduct" ? "−" : "+"} Rs. {Math.abs(parseFloat(tx.amount)).toFixed(0)}
+                      {tx.type === "admin_deduct" ? "−" : "+"} {formatPrice(Math.abs(parseFloat(String(tx.amount || 0))))}  
                     </span>
                   </div>
                 ))}
@@ -1023,7 +1023,7 @@ export default function AdminClientDetail() {
                     <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                       <span>Cycle: <span className="text-foreground">{svc.billingCycle || "monthly"}</span></span>
                       <span>Due: <span className="text-foreground">{fmtDate(svc.nextDueDate)}</span></span>
-                      {svc.amount && <span>Price: <span className="text-foreground font-semibold">Rs. {parseFloat(svc.amount).toFixed(0)}</span></span>}
+                      {(svc.amount !== null && svc.amount !== undefined) && <span>Price: <span className="text-foreground font-semibold">{formatPrice(Number(svc.amount) || 0)}</span></span>}
                     </div>
                   </div>
                 ))}

@@ -339,8 +339,8 @@ export default function AdminInvoices() {
                           <tr key={i} className="border-t border-border/40">
                             <td className="px-3 py-2.5 text-foreground font-medium">{item.description}</td>
                             <td className="px-3 py-2.5 text-right text-muted-foreground">{item.quantity ?? 1}</td>
-                            <td className="px-3 py-2.5 text-right text-muted-foreground">{formatPrice(item.unitPrice ?? item.total)}</td>
-                            <td className="px-3 py-2.5 text-right font-semibold text-foreground">{formatPrice(item.total)}</td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">{formatPrice(Number(item.unitPrice ?? item.amount ?? item.total ?? 0))}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-foreground">{formatPrice(Number(item.total ?? item.amount ?? 0))}</td>
                           </tr>
                         ))}
                       </tbody>

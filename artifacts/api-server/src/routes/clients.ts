@@ -108,26 +108,42 @@ router.get("/admin/clients/:id", authenticate, requireAdmin, async (req: AuthReq
       ...formatUser(user, { servicesCount: hosting.length, domainsCount: domains.length }),
       hosting: hosting.map(h => ({
         ...h,
-        startDate: h.startDate?.toISOString(),
-        expiryDate: h.expiryDate?.toISOString(),
+        amount: h.amount !== null && h.amount !== undefined ? Number(h.amount) : null,
+        nextDueDate: h.nextDueDate?.toISOString() ?? null,
+        startDate: h.startDate?.toISOString() ?? null,
+        expiryDate: h.expiryDate?.toISOString() ?? null,
         createdAt: h.createdAt.toISOString(),
         updatedAt: h.updatedAt.toISOString(),
       })),
       domains: domains.map(d => ({
         ...d,
-        registrationDate: d.registrationDate?.toISOString(),
-        expiryDate: d.expiryDate?.toISOString(),
+        registrationDate: d.registrationDate?.toISOString() ?? null,
+        expiryDate: d.expiryDate?.toISOString() ?? null,
+        nextDueDate: (d as any).nextDueDate?.toISOString() ?? null,
         createdAt: d.createdAt.toISOString(),
       })),
-      invoices: invoices.map(i => ({
-        ...i,
-        dueDate: i.dueDate.toISOString(),
-        paidDate: i.paidDate?.toISOString(),
-        createdAt: i.createdAt.toISOString(),
-        updatedAt: i.updatedAt.toISOString(),
-        invoiceNumber: i.invoiceNumber,
-        clientName: `${user.firstName} ${user.lastName}`,
-      })),
+      invoices: invoices.map(i => {
+        const rawItems = (i.items ?? []) as any[];
+        const items = rawItems.map((item: any) => ({
+          description: item.description ?? "Hosting Service",
+          quantity: Number(item.quantity ?? 1),
+          unitPrice: Number(item.unitPrice ?? item.amount ?? 0),
+          total: Number(item.total ?? item.amount ?? item.unitPrice ?? 0),
+        }));
+        return {
+          ...i,
+          amount: Number(i.amount ?? 0),
+          tax: Number(i.tax ?? 0),
+          total: Number(i.total ?? 0),
+          items,
+          dueDate: i.dueDate.toISOString(),
+          paidDate: i.paidDate?.toISOString() ?? null,
+          createdAt: i.createdAt.toISOString(),
+          updatedAt: i.updatedAt.toISOString(),
+          invoiceNumber: i.invoiceNumber,
+          clientName: `${user.firstName} ${user.lastName}`,
+        };
+      }),
       tickets: tickets.map(t => ({
         ...t,
         ticketNumber: t.ticketNumber,
