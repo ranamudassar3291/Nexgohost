@@ -18,6 +18,7 @@ import {
   serversTable,
   ticketsTable,
   ticketMessagesTable,
+  productGroupsTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -317,7 +318,28 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       const planMap    = new Map<string, string>();
       const serverMap  = new Map<string, string>();
       const serviceMap = new Map<string, string>();
+      const groupCache = new Map<string, string>(); // WHMCS groupname → our group UUID
       let   defaultPlanId = "";
+
+      // Helper: find or create a product group by name
+      async function resolveGroup(groupName: string): Promise<string | null> {
+        if (!groupName) return null;
+        const norm = groupName.trim();
+        if (!norm) return null;
+        if (groupCache.has(norm)) return groupCache.get(norm)!;
+        const [existing] = await db.select({ id: productGroupsTable.id })
+          .from(productGroupsTable)
+          .where(sql`lower(${productGroupsTable.name}) = lower(${norm})`)
+          .limit(1);
+        if (existing) { groupCache.set(norm, existing.id); return existing.id; }
+        const slug = norm.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        const [created] = await db.insert(productGroupsTable).values({
+          name: norm, slug: `${slug}-${Date.now()}`, isActive: true, sortOrder: 99,
+        } as any).returning({ id: productGroupsTable.id });
+        log(`Created new product group: "${norm}"`);
+        groupCache.set(norm, created.id);
+        return created.id;
+      }
 
       // ── STEP 1: TLD Extensions ────────────────────────────────────────────
       if (importExtensions) {
@@ -386,6 +408,8 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
               if (p.numdatabases && p.numdatabases !== "-1") features.push(`${p.numdatabases} Databases`);
               if (p.numsubdomains && p.numsubdomains !== "-1") features.push(`${p.numsubdomains} Subdomains`);
 
+              const groupId = await resolveGroup(p.groupname ?? "");
+
               // Reuse existing plan if name matches — avoids creating duplicates
               const [existingPlan] = await db.select({ id: hostingPlansTable.id })
                 .from(hostingPlansTable)
@@ -393,9 +417,15 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 .limit(1);
 
               if (existingPlan) {
+                // Update group_id if it wasn't set
+                if (groupId) {
+                  await db.update(hostingPlansTable)
+                    .set({ groupId } as any)
+                    .where(eq(hostingPlansTable.id, existingPlan.id));
+                }
                 planMap.set(String(p.pid), existingPlan.id);
                 if (!defaultPlanId) defaultPlanId = existingPlan.id;
-                log(`Plan [${p.pid}] "${planName}": matched existing plan`);
+                log(`Plan [${p.pid}] "${planName}": matched existing plan${groupId ? ` (group assigned)` : ""}`);
                 job.result.plans++;
                 continue;
               }
@@ -406,6 +436,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 price: base, yearlyPrice: annually ?? null,
                 quarterlyPrice: quarterly ?? null, semiannualPrice: semi ?? null,
                 billingCycle: monthly ? "monthly" : "yearly",
+                groupId: groupId ?? undefined,
                 diskSpace: p.diskspace && p.diskspace !== "-1" ? `${p.diskspace} MB` : "Unlimited",
                 bandwidth: p.bandwidth && p.bandwidth !== "-1" ? `${p.bandwidth} MB` : "Unlimited",
                 emailAccounts: parseInt(p.numemailaccounts ?? "10") || 10,
@@ -469,10 +500,12 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
 
           const passwordMap = new Map<string, string>();
           if (importPasswords && clients.length > 0) {
-            log(`Fetching passwords for ${clients.length} clients (3 at a time, with rate-limit protection)…`);
+            log(`Fetching passwords for ${clients.length} clients (3 at a time)…`);
             let fetched = 0;
+            let earlyExit = false;
             const batchSize = 3;
             for (let b = 0; b < clients.length; b += batchSize) {
+              if (earlyExit) break;
               const chunk = clients.slice(b, b + batchSize);
               await Promise.all(chunk.map(async (c) => {
                 try {
@@ -483,7 +516,13 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 } catch {}
                 fetched++;
               }));
-              if (fetched % 50 === 0 || fetched === clients.length) log(`  Passwords: ${fetched}/${clients.length}`);
+              // Early exit: if WHMCS doesn't return password hashes at all, stop wasting time
+              if (fetched >= 20 && passwordMap.size === 0) {
+                log(`  ⚠ WHMCS API does not expose password hashes — skipping remaining ${clients.length - fetched} clients (temp passwords will be used)`);
+                earlyExit = true;
+                break;
+              }
+              if (fetched % 150 === 0 || fetched === clients.length) log(`  Passwords: ${fetched}/${clients.length} (found: ${passwordMap.size})`);
               await sleep(200);
             }
             log(`Got passwords for ${passwordMap.size} clients`);
