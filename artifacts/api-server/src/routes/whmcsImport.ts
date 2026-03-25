@@ -615,57 +615,43 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       // Give WHMCS API rate limit time to recover after password fetching
       await sleep(3000);
 
-      // ── Client recovery: fetch & create clients whose IDs appear in services/
-      //    domains/orders/invoices but weren't returned by GetClients (deleted/
-      //    archived clients). Called on-demand during step 5-9 with local cache.
-      const missingClientCache = new Map<string, string>(); // whmcsId → our UUID (always created)
+      // ── Client lookup: resolve a WHMCS client ID to our internal UUID.
+      //    STRICT MODE: If a client ID is NOT in our known Pakistan client list,
+      //    we return null and the caller skips that record entirely.
+      //    We NEVER create placeholder/archived/fake accounts.
+      const missingClientCache = new Map<string, string | null>(); // whmcsId → our UUID or null
       async function ensureClient(whmcsId: string): Promise<string | null> {
         if (!whmcsId || whmcsId === "0") return null;
         if (clientMap.has(whmcsId)) return clientMap.get(whmcsId)!;
-        if (missingClientCache.has(whmcsId)) return missingClientCache.get(whmcsId)!;
+        if (missingClientCache.has(whmcsId)) return missingClientCache.get(whmcsId) ?? null;
 
-        // Try to fetch from WHMCS — but only if client was in GetClients list.
-        // Clients NOT in knownWhmcsIds are truly deleted; skip the API call entirely.
-        let firstName = "Archived", lastName = `Client ${whmcsId}`;
-        let email = `whmcs.deleted.${whmcsId}@nexgohost-migrated.local`; // guaranteed unique fallback
-        let createdAt: Date | null = null;
-        if (knownWhmcsIds.has(whmcsId)) {
-          // This ID WAS in GetClients but may have been filtered (e.g. no email) — try details
-          try {
-            const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: whmcsId, stats: false });
-            const c = detail.client ?? detail;
-            const fetchedEmail = ((c.email ?? c.Email ?? "")).toLowerCase().trim();
-            if (fetchedEmail) {
-              email = fetchedEmail;
-              firstName = c.firstname || c.Firstname || "Archived";
-              lastName  = c.lastname  || c.Lastname  || `Client ${whmcsId}`;
-              createdAt = parseDate(c.datecreated);
-            }
-          } catch { /* use fallback email */ }
-        }
-        // If ID is NOT in knownWhmcsIds → deleted client, use fallback immediately (no API call)
-
-        // Check if this client already exists in DB
-        const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
-          .where(eq(usersTable.email, email)).limit(1);
-        if (existing) {
-          clientMap.set(whmcsId, existing.id);
-          missingClientCache.set(whmcsId, existing.id);
-          return existing.id;
+        // If this ID was never in the GetClients Pakistan list → it's a deleted/
+        // archived/US client. Skip it — do NOT create a placeholder account.
+        if (!knownWhmcsIds.has(whmcsId)) {
+          missingClientCache.set(whmcsId, null);
+          return null;
         }
 
-        // Create placeholder account — deleted clients come in as suspended
-        const tempHash = `whmcs_md5:${createHash("md5").update(`nexgo_${whmcsId}`).digest("hex")}`;
-        const [user] = await db.insert(usersTable).values({
-          firstName, lastName, email, passwordHash: tempHash,
-          role: "client", status: "suspended", emailVerified: true,
-          creditBalance: "0.00",
-          createdAt: createdAt ?? new Date(),
-        } as any).returning();
-        clientMap.set(whmcsId, user.id);
-        missingClientCache.set(whmcsId, user.id);
-        job.result.clients++;
-        return user.id;
+        // ID is known (Pakistan client) but wasn't imported yet — try to fetch details.
+        try {
+          const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: whmcsId, stats: false });
+          const c = detail.client ?? detail;
+          const fetchedEmail = ((c.email ?? c.Email ?? "")).toLowerCase().trim();
+          if (!fetchedEmail) {
+            missingClientCache.set(whmcsId, null);
+            return null; // No email — skip
+          }
+          const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
+            .where(eq(usersTable.email, fetchedEmail)).limit(1);
+          if (existing) {
+            clientMap.set(whmcsId, existing.id);
+            missingClientCache.set(whmcsId, existing.id);
+            return existing.id;
+          }
+        } catch { /* skip this client */ }
+
+        missingClientCache.set(whmcsId, null);
+        return null;
       }
 
       // ── STEP 5: Hosting Services ──────────────────────────────────────────
