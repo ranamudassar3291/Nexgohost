@@ -59,27 +59,32 @@ router.post("/admin/clients", authenticate, requireAdmin, async (req: AuthReques
 
 router.get("/admin/clients", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { search, status, page = "1", limit = "20" } = req.query as Record<string, string>;
+    const { search, status, page = "1", limit = "50" } = req.query as Record<string, string>;
     const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 20;
+    const limitNum = Math.min(parseInt(limit) || 50, 100);
     const offset = (pageNum - 1) * limitNum;
 
-    let query = db.select().from(usersTable).where(eq(usersTable.role, "client"));
+    const filterSql = sql`role = 'client'${search ? sql` AND (first_name ILIKE ${'%' + search + '%'} OR last_name ILIKE ${'%' + search + '%'} OR email ILIKE ${'%' + search + '%'} OR company ILIKE ${'%' + search + '%'})` : sql``}${status ? sql` AND status = ${status}` : sql``}`;
 
-    const clients = await db.select().from(usersTable)
-      .where(
-        sql`role = 'client' ${search ? sql`AND (first_name ILIKE ${'%' + search + '%'} OR last_name ILIKE ${'%' + search + '%'} OR email ILIKE ${'%' + search + '%'})` : sql``} ${status ? sql`AND status = ${status}` : sql``}`
-      )
-      .limit(limitNum)
-      .offset(offset);
+    const [clients, [{ total }]] = await Promise.all([
+      db.select().from(usersTable).where(filterSql).orderBy(usersTable.createdAt).limit(limitNum).offset(offset),
+      db.select({ total: count() }).from(usersTable).where(filterSql),
+    ]);
 
-    const [{ total }] = await db.select({ total: count() }).from(usersTable).where(eq(usersTable.role, "client"));
+    const clientIds = clients.map(c => c.id);
+    const [serviceCounts, domainCounts] = clientIds.length > 0 ? await Promise.all([
+      db.select({ clientId: hostingServicesTable.clientId, cnt: count() }).from(hostingServicesTable)
+        .where(sql`client_id = ANY(${sql.raw("ARRAY['" + clientIds.join("','") + "']")})`)
+        .groupBy(hostingServicesTable.clientId),
+      db.select({ clientId: domainsTable.clientId, cnt: count() }).from(domainsTable)
+        .where(sql`client_id = ANY(${sql.raw("ARRAY['" + clientIds.join("','") + "']")})`)
+        .groupBy(domainsTable.clientId),
+    ]) : [[], []];
 
-    const formatted = await Promise.all(clients.map(async (c) => {
-      const [{ sc }] = await db.select({ sc: count() }).from(hostingServicesTable).where(eq(hostingServicesTable.clientId, c.id));
-      const [{ dc }] = await db.select({ dc: count() }).from(domainsTable).where(eq(domainsTable.clientId, c.id));
-      return formatUser(c, { servicesCount: Number(sc), domainsCount: Number(dc) });
-    }));
+    const scMap = new Map(serviceCounts.map(r => [r.clientId, Number(r.cnt)]));
+    const dcMap = new Map(domainCounts.map(r => [r.clientId, Number(r.cnt)]));
+
+    const formatted = clients.map(c => formatUser(c, { servicesCount: scMap.get(c.id) ?? 0, domainsCount: dcMap.get(c.id) ?? 0 }));
 
     res.json({ clients: formatted, total: Number(total), page: pageNum, limit: limitNum });
   } catch (err) {
