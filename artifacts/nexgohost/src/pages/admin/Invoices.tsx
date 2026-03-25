@@ -38,6 +38,7 @@ interface Invoice {
   paymentRef?: string;
   paymentGatewayId?: string;
   paymentNotes?: string;
+  invoiceType?: string;
   items: Array<{ description: string; quantity: number; unitPrice: number; total: number }>;
   createdAt: string;
 }
@@ -261,23 +262,33 @@ export default function AdminInvoices() {
       {/* View Modal */}
       {viewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setViewModal(null)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
               <div>
-                <h3 className="font-bold text-foreground text-lg">Invoice Details</h3>
-                <p className="text-sm text-muted-foreground font-mono">{viewModal.invoice.invoiceNumber}</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <FileText size={18} className="text-primary" />
+                  <h3 className="font-bold text-foreground text-lg font-mono">{viewModal.invoice.invoiceNumber}</h3>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border capitalize ${statusColors[viewModal.invoice.status] || ""}`}>{viewModal.invoice.status}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Created {format(new Date(viewModal.invoice.createdAt), "MMM d, yyyy")}</p>
               </div>
-              <button onClick={() => setViewModal(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={20} /></button>
+              <button onClick={() => setViewModal(null)} className="text-muted-foreground hover:text-foreground transition-colors mt-1"><X size={20} /></button>
             </div>
-            <div className="space-y-3">
+
+            <div className="space-y-4">
+              {/* Client + Type row */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-secondary/40 rounded-xl p-3">
                   <p className="text-muted-foreground text-xs mb-1">Client</p>
-                  <p className="font-medium text-foreground">{viewModal.invoice.clientName || "—"}</p>
+                  <button onClick={() => { setViewModal(null); setLocation(`/admin/clients/${viewModal.invoice.clientId}`); }}
+                    className="font-semibold text-foreground hover:text-primary transition-colors text-left">
+                    {viewModal.invoice.clientName || "—"}
+                  </button>
                 </div>
                 <div className="bg-secondary/40 rounded-xl p-3">
-                  <p className="text-muted-foreground text-xs mb-1">Status</p>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border capitalize ${statusColors[viewModal.invoice.status] || ""}`}>{viewModal.invoice.status}</span>
+                  <p className="text-muted-foreground text-xs mb-1">Type</p>
+                  <p className="font-medium text-foreground capitalize">{viewModal.invoice.invoiceType || "hosting"}</p>
                 </div>
                 <div className="bg-secondary/40 rounded-xl p-3">
                   <p className="text-muted-foreground text-xs mb-1">Due Date</p>
@@ -285,49 +296,51 @@ export default function AdminInvoices() {
                 </div>
                 <div className="bg-secondary/40 rounded-xl p-3">
                   <p className="text-muted-foreground text-xs mb-1">Paid Date</p>
-                  <p className="font-medium text-foreground">{viewModal.invoice.paidDate ? format(new Date(viewModal.invoice.paidDate), "MMM d, yyyy") : "—"}</p>
-                </div>
-                <div className="bg-secondary/40 rounded-xl p-3">
-                  <p className="text-muted-foreground text-xs mb-1">Amount</p>
-                  <p className="font-bold text-foreground">{formatPrice(viewModal.invoice.amount)}</p>
-                </div>
-                <div className="bg-secondary/40 rounded-xl p-3">
-                  <p className="text-muted-foreground text-xs mb-1">Total</p>
-                  <p className="font-bold text-primary">{formatPrice(viewModal.invoice.total)}</p>
+                  <p className={`font-medium ${viewModal.invoice.paidDate ? "text-green-400" : "text-muted-foreground"}`}>
+                    {viewModal.invoice.paidDate ? format(new Date(viewModal.invoice.paidDate), "MMM d, yyyy") : "Not paid"}
+                  </p>
                 </div>
               </div>
-              {viewModal.invoice.paymentRef && (
-                <div className="bg-secondary/40 rounded-xl p-3 text-sm">
-                  <p className="text-muted-foreground text-xs mb-1">Payment Ref</p>
-                  <p className="font-mono text-foreground">{viewModal.invoice.paymentRef}</p>
+
+              {/* Amount summary */}
+              <div className="bg-secondary/20 border border-border/50 rounded-xl p-4">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="text-foreground">{formatPrice(viewModal.invoice.amount)}</span>
                 </div>
-              )}
-              {viewModal.invoice.paymentNotes && (
-                <div className="bg-secondary/40 rounded-xl p-3 text-sm">
-                  <p className="text-muted-foreground text-xs mb-1">Notes</p>
-                  <p className="text-foreground">{viewModal.invoice.paymentNotes}</p>
+                {viewModal.invoice.tax > 0 && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-muted-foreground">Tax</span>
+                    <span className="text-foreground">{formatPrice(viewModal.invoice.tax)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t border-border/50 mt-2 pt-2">
+                  <span className="text-foreground">Total</span>
+                  <span className="text-primary text-lg">{formatPrice(viewModal.invoice.total)}</span>
                 </div>
-              )}
+              </div>
+
+              {/* Line items */}
               {viewModal.invoice.items.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Line Items</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Items</p>
                   <div className="border border-border rounded-xl overflow-hidden">
                     <table className="w-full text-sm">
                       <thead className="bg-secondary/30">
                         <tr>
                           <th className="text-left px-3 py-2 text-xs text-muted-foreground">Description</th>
                           <th className="text-right px-3 py-2 text-xs text-muted-foreground">Qty</th>
-                          <th className="text-right px-3 py-2 text-xs text-muted-foreground">Price</th>
+                          <th className="text-right px-3 py-2 text-xs text-muted-foreground">Unit Price</th>
                           <th className="text-right px-3 py-2 text-xs text-muted-foreground">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {viewModal.invoice.items.map((item, i) => (
                           <tr key={i} className="border-t border-border/40">
-                            <td className="px-3 py-2 text-foreground">{item.description}</td>
-                            <td className="px-3 py-2 text-right text-muted-foreground">{item.quantity}</td>
-                            <td className="px-3 py-2 text-right text-muted-foreground">{formatPrice(item.unitPrice)}</td>
-                            <td className="px-3 py-2 text-right font-medium text-foreground">{formatPrice(item.total)}</td>
+                            <td className="px-3 py-2.5 text-foreground font-medium">{item.description}</td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">{item.quantity ?? 1}</td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">{formatPrice(item.unitPrice ?? item.total)}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-foreground">{formatPrice(item.total)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -335,12 +348,31 @@ export default function AdminInvoices() {
                   </div>
                 </div>
               )}
+
+              {/* Payment info */}
+              {(viewModal.invoice.paymentRef || viewModal.invoice.paymentNotes) && (
+                <div className="space-y-2">
+                  {viewModal.invoice.paymentRef && (
+                    <div className="bg-secondary/40 rounded-xl p-3 text-sm">
+                      <p className="text-muted-foreground text-xs mb-1">Payment Reference</p>
+                      <p className="font-mono text-foreground">{viewModal.invoice.paymentRef}</p>
+                    </div>
+                  )}
+                  {viewModal.invoice.paymentNotes && (
+                    <div className="bg-secondary/40 rounded-xl p-3 text-sm">
+                      <p className="text-muted-foreground text-xs mb-1">Notes</p>
+                      <p className="text-foreground">{viewModal.invoice.paymentNotes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
             <div className="mt-5 flex gap-3">
               <Button className="flex-1" onClick={() => { setViewModal(null); openEdit(viewModal.invoice); }}>
                 <Edit2 size={14} className="mr-2" /> Edit Invoice
               </Button>
-              <Button variant="outline" className="flex-1" onClick={() => setViewModal(null)}>Close</Button>
+              <Button variant="outline" onClick={() => setViewModal(null)} className="flex-1">Close</Button>
             </div>
           </div>
         </div>
@@ -391,7 +423,7 @@ export default function AdminInvoices() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9 bg-card border-border" placeholder="Search by invoice #..."
+          <Input className="pl-9 bg-card border-border" placeholder="Search by invoice # or client name..."
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-1.5 flex-wrap">

@@ -27,6 +27,13 @@ async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
 let invoiceCounter = 1000;
 
 function formatInvoice(i: typeof invoicesTable.$inferSelect, clientName?: string) {
+  const rawItems = (i.items ?? []) as Array<any>;
+  const items = rawItems.map((item: any) => ({
+    description: item.description ?? "Hosting Service",
+    quantity: item.quantity ?? 1,
+    unitPrice: item.unitPrice ?? item.amount ?? Number(i.amount),
+    total: item.total ?? item.amount ?? Number(i.amount),
+  }));
   return {
     id: i.id,
     invoiceNumber: i.invoiceNumber,
@@ -41,7 +48,8 @@ function formatInvoice(i: typeof invoicesTable.$inferSelect, clientName?: string
     paymentRef: i.paymentRef,
     paymentGatewayId: i.paymentGatewayId,
     paymentNotes: i.paymentNotes,
-    items: i.items as Array<{ description: string; quantity: number; unitPrice: number; total: number }>,
+    invoiceType: i.invoiceType,
+    items,
     createdAt: i.createdAt.toISOString(),
   };
 }
@@ -106,37 +114,59 @@ router.get("/admin/invoices", authenticate, requireAdmin, async (req: AuthReques
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"))));
     const search = String(req.query.search || "").trim();
     const statusFilter = String(req.query.status || "all");
+    const clientId = String(req.query.clientId || "").trim();
     const offset = (page - 1) * limit;
 
-    const conditions: any[] = [];
-    if (statusFilter !== "all") conditions.push(eq(invoicesTable.status, statusFilter as any));
-    if (search) conditions.push(or(
-      ilike(invoicesTable.invoiceNumber, `%${search}%`),
-      ilike(invoicesTable.paymentNotes, `%${search}%`),
-    )!);
+    // Build query — if search looks like a client name, JOIN users
+    let filterSql = sql`1=1`;
+    if (statusFilter !== "all") filterSql = sql`${filterSql} AND i.status = ${statusFilter}`;
+    if (clientId) filterSql = sql`${filterSql} AND i.client_id = ${clientId}`;
+    if (search) {
+      filterSql = sql`${filterSql} AND (
+        i.invoice_number ILIKE ${'%' + search + '%'}
+        OR i.payment_notes ILIKE ${'%' + search + '%'}
+        OR i.client_id IN (
+          SELECT id FROM users 
+          WHERE role='client' AND (
+            first_name ILIKE ${'%' + search + '%'} OR
+            last_name ILIKE ${'%' + search + '%'} OR
+            email ILIKE ${'%' + search + '%'} OR
+            (first_name || ' ' || last_name) ILIKE ${'%' + search + '%'}
+          )
+        )
+      )`;
+    }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const [{ total }] = await db.execute<{ total: string }>(sql`SELECT COUNT(*)::int as total FROM invoices i WHERE ${filterSql}`);
+    const invoices = await db.execute<typeof invoicesTable.$inferSelect>(
+      sql`SELECT i.* FROM invoices i WHERE ${filterSql} ORDER BY i.created_at DESC LIMIT ${limit} OFFSET ${offset}`
+    );
 
-    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
-      .from(invoicesTable).where(whereClause);
-
-    const invoices = await db.select().from(invoicesTable)
-      .where(whereClause)
-      .orderBy(desc(invoicesTable.createdAt))
-      .limit(limit).offset(offset);
-
-    const clientIds = [...new Set(invoices.map(i => i.clientId))];
+    const clientIds = [...new Set(invoices.map((i: any) => i.client_id))];
     const users = clientIds.length > 0
-      ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds))
+      ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds as string[]))
       : [];
     const userMap = new Map(users.map(u => [u.id, u]));
 
-    const result = invoices.map(i => {
-      const user = userMap.get(i.clientId);
+    const result = invoices.map((row: any) => {
+      const i = {
+        ...row,
+        dueDate: row.due_date,
+        paidDate: row.paid_date,
+        invoiceNumber: row.invoice_number,
+        clientId: row.client_id,
+        paymentRef: row.payment_ref,
+        paymentGatewayId: row.payment_gateway_id,
+        paymentNotes: row.payment_notes,
+        invoiceType: row.invoice_type,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      } as typeof invoicesTable.$inferSelect;
+      const user = userMap.get(row.client_id);
       return formatInvoice(i, user ? `${user.firstName} ${user.lastName}` : "");
     });
 
-    res.json({ data: result, total: count, page, limit, totalPages: Math.ceil(count / limit) });
+    res.json({ data: result, total: Number(total), page, limit, totalPages: Math.ceil(Number(total) / limit) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
