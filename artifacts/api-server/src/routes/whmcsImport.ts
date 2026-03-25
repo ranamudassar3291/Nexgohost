@@ -465,25 +465,45 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
         step("Importing servers", 3);
         try {
           const srvData = await whmcsCall(whmcsUrl, identifier, secret, "GetServers", { fetchmodule: "1" });
-          const rawServers = toArray(srvData.servers?.server);
+          // WHMCS returns servers as a flat array in v8+ (not nested .server)
+          const rawServers: any[] = Array.isArray(srvData.servers)
+            ? srvData.servers
+            : toArray(srvData.servers?.server ?? srvData.servers);
           job.total = rawServers.length;
           log(`Found ${rawServers.length} servers`);
 
+          // Pre-load existing server hostnames to avoid duplicates on re-run
+          const existingServerHostnames = new Set<string>();
+          const existingServerRows = await db.select({ hostname: serversTable.hostname }).from(serversTable);
+          for (const r of existingServerRows) { if (r.hostname) existingServerHostnames.add(r.hostname); }
+
           for (const s of rawServers) {
             job.current++;
+            const hostname = s.hostname || s.ipaddress || "server.example.com";
+            if (existingServerHostnames.has(hostname)) {
+              log(`  Server "${s.name}" (${hostname}) already exists — skipping`);
+              job.result.skipped++;
+              continue;
+            }
             try {
+              // Use WHMCS accesshash as WHM API token (enables cPanel SSO after migration)
+              const apiToken = s.accesshash?.trim() || null;
               const [srv] = await db.insert(serversTable).values({
                 name: s.name ?? "WHMCS Server",
-                hostname: s.hostname ?? s.ipaddress ?? "server.example.com",
-                ipAddress: s.ipaddress || null, type: "cpanel",
-                apiUsername: s.username || null, apiToken: null,
+                hostname,
+                ipAddress: s.ipaddress || null,
+                type: (s.type || s.module || "cpanel").toLowerCase() === "directadmin" ? "cpanel" : "cpanel",
+                apiUsername: s.username || "root",
+                apiToken,
                 apiPort: parseInt(s.port ?? "2087") || 2087,
                 ns1: s.nameserver1 || null, ns2: s.nameserver2 || null,
                 maxAccounts: parseInt(s.maxaccounts ?? "500") || 500,
                 status: "active", isDefault: false,
               } as any).returning();
               serverMap.set(String(s.id), srv.id);
+              serverMap.set(String(s.name), srv.id);
               job.result.servers++;
+              log(`  Imported server "${s.name}" (${hostname})${apiToken ? " ✓ WHM token" : " ⚠ no WHM token"}`);
             } catch (e: any) { errLog(`Server [${s.id}]: ${e.message}`); }
           }
           log(`Imported ${job.result.servers} servers`);
@@ -622,11 +642,16 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       if (importServices) {
         step("Importing hosting services", 5);
         try {
-          // Pre-load existing services (clientId:domain) to avoid duplicates on re-run
-          const existingServices = new Set<string>();
-          const existingServiceRows = await db.select({ clientId: hostingServicesTable.clientId, domain: hostingServicesTable.domain }).from(hostingServicesTable);
+          // Pre-load existing services (clientId:domain) → {key → serviceId, serverId}
+          const existingServices = new Map<string, { id: string; serverId: string | null }>();
+          const existingServiceRows = await db.select({
+            id: hostingServicesTable.id,
+            clientId: hostingServicesTable.clientId,
+            domain: hostingServicesTable.domain,
+            serverId: hostingServicesTable.serverId,
+          }).from(hostingServicesTable);
           for (const r of existingServiceRows) {
-            if (r.clientId && r.domain) existingServices.add(`${r.clientId}:${r.domain}`);
+            if (r.clientId && r.domain) existingServices.set(`${r.clientId}:${r.domain}`, { id: r.id, serverId: r.serverId });
           }
 
           const services = await whmcsPages(whmcsUrl, identifier, secret, "GetClientsProducts", "products", "product");
@@ -640,12 +665,24 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
             const planId = planMap.get(String(s.pid)) ?? defaultPlanId;
             if (!planId) { job.result.skipped++; continue; }
 
-            // Skip if already imported on a previous run
+            // Skip if already imported on a previous run — but update server link if missing
             const svcKey = `${clientId}:${s.domain || ""}`;
-            if (s.domain && existingServices.has(svcKey)) { job.result.skipped++; continue; }
+            const serverId = serverMap.get(String(s.serverid)) ?? null;
+            if (s.domain && existingServices.has(svcKey)) {
+              const existing = existingServices.get(svcKey)!;
+              // If this service was imported without a server link, patch it now that servers are imported
+              if (!existing.serverId && serverId) {
+                await db.update(hostingServicesTable)
+                  .set({ serverId, serverIp: s.serverip || s.dedicatedip || null,
+                         cpanelUrl: s.serverip ? `https://${s.serverip}:2083` : undefined,
+                         updatedAt: new Date() })
+                  .where(eq(hostingServicesTable.id, existing.id));
+              }
+              job.result.skipped++;
+              continue;
+            }
 
             try {
-              const serverId = serverMap.get(String(s.serverid)) ?? null;
               const [svc] = await db.insert(hostingServicesTable).values({
                 clientId, planId,
                 planName: s.name || s.groupname || "Hosting Service",
