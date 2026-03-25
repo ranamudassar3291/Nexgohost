@@ -367,14 +367,14 @@ const SS = (caption: string) =>
   `</svg><span class="kb-screenshot-tag">Screenshot</span><p class="kb-screenshot-caption">${caption}</p></div></div>`;
 
 export async function seedKbContent() {
-  // Check if v2 content already exists
-  const [v2Check] = await db
+  // Check if v3 content already exists (v3 adds Troubleshooting category + 404/500/DNS articles)
+  const [v3Check] = await db
     .select()
     .from(kbArticlesTable)
-    .where(eq(kbArticlesTable.slug, "welcome-to-noehost-first-5-steps"))
+    .where(eq(kbArticlesTable.slug, "fixing-404-not-found-errors-noehost"))
     .limit(1);
 
-  if (v2Check) return; // already on v2
+  if (v3Check) return; // already on v3
 
   // Clear old content
   await db.delete(kbCategoriesTable); // cascades to articles
@@ -445,6 +445,17 @@ export async function seedKbContent() {
       descriptionAr: "إعداد البريد الإلكتروني وسجلات DNS و DKIM.",
       icon: "Mail",
       sortOrder: 6,
+    },
+    {
+      name: "Troubleshooting",
+      nameUr: "مسائل کا حل",
+      nameAr: "استكشاف الأخطاء",
+      slug: "troubleshooting",
+      description: "Fix common website errors like 404, 500, DNS issues, and database connection problems.",
+      descriptionUr: "عام ویب سائٹ غلطیاں جیسے 404، 500، DNS اور ڈیٹا بیس مسائل حل کریں۔",
+      descriptionAr: "إصلاح أخطاء الموقع الشائعة مثل 404 و500 ومشاكل DNS وقاعدة البيانات.",
+      icon: "AlertTriangle",
+      sortOrder: 7,
     },
   ];
 
@@ -1544,6 +1555,447 @@ ${SS("cPanel Email Deliverability page showing DKIM and SPF status with Repair b
 
 <h2>Verifying Your Email Authentication</h2>
 <p>After setting up these records, wait 15–30 minutes then test at <a href="https://mxtoolbox.com/emailhealth">MXToolbox Email Health</a> or <a href="https://mail-tester.com">mail-tester.com</a> to confirm everything is configured correctly.</p>`,
+    },
+
+    // ── TROUBLESHOOTING ──────────────────────────────────────────────────────
+    {
+      categoryId: catMap["troubleshooting"],
+      title: "Fixing 404 Not Found Errors on Your Website",
+      titleUr: "ویب سائٹ پر 404 نہیں ملا کی غلطی ٹھیک کریں",
+      titleAr: "إصلاح خطأ 404 غير موجود على موقعك",
+      slug: "fixing-404-not-found-errors-noehost",
+      excerpt: "A 404 error means the page cannot be found. Learn every cause and fix for 404 errors on Noehost hosting.",
+      excerptUr: "404 کا مطلب ہے صفحہ نہیں ملا۔ Noehost پر تمام وجوہات اور حل جانیں۔",
+      excerptAr: "خطأ 404 يعني أن الصفحة غير موجودة. تعرف على كل الأسباب والحلول.",
+      seoTitle: "Fix 404 Not Found Errors on Noehost — Complete Troubleshooting Guide",
+      seoDescription: "Getting 404 errors on your Noehost-hosted website? Follow our step-by-step guide to diagnose and fix broken links, missing files, and permalink issues.",
+      isFeatured: true,
+      content: `<h2>What Is a 404 Error?</h2>
+<p>A <strong>404 Not Found</strong> error means your web server received the request but couldn't locate the file or page being asked for. It's one of the most common website errors and is almost always fixable.</p>
+
+<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:1rem 1.25rem;border-radius:0.5rem;margin:1rem 0">
+  <strong>Quick Diagnosis:</strong> Is the error on every page or just one? Every page → server/config issue. One page only → broken link or missing file.
+</div>
+
+<h2>Most Common Causes of 404 Errors</h2>
+<ul>
+  <li>The page was deleted or renamed without updating links</li>
+  <li>WordPress permalinks are broken or not saved</li>
+  <li>A file was not uploaded to the correct folder (<code>public_html</code>)</li>
+  <li>A plugin or theme incorrectly rewrote URL rules</li>
+  <li><code>.htaccess</code> file is missing, corrupted, or has wrong rules</li>
+  <li>Case-sensitive filenames (e.g., <code>About.html</code> vs <code>about.html</code>)</li>
+</ul>
+
+<h2>Step 1 — Check the URL Carefully</h2>
+<p>The simplest cause is a typo in the URL. Verify:</p>
+<ul>
+  <li>No extra spaces or special characters</li>
+  <li>Correct spelling of the page slug</li>
+  <li>The file extension is correct (e.g., <code>.html</code>, <code>.php</code>)</li>
+</ul>
+
+<h2>Step 2 — Check the File Exists in cPanel</h2>
+<ol>
+  <li>Log in to cPanel via your <a href="https://noehost.com">Noehost Client Area</a></li>
+  <li>Open <strong>File Manager → public_html</strong></li>
+  <li>Search for the file that should be at that URL</li>
+  <li>If it's missing, re-upload it from your local computer</li>
+</ol>
+${SS("cPanel File Manager — public_html folder with file search for missing page")}
+
+<h2>Step 3 — Fix WordPress Permalinks (Most Common WordPress Fix)</h2>
+<p>If you're using WordPress and <em>all</em> inner pages give 404 errors, your permalink structure is broken.</p>
+<ol>
+  <li>Log in to your WordPress admin dashboard</li>
+  <li>Go to <strong>Settings → Permalinks</strong></li>
+  <li>Without changing anything, click <strong>Save Changes</strong></li>
+  <li>This regenerates the <code>.htaccess</code> file and fixes rewrite rules</li>
+</ol>
+${SS("WordPress admin — Settings > Permalinks page with Save Changes button highlighted")}
+
+<h2>Step 4 — Fix or Recreate the .htaccess File</h2>
+<p>A corrupted <code>.htaccess</code> file causes all sorts of 404 errors. To reset it:</p>
+<ol>
+  <li>In cPanel File Manager, navigate to <code>public_html</code></li>
+  <li>Enable <strong>Show Hidden Files</strong> (Settings → Show Hidden Files)</li>
+  <li>Find <code>.htaccess</code> and rename it to <code>.htaccess.bak</code></li>
+  <li>Create a new <code>.htaccess</code> file with this standard WordPress content:</li>
+</ol>
+<pre><code># BEGIN WordPress
+&lt;IfModule mod_rewrite.c&gt;
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+&lt;/IfModule&gt;
+# END WordPress</code></pre>
+${SS("cPanel File Manager — .htaccess file in public_html with Edit option visible")}
+
+<h2>Step 5 — Check for Redirects and Plugin Conflicts</h2>
+<p>In WordPress, temporarily deactivate all plugins via <strong>Plugins → Installed Plugins → Bulk Deactivate</strong>, then test the URL. If the 404 disappears, reactivate plugins one by one to find the culprit.</p>
+
+<h2>Step 6 — Set Up a Custom 404 Page</h2>
+<p>Even after fixing the root cause, it's good practice to create a friendly 404 page that helps visitors find what they need. In WordPress, most themes include a custom <code>404.php</code> template. For static sites, add this to your <code>.htaccess</code>:</p>
+<pre><code>ErrorDocument 404 /404.html</code></pre>
+
+<h2>Still Getting 404?</h2>
+<p>If none of the above steps resolve your issue, open a support ticket from your <a href="https://noehost.com">Noehost Client Area</a> with the specific URL returning the error and a description of when it started. Our team will investigate the server configuration for you.</p>`,
+    },
+
+    {
+      categoryId: catMap["troubleshooting"],
+      title: "Fixing 500 Internal Server Error on Noehost",
+      titleUr: "Noehost پر 500 اندرونی سرور غلطی ٹھیک کریں",
+      titleAr: "إصلاح خطأ 500 Internal Server Error على Noehost",
+      slug: "fixing-500-internal-server-error-noehost",
+      excerpt: "A 500 error means something went wrong on the server. This guide covers every cause and fix for 500 errors.",
+      excerptUr: "500 کا مطلب ہے سرور پر کچھ غلط ہوا۔ تمام وجوہات اور حل جانیں۔",
+      excerptAr: "خطأ 500 يعني حدث خطأ في الخادم. تعرف على الأسباب والحلول الكاملة.",
+      seoTitle: "Fix 500 Internal Server Error on Noehost — Step-by-Step Guide",
+      seoDescription: "Seeing a 500 Internal Server Error on your website? Learn how to diagnose and fix PHP errors, .htaccess issues, and plugin conflicts on Noehost hosting.",
+      isFeatured: true,
+      content: `<h2>What Is a 500 Internal Server Error?</h2>
+<p>A <strong>500 Internal Server Error</strong> is a generic server-side error that means something went wrong but the server can't be more specific. Unlike a 404 (file not found), a 500 error is always a server or code configuration problem — not a typo in the URL.</p>
+
+<div style="background:#fee2e2;border-left:4px solid #ef4444;padding:1rem 1.25rem;border-radius:0.5rem;margin:1rem 0">
+  <strong>Common culprits:</strong> Corrupted .htaccess, PHP memory limit exceeded, file permission errors, faulty plugin or theme, or a PHP syntax error in a custom file.
+</div>
+
+<h2>Step 1 — Check PHP Error Logs</h2>
+<p>Error logs tell you exactly what went wrong. In cPanel:</p>
+<ol>
+  <li>Go to <strong>Metrics → Errors</strong></li>
+  <li>Review the most recent entries — look for <code>PHP Fatal error</code>, <code>syntax error</code>, or <code>memory exhausted</code></li>
+  <li>The filename and line number in the log tells you exactly where the problem is</li>
+</ol>
+${SS("cPanel Metrics — Error Logs showing recent PHP Fatal error entries")}
+
+<h2>Step 2 — Rename .htaccess to Disable It</h2>
+<p>A corrupted <code>.htaccess</code> is the #1 cause of 500 errors. Temporarily disable it:</p>
+<ol>
+  <li>In cPanel File Manager, navigate to <code>public_html</code></li>
+  <li>Enable <strong>Show Hidden Files</strong></li>
+  <li>Right-click <code>.htaccess</code> and select <strong>Rename</strong></li>
+  <li>Rename it to <code>.htaccess.bak</code></li>
+  <li>Reload your website — if the 500 error disappears, the .htaccess was the problem</li>
+  <li>Re-create a clean .htaccess (see our <a href="/help/fixing-404-not-found-errors-noehost">404 guide</a> for the standard WordPress template)</li>
+</ol>
+${SS("cPanel File Manager — renaming .htaccess to .htaccess.bak to isolate the issue")}
+
+<h2>Step 3 — Fix PHP Memory Limit</h2>
+<p>If your error log shows <code>Allowed memory size of X bytes exhausted</code>, you need to increase the PHP memory limit:</p>
+<ol>
+  <li>In cPanel File Manager, open <code>public_html/wp-config.php</code> (for WordPress) or <code>.htaccess</code></li>
+  <li>Add this line to <code>wp-config.php</code> above the line that says "That's all, stop editing":</li>
+</ol>
+<pre><code>define('WP_MEMORY_LIMIT', '256M');</code></pre>
+<p>Or in <code>.htaccess</code>:</p>
+<pre><code>php_value memory_limit 256M</code></pre>
+${SS("wp-config.php open in cPanel file editor with WP_MEMORY_LIMIT line added")}
+
+<h2>Step 4 — Check File Permissions</h2>
+<p>Incorrect file permissions cause 500 errors. The correct permissions on Noehost are:</p>
+<ul>
+  <li><strong>Folders:</strong> 755</li>
+  <li><strong>Files:</strong> 644</li>
+  <li><strong>wp-config.php:</strong> 600 (more secure)</li>
+</ul>
+<p>To fix permissions in bulk via cPanel:</p>
+<ol>
+  <li>Go to File Manager → right-click <code>public_html</code></li>
+  <li>Choose <strong>Change Permissions</strong></li>
+  <li>Set to 755 for directories, 644 for files</li>
+</ol>
+
+<h2>Step 5 — Disable All Plugins (WordPress)</h2>
+<p>A faulty plugin is a very common cause. To disable all plugins without dashboard access:</p>
+<ol>
+  <li>In cPanel File Manager, navigate to <code>public_html/wp-content/plugins</code></li>
+  <li>Rename the entire <code>plugins</code> folder to <code>plugins.bak</code></li>
+  <li>Reload your website — if it loads, a plugin was the cause</li>
+  <li>Rename <code>plugins.bak</code> back to <code>plugins</code></li>
+  <li>Re-enable plugins one by one from WordPress admin to find the bad one</li>
+</ol>
+${SS("cPanel File Manager — wp-content folder with plugins renamed to plugins.bak")}
+
+<h2>Step 6 — Switch PHP Version</h2>
+<p>If you recently updated a plugin or theme, it may require a newer PHP version. In cPanel:</p>
+<ol>
+  <li>Go to <strong>Software → MultiPHP Manager</strong></li>
+  <li>Select your domain</li>
+  <li>Try PHP 8.1 or 8.2 (recommended for modern WordPress)</li>
+  <li>Save and test your website</li>
+</ol>
+
+<h2>Still Getting 500 Errors?</h2>
+<p>If none of these steps work, the issue may be server-level. Open a support ticket from your <a href="https://noehost.com">Noehost Client Area</a> with your domain name and a screenshot of the error log. Our technical team will investigate and resolve it for you.</p>`,
+    },
+
+    {
+      categoryId: catMap["troubleshooting"],
+      title: "DNS Propagation: What It Is and How Long It Takes",
+      titleUr: "DNS پروپیگیشن کیا ہے اور کتنا وقت لگتا ہے",
+      titleAr: "انتشار DNS: ما هو وكم يستغرق من الوقت",
+      slug: "dns-propagation-explained-noehost",
+      excerpt: "After updating nameservers or DNS records, changes take time to spread worldwide. Learn why and how to check propagation status.",
+      excerptUr: "نیم سرور یا DNS ریکارڈ تبدیل کرنے کے بعد پوری دنیا میں وقت لگتا ہے۔ وجہ اور چیک کرنے کا طریقہ جانیں۔",
+      excerptAr: "بعد تحديث خوادم الأسماء أو سجلات DNS، تستغرق التغييرات وقتاً للانتشار عالمياً.",
+      seoTitle: "DNS Propagation Explained — How Long It Takes & How to Check | Noehost",
+      seoDescription: "Changed your nameservers to ns1.noehost.com? Learn how DNS propagation works, how long it takes (2–48 hours), and how to check if your changes have spread.",
+      isFeatured: true,
+      content: `<h2>What Is DNS Propagation?</h2>
+<p>When you update your domain's <strong>nameservers</strong> (e.g., from GoDaddy's nameservers to <code>ns1.noehost.com</code> and <code>ns2.noehost.com</code>), or change a DNS record, those changes don't take effect instantly around the world.</p>
+<p>The internet uses a distributed system of thousands of DNS servers (called resolvers) worldwide. Each resolver caches DNS information for a period of time called the <strong>TTL (Time To Live)</strong>. Until each resolver's cache expires and refreshes, some visitors may still see your old website or get "site not found" errors.</p>
+<p>This process of DNS information spreading globally is called <strong>DNS propagation</strong>.</p>
+
+<h2>How Long Does DNS Propagation Take?</h2>
+<table style="width:100%;border-collapse:collapse;margin:1rem 0">
+  <thead>
+    <tr style="background:var(--muted,#f3f4f6)">
+      <th style="padding:0.75rem;text-align:left;border:1px solid var(--border,#e5e7eb)">Change Type</th>
+      <th style="padding:0.75rem;text-align:left;border:1px solid var(--border,#e5e7eb)">Typical Time</th>
+      <th style="padding:0.75rem;text-align:left;border:1px solid var(--border,#e5e7eb)">Maximum</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">Nameserver change</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">2–12 hours</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">48 hours</td>
+    </tr>
+    <tr style="background:var(--muted,#f9fafb)">
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">A Record change</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">15 min – 4 hours</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">24 hours</td>
+    </tr>
+    <tr>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">MX Record change</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">1–4 hours</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">24 hours</td>
+    </tr>
+    <tr style="background:var(--muted,#f9fafb)">
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">CNAME/TXT Record</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">5 min – 2 hours</td>
+      <td style="padding:0.75rem;border:1px solid var(--border,#e5e7eb)">12 hours</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>How to Check DNS Propagation Status</h2>
+<p>These free tools show you what DNS servers worldwide currently see for your domain:</p>
+<ul>
+  <li><a href="https://dnschecker.org" target="_blank">DNSChecker.org</a> — Shows propagation across 100+ locations</li>
+  <li><a href="https://whatsmydns.net" target="_blank">WhatsMyDNS.net</a> — Clean real-time global propagation map</li>
+  <li><a href="https://mxtoolbox.com/DNSLookup.aspx" target="_blank">MXToolbox DNS Lookup</a> — Detailed record inspection</li>
+</ul>
+${SS("DNSChecker.org showing global propagation map with green checkmarks confirming ns1.noehost.com")}
+
+<h2>Step-by-Step: Pointing Your Domain to Noehost</h2>
+<ol>
+  <li>Log in to your domain registrar (GoDaddy, Namecheap, Google Domains, etc.)</li>
+  <li>Find <strong>DNS Management</strong> or <strong>Nameservers</strong> settings</li>
+  <li>Select <strong>Custom nameservers</strong> (not "Use default" or "Use registrar's")</li>
+  <li>Enter:<br><code>NS1: ns1.noehost.com</code><br><code>NS2: ns2.noehost.com</code></li>
+  <li>Save changes</li>
+  <li>Check <a href="https://dnschecker.org" target="_blank">DNSChecker.org</a> every few hours to monitor propagation</li>
+</ol>
+${SS("Domain registrar DNS settings — custom nameservers fields showing ns1.noehost.com and ns2.noehost.com")}
+
+<h2>What to Do During Propagation</h2>
+<ul>
+  <li><strong>Don't panic</strong> — Your old site may still show for some visitors while propagating; this is normal</li>
+  <li><strong>Clear your browser cache</strong> — Your browser may be caching the old DNS result. Press <code>Ctrl+Shift+Delete</code> to clear it</li>
+  <li><strong>Try incognito mode</strong> — Opens a fresh session without cached DNS</li>
+  <li><strong>Use a VPN</strong> — Lets you test from a different DNS resolver to see your new site early</li>
+  <li><strong>Check propagation tools</strong> — Once most locations show your new IP, your site is live globally</li>
+</ul>
+
+<h2>Why Is My Domain Still Not Working After 48 Hours?</h2>
+<p>If 48 hours have passed and your domain still doesn't point to Noehost, check:</p>
+<ol>
+  <li>The nameservers were saved correctly (log in to your registrar and verify)</li>
+  <li>Your domain is not expired (check the expiry date in your registrar account)</li>
+  <li>The hosting service in your <a href="https://noehost.com">Noehost Client Area</a> is active and not suspended</li>
+</ol>
+<p>If everything looks correct, open a support ticket and our team will verify the DNS configuration for you.</p>`,
+    },
+
+    {
+      categoryId: catMap["troubleshooting"],
+      title: "Fixing 'Error Establishing a Database Connection' in WordPress",
+      titleUr: "WordPress میں 'ڈیٹا بیس کنکشن کی غلطی' ٹھیک کریں",
+      titleAr: "إصلاح خطأ 'Error Establishing a Database Connection' في WordPress",
+      slug: "fixing-database-connection-error-wordpress",
+      excerpt: "This error means WordPress can't reach its MySQL database. Follow these steps to restore your site quickly.",
+      excerptUr: "یہ غلطی کا مطلب ہے WordPress MySQL ڈیٹا بیس تک نہیں پہنچ سکتا۔ ان مراحل سے اپنی سائٹ بحال کریں۔",
+      excerptAr: "يعني هذا الخطأ أن WordPress لا يمكنه الوصول إلى قاعدة بيانات MySQL.",
+      seoTitle: "Fix 'Error Establishing a Database Connection' in WordPress | Noehost",
+      seoDescription: "Getting 'Error Establishing a Database Connection' on your WordPress site? Fix wrong DB credentials, corrupted tables, and MySQL server issues on Noehost.",
+      content: `<h2>What Does This Error Mean?</h2>
+<p>The <strong>"Error Establishing a Database Connection"</strong> message means WordPress cannot connect to its MySQL database. Every WordPress site stores all its content — posts, pages, settings, users — in a database, so if the connection fails, the entire site goes down.</p>
+
+<div style="background:#fee2e2;border-left:4px solid #ef4444;padding:1rem 1.25rem;border-radius:0.5rem;margin:1rem 0">
+  <strong>Note:</strong> This error can affect the front-end, the admin dashboard, or both. It always requires fixing the database credentials or repairing the database tables.
+</div>
+
+<h2>Step 1 — Verify Database Credentials in wp-config.php</h2>
+<p>The most common cause is incorrect database credentials in <code>wp-config.php</code>. These credentials must exactly match what's configured in cPanel.</p>
+<ol>
+  <li>Log in to cPanel via your <a href="https://noehost.com">Noehost Client Area</a></li>
+  <li>Go to <strong>File Manager → public_html</strong></li>
+  <li>Right-click <code>wp-config.php</code> → <strong>Edit</strong></li>
+  <li>Check these four values:</li>
+</ol>
+<pre><code>define('DB_NAME',     'yourusername_dbname');
+define('DB_USER',     'yourusername_dbuser');
+define('DB_PASSWORD', 'your_database_password');
+define('DB_HOST',     'localhost');</code></pre>
+${SS("wp-config.php open in cPanel file editor showing DB_NAME, DB_USER, DB_PASSWORD fields")}
+
+<h2>Step 2 — Find the Correct Database Name and User</h2>
+<ol>
+  <li>In cPanel, go to <strong>Databases → MySQL Databases</strong></li>
+  <li>Note your exact database name (format: <code>yourusername_dbname</code>)</li>
+  <li>Note the database user assigned to it</li>
+  <li>If you've forgotten the password, click <strong>Change Password</strong> for the database user, set a new one, and update <code>wp-config.php</code> to match</li>
+</ol>
+${SS("cPanel MySQL Databases page showing database name, user, and permissions")}
+
+<h2>Step 3 — Repair the Database</h2>
+<p>Corrupted database tables can also cause this error. WordPress has a built-in repair tool:</p>
+<ol>
+  <li>Edit <code>wp-config.php</code></li>
+  <li>Add this line above "That's all, stop editing":</li>
+</ol>
+<pre><code>define('WP_ALLOW_REPAIR', true);</code></pre>
+<ol start="3">
+  <li>Visit <code>https://yourdomain.com/wp-admin/maint/repair.php</code></li>
+  <li>Click <strong>Repair Database</strong></li>
+  <li>After repair completes, <strong>remove</strong> the <code>WP_ALLOW_REPAIR</code> line from wp-config.php</li>
+</ol>
+${SS("WordPress database repair page at /wp-admin/maint/repair.php showing Repair Database button")}
+
+<h2>Step 4 — Check MySQL Service via phpMyAdmin</h2>
+<ol>
+  <li>In cPanel, click <strong>phpMyAdmin</strong></li>
+  <li>Try to open your WordPress database</li>
+  <li>If phpMyAdmin loads normally and the database tables are visible, the connection works from the server side — go back to Step 1 to check wp-config.php credentials</li>
+  <li>If phpMyAdmin shows errors too, there may be a server-level MySQL issue — contact Noehost support immediately</li>
+</ol>
+${SS("cPanel phpMyAdmin showing WordPress database tables — wp_posts, wp_options, wp_users visible")}
+
+<h2>Step 5 — Check DB_HOST Value</h2>
+<p>On most shared hosting including Noehost, <code>DB_HOST</code> should be <code>localhost</code>. However, occasionally it needs to be an IP address or a specific hostname. If <code>localhost</code> isn't working, try:</p>
+<ul>
+  <li><code>127.0.0.1</code></li>
+  <li><code>localhost:3306</code></li>
+</ul>
+
+<h2>Step 6 — Increase MySQL Max Connections (Contact Support)</h2>
+<p>If your database repeatedly disconnects under load, your hosting plan may have reached its MySQL connection limit. This is a server-level setting that our team can review. Open a support ticket from your <a href="https://noehost.com">Noehost Client Area</a> and mention the "Error Establishing a Database Connection" message — we'll check the server logs and increase limits if needed.</p>
+
+<h2>Prevention Tips</h2>
+<ul>
+  <li>Keep regular database backups using cPanel's <strong>Backup Wizard</strong></li>
+  <li>Use a WordPress plugin like <em>UpdraftPlus</em> for automated daily backups</li>
+  <li>After every major update, verify your site loads correctly</li>
+  <li>Avoid editing <code>wp-config.php</code> manually unless you know exactly what you're changing</li>
+</ul>`,
+    },
+
+    {
+      categoryId: catMap["troubleshooting"],
+      title: "Website Showing Old Content After Update — How to Fix Caching Issues",
+      titleUr: "اپ ڈیٹ کے بعد پرانا مواد دکھ رہا ہے — کیشنگ مسائل کیسے حل کریں",
+      titleAr: "الموقع يعرض محتوى قديم بعد التحديث — كيفية إصلاح مشاكل التخزين المؤقت",
+      slug: "fixing-caching-issues-website-not-updating-noehost",
+      excerpt: "When your website shows old content after making changes, the issue is almost always caching. Learn how to clear every layer of cache.",
+      excerptUr: "جب ویب سائٹ تبدیلیوں کے بعد پرانا مواد دکھائے تو مسئلہ عموماً کیش ہوتا ہے۔ ہر پرت کی کیش صاف کرنا سیکھیں۔",
+      excerptAr: "عندما يعرض موقعك محتوى قديماً بعد التغييرات، المشكلة عادةً هي التخزين المؤقت.",
+      seoTitle: "Fix Website Not Updating After Changes — Clear Cache on Noehost",
+      seoDescription: "Website still showing old content after you made changes? Learn how to clear browser cache, WordPress cache plugins, server cache, and CDN cache on Noehost.",
+      content: `<h2>Why Is My Website Showing Old Content?</h2>
+<p>When you update your website but visitors (or you) still see old content, it's a <strong>caching problem</strong>. Caching is a speed optimization that saves copies of web pages to serve them faster — but it can show outdated content when not cleared properly.</p>
+<p>There are multiple layers of cache that can each independently hold old content:</p>
+<ul>
+  <li><strong>Browser cache</strong> — Your browser saves page copies locally</li>
+  <li><strong>WordPress caching plugin</strong> — Plugins like W3 Total Cache, WP Super Cache store static copies</li>
+  <li><strong>Server-side cache</strong> — Some hosting optimizations cache at server level</li>
+  <li><strong>CDN cache</strong> — If using Cloudflare or another CDN, they cache content globally</li>
+</ul>
+
+<h2>Step 1 — Clear Your Browser Cache</h2>
+<p>The quickest test: press <strong>Ctrl + Shift + R</strong> (Windows) or <strong>Cmd + Shift + R</strong> (Mac) to hard-reload and bypass the browser cache. If you see the updated content after that, your browser was the culprit.</p>
+<p>To clear all cached files:</p>
+<ul>
+  <li><strong>Chrome:</strong> Settings → Privacy → Clear Browsing Data → Cached images and files</li>
+  <li><strong>Firefox:</strong> Settings → Privacy → Clear Data → Cached Web Content</li>
+  <li><strong>Safari:</strong> Develop → Empty Caches</li>
+</ul>
+<p>Also try viewing your site in <strong>Incognito / Private mode</strong> — this always bypasses local cache.</p>
+
+<h2>Step 2 — Clear WordPress Cache Plugin</h2>
+<p>If you use a caching plugin, clear its cache from the WordPress dashboard:</p>
+<h3>W3 Total Cache</h3>
+<ol>
+  <li>In WordPress admin, go to <strong>Performance → Dashboard</strong></li>
+  <li>Click <strong>Empty All Caches</strong></li>
+</ol>
+<h3>WP Super Cache</h3>
+<ol>
+  <li>Go to <strong>Settings → WP Super Cache</strong></li>
+  <li>Click <strong>Delete Cache</strong></li>
+</ol>
+<h3>WP Rocket</h3>
+<ol>
+  <li>Click the <strong>WP Rocket</strong> icon in the admin bar</li>
+  <li>Select <strong>Clear Cache</strong></li>
+</ol>
+${SS("WordPress admin bar with WP Rocket — Clear Cache option highlighted")}
+
+<h2>Step 3 — Clear Cloudflare Cache (if using CDN)</h2>
+<p>If your domain uses Cloudflare:</p>
+<ol>
+  <li>Log in to your Cloudflare dashboard</li>
+  <li>Select your domain</li>
+  <li>Go to <strong>Caching → Configuration</strong></li>
+  <li>Click <strong>Purge Everything</strong></li>
+</ol>
+${SS("Cloudflare caching page — Purge Everything button highlighted")}
+
+<h2>Step 4 — Clear Server-Level Cache in cPanel</h2>
+<p>Noehost uses LiteSpeed Web Server with optional caching. To clear it:</p>
+<ol>
+  <li>Log in to cPanel via your <a href="https://noehost.com">Noehost Client Area</a></li>
+  <li>Look for <strong>LiteSpeed Cache</strong> or <strong>Cache Manager</strong> in the Software section</li>
+  <li>Click <strong>Flush All</strong> or <strong>Clear Cache</strong></li>
+</ol>
+<p>Alternatively, if using the WordPress LiteSpeed Cache plugin:</p>
+<ol>
+  <li>In WordPress, go to <strong>LiteSpeed Cache → Dashboard</strong></li>
+  <li>Click <strong>Purge All</strong></li>
+</ol>
+
+<h2>Step 5 — Disable Caching Temporarily for Testing</h2>
+<p>To confirm caching is the issue, add this to your <code>.htaccess</code> temporarily to disable browser caching:</p>
+<pre><code>&lt;IfModule mod_headers.c&gt;
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires 0
+&lt;/IfModule&gt;</code></pre>
+<p>If you see fresh content after adding this, caching was definitely the problem. Remove these lines after testing.</p>
+
+<h2>Best Practice: Set Sensible Cache Durations</h2>
+<p>Rather than disabling caching entirely (which slows your site), configure your caching plugin to:</p>
+<ul>
+  <li>Cache static assets (images, CSS, JS) for 30 days</li>
+  <li>Cache HTML pages for 1–4 hours</li>
+  <li>Always exclude WooCommerce cart pages and logged-in users from caching</li>
+</ul>
+<p>If you need help configuring caching correctly on Noehost, open a support ticket and our team will review your settings.</p>`,
     },
 
   ];
