@@ -314,10 +314,11 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       const importTickets    = o.importTickets    !== false;
       const skipExisting     = o.skipExistingClients !== false;
 
-      const clientMap  = new Map<string, string>(); // WHMCS id → our UUID
-      const planMap    = new Map<string, string>();
-      const serverMap  = new Map<string, string>();
-      const serviceMap = new Map<string, string>();
+      const clientMap     = new Map<string, string>(); // WHMCS id → our UUID
+      const planMap       = new Map<string, string>();
+      const serverMap     = new Map<string, string>();
+      const serviceMap    = new Map<string, string>();
+      const knownWhmcsIds = new Set<string>(); // WHMCS client IDs returned by GetClients (step 4)
       const groupCache = new Map<string, string>(); // WHMCS groupname → our group UUID
       let   defaultPlanId = "";
 
@@ -465,10 +466,24 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
         step("Importing servers", 3);
         try {
           const srvData = await whmcsCall(whmcsUrl, identifier, secret, "GetServers", { fetchmodule: "1" });
-          // WHMCS returns servers as a flat array in v8+ (not nested .server)
-          const rawServers: any[] = Array.isArray(srvData.servers)
-            ? srvData.servers
-            : toArray(srvData.servers?.server ?? srvData.servers);
+          // Log raw response keys for debugging
+          const srvKeys = Object.keys(srvData ?? {}).join(",");
+          log(`[GetServers raw] result=${srvData?.result}, keys=${srvKeys}, totalresults=${srvData?.totalresults}`);
+          if (srvData?.servers !== undefined) log(`[GetServers] servers type=${typeof srvData.servers}, isArray=${Array.isArray(srvData.servers)}, value=${JSON.stringify(srvData.servers).slice(0, 200)}`);
+
+          // Handle all known WHMCS response formats:
+          //   v7: { servers: { server: [...] } }
+          //   v8+: { servers: [...] }  OR  { servers: { server: [..] } }
+          //   empty: { servers: [] }  OR  { totalresults: "0" }
+          let rawServers: any[] = [];
+          const sv = srvData?.servers;
+          if (Array.isArray(sv)) {
+            rawServers = sv;
+          } else if (sv && typeof sv === "object") {
+            rawServers = toArray(sv.server ?? sv);
+          }
+          // Filter out empty objects that come from empty WHMCS array responses
+          rawServers = rawServers.filter((s: any) => s && (s.id || s.hostname || s.ipaddress));
           job.total = rawServers.length;
           log(`Found ${rawServers.length} servers`);
 
@@ -550,6 +565,8 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
 
           for (const c of clients) {
             job.current++;
+            // Track all WHMCS IDs we see, so ensureClient can avoid API calls for deleted clients
+            if (c.id) knownWhmcsIds.add(String(c.id));
             const email = (c.email ?? "").toLowerCase().trim();
             if (!email) { job.result.skipped++; continue; }
 
@@ -601,41 +618,54 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       // ── Client recovery: fetch & create clients whose IDs appear in services/
       //    domains/orders/invoices but weren't returned by GetClients (deleted/
       //    archived clients). Called on-demand during step 5-9 with local cache.
-      const missingClientCache = new Map<string, string | null>(); // whmcsId → our UUID or null
+      const missingClientCache = new Map<string, string>(); // whmcsId → our UUID (always created)
       async function ensureClient(whmcsId: string): Promise<string | null> {
         if (!whmcsId || whmcsId === "0") return null;
         if (clientMap.has(whmcsId)) return clientMap.get(whmcsId)!;
         if (missingClientCache.has(whmcsId)) return missingClientCache.get(whmcsId)!;
-        try {
-          const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: whmcsId, stats: false });
-          const c = detail.client ?? detail;
-          const email = ((c.email ?? c.Email ?? "")).toLowerCase().trim();
-          if (!email) { missingClientCache.set(whmcsId, null); return null; }
 
-          const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
-            .where(eq(usersTable.email, email)).limit(1);
-          if (existing) {
-            clientMap.set(whmcsId, existing.id);
-            missingClientCache.set(whmcsId, existing.id);
-            return existing.id;
-          }
-          const tempHash = `whmcs_md5:${createHash("md5").update(`nexgo_${whmcsId}`).digest("hex")}`;
-          const [user] = await db.insert(usersTable).values({
-            firstName: c.firstname || c.Firstname || "Archived",
-            lastName:  c.lastname  || c.Lastname  || `Client ${whmcsId}`,
-            email, passwordHash: tempHash,
-            role: "client", status: "suspended", emailVerified: true,
-            creditBalance: "0.00",
-            createdAt: parseDate(c.datecreated) ?? new Date(),
-          } as any).returning();
-          clientMap.set(whmcsId, user.id);
-          missingClientCache.set(whmcsId, user.id);
-          job.result.clients++;
-          return user.id;
-        } catch {
-          missingClientCache.set(whmcsId, null);
-          return null;
+        // Try to fetch from WHMCS — but only if client was in GetClients list.
+        // Clients NOT in knownWhmcsIds are truly deleted; skip the API call entirely.
+        let firstName = "Archived", lastName = `Client ${whmcsId}`;
+        let email = `whmcs.deleted.${whmcsId}@nexgohost-migrated.local`; // guaranteed unique fallback
+        let createdAt: Date | null = null;
+        if (knownWhmcsIds.has(whmcsId)) {
+          // This ID WAS in GetClients but may have been filtered (e.g. no email) — try details
+          try {
+            const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: whmcsId, stats: false });
+            const c = detail.client ?? detail;
+            const fetchedEmail = ((c.email ?? c.Email ?? "")).toLowerCase().trim();
+            if (fetchedEmail) {
+              email = fetchedEmail;
+              firstName = c.firstname || c.Firstname || "Archived";
+              lastName  = c.lastname  || c.Lastname  || `Client ${whmcsId}`;
+              createdAt = parseDate(c.datecreated);
+            }
+          } catch { /* use fallback email */ }
         }
+        // If ID is NOT in knownWhmcsIds → deleted client, use fallback immediately (no API call)
+
+        // Check if this client already exists in DB
+        const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
+          .where(eq(usersTable.email, email)).limit(1);
+        if (existing) {
+          clientMap.set(whmcsId, existing.id);
+          missingClientCache.set(whmcsId, existing.id);
+          return existing.id;
+        }
+
+        // Create placeholder account — deleted clients come in as suspended
+        const tempHash = `whmcs_md5:${createHash("md5").update(`nexgo_${whmcsId}`).digest("hex")}`;
+        const [user] = await db.insert(usersTable).values({
+          firstName, lastName, email, passwordHash: tempHash,
+          role: "client", status: "suspended", emailVerified: true,
+          creditBalance: "0.00",
+          createdAt: createdAt ?? new Date(),
+        } as any).returning();
+        clientMap.set(whmcsId, user.id);
+        missingClientCache.set(whmcsId, user.id);
+        job.result.clients++;
+        return user.id;
       }
 
       // ── STEP 5: Hosting Services ──────────────────────────────────────────
@@ -808,12 +838,23 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
           job.total = invoices.length;
           log(`Found ${invoices.length} invoices`);
 
+          // Pre-load existing invoice numbers to silently skip on re-run (no errors)
+          const existingInvoiceNums = new Set<string>();
+          const existingInvRows = await db.select({ invoiceNumber: invoicesTable.invoiceNumber }).from(invoicesTable);
+          for (const r of existingInvRows) { if (r.invoiceNumber) existingInvoiceNums.add(r.invoiceNumber); }
+
           for (const inv of invoices) {
             job.current++;
             const clientId = await ensureClient(String(inv.userid ?? inv.clientid ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
 
-            const invNum   = buildInvoiceNumber(inv); // preserves WHMCS original number
+            const invNum   = buildInvoiceNumber(inv);
+            // Skip both primary and fallback numbers if already imported
+            if (existingInvoiceNums.has(invNum) || existingInvoiceNums.has(`${invNum}-W${inv.id}`)) {
+              job.result.skipped++;
+              continue;
+            }
+
             const dueDate  = parseDate(inv.duedate) ?? new Date();
             const paidDate = parseDate(inv.datepaid);
             const amount   = parseFloat(inv.subtotal ?? "0") || 0;
@@ -829,35 +870,32 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 }))
               : [{ description: `WHMCS Invoice #${inv.id}`, amount: total }];
 
+            const rowBase = {
+              clientId, amount: amount.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2),
+              status, dueDate,
+              paidDate: status === "paid" ? (paidDate ?? new Date()) : null,
+              items: JSON.stringify(items),
+              paymentNotes: inv.paymentmethod ? `Paid via ${inv.paymentmethod}` : null,
+              invoiceType: "hosting",
+              createdAt: parseDate(inv.date) ?? new Date(),
+            };
+
             try {
-              // Try to keep original invoice number, skip if duplicate
-              await db.insert(invoicesTable).values({
-                invoiceNumber: invNum,
-                clientId, amount: amount.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2),
-                status, dueDate,
-                paidDate: status === "paid" ? (paidDate ?? new Date()) : null,
-                items: JSON.stringify(items),
-                paymentNotes: inv.paymentmethod ? `Paid via ${inv.paymentmethod}` : null,
-                invoiceType: "hosting",
-                createdAt: parseDate(inv.date) ?? new Date(),
-              } as any);
+              await db.insert(invoicesTable).values({ invoiceNumber: invNum, ...rowBase } as any);
+              existingInvoiceNums.add(invNum);
               job.result.invoices++;
             } catch (dupErr: any) {
               if (dupErr.message?.includes("unique") || dupErr.code === "23505") {
-                // Invoice number collision — append WHMCS ID to make unique
-                try {
-                  await db.insert(invoicesTable).values({
-                    invoiceNumber: `${invNum}-W${inv.id}`,
-                    clientId, amount: amount.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2),
-                    status, dueDate,
-                    paidDate: status === "paid" ? (paidDate ?? new Date()) : null,
-                    items: JSON.stringify(items),
-                    paymentNotes: inv.paymentmethod ? `Paid via ${inv.paymentmethod}` : null,
-                    invoiceType: "hosting",
-                    createdAt: parseDate(inv.date) ?? new Date(),
-                  } as any);
-                  job.result.invoices++;
-                } catch (e2: any) { errLog(`Invoice [${inv.id}]: ${e2.message}`); }
+                const fallbackNum = `${invNum}-W${inv.id}`;
+                if (!existingInvoiceNums.has(fallbackNum)) {
+                  try {
+                    await db.insert(invoicesTable).values({ invoiceNumber: fallbackNum, ...rowBase } as any);
+                    existingInvoiceNums.add(fallbackNum);
+                    job.result.invoices++;
+                  } catch (e2: any) { errLog(`Invoice [${inv.id}]: ${e2.message}`); }
+                } else {
+                  job.result.skipped++;
+                }
               } else {
                 errLog(`Invoice [${inv.id}]: ${dupErr.message}`);
               }
