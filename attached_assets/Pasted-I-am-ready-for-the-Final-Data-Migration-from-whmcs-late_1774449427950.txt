@@ -1,0 +1,55 @@
+I am ready for the Final Data Migration from whmcs_latest_backup.sql. This must be a perfect mirror of my WHMCS data. Follow these instructions strictly to ensure zero errors:
+
+1. Data Filtering & Duplicate Prevention:
+
+Only Pakistan: Import ONLY clients where country = 'Pakistan'.
+
+Skip Fake Data: Do NOT import any 'United States' or 'Archived/Fake' clients.
+
+Unique Identity: Use email as the unique key. If a user already exists, Update their details; do NOT create a new/duplicate account.
+
+2. Mirror Services & Orders (Exact Status):
+
+Active Services: If a hosting/VPS service is 'Active' in WHMCS, it MUST show as 'Active' on the 'Hosting Services' page here.
+
+Pricing & Dates: Import the exact amount, billing_cycle, next_due_date, and registration_date.
+
+Assign to User: Ensure every service is correctly linked to its owner’s account.
+
+3. Invoices & Domains (Paid & Verified):
+
+Paid Invoices: If an invoice is marked as 'Paid' in WHMCS, it MUST be 'Paid' here. Import the exact Invoice ID, Items, and Prices.
+
+Domains: Import all domains for these Pakistani clients. Match the expiry_date and status exactly.
+
+Free Domain Logic: For old clients who had a free domain, ensure their service record reflects this so they are not charged for the domain in the next billing cycle.
+
+4. Admin Power Features (Client Profile View):
+
+Full Editing: On the 'Client Profile' page, ensure I have functional buttons to:
+
+Edit Service: Change due dates, prices, and status.
+
+Edit Domain: Change expiry dates or add a new domain manually.
+
+Edit Invoice: Modify invoice items or status.
+
+Delete/Terminate: Option to remove a specific service or domain.
+
+Login as Client: Enable the 'Impersonate' button so I can view the portal exactly as the client does.
+
+5. Technical Fixes:
+
+Server Error: Fix the 'Server Load Failed' on the Invoices page by ensuring all data relationships are valid.
+
+Checkout Fix: Ensure the Free Domain (Rs. 0.00) works for Yearly plans and the Minimum Wallet Deposit is set to 270 PKR.
+
+6. Final Execution:
+
+Import the data now. Once finished, give me a report of:
+
+Total Real Clients Imported.
+
+Total Active Hosting/VPS Services.
+
+Total Paid Invoices.

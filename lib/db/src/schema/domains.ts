@@ -19,6 +19,7 @@ export const domainsTable = pgTable("domains", {
   nameservers: text("nameservers").array().default([]),
   moduleServerId: text("module_server_id"),
   transferId: text("transfer_id"),
+  isFreeDomain: boolean("is_free_domain").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

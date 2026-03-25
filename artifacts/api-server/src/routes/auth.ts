@@ -689,4 +689,17 @@ router.post("/auth/reset-password", async (req, res) => {
   return res.json({ message: "Password updated successfully. You can now sign in." });
 });
 
+// ── Admin: Impersonate a client (Login as Client) ────────────────────────────
+router.post("/auth/impersonate/:userId", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (user.role !== "client") { res.status(400).json({ error: "Can only impersonate client accounts" }); return; }
+    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    console.log(`[IMPERSONATE] Admin ${req.user!.email} impersonating client ${user.email}`);
+    res.json({ token, user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role } });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 export default router;

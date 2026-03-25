@@ -1,0 +1,35 @@
+I need to transform the Admin Client Profile View into a high-powered management dashboard (WHMCS Style). Everything must be functional before I do the final migration.
+
+1. Advanced Admin Controls (On Client Profile Page):
+
+Service Management: For each service, add an 'Edit' button to change: Next Due Date, Price, Billing Cycle, and Status. Add a 'Terminate/Delete' button.
+
+Domain Management: Add an 'Edit Domain' button to change: Registration Date, Expiry Date, and Status. Add an 'Add New Domain' button specifically for this client.
+
+Invoices: Add an 'Edit Invoice' button and a 'Create New Invoice' button for this specific client.
+
+Login as Client: Add a button 'Login to Client Portal' that allows me to view the dashboard exactly as this client sees it (Impersonation).
+
+2. Database Structure Fix (Before Migration):
+
+Free Domain Support: Add a hidden field is_free_domain (Boolean) in the services or domains table. During migration, if a WHMCS service had a free domain, mark this as true so the system doesn't charge them during renewal.
+
+Dates: Ensure all date fields (reg_date, due_date, expiry_date) support manual editing from the Admin UI.
+
+3. Precision Migration Logic (The Final Sync):
+
+Import Rule: ONLY import 'Pakistan' clients. Use email as a unique key to prevent duplicates.
+
+Mirror Data: All Created Date, Due Date, and Status must be exact copies from whmcs_latest_backup.sql.
+
+Invoice Items: Ensure every invoice is imported with its full Item Description (e.g., 'Starter Hosting - domain.com (01/01/2026 - 01/01/2027)').
+
+4. Frontend Fixes:
+
+Server Error: Fix the 'Server Load Failed' on the Invoices page by ensuring all foreign keys (User IDs) are correctly mapped during import.
+
+Yearly Free Domain: Hardcode the logic: If a client selects Yearly, the domain price must be 0.00 at checkout.
+
+5. Verification:
+
+After the sync, show me a summary: Total Pakistan Clients, Active Services, and Total Domains imported. Ensure the 'Client Profile' now shows all these new buttons.

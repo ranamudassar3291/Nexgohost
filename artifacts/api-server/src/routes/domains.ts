@@ -595,16 +595,18 @@ router.post("/admin/domains", authenticate, requireAdmin, async (req: AuthReques
 // Admin: edit domain
 router.put("/admin/domains/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { clientId, registrar, expiryDate, nextDueDate, status, autoRenew, moduleServerId, nameservers } = req.body;
+    const { clientId, registrar, registrationDate, expiryDate, nextDueDate, status, autoRenew, moduleServerId, nameservers, isFreeDomain } = req.body;
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (clientId !== undefined) updates.clientId = clientId;
     if (registrar !== undefined) updates.registrar = registrar;
+    if (registrationDate !== undefined) updates.registrationDate = registrationDate ? new Date(registrationDate) : null;
     if (expiryDate !== undefined) updates.expiryDate = expiryDate ? new Date(expiryDate) : null;
     if (nextDueDate !== undefined) updates.nextDueDate = nextDueDate ? new Date(nextDueDate) : null;
     if (status !== undefined) updates.status = status;
     if (autoRenew !== undefined) updates.autoRenew = autoRenew;
     if (moduleServerId !== undefined) updates.moduleServerId = moduleServerId || null;
     if (nameservers !== undefined && Array.isArray(nameservers)) updates.nameservers = nameservers;
+    if (isFreeDomain !== undefined) updates.isFreeDomain = Boolean(isFreeDomain);
     const [updated] = await db.update(domainsTable).set(updates).where(eq(domainsTable.id, req.params.id)).returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);

@@ -399,7 +399,7 @@ router.post("/client/hosting/:id/cancel-request", authenticate, async (req: Auth
 // Admin: update hosting service (general)
 router.put("/admin/hosting/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const allowed = ["status", "cancelRequested", "nextDueDate", "billingCycle", "sslStatus", "username", "domain", "serverId", "serverIp", "cpanelUrl", "webmailUrl"];
+    const allowed = ["status", "cancelRequested", "nextDueDate", "billingCycle", "sslStatus", "username", "domain", "serverId", "serverIp", "cpanelUrl", "webmailUrl", "amount", "startDate", "expiryDate", "freeDomainAvailable"];
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
