@@ -1,5 +1,31 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 24)
+- **Orders Page — Full Overhaul**:
+  - Paginated server-side API (50/page) with `page`, `limit`, `search`, `status` query params
+  - Edit Order modal (status, payment status, due date, billing cycle, notes) via "More → Edit Order"
+  - Delete Order button via "More → Delete Order" (with confirmation)
+  - Pagination controls with prev/next and page number buttons
+  - Loading spinner overlay, total order count in header
+  - `GET /api/admin/orders` now returns `{ data, total, page, limit, totalPages }` (was flat array)
+  - `DELETE /api/admin/orders/:id` endpoint added
+  - Batch user fetching (no N+1 queries) and server-side filtering
+
+- **Invoices Page — Complete Rebuild**:
+  - Full pagination (50/page) server-side with search + status filters
+  - View Invoice modal (all fields + line items breakdown)
+  - Edit Invoice modal (status, due date, paid date, amount, total, payment ref, notes)
+  - Delete Invoice button (with confirmation)
+  - Mark Paid and Cancel buttons per row
+  - Clickable invoice number opens view modal; clickable client name navigates to client detail
+  - `GET /api/admin/invoices` now returns `{ data, total, page, limit, totalPages }` (was flat array)
+  - `PUT /api/admin/invoices/:id` endpoint added (edit all fields)
+  - `DELETE /api/admin/invoices/:id` endpoint added
+  - Added created date and paid date columns to table
+
+- **Duplicate Orders Cleanup**: Removed ~300 duplicate orders from WHMCS import (kept approved or latest)
+- **Hosting.tsx fix**: Updated to use new paginated orders API format
+
 ## Recent Changes (Session 23)
 - **WHMCS Import — Tickets + Original Numbers**: Added Step 9 (Support Tickets) and hardened all number/date/status preservation:
   - **Tickets**: `GetTickets` (paginated) + `GetTicket` per ticket for message replies. Preserves WHMCS `tid` as ticket_number, status (Open/Closed/Answered/Customer-Reply/On Hold), priority, department, dates, and all reply messages with admin/client sender role.

@@ -58,14 +58,15 @@ export default function AdminHosting() {
     queryFn: () => apiFetch("/api/admin/packages"),
   });
 
-  const { data: allOrders = [] } = useQuery<PendingOrder[]>({
+  const { data: pendingOrdersResp } = useQuery<{ data: PendingOrder[] }>({
     queryKey: ["admin-orders-pending"],
-    queryFn: () => apiFetch("/api/admin/orders"),
+    queryFn: () => apiFetch("/api/admin/orders?status=pending&limit=200"),
     refetchInterval: 30000,
   });
+  const allOrders = pendingOrdersResp?.data ?? [];
 
-  const pendingRenewals = allOrders.filter(o => o.type === "renewal" && o.status === "pending");
-  const pendingUpgrades = allOrders.filter(o => o.type === "upgrade" && o.status === "pending");
+  const pendingRenewals = allOrders.filter(o => o.type === "renewal");
+  const pendingUpgrades = allOrders.filter(o => o.type === "upgrade");
 
   const filtered = services.filter(s => {
     const matchSearch = (s.domain || "").toLowerCase().includes(search.toLowerCase()) ||

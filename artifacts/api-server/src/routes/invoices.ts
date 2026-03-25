@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
 import { provisionHostingService } from "../lib/provision.js";
@@ -100,14 +100,43 @@ router.get("/invoices", authenticate, async (req: AuthRequest, res) => {
 });
 
 // Admin: get all invoices
-router.get("/admin/invoices", authenticate, requireAdmin, async (_req, res) => {
+router.get("/admin/invoices", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const invoices = await db.select().from(invoicesTable).orderBy(sql`created_at DESC`);
-    const result = await Promise.all(invoices.map(async (i) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, i.clientId)).limit(1);
+    const page = Math.max(1, parseInt(String(req.query.page || "1")));
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"))));
+    const search = String(req.query.search || "").trim();
+    const statusFilter = String(req.query.status || "all");
+    const offset = (page - 1) * limit;
+
+    const conditions: any[] = [];
+    if (statusFilter !== "all") conditions.push(eq(invoicesTable.status, statusFilter as any));
+    if (search) conditions.push(or(
+      ilike(invoicesTable.invoiceNumber, `%${search}%`),
+      ilike(invoicesTable.paymentNotes, `%${search}%`),
+    )!);
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(invoicesTable).where(whereClause);
+
+    const invoices = await db.select().from(invoicesTable)
+      .where(whereClause)
+      .orderBy(desc(invoicesTable.createdAt))
+      .limit(limit).offset(offset);
+
+    const clientIds = [...new Set(invoices.map(i => i.clientId))];
+    const users = clientIds.length > 0
+      ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds))
+      : [];
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const result = invoices.map(i => {
+      const user = userMap.get(i.clientId);
       return formatInvoice(i, user ? `${user.firstName} ${user.lastName}` : "");
-    }));
-    res.json(result);
+    });
+
+    res.json({ data: result, total: count, page, limit, totalPages: Math.ceil(count / limit) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -413,6 +442,34 @@ router.post("/payments/stripe/create-intent", authenticate, async (req: AuthRequ
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// Admin: edit invoice (status, dates, notes, amount)
+router.put("/admin/invoices/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { status, dueDate, paidDate, paymentNotes, paymentRef, amount, total } = req.body;
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (status) updates.status = status;
+    if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
+    if (paidDate !== undefined) updates.paidDate = paidDate ? new Date(paidDate) : null;
+    if (paymentNotes !== undefined) updates.paymentNotes = paymentNotes;
+    if (paymentRef !== undefined) updates.paymentRef = paymentRef;
+    if (amount !== undefined) updates.amount = String(amount);
+    if (total !== undefined) updates.total = String(total);
+    const [updated] = await db.update(invoicesTable).set(updates).where(eq(invoicesTable.id, req.params.id)).returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
+    res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: delete invoice
+router.delete("/admin/invoices/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [deleted] = await db.delete(invoicesTable).where(eq(invoicesTable.id, req.params.id)).returning();
+    if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ success: true, id: req.params.id });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
 export default router;

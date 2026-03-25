@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  ShoppingCart, CheckCircle, XCircle, Search, Plus, FileText,
-  ChevronDown, Loader2, RefreshCw, AlertTriangle, StopCircle,
-  Terminal, Mail, Zap, ExternalLink, Eye, EyeOff, Copy, User, Lock,
-  Server, Globe, RotateCcw,
+  CheckCircle, XCircle, Search, Plus, FileText,
+  ChevronDown, Loader2, AlertTriangle, StopCircle,
+  Terminal, Mail, Zap, Eye, EyeOff, User, Lock,
+  Server, Globe, RotateCcw, Trash2, Edit2, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -109,19 +109,63 @@ function generateUsername(domain: string) {
   return (domain.split(".")[0] || "user").replace(/[^a-z0-9]/gi, "").toLowerCase().substring(0, 8) || "user";
 }
 
+interface EditOrderModal {
+  id: string;
+  itemName: string;
+  status: string;
+  dueDate: string;
+  billingCycle: string;
+  paymentStatus: string;
+  notes: string;
+}
+
 export default function AdminOrders() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { formatPrice } = useCurrency();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [paged, setPaged] = useState<{ data: Order[]; total: number; page: number; totalPages: number } | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
   const [preActivate, setPreActivate] = useState<PreActivateModal | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [ssoLoadingId, setSsoLoadingId] = useState<string | null>(null);
+  const [editModal, setEditModal] = useState<EditOrderModal | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [allServers, setAllServers] = useState<ServerOption[]>([]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const fetchOrders = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: "50" });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (filter !== "all") params.set("status", filter);
+      const data = await apiFetch(`/api/admin/orders?${params}`);
+      setPaged(data);
+    } catch (err: any) {
+      toast({ title: "Failed to load orders", description: err.message, variant: "destructive" });
+    } finally { setIsLoading(false); }
+  }, [page, debouncedSearch, filter]);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  useEffect(() => {
+    apiFetch("/api/admin/servers").then(setAllServers).catch(() => {});
+  }, []);
+
+  const orders = paged?.data ?? [];
+  const filtered = orders;
 
   const handleSsoLogin = async (serviceId: string, type: "cpanel" | "webmail") => {
     const key = `${serviceId}-${type}`;
@@ -139,24 +183,55 @@ export default function AdminOrders() {
     }
   };
 
-  const { data: orders = [], isLoading, refetch } = useQuery<Order[]>({
-    queryKey: ["admin-orders"],
-    queryFn: () => apiFetch("/api/admin/orders"),
-  });
+  const openEditOrder = (order: Order) => {
+    setOpenMenuId(null);
+    setEditModal({
+      id: order.id,
+      itemName: order.itemName,
+      status: order.status,
+      dueDate: order.dueDate ? order.dueDate.split("T")[0] : "",
+      billingCycle: order.billingCycle,
+      paymentStatus: order.paymentStatus,
+      notes: order.notes || "",
+    });
+  };
 
-  const { data: allServers = [] } = useQuery<ServerOption[]>({
-    queryKey: ["admin-servers-list"],
-    queryFn: () => apiFetch("/api/admin/servers"),
-    staleTime: 60_000,
-  });
+  const handleEditSave = async () => {
+    if (!editModal) return;
+    setEditSaving(true);
+    try {
+      await apiFetch(`/api/admin/orders/${editModal.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: editModal.status,
+          dueDate: editModal.dueDate || null,
+          billingCycle: editModal.billingCycle,
+          paymentStatus: editModal.paymentStatus,
+          notes: editModal.notes,
+        }),
+      });
+      toast({ title: "Order updated" });
+      setEditModal(null);
+      fetchOrders();
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (err: any) {
+      toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+    } finally { setEditSaving(false); }
+  };
 
-  const filtered = orders.filter(o => {
-    const matchSearch = o.clientName?.toLowerCase().includes(search.toLowerCase()) ||
-      o.itemName.toLowerCase().includes(search.toLowerCase()) ||
-      (o.domain || "").toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || o.status === filter;
-    return matchSearch && matchFilter;
-  });
+  const handleDeleteOrder = async (id: string) => {
+    setOpenMenuId(null);
+    if (!confirm("Delete this order permanently? This cannot be undone.")) return;
+    setLoadingId(id);
+    try {
+      await apiFetch(`/api/admin/orders/${id}`, { method: "DELETE" });
+      toast({ title: "Order deleted" });
+      fetchOrders();
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (err: any) {
+      toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
+    } finally { setLoadingId(null); }
+  };
 
   const doAction = async (id: string, action: string) => {
     setLoadingId(id);
@@ -164,7 +239,7 @@ export default function AdminOrders() {
     try {
       const data = await apiFetch(`/api/admin/orders/${id}/${action}`, { method: "POST" });
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      refetch();
+      fetchOrders();
       const msgs: Record<string, string> = {
         approve: "Order approved" + (data.invoice ? ` & invoice ${data.invoice.invoiceNumber} generated` : ""),
         cancel: "Order cancelled",
@@ -213,7 +288,7 @@ export default function AdminOrders() {
         body: JSON.stringify(body),
       });
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      refetch();
+      fetchOrders();
       setPreActivate(null);
       setActivateResult({
         orderId: preActivate.orderId,
@@ -236,7 +311,7 @@ export default function AdminOrders() {
     try {
       const data = await apiFetch(`/api/admin/orders/${id}/generate-invoice`, { method: "POST" });
       queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      refetch();
+      fetchOrders();
       if (data.invoiceNumber) {
         toast({ title: "Invoice generated", description: `Invoice ${data.invoiceNumber} created` });
       } else {
@@ -247,10 +322,68 @@ export default function AdminOrders() {
     } finally { setLoadingId(null); }
   };
 
-  if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
-
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
+      {/* Edit Order Modal */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setEditModal(null)}>
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-foreground text-lg">Edit Order</h3>
+                <p className="text-sm text-muted-foreground truncate max-w-[260px]">{editModal.itemName}</p>
+              </div>
+              <button onClick={() => setEditModal(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Status</label>
+                  <select value={editModal.status} onChange={e => setEditModal(m => m ? { ...m, status: e.target.value } : m)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    {["pending","approved","cancelled","completed","suspended","fraud","terminated"].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Payment</label>
+                  <select value={editModal.paymentStatus} onChange={e => setEditModal(m => m ? { ...m, paymentStatus: e.target.value } : m)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    <option value="unpaid">Unpaid</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Due Date</label>
+                  <Input type="date" value={editModal.dueDate} onChange={e => setEditModal(m => m ? { ...m, dueDate: e.target.value } : m)} className="bg-secondary/60" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Billing Cycle</label>
+                  <select value={editModal.billingCycle} onChange={e => setEditModal(m => m ? { ...m, billingCycle: e.target.value } : m)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                    {["monthly","quarterly","semi_annual","annual","biennially","triennially"].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes</label>
+                <textarea value={editModal.notes} onChange={e => setEditModal(m => m ? { ...m, notes: e.target.value } : m)}
+                  rows={3} placeholder="Add notes..."
+                  className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <Button onClick={handleEditSave} disabled={editSaving} className="flex-1 bg-primary hover:bg-primary/90">
+                {editSaving ? <Loader2 size={15} className="animate-spin mr-2" /> : null}
+                {editSaving ? "Saving…" : "Save Changes"}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setEditModal(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pre-Activation Modal — credentials form */}
       {preActivate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPreActivate(null)}>
@@ -446,10 +579,12 @@ export default function AdminOrders() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Orders</h2>
-          <p className="text-muted-foreground mt-1">Manage client orders and provisioning</p>
+          <p className="text-muted-foreground mt-1">
+            {paged ? `${paged.total.toLocaleString()} total orders` : "Manage client orders and provisioning"}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">{orders.filter(o => o.status === "pending").length} pending</span>
+          {isLoading && <Loader2 size={16} className="animate-spin text-muted-foreground" />}
           <Button onClick={() => setLocation("/admin/orders/add")} className="bg-primary hover:bg-primary/90 h-10 rounded-xl whitespace-nowrap">
             <Plus size={16} className="mr-2" /> Create Order
           </Button>
@@ -459,11 +594,11 @@ export default function AdminOrders() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9 bg-card border-border" placeholder="Search by client, item, or domain..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9 bg-card border-border" placeholder="Search by item or domain..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {filterTabs.map(f => (
-            <button key={f} onClick={() => setFilter(f)}
+            <button key={f} onClick={() => { setFilter(f); setPage(1); }}
               className={`px-3 py-1.5 text-xs rounded-lg border capitalize transition-all ${filter === f ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
               {f}
             </button>
@@ -615,6 +750,10 @@ export default function AdminOrders() {
                       </Button>
                       {openMenuId === order.id && (
                         <div className="absolute right-0 top-8 z-30 w-44 bg-card border border-border rounded-xl shadow-xl py-1 text-sm" onClick={e => e.stopPropagation()}>
+                          <button className="flex items-center gap-2 w-full px-3 py-2 hover:bg-secondary text-left text-muted-foreground hover:text-foreground"
+                            onClick={() => openEditOrder(order)}>
+                            <Edit2 size={13} /> Edit Order
+                          </button>
                           {order.status === "approved" && (
                             <button className="flex items-center gap-2 w-full px-3 py-2 hover:bg-secondary text-left text-muted-foreground hover:text-foreground"
                               onClick={() => doAction(order.id, "suspend")}>
@@ -645,6 +784,10 @@ export default function AdminOrders() {
                               <FileText size={13} /> Generate Invoice
                             </button>
                           )}
+                          <button className="flex items-center gap-2 w-full px-3 py-2 hover:bg-secondary text-left text-red-400 border-t border-border mt-1"
+                            onClick={() => handleDeleteOrder(order.id)}>
+                            <Trash2 size={13} /> Delete Order
+                          </button>
                         </div>
                       )}
                     </div>
@@ -652,11 +795,43 @@ export default function AdminOrders() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {isLoading && (
+              <tr><td colSpan={11} className="px-6 py-12 text-center">
+                <Loader2 size={32} className="animate-spin mx-auto text-primary/50" />
+              </td></tr>
+            )}
+            {!isLoading && filtered.length === 0 && (
               <tr><td colSpan={11} className="px-6 py-12 text-center text-muted-foreground">No orders found</td></tr>
             )}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        {paged && paged.totalPages > 1 && (
+          <div className="px-5 py-4 border-t border-border flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Page {paged.page} of {paged.totalPages} · {paged.total.toLocaleString()} orders
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                <ChevronLeft size={14} className="mr-1" /> Prev
+              </Button>
+              {Array.from({ length: Math.min(5, paged.totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(page - 2, paged.totalPages - 4));
+                const p = start + i;
+                return (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${p === page ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}>
+                    {p}
+                  </button>
+                );
+              })}
+              <Button variant="outline" size="sm" disabled={page >= paged.totalPages} onClick={() => setPage(p => p + 1)}>
+                Next <ChevronRight size={14} className="ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

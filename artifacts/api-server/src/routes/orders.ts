@@ -4,7 +4,7 @@ import {
   ordersTable, usersTable, hostingPlansTable, hostingServicesTable,
   invoicesTable, serversTable, domainsTable,
 } from "@workspace/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 
@@ -143,23 +143,54 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
 });
 
 // Admin: get all orders
-router.get("/admin/orders", authenticate, requireAdmin, async (_req, res) => {
+router.get("/admin/orders", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const orders = await db.select().from(ordersTable).orderBy(sql`created_at DESC`);
-    // Pre-fetch all plans so we can include moduleServerGroupId without N+1 queries
+    const page = Math.max(1, parseInt(String(req.query.page || "1")));
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"))));
+    const search = String(req.query.search || "").trim();
+    const statusFilter = String(req.query.status || "all");
+    const offset = (page - 1) * limit;
+
+    // Build where conditions
+    const conditions: any[] = [];
+    if (statusFilter !== "all") conditions.push(eq(ordersTable.status, statusFilter as any));
+    if (search) conditions.push(or(
+      ilike(ordersTable.itemName, `%${search}%`),
+      ilike(ordersTable.domain, `%${search}%`),
+      ilike(ordersTable.notes, `%${search}%`),
+    )!);
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(ordersTable).where(whereClause);
+
+    const orders = await db.select().from(ordersTable)
+      .where(whereClause)
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(limit).offset(offset);
+
     const plans = await db.select({
       id: hostingPlansTable.id,
       moduleServerGroupId: hostingPlansTable.moduleServerGroupId,
     }).from(hostingPlansTable);
     const planMap = new Map(plans.map(p => [p.id, p]));
 
+    // Batch-fetch users
+    const clientIds = [...new Set(orders.map(o => o.clientId))];
+    const users = clientIds.length > 0
+      ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds))
+      : [];
+    const userMap = new Map(users.map(u => [u.id, u]));
+
     const result = await Promise.all(orders.map(async (o) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, o.clientId)).limit(1);
+      const user = userMap.get(o.clientId);
       const service = await findServiceForOrder(o);
       const plan = o.itemId ? planMap.get(o.itemId) : null;
       return formatOrder(o, user ? `${user.firstName} ${user.lastName}` : "", service, plan?.moduleServerGroupId ?? null);
     }));
-    res.json(result);
+
+    res.json({ data: result, total: count, page, limit, totalPages: Math.ceil(count / limit) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -590,6 +621,15 @@ router.put("/admin/orders/:id", authenticate, requireAdmin, async (req: AuthRequ
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: delete order
+router.delete("/admin/orders/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [deleted] = await db.delete(ordersTable).where(eq(ordersTable.id, req.params.id)).returning();
+    if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ success: true, id: req.params.id });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
