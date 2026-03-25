@@ -492,12 +492,13 @@ export default function WhmcsImport() {
             {/* Live log */}
             <div>
               <div className="flex justify-between mb-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Live Log</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Live Log ({jobStatus.logs.length} lines)</p>
                 <button onClick={() => setShowAllLogs(s => !s)} className="text-xs text-gray-500 hover:text-white flex items-center gap-1">
-                  {showAllLogs ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {showAllLogs ? "Less" : "More"}
+                  {showAllLogs ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {showAllLogs ? "Less" : "Show All"}
                 </button>
               </div>
-              <div ref={logsRef} className={`bg-black rounded-lg p-3 font-mono text-xs overflow-y-auto ${showAllLogs ? "max-h-96" : "max-h-40"} space-y-0.5`}>
+              <div ref={logsRef} className={`bg-black rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-0.5 ${showAllLogs ? "" : "max-h-40"}`}
+                style={showAllLogs ? { maxHeight: "75vh" } : {}}>
                 {jobStatus.logs.map((line, i) => (
                   <div key={i} className={line.startsWith("[ERR]") || line.startsWith("[FATAL]") ? "text-red-400" : line.includes("──") ? "text-purple-300 font-semibold" : "text-gray-400"}>
                     {line}
@@ -572,13 +573,31 @@ export default function WhmcsImport() {
 
             <div>
               <div className="flex justify-between mb-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Migration Log</p>
-                <button onClick={() => setShowAllLogs(s => !s)} className="text-xs text-gray-500 hover:text-white flex items-center gap-1">
-                  {showAllLogs ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                  {showAllLogs ? "Collapse" : "Expand all"}
-                </button>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Migration Log ({jobStatus.logs.length} lines · {jobStatus.result.errors} errors)
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const text = jobStatus.logs.join("\n");
+                      const blob = new Blob([text], { type: "text/plain" });
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = `whmcs-migration-${new Date().toISOString().slice(0,10)}.log`;
+                      a.click();
+                    }}
+                    className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 border border-purple-500/30 rounded px-2 py-0.5 hover:border-purple-400 transition-colors">
+                    <Copy size={10} /> Download .log
+                  </button>
+                  <button onClick={() => setShowAllLogs(s => !s)} className="text-xs text-gray-500 hover:text-white flex items-center gap-1">
+                    {showAllLogs ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                    {showAllLogs ? "Collapse" : "Show All"}
+                  </button>
+                </div>
               </div>
-              <div ref={logsRef} className={`bg-black rounded-lg p-3 font-mono text-xs overflow-y-auto ${showAllLogs ? "max-h-[600px]" : "max-h-48"}`}>
+              <div ref={logsRef}
+                className={`bg-black rounded-lg p-3 font-mono text-xs overflow-y-auto ${showAllLogs ? "" : "max-h-48"}`}
+                style={showAllLogs ? { maxHeight: "80vh" } : {}}>
                 {jobStatus.logs.map((line, i) => (
                   <div key={i} className={
                     line.startsWith("[ERR]") || line.startsWith("[FATAL]") ? "text-red-400" :

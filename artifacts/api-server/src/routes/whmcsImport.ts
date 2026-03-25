@@ -809,7 +809,7 @@ router.get("/admin/whmcs/import/:jobId/status", authenticate, requireAdmin, asyn
     jobId: job.jobId, status: job.status, step: job.step,
     stepIndex: job.stepIndex, totalSteps: job.totalSteps,
     current: job.current, total: job.total,
-    logs: job.logs.slice(-120),
+    logs: job.logs,
     result: job.result,
     startedAt: job.startedAt, completedAt: job.completedAt,
   });
