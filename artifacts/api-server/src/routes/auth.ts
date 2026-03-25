@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
 import { eq, sql, and, gt } from "drizzle-orm";
-import { hashPassword, comparePassword, signToken, authenticate, type AuthRequest } from "../lib/auth.js";
+import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailVerificationCode, emailPasswordReset, sendEmail } from "../lib/email.js";
 import crypto from "node:crypto";
 import { createRequire } from "module";

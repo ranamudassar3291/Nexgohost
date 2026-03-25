@@ -2165,4 +2165,13 @@ router.post("/client/hosting/:id/ai-builder", authenticate, async (req: AuthRequ
   }
 });
 
+// Admin: delete hosting service (after termination)
+router.delete("/admin/hosting/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [deleted] = await db.delete(hostingServicesTable).where(eq(hostingServicesTable.id, req.params.id)).returning();
+    if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ success: true, id: req.params.id });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 export default router;
