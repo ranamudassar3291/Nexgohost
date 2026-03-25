@@ -21,7 +21,11 @@ async function handleCheckout(req: AuthRequest, res: any) {
       billingPeriod = 1, billingCycle: billingCycleRaw,
       registerDomain, transferDomain, freeDomain,
       domainAmount: clientDomainAmount, eppCode,
+      nameservers: clientNameservers,
     } = req.body;
+    const resolvedNs: string[] = (Array.isArray(clientNameservers) && clientNameservers.length >= 2)
+      ? clientNameservers.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
+      : ["ns1.noehost.com", "ns2.noehost.com"];
 
     // ── Validation ───────────────────────────────────────────────────────────
     if (!packageId && !domain) {
@@ -105,7 +109,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
             registrationDate: new Date(),
             expiryDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
             status: "pending", autoRenew: true,
-            nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+            nameservers: resolvedNs,
           });
         } catch { /* non-fatal */ }
       }
@@ -452,7 +456,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
           expiryDate,
           status: transferDomain ? "transferring" : "pending",
           autoRenew: true,
-          nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+          nameservers: resolvedNs,
         });
       } catch { /* non-fatal — domain may already exist */ }
     }
@@ -623,7 +627,10 @@ async function handleCheckout(req: AuthRequest, res: any) {
 // POST /api/checkout/domain — domain-only order
 async function handleDomainCheckout(req: AuthRequest, res: any) {
   try {
-    const { domain, tld, period = 1 } = req.body;
+    const { domain, tld, period = 1, nameservers: _ns } = req.body;
+    const resolvedNs: string[] = (Array.isArray(_ns) && _ns.length >= 2)
+      ? _ns.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
+      : ["ns1.noehost.com", "ns2.noehost.com"];
     if (!domain || !tld) {
       res.status(400).json({ error: "domain and tld are required" });
       return;
@@ -705,7 +712,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
         expiryDate,
         status: "pending",
         autoRenew: true,
-        nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+        nameservers: resolvedNs,
       });
     } catch { /* non-fatal — domain may already exist */ }
 

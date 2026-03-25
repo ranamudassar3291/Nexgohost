@@ -34,7 +34,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return res.json();
 }
 
-const EMPTY_FORM = { clientId: "", name: "", tld: ".com", registrar: "", registrationDate: "", expiryDate: "", nextDueDate: "", status: "active", autoRenew: true, moduleServerId: "" };
+const EMPTY_FORM = { clientId: "", name: "", tld: ".com", registrar: "", registrationDate: "", expiryDate: "", nextDueDate: "", status: "active", autoRenew: true, moduleServerId: "", nameservers: "ns1.noehost.com\nns2.noehost.com" };
 
 export default function AdminDomains() {
   const { toast } = useToast();
@@ -64,6 +64,8 @@ export default function AdminDomains() {
     return matchSearch && matchStatus;
   });
 
+  const parseNs = (raw: string) => raw.split("\n").map(s => s.trim().toLowerCase()).filter(Boolean);
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.clientId || !form.name || !form.tld) {
@@ -71,7 +73,8 @@ export default function AdminDomains() {
     }
     setSaving(true);
     try {
-      await apiFetch("/api/admin/domains", { method: "POST", body: JSON.stringify(form) });
+      const { nameservers: rawNs, ...rest } = form;
+      await apiFetch("/api/admin/domains", { method: "POST", body: JSON.stringify({ ...rest, nameservers: parseNs(rawNs) }) });
       queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
       toast({ title: "Domain added" });
       setShowAddModal(false); setForm(EMPTY_FORM);
@@ -85,7 +88,8 @@ export default function AdminDomains() {
     if (!editDomain) return;
     setSaving(true);
     try {
-      await apiFetch(`/api/admin/domains/${editDomain.id}`, { method: "PUT", body: JSON.stringify(form) });
+      const { nameservers: rawNs, ...rest } = form;
+      await apiFetch(`/api/admin/domains/${editDomain.id}`, { method: "PUT", body: JSON.stringify({ ...rest, nameservers: parseNs(rawNs) }) });
       queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
       toast({ title: "Domain updated" });
       setEditDomain(null); setForm(EMPTY_FORM);
@@ -138,6 +142,7 @@ export default function AdminDomains() {
       expiryDate: d.expiryDate ? d.expiryDate.slice(0, 10) : "",
       nextDueDate: d.nextDueDate ? d.nextDueDate.slice(0, 10) : "",
       status: d.status, autoRenew: d.autoRenew, moduleServerId: d.moduleServerId || "",
+      nameservers: (d.nameservers || []).join("\n") || "ns1.noehost.com\nns2.noehost.com",
     });
   };
 
@@ -196,6 +201,17 @@ export default function AdminDomains() {
                   onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
               </div>
             ))}
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Nameservers</label>
+            <textarea
+              value={form.nameservers}
+              onChange={e => setForm(f => ({ ...f, nameservers: e.target.value }))}
+              placeholder={"ns1.noehost.com\nns2.noehost.com"}
+              rows={4}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            />
+            <p className="text-xs text-muted-foreground">One nameserver per line. Default: ns1.noehost.com, ns2.noehost.com</p>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground/80">Module Server ID (20i/cPanel)</label>
@@ -261,6 +277,7 @@ export default function AdminDomains() {
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Domain</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Client</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Registrar</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Nameservers</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Status</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Expiry</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Next Due</th>
@@ -274,6 +291,14 @@ export default function AdminDomains() {
                 <td className="px-6 py-4 text-sm font-semibold text-foreground">{domain.name}{domain.tld}</td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">{domain.clientName}</td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">{domain.registrar || "—"}</td>
+                <td className="px-6 py-4">
+                  {domain.nameservers && domain.nameservers.length > 0
+                    ? <div className="space-y-0.5">{domain.nameservers.map((ns, i) => (
+                        <p key={i} className="text-xs font-mono text-muted-foreground">{ns}</p>
+                      ))}</div>
+                    : <span className="text-xs text-muted-foreground/50">—</span>
+                  }
+                </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[domain.status] || "bg-secondary border-border text-muted-foreground"}`}>
                     {domain.status}
@@ -312,7 +337,7 @@ export default function AdminDomains() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
+              <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
             )}
           </tbody>
         </table>

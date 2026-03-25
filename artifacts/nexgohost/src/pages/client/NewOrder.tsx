@@ -529,6 +529,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [existingDom, setExistingDom] = useState("");
   const [txDomain,    setTxDomain]    = useState("");
   const [eppCode,     setEppCode]     = useState("");
+  const [domainNs,    setDomainNs]    = useState(["ns1.noehost.com", "ns2.noehost.com"]);
   const [cartDomain,  setCartDomainRaw] = useState<CartDomain | null>(loadDomain);
 
   // Force-free domain: compute TLD eligibility independent of the "claim" UI flow
@@ -841,6 +842,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         body.freeDomain     = isDomForceFree;
         body.domainAmount   = isDomForceFree ? 0 : cartDomain.price;
         if (cartDomain.mode === "transfer" && eppCode.trim()) body.eppCode = eppCode.trim();
+        if (cartDomain.mode === "register") body.nameservers = domainNs.map(n => n.trim().toLowerCase()).filter(Boolean);
       }
 
       const r = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
@@ -2170,6 +2172,41 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               </div>
             </div>
           </div>
+
+          {/* ── Nameservers (domain registration only) ── */}
+          {cartDomain && cartDomain.mode === "register" && (
+            <div className="bg-white border border-gray-200 rounded-2xl p-5">
+              <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nameservers</p>
+              <p className="text-[12px] text-gray-400 mb-3">Default nameservers are pre-filled. Change them if you'd like to use custom nameservers.</p>
+              <div className="space-y-2.5">
+                {domainNs.map((ns, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[12px] font-mono font-semibold text-gray-400 w-8 shrink-0">NS{i + 1}</span>
+                    <input
+                      value={ns}
+                      onChange={e => setDomainNs(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
+                      placeholder={`ns${i + 1}.example.com`}
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-[13px] font-mono focus:outline-none"
+                      onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}
+                    />
+                    {domainNs.length > 2 && (
+                      <button type="button" onClick={() => setDomainNs(prev => prev.filter((_, idx) => idx !== i))}
+                        className="text-gray-300 hover:text-red-400 transition-colors text-[18px] leading-none">×</button>
+                    )}
+                  </div>
+                ))}
+                {domainNs.length < 4 && (
+                  <button type="button"
+                    onClick={() => setDomainNs(prev => [...prev, ""])}
+                    className="text-[12px] font-semibold mt-1 transition-colors"
+                    style={{ color: P }}>
+                    + Add nameserver
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── Promo code ── */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5">
