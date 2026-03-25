@@ -427,6 +427,10 @@ const SS = (caption: string) =>
   `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>` +
   `</svg><span class="kb-screenshot-tag">Screenshot</span><p class="kb-screenshot-caption">${caption}</p></div></div>`;
 
+// Real image block — used in v4 migration to replace screenshot placeholders
+const IMG = (src: string, alt: string, caption: string) =>
+  `<div class="kb-img-block"><img src="${src}" alt="${alt}" loading="lazy"><p class="kb-img-caption">${caption}</p></div>`;
+
 export async function seedKbContent() {
   // Check if v3 content already exists (v3 adds Troubleshooting category + 404/500/DNS articles)
   const [v3Check] = await db
@@ -435,8 +439,80 @@ export async function seedKbContent() {
     .where(eq(kbArticlesTable.slug, "fixing-404-not-found-errors-noehost"))
     .limit(1);
 
-  if (v3Check) return; // already on v3
+  if (!v3Check) {
+    // Clear old content and re-seed
+    await db.delete(kbCategoriesTable); // cascades to articles
+    await seedV3Articles();
+  }
 
+  // v4 migration: inject real images into key articles (idempotent)
+  await applyV4Images();
+  console.log("[KB] Knowledge base content ready");
+}
+
+async function applyV4Images() {
+  const V4_MARKER = "kb-img-block";
+  const updates: Array<{ slug: string; src: string; alt: string; caption: string }> = [
+    {
+      slug: "one-click-wordpress-installation-noehost",
+      src: "/kb/softaculous-wordpress.png",
+      alt: "Softaculous WordPress installer",
+      caption: "Softaculous App Installer — WordPress setup form inside cPanel",
+    },
+    {
+      slug: "how-to-log-in-to-cpanel-noehost",
+      src: "/kb/cpanel-dashboard.png",
+      alt: "cPanel Dashboard",
+      caption: "Noehost cPanel Control Panel — the main dashboard after login",
+    },
+    {
+      slug: "uploading-website-file-manager-vs-ftp",
+      src: "/kb/file-manager.png",
+      alt: "cPanel File Manager",
+      caption: "cPanel File Manager — public_html folder where your website files live",
+    },
+    {
+      slug: "how-to-create-business-email-noehost",
+      src: "/kb/email-accounts-cpanel.png",
+      alt: "cPanel Email Accounts creation form",
+      caption: "cPanel Email Accounts — create a new professional email address",
+    },
+    {
+      slug: "how-to-point-domain-to-noehost",
+      src: "/kb/nameservers-form.png",
+      alt: "Domain nameserver settings form",
+      caption: "Domain registrar — set nameservers to ns1.noehost.com and ns2.noehost.com",
+    },
+    {
+      slug: "dns-propagation-explained-noehost",
+      src: "/kb/dns-zone-editor.png",
+      alt: "DNS Zone Editor interface",
+      caption: "DNS Zone Editor — managing A, CNAME, MX and TXT records for your domain",
+    },
+    {
+      slug: "how-to-install-wordpress-theme-plugin",
+      src: "/kb/wordpress-admin.png",
+      alt: "WordPress Admin Dashboard",
+      caption: "WordPress Admin Dashboard — where themes and plugins are managed",
+    },
+    {
+      slug: "fixing-404-not-found-errors-noehost",
+      src: "/kb/wordpress-permalinks.png",
+      alt: "WordPress Permalinks Settings page",
+      caption: "WordPress Settings > Permalinks — regenerating .htaccess rules fixes most 404 errors",
+    },
+  ];
+
+  for (const u of updates) {
+    const block = IMG(u.src, u.alt, u.caption);
+    // Prepend image only if not already added (idempotent check via V4_MARKER)
+    await db.execute(
+      sql`UPDATE kb_articles SET content = ${block} || content WHERE slug = ${u.slug} AND content NOT LIKE ${"%" + V4_MARKER + "%"}`
+    );
+  }
+}
+
+async function seedV3Articles() {
   // Clear old content
   await db.delete(kbCategoriesTable); // cascades to articles
 

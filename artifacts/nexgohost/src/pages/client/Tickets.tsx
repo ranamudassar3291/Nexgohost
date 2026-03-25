@@ -113,6 +113,16 @@ function ArticleSuggestionCard({
             href={`/help/${article.slug}`}
             target="_blank"
             rel="noreferrer"
+            onClick={() => {
+              try {
+                localStorage.setItem("noehost_ticket_context", JSON.stringify({
+                  ticketSubject: ticketSubject,
+                  articleId: article.id,
+                  articleSlug: article.slug,
+                  articleTitle: article.title,
+                }));
+              } catch {}
+            }}
             className="flex items-center gap-1.5 text-xs text-primary hover:underline"
           >
             <ExternalLink size={11} /> Read full article

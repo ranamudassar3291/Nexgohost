@@ -1,5 +1,50 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 26 — Ultimate Help Center & Deflection System)
+
+### AI-Generated Real Screenshots (8 images, `artifacts/nexgohost/public/kb/`)
+- `cpanel-dashboard.png` — cPanel dashboard with icon grid (File Manager, Email, MySQL, Softaculous, WordPress, FTP, SSL)
+- `softaculous-wordpress.png` — Softaculous WordPress installer form (Protocol, Domain, Site Name, Admin fields, Install button)
+- `wordpress-admin.png` — WordPress admin left sidebar + dashboard
+- `dns-zone-editor.png` — DNS Zone Editor table with A/CNAME/MX/TXT records
+- `file-manager.png` — cPanel File Manager with public_html folder
+- `nameservers-form.png` — Domain registrar nameserver form with NS1/NS2 fields
+- `email-accounts-cpanel.png` — cPanel Email Accounts creation form
+- `wordpress-permalinks.png` — WordPress Permalinks Settings with Post name option
+
+### KB v4 Image Migration (`kb.ts`)
+- Added `IMG()` helper function for real image blocks (`<div class="kb-img-block">`)
+- Added `applyV4Images()` migration — idempotent (checks `kb-img-block` marker before update)
+- Restructured `seedKbContent()` to call `seedV3Articles()` + always run `applyV4Images()`
+- 8 articles updated with real images: WordPress install, cPanel login, File Manager, Email, Domain pointing, DNS propagation, WP theme/plugin, 404 fixing
+
+### Professional Article Renderer (`HelpCenterArticle.tsx`)
+- Full CSS overhaul stored in `ARTICLE_CSS` constant:
+  - `.kb-screenshot` — purple gradient browser chrome frame (● ● ●), indigo inner gradient
+  - `.kb-img-block` — real image with browser chrome frame + italic caption
+  - `.kb-info/.kb-warning/.kb-tip/.kb-danger` — colored callout boxes (blue/orange/green/red)
+  - `h2/h3` — dark indigo headings with bottom border on h2
+  - `ol` — custom counter with purple circle numbers
+  - `ul` — purple arrow bullets
+  - `code` — indigo text with border, monospace font
+- **20i-style Deflection Buttons** at end of every article:
+  - "✅ Yes, this solved my issue!" → records deflection (if from ticket context) or helpfulYes vote
+  - "💬 I need additional support" → stores article context in localStorage, navigates to /client/tickets
+  - Secondary thumbs up/down for non-ticket visitors
+  - Green "Happy to help!" success state / support CTA for "not helpful" state
+
+### Ticket Context Bridge (`Tickets.tsx`)
+- "Read full article" link now sets `noehost_ticket_context` in localStorage:
+  `{ ticketSubject, articleId, articleSlug, articleTitle }`
+- When user clicks "Yes, solved my issue!" on the article page, this context enables proper deflection tracking via `POST /api/kb/deflections`
+- Context removed from localStorage after successful deflection
+
+### Key Files
+- `artifacts/nexgohost/public/kb/` — 8 AI-generated screenshot PNGs
+- `artifacts/api-server/src/routes/kb.ts` — IMG(), applyV4Images(), seedKbContent() refactored
+- `artifacts/nexgohost/src/pages/client/HelpCenterArticle.tsx` — full rewrite with CSS + deflection
+- `artifacts/nexgohost/src/pages/client/Tickets.tsx` — localStorage context on "Read full article"
+
 ## Recent Changes (Session 25 — Order Page Rebuild)
 
 - **Order Page — Full Group Navigation Rebuild** (`/order` = `OrderFlow.tsx`):
