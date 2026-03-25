@@ -578,20 +578,71 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       // Give WHMCS API rate limit time to recover after password fetching
       await sleep(3000);
 
+      // ── Client recovery: fetch & create clients whose IDs appear in services/
+      //    domains/orders/invoices but weren't returned by GetClients (deleted/
+      //    archived clients). Called on-demand during step 5-9 with local cache.
+      const missingClientCache = new Map<string, string | null>(); // whmcsId → our UUID or null
+      async function ensureClient(whmcsId: string): Promise<string | null> {
+        if (!whmcsId || whmcsId === "0") return null;
+        if (clientMap.has(whmcsId)) return clientMap.get(whmcsId)!;
+        if (missingClientCache.has(whmcsId)) return missingClientCache.get(whmcsId)!;
+        try {
+          const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: whmcsId, stats: false });
+          const c = detail.client ?? detail;
+          const email = ((c.email ?? c.Email ?? "")).toLowerCase().trim();
+          if (!email) { missingClientCache.set(whmcsId, null); return null; }
+
+          const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
+            .where(eq(usersTable.email, email)).limit(1);
+          if (existing) {
+            clientMap.set(whmcsId, existing.id);
+            missingClientCache.set(whmcsId, existing.id);
+            return existing.id;
+          }
+          const tempHash = `whmcs_md5:${createHash("md5").update(`nexgo_${whmcsId}`).digest("hex")}`;
+          const [user] = await db.insert(usersTable).values({
+            firstName: c.firstname || c.Firstname || "Archived",
+            lastName:  c.lastname  || c.Lastname  || `Client ${whmcsId}`,
+            email, passwordHash: tempHash,
+            role: "client", status: "suspended", emailVerified: true,
+            creditBalance: "0.00",
+            createdAt: parseDate(c.datecreated) ?? new Date(),
+          } as any).returning();
+          clientMap.set(whmcsId, user.id);
+          missingClientCache.set(whmcsId, user.id);
+          job.result.clients++;
+          return user.id;
+        } catch {
+          missingClientCache.set(whmcsId, null);
+          return null;
+        }
+      }
+
       // ── STEP 5: Hosting Services ──────────────────────────────────────────
       if (importServices) {
         step("Importing hosting services", 5);
         try {
+          // Pre-load existing services (clientId:domain) to avoid duplicates on re-run
+          const existingServices = new Set<string>();
+          const existingServiceRows = await db.select({ clientId: hostingServicesTable.clientId, domain: hostingServicesTable.domain }).from(hostingServicesTable);
+          for (const r of existingServiceRows) {
+            if (r.clientId && r.domain) existingServices.add(`${r.clientId}:${r.domain}`);
+          }
+
           const services = await whmcsPages(whmcsUrl, identifier, secret, "GetClientsProducts", "products", "product");
           job.total = services.length;
           log(`Found ${services.length} hosting services`);
 
           for (const s of services) {
             job.current++;
-            const clientId = clientMap.get(String(s.clientid)) ?? clientMap.get(String(s.userid));
+            const clientId = await ensureClient(String(s.clientid ?? s.userid ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
             const planId = planMap.get(String(s.pid)) ?? defaultPlanId;
             if (!planId) { job.result.skipped++; continue; }
+
+            // Skip if already imported on a previous run
+            const svcKey = `${clientId}:${s.domain || ""}`;
+            if (s.domain && existingServices.has(svcKey)) { job.result.skipped++; continue; }
 
             try {
               const serverId = serverMap.get(String(s.serverid)) ?? null;
@@ -622,17 +673,25 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       if (importDomains) {
         step("Importing domains", 6);
         try {
+          // Pre-load existing domain names to avoid duplicates on re-run
+          const existingDomains = new Set<string>();
+          const existingDomainRows = await db.select({ name: domainsTable.name, tld: domainsTable.tld }).from(domainsTable);
+          for (const r of existingDomainRows) existingDomains.add(`${r.name}${r.tld}`);
+
           const domains = await whmcsPages(whmcsUrl, identifier, secret, "GetClientsDomains", "domains", "domain");
           job.total = domains.length;
           log(`Found ${domains.length} domains`);
 
           for (const d of domains) {
             job.current++;
-            const clientId = clientMap.get(String(d.userid));
+            const clientId = await ensureClient(String(d.userid ?? d.clientid ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
             const full = (d.domainname ?? "").toLowerCase().trim();
             if (!full) { job.result.skipped++; continue; }
             const { name, tld } = splitDomain(full);
+
+            // Skip if already imported on a previous run
+            if (existingDomains.has(`${name}${tld}`)) { job.result.skipped++; continue; }
 
             try {
               await db.insert(domainsTable).values({
@@ -657,14 +716,24 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       if (importOrders) {
         step("Importing orders", 7);
         try {
+          // Pre-load order fingerprints (clientId:amount:date) to prevent re-run duplicates
+          const existingOrders = new Set<string>();
+          const existingOrderRows = await db.select({ clientId: ordersTable.clientId, amount: ordersTable.amount, createdAt: ordersTable.createdAt }).from(ordersTable);
+          for (const r of existingOrderRows) {
+            existingOrders.add(`${r.clientId}:${r.amount}:${r.createdAt?.toISOString().slice(0, 10)}`);
+          }
+
           const orders = await whmcsPages(whmcsUrl, identifier, secret, "GetOrders", "orders", "order");
           job.total = orders.length;
           log(`Found ${orders.length} orders`);
 
           for (const o of orders) {
             job.current++;
-            const clientId = clientMap.get(String(o.userid));
+            const clientId = await ensureClient(String(o.userid ?? o.clientid ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
+
+            const orderFp = `${clientId}:${parseFloat(o.amount ?? "0").toFixed(2)}:${(parseDate(o.date) ?? new Date()).toISOString().slice(0, 10)}`;
+            if (existingOrders.has(orderFp)) { job.result.skipped++; continue; }
 
             const lineItems = toArray(o.lineItems?.lineItem);
             const first = lineItems[0];
@@ -704,7 +773,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
 
           for (const inv of invoices) {
             job.current++;
-            const clientId = clientMap.get(String(inv.userid));
+            const clientId = await ensureClient(String(inv.userid ?? inv.clientid ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
 
             const invNum   = buildInvoiceNumber(inv); // preserves WHMCS original number
@@ -780,7 +849,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
 
           for (const t of tickets) {
             job.current++;
-            const clientId = clientMap.get(String(t.userid ?? t.c));
+            const clientId = await ensureClient(String(t.userid ?? t.c ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
 
             // Use WHMCS tid (e.g. "ABC-123456") as ticket number

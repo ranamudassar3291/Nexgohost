@@ -1,0 +1,53 @@
+[INFO] WHMCS full migration started
+[5:22:56 AM] ── Step 1/9: Importing TLD extensions & pricing
+[5:22:57 AM] Found 40 TLD extensions
+[5:22:57 AM] Imported/updated 30 TLD extensions
+[5:22:57 AM] ── Step 2/9: Importing hosting plans
+[5:22:58 AM] Found 23 products
+[5:22:58 AM] Plan [1] "Starter": matched existing plan
+[5:22:58 AM] Plan [2] "Geek": matched existing plan
+[5:22:58 AM] Plan [3] "Pro": matched existing plan
+[5:22:58 AM] Plan [4] "WordPress Starter": matched existing plan
+[5:22:58 AM] Plan [5] "WordPress Pro": matched existing plan
+[5:22:58 AM] Plan [6] "WordPress Business": matched existing plan
+[5:22:58 AM] Plan [7] "WordPress Geek": matched existing plan
+[5:22:58 AM] Plan [14] "Reseller Starter": matched existing plan
+[5:22:58 AM] Plan [15] "Reseller Geek": matched existing plan
+[5:22:58 AM] Plan [16] "Reseller PRO": matched existing plan
+[5:22:58 AM] Plan [8] "Cloud Pro": matched existing plan
+[5:22:58 AM] Plan [9] "Cloud Business": matched existing plan
+[5:22:58 AM] Plan [10] "Cloud Enterprise": matched existing plan
+[5:22:58 AM] Plan [12] "Two WordPress (Product Disabled)": matched existing plan
+[5:22:58 AM] Plan [13] "Three Windows (Product Disabled)": matched existing plan
+[5:22:58 AM] Plan [11] "One Linux": matched existing plan
+[5:22:58 AM] Plan [21] "Starter": matched existing plan
+[5:22:58 AM] Plan [22] "Geek": matched existing plan
+[5:22:58 AM] Plan [23] "Pro": matched existing plan
+[5:22:58 AM] Plan [25] ".com Domain (DMCA Ignored Basic)": matched existing plan
+[5:22:58 AM] Plan [26] ".com Domain (Full Protected DMCA)": matched existing plan
+[5:22:58 AM] Plan [27] ".com Domain (Phishing DMCA Ignored)": matched existing plan
+[5:22:58 AM] Plan [20] "VPS Trial Server": matched existing plan
+[5:22:58 AM] Imported 23 plans
+[5:22:58 AM] ── Step 3/9: Importing servers
+[5:22:59 AM] Found 0 servers
+[5:22:59 AM] Imported 0 servers
+[5:22:59 AM] ── Step 4/9: Importing clients
+[5:23:00 AM] Found 2000 clients
+[5:23:00 AM] Fetching passwords for 2000 clients (3 at a time)…
+[5:23:07 AM] ⚠ WHMCS API does not expose password hashes — skipping remaining 1979 clients (temp passwords will be used)
+[5:23:07 AM] Got passwords for 0 clients
+[5:23:12 AM] Imported 1557 clients, 443 skipped
+[5:23:15 AM] ── Step 5/9: Importing hosting services
+[5:23:31 AM] Found 1056 hosting services
+[5:23:32 AM] Imported 359 hosting services
+[5:23:32 AM] ── Step 6/9: Importing domains
+[5:23:39 AM] Found 6005 domains
+[5:23:43 AM] Imported 1742 domains
+[5:23:43 AM] ── Step 7/9: Importing orders
+[5:25:03 AM] Found 6545 orders
+[5:25:08 AM] Imported 1937 orders
+[5:25:08 AM] ── Step 8/9: Importing invoices
+[5:25:22 AM] Found 6734 invoices
+[5:25:26 AM] Imported 2020 invoices
+[5:25:26 AM] ── Step 9/9: Importing support tickets
+[5:25:33 AM] Found 515 tickets
