@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Plus, Pencil, Trash2, BookOpen, Eye, EyeOff, Star, StarOff, Search, FolderOpen, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, Eye, EyeOff, Star, StarOff, Search, FolderOpen, Layers, TrendingDown, Trophy, Clock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import { format } from "date-fns";
 
 interface KbCategory {
   id: string;
@@ -44,7 +45,7 @@ export default function KnowledgeBase() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [tab, setTab] = useState<"articles" | "categories">("articles");
+  const [tab, setTab] = useState<"articles" | "categories" | "deflections">("articles");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -61,6 +62,12 @@ export default function KnowledgeBase() {
   const { data: articles = [] } = useQuery<KbArticle[]>({
     queryKey: ["/api/admin/kb/articles"],
     queryFn: () => apiFetch("/api/admin/kb/articles"),
+  });
+
+  const { data: deflStats } = useQuery<any>({
+    queryKey: ["/api/admin/kb/deflection-stats"],
+    queryFn: () => apiFetch("/api/admin/kb/deflection-stats"),
+    enabled: tab === "deflections",
   });
 
   const seedMutation = useMutation({
@@ -196,6 +203,12 @@ export default function KnowledgeBase() {
           onClick={() => setTab("categories")}
         >
           Categories ({categories.length})
+        </button>
+        <button
+          className={`pb-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${tab === "deflections" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setTab("deflections")}
+        >
+          <TrendingDown size={14} /> Deflection Rate
         </button>
       </div>
 
@@ -335,6 +348,113 @@ export default function KnowledgeBase() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "deflections" && (
+        <div className="space-y-6">
+          {/* Overview cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="border-green-500/20 bg-green-500/5">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                    <TrendingDown className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{deflStats?.totalDeflections ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground">Total Deflections</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{deflStats?.topArticles?.length ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground">Articles That Helped</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                    <BookOpen className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{articles.reduce((s, a) => s + a.helpfulYes, 0)}</p>
+                    <p className="text-xs text-muted-foreground">Total "Helpful" Votes</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top deflecting articles */}
+            <Card>
+              <CardContent className="pt-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  <h3 className="font-semibold text-sm">Top Articles by Deflections</h3>
+                </div>
+                {!deflStats?.topArticles?.length ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">No deflections recorded yet. Once clients use the KB-first ticket flow, deflection data will appear here.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {deflStats.topArticles.map((art: any, i: number) => (
+                      <div key={art.articleSlug} className="flex items-center gap-3">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i === 0 ? "bg-amber-500/20 text-amber-600" : i === 1 ? "bg-secondary text-muted-foreground" : "bg-secondary text-muted-foreground"}`}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium line-clamp-1">{art.articleTitle}</p>
+                          <a href={`/help/${art.articleSlug}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">/help/{art.articleSlug}</a>
+                        </div>
+                        <span className="text-sm font-bold text-green-600 shrink-0">{art.deflectionCount}×</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recent deflections */}
+            <Card>
+              <CardContent className="pt-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold text-sm">Recent Deflections</h3>
+                </div>
+                {!deflStats?.recentDeflections?.length ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">No recent deflections yet.</p>
+                ) : (
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    {deflStats.recentDeflections.map((d: any) => (
+                      <div key={d.id} className="border border-border/40 rounded-xl p-3 space-y-1">
+                        <p className="text-xs font-semibold text-foreground line-clamp-1">{d.ticketSubject}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <CheckCircle2 size={11} className="text-green-500" />
+                          <span className="line-clamp-1">Solved by: {d.articleTitle}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">{format(new Date(d.createdAt), "MMM d, yyyy · h:mm a")}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="bg-secondary/30 border border-border/40 rounded-xl p-4 text-sm text-muted-foreground">
+            <strong className="text-foreground">How deflection works:</strong> When a client opens a ticket and starts typing their subject, the Noehost Support Bot searches the Knowledge Base and shows relevant articles. If the client clicks <em>"Yes, this solved my issue!"</em>, the ticket is cancelled and a deflection is recorded here. A high deflection rate means your KB is working well and reducing support load.
           </div>
         </div>
       )}

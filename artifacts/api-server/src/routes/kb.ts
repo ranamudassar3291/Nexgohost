@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { kbCategoriesTable, kbArticlesTable } from "@workspace/db/schema";
-import { eq, ilike, or, and, desc, asc, sql } from "drizzle-orm";
+import { kbCategoriesTable, kbArticlesTable, kbDeflectionsTable } from "@workspace/db/schema";
+import { eq, ilike, or, and, desc, asc, sql, count } from "drizzle-orm";
 import { authenticate, requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -355,8 +355,69 @@ router.post("/admin/kb/seed", authenticate, requireRole("admin"), async (_req, r
   }
 });
 
+// ─── DEFLECTION TRACKING ─────────────────────────────────────────────────────
+// Track when a client reads a KB article and cancels their ticket (deflection)
+router.post("/kb/deflections", authenticate, async (req: any, res) => {
+  try {
+    const { articleId, articleTitle, articleSlug, ticketSubject } = req.body;
+    if (!articleId || !articleTitle || !articleSlug || !ticketSubject) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+    await db.insert(kbDeflectionsTable).values({
+      clientId: req.user.userId,
+      articleId,
+      articleTitle,
+      articleSlug,
+      ticketSubject,
+    });
+    // Also bump helpfulYes on the article
+    await db.update(kbArticlesTable)
+      .set({ helpfulYes: sql`helpful_yes + 1` })
+      .where(eq(kbArticlesTable.id, articleId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// Admin: get deflection statistics
+router.get("/admin/kb/deflection-stats", authenticate, requireRole("admin"), async (_req, res) => {
+  try {
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(kbDeflectionsTable);
+
+    const recentDeflections = await db
+      .select()
+      .from(kbDeflectionsTable)
+      .orderBy(desc(kbDeflectionsTable.createdAt))
+      .limit(20);
+
+    const topArticles = await db
+      .select({
+        articleTitle: kbDeflectionsTable.articleTitle,
+        articleSlug: kbDeflectionsTable.articleSlug,
+        deflectionCount: count(),
+      })
+      .from(kbDeflectionsTable)
+      .groupBy(kbDeflectionsTable.articleTitle, kbDeflectionsTable.articleSlug)
+      .orderBy(desc(count()))
+      .limit(10);
+
+    res.json({
+      success: true,
+      totalDeflections: Number(total),
+      recentDeflections,
+      topArticles,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
-// SEED FUNCTION — 22 professional Noehost articles across 6 categories
 // Runs on startup; detects v2 content by slug; force-reseeds if on old content
 // ─────────────────────────────────────────────────────────────────────────────
 

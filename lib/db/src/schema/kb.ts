@@ -38,5 +38,16 @@ export const kbArticlesTable = pgTable("kb_articles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const kbDeflectionsTable = pgTable("kb_deflections", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  clientId: text("client_id").notNull(),
+  articleId: text("article_id").notNull(),
+  articleTitle: text("article_title").notNull(),
+  articleSlug: text("article_slug").notNull(),
+  ticketSubject: text("ticket_subject").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type KbCategory = typeof kbCategoriesTable.$inferSelect;
 export type KbArticle = typeof kbArticlesTable.$inferSelect;
+export type KbDeflection = typeof kbDeflectionsTable.$inferSelect;
