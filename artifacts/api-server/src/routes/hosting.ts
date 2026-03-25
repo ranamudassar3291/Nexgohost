@@ -4,7 +4,7 @@ import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invo
 import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
-import { emailServiceSuspended, emailHostingCreated } from "../lib/email.js";
+import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
 import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
@@ -354,6 +354,17 @@ router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (r
       .set({ status: "terminated", cpanelUrl: null, webmailUrl: null, updatedAt: new Date() })
       .where(eq(hostingServicesTable.id, service.id))
       .returning();
+
+    // Termination email (non-blocking)
+    const [serviceUser] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId!)).limit(1);
+    if (serviceUser) {
+      emailServiceTerminated(serviceUser.email, {
+        clientName: `${serviceUser.firstName} ${serviceUser.lastName}`,
+        domain: service.domain || service.username || "your service",
+        serviceName: service.planName || "Hosting Service",
+        terminationDate: new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
+      }, { clientId: serviceUser.id, referenceId: service.id }).catch(console.warn);
+    }
 
     res.json({ ...formatService(updated!), whmNote });
   } catch (err: any) {

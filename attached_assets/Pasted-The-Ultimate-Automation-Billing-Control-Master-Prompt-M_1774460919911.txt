@@ -1,0 +1,40 @@
+The "Ultimate Automation & Billing Control" Master Prompt
+"Migration integrity check complete. Now, implement the final automation layer to make the system 100% self-functional. Execute these steps without missing any detail:
+
+1. Dynamic Promo Code System:
+
+Group-Based Logic: Promo code interface mein 'Product Group' ka option active karein.
+
+Hosting Promo: Jab main ek Hosting Group (e.g., 'Shared Hosting') select karoon, toh uske saare plans (Starter, Geek, Pro) show hon. Main specific plan select karke us par Percentage ya Fixed discount set kar sakoon.
+
+Domain Promo: Jab 'Domain Group' select ho, toh saare TLDs (.com, .net, .pk) show hon. Main specific TLD select karke us par discount apply kar sakoon.
+
+Validation: Checkout ke waqt check karein ke promo code sahi product/TLD par apply ho raha hai ya nahi.
+
+2. Package & Pricing Finalization:
+
+Price & Features: tblproducts aur tblhosting se har plan ki asli price, disk space, bandwidth, aur features ko database mein lock karein.
+
+Free Domain Link: Agar plan 'Yearly' hai aur WHMCS mein 'Free Domain' marked hai, toh checkout par domain price automatically Rs. 0.00 honi chahiye.
+
+Direct Links: Har package ke liye ek 'Order Link' (e.g., /cart?a=add&pid=ID) generate karein jo direct checkout par le jaye.
+
+3. Automated Email Template System:
+
+Connect Templates: Hamare pas templates banay hue hain, unhein niche diye gaye events ke saath trigger karein:
+
+Account Signup: Send 'Welcome Email' immediately.
+
+Hosting Activation: Send 'Service Activation' mail (jis mein login details hon).
+
+Suspension/Termination: Agar status 'Suspended' ya 'Terminated' ho, toh foran relevant mail jaye.
+
+Domain Only: Agar client sirf domain buy kare, toh usey sirf 'Domain Registration Confirmation' mail jaye (Hosting ki nahi).
+
+Status Sync: WHMCS SQL se har service aur order ka status (Active/Suspended) match karein taake galat mail na jaye.
+
+4. Admin & Client UI Sync:
+
+Ensure Admin panel mein har invoice ki price aur description wahi ho jo Client portal mein nazar aa rahi hai (No more NaN or 0 prices).
+
+Australia aur UK ke clients ke liye currency symbols aur regional settings correct karein.

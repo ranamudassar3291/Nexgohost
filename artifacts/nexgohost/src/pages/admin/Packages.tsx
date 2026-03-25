@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Package, Plus, ToggleLeft, ToggleRight, Trash2, Pencil, Server, CheckCircle, XCircle, Loader2, Tag } from "lucide-react";
+import { Package, Plus, ToggleLeft, ToggleRight, Trash2, Pencil, Server, CheckCircle, XCircle, Loader2, Tag, Link2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +36,16 @@ export default function Packages() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { formatPrice } = useCurrency();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function copyOrderLink(planId: string) {
+    const link = `${window.location.origin}/order?plan=${planId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedId(planId);
+      toast({ title: "Order link copied", description: link });
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
 
   const { data: plans = [], isLoading } = useQuery({ queryKey: ["admin-packages"], queryFn: fetchPlans });
   const { data: groups = [] } = useQuery({ queryKey: ["admin-product-groups"], queryFn: fetchGroups });
@@ -151,6 +161,16 @@ export default function Packages() {
                   <span>📶 {plan.bandwidth}</span>
                   <span>📧 {plan.emailAccounts} emails</span>
                   <span>🗄️ {plan.databases} DBs</span>
+                </div>
+
+                {/* Order link */}
+                <div className="flex items-center gap-2 p-2 bg-secondary/40 rounded-lg border border-border/50">
+                  <Link2 size={12} className="text-muted-foreground shrink-0" />
+                  <code className="text-[10px] text-muted-foreground truncate flex-1">/order?plan={plan.id.slice(0, 12)}…</code>
+                  <Button size="sm" variant="ghost" onClick={() => copyOrderLink(plan.id)} className="h-6 px-2 text-xs gap-1 shrink-0">
+                    {copiedId === plan.id ? <Check size={11} className="text-green-400" /> : <Copy size={11} />}
+                    {copiedId === plan.id ? "Copied" : "Copy"}
+                  </Button>
                 </div>
 
                 <div className="flex gap-2 pt-1 border-t border-border/50">

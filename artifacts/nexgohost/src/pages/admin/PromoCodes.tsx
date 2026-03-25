@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Tag, Plus, ToggleLeft, ToggleRight, Trash2, Loader2, CheckCircle, XCircle,
-  AlertCircle, Percent, DollarSign, Layers, Globe,
+  AlertCircle, Percent, DollarSign, Layers, Globe, Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 const P = "#701AFE";
 
 interface ProductGroup { id: string; name: string; }
+interface HostingPlan { id: string; name: string; price: number; }
+interface DomainTld { id: string; tld: string; price: number; }
 interface PromoCode {
   id: string; code: string; description: string | null;
   discountType: "percent" | "fixed";
   discountPercent: number; fixedAmount: number | null;
   isActive: boolean; usageLimit: number | null; usedCount: number; expiresAt: string | null;
-  applicableTo: string; applicableGroupId: string | null; applicableGroupName: string | null;
-  applicableDomainTld: string | null; createdAt: string;
+  applicableTo: string;
+  applicableGroupId: string | null; applicableGroupName: string | null;
+  applicableDomainTld: string | null;
+  applicablePlanId: string | null; applicablePlanName: string | null;
+  createdAt: string;
 }
 
 const token = () => localStorage.getItem("token") ?? "";
@@ -34,6 +39,17 @@ async function fetchGroups(): Promise<ProductGroup[]> {
   if (!res.ok) return [];
   return res.json();
 }
+async function fetchPlansForGroup(groupId: string): Promise<HostingPlan[]> {
+  if (!groupId) return [];
+  const res = await fetch(`/api/admin/promo-codes/plans-for-group/${groupId}`, { headers: authH() });
+  if (!res.ok) return [];
+  return res.json();
+}
+async function fetchDomainTlds(): Promise<DomainTld[]> {
+  const res = await fetch("/api/admin/promo-codes/domain-tlds", { headers: authH() });
+  if (!res.ok) return [];
+  return res.json();
+}
 
 const EMPTY_FORM = {
   code: "", description: "",
@@ -41,7 +57,9 @@ const EMPTY_FORM = {
   discountPercent: "", fixedAmount: "",
   usageLimit: "", expiresAt: "",
   applicableTo: "all",
-  applicableGroupId: "", applicableDomainTld: "",
+  applicableGroupId: "",
+  applicablePlanId: "",
+  applicableDomainTld: "",
 };
 
 export default function PromoCodes() {
@@ -49,6 +67,7 @@ export default function PromoCodes() {
   const queryClient = useQueryClient();
   const { data: codes = [], isLoading } = useQuery({ queryKey: ["admin-promo-codes"], queryFn: fetchCodes });
   const { data: groups = [] } = useQuery({ queryKey: ["admin-product-groups"], queryFn: fetchGroups });
+  const { data: domainTlds = [] } = useQuery({ queryKey: ["admin-promo-domain-tlds"], queryFn: fetchDomainTlds });
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -56,6 +75,13 @@ export default function PromoCodes() {
   const [formError, setFormError] = useState("");
 
   const setF = (partial: Partial<typeof EMPTY_FORM>) => setForm(f => ({ ...f, ...partial }));
+
+  // Fetch plans for selected group
+  const { data: plansForGroup = [] } = useQuery({
+    queryKey: ["promo-plans-group", form.applicableGroupId],
+    queryFn: () => fetchPlansForGroup(form.applicableGroupId),
+    enabled: !!form.applicableGroupId,
+  });
 
   const toggleMutation = useMutation({
     mutationFn: (id: string) => fetch(`/api/admin/promo-codes/${id}/toggle`, { method: "POST", headers: authH() }).then(r => r.json()),
@@ -92,6 +118,7 @@ export default function PromoCodes() {
           expiresAt: form.expiresAt || undefined,
           applicableTo: form.applicableTo || "all",
           applicableGroupId: form.applicableGroupId || undefined,
+          applicablePlanId: form.applicablePlanId || undefined,
           applicableDomainTld: form.applicableDomainTld || undefined,
         }),
       });
@@ -117,8 +144,9 @@ export default function PromoCodes() {
 
   function scopeBadge(c: PromoCode) {
     const parts: string[] = [];
-    if (c.applicableTo !== "all") parts.push(c.applicableTo === "hosting" ? "Hosting" : "Domains");
+    if (c.applicableTo !== "all") parts.push(c.applicableTo === "hosting" ? "🖥 Hosting" : "🌐 Domains");
     if (c.applicableGroupName) parts.push(c.applicableGroupName);
+    if (c.applicablePlanName) parts.push(`Plan: ${c.applicablePlanName}`);
     if (c.applicableDomainTld) parts.push(c.applicableDomainTld);
     if (parts.length === 0) return <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-secondary border-border text-muted-foreground">All</span>;
     return (
@@ -129,6 +157,9 @@ export default function PromoCodes() {
       </div>
     );
   }
+
+  const showDomainTld = form.applicableTo === "domain" || form.applicableTo === "all";
+  const showHostingGroup = form.applicableTo === "hosting" || form.applicableTo === "all";
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -205,31 +236,67 @@ export default function PromoCodes() {
 
             {/* Scope */}
             <div className="space-y-3 p-4 bg-secondary/30 border border-border rounded-xl">
-              <p className="text-sm font-medium text-foreground flex items-center gap-2"><Layers size={14} className="text-primary"/> Discount Scope <span className="text-xs text-muted-foreground font-normal">(restrict where code applies)</span></p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Applies To</label>
-                  <select value={form.applicableTo} onChange={e => setF({ applicableTo: e.target.value })}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 outline-none">
-                    <option value="all">All Services</option>
-                    <option value="hosting">Hosting Only</option>
-                    <option value="domain">Domains Only</option>
-                  </select>
+              <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Layers size={14} className="text-primary"/> Discount Scope
+                <span className="text-xs text-muted-foreground font-normal">(restrict where code applies)</span>
+              </p>
+
+              {/* Applies To */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Applies To</label>
+                <select value={form.applicableTo}
+                  onChange={e => setF({ applicableTo: e.target.value, applicableGroupId: "", applicablePlanId: "", applicableDomainTld: "" })}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 outline-none max-w-[200px]">
+                  <option value="all">All Services</option>
+                  <option value="hosting">Hosting Only</option>
+                  <option value="domain">Domains Only</option>
+                </select>
+              </div>
+
+              {/* Hosting group + plan (shown when hosting or all) */}
+              {showHostingGroup && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Layers size={11}/> Hosting Group</label>
+                    <select value={form.applicableGroupId}
+                      onChange={e => setF({ applicableGroupId: e.target.value, applicablePlanId: "" })}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 outline-none">
+                      <option value="">All Groups</option>
+                      {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Specific plan dropdown (shown only when a group is selected) */}
+                  {form.applicableGroupId && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Package size={11}/> Specific Plan</label>
+                      <select value={form.applicablePlanId}
+                        onChange={e => setF({ applicablePlanId: e.target.value })}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 outline-none">
+                        <option value="">All Plans in Group</option>
+                        {plansForGroup.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} — Rs. {p.price.toLocaleString()}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Layers size={11}/> Specific Hosting Group</label>
-                  <select value={form.applicableGroupId} onChange={e => setF({ applicableGroupId: e.target.value })}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 outline-none">
-                    <option value="">All Groups</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </div>
+              )}
+
+              {/* Domain TLD dropdown (shown when domain or all) */}
+              {showDomainTld && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Globe size={11}/> Domain Extension</label>
-                  <Input value={form.applicableDomainTld} onChange={e => setF({ applicableDomainTld: e.target.value })}
-                    placeholder=".com  (leave blank for all)" className="text-sm"/>
+                  <select value={form.applicableDomainTld}
+                    onChange={e => setF({ applicableDomainTld: e.target.value })}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:ring-2 focus:ring-primary/30 outline-none max-w-[260px]">
+                    <option value="">All Extensions</option>
+                    {domainTlds.map(t => (
+                      <option key={t.id} value={t.tld}>{t.tld} — Rs. {t.price.toLocaleString()}/yr</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Usage limits */}

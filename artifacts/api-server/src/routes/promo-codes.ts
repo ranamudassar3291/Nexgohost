@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { promoCodesTable, productGroupsTable } from "@workspace/db/schema";
+import { promoCodesTable, productGroupsTable, hostingPlansTable, domainPricingTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
 
-function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: string | null }) {
+function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: string | null; planName?: string | null }) {
   const discountType = (c as any).discountType ?? "percent";
   return {
     id: c.id,
@@ -23,6 +23,8 @@ function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: strin
     applicableGroupId: (c as any).applicableGroupId ?? null,
     applicableGroupName: (c as any).groupName ?? null,
     applicableDomainTld: (c as any).applicableDomainTld ?? null,
+    applicablePlanId: (c as any).applicablePlanId ?? null,
+    applicablePlanName: (c as any).planName ?? null,
     createdAt: c.createdAt.toISOString(),
   };
 }
@@ -30,8 +32,8 @@ function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: strin
 // Client: validate a promo code and compute discounted amount
 router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { code, amount, serviceType, groupId, tld } = req.query as {
-      code: string; amount: string; serviceType?: string; groupId?: string; tld?: string;
+    const { code, amount, serviceType, groupId, planId, tld } = req.query as {
+      code: string; amount: string; serviceType?: string; groupId?: string; planId?: string; tld?: string;
     };
     if (!code) { res.status(400).json({ error: "code is required" }); return; }
 
@@ -58,8 +60,11 @@ router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) 
     if (applicableGroupId && groupId && applicableGroupId !== groupId) {
       res.status(400).json({ error: "This promo code is not valid for the selected hosting category" }); return;
     }
-    if (applicableGroupId && !groupId) {
-      // Code is group-scoped but no group provided — still allow (client might not have group context)
+
+    // Plan scope check (specific plan within group)
+    const applicablePlanId = (promo as any).applicablePlanId;
+    if (applicablePlanId && planId && applicablePlanId !== planId) {
+      res.status(400).json({ error: "This promo code is only valid for a specific hosting plan" }); return;
     }
 
     // Domain TLD scope check
@@ -101,7 +106,7 @@ router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) 
   }
 });
 
-// Admin: list all promo codes (with group names)
+// Admin: list all promo codes (with group and plan names)
 router.get("/admin/promo-codes", authenticate, requireAdmin, async (_req, res) => {
   try {
     const codes = await db.select().from(promoCodesTable).orderBy(sql`created_at DESC`);
@@ -113,7 +118,49 @@ router.get("/admin/promo-codes", authenticate, requireAdmin, async (_req, res) =
       groupMap = Object.fromEntries(groups.map((g: any) => [g.id, g.name]));
     }
 
-    res.json(codes.map(c => formatCode({ ...c, groupName: groupMap[(c as any).applicableGroupId] ?? null })));
+    const planIds = [...new Set(codes.map(c => (c as any).applicablePlanId).filter(Boolean))];
+    let planMap: Record<string, string> = {};
+    if (planIds.length > 0) {
+      const plans = await db.select().from(hostingPlansTable);
+      planMap = Object.fromEntries(plans.map((p: any) => [p.id, p.name]));
+    }
+
+    res.json(codes.map(c => formatCode({
+      ...c,
+      groupName: groupMap[(c as any).applicableGroupId] ?? null,
+      planName: planMap[(c as any).applicablePlanId] ?? null,
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: get plans for a specific group (for promo code UI)
+router.get("/admin/promo-codes/plans-for-group/:groupId", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const plans = await db.select({
+      id: hostingPlansTable.id,
+      name: hostingPlansTable.name,
+      price: hostingPlansTable.price,
+    }).from(hostingPlansTable)
+      .where(eq(hostingPlansTable.groupId, req.params.groupId));
+    res.json(plans.map(p => ({ id: p.id, name: p.name, price: Number(p.price) })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: get all domain TLDs (for promo code UI)
+router.get("/admin/promo-codes/domain-tlds", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const tlds = await db.select({
+      id: domainPricingTable.id,
+      tld: domainPricingTable.tld,
+      registrationPrice: domainPricingTable.registrationPrice,
+    }).from(domainPricingTable).orderBy(domainPricingTable.tld);
+    res.json(tlds.map(t => ({ id: t.id, tld: t.tld, price: Number(t.registrationPrice) })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -127,7 +174,7 @@ router.post("/admin/promo-codes", authenticate, requireAdmin, async (req: AuthRe
       code, description,
       discountType = "percent", discountPercent, fixedAmount,
       usageLimit, expiresAt,
-      applicableTo = "all", applicableGroupId, applicableDomainTld,
+      applicableTo = "all", applicableGroupId, applicableDomainTld, applicablePlanId,
     } = req.body;
 
     if (!code) { res.status(400).json({ error: "code is required" }); return; }
@@ -156,6 +203,7 @@ router.post("/admin/promo-codes", authenticate, requireAdmin, async (req: AuthRe
       applicableTo: ["all", "hosting", "domain"].includes(applicableTo) ? applicableTo : "all",
       applicableGroupId: applicableGroupId || null,
       applicableDomainTld: applicableDomainTld ? (applicableDomainTld.startsWith(".") ? applicableDomainTld : `.${applicableDomainTld}`) : null,
+      applicablePlanId: applicablePlanId || null,
     } as any).returning();
 
     res.status(201).json(formatCode(promo));

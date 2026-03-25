@@ -8,7 +8,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
-import { emailInvoiceCreated, emailOrderCreated } from "../lib/email.js";
+import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered } from "../lib/email.js";
 import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
@@ -715,6 +715,15 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
         nameservers: resolvedNs,
       });
     } catch { /* non-fatal — domain may already exist */ }
+
+    // Domain registration email (non-blocking)
+    const expiryFormatted = new Date(Date.now() + registrationYears * 365 * 24 * 60 * 60 * 1000)
+      .toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+    emailDomainRegistered(user.email, {
+      clientName: `${user.firstName} ${user.lastName}`,
+      domain: fullDomain,
+      expiryDate: expiryFormatted,
+    }, { clientId: user.id, referenceId: order.id }).catch(console.warn);
 
     res.status(201).json({
       success: true,

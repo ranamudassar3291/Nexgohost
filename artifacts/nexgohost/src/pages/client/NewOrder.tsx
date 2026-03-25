@@ -1915,7 +1915,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                       <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-green-50 border border-green-200 mb-3">
                         <Gift size={14} className="text-green-600 shrink-0 mt-0.5"/>
                         <p className="text-[12px] text-green-700 leading-relaxed">
-                          <span className="font-bold">Free Domain Offer:</span> Extensions eligible at Rs. 0 — <span className="font-semibold">{eligibleTldLabels.join(", ")}</span>. Other extensions charge their regular price.
+                          <span className="font-bold">Free Domain Offer:</span> Extensions eligible at <span className="font-semibold text-green-600">FREE</span> — <span className="font-semibold">{eligibleTldLabels.join(", ")}</span>. Other extensions charge their regular price.
                         </p>
                       </div>
                     )}
@@ -2143,7 +2143,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                             <p className="text-[12px] text-gray-400 line-through">{formatPrice(cartDomain.originalPrice)}</p>
                           )}
                           <p className="text-[16px] font-extrabold text-green-600">FREE</p>
-                          <p className="text-[11px] text-green-500 font-semibold">Rs. 0.00</p>
+                          <p className="text-[11px] text-green-500 font-semibold">{formatPrice(0)}</p>
                         </>
                       : <p className="text-[16px] font-extrabold text-gray-900">{formatPrice(cartDomain.price)}</p>
                     }

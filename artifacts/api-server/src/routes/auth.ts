@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
 import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
-import { emailVerificationCode, emailPasswordReset, sendEmail } from "../lib/email.js";
+import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail } from "../lib/email.js";
 import crypto from "node:crypto";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
@@ -70,6 +70,12 @@ router.post("/auth/register", async (req, res) => {
     if (verificationRequired && code) {
       await emailVerificationCode(email, firstName, code).catch(() => {});
     }
+
+    // Welcome email — always sent on new account signup
+    emailWelcome(email, {
+      clientName: `${firstName} ${lastName}`,
+      dashboardUrl: "https://noehost.com/client/dashboard",
+    }, { clientId: user.id }).catch(() => {});
 
     // ── Track affiliate referral ────────────────────────────────────────────
     if (refCode) {
