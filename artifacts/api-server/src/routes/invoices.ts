@@ -26,31 +26,38 @@ async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
 
 let invoiceCounter = 1000;
 
-function formatInvoice(i: typeof invoicesTable.$inferSelect, clientName?: string) {
+function toISO(d: any): string | undefined {
+  if (!d) return undefined;
+  if (d instanceof Date) return d.toISOString();
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function formatInvoice(i: any, clientName?: string) {
   const rawItems = (i.items ?? []) as Array<any>;
   const items = rawItems.map((item: any) => ({
     description: item.description ?? "Hosting Service",
     quantity: item.quantity ?? 1,
-    unitPrice: item.unitPrice ?? item.amount ?? Number(i.amount),
-    total: item.total ?? item.amount ?? Number(i.amount),
+    unitPrice: item.unitPrice ?? item.amount ?? Number(i.amount ?? 0),
+    total: item.total ?? item.amount ?? Number(i.amount ?? 0),
   }));
   return {
     id: i.id,
-    invoiceNumber: i.invoiceNumber,
-    clientId: i.clientId,
+    invoiceNumber: i.invoiceNumber ?? i.invoice_number,
+    clientId: i.clientId ?? i.client_id,
     clientName: clientName || "",
-    amount: Number(i.amount),
-    tax: Number(i.tax),
-    total: Number(i.total),
+    amount: Number(i.amount ?? 0),
+    tax: Number(i.tax ?? 0),
+    total: Number(i.total ?? 0),
     status: i.status,
-    dueDate: i.dueDate.toISOString(),
-    paidDate: i.paidDate?.toISOString(),
-    paymentRef: i.paymentRef,
-    paymentGatewayId: i.paymentGatewayId,
-    paymentNotes: i.paymentNotes,
-    invoiceType: i.invoiceType,
+    dueDate: toISO(i.dueDate ?? i.due_date) ?? new Date().toISOString(),
+    paidDate: toISO(i.paidDate ?? i.paid_date),
+    paymentRef: i.paymentRef ?? i.payment_ref,
+    paymentGatewayId: i.paymentGatewayId ?? i.payment_gateway_id,
+    paymentNotes: i.paymentNotes ?? i.payment_notes,
+    invoiceType: i.invoiceType ?? i.invoice_type,
     items,
-    createdAt: i.createdAt.toISOString(),
+    createdAt: toISO(i.createdAt ?? i.created_at) ?? new Date().toISOString(),
   };
 }
 
@@ -137,36 +144,28 @@ router.get("/admin/invoices", authenticate, requireAdmin, async (req: AuthReques
       )`;
     }
 
-    const [{ total }] = await db.execute<{ total: string }>(sql`SELECT COUNT(*)::int as total FROM invoices i WHERE ${filterSql}`);
-    const invoices = await db.execute<typeof invoicesTable.$inferSelect>(
+    const countResult = await db.execute(sql`SELECT COUNT(*)::int as total FROM invoices i WHERE ${filterSql}`);
+    const countRows: any[] = (countResult as any).rows ?? (countResult as any);
+    const total = Number(countRows[0]?.total ?? 0);
+
+    const invoiceResult = await db.execute(
       sql`SELECT i.* FROM invoices i WHERE ${filterSql} ORDER BY i.created_at DESC LIMIT ${limit} OFFSET ${offset}`
     );
+    const invoiceRows: any[] = (invoiceResult as any).rows ?? (invoiceResult as any);
 
-    const clientIds = [...new Set(invoices.map((i: any) => i.client_id))];
+    const clientIds = [...new Set(invoiceRows.map((i: any) => i.client_id).filter(Boolean))];
     const users = clientIds.length > 0
       ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds as string[]))
       : [];
     const userMap = new Map(users.map(u => [u.id, u]));
 
-    const result = invoices.map((row: any) => {
-      const i = {
-        ...row,
-        dueDate: row.due_date,
-        paidDate: row.paid_date,
-        invoiceNumber: row.invoice_number,
-        clientId: row.client_id,
-        paymentRef: row.payment_ref,
-        paymentGatewayId: row.payment_gateway_id,
-        paymentNotes: row.payment_notes,
-        invoiceType: row.invoice_type,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      } as typeof invoicesTable.$inferSelect;
-      const user = userMap.get(row.client_id);
-      return formatInvoice(i, user ? `${user.firstName} ${user.lastName}` : "");
+    const result = invoiceRows.map((row: any) => {
+      const clientId = row.client_id ?? row.clientId;
+      const user = userMap.get(clientId);
+      return formatInvoice(row, user ? `${user.firstName} ${user.lastName}` : "");
     });
 
-    res.json({ data: result, total: Number(total), page, limit, totalPages: Math.ceil(Number(total) / limit) });
+    res.json({ data: result, total, page, limit, totalPages: Math.ceil(total / limit) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
