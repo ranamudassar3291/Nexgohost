@@ -458,7 +458,8 @@ export async function seedKbContent() {
   await applyV4Images();
   await applyV4bAnnotations();
   await applyV5Categories();
-  console.log("[KB] Knowledge base content ready (v5)");
+  await applyV6RealImages();
+  console.log("[KB] Knowledge base content ready (v6)");
 }
 
 async function applyV4Images() {
@@ -680,14 +681,14 @@ async function applyV5Categories() {
   <li>Click <strong>Install Now</strong>, then <strong>Activate</strong></li>
   <li>Complete the setup wizard and run an initial security scan</li>
 </ol>` +
-          SS("Wordfence Security plugin settings — Firewall and Login Security tabs showing protection status") +
+          IMG("/kb/ufw-terminal-rules.png", "UFW Firewall Rules", "Wordfence Security plugin settings — Firewall and Login Security tabs showing protection status") +
           `<h2>Step 3: Use Strong Admin Credentials</h2>
 <ul>
   <li><strong>Change the default admin username</strong> — never use 'admin', 'administrator', or your domain name</li>
   <li><strong>Use a strong password</strong> — at least 16 characters with numbers and symbols</li>
   <li><strong>Enable Two-Factor Authentication (2FA)</strong> — Wordfence includes free 2FA for all admin users</li>
 </ul>` +
-          SS("WordPress user profile page — showing username change, password strength indicator, and 2FA setup option") +
+          IMG("/kb/wordpress-plugins-install.png", "WordPress User Profile", "WordPress user profile page — showing username change, password strength indicator, and 2FA setup option") +
           `<h2>Step 4: Set Up Regular Backups</h2>
 <p>Even with the best security, backups are your last line of defence. Noehost includes free automated backups on all hosting plans.</p>
 <ol>
@@ -776,7 +777,7 @@ async function applyV5Categories() {
   <li>You need a <strong>dedicated IP address</strong> for SSL, email deliverability, or gaming</li>
   <li>You are reselling hosting and need WHM/cPanel installed at the root level</li>
 </ul>` +
-      SS("Side-by-side comparison of Shared Hosting and VPS resources — showing guaranteed RAM, dedicated CPU cores, and isolated environment") +
+      IMG("/kb/vps-plan-comparison.png", "Hosting Plans", "Side-by-side comparison of Shared Hosting and VPS resources — showing guaranteed RAM, dedicated CPU cores, and isolated environment") +
       `<h2>What You Get with Noehost VPS</h2>
 <ul>
   <li><strong>Guaranteed RAM & CPU</strong> — dedicated resources, not shared with other customers</li>
@@ -786,7 +787,7 @@ async function applyV5Categories() {
   <li><strong>Optional cPanel/WHM</strong> — add cPanel to your VPS for a familiar control panel interface</li>
   <li><strong>Automated Daily Backups</strong> — peace of mind with 14-day backup retention</li>
 </ul>` +
-      SS("Noehost VPS plan selection page — showing RAM, CPU, SSD, and bandwidth specifications for each plan tier") +
+      IMG("/kb/vps-plan-comparison.png", "Hosting Plans", "Noehost VPS plan selection page — showing RAM, CPU, SSD, and bandwidth specifications for each plan tier") +
       `<h2>Getting Started with Your VPS</h2>
 <p>After ordering a VPS from Noehost, check your email for a welcome message containing:</p>
 <ol>
@@ -824,14 +825,14 @@ async function applyV5Categories() {
 <p>Windows 10 and 11 include a built-in SSH client. Open <strong>Command Prompt</strong> or <strong>PowerShell</strong> and run:</p>
 <pre><code>ssh root@YOUR_SERVER_IP</code></pre>
 <p>Replace <code>YOUR_SERVER_IP</code> with your actual server IP from the welcome email. When prompted, enter your password.</p>` +
-      SS("Windows PowerShell or Terminal showing the SSH command and password prompt for a VPS login") +
+      IMG("/kb/ssh-login-terminal.png", "SSH Terminal", "Windows PowerShell or Terminal showing the SSH command and password prompt for a VPS login") +
       `<div class="kb-tip">💡 Alternatively, download <strong>PuTTY</strong> (free) from <a href="https://www.putty.org" target="_blank" rel="noopener">putty.org</a> for a graphical SSH client with session saving.</div>
 
 <h2>Connecting from Mac or Linux</h2>
 <p>Open your <strong>Terminal</strong> application and run:</p>
 <pre><code>ssh root@YOUR_SERVER_IP</code></pre>
 <p>You will be asked to confirm the server's fingerprint on your first connection — type <code>yes</code> and press Enter. Then enter your password.</p>` +
-      SS("Mac Terminal showing successful SSH connection to a Noehost VPS with the server's fingerprint confirmation dialog") +
+      IMG("/kb/ssh-login-terminal.png", "SSH Terminal", "Mac Terminal showing successful SSH connection to a Noehost VPS with the server's fingerprint confirmation dialog") +
       `<h2>Setting Up SSH Keys (Recommended)</h2>
 <p>SSH keys are more secure than passwords. Generate a key pair on your local machine:</p>
 <ol>
@@ -863,7 +864,7 @@ async function applyV5Categories() {
 <h2>Step 1: Update Your Server</h2>
 <p>Always start by updating the package list and upgrading existing packages:</p>
 <pre><code>apt update && apt upgrade -y</code></pre>` +
-      SS("SSH terminal showing apt update and upgrade running on a fresh Ubuntu VPS — package lists being downloaded and updated") +
+      IMG("/kb/ssh-login-terminal.png", "SSH Terminal", "SSH terminal showing apt update and upgrade running on a fresh Ubuntu VPS — package lists being downloaded and updated") +
       `<h2>Step 2: Install Apache Web Server</h2>
 <pre><code>apt install apache2 -y
 systemctl enable apache2
@@ -876,7 +877,7 @@ systemctl start apache2</code></pre>
 <pre><code>apt install mysql-server -y
 mysql_secure_installation</code></pre>
 <p>The <code>mysql_secure_installation</code> wizard will guide you through setting a root password and removing test databases.</p>` +
-      SS("Terminal showing mysql_secure_installation wizard — setting root password, removing anonymous users, disabling remote root login") +
+      IMG("/kb/mysql-terminal.png", "MySQL Terminal", "Terminal showing mysql_secure_installation wizard — setting root password, removing anonymous users, disabling remote root login") +
       `<h2>Step 4: Install PHP</h2>
 <pre><code>apt install php libapache2-mod-php php-mysql php-curl php-gd php-mbstring php-xml -y</code></pre>
 <p>Verify PHP is installed correctly:</p>
@@ -917,7 +918,7 @@ mysql_secure_installation</code></pre>
 <pre><code>ufw allow OpenSSH</code></pre>
 <p>Or use the port number directly:</p>
 <pre><code>ufw allow 22/tcp</code></pre>` +
-      SS("Terminal showing the 'ufw allow OpenSSH' command and the confirmation message 'Rules updated'") +
+      IMG("/kb/ufw-terminal-rules.png", "UFW Firewall Rules", "Terminal showing the 'ufw allow OpenSSH' command and the confirmation message 'Rules updated'") +
       `<h2>Step 2: Allow Web Traffic</h2>
 <pre><code>ufw allow 80/tcp    # HTTP
 ufw allow 443/tcp   # HTTPS</code></pre>
@@ -933,7 +934,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
 <h2>Step 4: Check Your Firewall Status</h2>
 <pre><code>ufw status numbered</code></pre>
 <p>This shows all active rules with their rule numbers. To delete a rule, use: <code>ufw delete RULE_NUMBER</code></p>` +
-      SS("Terminal showing 'ufw status numbered' output — numbered list of active firewall rules with ports and ALLOW/DENY status") +
+      IMG("/kb/ufw-terminal-rules.png", "UFW Firewall Rules", "Terminal showing 'ufw status numbered' output — numbered list of active firewall rules with ports and ALLOW/DENY status") +
       `<div class="kb-info">ℹ️ <strong>Custom port for SSH?</strong> If you changed your SSH port (e.g., to 2222 for added security), allow that port instead of 22: <code>ufw allow 2222/tcp</code></div>
 
 <div class="kb-tip">💡 After enabling UFW, test that you can still SSH into your server from a new terminal window before closing your current session — this ensures you haven't accidentally blocked yourself.</div>`,
@@ -964,7 +965,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
 <p>The <code>rsync</code> command is the gold standard for VPS backups. Run this from your <strong>local machine</strong> (or a separate backup server) to pull files from your VPS:</p>
 <pre><code>rsync -avz root@YOUR_SERVER_IP:/var/www/html/ ./website-backup/</code></pre>
 <p>This copies your entire website directory to a local folder. Schedule it with cron for automatic daily backups.</p>` +
-      SS("Terminal showing rsync command transferring files from VPS to local machine — displaying file list and transfer progress") +
+      IMG("/kb/ssh-login-terminal.png", "SSH Terminal", "Terminal showing rsync command transferring files from VPS to local machine — displaying file list and transfer progress") +
       `<h2>Database Backups with mysqldump</h2>
 <p>Website files are only half the picture — your database contains your content, orders, and user data. Back it up with:</p>
 <pre><code>mysqldump -u root -p DATABASE_NAME > backup.sql</code></pre>
@@ -976,7 +977,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li><strong>Database:</strong> Import your SQL backup: <code>mysql -u root -p DATABASE_NAME &lt; backup.sql</code></li>
   <li><strong>Verify:</strong> Visit your website and check that all pages load correctly</li>
 </ol>` +
-      SS("MySQL command prompt showing database import from a .sql backup file — restoring tables and data") +
+      IMG("/kb/mysql-terminal.png", "MySQL Terminal", "MySQL command prompt showing database import from a .sql backup file — restoring tables and data") +
       `<div class="kb-tip">💡 <strong>Automate with cron:</strong> Schedule daily backups by editing your crontab (<code>crontab -e</code>) and adding: <code>0 2 * * * rsync -avz /var/www/html/ /backup/website/</code> — this runs at 2 AM every night.</div>
 
 <div class="kb-warning">⚠️ Always test your backups by restoring them to a staging environment before you need them in an emergency. A backup you've never tested is a backup you can't trust.</div>`,
@@ -1012,7 +1013,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li><strong>Username:</strong> Your WHM username (typically your Noehost username)</li>
   <li><strong>Password:</strong> Your WHM/cPanel master password</li>
 </ul>` +
-      SS("WHM login page at port 2087 — showing username/password fields and the cPanel login interface") +
+      IMG("/kb/whm-login-page.png", "WHM Login Page", "WHM login page at port 2087 — showing username/password fields and the cPanel login interface") +
       `<h2>First Steps in WHM</h2>
 <ol>
   <li><strong>Create a Hosting Package</strong> — Go to <strong>Packages → Add a Package</strong> and define disk space, bandwidth, email accounts, and subdomains for the plans you want to sell</li>
@@ -1020,7 +1021,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li><strong>Create Your First Client Account</strong> — Go to <strong>Account Functions → Create a New Account</strong></li>
   <li><strong>Configure Your Reseller Nameservers</strong> — See our guide: <a href="/help/setup-reseller-private-nameservers-noehost">How to Set Up Private Nameservers</a></li>
 </ol>` +
-      SS("WHM main navigation — showing Account Functions, Packages, DNS Functions, and Reseller Center sections in the left sidebar") +
+      IMG("/kb/whm-login-page.png", "WHM Login Page", "WHM main navigation — showing Account Functions, Packages, DNS Functions, and Reseller Center sections in the left sidebar") +
       `<div class="kb-tip">💡 You can white-label WHM by going to <strong>WHM → Modify Account → Reseller Center → Modify Reseller Privileges</strong> and setting a custom brand name and logo for your hosting business.</div>
 
 <div class="kb-warning">⚠️ You are responsible for all accounts you create under your reseller. Ensure your clients comply with Noehost's Terms of Service — especially regarding spam, copyright, and resource usage.</div>`,
@@ -1051,7 +1052,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li>In the left sidebar, click <strong>Account Functions</strong></li>
   <li>Click <strong>Create a New Account</strong></li>
 </ol>` +
-      SS("WHM Account Functions section expanded in the sidebar — showing Create a New Account, Modify an Account, and Terminate an Account links") +
+      IMG("/kb/whm-account-management.png", "WHM Account Management", "WHM Account Functions section expanded in the sidebar — showing Create a New Account, Modify an Account, and Terminate an Account links") +
       `<h2>Step 2: Fill in Account Details</h2>
 <p>Complete the account creation form:</p>
 <ul>
@@ -1071,7 +1072,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
 
 <h2>Step 4: Create the Account</h2>
 <p>Scroll down and click <strong>Create</strong>. WHM will provision the account in seconds and display the new account's cPanel URL, username, and other details.</p>` +
-      SS("WHM account creation success screen — showing the new cPanel account URL, username, IP address, and confirmation message") +
+      IMG("/kb/whm-account-management.png", "WHM Account Management", "WHM account creation success screen — showing the new cPanel account URL, username, IP address, and confirmation message") +
       `<div class="kb-tip">💡 Send the client their cPanel login URL (e.g., <code>https://their-domain.com:2083</code>), their username, and their password. Remind them to change the password on first login.</div>
 
 <div class="kb-info">ℹ️ You can also suspend, modify, or terminate accounts at any time from <strong>Account Functions</strong> in WHM. See our guide: <a href="/help/suspend-terminate-client-account-whm-noehost">How to Suspend or Terminate a Client Account</a>.</div>`,
@@ -1106,7 +1107,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li>Add <strong>ns2</strong> with the same server IP address (or a second server if you have one)</li>
   <li>Save the changes</li>
 </ol>` +
-      SS("Domain registrar control panel showing the Register Nameserver or Child Nameserver option — with ns1 and ns2 fields and an IP address field") +
+      IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "Domain registrar control panel showing the Register Nameserver or Child Nameserver option — with ns1 and ns2 fields and an IP address field") +
       `<h2>Step 3: Register Nameservers in WHM</h2>
 <ol>
   <li>Log in to <strong>WHM</strong></li>
@@ -1115,7 +1116,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li>Enter <code>ns1.yourdomain.com</code> and <code>ns2.yourdomain.com</code> in the nameserver fields</li>
   <li>Click <strong>Save</strong></li>
 </ol>` +
-      SS("WHM Basic cPanel & WHM Setup page — showing the Nameserver 1 and Nameserver 2 input fields in the server configuration section") +
+      IMG("/kb/whm-account-management.png", "WHM Panel", "WHM Basic cPanel & WHM Setup page — showing the Nameserver 1 and Nameserver 2 input fields in the server configuration section") +
       `<h2>Step 4: Set Nameservers for Client Domains</h2>
 <p>When a client purchases hosting from you, instruct them to change their domain's nameservers to your private NS1 and NS2. The process is the same as our guide: <a href="/help/how-to-point-domain-to-noehost">How to Point a Domain to Noehost</a>.</p>
 
@@ -1145,7 +1146,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li>Log in to <strong>WHM</strong> at <code>https://YOUR_SERVER_IP:2087</code></li>
   <li>In the left sidebar, go to <strong>Packages → Add a Package</strong></li>
 </ol>` +
-      SS("WHM Add a Package form — showing Disk Space Quota, Monthly Bandwidth Limit, Max Email Accounts, Max Databases, and Max FTP Accounts fields") +
+      IMG("/kb/whm-account-management.png", "WHM Panel", "WHM Add a Package form — showing Disk Space Quota, Monthly Bandwidth Limit, Max Email Accounts, Max Databases, and Max FTP Accounts fields") +
       `<h2>Step 2: Configure Resource Limits</h2>
 <p>Fill in the package details:</p>
 <ul>
@@ -1157,7 +1158,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li><strong>Max FTP Accounts:</strong> Number of FTP users</li>
   <li><strong>Max Subdomains:</strong> Number of subdomains (e.g., blog.clientdomain.com)</li>
 </ul>` +
-      SS("WHM package feature settings — showing toggles for Shell Access, CGI Access, Cron Jobs, and other cPanel features that can be enabled per package") +
+      IMG("/kb/whm-account-management.png", "WHM Panel", "WHM package feature settings — showing toggles for Shell Access, CGI Access, Cron Jobs, and other cPanel features that can be enabled per package") +
       `<h2>Step 3: Set Feature Flags</h2>
 <p>Scroll down to the <strong>Features</strong> section. Here you can enable or disable specific cPanel features for accounts using this package:</p>
 <ul>
@@ -1209,7 +1210,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li>Enter a reason for the suspension (optional but helpful for your records)</li>
   <li>Click <strong>Suspend Account</strong></li>
 </ol>` +
-      SS("WHM Manage Account Suspension page — showing a list of client accounts with Suspend/Unsuspend buttons and a reason field for suspension") +
+      IMG("/kb/whm-account-management.png", "WHM Account Management", "WHM Manage Account Suspension page — showing a list of client accounts with Suspend/Unsuspend buttons and a reason field for suspension") +
       `<h2>How to Unsuspend an Account</h2>
 <p>When the client resolves the issue (e.g., pays their invoice):</p>
 <ol>
@@ -1225,7 +1226,7 @@ ufw allow 993/tcp   # IMAPS</code></pre>
   <li>Check the confirmation checkbox acknowledging data deletion</li>
   <li>Click <strong>Remove Accounts</strong></li>
 </ol>` +
-      SS("WHM Terminate Accounts page — showing a list of accounts with checkboxes, a confirmation warning, and the Remove Accounts button") +
+      IMG("/kb/whm-account-management.png", "WHM Account Management", "WHM Terminate Accounts page — showing a list of accounts with checkboxes, a confirmation warning, and the Remove Accounts button") +
       `<div class="kb-tip">💡 <strong>Best practice:</strong> Before terminating, always:
 <ol>
   <li>Create a full cPanel backup of the account</li>
@@ -1238,6 +1239,57 @@ ufw allow 993/tcp   # IMAPS</code></pre>
     sortOrder: 5,
     isPublished: true,
   });
+}
+
+// v6: Replace all kb-screenshot placeholders in DB with real images
+async function applyV6RealImages() {
+  function pickImg(caption: string): { src: string; alt: string } {
+    const c = caption.toLowerCase();
+    if (c.includes("ufw") || c.includes("firewall")) return { src: "/kb/ufw-terminal-rules.png", alt: "UFW Firewall Rules" };
+    if (c.includes("mysql") || c.includes("database import") || c.includes("phpmy") || c.includes("repair.php") || c.includes("db_name") || c.includes("db_user")) return { src: "/kb/mysql-terminal.png", alt: "MySQL Terminal" };
+    if (c.includes("ssh") || (c.includes("terminal") && c.includes("command")) || c.includes("apt") || c.includes("rsync") || c.includes("powershell") || c.includes("mac terminal") || c.includes("putty")) return { src: "/kb/ssh-login-terminal.png", alt: "SSH Terminal" };
+    if (c.includes("wp-config") || c.includes("wp-content") || c.includes("file manager") || c.includes("filezilla") || c.includes("public_html") || c.includes(".htaccess") || c.includes("plugins renamed") || c.includes("plugins folder") || c.includes("error log") || c.includes("metrics")) return { src: "/kb/file-manager.png", alt: "cPanel File Manager" };
+    if (c.includes("whm login") || c.includes("port 2087")) return { src: "/kb/whm-login-page.png", alt: "WHM Login" };
+    if (c.includes("whm") && (c.includes("suspend") || c.includes("terminate") || c.includes("remove account") || c.includes("account function") || c.includes("navigation") || c.includes("sidebar") || c.includes("package feature") || c.includes("add a package") || c.includes("basic cpanel") || c.includes("nameserver 1"))) return { src: "/kb/whm-account-management.png", alt: "WHM Panel" };
+    if (c.includes("whm create") || c.includes("create a new account") || c.includes("account creation success") || c.includes("cpanel account url")) return { src: "/kb/whm-create-account-form.png", alt: "WHM Create Account" };
+    if (c.includes("nameserver") || c.includes("ns1") || c.includes("ns2") || c.includes("register nameserver") || c.includes("godaddy") || c.includes("namecheap") || c.includes("dnschecker") || c.includes("whatsmydns") || c.includes("zone editor") || c.includes("spf") || c.includes("dkim") || c.includes("a record") || c.includes("dns")) return { src: "/kb/dns-zone-editor.png", alt: "DNS Zone Editor" };
+    if (c.includes("softaculous") && (c.includes("configuration") || c.includes("install") || c.includes("admin credentials") || c.includes("protocol") || c.includes("domain") || c.includes("complete screen"))) return { src: "/kb/softaculous-install-form.png", alt: "Softaculous Install Form" };
+    if (c.includes("softaculous") || c.includes("wordpress installer screen")) return { src: "/kb/softaculous-dashboard.png", alt: "Softaculous Dashboard" };
+    if (c.includes("wordfence")) return { src: "/kb/wordfence-security-plugin.png", alt: "Wordfence Security Plugin" };
+    if (c.includes("wordpress user profile") || c.includes("2fa") || c.includes("two-factor")) return { src: "/kb/wordpress-plugins-install.png", alt: "WordPress User Profile" };
+    if (c.includes("wordpress plugin") || c.includes("litespeed") || c.includes("install now") || c.includes("wp plugin")) return { src: "/kb/wordpress-plugins-install.png", alt: "WordPress Plugins" };
+    if (c.includes("wordpress theme") || c.includes("wp rocket") || c.includes("clear cache") || c.includes("permalink") || c.includes("wordpress admin")) return { src: "/kb/wordpress-admin.png", alt: "WordPress Admin" };
+    if (c.includes("email") || c.includes("outlook") || c.includes("imap") || c.includes("iphone mail")) return { src: "/kb/cpanel-email-create.png", alt: "Email Setup" };
+    if (c.includes("php") || c.includes("multiphp")) return { src: "/kb/cpanel-php-manager.png", alt: "PHP Manager" };
+    if (c.includes("invoice") || c.includes("billing") || c.includes("unpaid") || c.includes("pay invoice")) return { src: "/kb/noehost-invoices-panel.png", alt: "Noehost Invoices" };
+    if (c.includes("welcome email") || c.includes("noehost welcome")) return { src: "/kb/noehost-welcome-email.png", alt: "Welcome Email" };
+    if (c.includes("login page") || c.includes("noehost client area login") || c.includes("forgot password")) return { src: "/kb/noehost-login-page.png", alt: "Noehost Login" };
+    if (c.includes("services") || c.includes("service") || c.includes("expiry") || c.includes("login to cpanel") || c.includes("auto-renew") || c.includes("client area") || c.includes("dashboard")) return { src: "/kb/noehost-services-panel.png", alt: "Noehost Client Area" };
+    if (c.includes("comparison") || c.includes("vps plan") || c.includes("shared hosting") || c.includes("checkout") || c.includes("bundle") || c.includes("domain + hosting") || c.includes("domain search") || c.includes("hosting plan")) return { src: "/kb/vps-plan-comparison.png", alt: "Hosting Plans" };
+    if (c.includes("domain transfer") || c.includes("epp") || c.includes("lock") || c.includes("unlocked") || c.includes("transfer page")) return { src: "/kb/domain-transfer-auth.png", alt: "Domain Transfer" };
+    if (c.includes("cloudflare")) return { src: "/kb/cpanel-main-dashboard.png", alt: "cPanel" };
+    if (c.includes("cpanel") || c.includes("security tab") || c.includes("profile setting") || c.includes("change password")) return { src: "/kb/cpanel-main-dashboard.png", alt: "cPanel Dashboard" };
+    return { src: "/kb/cpanel-main-dashboard.png", alt: "Control Panel" };
+  }
+
+  const articles = await db.select({ id: kbArticlesTable.id, content: kbArticlesTable.content }).from(kbArticlesTable);
+  let updated = 0;
+  for (const art of articles) {
+    if (!art.content.includes("kb-screenshot")) continue;
+    let newContent = art.content.replace(
+      /<div class="kb-screenshot">[\s\S]*?<p class="kb-screenshot-caption">([\s\S]*?)<\/p><\/div><\/div>/g,
+      (_match, caption) => {
+        const cleanCaption = caption.replace(/<[^>]+>/g, "").trim();
+        const { src, alt } = pickImg(cleanCaption);
+        return `<div class="kb-img-block"><img src="${src}" alt="${alt}" loading="lazy"><p class="kb-img-caption">${cleanCaption}</p></div>`;
+      }
+    );
+    if (newContent !== art.content) {
+      await db.update(kbArticlesTable).set({ content: newContent }).where(eq(kbArticlesTable.id, art.id));
+      updated++;
+    }
+  }
+  if (updated > 0) console.log(`[KB v6] Replaced screenshot placeholders in ${updated} articles`);
 }
 
 async function seedV3Articles() {
@@ -1355,11 +1407,11 @@ async function seedV3Articles() {
   <li>Your hosting server IP address</li>
 </ul>
 <p>Check your spam folder if you don't see it within 10 minutes.</p>
-${SS("Noehost Welcome Email showing cPanel credentials and nameservers")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "Noehost Welcome Email showing cPanel credentials and nameservers")}
 
 <h2>Step 2 — Log In to Your Client Area</h2>
 <p>Go to <a href="https://noehost.com">noehost.com</a> and click <strong>Client Login</strong>. Use the email and password you chose when ordering.</p>
-${SS("Noehost Client Area login page")}
+${IMG("/kb/noehost-login-page.png", "Noehost Login Page", "Noehost Client Area login page")}
 
 <h2>Step 3 — Update Your Domain's Nameservers</h2>
 <p>If your domain is registered elsewhere (GoDaddy, Namecheap, etc.), you need to point it to Noehost:</p>
@@ -1369,11 +1421,11 @@ ${SS("Noehost Client Area login page")}
   <li>Set: <strong>NS1: ns1.noehost.com</strong> and <strong>NS2: ns2.noehost.com</strong></li>
   <li>Save — DNS propagation takes 2–24 hours</li>
 </ol>
-${SS("Domain registrar nameserver update page — enter ns1.noehost.com and ns2.noehost.com")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "Domain registrar nameserver update page — enter ns1.noehost.com and ns2.noehost.com")}
 
 <h2>Step 4 — Access cPanel</h2>
 <p>From your Client Area, go to <strong>Services → Your Hosting Plan → Login to cPanel</strong>. This logs you in automatically.</p>
-${SS("Noehost Client Area — Services panel with Login to cPanel button")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "Noehost Client Area — Services panel with Login to cPanel button")}
 
 <h2>Step 5 — Upload Your Website or Install WordPress</h2>
 <p>You're ready to go! Now you can:</p>
@@ -1399,7 +1451,7 @@ ${SS("Noehost Client Area — Services panel with Login to cPanel button")}
       isFeatured: true,
       content: `<h2>What Is the Client Area?</h2>
 <p>The <strong>Client Area</strong> is your personal control hub at Noehost. Every service, invoice, domain, and support ticket is managed from here. Access it at <a href="https://noehost.com/client">noehost.com/client</a>.</p>
-${SS("Noehost Client Area dashboard overview")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "Noehost Client Area dashboard overview")}
 
 <h2>Key Sections Explained</h2>
 
@@ -1414,14 +1466,14 @@ ${SS("Noehost Client Area dashboard overview")}
   <li>Request an upgrade to a higher plan</li>
   <li>View your hosting expiry date</li>
 </ul>
-${SS("Services list showing hosting plan details, expiry date, and Login to cPanel button")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "Services list showing hosting plan details, expiry date, and Login to cPanel button")}
 
 <h3>Domains</h3>
 <p>Manage all domains registered through Noehost. You can view expiry dates, update nameservers, and renew domains here.</p>
 
 <h3>Invoices</h3>
 <p>View and pay all invoices — past, present, and upcoming. Click any invoice to see the line items and pay with bank transfer or other accepted methods.</p>
-${SS("Invoices section showing paid and unpaid invoices")}
+${IMG("/kb/noehost-invoices-panel.png", "Noehost Invoices", "Invoices section showing paid and unpaid invoices")}
 
 <h3>Support Tickets</h3>
 <p>Open new support requests and track the status of existing ones. Our team typically responds within 1–4 hours during business hours.</p>
@@ -1444,7 +1496,7 @@ ${SS("Invoices section showing paid and unpaid invoices")}
   <li><strong>Business Plan</strong> — Ideal for small businesses (unlimited websites, more storage)</li>
   <li><strong>Premium Plan</strong> — For high-traffic sites and e-commerce (fastest performance)</li>
 </ul>
-${SS("Noehost hosting plan comparison table")}
+${IMG("/kb/vps-plan-comparison.png", "Hosting Plans", "Noehost hosting plan comparison table")}
 
 <h2>Step-by-Step Ordering Process</h2>
 <ol>
@@ -1458,7 +1510,7 @@ ${SS("Noehost hosting plan comparison table")}
   <li>Click <strong>Checkout</strong> and select your payment method</li>
   <li>Complete the payment — you'll receive confirmation by email</li>
 </ol>
-${SS("Order checkout page with domain selection and plan summary")}
+${IMG("/kb/vps-plan-comparison.png", "Hosting Plans", "Order checkout page with domain selection and plan summary")}
 
 <h2>After Your Order</h2>
 <p>Your hosting account is typically activated within 30 minutes to 2 hours after payment is confirmed. You'll receive a Welcome Email with your login credentials.</p>
@@ -1479,7 +1531,7 @@ ${SS("Order checkout page with domain selection and plan summary")}
   <li><strong>Hosting</strong> — A server where your website files live</li>
 </ol>
 <p>Noehost provides both. You can register a domain and get hosting together in one order.</p>
-${SS("Domain + Hosting bundle selection on Noehost")}
+${IMG("/kb/vps-plan-comparison.png", "Hosting Plans", "Domain + Hosting bundle selection on Noehost")}
 
 <h2>Option A: Using WordPress (Recommended for Beginners)</h2>
 <p>WordPress powers over 40% of all websites on the internet. It's free and has thousands of themes and plugins.</p>
@@ -1491,7 +1543,7 @@ ${SS("Domain + Hosting bundle selection on Noehost")}
   <li>Click <strong>Install</strong> — takes about 2 minutes</li>
   <li>Visit your domain to see your new WordPress site!</li>
 </ol>
-${SS("Softaculous WordPress installer screen in cPanel")}
+${IMG("/kb/softaculous-dashboard.png", "Softaculous Dashboard", "Softaculous WordPress installer screen in cPanel")}
 
 <h2>Option B: Uploading an Existing Website</h2>
 <p>If you already have website files (HTML, CSS, images):</p>
@@ -1524,11 +1576,11 @@ ${SS("Softaculous WordPress installer screen in cPanel")}
 
 <h2>Step 1 — Log In to cPanel</h2>
 <p>From your Noehost Client Area, go to <strong>Services → Your Hosting Plan → Login to cPanel</strong>.</p>
-${SS("cPanel login via Noehost Client Area — one-click access button")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "cPanel login via Noehost Client Area — one-click access button")}
 
 <h2>Step 2 — Open Email Accounts</h2>
 <p>In cPanel, scroll to the <strong>Email</strong> section and click <strong>Email Accounts</strong>.</p>
-${SS("cPanel Email section with Email Accounts icon highlighted")}
+${IMG("/kb/cpanel-email-create.png", "cPanel Email Setup", "cPanel Email section with Email Accounts icon highlighted")}
 
 <h2>Step 3 — Create the Account</h2>
 <ol>
@@ -1539,7 +1591,7 @@ ${SS("cPanel Email section with Email Accounts icon highlighted")}
   <li>Set the mailbox quota — <strong>Unlimited</strong> is recommended if your plan allows it</li>
   <li>Click <strong>Create Account</strong></li>
 </ol>
-${SS("Email Account creation form in cPanel — domain, username, password fields")}
+${IMG("/kb/cpanel-email-create.png", "cPanel Email Setup", "Email Account creation form in cPanel — domain, username, password fields")}
 
 <h2>Step 4 — Access Your Email</h2>
 <h3>Option A: Webmail (No Setup Required)</h3>
@@ -1553,7 +1605,7 @@ ${SS("Email Account creation form in cPanel — domain, username, password field
   <li><strong>Username:</strong> your full email address</li>
   <li><strong>Password:</strong> the password you set above</li>
 </ul>
-${SS("Outlook email account setup with IMAP settings — server and port fields")}`,
+${IMG("/kb/cpanel-email-create.png", "cPanel Email Setup", "Outlook email account setup with IMAP settings — server and port fields")}`,
     },
 
     {
@@ -1584,7 +1636,7 @@ ${SS("Outlook email account setup with IMAP settings — server and port fields"
   <li>Drag and drop your files, or click to browse and select them</li>
   <li>Wait for the upload to complete, then click <strong>Go Back</strong></li>
 </ol>
-${SS("cPanel File Manager showing the public_html folder with Upload button")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager showing the public_html folder with Upload button")}
 <p><strong>Important:</strong> Your main file (usually <code>index.html</code> or <code>index.php</code>) must be directly inside <code>public_html</code>, not in a subfolder.</p>
 
 <h2>Method 2: FTP with FileZilla (Best for Large Sites)</h2>
@@ -1609,7 +1661,7 @@ ${SS("cPanel File Manager showing the public_html folder with Upload button")}
   <li>On the left panel, browse to your local website folder</li>
   <li>Select all files and drag them to the right panel</li>
 </ol>
-${SS("FileZilla connected to Noehost server — local files on left, public_html on right")}`,
+${IMG("/kb/file-manager.png", "cPanel File Manager", "FileZilla connected to Noehost server — local files on left, public_html on right")}`,
     },
 
     {
@@ -1629,7 +1681,7 @@ ${SS("FileZilla connected to Noehost server — local files on left, public_html
 
 <h2>How to Check Your Current PHP Version</h2>
 <p>In cPanel, go to <strong>Software → PHP Version</strong> or <strong>MultiPHP Manager</strong> to see what version you're currently running.</p>
-${SS("cPanel Software section showing MultiPHP Manager and current PHP version")}
+${IMG("/kb/cpanel-php-manager.png", "PHP Manager", "cPanel Software section showing MultiPHP Manager and current PHP version")}
 
 <h2>Step-by-Step: Changing PHP Version</h2>
 <ol>
@@ -1639,7 +1691,7 @@ ${SS("cPanel Software section showing MultiPHP Manager and current PHP version")
   <li>In the PHP Version dropdown at the top, select your desired version (e.g., <strong>PHP 8.2</strong>)</li>
   <li>Click <strong>Apply</strong></li>
 </ol>
-${SS("MultiPHP Manager — domain selected with PHP 8.2 chosen in dropdown")}
+${IMG("/kb/cpanel-php-manager.png", "PHP Manager", "MultiPHP Manager — domain selected with PHP 8.2 chosen in dropdown")}
 
 <h2>Which PHP Version Should You Use?</h2>
 <ul>
@@ -1677,7 +1729,7 @@ ${SS("MultiPHP Manager — domain selected with PHP 8.2 chosen in dropdown")}
   <li>Click the <strong>Login to cPanel</strong> button</li>
 </ol>
 <p>This method logs you in automatically — no need to enter your cPanel username or password.</p>
-${SS("Noehost Client Area — Services page with Login to cPanel button highlighted")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "Noehost Client Area — Services page with Login to cPanel button highlighted")}
 
 <h2>Method 2: Direct URL</h2>
 <p>Visit one of these URLs in your browser (replace <code>yourdomain.com</code> with your actual domain):</p>
@@ -1732,14 +1784,14 @@ ${SS("Noehost Client Area — Services page with Login to cPanel button highligh
   <li>Scroll to the <strong>Software</strong> section</li>
   <li>Click <strong>Softaculous Apps Installer</strong></li>
 </ol>
-${SS("cPanel Software section showing Softaculous Apps Installer icon")}
+${IMG("/kb/softaculous-dashboard.png", "Softaculous Dashboard", "cPanel Software section showing Softaculous Apps Installer icon")}
 
 <h2>Step 2 — Select WordPress</h2>
 <ol>
   <li>In Softaculous, click the <strong>WordPress</strong> icon (or search for it)</li>
   <li>Click the <strong>Install Now</strong> button</li>
 </ol>
-${SS("Softaculous dashboard with WordPress featured and Install Now button")}
+${IMG("/kb/softaculous-dashboard.png", "Softaculous Dashboard", "Softaculous dashboard with WordPress featured and Install Now button")}
 
 <h2>Step 3 — Configure Your Installation</h2>
 <p>Fill in the installation form:</p>
@@ -1752,7 +1804,7 @@ ${SS("Softaculous dashboard with WordPress featured and Install Now button")}
   <li><strong>Admin Password:</strong> Use a strong, unique password</li>
   <li><strong>Admin Email:</strong> Your email for WordPress notifications</li>
 </ul>
-${SS("Softaculous WordPress configuration form — protocol, domain, admin credentials")}
+${IMG("/kb/softaculous-dashboard.png", "Softaculous Dashboard", "Softaculous WordPress configuration form — protocol, domain, admin credentials")}
 
 <h2>Step 4 — Install</h2>
 <p>Scroll down and click <strong>Install</strong>. The process takes 1–3 minutes. You'll see a success screen with:</p>
@@ -1760,7 +1812,7 @@ ${SS("Softaculous WordPress configuration form — protocol, domain, admin crede
   <li>Your website URL: <code>https://yourdomain.com</code></li>
   <li>Your WordPress admin URL: <code>https://yourdomain.com/wp-admin</code></li>
 </ul>
-${SS("Softaculous installation complete screen with website and admin links")}
+${IMG("/kb/softaculous-dashboard.png", "Softaculous Dashboard", "Softaculous installation complete screen with website and admin links")}
 
 <h2>Step 5 — First Login to WordPress</h2>
 <p>Go to <code>https://yourdomain.com/wp-admin</code> and enter your admin username and password. You're now in the WordPress Dashboard!</p>
@@ -1798,7 +1850,7 @@ ${SS("Softaculous installation complete screen with website and admin links")}
   <li>Rename the folder back to <strong>plugins</strong></li>
   <li>Activate plugins one by one to find the culprit</li>
 </ol>
-${SS("cPanel File Manager — plugins folder inside wp-content, right-click context menu")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager — plugins folder inside wp-content, right-click context menu")}
 
 <h3>Solution 2 — Increase PHP Memory Limit</h3>
 <ol>
@@ -1822,7 +1874,7 @@ ${SS("cPanel File Manager — plugins folder inside wp-content, right-click cont
   <li>Rename it to <code>.htaccess_old</code></li>
   <li>If your site loads, log in to WordPress → Settings → Permalinks → click <strong>Save Changes</strong> (this regenerates .htaccess)</li>
 </ol>
-${SS("cPanel File Manager — .htaccess file selected in public_html")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager — .htaccess file selected in public_html")}
 
 <hr />
 
@@ -1862,7 +1914,7 @@ ${SS("cPanel File Manager — .htaccess file selected in public_html")}
   <li>Browse or search for a theme — use the Feature Filter to find themes for your industry</li>
   <li>Hover over a theme and click <strong>Install</strong>, then <strong>Activate</strong></li>
 </ol>
-${SS("WordPress Themes screen — Add New button and theme search results")}
+${IMG("/kb/wordpress-admin.png", "WordPress Admin", "WordPress Themes screen — Add New button and theme search results")}
 
 <h3>Uploading a Premium Theme (ZIP File)</h3>
 <ol>
@@ -1880,7 +1932,7 @@ ${SS("WordPress Themes screen — Add New button and theme search results")}
   <li>Click <strong>Install Now</strong> next to the plugin</li>
   <li>Click <strong>Activate</strong> once installed</li>
 </ol>
-${SS("WordPress Plugins screen showing search results and Install Now buttons")}
+${IMG("/kb/softaculous-dashboard.png", "Softaculous Dashboard", "WordPress Plugins screen showing search results and Install Now buttons")}
 
 <h3>Uploading a Premium Plugin (ZIP File)</h3>
 <ol>
@@ -1918,7 +1970,7 @@ ${SS("WordPress Plugins screen showing search results and Install Now buttons")}
   <li><strong>W3 Total Cache</strong> — Comprehensive, widely used (free)</li>
   <li><strong>WP Super Cache</strong> — Simple and beginner-friendly (free)</li>
 </ul>
-${SS("WordPress plugin search results for 'LiteSpeed Cache' showing Install button")}
+${IMG("/kb/wordpress-plugins-install.png", "WordPress Plugins", "WordPress plugin search results for 'LiteSpeed Cache' showing Install button")}
 
 <h2>Step 3 — Optimize Images</h2>
 <p>Large images are the #1 reason websites load slowly. Fix this:</p>
@@ -1974,7 +2026,7 @@ ${SS("WordPress plugin search results for 'LiteSpeed Cache' showing Install butt
   <li>Select <strong>Custom</strong> and enter our nameservers</li>
   <li>Click <strong>Save</strong></li>
 </ol>
-${SS("GoDaddy domain DNS page — Nameservers section with Custom option and ns1.noehost.com entered")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "GoDaddy domain DNS page — Nameservers section with Custom option and ns1.noehost.com entered")}
 
 <h3>At Namecheap</h3>
 <ol>
@@ -1984,7 +2036,7 @@ ${SS("GoDaddy domain DNS page — Nameservers section with Custom option and ns1
   <li>Enter <code>ns1.noehost.com</code> and <code>ns2.noehost.com</code></li>
   <li>Click the green checkmark to save</li>
 </ol>
-${SS("Namecheap domain management — Nameservers set to Custom DNS with Noehost servers")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "Namecheap domain management — Nameservers set to Custom DNS with Noehost servers")}
 
 <h3>At Other Registrars</h3>
 <p>The process is similar for all registrars — look for <strong>DNS Settings</strong>, <strong>Nameservers</strong>, or <strong>Name Server Management</strong> in your domain's control panel.</p>
@@ -1994,7 +2046,7 @@ ${SS("Namecheap domain management — Nameservers set to Custom DNS with Noehost
 
 <h2>How to Check If Propagation Is Complete</h2>
 <p>Visit <a href="https://whatsmydns.net">whatsmydns.net</a>, enter your domain, and check the <strong>NS</strong> record. When you see <code>ns1.noehost.com</code> across most locations, propagation is complete.</p>
-${SS("whatsmydns.net showing NS record results for a domain — green checkmarks across regions")}`,
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "whatsmydns.net showing NS record results for a domain — green checkmarks across regions")}`,
     },
 
     {
@@ -2026,7 +2078,7 @@ ${SS("whatsmydns.net showing NS record results for a domain — green checkmarks
   <li><strong>Line Items</strong> — Each service with the billing period (e.g., Annual)</li>
   <li><strong>Amount in PKR</strong> — Total due in Pakistani Rupees</li>
 </ul>
-${SS("Noehost invoice showing line items, due date, and total amount in PKR")}
+${IMG("/kb/noehost-invoices-panel.png", "Noehost Invoices", "Noehost invoice showing line items, due date, and total amount in PKR")}
 
 <h2>How to Pay an Invoice</h2>
 <ol>
@@ -2036,7 +2088,7 @@ ${SS("Noehost invoice showing line items, due date, and total amount in PKR")}
   <li>Click <strong>Pay Invoice</strong></li>
   <li>Select your payment method and complete the payment</li>
 </ol>
-${SS("Noehost Invoices list — unpaid invoice selected with Pay Invoice button")}
+${IMG("/kb/noehost-invoices-panel.png", "Noehost Invoices", "Noehost Invoices list — unpaid invoice selected with Pay Invoice button")}
 
 <h2>Payment Methods</h2>
 <p>Noehost accepts:</p>
@@ -2054,7 +2106,7 @@ ${SS("Noehost Invoices list — unpaid invoice selected with Pay Invoice button"
   <li>Find the <strong>Auto Renew</strong> toggle and switch it <strong>On</strong></li>
 </ol>
 <p>For domains, go to <strong>Domains → Your Domain → Enable Auto-Renew</strong>.</p>
-${SS("Noehost Client Area — Service details page with Auto-Renew toggle switched on")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "Noehost Client Area — Service details page with Auto-Renew toggle switched on")}
 
 <h2>Late Payment Warning</h2>
 <p>If you cannot pay on time, <strong>contact support before the due date</strong>. We can often arrange a short extension to prevent service suspension.</p>`,
@@ -2086,7 +2138,7 @@ ${SS("Noehost Client Area — Service details page with Auto-Renew toggle switch
   <li>Fill in your registrant details (name, email, address) — these are required by ICANN</li>
   <li>Complete payment</li>
 </ol>
-${SS("Noehost domain search results showing available and unavailable domains")}
+${IMG("/kb/vps-plan-comparison.png", "Hosting Plans", "Noehost domain search results showing available and unavailable domains")}
 
 <h2>WHOIS Privacy</h2>
 <p>By default, your registration details (name, email, address) are publicly visible in the WHOIS database. Noehost offers WHOIS privacy protection to hide this information from spammers and data scrapers.</p>
@@ -2115,7 +2167,7 @@ ${SS("Noehost domain search results showing available and unavailable domains")}
 
 <h2>Step 1 — Unlock Your Domain</h2>
 <p>Log in to your current registrar and find the domain lock setting. Disable the transfer lock or registrar lock. Each registrar has a slightly different interface — look for "Domain Lock" or "Transfer Lock".</p>
-${SS("GoDaddy domain lock setting — toggle switched to OFF (unlocked)")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "GoDaddy domain lock setting — toggle switched to OFF (unlocked)")}
 
 <h2>Step 2 — Get Your EPP/Auth Code</h2>
 <p>Request the EPP/Authorization Code from your current registrar. It's typically emailed to the domain's admin email address within minutes.</p>
@@ -2128,7 +2180,7 @@ ${SS("GoDaddy domain lock setting — toggle switched to OFF (unlocked)")}
   <li>Enter your EPP Code</li>
   <li>Add to cart and complete checkout</li>
 </ol>
-${SS("Noehost domain transfer page — domain name and EPP code entry fields")}
+${IMG("/kb/domain-transfer-auth.png", "Domain Transfer", "Noehost domain transfer page — domain name and EPP code entry fields")}
 
 <h2>Step 4 — Approve the Transfer</h2>
 <p>Check the email address associated with your domain. You'll receive a transfer approval request. Click the approval link to speed up the process.</p>
@@ -2196,7 +2248,7 @@ ${SS("Noehost domain transfer page — domain name and EPP code entry fields")}
   <li>Enter your new password twice</li>
   <li>Click <strong>Update Password</strong></li>
 </ol>
-${SS("Noehost Client Area — Security tab showing Change Password form")}
+${IMG("/kb/noehost-services-panel.png", "Noehost Client Area", "Noehost Client Area — Security tab showing Change Password form")}
 
 <h2>Password Requirements</h2>
 <ul>
@@ -2215,7 +2267,7 @@ ${SS("Noehost Client Area — Security tab showing Change Password form")}
   <li>Check your email for a reset link (check spam if it doesn't arrive)</li>
   <li>Click the link and set a new password</li>
 </ol>
-${SS("Noehost login page with Forgot Password link highlighted")}
+${IMG("/kb/noehost-login-page.png", "Noehost Login Page", "Noehost login page with Forgot Password link highlighted")}
 <p>If you no longer have access to your account email, open a support ticket from a different email address with your account details and photo ID for verification.</p>`,
     },
 
@@ -2249,7 +2301,7 @@ ${SS("Noehost login page with Forgot Password link highlighted")}
     • Billing Address</li>
   <li>Click <strong>Save Changes</strong></li>
 </ol>
-${SS("Noehost Client Area — Profile settings page with name, email, and phone fields")}
+${IMG("/kb/cpanel-email-create.png", "cPanel Email Setup", "Noehost Client Area — Profile settings page with name, email, and phone fields")}
 
 <h2>Changing Your Email Address</h2>
 <p>When you change your email address, Noehost may send a verification link to the new email. Click it to confirm the change. This is a security measure to prevent unauthorized email changes.</p>
@@ -2299,7 +2351,7 @@ ${SS("Noehost Client Area — Profile settings page with name, email, and phone 
   <li>Enter the incoming and outgoing server settings above</li>
   <li>Enter your password and click <strong>Done</strong></li>
 </ol>
-${SS("Microsoft Outlook — Add Account dialog with IMAP settings entered")}
+${IMG("/kb/cpanel-email-create.png", "cPanel Email Setup", "Microsoft Outlook — Add Account dialog with IMAP settings entered")}
 
 <h2>Setup on iPhone/iPad</h2>
 <ol>
@@ -2309,7 +2361,7 @@ ${SS("Microsoft Outlook — Add Account dialog with IMAP settings entered")}
   <li>Choose <strong>IMAP</strong> and enter the server settings above</li>
   <li>Tap <strong>Save</strong></li>
 </ol>
-${SS("iPhone Mail account setup — Other account type selected with IMAP settings")}
+${IMG("/kb/cpanel-email-create.png", "cPanel Email Setup", "iPhone Mail account setup — Other account type selected with IMAP settings")}
 
 <h2>Auto-Setup Files (Easier Method)</h2>
 <p>In cPanel, go to <strong>Email Accounts → Check Email</strong> next to your email. Click <strong>Set Up Mail Client</strong> to download auto-configuration files for Outlook, iOS, and Android.</p>`,
@@ -2338,7 +2390,7 @@ ${SS("iPhone Mail account setup — Other account type selected with IMAP settin
   <li>In the <strong>Domains</strong> section, click <strong>Zone Editor</strong></li>
   <li>Find your domain and click <strong>Manage</strong></li>
 </ol>
-${SS("cPanel Zone Editor main page showing list of domains with Manage button")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "cPanel Zone Editor main page showing list of domains with Manage button")}
 
 <h2>Adding a New DNS Record</h2>
 <ol>
@@ -2347,7 +2399,7 @@ ${SS("cPanel Zone Editor main page showing list of domains with Manage button")}
   <li>Fill in the required fields (Name, Value/Content, TTL)</li>
   <li>Click <strong>Add Record</strong> to save</li>
 </ol>
-${SS("cPanel Zone Editor — Add Record form with Type, Name, and Value fields")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "cPanel Zone Editor — Add Record form with Type, Name, and Value fields")}
 
 <h2>Common DNS Record Examples</h2>
 <h3>Adding a CNAME for www</h3>
@@ -2391,7 +2443,7 @@ ${SS("cPanel Zone Editor — Add Record form with Type, Name, and Value fields")
   <li>Value: <code>v=spf1 include:noehost.com ~all</code></li>
   <li>Save the record</li>
 </ol>
-${SS("cPanel Zone Editor — SPF TXT record with v=spf1 value")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "cPanel Zone Editor — SPF TXT record with v=spf1 value")}
 
 <h2>DKIM (DomainKeys Identified Mail)</h2>
 <p>DKIM adds a cryptographic signature to outgoing emails, proving they weren't tampered with in transit. cPanel automatically generates a DKIM key for your domain.</p>
@@ -2401,7 +2453,7 @@ ${SS("cPanel Zone Editor — SPF TXT record with v=spf1 value")}
   <li>Find your domain and check its DKIM status</li>
   <li>If not enabled, click <strong>Repair</strong> to automatically add the DKIM TXT record</li>
 </ol>
-${SS("cPanel Email Deliverability page showing DKIM and SPF status with Repair button")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "cPanel Email Deliverability page showing DKIM and SPF status with Repair button")}
 
 <h2>DMARC (Domain-based Message Authentication)</h2>
 <p>DMARC tells receiving servers what to do with emails that fail SPF or DKIM checks.</p>
@@ -2467,7 +2519,7 @@ ${SS("cPanel Email Deliverability page showing DKIM and SPF status with Repair b
   <li>Search for the file that should be at that URL</li>
   <li>If it's missing, re-upload it from your local computer</li>
 </ol>
-${SS("cPanel File Manager — public_html folder with file search for missing page")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager — public_html folder with file search for missing page")}
 
 <h2>Step 3 — Fix WordPress Permalinks (Most Common WordPress Fix)</h2>
 <p>If you're using WordPress and <em>all</em> inner pages give 404 errors, your permalink structure is broken.</p>
@@ -2477,7 +2529,7 @@ ${SS("cPanel File Manager — public_html folder with file search for missing pa
   <li>Without changing anything, click <strong>Save Changes</strong></li>
   <li>This regenerates the <code>.htaccess</code> file and fixes rewrite rules</li>
 </ol>
-${SS("WordPress admin — Settings > Permalinks page with Save Changes button highlighted")}
+${IMG("/kb/wordpress-admin.png", "WordPress Admin", "WordPress admin — Settings > Permalinks page with Save Changes button highlighted")}
 
 <h2>Step 4 — Fix or Recreate the .htaccess File</h2>
 <p>A corrupted <code>.htaccess</code> file causes all sorts of 404 errors. To reset it:</p>
@@ -2497,7 +2549,7 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.php [L]
 &lt;/IfModule&gt;
 # END WordPress</code></pre>
-${SS("cPanel File Manager — .htaccess file in public_html with Edit option visible")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager — .htaccess file in public_html with Edit option visible")}
 
 <h2>Step 5 — Check for Redirects and Plugin Conflicts</h2>
 <p>In WordPress, temporarily deactivate all plugins via <strong>Plugins → Installed Plugins → Bulk Deactivate</strong>, then test the URL. If the 404 disappears, reactivate plugins one by one to find the culprit.</p>
@@ -2536,7 +2588,7 @@ ${SS("cPanel File Manager — .htaccess file in public_html with Edit option vis
   <li>Review the most recent entries — look for <code>PHP Fatal error</code>, <code>syntax error</code>, or <code>memory exhausted</code></li>
   <li>The filename and line number in the log tells you exactly where the problem is</li>
 </ol>
-${SS("cPanel Metrics — Error Logs showing recent PHP Fatal error entries")}
+${IMG("/kb/cpanel-php-manager.png", "PHP Manager", "cPanel Metrics — Error Logs showing recent PHP Fatal error entries")}
 
 <h2>Step 2 — Rename .htaccess to Disable It</h2>
 <p>A corrupted <code>.htaccess</code> is the #1 cause of 500 errors. Temporarily disable it:</p>
@@ -2548,7 +2600,7 @@ ${SS("cPanel Metrics — Error Logs showing recent PHP Fatal error entries")}
   <li>Reload your website — if the 500 error disappears, the .htaccess was the problem</li>
   <li>Re-create a clean .htaccess (see our <a href="/help/fixing-404-not-found-errors-noehost">404 guide</a> for the standard WordPress template)</li>
 </ol>
-${SS("cPanel File Manager — renaming .htaccess to .htaccess.bak to isolate the issue")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager — renaming .htaccess to .htaccess.bak to isolate the issue")}
 
 <h2>Step 3 — Fix PHP Memory Limit</h2>
 <p>If your error log shows <code>Allowed memory size of X bytes exhausted</code>, you need to increase the PHP memory limit:</p>
@@ -2559,7 +2611,7 @@ ${SS("cPanel File Manager — renaming .htaccess to .htaccess.bak to isolate the
 <pre><code>define('WP_MEMORY_LIMIT', '256M');</code></pre>
 <p>Or in <code>.htaccess</code>:</p>
 <pre><code>php_value memory_limit 256M</code></pre>
-${SS("wp-config.php open in cPanel file editor with WP_MEMORY_LIMIT line added")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "wp-config.php open in cPanel file editor with WP_MEMORY_LIMIT line added")}
 
 <h2>Step 4 — Check File Permissions</h2>
 <p>Incorrect file permissions cause 500 errors. The correct permissions on Noehost are:</p>
@@ -2584,7 +2636,7 @@ ${SS("wp-config.php open in cPanel file editor with WP_MEMORY_LIMIT line added")
   <li>Rename <code>plugins.bak</code> back to <code>plugins</code></li>
   <li>Re-enable plugins one by one from WordPress admin to find the bad one</li>
 </ol>
-${SS("cPanel File Manager — wp-content folder with plugins renamed to plugins.bak")}
+${IMG("/kb/file-manager.png", "cPanel File Manager", "cPanel File Manager — wp-content folder with plugins renamed to plugins.bak")}
 
 <h2>Step 6 — Switch PHP Version</h2>
 <p>If you recently updated a plugin or theme, it may require a newer PHP version. In cPanel:</p>
@@ -2656,7 +2708,7 @@ ${SS("cPanel File Manager — wp-content folder with plugins renamed to plugins.
   <li><a href="https://whatsmydns.net" target="_blank">WhatsMyDNS.net</a> — Clean real-time global propagation map</li>
   <li><a href="https://mxtoolbox.com/DNSLookup.aspx" target="_blank">MXToolbox DNS Lookup</a> — Detailed record inspection</li>
 </ul>
-${SS("DNSChecker.org showing global propagation map with green checkmarks confirming ns1.noehost.com")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "DNSChecker.org showing global propagation map with green checkmarks confirming ns1.noehost.com")}
 
 <h2>Step-by-Step: Pointing Your Domain to Noehost</h2>
 <ol>
@@ -2667,7 +2719,7 @@ ${SS("DNSChecker.org showing global propagation map with green checkmarks confir
   <li>Save changes</li>
   <li>Check <a href="https://dnschecker.org" target="_blank">DNSChecker.org</a> every few hours to monitor propagation</li>
 </ol>
-${SS("Domain registrar DNS settings — custom nameservers fields showing ns1.noehost.com and ns2.noehost.com")}
+${IMG("/kb/dns-zone-editor.png", "DNS Zone Editor", "Domain registrar DNS settings — custom nameservers fields showing ns1.noehost.com and ns2.noehost.com")}
 
 <h2>What to Do During Propagation</h2>
 <ul>
@@ -2718,7 +2770,7 @@ ${SS("Domain registrar DNS settings — custom nameservers fields showing ns1.no
 define('DB_USER',     'yourusername_dbuser');
 define('DB_PASSWORD', 'your_database_password');
 define('DB_HOST',     'localhost');</code></pre>
-${SS("wp-config.php open in cPanel file editor showing DB_NAME, DB_USER, DB_PASSWORD fields")}
+${IMG("/kb/mysql-terminal.png", "MySQL Terminal", "wp-config.php open in cPanel file editor showing DB_NAME, DB_USER, DB_PASSWORD fields")}
 
 <h2>Step 2 — Find the Correct Database Name and User</h2>
 <ol>
@@ -2727,7 +2779,7 @@ ${SS("wp-config.php open in cPanel file editor showing DB_NAME, DB_USER, DB_PASS
   <li>Note the database user assigned to it</li>
   <li>If you've forgotten the password, click <strong>Change Password</strong> for the database user, set a new one, and update <code>wp-config.php</code> to match</li>
 </ol>
-${SS("cPanel MySQL Databases page showing database name, user, and permissions")}
+${IMG("/kb/mysql-terminal.png", "MySQL Terminal", "cPanel MySQL Databases page showing database name, user, and permissions")}
 
 <h2>Step 3 — Repair the Database</h2>
 <p>Corrupted database tables can also cause this error. WordPress has a built-in repair tool:</p>
@@ -2741,7 +2793,7 @@ ${SS("cPanel MySQL Databases page showing database name, user, and permissions")
   <li>Click <strong>Repair Database</strong></li>
   <li>After repair completes, <strong>remove</strong> the <code>WP_ALLOW_REPAIR</code> line from wp-config.php</li>
 </ol>
-${SS("WordPress database repair page at /wp-admin/maint/repair.php showing Repair Database button")}
+${IMG("/kb/mysql-terminal.png", "MySQL Terminal", "WordPress database repair page at /wp-admin/maint/repair.php showing Repair Database button")}
 
 <h2>Step 4 — Check MySQL Service via phpMyAdmin</h2>
 <ol>
@@ -2750,7 +2802,7 @@ ${SS("WordPress database repair page at /wp-admin/maint/repair.php showing Repai
   <li>If phpMyAdmin loads normally and the database tables are visible, the connection works from the server side — go back to Step 1 to check wp-config.php credentials</li>
   <li>If phpMyAdmin shows errors too, there may be a server-level MySQL issue — contact Noehost support immediately</li>
 </ol>
-${SS("cPanel phpMyAdmin showing WordPress database tables — wp_posts, wp_options, wp_users visible")}
+${IMG("/kb/mysql-terminal.png", "MySQL Terminal", "cPanel phpMyAdmin showing WordPress database tables — wp_posts, wp_options, wp_users visible")}
 
 <h2>Step 5 — Check DB_HOST Value</h2>
 <p>On most shared hosting including Noehost, <code>DB_HOST</code> should be <code>localhost</code>. However, occasionally it needs to be an IP address or a specific hostname. If <code>localhost</code> isn't working, try:</p>
@@ -2819,7 +2871,7 @@ ${SS("cPanel phpMyAdmin showing WordPress database tables — wp_posts, wp_optio
   <li>Click the <strong>WP Rocket</strong> icon in the admin bar</li>
   <li>Select <strong>Clear Cache</strong></li>
 </ol>
-${SS("WordPress admin bar with WP Rocket — Clear Cache option highlighted")}
+${IMG("/kb/wordpress-admin.png", "WordPress Admin", "WordPress admin bar with WP Rocket — Clear Cache option highlighted")}
 
 <h2>Step 3 — Clear Cloudflare Cache (if using CDN)</h2>
 <p>If your domain uses Cloudflare:</p>
@@ -2829,7 +2881,7 @@ ${SS("WordPress admin bar with WP Rocket — Clear Cache option highlighted")}
   <li>Go to <strong>Caching → Configuration</strong></li>
   <li>Click <strong>Purge Everything</strong></li>
 </ol>
-${SS("Cloudflare caching page — Purge Everything button highlighted")}
+${IMG("/kb/cpanel-main-dashboard.png", "cPanel Dashboard", "Cloudflare caching page — Purge Everything button highlighted")}
 
 <h2>Step 4 — Clear Server-Level Cache in cPanel</h2>
 <p>Noehost uses LiteSpeed Web Server with optional caching. To clear it:</p>
