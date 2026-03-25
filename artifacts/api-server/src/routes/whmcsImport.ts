@@ -681,7 +681,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
             serverId: hostingServicesTable.serverId,
           }).from(hostingServicesTable);
           for (const r of existingServiceRows) {
-            if (r.clientId && r.domain) existingServices.set(`${r.clientId}:${r.domain}`, { id: r.id, serverId: r.serverId });
+            if (r.clientId && r.domain) existingServices.set(`${r.clientId}:${r.domain.toLowerCase().trim()}`, { id: r.id, serverId: r.serverId });
           }
 
           const services = await whmcsPages(whmcsUrl, identifier, secret, "GetClientsProducts", "products", "product");
@@ -696,9 +696,10 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
             if (!planId) { job.result.skipped++; continue; }
 
             // Skip if already imported on a previous run — but update server link if missing
-            const svcKey = `${clientId}:${s.domain || ""}`;
+            const domNorm = (s.domain || "").toLowerCase().trim();
+            const svcKey = `${clientId}:${domNorm}`;
             const serverId = serverMap.get(String(s.serverid)) ?? null;
-            if (s.domain && existingServices.has(svcKey)) {
+            if (domNorm && existingServices.has(svcKey)) {
               const existing = existingServices.get(svcKey)!;
               // If this service was imported without a server link, patch it now that servers are imported
               if (!existing.serverId && serverId) {
@@ -716,7 +717,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
               const [svc] = await db.insert(hostingServicesTable).values({
                 clientId, planId,
                 planName: s.name || s.groupname || "Hosting Service",
-                domain: s.domain || null, username: s.username || null, password: null,
+                domain: domNorm || null, username: s.username || null, password: null,
                 serverId, serverIp: s.serverip || s.dedicatedip || null,
                 cpanelUrl: s.serverip ? `https://${s.serverip}:2083` : null,
                 status: serviceStatus(s.status ?? "Active"),
@@ -729,6 +730,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 autoRenew: true, cancelRequested: false,
               } as any).returning();
               serviceMap.set(String(s.id), svc.id);
+              if (domNorm) existingServices.set(svcKey, { id: svc.id, serverId }); // prevent within-run dups
               job.result.services++;
             } catch (e: any) { errLog(`Service [${s.id}]: ${e.message}`); }
           }
@@ -745,9 +747,27 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
           const existingDomainRows = await db.select({ name: domainsTable.name, tld: domainsTable.tld }).from(domainsTable);
           for (const r of existingDomainRows) existingDomains.add(`${r.name}${r.tld}`);
 
-          const domains = await whmcsPages(whmcsUrl, identifier, secret, "GetClientsDomains", "domains", "domain");
+          const allDomains = await whmcsPages(whmcsUrl, identifier, secret, "GetClientsDomains", "domains", "domain");
+          log(`Found ${allDomains.length} raw domain records from WHMCS`);
+
+          // WHMCS returns multiple records per domain (e.g. cancelled + active after transfer).
+          // Pre-deduplicate: keep the best record per name+tld (active > pending > others, then most recent id).
+          const statusPriority: Record<string, number> = { Active:1, Pending:2, Grace:3, Expired:4, "Transferred Away":5, Cancelled:6, Fraud:7 };
+          const domainBest = new Map<string, any>();
+          for (const d of allDomains) {
+            const full = (d.domainname ?? "").toLowerCase().trim();
+            if (!full) continue;
+            const { name, tld } = splitDomain(full);
+            const key = `${name}${tld}`;
+            const prev = domainBest.get(key);
+            if (!prev) { domainBest.set(key, d); continue; }
+            const p1 = statusPriority[d.status ?? ""] ?? 99;
+            const p2 = statusPriority[prev.status ?? ""] ?? 99;
+            if (p1 < p2 || (p1 === p2 && parseInt(d.id) > parseInt(prev.id))) domainBest.set(key, d);
+          }
+          const domains = Array.from(domainBest.values());
+          log(`Deduplicated to ${domains.length} unique domains`);
           job.total = domains.length;
-          log(`Found ${domains.length} domains`);
 
           for (const d of domains) {
             job.current++;
@@ -772,6 +792,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 autoRenew: d.autorenew === "1" || d.autorenew === true,
                 nameservers: [d.nameserver1, d.nameserver2, d.nameserver3, d.nameserver4].filter(Boolean) as string[],
               } as any);
+              existingDomains.add(`${name}${tld}`); // track within same run to avoid same-run duplicates
               job.result.domains++;
             } catch (e: any) { errLog(`Domain [${d.id}] ${d.domainname}: ${e.message}`); }
           }
@@ -783,12 +804,12 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
       if (importOrders) {
         step("Importing orders", 7);
         try {
-          // Pre-load order fingerprints (clientId:amount:date) to prevent re-run duplicates
+          // Pre-load existing WHMCS order IDs to prevent re-run duplicates
           const existingOrders = new Set<string>();
-          const existingOrderRows = await db.select({ clientId: ordersTable.clientId, amount: ordersTable.amount, createdAt: ordersTable.createdAt }).from(ordersTable);
-          for (const r of existingOrderRows) {
-            existingOrders.add(`${r.clientId}:${r.amount}:${r.createdAt?.toISOString().slice(0, 10)}`);
-          }
+          const existingOrderRows = await db.select({ whmcsId: ordersTable.whmcsId }).from(ordersTable)
+            .where(sql`${ordersTable.whmcsId} IS NOT NULL`);
+          for (const r of existingOrderRows) { if (r.whmcsId) existingOrders.add(r.whmcsId); }
+          log(`  Pre-loaded ${existingOrders.size} existing WHMCS order IDs`);
 
           const orders = await whmcsPages(whmcsUrl, identifier, secret, "GetOrders", "orders", "order");
           job.total = orders.length;
@@ -799,8 +820,8 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
             const clientId = await ensureClient(String(o.userid ?? o.clientid ?? ""));
             if (!clientId) { job.result.skipped++; continue; }
 
-            const orderFp = `${clientId}:${parseFloat(o.amount ?? "0").toFixed(2)}:${(parseDate(o.date) ?? new Date()).toISOString().slice(0, 10)}`;
-            if (existingOrders.has(orderFp)) { job.result.skipped++; continue; }
+            const whmcsOrderId = String(o.id ?? "");
+            if (!whmcsOrderId || existingOrders.has(whmcsOrderId)) { job.result.skipped++; continue; }
 
             const lineItems = toArray(o.lineItems?.lineItem);
             const first = lineItems[0];
@@ -821,8 +842,10 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
                 paymentStatus: o.paymentstatus === "Paid" ? "paid" : "unpaid",
                 status: orderStatus(o.status ?? "Active"),
                 notes: o.notes || null,
+                whmcsId: whmcsOrderId,
                 createdAt: parseDate(o.date) ?? new Date(),
               } as any);
+              existingOrders.add(whmcsOrderId); // prevent within-run dups
               job.result.orders++;
             } catch (e: any) { errLog(`Order [${o.id}]: ${e.message}`); }
           }
@@ -838,20 +861,28 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
           job.total = invoices.length;
           log(`Found ${invoices.length} invoices`);
 
+          // Diagnostic: count userid=0/empty invoices
+          const noUserInvs = invoices.filter((i: any) => !i.userid || i.userid === "0" || i.userid === 0).length;
+          if (noUserInvs > 0) log(`  ⚠ ${noUserInvs} invoices have no userid (will be skipped)`);
+          log(`  Sample invoice fields: ${JSON.stringify(Object.keys(invoices[0] ?? {}))}`);
+
           // Pre-load existing invoice numbers to silently skip on re-run (no errors)
           const existingInvoiceNums = new Set<string>();
           const existingInvRows = await db.select({ invoiceNumber: invoicesTable.invoiceNumber }).from(invoicesTable);
           for (const r of existingInvRows) { if (r.invoiceNumber) existingInvoiceNums.add(r.invoiceNumber); }
+          log(`  Pre-loaded ${existingInvoiceNums.size} existing invoice numbers (will skip)`);
+
+          let invSkippedNoClient = 0, invSkippedExisting = 0, invInserted = 0, invFailed = 0;
 
           for (const inv of invoices) {
             job.current++;
             const clientId = await ensureClient(String(inv.userid ?? inv.clientid ?? ""));
-            if (!clientId) { job.result.skipped++; continue; }
+            if (!clientId) { job.result.skipped++; invSkippedNoClient++; continue; }
 
             const invNum   = buildInvoiceNumber(inv);
             // Skip both primary and fallback numbers if already imported
             if (existingInvoiceNums.has(invNum) || existingInvoiceNums.has(`${invNum}-W${inv.id}`)) {
-              job.result.skipped++;
+              job.result.skipped++; invSkippedExisting++;
               continue;
             }
 
@@ -874,7 +905,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
               clientId, amount: amount.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2),
               status, dueDate,
               paidDate: status === "paid" ? (paidDate ?? new Date()) : null,
-              items: JSON.stringify(items),
+              items, // pass actual array — jsonb column, NOT JSON.stringify
               paymentNotes: inv.paymentmethod ? `Paid via ${inv.paymentmethod}` : null,
               invoiceType: "hosting",
               createdAt: parseDate(inv.date) ?? new Date(),
@@ -883,25 +914,31 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
             try {
               await db.insert(invoicesTable).values({ invoiceNumber: invNum, ...rowBase } as any);
               existingInvoiceNums.add(invNum);
-              job.result.invoices++;
+              job.result.invoices++; invInserted++;
             } catch (dupErr: any) {
-              if (dupErr.message?.includes("unique") || dupErr.code === "23505") {
+              const cause = dupErr.cause?.message ?? dupErr.message ?? String(dupErr);
+              if (dupErr.message?.includes("unique") || dupErr.code === "23505" || cause.includes("unique")) {
                 const fallbackNum = `${invNum}-W${inv.id}`;
                 if (!existingInvoiceNums.has(fallbackNum)) {
                   try {
                     await db.insert(invoicesTable).values({ invoiceNumber: fallbackNum, ...rowBase } as any);
                     existingInvoiceNums.add(fallbackNum);
-                    job.result.invoices++;
-                  } catch (e2: any) { errLog(`Invoice [${inv.id}]: ${e2.message}`); }
+                    job.result.invoices++; invInserted++;
+                  } catch (e2: any) {
+                    const c2 = e2.cause?.message ?? e2.message ?? String(e2);
+                    errLog(`Invoice [${inv.id}] fallback: ${c2}`);
+                    invFailed++;
+                  }
                 } else {
-                  job.result.skipped++;
+                  job.result.skipped++; invSkippedExisting++;
                 }
               } else {
-                errLog(`Invoice [${inv.id}]: ${dupErr.message}`);
+                invFailed++;
+                errLog(`Invoice [${inv.id}] status=${rowBase.status} amt=${rowBase.total}: ${cause}`);
               }
             }
           }
-          log(`Imported ${job.result.invoices} invoices`);
+          log(`Invoices — imported:${invInserted} skipped-existing:${invSkippedExisting} no-client:${invSkippedNoClient} failed:${invFailed}`);
         } catch (e: any) { errLog(`Invoices failed: ${e.message}`); }
       }
 

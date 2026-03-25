@@ -81,6 +81,7 @@ export const hostingServicesTable = pgTable("hosting_services", {
   vpsPlanId: text("vps_plan_id"),
   vpsOsTemplate: text("vps_os_template"),
   vpsLocation: text("vps_location"),
+  whmcsId: text("whmcs_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

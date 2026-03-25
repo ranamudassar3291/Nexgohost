@@ -23,6 +23,7 @@ export const ordersTable = pgTable("orders", {
   invoiceId: text("invoice_id"),
   status: orderStatusEnum("status").notNull().default("pending"),
   notes: text("notes"),
+  whmcsId: text("whmcs_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
