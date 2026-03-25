@@ -431,8 +431,19 @@ const SS = (caption: string) =>
 const IMG = (src: string, alt: string, caption: string) =>
   `<div class="kb-img-block"><img src="${src}" alt="${alt}" loading="lazy"><p class="kb-img-caption">${caption}</p></div>`;
 
+const ANNOTATED = (annotations: string[]) => {
+  if (!annotations.length) return "";
+  const labels = "ABCDEFGHIJ";
+  const rows = annotations
+    .map((text, i) => `<div class="kb-annotation-row"><span class="kb-pin-label">${labels[i]}</span>${text}</div>`)
+    .join("");
+  return `<div class="kb-annotation-box">${rows}</div>`;
+};
+
+const IMG_A = (src: string, alt: string, caption: string, annotations: string[] = []) =>
+  IMG(src, alt, caption) + ANNOTATED(annotations);
+
 export async function seedKbContent() {
-  // Check if v3 content already exists (v3 adds Troubleshooting category + 404/500/DNS articles)
   const [v3Check] = await db
     .select()
     .from(kbArticlesTable)
@@ -440,14 +451,14 @@ export async function seedKbContent() {
     .limit(1);
 
   if (!v3Check) {
-    // Clear old content and re-seed
-    await db.delete(kbCategoriesTable); // cascades to articles
+    await db.delete(kbCategoriesTable);
     await seedV3Articles();
   }
 
-  // v4 migration: inject real images into key articles (idempotent)
   await applyV4Images();
-  console.log("[KB] Knowledge base content ready");
+  await applyV4bAnnotations();
+  await applyV5Categories();
+  console.log("[KB] Knowledge base content ready (v5)");
 }
 
 async function applyV4Images() {
@@ -505,11 +516,728 @@ async function applyV4Images() {
 
   for (const u of updates) {
     const block = IMG(u.src, u.alt, u.caption);
-    // Prepend image only if not already added (idempotent check via V4_MARKER)
     await db.execute(
       sql`UPDATE kb_articles SET content = ${block} || content WHERE slug = ${u.slug} AND content NOT LIKE ${"%" + V4_MARKER + "%"}`
     );
   }
+}
+
+// v4b: add annotation callout boxes below existing image blocks (idempotent)
+async function applyV4bAnnotations() {
+  const MARKER = "kb-annotation-box";
+  const items: Array<{ slug: string; notes: string[] }> = [
+    {
+      slug: "one-click-wordpress-installation-noehost",
+      notes: [
+        "<strong>WordPress icon:</strong> Scroll down or search 'WordPress' in the Softaculous grid, then click Install Now",
+        "<strong>Choose Protocol & Domain:</strong> Select https:// and pick your domain from the dropdown",
+        "<strong>Admin Credentials:</strong> Set a unique username and strong password — never use 'admin' as your username",
+      ],
+    },
+    {
+      slug: "how-to-log-in-to-cpanel-noehost",
+      notes: [
+        "<strong>Search Bar:</strong> Use the search bar at the top of cPanel to find any tool instantly",
+        "<strong>File Manager:</strong> Located in the Files section — manages all your website files",
+        "<strong>Email Accounts:</strong> Located in the Email section — creates professional @yourdomain.com addresses",
+      ],
+    },
+    {
+      slug: "uploading-website-file-manager-vs-ftp",
+      notes: [
+        "<strong>public_html:</strong> This is your website's root directory — all site files must go here",
+        "<strong>Upload button:</strong> Click to upload files from your computer into the current folder",
+        "<strong>Permissions:</strong> Right-click any file or folder and select Change Permissions to adjust access",
+      ],
+    },
+    {
+      slug: "how-to-create-business-email-noehost",
+      notes: [
+        "<strong>Username field:</strong> Enter the part before the @ sign (e.g., 'info' for info@yourdomain.com)",
+        "<strong>Domain dropdown:</strong> Select your domain from the list if you have multiple domains",
+        "<strong>Generate Password:</strong> Click Generate for a strong random password and save it securely",
+      ],
+    },
+    {
+      slug: "how-to-point-domain-to-noehost",
+      notes: [
+        "<strong>Nameserver 1:</strong> Enter ns1.noehost.com exactly as shown — spelling matters",
+        "<strong>Nameserver 2:</strong> Enter ns2.noehost.com exactly as shown",
+        "<strong>Save Changes:</strong> Click save — DNS propagation takes 24–48 hours globally",
+      ],
+    },
+    {
+      slug: "dns-propagation-explained-noehost",
+      notes: [
+        "<strong>A Record:</strong> Points your domain or subdomain to an IP address — the most common record type",
+        "<strong>CNAME Record:</strong> Creates an alias from one subdomain to another hostname (e.g., www → yourdomain.com)",
+        "<strong>MX Record:</strong> Directs incoming email to your mail server — required for email to work",
+      ],
+    },
+    {
+      slug: "how-to-install-wordpress-theme-plugin",
+      notes: [
+        "<strong>Plugins sidebar:</strong> Found in the WordPress admin left sidebar — hover to expand",
+        "<strong>Add New Plugin:</strong> Click to search thousands of free plugins from the official WordPress repository",
+        "<strong>Appearance > Themes:</strong> Navigate here to browse and install new WordPress themes",
+      ],
+    },
+    {
+      slug: "fixing-404-not-found-errors-noehost",
+      notes: [
+        "<strong>Permalink Structure:</strong> Select 'Post name' for clean URLs — recommended for all WordPress sites",
+        "<strong>Save Changes button:</strong> Always click Save Changes after selecting — this regenerates the .htaccess file",
+        "<strong>Custom Structure:</strong> If using a custom structure, ensure .htaccess has write permissions (644 or 755)",
+      ],
+    },
+  ];
+
+  for (const item of items) {
+    const [article] = await db
+      .select({ id: kbArticlesTable.id, content: kbArticlesTable.content })
+      .from(kbArticlesTable)
+      .where(eq(kbArticlesTable.slug, item.slug))
+      .limit(1);
+
+    if (!article) continue;
+    if (article.content.includes(MARKER)) continue;
+    if (!article.content.includes("kb-img-block")) continue;
+
+    const divEnd = article.content.indexOf("</div>");
+    if (divEnd === -1) continue;
+
+    const annotationHtml = ANNOTATED(item.notes);
+    const newContent =
+      article.content.slice(0, divEnd + 6) +
+      annotationHtml +
+      article.content.slice(divEnd + 6);
+
+    await db
+      .update(kbArticlesTable)
+      .set({ content: newContent, updatedAt: new Date() })
+      .where(eq(kbArticlesTable.id, article.id));
+  }
+}
+
+// v5: VPS Hosting + Reseller Hosting categories + WordPress Security article (idempotent)
+async function applyV5Categories() {
+  const [v5Check] = await db
+    .select()
+    .from(kbArticlesTable)
+    .where(eq(kbArticlesTable.slug, "vps-hosting-overview-noehost"))
+    .limit(1);
+  if (v5Check) return;
+
+  const [wpSecCheck] = await db
+    .select()
+    .from(kbArticlesTable)
+    .where(eq(kbArticlesTable.slug, "wordpress-security-best-practices-noehost"))
+    .limit(1);
+  if (!wpSecCheck) {
+    const [wpCat] = await db
+      .select()
+      .from(kbCategoriesTable)
+      .where(eq(kbCategoriesTable.slug, "wordpress-special"))
+      .limit(1);
+    if (wpCat) {
+      await db.insert(kbArticlesTable).values({
+        categoryId: wpCat.id,
+        slug: "wordpress-security-best-practices-noehost",
+        title: "How to Secure Your WordPress Website on Noehost",
+        titleUr: "Noehost پر WordPress ویب سائٹ کو محفوظ کیسے بنائیں",
+        titleAr: "كيفية تأمين موقع WordPress على Noehost",
+        excerpt: "Keep your WordPress site safe with updates, strong passwords, a security plugin, and regular backups.",
+        content:
+          IMG_A("/kb/wordpress-updates-page.png", "WordPress Updates Page", "WordPress Dashboard → Updates — keep everything up to date to patch security vulnerabilities", [
+            "<strong>WordPress Core Update:</strong> Click Update Now when a new WordPress version is available — always update core first",
+            "<strong>Plugin Updates:</strong> Select all plugins with updates and click Update Plugins — outdated plugins are the #1 cause of hacks",
+            "<strong>Theme Updates:</strong> Update your active theme and any installed themes to prevent known exploits",
+          ]) +
+          `<h2>Why WordPress Security Matters</h2>
+<p>WordPress powers over 40% of the web, making it a prime target for hackers. Most WordPress hacks are automated — bots scan for outdated plugins, weak passwords, or exposed login pages. Following these steps blocks the vast majority of attacks.</p>
+
+<div class="kb-warning">⚠️ <strong>Your site can be hacked even when it's new.</strong> Attackers target vulnerabilities in plugins and themes, not just popular sites. Apply security hardening from day one.</div>
+
+<h2>Step 1: Keep Everything Updated</h2>
+<p>Outdated plugins and themes are responsible for over 90% of WordPress hacks. Log in to your WordPress dashboard and go to <strong>Dashboard → Updates</strong> regularly.</p>
+<ol>
+  <li>Update <strong>WordPress Core</strong> first</li>
+  <li>Update all <strong>Plugins</strong> — delete ones you no longer use</li>
+  <li>Update your <strong>Theme</strong> — including child themes</li>
+</ol>
+
+<div class="kb-tip">💡 Enable automatic background updates for minor WordPress releases by adding this line to <code>wp-config.php</code>: <code>define('WP_AUTO_UPDATE_CORE', true);</code></div>` +
+          IMG_A("/kb/wordpress-plugins-page.png", "WordPress Plugins Page", "WordPress Plugins — review installed plugins regularly and remove anything you don't actively use", [
+            "<strong>Inactive plugins:</strong> Delete plugins you don't use — inactive plugins can still be exploited",
+            "<strong>Deactivate & Delete:</strong> Click Deactivate first, then Delete to fully remove a plugin",
+            "<strong>Add New:</strong> Search for a security plugin like Wordfence or Solid Security to protect your site",
+          ]) +
+          `<h2>Step 2: Install a WordPress Security Plugin</h2>
+<p>A security plugin monitors your site 24/7, blocks malicious login attempts, and scans for malware.</p>
+<ol>
+  <li>Go to <strong>Plugins → Add New</strong></li>
+  <li>Search for <strong>Wordfence Security</strong> or <strong>Solid Security</strong></li>
+  <li>Click <strong>Install Now</strong>, then <strong>Activate</strong></li>
+  <li>Complete the setup wizard and run an initial security scan</li>
+</ol>` +
+          SS("Wordfence Security plugin settings — Firewall and Login Security tabs showing protection status") +
+          `<h2>Step 3: Use Strong Admin Credentials</h2>
+<ul>
+  <li><strong>Change the default admin username</strong> — never use 'admin', 'administrator', or your domain name</li>
+  <li><strong>Use a strong password</strong> — at least 16 characters with numbers and symbols</li>
+  <li><strong>Enable Two-Factor Authentication (2FA)</strong> — Wordfence includes free 2FA for all admin users</li>
+</ul>` +
+          SS("WordPress user profile page — showing username change, password strength indicator, and 2FA setup option") +
+          `<h2>Step 4: Set Up Regular Backups</h2>
+<p>Even with the best security, backups are your last line of defence. Noehost includes free automated backups on all hosting plans.</p>
+<ol>
+  <li>Log in to <strong>cPanel</strong> via your <a href="/clientarea/services">Client Area → Services</a></li>
+  <li>Click <strong>Backup Wizard</strong> under Files</li>
+  <li>Create a Full Backup and download it to your computer</li>
+  <li>Alternatively, use the <strong>UpdraftPlus</strong> WordPress plugin to schedule automatic cloud backups</li>
+</ol>
+
+<div class="kb-info">ℹ️ Noehost automatically backs up all hosting accounts daily. You can restore any backup from the past 14 days by opening a ticket at <a href="/clientarea/tickets/new">Support → Open Ticket</a>.</div>
+
+<h2>Step 5: Protect the Login Page</h2>
+<ul>
+  <li>Change your login URL from <code>/wp-admin</code> to something custom using the WPS Hide Login plugin</li>
+  <li>Enable Login Lockout — block IPs after 5 failed login attempts</li>
+  <li>Add reCAPTCHA to the login form using the Wordfence or Login Security plugin</li>
+</ul>
+
+<div class="kb-tip">🔒 <strong>SSL is essential for security.</strong> Noehost provides free Let's Encrypt SSL on all plans. Verify your SSL is active in cPanel under <strong>SSL/TLS Status</strong>. All traffic should use https://.</div>`,
+        readTimeMinutes: 7,
+        sortOrder: 5,
+        isPublished: true,
+      });
+    }
+  }
+
+  // Add VPS Hosting category
+  const [vpsCat] = await db
+    .insert(kbCategoriesTable)
+    .values({
+      name: "VPS Hosting",
+      nameUr: "VPS ہوسٹنگ",
+      nameAr: "استضافة VPS",
+      slug: "vps-hosting",
+      description: "Manage your Virtual Private Server — SSH access, firewall, software installation, and backups.",
+      descriptionUr: "اپنا VPS سرور مینیج کریں — SSH، فائروال اور بیک اپ۔",
+      descriptionAr: "إدارة خادمك الافتراضي — SSH والجدار الناري والنسخ الاحتياطي.",
+      icon: "Cpu",
+      sortOrder: 8,
+    })
+    .returning();
+
+  // Add Reseller Hosting category
+  const [resCat] = await db
+    .insert(kbCategoriesTable)
+    .values({
+      name: "Reseller Hosting",
+      nameUr: "ریسیلر ہوسٹنگ",
+      nameAr: "استضافة المعيد",
+      slug: "reseller-hosting",
+      description: "Run your own hosting business — manage client cPanel accounts, packages, and private nameservers.",
+      descriptionUr: "اپنا ہوسٹنگ کاروبار چلائیں — کلائنٹ اکاؤنٹس اور پیکجز مینیج کریں۔",
+      descriptionAr: "أدر أعمال الاستضافة الخاصة بك — حسابات cPanel والحزم والخوادم.",
+      icon: "Users",
+      sortOrder: 9,
+    })
+    .returning();
+
+  // ── VPS Articles ──────────────────────────────────────────────────────────
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: vpsCat.id,
+    slug: "vps-hosting-overview-noehost",
+    title: "VPS Hosting Overview: What Is a VPS and When Do You Need One?",
+    titleUr: "VPS ہوسٹنگ کیا ہے اور آپ کو اسے کب چاہیے؟",
+    titleAr: "ما هو VPS ومتى تحتاجه؟",
+    excerpt: "Learn what a VPS is, how it differs from shared hosting, and whether it's the right upgrade for your website.",
+    content:
+      IMG_A("/kb/vps-management-panel.png", "VPS Management Panel", "Noehost VPS control panel — showing server metrics, IP address, OS, and Start/Stop/Reboot controls", [
+        "<strong>Server IP:</strong> Your dedicated IP address — use this to connect via SSH and to point domains",
+        "<strong>Resource Gauges:</strong> Real-time CPU and RAM usage — monitor these to understand your server's load",
+        "<strong>Start / Stop / Reboot:</strong> Control your VPS power state directly from the client area",
+      ]) +
+      `<h2>What Is a VPS?</h2>
+<p>A Virtual Private Server (VPS) is a private partition of a physical server with dedicated resources allocated exclusively to your account. Unlike shared hosting — where CPU, RAM, and I/O bandwidth are shared among hundreds of users — your VPS guarantees a fixed allocation that no other customer can use.</p>
+
+<div class="kb-info">ℹ️ Think of it this way: shared hosting is like renting a room in a house, while a VPS is like renting an entire apartment. You have your own door, your own kitchen, and your own utilities.</div>
+
+<h2>Shared Hosting vs VPS: Comparison</h2>
+<p>Here's when to consider upgrading from shared hosting to a Noehost VPS:</p>
+<ul>
+  <li>Your website receives more than <strong>10,000 monthly visitors</strong></li>
+  <li>Your shared hosting account is consistently hitting CPU or memory limits</li>
+  <li>You need to install custom server software (Node.js, Python, custom libraries)</li>
+  <li>You run a resource-heavy application like WooCommerce, Magento, or a custom SaaS</li>
+  <li>You need a <strong>dedicated IP address</strong> for SSL, email deliverability, or gaming</li>
+  <li>You are reselling hosting and need WHM/cPanel installed at the root level</li>
+</ul>` +
+      SS("Side-by-side comparison of Shared Hosting and VPS resources — showing guaranteed RAM, dedicated CPU cores, and isolated environment") +
+      `<h2>What You Get with Noehost VPS</h2>
+<ul>
+  <li><strong>Guaranteed RAM & CPU</strong> — dedicated resources, not shared with other customers</li>
+  <li><strong>Full Root SSH Access</strong> — complete control to install any software or configure the server</li>
+  <li><strong>SSD NVMe Storage</strong> — fast read/write speeds for database-heavy applications</li>
+  <li><strong>Free rDNS (Reverse DNS)</strong> — improves email deliverability for mail servers</li>
+  <li><strong>Optional cPanel/WHM</strong> — add cPanel to your VPS for a familiar control panel interface</li>
+  <li><strong>Automated Daily Backups</strong> — peace of mind with 14-day backup retention</li>
+</ul>` +
+      SS("Noehost VPS plan selection page — showing RAM, CPU, SSD, and bandwidth specifications for each plan tier") +
+      `<h2>Getting Started with Your VPS</h2>
+<p>After ordering a VPS from Noehost, check your email for a welcome message containing:</p>
+<ol>
+  <li>Your server <strong>IP address</strong></li>
+  <li>SSH <strong>username</strong> (typically <code>root</code>)</li>
+  <li>Your initial SSH <strong>password</strong> or an SSH key setup guide</li>
+  <li>A link to your <a href="/clientarea/services">Client Area → Services</a> where you can manage your VPS</li>
+</ol>
+
+<div class="kb-tip">💡 New to VPS management? Our support team offers free assisted setup for the first 24 hours after you order. Open a ticket at <a href="/clientarea/tickets/new">Support → Open Ticket</a> and mention you need VPS onboarding help.</div>`,
+    readTimeMinutes: 5,
+    sortOrder: 1,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: vpsCat.id,
+    slug: "how-to-connect-vps-ssh-noehost",
+    title: "How to Connect to Your Noehost VPS via SSH",
+    titleUr: "SSH کے ذریعے اپنے VPS سے کیسے جڑیں",
+    titleAr: "كيفية الاتصال بـ VPS عبر SSH",
+    excerpt: "Step-by-step guide to connecting to your VPS server via SSH on Windows, Mac, and Linux.",
+    content:
+      IMG_A("/kb/ssh-terminal.png", "SSH terminal connection to VPS", "Successful SSH login to a Noehost VPS — the terminal shows the server hostname, last login time, and command prompt", [
+        "<strong>root@server:</strong> The prompt confirms you are logged in as the root user on your VPS",
+        "<strong>Last login:</strong> Shows the timestamp of the previous login — check this to spot unauthorised access",
+        "<strong>Command prompt:</strong> You can now run any command on your server with full root privileges",
+      ]) +
+      `<h2>What Is SSH?</h2>
+<p>SSH (Secure Shell) is an encrypted protocol used to connect to and control your VPS remotely from your local computer. Every command you type in the SSH terminal runs directly on the server.</p>
+
+<div class="kb-info">ℹ️ Your SSH credentials (IP address, username, password) are in the welcome email Noehost sent when your VPS was activated. You can also find the IP address in <a href="/clientarea/services">Client Area → Services</a>.</div>
+
+<h2>Connecting from Windows</h2>
+<p>Windows 10 and 11 include a built-in SSH client. Open <strong>Command Prompt</strong> or <strong>PowerShell</strong> and run:</p>
+<pre><code>ssh root@YOUR_SERVER_IP</code></pre>
+<p>Replace <code>YOUR_SERVER_IP</code> with your actual server IP from the welcome email. When prompted, enter your password.</p>` +
+      SS("Windows PowerShell or Terminal showing the SSH command and password prompt for a VPS login") +
+      `<div class="kb-tip">💡 Alternatively, download <strong>PuTTY</strong> (free) from <a href="https://www.putty.org" target="_blank" rel="noopener">putty.org</a> for a graphical SSH client with session saving.</div>
+
+<h2>Connecting from Mac or Linux</h2>
+<p>Open your <strong>Terminal</strong> application and run:</p>
+<pre><code>ssh root@YOUR_SERVER_IP</code></pre>
+<p>You will be asked to confirm the server's fingerprint on your first connection — type <code>yes</code> and press Enter. Then enter your password.</p>` +
+      SS("Mac Terminal showing successful SSH connection to a Noehost VPS with the server's fingerprint confirmation dialog") +
+      `<h2>Setting Up SSH Keys (Recommended)</h2>
+<p>SSH keys are more secure than passwords. Generate a key pair on your local machine:</p>
+<ol>
+  <li>Run: <code>ssh-keygen -t ed25519 -C "your@email.com"</code></li>
+  <li>Press Enter to accept the default file location</li>
+  <li>Copy your public key to the server: <code>ssh-copy-id root@YOUR_SERVER_IP</code></li>
+  <li>Test the passwordless connection: <code>ssh root@YOUR_SERVER_IP</code></li>
+</ol>
+
+<div class="kb-warning">⚠️ <strong>Disable password authentication</strong> after setting up SSH keys. Edit <code>/etc/ssh/sshd_config</code>, set <code>PasswordAuthentication no</code>, and restart SSH with <code>systemctl restart ssh</code>. This blocks brute-force attacks completely.</div>`,
+    readTimeMinutes: 5,
+    sortOrder: 2,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: vpsCat.id,
+    slug: "install-lamp-stack-vps-noehost",
+    title: "How to Install a LAMP Stack on Your Noehost VPS (Ubuntu)",
+    titleUr: "Noehost VPS پر LAMP Stack کیسے انسٹال کریں",
+    titleAr: "كيفية تثبيت LAMP Stack على VPS",
+    excerpt: "Install Apache, MySQL, and PHP on your Ubuntu VPS to host any PHP-based website or application.",
+    content:
+      `<h2>What Is a LAMP Stack?</h2>
+<p>LAMP stands for: <strong>L</strong>inux (your OS), <strong>A</strong>pache (web server), <strong>M</strong>ySQL (database), <strong>P</strong>HP (scripting language). It's the classic combination that powers WordPress, Joomla, Laravel, and most PHP web applications.</p>
+
+<div class="kb-info">ℹ️ These instructions are for <strong>Ubuntu 22.04 LTS</strong>, which is the recommended OS for new Noehost VPS plans. Connect to your server via SSH before starting.</div>
+
+<h2>Step 1: Update Your Server</h2>
+<p>Always start by updating the package list and upgrading existing packages:</p>
+<pre><code>apt update && apt upgrade -y</code></pre>` +
+      SS("SSH terminal showing apt update and upgrade running on a fresh Ubuntu VPS — package lists being downloaded and updated") +
+      `<h2>Step 2: Install Apache Web Server</h2>
+<pre><code>apt install apache2 -y
+systemctl enable apache2
+systemctl start apache2</code></pre>
+<p>Test Apache is working by visiting <code>http://YOUR_SERVER_IP</code> in a browser — you should see the Apache default page.</p>
+
+<div class="kb-tip">💡 To allow web traffic, make sure ports 80 and 443 are open in your firewall. See our guide: <a href="/help/setup-ufw-firewall-vps-noehost">How to Set Up a UFW Firewall on Your VPS</a>.</div>
+
+<h2>Step 3: Install MySQL Database Server</h2>
+<pre><code>apt install mysql-server -y
+mysql_secure_installation</code></pre>
+<p>The <code>mysql_secure_installation</code> wizard will guide you through setting a root password and removing test databases.</p>` +
+      SS("Terminal showing mysql_secure_installation wizard — setting root password, removing anonymous users, disabling remote root login") +
+      `<h2>Step 4: Install PHP</h2>
+<pre><code>apt install php libapache2-mod-php php-mysql php-curl php-gd php-mbstring php-xml -y</code></pre>
+<p>Verify PHP is installed correctly:</p>
+<pre><code>php -v</code></pre>
+
+<h2>Step 5: Test Your LAMP Stack</h2>
+<p>Create a test PHP file to confirm everything works:</p>
+<pre><code>echo "&lt;?php phpinfo(); ?&gt;" > /var/www/html/info.php</code></pre>
+<p>Visit <code>http://YOUR_SERVER_IP/info.php</code> in your browser. You should see the full PHP information page.</p>
+
+<div class="kb-warning">⚠️ <strong>Delete the info.php file after testing</strong> — it exposes your server configuration to anyone who visits the URL: <code>rm /var/www/html/info.php</code></div>
+
+<div class="kb-tip">🎉 Your LAMP stack is ready. You can now upload a PHP website to <code>/var/www/html/</code> or install WordPress manually. Need help? Contact us at <a href="/clientarea/tickets/new">Support → Open Ticket</a>.</div>`,
+    readTimeMinutes: 7,
+    sortOrder: 3,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: vpsCat.id,
+    slug: "setup-ufw-firewall-vps-noehost",
+    title: "How to Set Up a UFW Firewall on Your Noehost VPS",
+    titleUr: "اپنے VPS پر UFW فائروال کیسے ترتیب دیں",
+    titleAr: "كيفية إعداد جدار الحماية UFW على VPS",
+    excerpt: "Protect your VPS by enabling UFW and allowing only the ports your server needs — SSH, HTTP, and HTTPS.",
+    content:
+      IMG_A("/kb/ufw-firewall-rules.png", "UFW firewall rules in terminal", "UFW firewall status showing active rules — allowing SSH (port 22), HTTP (port 80), and HTTPS (port 443)", [
+        "<strong>Status: active:</strong> UFW is running and enforcing your rules — if it says inactive, run ufw enable",
+        "<strong>ALLOW rules:</strong> Only the ports listed here are permitted — everything else is blocked by default",
+        "<strong>Port 22 (SSH):</strong> This must always be allowed — otherwise you will lock yourself out of the server",
+      ]) +
+      `<h2>Why Use a Firewall on Your VPS?</h2>
+<p>A VPS with no firewall accepts connections on every port. Attackers continuously scan the internet for open ports to exploit databases, admin panels, and outdated services. UFW (Uncomplicated Firewall) is built into Ubuntu and makes firewall management simple.</p>
+
+<div class="kb-warning">⚠️ <strong>IMPORTANT — Always allow SSH (port 22) before enabling UFW.</strong> If you enable UFW without allowing SSH first, you will be permanently locked out of your server and will need to contact support for a rescue console.</div>
+
+<h2>Step 1: Allow SSH Access First</h2>
+<pre><code>ufw allow OpenSSH</code></pre>
+<p>Or use the port number directly:</p>
+<pre><code>ufw allow 22/tcp</code></pre>` +
+      SS("Terminal showing the 'ufw allow OpenSSH' command and the confirmation message 'Rules updated'") +
+      `<h2>Step 2: Allow Web Traffic</h2>
+<pre><code>ufw allow 80/tcp    # HTTP
+ufw allow 443/tcp   # HTTPS</code></pre>
+<p>If you are running a mail server, also allow:</p>
+<pre><code>ufw allow 25/tcp    # SMTP
+ufw allow 587/tcp   # SMTP submission
+ufw allow 993/tcp   # IMAPS</code></pre>
+
+<h2>Step 3: Enable UFW</h2>
+<pre><code>ufw enable</code></pre>
+<p>Type <code>y</code> when asked to confirm. UFW will now start automatically on every server reboot.</p>
+
+<h2>Step 4: Check Your Firewall Status</h2>
+<pre><code>ufw status numbered</code></pre>
+<p>This shows all active rules with their rule numbers. To delete a rule, use: <code>ufw delete RULE_NUMBER</code></p>` +
+      SS("Terminal showing 'ufw status numbered' output — numbered list of active firewall rules with ports and ALLOW/DENY status") +
+      `<div class="kb-info">ℹ️ <strong>Custom port for SSH?</strong> If you changed your SSH port (e.g., to 2222 for added security), allow that port instead of 22: <code>ufw allow 2222/tcp</code></div>
+
+<div class="kb-tip">💡 After enabling UFW, test that you can still SSH into your server from a new terminal window before closing your current session — this ensures you haven't accidentally blocked yourself.</div>`,
+    readTimeMinutes: 5,
+    sortOrder: 4,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: vpsCat.id,
+    slug: "vps-backup-restore-noehost",
+    title: "How to Back Up and Restore Your Noehost VPS",
+    titleUr: "اپنے VPS کا بیک اپ اور ریسٹور کیسے کریں",
+    titleAr: "كيفية نسخ VPS احتياطيًا واستعادته",
+    excerpt: "Protect your VPS data with automated snapshots, manual rsync backups, and restoration procedures.",
+    content:
+      IMG_A("/kb/cpanel-backup-wizard.png", "cPanel Backup Wizard", "cPanel Backup Wizard — choose between Full Backup and Home Directory backup, then select a destination", [
+        "<strong>Full Backup:</strong> Creates a complete archive of all files, databases, email accounts, and settings",
+        "<strong>Home Directory:</strong> Backs up just your website files — faster and smaller than a full backup",
+        "<strong>Destination:</strong> Download directly to your computer or transfer to a remote FTP/SFTP server",
+      ]) +
+      `<h2>Noehost Automated Backups</h2>
+<p>Noehost automatically backs up all VPS and hosting accounts daily. You can access the last 14 days of backups at any time by opening a support ticket at <a href="/clientarea/tickets/new">Support → Open Ticket</a> and requesting a restore.</p>
+
+<div class="kb-info">ℹ️ Automated backups are your safety net, but we strongly recommend also maintaining your own independent backups for critical data.</div>
+
+<h2>Manual Backup: rsync to a Remote Server</h2>
+<p>The <code>rsync</code> command is the gold standard for VPS backups. Run this from your <strong>local machine</strong> (or a separate backup server) to pull files from your VPS:</p>
+<pre><code>rsync -avz root@YOUR_SERVER_IP:/var/www/html/ ./website-backup/</code></pre>
+<p>This copies your entire website directory to a local folder. Schedule it with cron for automatic daily backups.</p>` +
+      SS("Terminal showing rsync command transferring files from VPS to local machine — displaying file list and transfer progress") +
+      `<h2>Database Backups with mysqldump</h2>
+<p>Website files are only half the picture — your database contains your content, orders, and user data. Back it up with:</p>
+<pre><code>mysqldump -u root -p DATABASE_NAME > backup.sql</code></pre>
+<p>Replace <code>DATABASE_NAME</code> with your actual database name. This creates a <code>.sql</code> file you can import to restore the database.</p>
+
+<h2>Restoring from Backup</h2>
+<ol>
+  <li><strong>Files:</strong> Use rsync or SFTP to copy your backup files back to <code>/var/www/html/</code></li>
+  <li><strong>Database:</strong> Import your SQL backup: <code>mysql -u root -p DATABASE_NAME &lt; backup.sql</code></li>
+  <li><strong>Verify:</strong> Visit your website and check that all pages load correctly</li>
+</ol>` +
+      SS("MySQL command prompt showing database import from a .sql backup file — restoring tables and data") +
+      `<div class="kb-tip">💡 <strong>Automate with cron:</strong> Schedule daily backups by editing your crontab (<code>crontab -e</code>) and adding: <code>0 2 * * * rsync -avz /var/www/html/ /backup/website/</code> — this runs at 2 AM every night.</div>
+
+<div class="kb-warning">⚠️ Always test your backups by restoring them to a staging environment before you need them in an emergency. A backup you've never tested is a backup you can't trust.</div>`,
+    readTimeMinutes: 6,
+    sortOrder: 5,
+    isPublished: true,
+  });
+
+  // ── Reseller Articles ─────────────────────────────────────────────────────
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: resCat.id,
+    slug: "getting-started-reseller-hosting-noehost",
+    title: "Getting Started with Reseller Hosting on Noehost",
+    titleUr: "Noehost پر ریسیلر ہوسٹنگ شروع کرنا",
+    titleAr: "البدء في استضافة المعيد على Noehost",
+    excerpt: "Everything you need to know about your Noehost reseller account — WHM access, client management, and first steps.",
+    content:
+      IMG_A("/kb/whm-dashboard.png", "WHM Web Host Manager Dashboard", "WHM (Web Host Manager) — the reseller control panel for managing all your client hosting accounts", [
+        "<strong>Account Functions:</strong> The primary section for creating, modifying, and managing client cPanel accounts",
+        "<strong>Packages:</strong> Create hosting packages with predefined disk space, bandwidth, and feature limits",
+        "<strong>DNS Functions:</strong> Manage DNS zones for all domains on your reseller account",
+      ]) +
+      `<h2>What Is Reseller Hosting?</h2>
+<p>Reseller hosting gives you a pool of server resources (disk space, bandwidth, accounts) that you can divide and sell as hosting plans to your own clients. You manage everything through <strong>WHM (Web Host Manager)</strong>, while each client gets their own standard <strong>cPanel</strong> account.</p>
+
+<div class="kb-info">ℹ️ Your clients never know you're a reseller — they interact only with the cPanel you set up for them. You can brand the entire experience with your own company name and logo.</div>
+
+<h2>Accessing WHM</h2>
+<p>Log in to WHM using the credentials in your Noehost welcome email:</p>
+<ul>
+  <li><strong>URL:</strong> <code>https://YOUR_SERVER_IP:2087</code> (or <code>https://yourdomain.com:2087</code> if DNS is set up)</li>
+  <li><strong>Username:</strong> Your WHM username (typically your Noehost username)</li>
+  <li><strong>Password:</strong> Your WHM/cPanel master password</li>
+</ul>` +
+      SS("WHM login page at port 2087 — showing username/password fields and the cPanel login interface") +
+      `<h2>First Steps in WHM</h2>
+<ol>
+  <li><strong>Create a Hosting Package</strong> — Go to <strong>Packages → Add a Package</strong> and define disk space, bandwidth, email accounts, and subdomains for the plans you want to sell</li>
+  <li><strong>Set Up Private Nameservers</strong> — Configure ns1 and ns2 on your own domain so clients use your nameservers instead of Noehost's</li>
+  <li><strong>Create Your First Client Account</strong> — Go to <strong>Account Functions → Create a New Account</strong></li>
+  <li><strong>Configure Your Reseller Nameservers</strong> — See our guide: <a href="/help/setup-reseller-private-nameservers-noehost">How to Set Up Private Nameservers</a></li>
+</ol>` +
+      SS("WHM main navigation — showing Account Functions, Packages, DNS Functions, and Reseller Center sections in the left sidebar") +
+      `<div class="kb-tip">💡 You can white-label WHM by going to <strong>WHM → Modify Account → Reseller Center → Modify Reseller Privileges</strong> and setting a custom brand name and logo for your hosting business.</div>
+
+<div class="kb-warning">⚠️ You are responsible for all accounts you create under your reseller. Ensure your clients comply with Noehost's Terms of Service — especially regarding spam, copyright, and resource usage.</div>`,
+    readTimeMinutes: 5,
+    sortOrder: 1,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: resCat.id,
+    slug: "create-cpanel-account-whm-noehost",
+    title: "How to Create a cPanel Account for a Client via WHM",
+    titleUr: "WHM کے ذریعے کلائنٹ کے لیے cPanel اکاؤنٹ کیسے بنائیں",
+    titleAr: "كيفية إنشاء حساب cPanel للعميل عبر WHM",
+    excerpt: "Create a new client hosting account in WHM in under 2 minutes — domain, username, package, and password.",
+    content:
+      IMG_A("/kb/whm-create-account.png", "WHM Create New Account form", "WHM Create New Account form — fill in Domain, Username, Password, Email, and select a Package to provision a client account", [
+        "<strong>Domain:</strong> Enter the client's primary domain name — this becomes their cPanel home directory",
+        "<strong>Username:</strong> Maximum 8 characters — WHM auto-suggests based on the domain name",
+        "<strong>Package:</strong> Select the hosting package that matches the plan the client purchased",
+      ]) +
+      `<h2>Creating a Client Account</h2>
+<p>Every client you host gets their own cPanel account — an isolated environment with their domain, files, email, and databases. Here's how to create one:</p>
+
+<h2>Step 1: Navigate to Create Account</h2>
+<ol>
+  <li>Log in to <strong>WHM</strong> at <code>https://YOUR_SERVER_IP:2087</code></li>
+  <li>In the left sidebar, click <strong>Account Functions</strong></li>
+  <li>Click <strong>Create a New Account</strong></li>
+</ol>` +
+      SS("WHM Account Functions section expanded in the sidebar — showing Create a New Account, Modify an Account, and Terminate an Account links") +
+      `<h2>Step 2: Fill in Account Details</h2>
+<p>Complete the account creation form:</p>
+<ul>
+  <li><strong>Domain:</strong> Your client's domain (e.g., <code>clientdomain.com</code>)</li>
+  <li><strong>Username:</strong> A unique identifier — max 8 characters, alphanumeric only</li>
+  <li><strong>Password:</strong> Use a strong password — click the dice icon to generate a secure random one</li>
+  <li><strong>Email:</strong> The client's contact email — they'll receive cPanel login details here</li>
+  <li><strong>Package:</strong> Select the hosting package that matches their plan</li>
+</ul>
+
+<h2>Step 3: Configure Settings (Optional)</h2>
+<ul>
+  <li><strong>Theme:</strong> Leave as Paper Lantern (default cPanel theme)</li>
+  <li><strong>Locale:</strong> Set to the client's preferred language if needed</li>
+  <li><strong>IP Address:</strong> Leave on shared unless the client purchased a dedicated IP</li>
+</ul>
+
+<h2>Step 4: Create the Account</h2>
+<p>Scroll down and click <strong>Create</strong>. WHM will provision the account in seconds and display the new account's cPanel URL, username, and other details.</p>` +
+      SS("WHM account creation success screen — showing the new cPanel account URL, username, IP address, and confirmation message") +
+      `<div class="kb-tip">💡 Send the client their cPanel login URL (e.g., <code>https://their-domain.com:2083</code>), their username, and their password. Remind them to change the password on first login.</div>
+
+<div class="kb-info">ℹ️ You can also suspend, modify, or terminate accounts at any time from <strong>Account Functions</strong> in WHM. See our guide: <a href="/help/suspend-terminate-client-account-whm-noehost">How to Suspend or Terminate a Client Account</a>.</div>`,
+    readTimeMinutes: 4,
+    sortOrder: 2,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: resCat.id,
+    slug: "setup-reseller-private-nameservers-noehost",
+    title: "How to Set Up Private Nameservers for Your Reseller Account",
+    titleUr: "اپنے ریسیلر اکاؤنٹ کے لیے پرائیویٹ نیم سرور کیسے بنائیں",
+    titleAr: "كيفية إعداد خوادم الأسماء الخاصة لحساب المعيد",
+    excerpt: "Brand your hosting business with private nameservers (ns1/ns2.yourdomain.com) instead of Noehost's default nameservers.",
+    content:
+      IMG_A("/kb/nameservers-form.png", "Nameserver registration form at domain registrar", "Domain registrar nameserver settings — registering private ns1 and ns2 nameservers with your server IP address", [
+        "<strong>Nameserver hostname:</strong> Enter ns1.yourdomain.com and ns2.yourdomain.com as the nameserver names",
+        "<strong>IP Address:</strong> Enter your Noehost server's IP address — found in your Client Area under Services",
+        "<strong>Register both:</strong> You must register both ns1 and ns2 — many registrars require at least two nameservers",
+      ]) +
+      `<h2>What Are Private Nameservers?</h2>
+<p>By default, client domains point to Noehost's nameservers (<code>ns1.noehost.com</code>, <code>ns2.noehost.com</code>). With private nameservers, your clients point to <code>ns1.yourdomain.com</code>, <code>ns2.yourdomain.com</code> — making your hosting look completely branded and professional.</p>
+
+<h2>Step 1: Find Your Server IP</h2>
+<p>Log in to your <a href="/clientarea/services">Noehost Client Area → Services</a> and note down your reseller server's IP address.</p>
+
+<h2>Step 2: Register Nameservers at Your Domain Registrar</h2>
+<p>Go to the control panel of wherever you registered your domain (e.g., GoDaddy, Namecheap, or Noehost Domains) and find the <strong>Private Nameservers</strong> or <strong>Child Nameservers</strong> section:</p>
+<ol>
+  <li>Add <strong>ns1</strong> with your server IP address</li>
+  <li>Add <strong>ns2</strong> with the same server IP address (or a second server if you have one)</li>
+  <li>Save the changes</li>
+</ol>` +
+      SS("Domain registrar control panel showing the Register Nameserver or Child Nameserver option — with ns1 and ns2 fields and an IP address field") +
+      `<h2>Step 3: Register Nameservers in WHM</h2>
+<ol>
+  <li>Log in to <strong>WHM</strong></li>
+  <li>Go to <strong>DNS Functions → Add a DNS Zone</strong> (if the nameserver domain isn't already hosted)</li>
+  <li>Go to <strong>Server Configuration → Basic cPanel & WHM Setup</strong></li>
+  <li>Enter <code>ns1.yourdomain.com</code> and <code>ns2.yourdomain.com</code> in the nameserver fields</li>
+  <li>Click <strong>Save</strong></li>
+</ol>` +
+      SS("WHM Basic cPanel & WHM Setup page — showing the Nameserver 1 and Nameserver 2 input fields in the server configuration section") +
+      `<h2>Step 4: Set Nameservers for Client Domains</h2>
+<p>When a client purchases hosting from you, instruct them to change their domain's nameservers to your private NS1 and NS2. The process is the same as our guide: <a href="/help/how-to-point-domain-to-noehost">How to Point a Domain to Noehost</a>.</p>
+
+<div class="kb-info">ℹ️ Nameserver propagation takes 24–48 hours. During this time, the client's domain may resolve inconsistently from different locations — this is normal.</div>
+
+<div class="kb-tip">💡 Need help setting up private nameservers? Our team can configure them for you. Open a ticket at <a href="/clientarea/tickets/new">Support → Open Ticket</a>.</div>`,
+    readTimeMinutes: 5,
+    sortOrder: 3,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: resCat.id,
+    slug: "setup-hosting-packages-whm-noehost",
+    title: "How to Create and Manage Hosting Packages in WHM",
+    titleUr: "WHM میں ہوسٹنگ پیکجز کیسے بنائیں اور مینیج کریں",
+    titleAr: "كيفية إنشاء وإدارة حزم الاستضافة في WHM",
+    excerpt: "Create custom hosting packages in WHM with defined disk space, bandwidth, and feature limits for your clients.",
+    content:
+      `<h2>What Are WHM Packages?</h2>
+<p>A <strong>package</strong> in WHM is a template that defines the resources and features assigned to a hosting account. When you create a client account, you assign them a package — this automatically sets their disk quota, monthly bandwidth, number of email accounts, databases, subdomains, and more.</p>
+
+<div class="kb-info">ℹ️ Having multiple packages (e.g., Basic, Professional, Business) lets you offer tiered hosting plans to your clients without manually configuring each account.</div>
+
+<h2>Step 1: Create a New Package</h2>
+<ol>
+  <li>Log in to <strong>WHM</strong> at <code>https://YOUR_SERVER_IP:2087</code></li>
+  <li>In the left sidebar, go to <strong>Packages → Add a Package</strong></li>
+</ol>` +
+      SS("WHM Add a Package form — showing Disk Space Quota, Monthly Bandwidth Limit, Max Email Accounts, Max Databases, and Max FTP Accounts fields") +
+      `<h2>Step 2: Configure Resource Limits</h2>
+<p>Fill in the package details:</p>
+<ul>
+  <li><strong>Package Name:</strong> Give it a clear name (e.g., <code>basic</code>, <code>professional</code>, <code>business</code>)</li>
+  <li><strong>Disk Space Quota:</strong> In MB (e.g., 5120 for 5 GB, or 0 for unlimited)</li>
+  <li><strong>Monthly Bandwidth Limit:</strong> In MB (e.g., 51200 for 50 GB, or 0 for unlimited)</li>
+  <li><strong>Max Email Accounts:</strong> Number of email accounts the client can create</li>
+  <li><strong>Max Databases:</strong> Number of MySQL/MariaDB databases</li>
+  <li><strong>Max FTP Accounts:</strong> Number of FTP users</li>
+  <li><strong>Max Subdomains:</strong> Number of subdomains (e.g., blog.clientdomain.com)</li>
+</ul>` +
+      SS("WHM package feature settings — showing toggles for Shell Access, CGI Access, Cron Jobs, and other cPanel features that can be enabled per package") +
+      `<h2>Step 3: Set Feature Flags</h2>
+<p>Scroll down to the <strong>Features</strong> section. Here you can enable or disable specific cPanel features for accounts using this package:</p>
+<ul>
+  <li>Enable <strong>Cron Jobs</strong> for clients who need scheduled tasks</li>
+  <li>Disable <strong>Shell Access</strong> unless the client specifically requires it</li>
+  <li>Enable <strong>SSL/TLS</strong> so clients can install SSL certificates</li>
+  <li>Enable <strong>Softaculous Apps Installer</strong> for one-click WordPress installs</li>
+</ul>
+
+<h2>Step 4: Save and Assign the Package</h2>
+<p>Click <strong>Add</strong> to save your package. When creating client accounts, select this package from the Package dropdown.</p>
+
+<div class="kb-tip">💡 To modify a package later (e.g., to increase disk space), go to <strong>Packages → Edit a Package</strong>. Changes apply to all accounts using that package automatically.</div>
+
+<h2>Monitoring Usage</h2>
+<p>To check how much of your reseller quota is being used:</p>
+<ul>
+  <li>Go to <strong>Account Information → List Accounts</strong></li>
+  <li>Each account shows disk usage and bandwidth usage at a glance</li>
+  <li>Go to <strong>Account Information → View Bandwidth Usage</strong> for a detailed monthly report</li>
+</ul>`,
+    readTimeMinutes: 5,
+    sortOrder: 4,
+    isPublished: true,
+  });
+
+  await db.insert(kbArticlesTable).values({
+    categoryId: resCat.id,
+    slug: "suspend-terminate-client-account-whm-noehost",
+    title: "How to Suspend or Terminate a Client Account in WHM",
+    titleUr: "WHM میں کلائنٹ اکاؤنٹ کو معطل یا ختم کیسے کریں",
+    titleAr: "كيفية تعليق أو إنهاء حساب العميل في WHM",
+    excerpt: "Learn when and how to suspend a client account (reversible) or terminate it permanently in WHM.",
+    content:
+      `<h2>Suspend vs Terminate: What's the Difference?</h2>
+<p>WHM gives you two options for deactivating a client account:</p>
+<ul>
+  <li><strong>Suspend:</strong> Temporarily disables the account. The client's website shows a "Account Suspended" page. All data is preserved and the account can be unsuspended at any time. Use this for non-payment or policy violations that may be resolved.</li>
+  <li><strong>Terminate:</strong> Permanently deletes the account and all data. This action is <strong>irreversible</strong>. Use this only when you are certain the account is no longer needed.</li>
+</ul>
+
+<div class="kb-warning">⚠️ <strong>Termination permanently deletes all data</strong> — website files, email accounts, databases, and cPanel settings. Always back up the account before terminating. There is no undo.</div>
+
+<h2>How to Suspend a Client Account</h2>
+<ol>
+  <li>Log in to <strong>WHM</strong></li>
+  <li>Go to <strong>Account Functions → Manage Account Suspension</strong></li>
+  <li>Find the client account and click <strong>Suspend</strong></li>
+  <li>Enter a reason for the suspension (optional but helpful for your records)</li>
+  <li>Click <strong>Suspend Account</strong></li>
+</ol>` +
+      SS("WHM Manage Account Suspension page — showing a list of client accounts with Suspend/Unsuspend buttons and a reason field for suspension") +
+      `<h2>How to Unsuspend an Account</h2>
+<p>When the client resolves the issue (e.g., pays their invoice):</p>
+<ol>
+  <li>Go to <strong>Account Functions → Manage Account Suspension</strong></li>
+  <li>Find the suspended account (marked with a red indicator)</li>
+  <li>Click <strong>Unsuspend</strong></li>
+</ol>
+
+<h2>How to Terminate a Client Account</h2>
+<ol>
+  <li>Go to <strong>Account Functions → Terminate Accounts</strong></li>
+  <li>Select the account you want to delete</li>
+  <li>Check the confirmation checkbox acknowledging data deletion</li>
+  <li>Click <strong>Remove Accounts</strong></li>
+</ol>` +
+      SS("WHM Terminate Accounts page — showing a list of accounts with checkboxes, a confirmation warning, and the Remove Accounts button") +
+      `<div class="kb-tip">💡 <strong>Best practice:</strong> Before terminating, always:
+<ol>
+  <li>Create a full cPanel backup of the account</li>
+  <li>Download the backup to your local machine or a remote storage location</li>
+  <li>Confirm with the client that they no longer need the data</li>
+</ol></div>
+
+<div class="kb-info">ℹ️ If a client disputes a suspension or has data recovery questions, contact <a href="/clientarea/tickets/new">Noehost Support</a> immediately — time-sensitive situations may still be recoverable if the account hasn't been fully terminated.</div>`,
+    readTimeMinutes: 5,
+    sortOrder: 5,
+    isPublished: true,
+  });
 }
 
 async function seedV3Articles() {

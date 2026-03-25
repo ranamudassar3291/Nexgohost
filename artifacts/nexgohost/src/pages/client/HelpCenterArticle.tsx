@@ -75,13 +75,20 @@ function useSeoMeta(title?: string, description?: string) {
 }
 
 const ARTICLE_CSS = `
-  /* ── Screenshot placeholder — browser chrome style ──────────────────── */
+  /* ── Auto-step counter reset on article ─────────────────────────────── */
+  .kb-article-content {
+    counter-reset: kb-step-counter;
+  }
+
+  /* ── Screenshot placeholder — branded browser chrome ────────────────── */
   .kb-article-content .kb-screenshot {
     margin: 1.75rem 0;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid rgba(99,102,241,0.18);
     box-shadow: 0 6px 32px rgba(99,102,241,0.09), 0 1px 4px rgba(0,0,0,0.06);
+    counter-increment: kb-step-counter;
+    position: relative;
   }
   .kb-article-content .kb-screenshot::before {
     content: "● ● ●";
@@ -93,24 +100,35 @@ const ARTICLE_CSS = `
     padding: 10px 18px;
     border-bottom: 1px solid rgba(255,255,255,0.1);
   }
+  .kb-article-content .kb-screenshot::after {
+    content: "STEP " counter(kb-step-counter);
+    position: absolute;
+    top: 6px;
+    right: 14px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.8);
+    pointer-events: none;
+  }
   .kb-article-content .kb-screenshot-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2.75rem 2rem;
+    padding: 2.25rem 2rem;
     gap: 0.9rem;
     background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
     color: #6366f1;
   }
   .kb-article-content .kb-screenshot svg {
-    width: 3rem;
-    height: 3rem;
-    opacity: 0.45;
+    width: 2.75rem;
+    height: 2.75rem;
+    opacity: 0.4;
     color: #6366f1;
   }
   .kb-article-content .kb-screenshot-caption {
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: #3730a3;
     text-align: center;
@@ -127,7 +145,7 @@ const ARTICLE_CSS = `
     letter-spacing: 0.09em;
     padding: 0.22rem 1rem;
     border-radius: 999px;
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
   }
 
   /* ── Real image blocks ───────────────────────────────────────────────── */
@@ -160,6 +178,44 @@ const ARTICLE_CSS = `
     color: #64748b;
     text-align: center;
     font-style: italic;
+  }
+
+  /* ── Annotation callout box (below images) ───────────────────────────── */
+  .kb-article-content .kb-annotation-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-top: 3px solid #6366f1;
+    border-radius: 0 0 10px 10px;
+    padding: 1rem 1.1rem;
+    margin-top: -1.75rem;
+    margin-bottom: 1.75rem;
+  }
+  .kb-article-content .kb-annotation-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    font-size: 0.875rem;
+    color: #374151;
+    line-height: 1.5;
+  }
+  .kb-article-content .kb-pin-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    flex-shrink: 0;
+    margin-top: 1px;
+    box-shadow: 0 2px 6px rgba(239,68,68,0.35);
   }
 
   /* ── Callout boxes ───────────────────────────────────────────────────── */
