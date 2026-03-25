@@ -43,6 +43,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Support",
     items: [
       { name: "Tickets",          href: "/admin/tickets",                 icon: (() => null) as any },
+      { name: "Knowledge Base",   href: "/admin/knowledge-base",          icon: (() => null) as any },
       { name: "Migrations",       href: "/admin/migrations",              icon: (() => null) as any },
       { name: "Cancellations",    href: "/admin/cancellation-requests",   icon: (() => null) as any },
     ],

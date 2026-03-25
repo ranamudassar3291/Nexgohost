@@ -64,6 +64,8 @@ import AddVpsPlan from "@/pages/admin/AddVpsPlan";
 import VpsOsTemplates from "@/pages/admin/VpsOsTemplates";
 import VpsLocations from "@/pages/admin/VpsLocations";
 import AdminUsers from "@/pages/admin/AdminUsers";
+import KnowledgeBase from "@/pages/admin/KnowledgeBase";
+import KbArticleEditor from "@/pages/admin/KbArticleEditor";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -86,6 +88,8 @@ import Security from "@/pages/client/Security";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import DomainDns from "@/pages/client/DomainDns";
 import VpsManage from "@/pages/client/VpsManage";
+import HelpCenter from "@/pages/client/HelpCenter";
+import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
 import Homepage from "@/pages/public/Homepage";
 import VpsHosting from "@/pages/public/VpsHosting";
 import OrderFlow from "@/pages/public/OrderFlow";
@@ -422,6 +426,21 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/admin-users">
         <AdminPage><AdminUsers /></AdminPage>
+      </Route>
+      <Route path="/admin/knowledge-base/new">
+        <AdminPage><KbArticleEditor /></AdminPage>
+      </Route>
+      <Route path="/admin/knowledge-base/:id/edit">
+        <AdminPage><KbArticleEditor /></AdminPage>
+      </Route>
+      <Route path="/admin/knowledge-base">
+        <AdminPage><KnowledgeBase /></AdminPage>
+      </Route>
+      <Route path="/help/:slug">
+        <ClientPage><HelpCenterArticle /></ClientPage>
+      </Route>
+      <Route path="/help">
+        <ClientPage><HelpCenter /></ClientPage>
       </Route>
 
       {/* ── OAuth callback — public ── */}

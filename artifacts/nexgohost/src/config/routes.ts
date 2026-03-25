@@ -27,6 +27,8 @@ import {
   RefreshCw,
   Wallet,
   ShieldCheck,
+  BookOpen,
+  HelpCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -80,6 +82,9 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/settings/google",        label: "Google OAuth",        icon: ShieldAlert,  inNav: false },
   { path: "/admin/affiliates",             label: "Affiliates",          icon: Share2,       inNav: true  },
   { path: "/admin/domain-transfers",       label: "Domain Transfers",    icon: RefreshCw,    inNav: true  },
+  { path: "/admin/knowledge-base",         label: "Knowledge Base",      icon: BookOpen,     inNav: true  },
+  { path: "/admin/knowledge-base/new",     label: "New Article",         icon: BookOpen,     inNav: false },
+  { path: "/admin/knowledge-base/:id/edit", label: "Edit Article",       icon: BookOpen,     inNav: false },
 ];
 
 // ─── Client Routes ────────────────────────────────────────────────────────────
@@ -100,6 +105,7 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/credits",            label: "Credits",         icon: Wallet,          inNav: true  },
   { path: "/client/security",            label: "Security",        icon: ShieldCheck,     inNav: true  },
   { path: "/client/domains/transfer",   label: "Transfer Domain", icon: RefreshCw,       inNav: false },
+  { path: "/help",                       label: "Help Center",     icon: HelpCircle,      inNav: true  },
 ];
 
 // ─── Role → Route Map ─────────────────────────────────────────────────────────

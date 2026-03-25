@@ -1,0 +1,68 @@
+The "Noehost Smart Help Center" Master Prompt
+"I want to build a professional, high-end Knowledge Base (KB) system for Noehost, similar to 20i or ZenDesk. Implement the following architecture and initial content:
+
+1. System Architecture (Admin & Client):
+
+Admin Dashboard: Create a 'Knowledge Base' section where I can:
+
+Add/Edit/Delete articles using a Rich Text Editor (allowing bold, lists, and Image Uploads).
+
+Create Categories (e.g., Getting Started, cPanel, Domains, WordPress, Billing).
+
+Client Panel UI: Create a stylish, clean 'Help Center' page:
+
+Search Bar: A prominent search bar at the top to find articles quickly.
+
+SEO Optimized: Article URLs should be clean (e.g., /kb/how-to-point-domain) for Google indexing.
+
+Step-by-Step Styling: Use a clear 'Step 1, Step 2' format with highlight boxes for important notes.
+
+2. Content Generation (The Guide Library):
+Generate and pre-fill the KB with 15+ high-quality, professional articles under the name 'Noehost'. Each must include step-by-step instructions:
+
+Category: Hosting Basics:
+
+How to log in to your Noehost cPanel.
+
+Understanding your Hosting Package features.
+
+Category: WordPress:
+
+How to install WordPress in 1-click via Noehost.
+
+Fixing 'Error Establishing a Database Connection'.
+
+Speeding up your WordPress site with LSCache on Noehost.
+
+Category: Domains & DNS:
+
+How to point your domain to Noehost Nameservers.
+
+Setting up a professional business email.
+
+Category: Troubleshooting:
+
+Fixing 403 Forbidden and 500 Internal Server Errors.
+
+How to clear your browser and server cache.
+
+3. Visual & Interactive Elements:
+
+Placeholder Images: Add image placeholders in the articles where I can later upload screenshots.
+
+Feedback Loop: At the end of every article, add a 'Was this helpful? Yes/No' button.
+
+Related Articles: Show a 'Related Topics' sidebar to keep the client engaged.
+
+4. Final Integration:
+
+Link this Knowledge Base to the 'Support' menu in the Client Panel.
+
+Ensure the design is fully responsive (mobile-friendly) so clients can read guides on their phones while working on their PCs."
+
+Aapke Liye Expert Tips (Professionalism ke liye):
+Search Functionality: Agent ko kahein ke search bar mein "Instant Search" (AJAX) lagaye taake client jaise hi type kare, articles niche show hone lagein.
+
+Breadcrumbs: Article ke upar Breadcrumbs (e.g., Home > WordPress > Installation) lazmi honi chahiye taake client ko pata ho wo kahan hai.
+
+Noehost Branding: Har article ke end mein likhen: "Still stuck? Noehost support is available 24/7 via ticket

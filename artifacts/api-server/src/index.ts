@@ -3,6 +3,7 @@ import { refreshExchangeRates } from "./routes/currencies.js";
 import { runAllCronTasks } from "./lib/cron.js";
 import { seedMissingTemplates } from "./routes/email-templates.js";
 import { seedVpsData } from "./lib/seedVps.js";
+import { seedKbContent } from "./routes/kb.js";
 
 const rawPort = process.env["PORT"];
 
@@ -58,5 +59,12 @@ app.listen(port, async () => {
   // Seed default VPS plans / OS templates / locations (only if empty)
   seedVpsData().catch((err: any) => {
     console.warn("[VPS] Seed failed (non-fatal):", err.message);
+  });
+
+  // Seed default KB articles (only if empty)
+  seedKbContent().then(() => {
+    console.log("[KB] Knowledge base content ready");
+  }).catch((err: any) => {
+    console.warn("[KB] Seed failed (non-fatal):", err.message);
   });
 });
