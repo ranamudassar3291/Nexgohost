@@ -1,5 +1,32 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 25 — Order Page Rebuild)
+
+- **Order Page — Full Group Navigation Rebuild** (`/order` = `OrderFlow.tsx`):
+  - **Step 1** (Select Service): Web Hosting / Domain / Transfer cards
+  - **Step 2** (Choose Group): 3 group cards — Shared Hosting, WordPress Hosting, Reseller Hosting (VPS excluded, has own flow)
+  - **Step 3** (Select Plan): Plans filtered by selected group with proper features
+  - **Step 4** (Domain & Checkout): Domain association (register/use existing) or skip
+  - 4-step progress bar with correct label per step
+  - Each plan card has "Order Now" + "Copy Direct Link" button
+  - Sidebar order summary shown from step 3 onwards
+  - NaN-safe price display with `Number()` conversion on all plan prices
+
+- **WordPress Plans Fixed** (prices updated in DB):
+  - Starter: Rs 350/mo, Rs 3,850/yr — 6 features (WP install, LSCache, etc.)
+  - Pro: Rs 550/mo, Rs 5,999/yr — 7 features
+  - Business: Rs 750/mo, Rs 8,200/yr — 9 features (Staging, WP-CLI)
+  - Geek: Rs 950/mo, Rs 10,400/yr — 10 features (CDN, SSH, Onboarding)
+
+- **Reseller Plans Fixed** (prices updated in DB):
+  - Starter: Rs 1,200/mo, Rs 13,000/yr — 7 features (WHM, 30 cPanel accounts)
+  - Geek: Rs 2,500/mo, Rs 27,500/yr — 8 features (50 accounts, Private NS)
+  - PRO: Rs 4,500/mo, Rs 49,500/yr — 9 features (Unlimited accounts, Dedicated IP)
+
+- **WHMCS-Style Cart URL**: `/cart?a=add&pid=UUID` and `/cart?gid=UUID` now handled — routes to NewOrder with plan/group pre-selected
+- **Product Groups Sort Order**: Shared=1, WordPress=2, Reseller=3, VPS=4
+- **Reseller Welcome Email**: `provisionHostingService` now routes Reseller plans to `emailResellerHostingCreated` (with WHM URL); WordPress plans continue to use standard cPanel welcome email (WP install email sent separately after provisioning)
+
 ## Recent Changes (Session 24)
 - **Orders Page — Full Overhaul**:
   - Paginated server-side API (50/page) with `page`, `limit`, `search`, `status` query params

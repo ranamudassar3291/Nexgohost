@@ -6,6 +6,7 @@ import {
   Check, X, ArrowLeft, Zap, Shield, Users, Database,
   Mail, HardDrive, Wifi, ShoppingCart, CheckCircle2,
   Star, Key, AlertCircle, Lock, Receipt, Trash2,
+  LayoutGrid, MonitorCog, Copy,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCart, type BillingCycle, CYCLE_LABELS, CYCLE_SUFFIX } from "@/context/CartContext";
@@ -14,11 +15,22 @@ import { useCurrency } from "@/context/CurrencyProvider";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Flow = "hosting" | "domain" | "transfer";
-type HostingTab = "shared" | "reseller" | "vps";
 type DomainMode = "register" | "existing";
+type HostingSubStep = "groups" | "plans";
+
+interface ProductGroup {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+  sortOrder: number;
+}
 
 interface Plan {
-  id: string; name: string; description: string | null; price: number;
+  id: string; name: string; description: string | null;
+  groupId: string | null;
+  price: number;
   yearlyPrice: number | null; quarterlyPrice: number | null; semiannualPrice: number | null;
   renewalPrice: number | null; renewalEnabled: boolean;
   billingCycle: string; diskSpace: string; bandwidth: string;
@@ -36,12 +48,9 @@ interface TldPricing {
   register3YearPrice: number | null; renewalPrice: number;
 }
 
-interface CartDomain {
-  fullName: string;
-  price: number;
-}
+interface CartDomain { fullName: string; price: number; }
 
-// ─── Constants / helpers ──────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const P = "#701AFE";
 const DOMAIN_STORAGE_KEY = "order_wizard_domain";
@@ -63,13 +72,6 @@ function planCycles(plan: Plan): BillingCycle[] {
   return c;
 }
 
-function classifyPlan(plan: Plan): HostingTab {
-  const n = plan.name.toLowerCase();
-  if (n.includes("reseller")) return "reseller";
-  if (n.includes("vps") || n.includes("virtual")) return "vps";
-  return "shared";
-}
-
 function cleanName(raw: string): string {
   return raw.trim().toLowerCase().split(".")[0].replace(/[^a-z0-9-]/g, "");
 }
@@ -81,7 +83,60 @@ function loadDomainFromStorage(): CartDomain | null {
   } catch { return null; }
 }
 
-// ─── Motion config ────────────────────────────────────────────────────────────
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text).catch(() => {
+    const el = document.createElement("textarea");
+    el.value = text;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+  });
+}
+
+// ─── Group config ─────────────────────────────────────────────────────────────
+// Visual metadata for each product group slug
+const GROUP_META: Record<string, {
+  icon: React.ReactNode;
+  color: string;
+  tagline: string;
+  bullets: string[];
+  badge?: string;
+}> = {
+  "shared-hosting": {
+    icon: <Server size={26} strokeWidth={1.6} />,
+    color: "#701AFE",
+    tagline: "Perfect for websites, blogs & small businesses",
+    bullets: ["cPanel Included", "Free SSL Certificate", "NVMe SSD Storage", "99.9% Uptime Guarantee"],
+    badge: "Most Popular",
+  },
+  "wordpress-hosting": {
+    icon: (
+      <svg width="26" height="26" viewBox="0 0 120 120" fill="none">
+        <circle cx="60" cy="60" r="56" stroke="#701AFE" strokeWidth="8"/>
+        <path d="M9 60C9 31.8 31.8 9 60 9" stroke="#701AFE" strokeWidth="5" strokeLinecap="round"/>
+        <text x="22" y="78" fontSize="62" fontWeight="bold" fill="#701AFE" fontFamily="Georgia,serif">W</text>
+      </svg>
+    ),
+    color: "#0073aa",
+    tagline: "Managed WordPress with LiteSpeed & LSCache",
+    bullets: ["One-Click WordPress Install", "LSCache Pre-installed", "Daily Backups", "Managed WP Updates"],
+  },
+  "reseller-hosting": {
+    icon: <Users size={26} strokeWidth={1.6} />,
+    color: "#701AFE",
+    tagline: "Start your own hosting business with WHM",
+    bullets: ["WHM Control Panel", "White-Label Ready", "WHMCS-Compatible", "Private Nameservers"],
+  },
+  "vps-hosting": {
+    icon: <Zap size={26} strokeWidth={1.6} />,
+    color: "#701AFE",
+    tagline: "Dedicated resources with full root SSH access",
+    bullets: ["Full Root Access", "Dedicated IP", "NVMe SSD Storage", "Scalable Resources"],
+  },
+};
+
+// ─── Motion ───────────────────────────────────────────────────────────────────
 
 type MotionDivBase = Omit<HTMLMotionProps<"div">, "ref" | "children" | "key" | "className" | "style">;
 const fade: MotionDivBase = {
@@ -91,7 +146,7 @@ const fade: MotionDivBase = {
   transition: { duration: 0.2 },
 };
 
-// ─── Tiny helper components ───────────────────────────────────────────────────
+// ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
 function SectionTitle({ title, sub }: { title: string; sub?: string }) {
   return (
@@ -102,27 +157,30 @@ function SectionTitle({ title, sub }: { title: string; sub?: string }) {
   );
 }
 
-function BackLink({ onClick }: { onClick: () => void }) {
+function BackLink({ onClick, label = "Back" }: { onClick: () => void; label?: string }) {
   return (
     <button onClick={onClick} className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-black transition-colors mb-6 font-medium">
-      <ArrowLeft size={14} /> Back
+      <ArrowLeft size={14} /> {label}
     </button>
   );
 }
 
-function Pill({ label, color = "gray" }: { label: string; color?: "gray" | "purple" }) {
+function Pill({ label, color = "gray" }: { label: string; color?: "gray" | "purple" | "blue" }) {
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-      color === "purple" ? "bg-[#701AFE]/10 text-[#701AFE]" : "bg-gray-100 text-gray-500"}`}>
+      color === "purple" ? "bg-[#701AFE]/10 text-[#701AFE]"
+      : color === "blue" ? "bg-blue-50 text-blue-600"
+      : "bg-gray-100 text-gray-500"
+    }`}>
       {label}
     </span>
   );
 }
 
-function Feature({ icon, text }: { icon: React.ReactNode; text: string }) {
+function Feature({ text }: { text: string }) {
   return (
     <li className="flex items-center gap-2 text-[13px] text-gray-600">
-      <span className="text-[#701AFE] shrink-0 w-4">{icon}</span>
+      <Check size={12} className="text-[#701AFE] shrink-0" />
       <span>{text}</span>
     </li>
   );
@@ -130,18 +188,18 @@ function Feature({ icon, text }: { icon: React.ReactNode; text: string }) {
 
 // ─── Progress Bar ─────────────────────────────────────────────────────────────
 
-const STEPS = ["Select Service", "Choose Plan", "Domain & Checkout"];
+const STEPS = ["Select Service", "Choose Group", "Select Plan", "Domain & Checkout"];
 
 function ProgressBar({ step }: { step: number }) {
   return (
     <div className="overflow-x-auto pb-1 mb-10 -mx-2 px-2">
-      <div className="flex items-start justify-center min-w-[280px]">
+      <div className="flex items-start justify-center min-w-[320px]">
         {STEPS.map((label, i) => {
           const done   = i < step;
           const active = i === step;
           return (
             <div key={label} className="flex items-start">
-              <div className="flex flex-col items-center w-20 sm:w-28">
+              <div className="flex flex-col items-center w-20 sm:w-24">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                   done   ? "bg-[#701AFE] text-white"
                   : active ? "bg-[#701AFE] text-white ring-[3px] ring-[#701AFE]/20"
@@ -154,7 +212,7 @@ function ProgressBar({ step }: { step: number }) {
                 </span>
               </div>
               {i < STEPS.length - 1 && (
-                <div className={`w-8 sm:w-14 h-0.5 mt-3.5 shrink-0 transition-all duration-500 ${done ? "bg-[#701AFE]" : "bg-gray-200"}`} />
+                <div className={`w-6 sm:w-10 h-0.5 mt-3.5 shrink-0 transition-all duration-500 ${done ? "bg-[#701AFE]" : "bg-gray-200"}`} />
               )}
             </div>
           );
@@ -164,7 +222,7 @@ function ProgressBar({ step }: { step: number }) {
   );
 }
 
-// ─── Order Summary (Sidebar + Mobile Bar) ────────────────────────────────────
+// ─── Order Summary ────────────────────────────────────────────────────────────
 
 interface OrderSummaryProps {
   plan: Plan | null;
@@ -184,17 +242,15 @@ function OrderSummary({ plan, planCycle, domain, formatPrice, onRemovePlan, onRe
 
   const content = (
     <>
-      {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <Receipt size={15} className="text-[#701AFE]" />
-        <h3 className="text-[13px] font-bold text-black uppercase tracking-wider">Your Order Summary</h3>
+        <h3 className="text-[13px] font-bold text-black uppercase tracking-wider">Order Summary</h3>
       </div>
 
-      {/* Items */}
       {!hasItems ? (
         <div className="flex flex-col items-center justify-center py-5 text-center">
           <ShoppingCart size={24} className="text-gray-300 mb-2" />
-          <p className="text-[12px] text-gray-400 leading-relaxed">No items yet.<br/>Select a plan or domain to begin.</p>
+          <p className="text-[12px] text-gray-400 leading-relaxed">No items yet.<br/>Select a plan to begin.</p>
         </div>
       ) : (
         <div className="space-y-2 mb-4">
@@ -229,18 +285,16 @@ function OrderSummary({ plan, planCycle, domain, formatPrice, onRemovePlan, onRe
         </div>
       )}
 
-      {/* Total */}
       {hasItems && (
         <div className="border-t border-gray-200 pt-3 mb-4">
           <div className="flex items-center justify-between">
-            <span className="text-[13px] font-semibold text-gray-600">Total</span>
+            <span className="text-[13px] font-semibold text-gray-600">Subtotal</span>
             <span className="text-[16px] font-extrabold text-black">{formatPrice(total)}</span>
           </div>
           <p className="text-[10px] text-gray-400 mt-0.5 text-right">{CYCLE_LABELS[planCycle]} billing</p>
         </div>
       )}
 
-      {/* CTA */}
       <button
         onClick={onCheckout}
         disabled={!hasItems}
@@ -264,14 +318,14 @@ function OrderSummary({ plan, planCycle, domain, formatPrice, onRemovePlan, onRe
 
   return (
     <>
-      {/* ── Desktop sidebar ── */}
+      {/* Desktop sidebar */}
       <div className="hidden lg:block">
         <div className="sticky top-20 bg-[#F8F9FA] border border-gray-200 rounded-2xl p-4">
           {content}
         </div>
       </div>
 
-      {/* ── Mobile bottom bar ── */}
+      {/* Mobile bottom bar */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-200 bg-white shadow-2xl">
         {hasItems ? (
           <div className="flex items-center gap-3 px-4 py-3 max-w-lg mx-auto">
@@ -304,24 +358,24 @@ export default function OrderFlow() {
   const { formatPrice } = useCurrency();
 
   // Wizard state
-  const [wizardStep, setWizardStep] = useState(0);
-  const [flow, setFlow]             = useState<Flow | null>(null);
+  const [wizardStep,      setWizardStep]      = useState(0);
+  const [flow,            setFlow]            = useState<Flow | null>(null);
+  const [hostingSubStep,  setHostingSubStep]  = useState<HostingSubStep>("groups");
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
-  // Hosting
-  const [hostingTab,     setHostingTab]     = useState<HostingTab>("shared");
-  const [planCyclesMap,  setPlanCyclesMap]  = useState<Record<string, BillingCycle>>({});
-  const [selectedPlan,   setSelectedPlan]   = useState<Plan | null>(null);
+  // Plan selection
+  const [planCyclesMap, setPlanCyclesMap] = useState<Record<string, BillingCycle>>({});
+  const [selectedPlan,  setSelectedPlan]  = useState<Plan | null>(null);
 
-  // Domain cart item (localStorage persisted)
+  // Domain cart
   const [cartDomain, setCartDomainState] = useState<CartDomain | null>(loadDomainFromStorage);
-
   function setCartDomain(d: CartDomain | null) {
     setCartDomainState(d);
     if (d) localStorage.setItem(DOMAIN_STORAGE_KEY, JSON.stringify(d));
     else   localStorage.removeItem(DOMAIN_STORAGE_KEY);
   }
 
-  // Step 2 — domain association (hosting flow)
+  // Domain association (step 3)
   const [domainMode,    setDomainMode]    = useState<DomainMode | null>(null);
   const [domainQuery,   setDomainQuery]   = useState("");
   const [domainChecking,setDomainChecking]= useState(false);
@@ -330,7 +384,7 @@ export default function OrderFlow() {
   const [domainError,   setDomainError]   = useState("");
   const domainInputRef = useRef<HTMLInputElement>(null);
 
-  // Step 1 — Register Domain flow
+  // Register domain flow
   const [regQuery,    setRegQuery]    = useState("");
   const [regChecking, setRegChecking] = useState(false);
   const [regResults,  setRegResults]  = useState<TldResult[] | null>(null);
@@ -342,38 +396,70 @@ export default function OrderFlow() {
   const [eppCode,        setEppCode]        = useState("");
   const [transferError,  setTransferError]  = useState("");
 
-  // Mobile bar height offset (so content doesn't hide behind it)
-  const hasMobileBar = wizardStep >= 1 && flow !== "transfer";
+  // Copy link feedback
+  const [copiedPlanId, setCopiedPlanId] = useState<string | null>(null);
 
-  // Plans query
-  const { data: allPlans = [], isLoading: plansLoading } = useQuery<Plan[]>({
-    queryKey: ["order-plans"],
+  // Progress step mapping
+  // step 0 = category, step 1 = group selection, step 2 = plan, step 3 = domain
+  // For domain/transfer flows, step 1 = main flow
+  const progressStep = (() => {
+    if (wizardStep === 0) return 0;
+    if (flow === "hosting") {
+      if (hostingSubStep === "groups") return 1;
+      if (hostingSubStep === "plans")  return 2;
+      return 3; // domain association
+    }
+    return 1;
+  })();
+
+  // ── API Queries ───────────────────────────────────────────────────────────
+
+  const { data: productGroups = [], isLoading: groupsLoading } = useQuery<ProductGroup[]>({
+    queryKey: ["public-product-groups"],
     queryFn: async () => {
-      const r = await fetch("/api/packages", { headers: { Authorization: `Bearer ${tok() ?? ""}` } });
+      const r = await fetch("/api/product-groups");
       if (!r.ok) throw new Error("Failed");
       return r.json();
     },
-    enabled: flow === "hosting" && wizardStep >= 1,
+    enabled: flow === "hosting",
+    staleTime: 120_000,
+  });
+
+  const { data: allPlans = [], isLoading: plansLoading } = useQuery<Plan[]>({
+    queryKey: ["order-plans"],
+    queryFn: async () => {
+      const r = await fetch("/api/packages", {
+        headers: { Authorization: `Bearer ${tok() ?? ""}` },
+      });
+      if (!r.ok) throw new Error("Failed");
+      const plans = await r.json();
+      return plans.map((p: any) => ({
+        ...p,
+        price:           Number(p.price)           || 0,
+        yearlyPrice:     p.yearlyPrice     ? Number(p.yearlyPrice)     : null,
+        quarterlyPrice:  p.quarterlyPrice  ? Number(p.quarterlyPrice)  : null,
+        semiannualPrice: p.semiannualPrice ? Number(p.semiannualPrice) : null,
+        renewalPrice:    p.renewalPrice    ? Number(p.renewalPrice)    : null,
+      }));
+    },
+    enabled: flow === "hosting" && hostingSubStep === "plans",
     staleTime: 60_000,
   });
 
-  // Public TLD pricing
   const { data: tldPricing = [] } = useQuery<TldPricing[]>({
     queryKey: ["tld-pricing"],
     queryFn: async () => {
       const r = await fetch("/api/domains/pricing");
       return r.json();
     },
-    enabled: flow === "domain" || wizardStep === 2,
+    enabled: flow === "domain" || wizardStep === 3,
     staleTime: 300_000,
   });
 
-  // Plans per tab
-  const byTab = (tab: HostingTab) => {
-    const f = allPlans.filter(p => classifyPlan(p) === tab);
-    return f.length > 0 ? f : allPlans;
-  };
-  const displayPlans = byTab(hostingTab);
+  // Plans for selected group (VPS excluded from hosting groups)
+  const displayPlans = selectedGroupId
+    ? allPlans.filter(p => p.groupId === selectedGroupId && Number(p.price) > 0)
+    : [];
 
   function getCycle(planId: string): BillingCycle {
     return planCyclesMap[planId] ?? "monthly";
@@ -402,19 +488,18 @@ export default function OrderFlow() {
         setResults(data.results ?? []);
       } catch { setErr("Network error. Please try again."); }
     } else {
-      // Public fallback — show TLD prices without real-time availability
       setResults(tldPricing.filter(t => t.registrationPrice > 0).map(t => ({
         tld: t.tld, available: true, rdapStatus: "unknown",
-        registrationPrice: t.registrationPrice,
+        registrationPrice: Number(t.registrationPrice),
         register2YearPrice: t.register2YearPrice,
         register3YearPrice: t.register3YearPrice,
-        renewalPrice: t.renewalPrice,
+        renewalPrice: Number(t.renewalPrice),
       })));
     }
     setChecking(false);
   }
 
-  // ── Redirect helpers ──────────────────────────────────────────────────────
+  // ── Navigation helpers ────────────────────────────────────────────────────
 
   function goToCheckout(dest: string) {
     if (tok()) navigate(dest);
@@ -428,7 +513,6 @@ export default function OrderFlow() {
 
   function handleSelectPlan(plan: Plan) {
     const cycle = getCycle(plan.id);
-    // Remove previous plan if any
     if (selectedPlan) removeItem(selectedPlan.id);
     addItem({
       planId: plan.id, planName: plan.name, billingCycle: cycle,
@@ -440,13 +524,14 @@ export default function OrderFlow() {
       renewalEnabled:  plan.renewalEnabled,
     });
     setSelectedPlan(plan);
-    setWizardStep(2);
+    setWizardStep(3);
   }
 
   function handleRemovePlan() {
     if (selectedPlan) removeItem(selectedPlan.id);
     setSelectedPlan(null);
-    setWizardStep(1);
+    setHostingSubStep("plans");
+    setWizardStep(2);
   }
 
   function handleCheckout() {
@@ -458,6 +543,13 @@ export default function OrderFlow() {
     } else {
       goToCheckout("/client/cart");
     }
+  }
+
+  function handleCopyLink(planId: string) {
+    const link = `${window.location.origin}/order/add/${planId}`;
+    copyToClipboard(link);
+    setCopiedPlanId(planId);
+    setTimeout(() => setCopiedPlanId(null), 2000);
   }
 
   // ── Transfer submit ───────────────────────────────────────────────────────
@@ -474,12 +566,12 @@ export default function OrderFlow() {
 
   // ── Sidebar visibility ────────────────────────────────────────────────────
 
-  const showSidebar  = wizardStep >= 1 && flow !== null && flow !== "transfer";
+  const showSidebar  = wizardStep >= 2 && flow === "hosting";
   const currentCycle = selectedPlan ? getCycle(selectedPlan.id) : "monthly";
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
   // STEP 0 — Category Selection
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   function renderStep0() {
     const cards = [
@@ -497,21 +589,24 @@ export default function OrderFlow() {
             <circle cx="24" cy="22" r="2" fill={P}/>
           </svg>
         ),
-        title: "Web Hosting", subtitle: "Shared, Reseller, and VPS solutions.",
+        title: "Web Hosting",
+        subtitle: "Shared, WordPress & Reseller hosting solutions.",
         bullets: ["cPanel & WHM included", "Free SSL Certificate", "NVMe SSD Storage", "99.9% Uptime Guarantee"],
         cta: "View Plans",
       },
       {
         id: "domain" as Flow, popular: false,
         icon: <Globe size={28} strokeWidth={1.5} style={{ color: P }} />,
-        title: "Register New Domain", subtitle: "Find the perfect name for your business.",
+        title: "Register New Domain",
+        subtitle: "Find the perfect name for your business.",
         bullets: ["50+ domain extensions", "WHOIS privacy included", "Auto-renewal options", "Full DNS management"],
         cta: "Search Domain",
       },
       {
         id: "transfer" as Flow, popular: false,
         icon: <ArrowRightLeft size={26} strokeWidth={1.5} style={{ color: P }} />,
-        title: "Transfer Domain", subtitle: "Move your domain to Noehost easily.",
+        title: "Transfer Domain",
+        subtitle: "Move your domain to Noehost easily.",
         bullets: ["Free 1-year extension", "Keep your existing domain", "Easy EPP code transfer", "Best PKR rates"],
         cta: "Start Transfer",
       },
@@ -527,36 +622,45 @@ export default function OrderFlow() {
           {cards.map(card => (
             <button
               key={card.id}
-              onClick={() => { setFlow(card.id); setWizardStep(1); }}
+              onClick={() => {
+                setFlow(card.id);
+                setHostingSubStep("groups");
+                setSelectedGroupId(null);
+                setWizardStep(1);
+              }}
               className={`relative group text-left rounded-2xl p-6 sm:p-7 flex flex-col transition-all duration-200 focus:outline-none
                 ${card.popular
                   ? "bg-white border-2 border-[#701AFE] shadow-lg shadow-[#701AFE]/10"
                   : "bg-white border border-gray-200 hover:border-[#701AFE] hover:shadow-lg hover:shadow-[#701AFE]/8"}`}
             >
               {card.popular && (
-                <div className="absolute -top-3 left-5 flex items-center gap-1 px-3 py-0.5 bg-[#701AFE] text-white text-[11px] font-bold rounded-full">
-                  <Star size={9} strokeWidth={2.5} /> MOST POPULAR
+                <div className="absolute -top-3 left-6 flex items-center gap-1 bg-[#701AFE] text-white text-[10px] font-bold px-3 py-1 rounded-full shadow">
+                  <Star size={8} strokeWidth={3} /> MOST ORDERED
                 </div>
               )}
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#701AFE]/8 flex items-center justify-center mb-4 sm:mb-5 group-hover:bg-[#701AFE]/14 transition-colors shrink-0">
+
+              <div className="w-12 h-12 rounded-xl bg-[#701AFE]/8 flex items-center justify-center mb-4 group-hover:bg-[#701AFE]/14 transition-colors">
                 {card.icon}
               </div>
-              {card.popular && <div className="mb-1"><Pill label="Most Popular" color="purple" /></div>}
-              <h3 className="text-[17px] sm:text-[18px] font-bold text-black mb-1 leading-snug">{card.title}</h3>
-              <p className="text-[13px] text-gray-500 mb-4 leading-relaxed">{card.subtitle}</p>
-              <ul className="space-y-2 mb-6">
+
+              <h3 className="text-[16px] font-bold text-black mb-1 leading-tight">{card.title}</h3>
+              <p className="text-[12px] text-gray-400 mb-4 leading-relaxed">{card.subtitle}</p>
+
+              <ul className="space-y-2 mb-5 flex-1">
                 {card.bullets.map(b => (
-                  <li key={b} className="flex items-center gap-2 text-[13px] text-gray-700">
-                    <Check size={13} strokeWidth={2.5} className="text-[#701AFE] shrink-0" /> {b}
+                  <li key={b} className="flex items-center gap-2 text-[12px] text-gray-600">
+                    <Check size={12} strokeWidth={2.5} className="text-[#701AFE] shrink-0" /> {b}
                   </li>
                 ))}
               </ul>
+
               <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#701AFE] mt-auto group-hover:gap-2.5 transition-all">
                 {card.cta} <ChevronRight size={14} strokeWidth={2.5} />
               </div>
             </button>
           ))}
         </div>
+
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 mt-6 text-[12px] text-gray-400">
           <span className="flex items-center gap-1.5"><Lock size={11} /> Secure Checkout</span>
           <span className="hidden sm:inline">·</span>
@@ -568,40 +672,116 @@ export default function OrderFlow() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // STEP 1 — Hosting Plans (tabs)
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // STEP 1 — Hosting Group Selection
+  // ─────────────────────────────────────────────────────────────────────────
 
-  const tabDefs = [
-    { id: "shared"   as HostingTab, label: "Shared",   icon: <Globe size={14} />, tagline: "Best for websites, blogs & small businesses" },
-    { id: "reseller" as HostingTab, label: "Reseller",  icon: <Users size={14} />, tagline: "Start your own hosting business with WHM" },
-    { id: "vps"      as HostingTab, label: "VPS",       icon: <Zap size={14} />,   tagline: "Dedicated resources with root SSH access" },
-  ];
+  function renderHostingGroups() {
+    // Only show web hosting groups (exclude VPS from this page since VPS has its own flow)
+    const webGroups = productGroups.filter(g =>
+      g.isActive && g.slug !== "vps-hosting"
+    );
+
+    return (
+      <motion.div key="hosting-groups" {...fade}>
+        <BackLink onClick={() => { setWizardStep(0); setFlow(null); }} />
+        <SectionTitle
+          title="Choose Hosting Type"
+          sub="Select the hosting solution that fits your needs. All plans include free SSL, cPanel access, and 99.9% uptime."
+        />
+
+        {groupsLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <Loader2 size={28} className="animate-spin text-[#701AFE]" />
+            <p className="text-sm text-gray-400">Loading hosting options…</p>
+          </div>
+        ) : (
+          <div className={`grid gap-5 ${
+            webGroups.length === 1 ? "max-w-sm mx-auto" :
+            webGroups.length === 2 ? "grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto" :
+            "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          }`}>
+            {webGroups.map((group, idx) => {
+              const meta   = GROUP_META[group.slug] || GROUP_META["shared-hosting"];
+              const isMain = idx === 0;
+
+              return (
+                <button
+                  key={group.id}
+                  onClick={() => {
+                    setSelectedGroupId(group.id);
+                    setHostingSubStep("plans");
+                    setWizardStep(2);
+                  }}
+                  className={`relative group text-left rounded-2xl p-6 flex flex-col transition-all duration-200 focus:outline-none
+                    ${isMain
+                      ? "bg-white border-2 border-[#701AFE] shadow-xl shadow-[#701AFE]/12"
+                      : "bg-white border border-gray-200 hover:border-[#701AFE] hover:shadow-lg hover:shadow-[#701AFE]/8"}`}
+                >
+                  {meta.badge && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-1 bg-[#701AFE] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow">
+                      <Star size={9} strokeWidth={3} /> {meta.badge}
+                    </div>
+                  )}
+
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${
+                    isMain ? "bg-[#701AFE]/12" : "bg-[#701AFE]/8 group-hover:bg-[#701AFE]/14"
+                  }`} style={{ color: P }}>
+                    {meta.icon}
+                  </div>
+
+                  <h3 className="text-[17px] font-bold text-black mb-1 leading-tight">{group.name}</h3>
+                  <p className="text-[12px] text-gray-400 mb-4 leading-relaxed">{meta.tagline}</p>
+
+                  <ul className="space-y-2 mb-5 flex-1">
+                    {meta.bullets.map(b => (
+                      <li key={b} className="flex items-center gap-2 text-[12px] text-gray-600">
+                        <Check size={12} strokeWidth={2.5} className="text-[#701AFE] shrink-0" /> {b}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#701AFE] mt-auto group-hover:gap-2.5 transition-all">
+                    View Plans <ChevronRight size={14} strokeWidth={2.5} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <p className="text-center text-[12px] text-gray-400 mt-6 flex items-center justify-center gap-1.5">
+          <Shield size={12} /> 30-day money-back guarantee on all plans
+        </p>
+      </motion.div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STEP 2 — Plan Selection (for selected group)
+  // ─────────────────────────────────────────────────────────────────────────
 
   function renderHostingPlans() {
+    const selectedGroup = productGroups.find(g => g.id === selectedGroupId);
+    const groupName     = selectedGroup?.name ?? "Hosting";
+    const groupSlug     = selectedGroup?.slug ?? "shared-hosting";
+    const isWordPress   = groupSlug === "wordpress-hosting";
+    const isReseller    = groupSlug === "reseller-hosting";
+
     return (
       <motion.div key="hosting-plans" {...fade}>
-        <BackLink onClick={() => { setWizardStep(0); setFlow(null); }} />
-        <SectionTitle title="Choose Your Plan" sub="Start small, scale effortlessly. Upgrade anytime." />
-
-        {/* Tabs — horizontally scrollable on mobile */}
-        <div className="overflow-x-auto pb-1 -mx-1 px-1 mb-2">
-          <div className="flex gap-2 min-w-max justify-center">
-            {tabDefs.map(t => (
-              <button key={t.id} onClick={() => setHostingTab(t.id)}
-                className={`flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-xl text-[13px] font-semibold border transition-all whitespace-nowrap ${
-                  hostingTab === t.id
-                    ? "bg-[#701AFE] text-white border-[#701AFE] shadow-sm shadow-[#701AFE]/30"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-[#701AFE]/50 hover:text-[#701AFE]"
-                }`}>
-                {t.icon} {t.label} Hosting
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="text-center text-[12px] text-gray-400 mb-7">
-          {tabDefs.find(t => t.id === hostingTab)?.tagline}
-        </p>
+        <BackLink
+          onClick={() => { setHostingSubStep("groups"); setWizardStep(1); }}
+          label={`← Back to Hosting Types`}
+        />
+        <SectionTitle
+          title={groupName + " Plans"}
+          sub={
+            isWordPress  ? "Managed WordPress with LiteSpeed, LSCache & daily backups." :
+            isReseller   ? "Start your reseller hosting business with WHM & white-label branding." :
+            "Reliable shared hosting with cPanel, free SSL & NVMe SSD storage."
+          }
+        />
 
         {plansLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -617,9 +797,10 @@ export default function OrderFlow() {
           <div className={`grid gap-4 sm:gap-5 ${
             displayPlans.length === 1 ? "max-w-xs mx-auto" :
             displayPlans.length === 2 ? "grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto" :
-            "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
+            "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          }`}>
             {displayPlans.map((plan, idx) => {
-              const isPopular  = displayPlans.length > 1 && idx === 1;
+              const isPopular  = displayPlans.length > 1 && idx === Math.floor(displayPlans.length / 2);
               const cycle      = getCycle(plan.id);
               const price      = planPrice(plan, cycle);
               const cycles     = planCycles(plan);
@@ -629,7 +810,8 @@ export default function OrderFlow() {
                 <div key={plan.id} className={`relative flex flex-col rounded-2xl bg-white transition-all ${
                   isPopular
                     ? "border-2 border-[#701AFE] shadow-xl shadow-[#701AFE]/12"
-                    : "border border-gray-200 hover:border-[#701AFE]/60 hover:shadow-lg"}`}>
+                    : "border border-gray-200 hover:border-[#701AFE]/60 hover:shadow-lg"
+                }`}>
 
                   {isPopular && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-1 bg-[#701AFE] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow">
@@ -640,14 +822,11 @@ export default function OrderFlow() {
                   {/* Header */}
                   <div className={`px-5 pt-6 pb-4 border-b ${isPopular ? "border-[#701AFE]/20" : "border-gray-100"}`}>
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <h3 className="text-[16px] font-bold text-black leading-tight">{plan.name}</h3>
-                        {plan.description && <p className="text-[11px] text-gray-400 mt-0.5">{plan.description}</p>}
-                      </div>
+                      <h3 className="text-[16px] font-bold text-black leading-tight">{plan.name}</h3>
                       {isPopular && <Pill label="Best Value" color="purple" />}
                     </div>
 
-                    {/* Billing cycle pills */}
+                    {/* Billing cycle selector */}
                     {cycles.length > 1 && (
                       <div className="flex flex-wrap gap-1.5 mb-3">
                         {cycles.map(c => (
@@ -666,29 +845,47 @@ export default function OrderFlow() {
 
                     {/* Price */}
                     <div className="flex items-end gap-1">
-                      <span className="text-[34px] sm:text-[38px] font-extrabold text-black leading-none">{formatPrice(price)}</span>
+                      <span className="text-[34px] sm:text-[38px] font-extrabold text-black leading-none">
+                        {formatPrice(Number(price) || 0)}
+                      </span>
                       <span className="text-[13px] text-gray-400 mb-1">{CYCLE_SUFFIX[cycle]}</span>
                     </div>
                     {cycle !== "monthly" && (
-                      <p className="text-[11px] text-gray-400 mt-0.5">{formatPrice(plan.price)}/mo billed {CYCLE_LABELS[cycle].toLowerCase()}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {formatPrice(Number(plan.price) || 0)}/mo billed {CYCLE_LABELS[cycle].toLowerCase()}
+                      </p>
+                    )}
+                    {plan.yearlyPrice && cycle === "monthly" && (
+                      <p className="text-[11px] text-green-600 mt-0.5 font-medium">
+                        Save up to {Math.round((1 - Number(plan.yearlyPrice) / (Number(plan.price) * 12)) * 100)}% yearly
+                      </p>
                     )}
                   </div>
 
                   {/* Features */}
                   <div className="px-5 py-4 flex-1">
                     <ul className="space-y-2.5">
-                      <Feature icon={<HardDrive size={12} />} text={`${plan.diskSpace} Storage`} />
-                      <Feature icon={<Wifi size={12} />}      text={`${plan.bandwidth} Bandwidth`} />
-                      <Feature icon={<Mail size={12} />}      text={`${plan.emailAccounts ?? "Unlimited"} Email Accounts`} />
-                      <Feature icon={<Database size={12} />}  text={`${plan.databases ?? "Unlimited"} Databases`} />
-                      {(plan.features ?? []).slice(0, 4).map(f => (
-                        <Feature key={f} icon={<Check size={12} />} text={f} />
+                      <Feature text={`${plan.diskSpace || "Unlimited"} Storage`} />
+                      <Feature text={`${plan.bandwidth || "Unlimited"} Bandwidth`} />
+                      {isReseller ? (
+                        <>
+                          <Feature text={`${plan.emailAccounts ?? "Unlimited"} cPanel Accounts`} />
+                          <Feature text="WHM Control Panel" />
+                        </>
+                      ) : (
+                        <>
+                          <Feature text={`${plan.emailAccounts ?? "Unlimited"} Email Accounts`} />
+                          <Feature text={`${plan.databases ?? "Unlimited"} Databases`} />
+                        </>
+                      )}
+                      {(plan.features ?? []).slice(0, isWordPress ? 4 : 3).map(f => (
+                        <Feature key={f} text={f} />
                       ))}
                     </ul>
                   </div>
 
-                  {/* CTA */}
-                  <div className="px-5 pb-5">
+                  {/* CTA buttons */}
+                  <div className="px-5 pb-5 space-y-2">
                     <button
                       onClick={() => handleSelectPlan(plan)}
                       disabled={isSelected}
@@ -701,7 +898,18 @@ export default function OrderFlow() {
                       }`}>
                       {isSelected
                         ? <><CheckCircle2 size={15} /> Plan Selected</>
-                        : <><ShoppingCart size={15} /> Select Plan</>}
+                        : <><ShoppingCart size={15} /> Order Now</>}
+                    </button>
+
+                    {/* Direct link copy button */}
+                    <button
+                      onClick={() => handleCopyLink(plan.id)}
+                      className="w-full py-2 rounded-xl text-[12px] font-medium border border-gray-200 text-gray-500 hover:border-[#701AFE]/40 hover:text-[#701AFE] transition-all flex items-center justify-center gap-1.5">
+                      {copiedPlanId === plan.id ? (
+                        <><CheckCircle2 size={12} className="text-green-500" /> Link Copied!</>
+                      ) : (
+                        <><Copy size={12} /> Copy Direct Link</>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -709,6 +917,7 @@ export default function OrderFlow() {
             })}
           </div>
         )}
+
         <p className="text-center text-[12px] text-gray-400 mt-5 flex items-center justify-center gap-1.5">
           <Shield size={12} /> 30-day money-back guarantee on all plans
         </p>
@@ -716,9 +925,9 @@ export default function OrderFlow() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
   // STEP 1 — Register Domain Flow
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   function renderRegisterDomain() {
     const searchedName = regResults ? cleanName(regQuery) : "";
@@ -758,7 +967,7 @@ export default function OrderFlow() {
               {tldPricing.slice(0, 8).map(t => (
                 <span key={t.tld} className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[12px] text-gray-600">
                   <span className="font-semibold">{t.tld}</span>
-                  <span className="text-gray-400 ml-1">{formatPrice(t.registrationPrice)}/yr</span>
+                  <span className="text-gray-400 ml-1">{formatPrice(Number(t.registrationPrice))}/yr</span>
                 </span>
               ))}
             </div>
@@ -792,7 +1001,7 @@ export default function OrderFlow() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                  <span className="text-[13px] sm:text-[14px] font-bold text-black">{formatPrice(r.registrationPrice)}/yr</span>
+                  <span className="text-[13px] sm:text-[14px] font-bold text-black">{formatPrice(Number(r.registrationPrice))}/yr</span>
                   {r.available && (
                     <button
                       onClick={() => {
@@ -815,9 +1024,9 @@ export default function OrderFlow() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
   // STEP 1 — Transfer Flow
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   function renderTransfer() {
     return (
@@ -866,9 +1075,9 @@ export default function OrderFlow() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // STEP 2 — Domain Association (hosting flow)
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // STEP 3 — Domain Association (after plan selected)
+  // ─────────────────────────────────────────────────────────────────────────
 
   function renderDomainAssociation() {
     const searchedName = domainResults ? cleanName(domainQuery) : "";
@@ -880,15 +1089,15 @@ export default function OrderFlow() {
 
     return (
       <motion.div key="domain-assoc" {...fade}>
-        <BackLink onClick={() => { setWizardStep(1); setDomainMode(null); setDomainResults(null); }} />
+        <BackLink onClick={() => { setWizardStep(2); setDomainMode(null); setDomainResults(null); }} />
 
-        {/* Success notice */}
+        {/* Plan selected success notice */}
         <div className="max-w-md mx-auto mb-7">
           <div className="flex items-center gap-3 px-4 py-3.5 bg-green-50 border border-green-200 rounded-xl">
             <CheckCircle2 size={17} className="text-green-500 shrink-0" />
             <div>
               <p className="text-[13px] font-semibold text-green-800">{selectedPlan?.name} added to your cart!</p>
-              <p className="text-[12px] text-green-600">Now choose what to do with your domain.</p>
+              <p className="text-[12px] text-green-600">Now set up your domain to complete the order.</p>
             </div>
           </div>
         </div>
@@ -898,10 +1107,22 @@ export default function OrderFlow() {
         {!domainMode && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-5">
             {[
-              { mode: "register" as DomainMode, icon: <Search size={20} style={{ color: P }} />, title: "Register a New Domain", desc: "Search and register a fresh domain name for your site.", badge: "Recommended" },
-              { mode: "existing" as DomainMode, icon: <Globe size={20}  style={{ color: P }} />, title: "Use an Existing Domain", desc: "I already own a domain and will point it to Noehost.", badge: null },
+              {
+                mode: "register" as DomainMode,
+                icon: <Search size={20} style={{ color: P }} />,
+                title: "Register a New Domain",
+                desc: "Search and register a fresh domain name for your site.",
+                badge: "Recommended",
+              },
+              {
+                mode: "existing" as DomainMode,
+                icon: <Globe size={20} style={{ color: P }} />,
+                title: "Use an Existing Domain",
+                desc: "I already own a domain and will point it to Noehost.",
+                badge: null,
+              },
             ].map(opt => (
-              <button key={opt.mode} onClick={() => setDomainMode(opt.mode)}
+              <button key={opt.mode as string} onClick={() => setDomainMode(opt.mode)}
                 className="group text-left bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#701AFE] hover:shadow-md hover:shadow-[#701AFE]/8 transition-all focus:outline-none">
                 <div className="w-10 h-10 bg-[#701AFE]/8 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#701AFE]/14 transition-colors">
                   {opt.icon}
@@ -961,26 +1182,21 @@ export default function OrderFlow() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[13px] font-bold">{formatPrice(r.registrationPrice)}/yr</span>
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      <span className="text-[13px] font-bold text-black">{formatPrice(Number(r.registrationPrice))}/yr</span>
                       {r.available && (
                         <button
                           onClick={() => {
                             setCartDomain({ fullName: `${searchedName}${r.tld}`, price: r.registrationPrice });
                             goToCheckout("/client/cart");
                           }}
-                          className="px-3.5 py-1.5 bg-[#701AFE] text-white rounded-lg text-[12px] font-bold hover:bg-[#5e14d4] transition-all">
-                          Select
+                          className="px-3 py-1.5 bg-[#701AFE] text-white rounded-lg text-[12px] font-bold hover:bg-[#5e14d4] transition-all">
+                          Add + Checkout
                         </button>
                       )}
                     </div>
                   </div>
                 ))}
-                <div className="text-center pt-2">
-                  <button onClick={() => goToCheckout("/client/cart")} className="text-[13px] text-gray-400 hover:text-[#701AFE] underline transition-colors">
-                    Skip domain, proceed to checkout
-                  </button>
-                </div>
               </div>
             )}
           </motion.div>
@@ -989,26 +1205,40 @@ export default function OrderFlow() {
         {/* Existing domain sub-step */}
         {domainMode === "existing" && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto">
-            <button onClick={() => setDomainMode(null)}
+            <button onClick={() => { setDomainMode(null); setExistingDomain(""); setDomainError(""); }}
               className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-[#701AFE] mb-4 transition-colors">
               <ArrowLeft size={13} /> Change option
             </button>
+
+            <div className="bg-[#faf8ff] border border-[#e8e0ff] rounded-xl p-4 mb-4">
+              <p className="text-[12px] text-[#701AFE] font-semibold mb-1">Point your domain to Noehost</p>
+              <p className="text-[12px] text-gray-500">Update your domain's nameservers to:</p>
+              <div className="mt-2 space-y-1 font-mono text-[12px] text-gray-700">
+                <p className="bg-white rounded px-3 py-1.5 border border-gray-200">ns1.noehost.com</p>
+                <p className="bg-white rounded px-3 py-1.5 border border-gray-200">ns2.noehost.com</p>
+              </div>
+            </div>
+
             <div className="mb-4">
-              <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">Your domain name</label>
+              <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">Your Domain Name</label>
               <div className="relative">
                 <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={existingDomain} onChange={e => setExistingDomain(e.target.value)} placeholder="example.com" autoFocus
+                <input value={existingDomain}
+                  onChange={e => { setExistingDomain(e.target.value); setDomainError(""); }}
+                  placeholder="yourdomain.com" autoFocus
                   className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]" />
               </div>
-              <p className="text-[12px] text-gray-400 mt-1">You'll update your nameservers to point to us after checkout.</p>
+              {domainError && <p className="mt-1.5 text-[12px] text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {domainError}</p>}
             </div>
+
             <button
               onClick={() => {
-                if (existingDomain.trim()) setCartDomain({ fullName: existingDomain.trim(), price: 0 });
+                if (!existingDomain.includes(".")) { setDomainError("Please enter a valid domain name, e.g. yourdomain.com"); return; }
+                sessionStorage.setItem("hosting_domain", existingDomain);
                 goToCheckout("/client/cart");
               }}
-              className="w-full py-3 bg-[#701AFE] text-white rounded-xl text-[14px] font-bold hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 transition-all flex items-center justify-center gap-2">
-              <ShoppingCart size={15} /> Proceed to Checkout
+              className="w-full py-3.5 bg-[#701AFE] text-white rounded-xl text-[14px] font-bold hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 transition-all flex items-center justify-center gap-2">
+              Continue to Checkout <ChevronRight size={16} />
             </button>
           </motion.div>
         )}
@@ -1016,71 +1246,63 @@ export default function OrderFlow() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Root render
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render router
+  // ─────────────────────────────────────────────────────────────────────────
 
-  const progressStep = wizardStep === 0 ? 0 : wizardStep === 1 ? 1 : 2;
+  function renderMain() {
+    if (wizardStep === 0) return renderStep0();
+
+    if (flow === "domain")   return renderRegisterDomain();
+    if (flow === "transfer") return renderTransfer();
+
+    if (flow === "hosting") {
+      if (wizardStep === 1) return renderHostingGroups();
+      if (wizardStep === 2) return renderHostingPlans();
+      if (wizardStep === 3) return renderDomainAssociation();
+    }
+
+    return renderStep0();
+  }
 
   return (
-    <div className="min-h-screen bg-[#fafafa]" style={{ fontFamily: "'Inter', sans-serif" }}>
-
-      {/* ── Sticky header ── */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <button onClick={() => navigate("/")} className="text-[20px] font-extrabold text-[#701AFE] tracking-tight">
-            Noehost
-          </button>
-          <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
-            <Lock size={12} /> <span className="hidden sm:inline">Secure Checkout</span>
-          </div>
+    <div className="min-h-screen bg-[#FAFAFA]">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        {/* Logo / Brand */}
+        <div className="text-center mb-8">
+          <span className="text-[22px] font-extrabold" style={{ color: P }}>Noehost</span>
+          <span className="text-[22px] font-extrabold text-gray-800"> Order</span>
         </div>
-      </header>
 
-      {/* ── Content ── */}
-      <main className={`max-w-6xl mx-auto px-4 sm:px-6 py-10 ${hasMobileBar ? "pb-24 lg:pb-10" : ""}`}>
         <ProgressBar step={progressStep} />
 
-        {/* Layout: single column for step 0 and transfer; two-column otherwise */}
-        <div className={showSidebar ? "lg:grid lg:grid-cols-[1fr_300px] lg:gap-8 lg:items-start" : ""}>
-
-          {/* ── Main wizard content ── */}
-          <div>
+        <div className="flex gap-6 items-start">
+          {/* Main content */}
+          <div className={showSidebar ? "flex-1 min-w-0" : "w-full"}>
             <AnimatePresence mode="wait">
-              {wizardStep === 0                                && renderStep0()}
-              {wizardStep === 1 && flow === "hosting"          && renderHostingPlans()}
-              {wizardStep === 1 && flow === "domain"           && renderRegisterDomain()}
-              {wizardStep === 1 && flow === "transfer"         && renderTransfer()}
-              {wizardStep === 2 && flow === "hosting"          && renderDomainAssociation()}
+              {renderMain()}
             </AnimatePresence>
           </div>
 
-          {/* ── Order Summary (sidebar on desktop, sticky bar on mobile) ── */}
+          {/* Order summary sidebar */}
           {showSidebar && (
-            <OrderSummary
-              plan={selectedPlan}
-              planCycle={currentCycle}
-              domain={cartDomain}
-              formatPrice={formatPrice}
-              onRemovePlan={handleRemovePlan}
-              onRemoveDomain={() => setCartDomain(null)}
-              onCheckout={handleCheckout}
-            />
+            <div className="w-64 shrink-0">
+              <OrderSummary
+                plan={selectedPlan}
+                planCycle={currentCycle}
+                domain={cartDomain}
+                formatPrice={formatPrice}
+                onRemovePlan={handleRemovePlan}
+                onRemoveDomain={() => setCartDomain(null)}
+                onCheckout={handleCheckout}
+              />
+            </div>
           )}
         </div>
-      </main>
+      </div>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-gray-100 bg-white mt-10 py-5">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-[12px] text-gray-400">
-          <span>© 2026 Noehost · All rights reserved.</span>
-          <div className="flex gap-4">
-            <a href="/terms"             className="hover:text-[#701AFE] transition-colors">Terms</a>
-            <a href="/privacy"           className="hover:text-[#701AFE] transition-colors">Privacy</a>
-            <a href="/client/tickets/new"className="hover:text-[#701AFE] transition-colors">Support</a>
-          </div>
-        </div>
-      </footer>
+      {/* Mobile padding for bottom bar */}
+      {showSidebar && <div className="lg:hidden h-20" />}
     </div>
   );
 }

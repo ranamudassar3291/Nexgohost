@@ -36,7 +36,10 @@ import { eq } from "drizzle-orm";
 import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
 import { twentyiCreateHosting } from "./twenty-i.js";
 import type { TwentyICreateResult } from "./twenty-i.js";
-import { emailHostingCreated, emailVerificationCode } from "./email.js";
+import { emailHostingCreated, emailResellerHostingCreated, emailVerificationCode } from "./email.js";
+
+// Product group slugs for routing welcome emails
+const RESELLER_SLUG = "reseller-hosting";
 
 function generatePassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
@@ -439,18 +442,40 @@ export async function provisionHostingService(
     updatedAt: new Date(),
   }).where(eq(hostingServicesTable.id, serviceId));
 
-  // ── Send welcome email ─────────────────────────────────────────────────────
+  // ── Send welcome email (type depends on plan group) ───────────────────────
   try {
-    await emailHostingCreated(user.email, {
-      clientName: `${user.firstName} ${user.lastName}`,
-      domain: service.domain || domain,
-      username,
-      password,
-      cpanelUrl,
-      ns1: server?.ns1 || "ns1.noehost.com",
-      ns2: server?.ns2 || "ns2.noehost.com",
-      webmailUrl,
-    }, { clientId: user.id, referenceId: serviceId });
+    const isReseller = plan?.groupSlug === RESELLER_SLUG || plan?.name?.toLowerCase().includes("reseller");
+
+    if (isReseller) {
+      // Reseller plans get WHM welcome email with WHM URL and account limits
+      const whmHost = server?.hostname ? `https://${server.hostname}:2087` : "https://whmserver.noehost.com:2087";
+      await emailResellerHostingCreated(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`.trim() || user.email,
+        username,
+        password,
+        whmUrl: whmHost,
+        cpanelUrl: cpanelUrl || `https://${server?.hostname || "noehost.com"}:2083`,
+        maxAccounts: "As per your plan",
+        diskSpace: plan?.diskSpace || "Unlimited",
+        bandwidth: plan?.bandwidth || "Unlimited",
+        serverIp: finalServerIp || server?.hostname || "noehost.com",
+        ns1: server?.ns1 || "ns1.noehost.com",
+        ns2: server?.ns2 || "ns2.noehost.com",
+      }, { clientId: user.id, referenceId: serviceId });
+    } else {
+      // Shared / WordPress hosting — standard cPanel welcome email
+      // WordPress install confirmation email is sent separately when WP is provisioned
+      await emailHostingCreated(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        domain: service.domain || domain,
+        username,
+        password,
+        cpanelUrl,
+        ns1: server?.ns1 || "ns1.noehost.com",
+        ns2: server?.ns2 || "ns2.noehost.com",
+        webmailUrl,
+      }, { clientId: user.id, referenceId: serviceId });
+    }
   } catch (emailErr: any) {
     console.warn("[PROVISION] Failed to send welcome email:", emailErr.message);
   }

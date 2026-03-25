@@ -148,6 +148,25 @@ function OrderByVpsId() {
   return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
 }
 
+// WHMCS-style cart URL: /cart?a=add&pid=UUID  — direct order link
+// Also handles ?gid=UUID for group-based ordering
+function WhmcsCartRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const pid    = params.get("pid")  ?? "";
+  const gid    = params.get("gid")  ?? "";
+  const action = params.get("a")    ?? "";
+
+  if (action === "add" && pid) {
+    return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
+  }
+  if (gid) {
+    return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
+  }
+  // Fallback: go to the public order wizard
+  window.location.replace("/order");
+  return null;
+}
+
 // ─── Router Root ──────────────────────────────────────────────────────────────
 // FLAT route tree — no nested Switch wildcards.
 // Wouter v3 strips the matched prefix in nested Switches (wildcard routes),
@@ -340,6 +359,8 @@ function RouterRoot() {
       {/* VPS direct links: /order/vps/:planId and ?vps_id=UUID */}
       <Route path="/order/vps/:planId" component={OrderByVpsPlan}/>
       <Route path="/order/vps" component={OrderByVpsId}/>
+      {/* WHMCS cart-style URL: /cart?a=add&pid=UUID or /cart?gid=UUID */}
+      <Route path="/cart" component={WhmcsCartRedirect}/>
 
       <Route path="/client/orders/new">
         <CheckoutLayout><NewOrder /></CheckoutLayout>
