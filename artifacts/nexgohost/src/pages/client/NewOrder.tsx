@@ -561,12 +561,13 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
   // ── Queries ───────────────────────────────────────────────────────────────
 
-  const { data: groups = [], isLoading: groupsLoading } = useQuery<ProductGroup[]>({
+  const { data: rawGroups = [], isLoading: groupsLoading } = useQuery<ProductGroup[]>({
     queryKey: ["product-groups"],
     queryFn: async () => (await fetch("/api/product-groups")).json(),
     enabled: service === "hosting" && step >= 1,
     staleTime: 120_000,
   });
+  const groups = rawGroups.filter(g => g.slug !== "vps-hosting");
 
   const { data: allPlans = [], isLoading: plansLoading } = useQuery<Plan[]>({
     queryKey: ["order-plans"],
@@ -867,7 +868,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         id: "hosting" as ServiceType, popular: true,
         icon: <Server size={26} strokeWidth={1.6} style={{ color: P }}/>,
         title: "Web Hosting",
-        desc: "Shared, Reseller, VPS & WordPress with cPanel, WHM, free SSL.",
+        desc: "Shared, Reseller & WordPress hosting with cPanel, WHM, and free SSL.",
         bullets: ["cPanel & WHM included", "NVMe SSD Storage", "Free SSL Certificates", "99.9% Uptime SLA"],
       },
       {
@@ -883,13 +884,6 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         title: "Domain Transfer",
         desc: "Move your domain to Noehost and receive a free 1-year extension.",
         bullets: ["Free 1-year extension", "Keep your domain live", "Simple EPP process", "Lower renewal prices"],
-      },
-      {
-        id: "vps" as ServiceType, popular: false,
-        icon: <Cpu size={22} strokeWidth={1.6} style={{ color: P }}/>,
-        title: "VPS Hosting",
-        desc: "KVM-powered cloud servers with full root access, dedicated IP, and DDoS protection.",
-        bullets: ["Full Root Access", "DDoS Protection", "Dedicated IP", "NVMe SSD Storage"],
       },
     ];
 
