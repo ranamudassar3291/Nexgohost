@@ -187,6 +187,23 @@ function buildInvoiceNumber(inv: any): string {
   return `INV${String(inv.id).padStart(5, "0")}`;
 }
 
+// ── Outbound IP (so admin knows what to whitelist in WHMCS) ──────────────────
+router.get("/admin/whmcs/my-ip", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const r = await fetch("https://api.ipify.org?format=json", { signal: AbortSignal.timeout(8000) });
+    const d = await r.json();
+    res.json({ ip: d.ip });
+  } catch {
+    try {
+      const r2 = await fetch("https://ifconfig.me/ip", { signal: AbortSignal.timeout(8000) });
+      const ip = (await r2.text()).trim();
+      res.json({ ip });
+    } catch {
+      res.json({ ip: "unknown" });
+    }
+  }
+});
+
 // ── Test ──────────────────────────────────────────────────────────────────────
 router.post("/admin/whmcs/test", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {

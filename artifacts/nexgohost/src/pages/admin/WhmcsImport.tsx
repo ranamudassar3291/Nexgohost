@@ -6,6 +6,7 @@ import {
   Server, Users, Globe, FileText, Package, ArrowRight,
   ArrowLeft, Link, Key, Eye, EyeOff, ClipboardList,
   Shield, Zap, ChevronDown, ChevronUp, ShoppingCart, Tag, MessageSquare,
+  Copy, Check,
 } from "lucide-react";
 
 interface Credentials { whmcsUrl: string; identifier: string; secret: string; }
@@ -94,6 +95,8 @@ export default function WhmcsImport() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [serverIp, setServerIp] = useState<string | null>(null);
+  const [ipCopied, setIpCopied] = useState(false);
   const [options, setOptions] = useState<ImportOptions>({
     importExtensions: true, importPlans: true, importServers: true,
     importClients: true, importPasswords: true, importServices: true,
@@ -105,6 +108,18 @@ export default function WhmcsImport() {
   const [showAllLogs, setShowAllLogs] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    apiFetch("/api/admin/whmcs/my-ip").then(d => setServerIp(d.ip)).catch(() => {});
+  }, []);
+
+  function copyIp() {
+    if (!serverIp) return;
+    navigator.clipboard.writeText(serverIp).then(() => {
+      setIpCopied(true);
+      setTimeout(() => setIpCopied(false), 2000);
+    });
+  }
 
   useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
@@ -208,12 +223,41 @@ export default function WhmcsImport() {
         {/* ─── STEP 1: Credentials ─────────────────────────────────────────── */}
         {step === 1 && (
           <div className="bg-[#16162a] border border-[#2a2a4a] rounded-xl p-6 space-y-6">
+
+            {/* ⚠️ IP Whitelist Banner — always visible at top */}
+            <div className="bg-yellow-500/10 border border-yellow-500/40 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-yellow-400 font-bold text-sm">
+                <AlertTriangle size={16} /> WHMCS IP Whitelist Required
+              </div>
+              <p className="text-yellow-200/80 text-xs leading-relaxed">
+                WHMCS blocks API calls from unknown IPs with a <strong>403 error</strong>. You must whitelist this server's IP in:<br />
+                <span className="text-yellow-300">WHMCS Admin → Setup → General Settings → Security → API IP Access Restriction</span>
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-yellow-400/70">Current Server IP:</span>
+                {serverIp
+                  ? <div className="flex items-center gap-2 bg-black/40 border border-yellow-500/30 rounded-lg px-3 py-1.5">
+                      <span className="font-mono font-bold text-yellow-300 text-sm tracking-widest">{serverIp}</span>
+                      <button onClick={copyIp} className="text-yellow-400/70 hover:text-yellow-300 transition-colors ml-1" title="Copy IP">
+                        {ipCopied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                      </button>
+                    </div>
+                  : <span className="text-xs text-yellow-500/60 animate-pulse">fetching…</span>
+                }
+              </div>
+              {testResult && !testResult.ok && testResult.message.includes("403") && (
+                <div className="mt-2 text-red-300 text-xs font-semibold bg-red-500/10 border border-red-500/20 rounded-lg p-2">
+                  403 = IP <strong>{serverIp}</strong> is not whitelisted. Add it in WHMCS, then try again.
+                </div>
+              )}
+            </div>
+
             <div>
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                 <Key size={18} className="text-purple-400" /> WHMCS API Credentials
               </h2>
               <p className="text-gray-400 text-sm mt-1">
-                WHMCS Admin → Setup → General Settings → Security → API Credentials
+                WHMCS Admin → Setup → Staff Management → API Credentials
               </p>
             </div>
 
@@ -251,9 +295,16 @@ export default function WhmcsImport() {
             </div>
 
             {testResult && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${testResult.ok ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
-                {testResult.ok ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                {testResult.message}
+              <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${testResult.ok ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
+                {testResult.ok ? <CheckCircle size={16} className="shrink-0 mt-0.5" /> : <XCircle size={16} className="shrink-0 mt-0.5" />}
+                <div>
+                  {testResult.message}
+                  {!testResult.ok && testResult.message.includes("403") && (
+                    <div className="mt-1 text-xs text-red-300 font-semibold">
+                      → Whitelist IP <span className="font-mono bg-red-900/30 px-1 rounded">{serverIp ?? "…"}</span> in WHMCS Admin → Setup → General Settings → Security → API IP Access Restriction
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
