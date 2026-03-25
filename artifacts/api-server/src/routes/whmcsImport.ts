@@ -47,25 +47,34 @@ interface ImportJob {
 const jobs = new Map<string, ImportJob>();
 
 // ── WHMCS API ─────────────────────────────────────────────────────────────────
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 async function whmcsCall(
   baseUrl: string, id: string, secret: string,
   action: string, params: Record<string, any> = {},
+  retries = 4,
 ): Promise<any> {
   const url = baseUrl.replace(/\/$/, "") + "/includes/api.php";
   const body = new URLSearchParams({
     identifier: id, secret, action, responsetype: "json",
     ...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)])),
   });
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!res.ok) throw new Error(`WHMCS HTTP ${res.status}`);
-  const data = await res.json();
-  if (data.result === "error") throw new Error(`WHMCS: ${data.message}`);
-  return data;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (res.status === 429 || res.status === 503) {
+      if (attempt < retries) { await sleep(3000 * (attempt + 1)); continue; }
+      throw new Error(`WHMCS HTTP ${res.status}`);
+    }
+    if (!res.ok) throw new Error(`WHMCS HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.result === "error") throw new Error(`WHMCS: ${data.message}`);
+    return data;
+  }
 }
 
 async function whmcsPages(
@@ -77,13 +86,14 @@ async function whmcsPages(
   let start = 0;
   while (true) {
     const data = await whmcsCall(baseUrl, id, secret, action, {
-      limitstart: start, limitnum: 250, ...extra,
+      limitstart: start, limitnum: 1000, ...extra,
     });
     const arr = toArray(data[dataKey]?.[subKey]);
     all.push(...arr);
     const total = parseInt(data.totalresults ?? "0");
     start += arr.length;
     if (start >= total || arr.length === 0) break;
+    await sleep(300);
   }
   return all;
 }
@@ -104,8 +114,8 @@ async function batchRun<T>(
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
-function clientStatus(s: string): "active" | "inactive" | "suspended" {
-  return s === "Active" ? "active" : s === "Inactive" ? "inactive" : "suspended";
+function clientStatus(s: string): "active" | "suspended" {
+  return s === "Active" ? "active" : "suspended";
 }
 
 function serviceStatus(s: string): "active" | "suspended" | "terminated" | "pending" {
@@ -141,11 +151,11 @@ function ticketPriority(s: string): "low" | "medium" | "high" | "urgent" {
     Urgent:"urgent", Critical:"urgent" } as any)[s] ?? "medium";
 }
 
-function billingCycle(s: string): string {
-  return ({ Monthly:"monthly", Quarterly:"quarterly",
-    "Semi-Annually":"semi-annually", Annually:"annually",
-    Biennially:"annually", Triennially:"annually",
-    "Free Account":"monthly", "One Time":"monthly" } as any)[s] ?? "monthly";
+function billingCycle(s: string): "monthly" | "yearly" {
+  const t = (s ?? "").toLowerCase();
+  if (t.includes("annual") || t.includes("yearly") || t.includes("year") ||
+      t.includes("bienni") || t.includes("trienni")) return "yearly";
+  return "monthly";
 }
 
 function parseDate(d: string | null | undefined): Date | null {
@@ -367,6 +377,7 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
               const semi     = getPrice(pricing, "semiannually");
               const annually = getPrice(pricing, "annually");
               const base     = monthly ?? annually ?? quarterly ?? semi ?? "0";
+              const planName = (p.name ?? "Imported Plan").trim();
 
               const features: string[] = [];
               if (p.diskspace   && p.diskspace   !== "-1") features.push(`${p.diskspace} MB Disk`);
@@ -375,12 +386,26 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
               if (p.numdatabases && p.numdatabases !== "-1") features.push(`${p.numdatabases} Databases`);
               if (p.numsubdomains && p.numsubdomains !== "-1") features.push(`${p.numsubdomains} Subdomains`);
 
+              // Reuse existing plan if name matches — avoids creating duplicates
+              const [existingPlan] = await db.select({ id: hostingPlansTable.id })
+                .from(hostingPlansTable)
+                .where(sql`lower(${hostingPlansTable.name}) = lower(${planName})`)
+                .limit(1);
+
+              if (existingPlan) {
+                planMap.set(String(p.pid), existingPlan.id);
+                if (!defaultPlanId) defaultPlanId = existingPlan.id;
+                log(`Plan [${p.pid}] "${planName}": matched existing plan`);
+                job.result.plans++;
+                continue;
+              }
+
               const [plan] = await db.insert(hostingPlansTable).values({
-                name: p.name ?? "Imported Plan",
+                name: planName,
                 description: p.description || null,
                 price: base, yearlyPrice: annually ?? null,
                 quarterlyPrice: quarterly ?? null, semiannualPrice: semi ?? null,
-                billingCycle: monthly ? "monthly" : "annually",
+                billingCycle: monthly ? "monthly" : "yearly",
                 diskSpace: p.diskspace && p.diskspace !== "-1" ? `${p.diskspace} MB` : "Unlimited",
                 bandwidth: p.bandwidth && p.bandwidth !== "-1" ? `${p.bandwidth} MB` : "Unlimited",
                 emailAccounts: parseInt(p.numemailaccounts ?? "10") || 10,
@@ -444,18 +469,23 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
 
           const passwordMap = new Map<string, string>();
           if (importPasswords && clients.length > 0) {
-            log(`Fetching passwords for ${clients.length} clients (5 at a time)…`);
+            log(`Fetching passwords for ${clients.length} clients (3 at a time, with rate-limit protection)…`);
             let fetched = 0;
-            await batchRun(clients, 5, async (c) => {
-              try {
-                const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: c.id, stats: false });
-                const rawHash = detail.client?.password ?? detail.password ?? "";
-                const hash = normalizeHash(rawHash);
-                if (hash) passwordMap.set(String(c.id), hash);
+            const batchSize = 3;
+            for (let b = 0; b < clients.length; b += batchSize) {
+              const chunk = clients.slice(b, b + batchSize);
+              await Promise.all(chunk.map(async (c) => {
+                try {
+                  const detail = await whmcsCall(whmcsUrl, identifier, secret, "GetClientsDetails", { clientid: c.id, stats: false });
+                  const rawHash = detail.client?.password ?? detail.password ?? "";
+                  const hash = normalizeHash(rawHash);
+                  if (hash) passwordMap.set(String(c.id), hash);
+                } catch {}
                 fetched++;
-                if (fetched % 25 === 0) log(`  Passwords: ${fetched}/${clients.length}`);
-              } catch {}
-            });
+              }));
+              if (fetched % 50 === 0 || fetched === clients.length) log(`  Passwords: ${fetched}/${clients.length}`);
+              await sleep(200);
+            }
             log(`Got passwords for ${passwordMap.size} clients`);
           }
 
@@ -505,6 +535,9 @@ router.post("/admin/whmcs/import", authenticate, requireAdmin, async (req: AuthR
           log(`Imported ${job.result.clients} clients, ${job.result.skipped} skipped`);
         } catch (e: any) { errLog(`Clients failed: ${e.message}`); }
       }
+
+      // Give WHMCS API rate limit time to recover after password fetching
+      await sleep(3000);
 
       // ── STEP 5: Hosting Services ──────────────────────────────────────────
       if (importServices) {
