@@ -119,6 +119,28 @@ function ClientPage({ children }: { children: React.ReactNode }) {
   return <AppLayout role="client">{children}</AppLayout>;
 }
 
+// Public Help Center — visible to everyone; logged-in clients get full sidebar layout
+function HelpPage({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
+  if (user?.role === "client") return <AppLayout role="client">{children}</AppLayout>;
+  // Guest or admin: render with a minimal public header
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+          <a href="/" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
+          <div className="flex gap-3">
+            <a href="/client/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
+            <a href="/order" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
+          </div>
+        </div>
+      </header>
+      <main>{children}</main>
+    </div>
+  );
+}
+
 // ─── Direct Order-Link wrappers ───────────────────────────────────────────────
 // /order/group/:groupId  — shows only plans in that group (like WHMCS ?gid=1)
 // /order/add/:packageId  — auto-selects plan + skips to domain step (?pid=5)
@@ -437,10 +459,10 @@ function RouterRoot() {
         <AdminPage><KnowledgeBase /></AdminPage>
       </Route>
       <Route path="/help/:slug">
-        <ClientPage><HelpCenterArticle /></ClientPage>
+        <HelpPage><HelpCenterArticle /></HelpPage>
       </Route>
       <Route path="/help">
-        <ClientPage><HelpCenter /></ClientPage>
+        <HelpPage><HelpCenter /></HelpPage>
       </Route>
 
       {/* ── OAuth callback — public ── */}
