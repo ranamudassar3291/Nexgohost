@@ -396,6 +396,22 @@ export async function emailDomainRegistered(
   }, meta);
 }
 
+export async function emailTerminationWarning(
+  to: string,
+  vars: { clientName: string; domain: string; serviceName: string; terminationDate: string; invoiceId: string; amount: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("service-termination-warning", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain: vars.domain,
+    service_name: vars.serviceName,
+    termination_date: vars.terminationDate,
+    invoice_id: vars.invoiceId,
+    amount: vars.amount,
+  }, meta);
+}
+
 export async function emailServiceTerminated(
   to: string,
   vars: { clientName: string; domain: string; serviceName: string; terminationDate: string },

@@ -53,7 +53,7 @@ import CancellationRequests from "@/pages/admin/CancellationRequests";
 import ProductGroups from "@/pages/admin/ProductGroups";
 import EmailTemplates from "@/pages/admin/EmailTemplates";
 import FraudLogs from "@/pages/admin/FraudLogs";
-import CronLogs from "@/pages/admin/CronLogs";
+import AutomationSettings from "@/pages/admin/AutomationSettings";
 import ServerLogs from "@/pages/admin/ServerLogs";
 import AdminAffiliates from "@/pages/admin/Affiliates";
 import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
@@ -334,7 +334,7 @@ function RouterRoot() {
         <AdminPage><ServerLogs /></AdminPage>
       </Route>
       <Route path="/admin/cron-logs">
-        <AdminPage><CronLogs /></AdminPage>
+        <AdminPage><AutomationSettings /></AdminPage>
       </Route>
       <Route path="/admin/settings/email">
         <AdminPage><EmailConfiguration /></AdminPage>

@@ -8,7 +8,10 @@ import { eq, lte, sql, and, gte } from "drizzle-orm";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 import { execAsync } from "./shell.js";
 import { isMysqlReachable } from "./wordpress-provisioner.js";
-import { emailServiceSuspended, emailHostingRenewalReminder, emailDomainRenewalReminder } from "./email.js";
+import {
+  emailServiceSuspended, emailHostingRenewalReminder,
+  emailDomainRenewalReminder, emailServiceTerminated, emailTerminationWarning,
+} from "./email.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
   try {
@@ -41,20 +44,24 @@ async function logEmail(clientId: string, email: string, emailType: string, subj
   } catch { /* non-fatal */ }
 }
 
-// ─── Task 1: Auto-generate invoices for services due today ───────────────────
+// ─── Task 1: Auto-generate invoices 14 days before service due date ──────────
 export async function runBillingCron(): Promise<void> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Window: services due between 14 and 15 days from now
+  const fourteenDays = new Date(today);
+  fourteenDays.setDate(fourteenDays.getDate() + 14);
+  const fifteenDays = new Date(today);
+  fifteenDays.setDate(fifteenDays.getDate() + 15);
 
   try {
     const dueServices = await db.select().from(hostingServicesTable)
       .where(and(
         eq(hostingServicesTable.status, "active"),
         eq(hostingServicesTable.autoRenew, true),
-        gte(hostingServicesTable.nextDueDate, today),
-        lte(hostingServicesTable.nextDueDate, tomorrow),
+        gte(hostingServicesTable.nextDueDate, fourteenDays),
+        lte(hostingServicesTable.nextDueDate, fifteenDays),
       ));
 
     let invoicesCreated = 0;
@@ -356,6 +363,7 @@ export async function runInvoiceRemindersCron(): Promise<void> {
       if (daysUntilDue === 7) emailType = "invoice_reminder_7d";
       else if (daysUntilDue === 3) emailType = "invoice_reminder_3d";
       else if (daysUntilDue === 0) emailType = "invoice_due_today";
+      else if (daysUntilDue === -1) emailType = "invoice_overdue_1d";
       else if (daysUntilDue === -3) emailType = "invoice_overdue_3d";
 
       if (!emailType) continue;
@@ -534,16 +542,158 @@ export async function runDailyBackupCron(): Promise<void> {
   }
 }
 
+// ─── Task 7: Auto-terminate + 15-day warning ──────────────────────────────────
+// 15 days overdue: send termination warning email
+// 30 days overdue: terminate service permanently
+export async function runAutoTerminateCron(): Promise<void> {
+  const now = new Date();
+  const fifteenDaysAgo = new Date(now);
+  fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  try {
+    const overdueInvoices = await db.select().from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.status, "overdue"),
+        lte(invoicesTable.dueDate, fifteenDaysAgo),
+      ));
+
+    let terminated = 0;
+    let warned = 0;
+
+    for (const invoice of overdueInvoices) {
+      if (!invoice.serviceId) continue;
+      const [service] = await db.select().from(hostingServicesTable)
+        .where(eq(hostingServicesTable.id, invoice.serviceId)).limit(1);
+      if (!service) continue;
+
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+      const clientName = user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email) : "Client";
+
+      // 30+ days overdue → terminate
+      if (invoice.dueDate && invoice.dueDate <= thirtyDaysAgo && service.status !== "terminated") {
+        try {
+          if (service.username) await suspendHostingAccount(service.username, service.serverId, "Terminated: 30 days overdue");
+        } catch { /* non-fatal */ }
+
+        await db.update(hostingServicesTable)
+          .set({ status: "terminated", updatedAt: new Date() })
+          .where(eq(hostingServicesTable.id, service.id));
+        await db.update(invoicesTable)
+          .set({ status: "overdue", updatedAt: new Date() })
+          .where(eq(invoicesTable.id, invoice.id));
+
+        if (user) {
+          const terminationDate = new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+          try {
+            await emailServiceTerminated(user.email, {
+              clientName,
+              domain: service.domain ?? service.planName,
+              serviceName: service.planName,
+              terminationDate,
+            }, { clientId: service.clientId, referenceId: service.id });
+          } catch { /* non-fatal */ }
+          await logEmail(service.clientId, user.email, "service_terminated", `Your hosting service ${service.planName} has been terminated`, service.id);
+          notify(service.clientId, "system", "Service Terminated", `${service.planName} was terminated due to 30 days of non-payment. Contact support to restore.`, "/clientarea/tickets/new").catch(() => {});
+        }
+        terminated++;
+      }
+      // 15–29 days overdue → send warning (once only)
+      else if (invoice.dueDate && invoice.dueDate > thirtyDaysAgo) {
+        const alreadyWarned = await db.select().from(emailLogsTable)
+          .where(and(
+            eq(emailLogsTable.referenceId, invoice.id),
+            eq(emailLogsTable.emailType, "service_termination_warning"),
+          )).limit(1);
+        if (alreadyWarned.length > 0) continue;
+
+        if (user) {
+          const terminationDate = new Date(invoice.dueDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+            .toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+          const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
+          const amount = service.billingCycle === "yearly"
+            ? (plan?.yearlyPrice ?? plan?.price ?? "0") : (plan?.price ?? "0");
+          try {
+            await emailTerminationWarning(user.email, {
+              clientName,
+              domain: service.domain ?? service.planName,
+              serviceName: service.planName,
+              terminationDate,
+              invoiceId: invoice.id,
+              amount: `Rs. ${Number(amount).toLocaleString()}`,
+            }, { clientId: service.clientId, referenceId: invoice.id });
+          } catch { /* non-fatal */ }
+          await logEmail(service.clientId, user.email, "service_termination_warning", `Termination warning for ${service.planName} — pay now to avoid data loss`, invoice.id);
+          notify(service.clientId, "system", "⚠️ Service Termination Warning", `${service.planName} will be permanently terminated on ${terminationDate} unless payment is received.`, "/clientarea/billing").catch(() => {});
+          warned++;
+        }
+      }
+    }
+
+    await logCron("billing:auto_terminate", "success", `Terminated: ${terminated}, Termination warnings sent: ${warned}`);
+  } catch (err: any) {
+    await logCron("billing:auto_terminate", "failed", err.message);
+    console.error("[CRON] billing:auto_terminate error:", err.message);
+  }
+}
+
+// ─── Task 8: VPS power-off for unpaid invoices (7+ days) ─────────────────────
+export async function runVpsPowerOffCron(): Promise<void> {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  try {
+    const overdueInvoices = await db.select().from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.status, "overdue"),
+        lte(invoicesTable.dueDate, sevenDaysAgo),
+      ));
+
+    let poweredOff = 0;
+
+    for (const invoice of overdueInvoices) {
+      if (!invoice.serviceId) continue;
+      const [service] = await db.select().from(hostingServicesTable)
+        .where(and(
+          eq(hostingServicesTable.id, invoice.serviceId),
+          eq(hostingServicesTable.status, "active"),
+        )).limit(1);
+
+      if (!service || service.serviceType !== "vps") continue;
+
+      // Mark VPS as suspended / powered off
+      await db.update(hostingServicesTable)
+        .set({ status: "suspended", updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, service.id));
+
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+      if (user) {
+        await logEmail(service.clientId, user.email, "vps_powered_off", `VPS ${service.planName} powered off — invoice overdue`, service.id);
+        notify(service.clientId, "system", "VPS Powered Off", `Your VPS ${service.planName} has been powered off due to an overdue invoice. Pay now to reactivate.`, "/clientarea/billing").catch(() => {});
+      }
+      poweredOff++;
+    }
+
+    await logCron("vps:power_off_overdue", "success", `Powered off ${poweredOff} overdue VPS service(s)`);
+  } catch (err: any) {
+    await logCron("vps:power_off_overdue", "failed", err.message);
+    console.error("[CRON] vps:power_off_overdue error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
   await Promise.allSettled([
     runBillingCron(),
     runSuspendOverdueCron(),
+    runAutoTerminateCron(),
     runUnsuspendRestoredCron(),
     runHostingRenewalReminderCron(),
     runDomainRenewalCron(),
     runInvoiceRemindersCron(),
+    runVpsPowerOffCron(),
     runDailyBackupCron(),
   ]);
   console.log("[CRON] All tasks completed.");
