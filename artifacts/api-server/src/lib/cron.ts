@@ -2,12 +2,13 @@ import { db } from "@workspace/db";
 import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
   cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
-  hostingBackupsTable,
+  hostingBackupsTable, domainPricingTable,
 } from "@workspace/db/schema";
 import { eq, lte, sql, and, gte } from "drizzle-orm";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 import { execAsync } from "./shell.js";
 import { isMysqlReachable } from "./wordpress-provisioner.js";
+import { emailServiceSuspended, emailHostingRenewalReminder, emailDomainRenewalReminder } from "./email.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
   try {
@@ -159,6 +160,14 @@ export async function runSuspendOverdueCron(): Promise<void> {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
       if (user) {
         await logEmail(service.clientId, user.email, "service_suspended", "Your hosting account has been suspended – Overdue Invoice", service.id);
+        try {
+          await emailServiceSuspended(user.email, {
+            clientName: user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email,
+            domain: service.domain ?? service.planName,
+            serviceName: service.planName,
+            invoiceId: invoice.id,
+          }, { clientId: service.clientId, referenceId: service.id });
+        } catch { /* non-fatal */ }
       }
 
       suspended++;
@@ -171,16 +180,96 @@ export async function runSuspendOverdueCron(): Promise<void> {
   }
 }
 
-// ─── Task 3: Auto-domain renewal check (7 days before expiry) ────────────────
-export async function runDomainRenewalCron(): Promise<void> {
+// ─── Task 3: Hosting/VPS Renewal Reminder (7 days before due) ────────────────
+export async function runHostingRenewalReminderCron(): Promise<void> {
   const sevenDaysFromNow = new Date();
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+  sevenDaysFromNow.setHours(23, 59, 59, 999);
+  const sixDaysFromNow = new Date();
+  sixDaysFromNow.setDate(sixDaysFromNow.getDate() + 6);
+
+  try {
+    // Services due in exactly 7 days (between 6 and 7 days from now)
+    const dueServices = await db.select().from(hostingServicesTable)
+      .where(and(
+        eq(hostingServicesTable.status, "active"),
+        gte(hostingServicesTable.nextDueDate, sixDaysFromNow),
+        lte(hostingServicesTable.nextDueDate, sevenDaysFromNow),
+      ));
+
+    let sent = 0;
+
+    for (const service of dueServices) {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+      if (!user) continue;
+
+      // Avoid duplicate reminder for same service/cycle
+      const alreadySent = await db.select().from(emailLogsTable)
+        .where(and(
+          eq(emailLogsTable.referenceId, service.id),
+          eq(emailLogsTable.emailType, "hosting_renewal_reminder_7d"),
+        )).limit(1);
+
+      if (alreadySent.length > 0) continue;
+
+      // Find unpaid invoice for this service
+      const [invoice] = await db.select().from(invoicesTable)
+        .where(and(
+          eq(invoicesTable.serviceId, service.id),
+          eq(invoicesTable.status, "unpaid"),
+        )).limit(1);
+
+      const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
+      const domainOrIp = service.domain ?? service.serverIp ?? service.planName;
+      const dueDateStr = service.nextDueDate
+        ? new Date(service.nextDueDate).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" })
+        : "Upcoming";
+
+      const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
+      const amount = service.billingCycle === "yearly"
+        ? (plan?.yearlyPrice ?? plan?.price ?? "0")
+        : (plan?.price ?? "0");
+      const amountStr = `Rs. ${Number(amount).toLocaleString()}`;
+
+      try {
+        await emailHostingRenewalReminder(user.email, {
+          clientName,
+          serviceName: service.planName,
+          domainOrIp,
+          dueDate: dueDateStr,
+          invoiceId: invoice?.id ?? "",
+          invoiceNumber: invoice?.invoiceNumber ?? "Pending",
+          amount: amountStr,
+        }, { clientId: service.clientId, referenceId: service.id });
+
+        await logEmail(service.clientId, user.email, "hosting_renewal_reminder_7d",
+          `Service ${service.planName} renewal reminder – due in 7 days`, service.id);
+
+        notify(service.clientId, "invoice", "Service Renewal Reminder",
+          `${service.planName} is due in 7 days. Pay ${amountStr} to keep your service active.`,
+          `/client/invoices`).catch(() => {});
+
+        sent++;
+      } catch { /* non-fatal */ }
+    }
+
+    await logCron("emails:hosting_renewal_reminder", "success", `Sent ${sent} hosting/VPS renewal reminder(s)`);
+  } catch (err: any) {
+    await logCron("emails:hosting_renewal_reminder", "failed", err.message);
+    console.error("[CRON] emails:hosting_renewal_reminder error:", err.message);
+  }
+}
+
+// ─── Task 4: Auto-domain renewal check (15 days before expiry) ───────────────
+export async function runDomainRenewalCron(): Promise<void> {
+  const fifteenDaysFromNow = new Date();
+  fifteenDaysFromNow.setDate(fifteenDaysFromNow.getDate() + 15);
 
   try {
     const expiringDomains = await db.select().from(domainsTable)
       .where(and(
         eq(domainsTable.status, "active"),
-        lte(domainsTable.expiryDate, sevenDaysFromNow),
+        lte(domainsTable.expiryDate, fifteenDaysFromNow),
         gte(domainsTable.expiryDate, new Date()),
       ));
 
@@ -201,8 +290,41 @@ export async function runDomainRenewalCron(): Promise<void> {
         notify(domain.clientId, "domain", "Domain Renewed", `${domain.name}.${domain.tld} has been auto-renewed for 1 year`, `/client/domains`).catch(() => {});
         renewed++;
       } else {
-        await logEmail(domain.clientId, user.email, "domain_expiring", `Your domain ${domain.name}.${domain.tld} expires in 7 days`, domain.id);
-        notify(domain.clientId, "domain", "Domain Expiring Soon", `${domain.name}.${domain.tld} expires in 7 days. Enable auto-renew to keep it.`, `/client/domains`).catch(() => {});
+        // Only send reminder once per 15-day window
+        const alreadySent = await db.select().from(emailLogsTable)
+          .where(and(
+            eq(emailLogsTable.referenceId, domain.id),
+            eq(emailLogsTable.emailType, "domain_expiring_15d"),
+          )).limit(1);
+
+        if (alreadySent.length === 0) {
+          const domainFqdn = `${domain.name}.${domain.tld}`;
+          const expiryStr = domain.expiryDate
+            ? new Date(domain.expiryDate).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" })
+            : "Unknown";
+
+          // Look up renewal price from domain_pricing table
+          let renewalPriceStr = "Contact support";
+          try {
+            const tldClean = domain.tld.replace(/^\./, "");
+            const [pricing] = await db.select().from(domainPricingTable)
+              .where(sql`LOWER(tld) = LOWER(${tldClean})`)
+              .limit(1);
+            if (pricing?.renewalPrice) {
+              renewalPriceStr = `Rs. ${Number(pricing.renewalPrice).toLocaleString()}`;
+            }
+          } catch { /* non-fatal */ }
+
+          await emailDomainRenewalReminder(user.email, {
+            clientName: user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email,
+            domainName: domainFqdn,
+            expiryDate: expiryStr,
+            renewalPrice: renewalPriceStr,
+          }, { clientId: domain.clientId, referenceId: domain.id });
+
+          await logEmail(domain.clientId, user.email, "domain_expiring_15d", `Your domain ${domainFqdn} expires in 15 days`, domain.id);
+          notify(domain.clientId, "domain", "Domain Expiring Soon", `${domainFqdn} expires in 15 days. Renew now to keep your website live.`, `/client/domains`).catch(() => {});
+        }
         reminded++;
       }
     }
@@ -419,6 +541,7 @@ export async function runAllCronTasks(): Promise<void> {
     runBillingCron(),
     runSuspendOverdueCron(),
     runUnsuspendRestoredCron(),
+    runHostingRenewalReminderCron(),
     runDomainRenewalCron(),
     runInvoiceRemindersCron(),
     runDailyBackupCron(),

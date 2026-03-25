@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { promoCodesTable, productGroupsTable, hostingPlansTable, domainPricingTable } from "@workspace/db/schema";
+import { promoCodesTable, productGroupsTable, hostingPlansTable, domainPricingTable, vpsPlansTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
@@ -121,8 +121,12 @@ router.get("/admin/promo-codes", authenticate, requireAdmin, async (_req, res) =
     const planIds = [...new Set(codes.map(c => (c as any).applicablePlanId).filter(Boolean))];
     let planMap: Record<string, string> = {};
     if (planIds.length > 0) {
-      const plans = await db.select().from(hostingPlansTable);
-      planMap = Object.fromEntries(plans.map((p: any) => [p.id, p.name]));
+      const hostingPlans = await db.select().from(hostingPlansTable);
+      const vpsPlans = await db.select().from(vpsPlansTable);
+      planMap = {
+        ...Object.fromEntries(hostingPlans.map((p: any) => [p.id, p.name])),
+        ...Object.fromEntries(vpsPlans.map((p: any) => [p.id, p.name])),
+      };
     }
 
     res.json(codes.map(c => formatCode({
@@ -136,9 +140,27 @@ router.get("/admin/promo-codes", authenticate, requireAdmin, async (_req, res) =
   }
 });
 
-// Admin: get plans for a specific group (for promo code UI)
+// Admin: get plans for a specific group (hosting or VPS)
 router.get("/admin/promo-codes/plans-for-group/:groupId", authenticate, requireAdmin, async (req, res) => {
   try {
+    // Check if this group is the VPS group (slug = vps-hosting)
+    const [group] = await db.select().from(productGroupsTable)
+      .where(eq(productGroupsTable.id, req.params.groupId))
+      .limit(1);
+
+    if (group?.slug === "vps-hosting") {
+      // Return VPS plans from vps_plans table
+      const vpsPlans = await db.select({
+        id: vpsPlansTable.id,
+        name: vpsPlansTable.name,
+        price: vpsPlansTable.price,
+      }).from(vpsPlansTable)
+        .where(eq(vpsPlansTable.isActive, true))
+        .orderBy(vpsPlansTable.sortOrder);
+      return res.json(vpsPlans.map(p => ({ id: p.id, name: p.name, price: Number(p.price) })));
+    }
+
+    // Otherwise return hosting plans for this group
     const plans = await db.select({
       id: hostingPlansTable.id,
       name: hostingPlansTable.name,

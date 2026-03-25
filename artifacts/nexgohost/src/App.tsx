@@ -59,6 +59,7 @@ import AdminAffiliates from "@/pages/admin/Affiliates";
 import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
 import AdminCredits from "@/pages/admin/Credits";
 import VpsPlans from "@/pages/admin/VpsPlans";
+import VpsServices from "@/pages/admin/VpsServices";
 import AddVpsPlan from "@/pages/admin/AddVpsPlan";
 import VpsOsTemplates from "@/pages/admin/VpsOsTemplates";
 import VpsLocations from "@/pages/admin/VpsLocations";
@@ -253,6 +254,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/vps/:id/edit">
         <AdminPage><AddVpsPlan /></AdminPage>
+      </Route>
+      <Route path="/admin/vps/services">
+        <AdminPage><VpsServices /></AdminPage>
       </Route>
       <Route path="/admin/vps/os-templates">
         <AdminPage><VpsOsTemplates /></AdminPage>

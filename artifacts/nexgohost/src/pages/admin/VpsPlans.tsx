@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Server, Plus, Pencil, Trash2, Eye, EyeOff, Cpu, MemoryStick, HardDrive, Wifi, CheckCircle2, XCircle, Globe, MonitorCog } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Eye, EyeOff, Cpu, MemoryStick, HardDrive, Wifi, CheckCircle2, XCircle, Globe, MonitorCog, Copy, Check, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -23,6 +23,29 @@ interface VpsPlan {
   cpuCores: number; ramGb: number; storageGb: number; bandwidthTb: number | null;
   virtualization: string | null; features: string[]; saveAmount: number | null;
   osTemplateIds: string[]; locationIds: string[]; isActive: boolean; sortOrder: number;
+}
+
+function CopyOrderLink({ planId }: { planId: string }) {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+  const link = `${window.location.origin}/order/vps/${planId}`;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      toast({ title: "Order Link Copied!", description: link });
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div className="border border-dashed border-gray-200 rounded-lg px-3 py-1.5 flex items-center gap-2">
+      <span className="text-[10.5px] text-gray-400 truncate flex-1 font-mono">/order/vps/{planId.slice(0, 8)}…</span>
+      <button onClick={handleCopy}
+        className="flex items-center gap-1 text-[10.5px] font-semibold shrink-0 transition-colors"
+        style={{ color: copied ? "#22c55e" : P }}>
+        {copied ? <><Check size={10}/> Copied</> : <><Copy size={10}/> Copy Link</>}
+      </button>
+    </div>
+  );
 }
 
 export default function VpsPlans() {
@@ -67,7 +90,10 @@ export default function VpsPlans() {
             <p className="text-sm text-gray-500">{plans.length} plan{plans.length !== 1 ? "s" : ""} configured</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => setLocation("/admin/vps/services")}>
+            <List size={14} className="mr-1.5"/> VPS Services
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setLocation("/admin/vps/os-templates")}>
             <MonitorCog size={14} className="mr-1.5"/> OS Templates
           </Button>
@@ -180,6 +206,9 @@ export default function VpsPlans() {
                   <span className="text-gray-300">·</span>
                   <span className="text-gray-400">{plan.osTemplateIds.length} OS · {plan.locationIds.length} locations</span>
                 </div>
+
+                {/* Order link */}
+                <CopyOrderLink planId={plan.id}/>
               </motion.div>
             ))}
           </AnimatePresence>

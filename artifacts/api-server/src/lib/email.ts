@@ -502,6 +502,54 @@ export async function emailVpsCreated(
   }, meta);
 }
 
+export async function emailHostingRenewalReminder(
+  to: string,
+  vars: {
+    clientName: string;
+    serviceName: string;
+    domainOrIp: string;
+    dueDate: string;
+    invoiceId: string;
+    invoiceNumber: string;
+    amount: string;
+    paymentUrl?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("hosting-renewal-reminder", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    service_name: vars.serviceName,
+    domain_or_ip: vars.domainOrIp,
+    due_date: vars.dueDate,
+    invoice_id: vars.invoiceId,
+    invoice_number: vars.invoiceNumber,
+    amount: vars.amount,
+    payment_url: vars.paymentUrl || "https://noehost.com/client/invoices",
+  }, meta);
+}
+
+export async function emailDomainRenewalReminder(
+  to: string,
+  vars: {
+    clientName: string;
+    domainName: string;
+    expiryDate: string;
+    renewalPrice: string;
+    renewUrl?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("domain-renewal-reminder", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain_name: vars.domainName,
+    expiry_date: vars.expiryDate,
+    renewal_price: vars.renewalPrice,
+    renew_url: vars.renewUrl || "https://noehost.com/client/domains",
+  }, meta);
+}
+
 export async function emailWordPressInstalled(
   to: string,
   vars: {

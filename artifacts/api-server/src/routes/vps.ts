@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { vpsPlansTable, vpsOsTemplatesTable, vpsLocationsTable, hostingServicesTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { vpsPlansTable, vpsOsTemplatesTable, vpsLocationsTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
+import { eq, and, ilike, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
@@ -455,6 +455,141 @@ router.delete("/admin/vps-locations/:id", authenticate, requireAdmin, async (req
   try {
     await db.delete(vpsLocationsTable).where(eq(vpsLocationsTable.id, req.params.id));
     res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// ── Admin VPS Services management ──────────────────────────────────────────────
+
+// List all VPS services (admin can see all clients)
+router.get("/admin/vps-services", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { search, status } = req.query as { search?: string; status?: string };
+
+    let query = db.select({
+      service: hostingServicesTable,
+      user: {
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        companyName: usersTable.companyName,
+      },
+    })
+      .from(hostingServicesTable)
+      .leftJoin(usersTable, eq(hostingServicesTable.clientId, usersTable.id))
+      .where(ilike(hostingServicesTable.planName, "%VPS%"))
+      .$dynamic();
+
+    const rows = await query.orderBy(sql`${hostingServicesTable.createdAt} DESC`);
+
+    let filtered = rows;
+    if (status) filtered = filtered.filter(r => r.service.status === status);
+    if (search) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(r =>
+        r.user?.email?.toLowerCase().includes(s) ||
+        r.service.domain?.toLowerCase().includes(s) ||
+        r.service.planName?.toLowerCase().includes(s) ||
+        r.service.serverIp?.toLowerCase().includes(s) ||
+        r.user?.firstName?.toLowerCase().includes(s)
+      );
+    }
+
+    const plans = await db.select().from(vpsPlansTable);
+    const planMap = new Map(plans.map(p => [p.id, p]));
+
+    res.json(filtered.map(r => {
+      const plan = planMap.get(r.service.planId);
+      return {
+        id: r.service.id,
+        clientId: r.service.clientId,
+        clientEmail: r.user?.email ?? null,
+        clientName: r.user?.firstName ? `${r.user.firstName} ${r.user.lastName ?? ""}`.trim() : r.user?.email ?? null,
+        companyName: r.user?.companyName ?? null,
+        planId: r.service.planId,
+        planName: r.service.planName,
+        hostname: r.service.domain ?? null,
+        dedicatedIp: r.service.serverIp ?? null,
+        sshUsername: r.service.username ?? null,
+        sshPassword: r.service.password ?? null,
+        status: r.service.status,
+        billingCycle: r.service.billingCycle,
+        nextDueDate: r.service.nextDueDate,
+        startDate: r.service.startDate,
+        autoRenew: r.service.autoRenew,
+        cpuCores: plan?.cpuCores ?? 1,
+        ramGb: plan?.ramGb ?? 1,
+        storageGb: plan?.storageGb ?? 20,
+        bandwidthTb: plan ? fmt(plan.bandwidthTb) : 1,
+        createdAt: r.service.createdAt,
+      };
+    }));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Get single VPS service (admin)
+router.get("/admin/vps-services/:id", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const [row] = await db.select({
+      service: hostingServicesTable,
+      user: {
+        id: usersTable.id,
+        email: usersTable.email,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+      },
+    })
+      .from(hostingServicesTable)
+      .leftJoin(usersTable, eq(hostingServicesTable.clientId, usersTable.id))
+      .where(eq(hostingServicesTable.id, _req.params.id))
+      .limit(1);
+
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+
+    const [plan] = await db.select().from(vpsPlansTable).where(eq(vpsPlansTable.id, row.service.planId)).limit(1);
+
+    res.json({
+      id: row.service.id,
+      clientId: row.service.clientId,
+      clientEmail: row.user?.email ?? null,
+      clientName: row.user?.firstName ? `${row.user.firstName} ${row.user.lastName ?? ""}`.trim() : row.user?.email ?? null,
+      planName: row.service.planName,
+      hostname: row.service.domain ?? null,
+      dedicatedIp: row.service.serverIp ?? null,
+      sshUsername: row.service.username ?? null,
+      sshPassword: row.service.password ?? null,
+      status: row.service.status,
+      billingCycle: row.service.billingCycle,
+      nextDueDate: row.service.nextDueDate,
+      startDate: row.service.startDate,
+      autoRenew: row.service.autoRenew,
+      cpuCores: plan?.cpuCores ?? 1,
+      ramGb: plan?.ramGb ?? 1,
+      storageGb: plan?.storageGb ?? 20,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Update VPS service admin fields (hostname, IP, SSH credentials, status)
+router.put("/admin/vps-services/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { hostname, dedicatedIp, sshUsername, sshPassword, status } = req.body;
+    const updates: Partial<typeof hostingServicesTable.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (hostname !== undefined) updates.domain = hostname || null;
+    if (dedicatedIp !== undefined) updates.serverIp = dedicatedIp || null;
+    if (sshUsername !== undefined) updates.username = sshUsername || null;
+    if (sshPassword !== undefined) updates.password = sshPassword || null;
+    if (status !== undefined) updates.status = status;
+
+    const [updated] = await db.update(hostingServicesTable)
+      .set(updates)
+      .where(eq(hostingServicesTable.id, req.params.id))
+      .returning();
+
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ success: true, id: updated.id });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
