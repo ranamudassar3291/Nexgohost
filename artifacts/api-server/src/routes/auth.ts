@@ -4,6 +4,7 @@ import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateRe
 import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail } from "../lib/email.js";
+import { getSecurityConfig, verifyCaptcha, recordFailedAttempt, isIpBlockedInDb, getClientIp } from "../lib/security.js";
 import crypto from "node:crypto";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
@@ -38,9 +39,18 @@ function formatUser(user: typeof usersTable.$inferSelect) {
 
 router.post("/auth/register", async (req, res) => {
   try {
-    const { firstName, lastName, email, password, company, phone } = req.body;
+    const { firstName, lastName, email, password, company, phone, captchaToken } = req.body;
     if (!firstName || !lastName || !email || !password) {
       res.status(400).json({ error: "Validation error", message: "Required fields missing" }); return;
+    }
+
+    // ── Captcha check ─────────────────────────────────────────────────────────
+    const secConfig = await getSecurityConfig();
+    if (secConfig.enabledPages.register && secConfig.secretKey && captchaToken) {
+      const captchaOk = await verifyCaptcha(captchaToken, secConfig.secretKey, secConfig.provider);
+      if (!captchaOk) {
+        res.status(400).json({ error: "Captcha verification failed. Please try again.", code: "CAPTCHA_FAILED" }); return;
+      }
     }
     const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (existing.length > 0) {
@@ -151,16 +161,33 @@ async function logActivity(userId: string, action: typeof activityLogsTable.$inf
 
 router.post("/auth/login", async (req, res) => {
   try {
-    const { email, password, totp } = req.body;
+    const { email, password, totp, captchaToken } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: "Validation error", message: "Email and password required" }); return;
     }
+
+    // ── Security checks ────────────────────────────────────────────────────────
+    const ip = getClientIp(req);
+    const ipBlocked = await isIpBlockedInDb(ip);
+    if (ipBlocked) {
+      res.status(429).json({ error: "Too many failed attempts. Your IP is temporarily blocked for 30 minutes.", code: "IP_BLOCKED" }); return;
+    }
+
+    const secConfig = await getSecurityConfig();
+    if (secConfig.enabledPages.login && secConfig.secretKey && captchaToken) {
+      const captchaOk = await verifyCaptcha(captchaToken, secConfig.secretKey, secConfig.provider);
+      if (!captchaOk) {
+        res.status(400).json({ error: "Captcha verification failed. Please try again.", code: "CAPTCHA_FAILED" }); return;
+      }
+    }
+
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (!user) { res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return; }
     if (user.status === "suspended") { res.status(401).json({ error: "Unauthorized", message: "Account suspended" }); return; }
     const valid = await comparePassword(password, user.passwordHash);
     if (!valid) {
       logActivity(user.id, "login_failed", req, "failed", "Invalid password").catch(() => {});
+      await recordFailedAttempt(ip, req, email).catch(() => {});
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 

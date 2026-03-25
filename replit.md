@@ -1,5 +1,44 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 28 — Iron-Clad Security & Anti-Bot System)
+
+### Security System (`lib/db/src/schema/security-logs.ts`)
+- New DB tables: `security_logs` (events), `blocked_ips` (brute-force auto-blocks)
+- Event types: `login_failed`, `login_blocked`, `captcha_failed`, `ip_blocked`, `bot_blocked`, `brute_force`, `suspicious_scan`
+
+### Security Engine (`artifacts/api-server/src/lib/security.ts`)
+- **IP Rate Limiter**: 20 attempts/min → 30-minute DB-persisted IP block (survives restarts)
+- **Bad-Bot Blocker**: 20+ scanner UA patterns (sqlmap, nikto, masscan, curl, scrapy, hydra, etc.) + 10 bad path patterns → 403 Forbidden
+- **Captcha Verifier**: Supports Cloudflare Turnstile + Google reCAPTCHA v2 server-side verify
+- **Security Config**: Key-value settings stored in existing `settingsTable`
+
+### Security API (`artifacts/api-server/src/routes/security.ts`)
+- `GET/PUT /api/admin/security/settings` — captcha config (provider, site/secret key, per-page toggles)
+- `GET /api/admin/security/logs` — event log
+- `GET /api/admin/security/blocked-ips` — active blocks
+- `DELETE /api/admin/security/blocked-ips/:ip` — manual unblock
+- `GET /api/security/captcha-config` — public: site key + enabled pages (no secret)
+- `GET /api/admin/security/stats` — 30-day aggregated stats
+
+### Auth Updates (`artifacts/api-server/src/routes/auth.ts`)
+- Login: checks DB IP block → verifies captcha if configured → records failed attempts → auto-blocks at threshold
+- Register: verifies captcha if enabled
+
+### Frontend
+- `CaptchaWidget.tsx` — Cloudflare Turnstile or reCAPTCHA v2 loader + checkbox widget (lazy script load)
+- `SecuritySettings.tsx` — Admin page with: stats cards, captcha config, per-page toggles, blocked IPs table (with unblock), security logs tab
+- `ClientLogin.tsx` — Captcha widget injected between password and submit button (conditional on config)
+- App.tsx route: `/admin/security`
+- Sidebar: Security link in Analytics & Logs section
+
+### Automation Engine Completion (Session 27)
+- `emailTerminationWarning()` added to email.ts (was imported but missing)
+- `runAutoTerminateCron()` — 15-day warning + 30-day termination
+- `runVpsPowerOffCron()` — VPS power-off at 7+ days overdue
+- `GET /admin/automation/stats` — per-task stats endpoint
+- `AutomationSettings.tsx` — full automation dashboard replacing CronLogs
+- `GET /sitemap.xml` — dynamic sitemap with all published KB articles
+
 ## Recent Changes (Session 26 — Ultimate Help Center & Deflection System)
 
 ### AI-Generated Real Screenshots (8 images, `artifacts/nexgohost/public/kb/`)

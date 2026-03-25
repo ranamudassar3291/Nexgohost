@@ -28,3 +28,4 @@ export * from "./backups";
 export * from "./password-resets";
 export * from "./vps";
 export * from "./kb";
+export * from "./security-logs";

@@ -33,6 +33,7 @@ import vpsRouter from "./vps.js";
 import whmcsImportRouter from "./whmcsImport.js";
 import adminUsersRouter from "./admin-users.js";
 import kbRouter from "./kb.js";
+import securityRouter from "./security.js";
 
 const router: IRouter = Router();
 
@@ -74,5 +75,6 @@ router.use(vpsRouter);
 router.use(whmcsImportRouter);
 router.use(adminUsersRouter);
 router.use(kbRouter);
+router.use(securityRouter);
 
 export default router;

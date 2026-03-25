@@ -7,6 +7,8 @@ import {
   Smartphone, RefreshCw, MailCheck, Eye, EyeOff,
   Server, Globe, Shield, Zap,
 } from "lucide-react";
+import CaptchaWidget from "@/components/CaptchaWidget";
+import { useQuery } from "@tanstack/react-query";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -44,6 +46,14 @@ export default function ClientLogin() {
   const [error,       setError]       = useState<string | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config"],
+    queryFn: () => fetch("/api/security/captcha-config").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const captchaRequired = captchaConfig?.enabledPages?.login && !!captchaConfig?.siteKey;
 
   useEffect(() => {
     fetch("/api/auth/google/config")
@@ -87,7 +97,7 @@ export default function ClientLogin() {
     setError(null);
     setLoading(true);
     try {
-      const data = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
+      const data = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password, captchaToken }) });
       if (data.user?.role !== "client") {
         setError("This portal is for clients only. Please use the Admin Portal to sign in.");
         return;
@@ -267,9 +277,20 @@ export default function ClientLogin() {
                     {fieldErrors.password && <p className="mt-1.5 text-xs text-red-500">{fieldErrors.password}</p>}
                   </div>
 
+                  {captchaRequired && (
+                    <div className="flex justify-center py-1">
+                      <CaptchaWidget
+                        siteKey={captchaConfig?.siteKey ?? ""}
+                        provider={captchaConfig?.provider ?? "turnstile"}
+                        onVerify={token => setCaptchaToken(token)}
+                        onExpire={() => setCaptchaToken(null)}
+                      />
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || (captchaRequired && !captchaToken)}
                     className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#701AFE]/30"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : <><span>Sign in</span><ArrowRight size={16} /></>}

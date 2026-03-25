@@ -82,6 +82,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "Fraud Logs",       href: "/admin/fraud-logs",       icon: (() => null) as any },
       { name: "Automation",       href: "/admin/cron-logs",        icon: (() => null) as any },
       { name: "Server Logs",      href: "/admin/server-logs",      icon: (() => null) as any },
+      { name: "Security",         href: "/admin/security",         icon: (() => null) as any },
     ],
   },
   {

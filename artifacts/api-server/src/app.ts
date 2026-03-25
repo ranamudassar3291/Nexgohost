@@ -4,12 +4,17 @@ import router from "./routes";
 import { db } from "@workspace/db";
 import { kbArticlesTable, kbCategoriesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { badBotMiddleware, ipBlockMiddleware } from "./lib/security.js";
 
 const app: Express = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── Security middleware (bad bot blocker + IP block on auth routes) ────────────
+app.use(badBotMiddleware);
+app.use(ipBlockMiddleware);
 
 app.use("/api", router);
 

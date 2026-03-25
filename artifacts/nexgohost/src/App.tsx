@@ -54,6 +54,7 @@ import ProductGroups from "@/pages/admin/ProductGroups";
 import EmailTemplates from "@/pages/admin/EmailTemplates";
 import FraudLogs from "@/pages/admin/FraudLogs";
 import AutomationSettings from "@/pages/admin/AutomationSettings";
+import SecuritySettings from "@/pages/admin/SecuritySettings";
 import ServerLogs from "@/pages/admin/ServerLogs";
 import AdminAffiliates from "@/pages/admin/Affiliates";
 import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
@@ -335,6 +336,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/cron-logs">
         <AdminPage><AutomationSettings /></AdminPage>
+      </Route>
+      <Route path="/admin/security">
+        <AdminPage><SecuritySettings /></AdminPage>
       </Route>
       <Route path="/admin/settings/email">
         <AdminPage><EmailConfiguration /></AdminPage>
