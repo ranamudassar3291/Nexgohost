@@ -194,23 +194,48 @@ export default function ClientTickets() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  // Debounced KB search when subject changes
-  const searchTimeout = useRef<any>(null);
+  // Debounced KB search — instant clear, 250ms debounce, abort on stale requests
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    if (subject.length < 3) { setSuggestions([]); return; }
-    clearTimeout(searchTimeout.current);
+    // 1. Immediately wipe stale suggestions so old results never linger
+    setSuggestions([]);
+
+    // 2. Clear any pending timer and cancel any in-flight request
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    abortRef.current?.abort();
+
+    // 3. Nothing to search if query is too short
+    if (subject.trim().length < 3) {
+      setIsSearching(false);
+      return;
+    }
+
+    // 4. Show searching state right away, then fire after 250ms
     setIsSearching(true);
     searchTimeout.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
-        const data = await apiFetch(`/api/kb/articles?search=${encodeURIComponent(subject)}`);
-        setSuggestions(Array.isArray(data) ? data.slice(0, 3) : []);
+        const data = await apiFetch(
+          `/api/kb/articles?q=${encodeURIComponent(subject.trim())}`,
+          { signal: controller.signal }
+        );
+        if (!controller.signal.aborted) {
+          setSuggestions(Array.isArray(data) ? data.slice(0, 3) : []);
+        }
       } catch {
-        setSuggestions([]);
+        if (!controller.signal.aborted) setSuggestions([]);
       } finally {
-        setIsSearching(false);
+        if (!controller.signal.aborted) setIsSearching(false);
       }
-    }, 350);
-    return () => clearTimeout(searchTimeout.current);
+    }, 250);
+
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+      abortRef.current?.abort();
+    };
   }, [subject]);
 
   // Detect error codes in message
@@ -312,8 +337,25 @@ export default function ClientTickets() {
               </div>
             </div>
 
-            {/* Suggestions */}
-            {suggestions.length > 0 && (
+            {/* Skeleton loader — visible while searching */}
+            {isSearching && subject.trim().length >= 3 && suggestions.length === 0 && (
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="border border-border/40 rounded-xl p-4 animate-pulse">
+                    <div className="flex items-start gap-3">
+                      <div className="w-4 h-4 rounded bg-muted shrink-0 mt-0.5" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 bg-muted rounded w-3/4" />
+                        <div className="h-3 bg-muted rounded w-1/2" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Suggestions — only shown when not searching and results exist */}
+            {!isSearching && suggestions.length > 0 && (
               <div className="space-y-3">
                 {/* Interception banner */}
                 <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5">
@@ -338,9 +380,16 @@ export default function ClientTickets() {
               </div>
             )}
 
+            {/* No results message — only when search finished and found nothing */}
+            {!isSearching && subject.trim().length >= 3 && suggestions.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-1">
+                No articles found for this topic — fill in the ticket form below.
+              </p>
+            )}
+
             {/* Action buttons */}
             <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-border/40">
-              {suggestions.length > 0 ? (
+              {!isSearching && suggestions.length > 0 ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -352,11 +401,14 @@ export default function ClientTickets() {
               ) : (
                 <Button
                   type="button"
-                  disabled={subject.length < 3}
+                  disabled={subject.trim().length < 3 || isSearching}
                   onClick={() => setStage("form")}
                   className="bg-primary gap-2 text-sm"
                 >
-                  <ArrowRight size={15} /> Continue to Ticket Form
+                  {isSearching
+                    ? <><Loader2 size={15} className="animate-spin" /> Searching articles...</>
+                    : <><ArrowRight size={15} /> Continue to Ticket Form</>
+                  }
                 </Button>
               )}
               <Button type="button" variant="ghost" onClick={resetAll} className="text-sm text-muted-foreground">
