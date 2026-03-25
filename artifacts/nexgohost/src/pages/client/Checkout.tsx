@@ -132,8 +132,7 @@ export default function Checkout() {
     return parts.length >= 3 ? `.${parts.slice(-2).join(".")}` : `.${parts[parts.length - 1]}`;
   };
   const domainTld = getDomainTld(domainName.trim().toLowerCase());
-  const tldIsFree = pkgFreeTlds.length === 0 ? true : pkgFreeTlds.some(t => domainTld.endsWith(t));
-  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register" && (domainName ? tldIsFree : true);
+  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register";
 
   const getDomainPrice = (domain: string): { register: number; renew: number } | null => {
     if (!domain || !domain.includes(".")) return null;

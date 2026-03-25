@@ -532,16 +532,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [domainNs,    setDomainNs]    = useState(["ns1.noehost.com", "ns2.noehost.com"]);
   const [cartDomain,  setCartDomainRaw] = useState<CartDomain | null>(loadDomain);
 
-  // Force-free domain: compute TLD eligibility independent of the "claim" UI flow
-  const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
-  const _planFreeTlds: string[] = (selectedPlan as any)?.freeDomainTlds?.length
-    ? (selectedPlan as any).freeDomainTlds
-    : DEFAULT_FREE_TLDS;
-  const _cartDomTld = cartDomain?.fullName?.includes(".")
-    ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")).toLowerCase()
-    : "";
-  // isDomForceFree: true whenever plan+cycle+TLD all qualify — regardless of UI claim flow
-  const isDomForceFree = freeDomainEligible && cartDomain?.mode === "register" && !!_cartDomTld && _planFreeTlds.includes(_cartDomTld);
+  // Force-free domain: if plan has freeDomainEnabled AND cycle is yearly AND mode is register
+  // the domain is ALWAYS free — no TLD restriction applied
+  const isDomForceFree = freeDomainEligible && cartDomain?.mode === "register";
 
   // Payment & order
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
