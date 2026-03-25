@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const userRoleEnum = pgEnum("user_role", ["admin", "client"]);
 export const userStatusEnum = pgEnum("user_status", ["active", "suspended"]);
+export const adminPermissionEnum = pgEnum("admin_permission", ["super_admin", "full", "support", "limited"]);
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -15,6 +16,7 @@ export const usersTable = pgTable("users", {
   phone: text("phone"),
   role: userRoleEnum("role").notNull().default("client"),
   status: userStatusEnum("status").notNull().default("active"),
+  adminPermission: adminPermissionEnum("admin_permission"),
   emailVerified: boolean("email_verified").notNull().default(false),
   verificationCode: text("verification_code"),
   verificationExpiresAt: timestamp("verification_expires_at"),

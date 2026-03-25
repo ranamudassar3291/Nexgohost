@@ -62,6 +62,7 @@ import VpsPlans from "@/pages/admin/VpsPlans";
 import AddVpsPlan from "@/pages/admin/AddVpsPlan";
 import VpsOsTemplates from "@/pages/admin/VpsOsTemplates";
 import VpsLocations from "@/pages/admin/VpsLocations";
+import AdminUsers from "@/pages/admin/AdminUsers";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -393,6 +394,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/credits">
         <AdminPage><AdminCredits /></AdminPage>
+      </Route>
+      <Route path="/admin/admin-users">
+        <AdminPage><AdminUsers /></AdminPage>
       </Route>
 
       {/* ── OAuth callback — public ── */}

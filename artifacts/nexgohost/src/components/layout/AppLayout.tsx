@@ -86,6 +86,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "System",
     items: [
+      { name: "Admin Users",      href: "/admin/admin-users",      icon: (() => null) as any },
       { name: "Email Templates",  href: "/admin/email-templates",  icon: (() => null) as any },
       { name: "Settings",         href: "/admin/settings",         icon: (() => null) as any },
     ],
