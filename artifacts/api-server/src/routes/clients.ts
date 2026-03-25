@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, hostingServicesTable, domainsTable, invoicesTable, ticketsTable, ordersTable } from "@workspace/db/schema";
-import { eq, ilike, or, count, sql } from "drizzle-orm";
+import { eq, ilike, or, count, sql, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
 import { emailGeneric, emailVerificationCode } from "../lib/email.js";
 
@@ -67,7 +67,7 @@ router.get("/admin/clients", authenticate, requireAdmin, async (req: AuthRequest
     const filterSql = sql`role = 'client'${search ? sql` AND (first_name ILIKE ${'%' + search + '%'} OR last_name ILIKE ${'%' + search + '%'} OR email ILIKE ${'%' + search + '%'} OR company ILIKE ${'%' + search + '%'})` : sql``}${status ? sql` AND status = ${status}` : sql``}`;
 
     const [clients, [{ total }]] = await Promise.all([
-      db.select().from(usersTable).where(filterSql).orderBy(usersTable.createdAt).limit(limitNum).offset(offset),
+      db.select().from(usersTable).where(filterSql).orderBy(desc(usersTable.createdAt)).limit(limitNum).offset(offset),
       db.select({ total: count() }).from(usersTable).where(filterSql),
     ]);
 
