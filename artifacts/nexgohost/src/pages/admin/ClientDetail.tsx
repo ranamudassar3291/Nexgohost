@@ -6,7 +6,7 @@ import {
   ArrowLeft, User, Mail, Building, Phone, Calendar, Server, Globe, FileText,
   MessageSquare, ShoppingCart, Loader2, Edit2, Trash2, PauseCircle, PlayCircle,
   Send, Zap, XCircle, Shield, TrendingUp, TrendingDown, Key, CheckCircle,
-  CreditCard, Plus, ExternalLink, AlertTriangle, Wallet, LogIn, X, Save,
+  CreditCard, Plus, ExternalLink, AlertTriangle, Wallet, LogIn, X, Save, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -476,6 +476,221 @@ function CreateInvoiceModal({ clientId, clientName, onClose, onSave }: { clientI
   );
 }
 
+// ─── Add Service Modal ────────────────────────────────────────────────────────
+function AddServiceModal({ clientId, onClose, onSave }: { clientId: string; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+  const [saving, setSaving] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
+  const [d, setD] = useState({ domain: "", billingCycle: "yearly", startDate: format(new Date(), "yyyy-MM-dd"), nextDueDate: "", status: "active", amount: "" });
+  const set = (k: string, v: any) => setD(p => ({ ...p, [k]: v }));
+
+  const { data: plansData } = useQuery<any[]>({
+    queryKey: ["hosting-plans-list"],
+    queryFn: () => apiFetch("/api/hosting/plans"),
+  });
+  const plans: any[] = Array.isArray(plansData) ? plansData : (plansData as any)?.plans ?? [];
+
+  const pickPlan = (plan: any) => {
+    setSelectedPlan(plan);
+    const priceMap: Record<string, number> = { monthly: plan.priceMonthly, quarterly: plan.priceQuarterly, semiannual: plan.priceSemiannual, yearly: plan.priceYearly };
+    const price = priceMap[d.billingCycle] ?? plan.priceMonthly;
+    set("amount", price ? String(price) : "");
+    const months: Record<string, number> = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
+    const due = new Date(); due.setMonth(due.getMonth() + (months[d.billingCycle] ?? 1));
+    set("nextDueDate", format(due, "yyyy-MM-dd"));
+  };
+
+  const onCycleChange = (cycle: string) => {
+    set("billingCycle", cycle);
+    if (selectedPlan) {
+      const priceMap: Record<string, number> = { monthly: selectedPlan.priceMonthly, quarterly: selectedPlan.priceQuarterly, semiannual: selectedPlan.priceSemiannual, yearly: selectedPlan.priceYearly };
+      const price = priceMap[cycle] ?? selectedPlan.priceMonthly;
+      set("amount", price ? String(price) : "");
+      const months: Record<string, number> = { monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 };
+      const due = new Date(); due.setMonth(due.getMonth() + (months[cycle] ?? 1));
+      set("nextDueDate", format(due, "yyyy-MM-dd"));
+    }
+  };
+
+  const save = async () => {
+    if (!selectedPlan) return;
+    setSaving(true);
+    try {
+      await onSave({
+        clientId,
+        planId: selectedPlan.id,
+        planName: selectedPlan.name,
+        domain: d.domain || null,
+        billingCycle: d.billingCycle,
+        startDate: d.startDate || null,
+        nextDueDate: d.nextDueDate || null,
+        status: d.status,
+        amount: d.amount ? parseFloat(d.amount) : null,
+      });
+      onClose();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal title="Add Hosting Service" onClose={onClose} wide>
+      <div className="space-y-4">
+        {/* Plan picker */}
+        <Field label="Select Hosting Plan">
+          {plans.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-3 bg-secondary/30 rounded-lg">Loading plans…</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+              {plans.map(plan => (
+                <button key={plan.id} onClick={() => pickPlan(plan)}
+                  className={`text-left p-3 rounded-xl border text-sm transition-all ${selectedPlan?.id === plan.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/20 hover:border-primary/40"}`}>
+                  <div className="font-semibold">{plan.name}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Rs. {plan.priceYearly ? `${plan.priceYearly}/yr` : plan.priceMonthly ? `${plan.priceMonthly}/mo` : "—"}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </Field>
+
+        {selectedPlan && (
+          <>
+            <Field label="Domain (optional)">
+              <Input value={d.domain} onChange={e => set("domain", e.target.value)} placeholder="e.g. example.com" className="h-9" />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Billing Cycle">
+                <Sel value={d.billingCycle} onChange={onCycleChange}>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="semiannual">Semi-Annual</option>
+                  <option value="yearly">Yearly</option>
+                </Sel>
+              </Field>
+              <Field label="Status">
+                <Sel value={d.status} onChange={v => set("status", v)}>
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="suspended">Suspended</option>
+                </Sel>
+              </Field>
+              <Field label="Start Date">
+                <Input type="date" value={d.startDate} onChange={e => set("startDate", e.target.value)} className="h-9" />
+              </Field>
+              <Field label="Next Due Date">
+                <Input type="date" value={d.nextDueDate} onChange={e => set("nextDueDate", e.target.value)} className="h-9" />
+              </Field>
+            </div>
+            <Field label="Price / Amount (PKR)">
+              <Input type="number" value={d.amount} onChange={e => set("amount", e.target.value)} placeholder="Auto-filled from plan" className="h-9" />
+            </Field>
+          </>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button className="flex-1 gap-1.5" onClick={save} disabled={saving || !selectedPlan}>
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add Service
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Invoice View Modal ───────────────────────────────────────────────────────
+function InvoiceViewModal({ inv, onClose }: { inv: any; onClose: () => void }) {
+  const { formatPrice } = useCurrency();
+  const items: any[] = Array.isArray(inv.items) ? inv.items : [];
+
+  return (
+    <Modal title="Invoice" onClose={onClose} wide>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+        <div>
+          <div className="flex items-center gap-2">
+            <FileText size={18} className="text-primary" />
+            <span className="font-bold text-lg font-mono text-foreground">{inv.invoiceNumber}</span>
+            <StatusBadge status={inv.status} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Created {fmtDate(inv.createdAt)}</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Dates & type */}
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          {[
+            { label: "Invoice Type", value: inv.invoiceType || "hosting" },
+            { label: "Due Date", value: fmtDate(inv.dueDate) },
+            { label: "Paid Date", value: inv.paidDate ? fmtDate(inv.paidDate) : "Not paid yet" },
+            { label: "Payment Ref", value: inv.paymentRef || "—" },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-secondary/40 rounded-xl p-3">
+              <p className="text-muted-foreground text-xs mb-1">{label}</p>
+              <p className="font-medium text-foreground">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Totals */}
+        <div className="bg-secondary/20 border border-border/50 rounded-xl p-4">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>{formatPrice(Number(inv.amount))}</span>
+          </div>
+          {Number(inv.tax) > 0 && (
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-muted-foreground">Tax</span>
+              <span>{formatPrice(Number(inv.tax))}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold border-t border-border/50 mt-2 pt-2">
+            <span>Total</span>
+            <span className="text-primary text-lg">{formatPrice(Number(inv.total || inv.amount))}</span>
+          </div>
+        </div>
+
+        {/* Line items */}
+        {items.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Items</p>
+            <div className="border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/30">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs text-muted-foreground">Description</th>
+                    <th className="text-right px-3 py-2 text-xs text-muted-foreground">Qty</th>
+                    <th className="text-right px-3 py-2 text-xs text-muted-foreground">Unit</th>
+                    <th className="text-right px-3 py-2 text-xs text-muted-foreground">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, i) => (
+                    <tr key={i} className="border-t border-border/40">
+                      <td className="px-3 py-2.5 text-foreground">{item.description}</td>
+                      <td className="px-3 py-2.5 text-right text-muted-foreground">{item.quantity ?? 1}</td>
+                      <td className="px-3 py-2.5 text-right text-muted-foreground">{formatPrice(item.unitPrice ?? item.total)}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold">{formatPrice(item.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        {inv.paymentNotes && (
+          <div className="bg-secondary/40 rounded-xl p-3 text-sm">
+            <p className="text-muted-foreground text-xs mb-1">Notes</p>
+            <p className="text-foreground">{inv.paymentNotes}</p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -494,9 +709,11 @@ export default function AdminClientDetail() {
   const [walletDesc, setWalletDesc] = useState("");
 
   const [editService, setEditService] = useState<any | null>(null);
+  const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [editDomain, setEditDomain] = useState<any | null>(null);
   const [addDomainOpen, setAddDomainOpen] = useState(false);
   const [editInvoice, setEditInvoice] = useState<any | null>(null);
+  const [viewInvoice, setViewInvoice] = useState<any | null>(null);
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
   const [impersonating, setImpersonating] = useState(false);
 
@@ -582,6 +799,13 @@ export default function AdminClientDetail() {
       {editService && (
         <EditServiceModal svc={editService} onClose={() => setEditService(null)}
           onSave={async (data) => { await action(`/api/admin/hosting/${editService.id}`, "PUT", data); setEditService(null); }} />
+      )}
+      {addServiceOpen && (
+        <AddServiceModal clientId={id!} onClose={() => setAddServiceOpen(false)}
+          onSave={async (data) => { await action("/api/admin/hosting", "POST", data); setAddServiceOpen(false); }} />
+      )}
+      {viewInvoice && (
+        <InvoiceViewModal inv={viewInvoice} onClose={() => setViewInvoice(null)} />
       )}
       {editDomain && (
         <EditDomainModal domain={editDomain} onClose={() => setEditDomain(null)}
@@ -760,7 +984,7 @@ export default function AdminClientDetail() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-semibold text-foreground">Hosting Services</h3>
-                  <Button size="sm" className="bg-primary gap-1.5 h-8" onClick={() => setLocation(`/admin/clients/${id}/add-service`)}>
+                  <Button size="sm" className="bg-primary gap-1.5 h-8" onClick={() => setAddServiceOpen(true)}>
                     <Plus size={13} /> Add Service
                   </Button>
                 </div>
@@ -872,6 +1096,10 @@ export default function AdminClientDetail() {
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="font-semibold text-sm">{formatPrice(Number(inv.total || inv.amount))}</span>
                       <StatusBadge status={inv.status} />
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+                        onClick={() => setViewInvoice(inv)}>
+                        <Eye size={11} /> View
+                      </Button>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
                         onClick={() => setEditInvoice(inv)}>
                         <Edit2 size={11} /> Edit

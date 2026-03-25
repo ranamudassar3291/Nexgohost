@@ -2165,6 +2165,29 @@ router.post("/client/hosting/:id/ai-builder", authenticate, async (req: AuthRequ
   }
 });
 
+// Admin: create hosting service for a client
+router.post("/admin/hosting", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clientId, planId, planName, domain, billingCycle, startDate, nextDueDate, status, amount } = req.body;
+    if (!clientId) { res.status(400).json({ error: "clientId is required" }); return; }
+    const [created] = await db.insert(hostingServicesTable).values({
+      clientId,
+      planId: planId || "custom",
+      planName: planName || "Custom Plan",
+      domain: domain || null,
+      billingCycle: billingCycle || "monthly",
+      startDate: startDate ? new Date(startDate) : new Date(),
+      nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
+      status: status || "active",
+      amount: amount != null ? String(amount) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    res.status(201).json(formatService(created, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
 // Admin: delete hosting service (after termination)
 router.delete("/admin/hosting/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
