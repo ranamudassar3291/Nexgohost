@@ -4,16 +4,21 @@ import {
   domainTransfersTable,
   domainsTable,
   usersTable,
-  domainPricingTable,
+  domainExtensionsTable,
   ordersTable,
   invoicesTable,
   affiliatesTable,
   affiliateReferralsTable,
   affiliateCommissionsTable,
 } from "@workspace/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
-import { emailGeneric } from "../lib/email.js";
+import {
+  emailDomainTransferInitiated,
+  emailDomainTransferApproved,
+  emailDomainTransferCompleted,
+  emailDomainTransferRejected,
+} from "../lib/email.js";
 
 const router = Router();
 
@@ -48,61 +53,9 @@ function validateEpp(epp: string): { valid: boolean; message: string } {
 }
 
 /**
- * Determine lock status for a domain.
- * Rule: domains containing "lock" or starting with certain suspicious keywords
- * are "locked". Others are "unlocked".
- * In production, this would query the current registrar's API.
- */
-function determineLockStatus(domain: string): "locked" | "unlocked" {
-  const d = domain.toLowerCase();
-  if (d.includes("lock") || d.startsWith("locked") || d.startsWith("secure")) return "locked";
-  const hash = Array.from(domain).reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  return hash % 5 === 0 ? "locked" : "unlocked";
-}
-
-// RDAP servers for real-time domain existence check
-const RDAP_SERVERS: Record<string, string> = {
-  ".com": "https://rdap.verisign.com/com/v1/domain/",
-  ".net": "https://rdap.verisign.com/net/v1/domain/",
-  ".org": "https://rdap.publicinterestregistry.org/rdap/domain/",
-  ".co": "https://rdap.nic.co/domain/",
-  ".io": "https://rdap.nic.io/domain/",
-  ".uk": "https://rdap.nominet.uk/uk/domain/",
-  ".pk": "https://rdap.pknic.net.pk/domain/",
-};
-
-/**
- * Check if a domain is actually registered using RDAP.
- * Returns: "registered" | "not_registered" | "unknown"
- * "unknown" = RDAP not available for TLD or network error → allow through
- */
-async function checkDomainRegisteredViaRdap(domain: string): Promise<"registered" | "not_registered" | "unknown"> {
-  const tld = "." + domain.split(".").slice(1).join(".");
-  const server = RDAP_SERVERS[tld];
-  if (!server) return "unknown";  // no RDAP server for this TLD → can't verify
-
-  const url = `${server}${domain}`;
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: "application/rdap+json" },
-    }).finally(() => clearTimeout(timer));
-
-    if (res.status === 200) return "registered";   // domain exists in registry
-    if (res.status === 404) return "not_registered"; // domain not in registry
-    return "unknown"; // other status → uncertain
-  } catch {
-    return "unknown"; // timeout or network error → let through
-  }
-}
-
-/**
- * Validate that a domain name itself looks plausible:
+ * Validate domain heuristics:
  * - Name part must be >= 3 chars
  * - Must not be all-numeric
- * - TLD must be in our supported list
  */
 function checkDomainHeuristics(domain: string): { valid: boolean; reason: string } {
   const name = extractName(domain);
@@ -115,13 +68,85 @@ function checkDomainHeuristics(domain: string): { valid: boolean; reason: string
   return { valid: true, reason: "" };
 }
 
-/** Normalize TLD for pricing lookup: try with and without dot prefix */
+// RDAP servers for TLD existence + lock status check
+const RDAP_SERVERS: Record<string, string> = {
+  ".com": "https://rdap.verisign.com/com/v1/domain/",
+  ".net": "https://rdap.verisign.com/net/v1/domain/",
+  ".org": "https://rdap.publicinterestregistry.org/rdap/domain/",
+  ".co": "https://rdap.nic.co/domain/",
+  ".io": "https://rdap.nic.io/domain/",
+  ".uk": "https://rdap.nominet.uk/uk/domain/",
+  ".pk": "https://rdap.pknic.net.pk/domain/",
+  ".info": "https://rdap.afilias.info/rdap/v1/domain/",
+  ".biz": "https://rdap.nic.biz/domain/",
+  ".us": "https://rdap.nic.us/rdap/v1/domain/",
+  ".in": "https://rdap.registry.in/domain/",
+};
+
+interface RdapResult {
+  registrationStatus: "registered" | "not_registered" | "unknown";
+  lockStatus: "locked" | "unlocked" | "unknown";
+  statusCodes: string[];
+}
+
+/**
+ * Real RDAP check: domain existence + transfer lock status.
+ * Reads RDAP `status` array — "client transfer prohibited" = locked.
+ */
+async function checkDomainViaRdap(domain: string): Promise<RdapResult> {
+  const tld = "." + domain.split(".").slice(1).join(".");
+  const server = RDAP_SERVERS[tld];
+  if (!server) return { registrationStatus: "unknown", lockStatus: "unknown", statusCodes: [] };
+
+  const url = `${server}${domain}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/rdap+json" },
+    }).finally(() => clearTimeout(timer));
+
+    if (res.status === 404) return { registrationStatus: "not_registered", lockStatus: "unknown", statusCodes: [] };
+    if (res.status !== 200) return { registrationStatus: "unknown", lockStatus: "unknown", statusCodes: [] };
+
+    const data: any = await res.json();
+    const statusCodes: string[] = Array.isArray(data.status)
+      ? data.status.map((s: string) => s.toLowerCase())
+      : [];
+
+    const isLocked = statusCodes.some(s =>
+      s.includes("client transfer prohibited") ||
+      s.includes("server transfer prohibited")
+    );
+
+    return {
+      registrationStatus: "registered",
+      lockStatus: isLocked ? "locked" : "unlocked",
+      statusCodes,
+    };
+  } catch {
+    return { registrationStatus: "unknown", lockStatus: "unknown", statusCodes: [] };
+  }
+}
+
+/**
+ * Get transfer pricing from domain_extensions (admin-configured PKR prices).
+ * Only returns pricing if transferAllowed = true and status = active.
+ */
 async function getTransferPricing(tld: string) {
-  const candidates = [tld, tld.startsWith(".") ? tld.slice(1) : `.${tld}`];
+  // Try with dot prefix and without (domain_extensions stores as ".com")
+  const candidates = tld.startsWith(".") ? [tld, tld.slice(1)] : [`.${tld}`, tld];
   for (const candidate of candidates) {
-    const [pricing] = await db.select().from(domainPricingTable)
-      .where(eq(domainPricingTable.tld, candidate)).limit(1);
-    if (pricing) return pricing;
+    const [ext] = await db.select().from(domainExtensionsTable)
+      .where(
+        and(
+          eq(domainExtensionsTable.extension, candidate),
+          eq(domainExtensionsTable.status, "active"),
+          eq(domainExtensionsTable.transferAllowed, true),
+        )
+      ).limit(1);
+    if (ext) return ext;
   }
   return null;
 }
@@ -150,29 +175,28 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       return;
     }
 
-    // STEP 2: Heuristic format/name check
+    // STEP 2: Heuristic check
     const heuristic = checkDomainHeuristics(domain);
     if (!heuristic.valid) {
       res.status(400).json({ valid: false, exists: false, error: heuristic.reason });
       return;
     }
 
-    const domainName_ = extractName(domain);
     const tld = extractTld(domain);
 
-    // STEP 3: TLD must be in our supported list
-    const pricingCheck = await getTransferPricing(tld);
-    if (!pricingCheck) {
+    // STEP 3: TLD must be admin-approved for transfers (transferAllowed = true)
+    const pricing = await getTransferPricing(tld);
+    if (!pricing) {
       res.status(400).json({
         valid: false,
-        error: `TLD .${tld} is not supported for transfers. Check our supported TLD list.`,
+        error: `TLD .${tld} is not supported for transfers. Please check our supported TLD list or contact support.`,
       });
       return;
     }
 
-    // STEP 4: Real domain existence check via RDAP
-    const rdapResult = await checkDomainRegisteredViaRdap(domain);
-    if (rdapResult === "not_registered") {
+    // STEP 4: Real domain existence + lock status via RDAP
+    const rdap = await checkDomainViaRdap(domain);
+    if (rdap.registrationStatus === "not_registered") {
       res.status(400).json({
         valid: false,
         exists: false,
@@ -180,17 +204,17 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       });
       return;
     }
-    // rdapResult === "unknown" → RDAP unavailable for this TLD → proceed
 
     // STEP 5: Check if domain already in our system
+    const name = extractName(domain);
     const [alreadyOwned] = await db.select().from(domainsTable)
-      .where(eq(domainsTable.name, domainName_)).limit(1);
-    if (alreadyOwned && alreadyOwned.tld === `.${tld}` || alreadyOwned && alreadyOwned.tld === tld) {
+      .where(eq(domainsTable.name, name)).limit(1);
+    if (alreadyOwned && (alreadyOwned.tld === `.${tld}` || alreadyOwned.tld === tld)) {
       res.status(409).json({ valid: false, error: `${domain} is already registered in our system.` });
       return;
     }
 
-    // STEP 5: EPP validation (min 8 chars, must contain letters AND numbers)
+    // STEP 6: EPP validation (min 8 chars, must contain letters AND numbers)
     const eppResult = validateEpp(epp);
     if (!eppResult.valid) {
       res.status(400).json({
@@ -203,27 +227,44 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
       return;
     }
 
-    // STEP 6: Pricing already fetched in STEP 3 — reuse it
-    const transferPrice = Number(pricingCheck.transferPrice);
+    const transferPrice = Number(pricing.transferPrice);
+    const lockStatus = rdap.lockStatus; // "locked" | "unlocked" | "unknown"
 
-    console.log("[DOMAIN TRANSFER]", {
+    console.log("[DOMAIN TRANSFER VALIDATE]", {
       domain,
       tld,
-      pricing: { tld: pricingCheck.tld, transferPrice },
-      lockStatus: "unknown (external registrar)",
-      rdapResult,
+      transferPrice,
+      lockStatus,
+      rdapStatus: rdap.statusCodes,
       eppValid: eppResult.valid,
     });
+
+    // If definitely locked, block and inform the client
+    if (lockStatus === "locked") {
+      res.status(400).json({
+        valid: false,
+        domain,
+        tld,
+        exists: true,
+        lockStatus: "locked",
+        transferable: false,
+        error: "Domain transfer lock is currently ENABLED. Please log in to your current registrar, disable the transfer lock (ClientTransferProhibited), and try again.",
+      });
+      return;
+    }
 
     res.json({
       valid: true,
       domain,
       tld,
       exists: true,
-      lockStatus: "unlocked",
+      lockStatus,   // "unlocked" or "unknown"
       transferable: true,
       transferPrice,
-      message: "Domain is eligible for transfer. EPP code validated. Ensure domain is unlocked at your current registrar.",
+      statusCodes: rdap.statusCodes,
+      message: lockStatus === "unknown"
+        ? "Domain validated. EPP code accepted. Transfer lock status could not be confirmed — please ensure domain is unlocked at your current registrar."
+        : "Domain is eligible for transfer. EPP code validated. Domain is unlocked.",
     });
   } catch (err) {
     console.error("[TRANSFER VALIDATE ERROR]", err);
@@ -243,7 +284,6 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
 
     const domain = domainName.trim().toLowerCase();
 
-    // Re-run all validations (never trust client state alone)
     if (!validateDomainFormat(domain)) {
       res.status(400).json({ error: "Invalid domain name format" });
       return;
@@ -252,50 +292,46 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
     const name = extractName(domain);
     const tld = extractTld(domain);
 
-    // Heuristic check
     const heuristic = checkDomainHeuristics(domain);
     if (!heuristic.valid) {
       res.status(400).json({ error: heuristic.reason });
       return;
     }
 
-    // TLD must be supported
-    const pricingCheck2 = await getTransferPricing(tld);
-    if (!pricingCheck2) {
+    // TLD must be admin-approved for transfers
+    const pricing = await getTransferPricing(tld);
+    if (!pricing) {
       res.status(400).json({ error: `TLD .${tld} is not supported for transfers.` });
       return;
     }
 
-    // Real existence check
-    const rdapCheck = await checkDomainRegisteredViaRdap(domain);
-    if (rdapCheck === "not_registered") {
+    // Real existence + lock check
+    const rdap = await checkDomainViaRdap(domain);
+    if (rdap.registrationStatus === "not_registered") {
       res.status(400).json({ error: "Domain is not registered. Only registered domains can be transferred." });
       return;
     }
+    if (rdap.lockStatus === "locked") {
+      res.status(400).json({ error: "Domain transfer lock is ENABLED. Disable the transfer lock at your current registrar before submitting." });
+      return;
+    }
 
-    // Validate EPP code (min 8 chars, must have letters AND numbers)
     const eppResult = validateEpp(epp);
     if (!eppResult.valid) {
       res.status(400).json({ error: eppResult.message });
       return;
     }
 
-    // Pricing already verified in step above — reuse pricingCheck2
-    const transferPrice = Number(pricingCheck2.transferPrice);
+    const transferPrice = Number(pricing.transferPrice);
+    const lockStatus = rdap.lockStatus; // "unlocked" | "unknown"
     const userId = req.user!.userId;
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    console.log("[DOMAIN TRANSFER]", {
-      domain,
-      tld,
-      pricing: { tld: pricingCheck2.tld, transferPrice },
-      lockStatus: "unknown (external registrar)",
-      eppValid: true,
-    });
+    console.log("[DOMAIN TRANSFER SUBMIT]", { domain, tld, transferPrice, lockStatus, eppValid: true });
 
-    // FIX 5 & 6: Create Order
+    // Create Order
     const [order] = await db.insert(ordersTable).values({
       clientId: userId,
       type: "domain",
@@ -305,7 +341,7 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       notes: `Domain transfer request for ${domain}`,
     }).returning();
 
-    // FIX 5 & 6: Create Invoice
+    // Create Invoice
     const invoiceNumber = generateInvoiceNumber();
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);
@@ -325,19 +361,19 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       }],
     }).returning();
 
-    // FIX 7: Insert domain with "pending_transfer" status so it shows in dashboard
+    // Insert domain with "pending_transfer" status
     const [domainEntry] = await db.insert(domainsTable).values({
       clientId: userId,
       name,
       tld: `.${tld}`,
       registrar: "Transfer Pending",
       status: "pending_transfer" as any,
-      lockStatus,
+      lockStatus: lockStatus === "unlocked" ? "unlocked" : "locked",
       autoRenew: true,
       nameservers: [],
     }).onConflictDoNothing().returning();
 
-    // Create transfer record, linked to order + invoice + domain
+    // Create transfer record
     const [transfer] = await db.insert(domainTransfersTable).values({
       clientId: userId,
       domainName: domain,
@@ -349,30 +385,21 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       invoiceId: invoice.id,
     }).returning();
 
-    // If domain was inserted, link the transfer ID to it
+    // Link transfer ID to domain
     if (domainEntry) {
       await db.update(domainsTable)
         .set({ transferId: transfer.id, updatedAt: new Date() })
         .where(eq(domainsTable.id, domainEntry.id));
     }
 
-    // Send confirmation email (non-blocking)
+    // Send proper transfer initiated email
     const clientName = `${user.firstName} ${user.lastName}`;
-    emailGeneric(
-      user.email,
-      `Domain Transfer Initiated — ${domain}`,
+    emailDomainTransferInitiated(user.email, {
       clientName,
-      `Your domain transfer request for <strong>${domain}</strong> has been received.<br/><br/>` +
-      `<strong>Domain:</strong> ${domain}<br/>` +
-      `<strong>Transfer Price:</strong> Rs. ${transferPrice.toFixed(2)}<br/>` +
-      `<strong>Invoice:</strong> #${invoiceNumber}<br/>` +
-      `<strong>Status:</strong> Under Review<br/><br/>` +
-      `<strong>Next Steps:</strong><br/>` +
-      `1. Our team will verify your EPP/Auth code.<br/>` +
-      `2. Once approved, the transfer process will begin (5–7 days).<br/>` +
-      `3. You will receive an email update when the status changes.<br/><br/>` +
-      `To pay your invoice, log in to your client portal.`
-    ).catch(console.warn);
+      domain,
+      transferPrice: transferPrice.toFixed(2),
+      invoiceNumber,
+    }).catch(console.warn);
 
     // Auto-commission for affiliate referrals (non-blocking)
     (async () => {
@@ -437,13 +464,9 @@ router.put("/domains/transfers/:id/cancel", authenticate, async (req: AuthReques
       .where(eq(domainTransfersTable.id, req.params.id!))
       .returning();
 
-    // Also remove domain entry if still pending_transfer
-    if (transfer.domainName) {
-      const domName = extractName(transfer.domainName);
-      await db.update(domainsTable)
-        .set({ status: "cancelled" as any, updatedAt: new Date() })
-        .where(eq(domainsTable.transferId, updated.id));
-    }
+    await db.update(domainsTable)
+      .set({ status: "cancelled" as any, updatedAt: new Date() })
+      .where(eq(domainsTable.transferId, updated.id));
 
     res.json({ transfer: updated });
   } catch (err) {
@@ -459,7 +482,6 @@ router.get("/domains/transfers", authenticate, async (req: AuthRequest, res) => 
       .from(domainTransfersTable)
       .where(eq(domainTransfersTable.clientId, req.user!.userId))
       .orderBy(desc(domainTransfersTable.createdAt));
-
     res.json({ transfers });
   } catch (err) {
     console.error(err);
@@ -468,7 +490,7 @@ router.get("/domains/transfers", authenticate, async (req: AuthRequest, res) => 
 });
 
 // ── Admin: List all transfer requests ─────────────────────────────────────────
-router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async (_req: AuthRequest, res) => {
   try {
     const transfers = await db.select({
       id: domainTransfersTable.id,
@@ -481,6 +503,7 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
       orderId: domainTransfersTable.orderId,
       invoiceId: domainTransfersTable.invoiceId,
       createdAt: domainTransfersTable.createdAt,
+      updatedAt: domainTransfersTable.updatedAt,
       clientId: domainTransfersTable.clientId,
       firstName: usersTable.firstName,
       lastName: usersTable.lastName,
@@ -489,7 +512,6 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
       .from(domainTransfersTable)
       .leftJoin(usersTable, eq(domainTransfersTable.clientId, usersTable.id))
       .orderBy(desc(domainTransfersTable.createdAt));
-
     res.json({ transfers });
   } catch (err) {
     console.error(err);
@@ -501,7 +523,8 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
 router.put("/admin/domain-transfers/:id/approve", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { adminNotes } = req.body || {};
-    const [transfer] = await db.select().from(domainTransfersTable).where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
+    const [transfer] = await db.select().from(domainTransfersTable)
+      .where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
     if (!transfer) { res.status(404).json({ error: "Transfer not found" }); return; }
 
     const [updated] = await db.update(domainTransfersTable)
@@ -512,9 +535,68 @@ router.put("/admin/domain-transfers/:id/approve", authenticate, requireRole("adm
     const tld = extractTld(transfer.domainName);
     const name = extractName(transfer.domainName);
 
-    // Update domain entry to "active" if it exists, otherwise create it
+    // Update domain to "transferring" status (in-progress, not yet complete)
     const existing = await db.update(domainsTable)
-      .set({ status: "active", registrar: "Transferred", updatedAt: new Date() })
+      .set({ status: "transferring" as any, registrar: "Transfer In Progress", updatedAt: new Date() })
+      .where(eq(domainsTable.transferId, transfer.id))
+      .returning();
+
+    if (!existing.length) {
+      await db.insert(domainsTable).values({
+        clientId: transfer.clientId,
+        name,
+        tld: `.${tld}`,
+        status: "transferring" as any,
+        registrar: "Transfer In Progress",
+        transferId: transfer.id,
+      }).onConflictDoNothing();
+    }
+
+    // Send approval email to client
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, transfer.clientId)).limit(1);
+    if (user) {
+      emailDomainTransferApproved(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        domain: transfer.domainName,
+        adminNotes: adminNotes || undefined,
+      }).catch(console.warn);
+    }
+
+    res.json({ transfer: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Mark transfer as completed ─────────────────────────────────────────
+router.put("/admin/domain-transfers/:id/complete", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const { adminNotes, expiryDate } = req.body || {};
+    const [transfer] = await db.select().from(domainTransfersTable)
+      .where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
+    if (!transfer) { res.status(404).json({ error: "Transfer not found" }); return; }
+
+    const [updated] = await db.update(domainTransfersTable)
+      .set({ status: "completed", adminNotes: adminNotes || null, updatedAt: new Date() })
+      .where(eq(domainTransfersTable.id, req.params.id!))
+      .returning();
+
+    const tld = extractTld(transfer.domainName);
+    const name = extractName(transfer.domainName);
+    const expiry = expiryDate ? new Date(expiryDate) : (() => {
+      const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d;
+    })();
+
+    // Mark domain as active
+    const existing = await db.update(domainsTable)
+      .set({
+        status: "active",
+        registrar: "Noehost",
+        expiryDate: expiry,
+        nextDueDate: expiry,
+        updatedAt: new Date(),
+      })
       .where(eq(domainsTable.transferId, transfer.id))
       .returning();
 
@@ -524,9 +606,28 @@ router.put("/admin/domain-transfers/:id/approve", authenticate, requireRole("adm
         name,
         tld: `.${tld}`,
         status: "active",
-        registrar: "Transferred",
+        registrar: "Noehost",
+        expiryDate: expiry,
+        nextDueDate: expiry,
         transferId: transfer.id,
       }).onConflictDoNothing();
+    }
+
+    // Also mark the order as completed
+    if (transfer.orderId) {
+      await db.update(ordersTable)
+        .set({ status: "completed", updatedAt: new Date() } as any)
+        .where(eq(ordersTable.id, transfer.orderId));
+    }
+
+    // Send completion email to client
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, transfer.clientId)).limit(1);
+    if (user) {
+      emailDomainTransferCompleted(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        domain: transfer.domainName,
+        expiryDate: expiry.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
+      }).catch(console.warn);
     }
 
     res.json({ transfer: updated });
@@ -547,10 +648,22 @@ router.put("/admin/domain-transfers/:id/reject", authenticate, requireRole("admi
 
     if (!updated) { res.status(404).json({ error: "Transfer not found" }); return; }
 
-    // Mark domain as cancelled in domains table
     await db.update(domainsTable)
       .set({ status: "cancelled" as any, updatedAt: new Date() })
       .where(eq(domainsTable.transferId, updated.id));
+
+    // Send rejection email to client
+    const [transfer] = await db.select().from(domainTransfersTable)
+      .where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
+    const [user] = await db.select().from(usersTable)
+      .where(eq(usersTable.id, updated.clientId)).limit(1);
+    if (user) {
+      emailDomainTransferRejected(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        domain: updated.domainName,
+        reason: adminNotes || undefined,
+      }).catch(console.warn);
+    }
 
     res.json({ transfer: updated });
   } catch (err) {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Key, Package, Lock, Unlock, FileText, Receipt } from "lucide-react";
+import { Globe, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Key, Package, Lock, Unlock, FileText, Receipt, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -60,13 +60,14 @@ export default function DomainTransfer() {
   };
 
   const steps = [
-    { id: "enter", label: "Domain & EPP" },
+    { id: "enter",   label: "Domain & EPP" },
     { id: "validate", label: "Validation" },
-    { id: "submit", label: "Confirm" },
+    { id: "submit",  label: "Confirm" },
     { id: "success", label: "Submitted" },
   ];
-
   const stepIndex = steps.findIndex(s => s.id === step);
+
+  const lockStatus: "locked" | "unlocked" | "unknown" = validationResult?.lockStatus ?? "unknown";
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-6">
@@ -114,6 +115,7 @@ export default function DomainTransfer() {
                     className="bg-background/60 border-border h-11"
                     required
                   />
+                  <p className="text-xs text-muted-foreground">Enter the full domain name including extension (e.g. example.com)</p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">EPP / Authorization Code</label>
@@ -122,12 +124,12 @@ export default function DomainTransfer() {
                     <Input
                       value={epp}
                       onChange={e => { setEpp(e.target.value); setError(null); }}
-                      placeholder="Min. 8 chars, letters and numbers"
+                      placeholder="Min. 8 chars, both letters and numbers"
                       className="bg-background/60 border-border h-11 pl-9"
                       required
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Must be at least 8 characters with both letters and numbers</p>
+                  <p className="text-xs text-muted-foreground">Get this from your current registrar's control panel. Must be 8+ characters with letters and numbers.</p>
                 </div>
 
                 {error && (
@@ -136,12 +138,12 @@ export default function DomainTransfer() {
                   </div>
                 )}
 
-                <div className="bg-secondary/50 rounded-xl p-4 text-sm text-muted-foreground space-y-1">
+                <div className="bg-secondary/50 rounded-xl p-4 text-sm text-muted-foreground space-y-1.5">
                   <p className="font-medium text-foreground/70 text-xs uppercase tracking-wider mb-2">Before transferring, ensure:</p>
-                  <p>• Domain is unlocked at your current registrar</p>
-                  <p>• Domain is not within 60 days of registration or renewal</p>
-                  <p>• You have the EPP/Auth code ready (min. 8 characters)</p>
-                  <p>• WHOIS privacy is temporarily disabled</p>
+                  <p className="flex items-center gap-2"><Unlock size={13} /> Domain is <strong>unlocked</strong> at your current registrar</p>
+                  <p className="flex items-center gap-2"><Info size={13} /> Domain was registered more than 60 days ago</p>
+                  <p className="flex items-center gap-2"><Key size={13} /> You have the EPP/Auth code ready (8+ chars)</p>
+                  <p className="flex items-center gap-2"><Globe size={13} /> WHOIS privacy is temporarily disabled</p>
                 </div>
 
                 <Button type="submit" disabled={loading} className="w-full h-11 gap-2">
@@ -159,13 +161,13 @@ export default function DomainTransfer() {
                   <CheckCircle2 size={32} className="text-green-400" />
                 </div>
                 <h2 className="text-lg font-semibold text-foreground">Domain Validated</h2>
-                <p className="text-sm text-green-400">Domain is eligible for transfer. EPP code validated.</p>
+                <p className="text-sm text-green-400">Domain is eligible for transfer. EPP code accepted.</p>
               </div>
 
               <div className="bg-secondary/50 rounded-xl p-4 space-y-2.5 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Domain</span>
-                  <span className="font-medium text-foreground">{validationResult.domain}</span>
+                  <span className="font-medium text-foreground font-mono">{validationResult.domain}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">TLD</span>
@@ -178,10 +180,14 @@ export default function DomainTransfer() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Lock Status</span>
-                  {validationResult.lockStatus === "unlocked" ? (
+                  <span className="text-muted-foreground">Transfer Lock</span>
+                  {lockStatus === "unlocked" ? (
                     <span className="font-medium text-green-400 flex items-center gap-1.5">
-                      <Unlock size={13} /> Unlocked
+                      <Unlock size={13} /> Unlocked — Ready to Transfer
+                    </span>
+                  ) : lockStatus === "unknown" ? (
+                    <span className="font-medium text-yellow-400 flex items-center gap-1.5">
+                      <AlertTriangle size={13} /> Unknown — Verify with registrar
                     </span>
                   ) : (
                     <span className="font-medium text-red-400 flex items-center gap-1.5">
@@ -191,9 +197,19 @@ export default function DomainTransfer() {
                 </div>
                 <div className="flex items-center justify-between border-t border-border pt-2.5">
                   <span className="text-muted-foreground">Transfer Fee</span>
-                  <span className="font-bold text-foreground">{formatPrice(Number(validationResult.transferPrice || 0))}</span>
+                  <span className="font-bold text-foreground text-base">{formatPrice(Number(validationResult.transferPrice || 0))}</span>
                 </div>
               </div>
+
+              {lockStatus === "unknown" && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm text-yellow-400">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Transfer lock status could not be confirmed automatically.</p>
+                    <p className="text-xs mt-0.5">Please log in to your current registrar and confirm the transfer lock (ClientTransferProhibited) is <strong>disabled</strong> before proceeding.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => { setStep("enter"); setError(null); }} className="flex-1 gap-2">
@@ -222,17 +238,23 @@ export default function DomainTransfer() {
               <div className="bg-secondary/50 rounded-xl p-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Domain</span>
-                  <span className="font-medium text-foreground">{domain}</span>
+                  <span className="font-medium text-foreground font-mono">{domain}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">EPP Code</span>
                   <span className="font-medium text-foreground font-mono">{"•".repeat(Math.min(epp.length, 8))}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Lock Status</span>
-                  <span className="font-medium text-green-400 flex items-center gap-1.5">
-                    <Unlock size={13} /> Unlocked
-                  </span>
+                  <span className="text-muted-foreground">Transfer Lock</span>
+                  {lockStatus === "unlocked" ? (
+                    <span className="font-medium text-green-400 flex items-center gap-1.5">
+                      <Unlock size={13} /> Unlocked
+                    </span>
+                  ) : (
+                    <span className="font-medium text-yellow-400 flex items-center gap-1.5">
+                      <AlertTriangle size={13} /> Unknown — ensure unlocked
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between border-t border-border pt-3">
                   <span className="text-muted-foreground">Transfer Fee</span>
@@ -242,11 +264,13 @@ export default function DomainTransfer() {
                 </div>
               </div>
 
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-400 space-y-1">
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-400 space-y-1.5">
                 <p className="font-medium">What happens next?</p>
                 <p>• An invoice will be created for the transfer fee</p>
                 <p>• Your domain will appear in your dashboard as "Pending Transfer"</p>
-                <p>• Our team will review and process within 24–48 hours</p>
+                <p>• Our team will review your request within 24–48 hours</p>
+                <p>• Once approved, your current registrar will send an authorization email — approve it promptly</p>
+                <p>• Transfer completes within 5–7 business days after authorization</p>
               </div>
 
               {error && (
@@ -260,7 +284,7 @@ export default function DomainTransfer() {
                   <ArrowLeft size={16} /> Back
                 </Button>
                 <Button onClick={handleSubmit} disabled={loading} className="flex-1 gap-2">
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><span>Submit Transfer</span> <ArrowRight size={16} /></>}
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><span>Submit Transfer Request</span> <ArrowRight size={16} /></>}
                 </Button>
               </div>
             </motion.div>
@@ -275,37 +299,37 @@ export default function DomainTransfer() {
               <div>
                 <h2 className="text-xl font-display font-bold text-foreground">Transfer Submitted!</h2>
                 <p className="text-muted-foreground text-sm mt-2">
-                  Your transfer request for <span className="text-foreground font-medium">{domain}</span> has been submitted successfully.
+                  Your transfer request for <span className="text-foreground font-medium font-mono">{domain}</span> has been submitted successfully.
                 </p>
               </div>
 
-              {/* Invoice & Order info */}
               {transferResult && (
                 <div className="bg-secondary/50 rounded-xl p-4 space-y-2.5 text-sm text-left">
                   {transferResult.invoice && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground flex items-center gap-1.5"><Receipt size={13} /> Invoice</span>
-                      <span className="font-medium text-foreground">#{transferResult.invoice.invoiceNumber}</span>
-                    </div>
-                  )}
-                  {transferResult.invoice && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Amount Due</span>
-                      <span className="font-bold text-foreground">{formatPrice(Number(transferResult.invoice.amount || 0))}</span>
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground flex items-center gap-1.5"><Receipt size={13} /> Invoice</span>
+                        <span className="font-medium text-foreground">#{transferResult.invoice.invoiceNumber}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Amount Due</span>
+                        <span className="font-bold text-foreground">{formatPrice(Number(transferResult.invoice.amount || 0))}</span>
+                      </div>
+                    </>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Domain Status</span>
-                    <span className="font-medium text-yellow-400">Pending Transfer</span>
+                    <span className="text-muted-foreground">Status</span>
+                    <span className="font-medium text-yellow-400">Pending Review</span>
                   </div>
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground">
-                Our team will review and process your transfer within 24–48 hours. You'll receive an email confirmation.
-              </p>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-400 space-y-1 text-left">
+                <p className="font-medium">Check your email</p>
+                <p>A confirmation email has been sent to your registered email address with full transfer details.</p>
+              </div>
 
-              <div className="flex gap-3 justify-center">
+              <div className="flex gap-3 justify-center flex-wrap">
                 <Button variant="outline" onClick={() => { setStep("enter"); setDomain(""); setEpp(""); setError(null); setValidationResult(null); setTransferResult(null); }}>
                   Transfer Another
                 </Button>

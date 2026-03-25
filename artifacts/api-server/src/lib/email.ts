@@ -574,3 +574,88 @@ export async function emailWordPressInstalled(
     wp_version: vars.wpVersion || "6.7",
   }, meta);
 }
+
+export async function emailDomainTransferInitiated(
+  to: string,
+  vars: { clientName: string; domain: string; transferPrice: string; invoiceNumber: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return emailGeneric(
+    to,
+    `Domain Transfer Request Received — ${vars.domain}`,
+    vars.clientName,
+    `Your domain transfer request for <strong>${vars.domain}</strong> has been received and is under review.<br/><br/>` +
+    `<strong>Domain:</strong> ${vars.domain}<br/>` +
+    `<strong>Transfer Fee:</strong> Rs. ${vars.transferPrice}<br/>` +
+    `<strong>Invoice #:</strong> ${vars.invoiceNumber}<br/>` +
+    `<strong>Status:</strong> Pending Review<br/><br/>` +
+    `<strong>What happens next?</strong><br/>` +
+    `1. Our team will verify your EPP/Auth code with the current registrar.<br/>` +
+    `2. Once approved, the transfer process begins (5–7 business days).<br/>` +
+    `3. You will receive a confirmation email when the transfer is approved.<br/><br/>` +
+    `Please ensure your domain remains <strong>unlocked</strong> at your current registrar and your <strong>WHOIS email is accessible</strong> to accept the transfer authorization request.<br/><br/>` +
+    `You can track your transfer status in the <a href="https://noehost.com/client/domains">Client Portal</a>.`,
+  );
+}
+
+export async function emailDomainTransferApproved(
+  to: string,
+  vars: { clientName: string; domain: string; adminNotes?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return emailGeneric(
+    to,
+    `Domain Transfer Approved — ${vars.domain}`,
+    vars.clientName,
+    `Great news! Your domain transfer request for <strong>${vars.domain}</strong> has been <strong>approved</strong> and the transfer is now in progress.<br/><br/>` +
+    `<strong>Domain:</strong> ${vars.domain}<br/>` +
+    `<strong>Status:</strong> Transfer In Progress<br/>` +
+    (vars.adminNotes ? `<strong>Notes:</strong> ${vars.adminNotes}<br/>` : ``) +
+    `<br/><strong>Important:</strong><br/>` +
+    `• Your current registrar will send a transfer authorization email — please <strong>approve it promptly</strong>.<br/>` +
+    `• Keep your domain <strong>unlocked</strong> throughout the process.<br/>` +
+    `• The transfer typically completes within <strong>5–7 business days</strong> once the authorization is confirmed.<br/><br/>` +
+    `You will receive another email when the transfer is complete.<br/><br/>` +
+    `Track your domain in the <a href="https://noehost.com/client/domains">Client Portal</a>.`,
+  );
+}
+
+export async function emailDomainTransferCompleted(
+  to: string,
+  vars: { clientName: string; domain: string; expiryDate?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return emailGeneric(
+    to,
+    `Domain Transfer Complete — ${vars.domain}`,
+    vars.clientName,
+    `Congratulations! Your domain <strong>${vars.domain}</strong> has been successfully transferred to Noehost.<br/><br/>` +
+    `<strong>Domain:</strong> ${vars.domain}<br/>` +
+    `<strong>Status:</strong> Active<br/>` +
+    (vars.expiryDate ? `<strong>Expiry Date:</strong> ${vars.expiryDate}<br/>` : ``) +
+    `<br/>You can now manage your domain — update nameservers, configure DNS, enable privacy protection — all from your <a href="https://noehost.com/client/domains">Client Portal</a>.<br/><br/>` +
+    `Thank you for choosing Noehost!`,
+  );
+}
+
+export async function emailDomainTransferRejected(
+  to: string,
+  vars: { clientName: string; domain: string; reason?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return emailGeneric(
+    to,
+    `Domain Transfer Request Rejected — ${vars.domain}`,
+    vars.clientName,
+    `Unfortunately, your domain transfer request for <strong>${vars.domain}</strong> has been <strong>rejected</strong>.<br/><br/>` +
+    `<strong>Domain:</strong> ${vars.domain}<br/>` +
+    (vars.reason ? `<strong>Reason:</strong> ${vars.reason}<br/><br/>` : `<br/>`) +
+    `<strong>Common reasons for rejection:</strong><br/>` +
+    `• Domain is still locked at the current registrar<br/>` +
+    `• Invalid or expired EPP/Auth code<br/>` +
+    `• Domain is less than 60 days old<br/>` +
+    `• WHOIS privacy blocking verification<br/><br/>` +
+    `To retry, please resolve the issue and submit a new transfer request from your <a href="https://noehost.com/client/domains/transfer">Client Portal</a>.<br/><br/>` +
+    `If you have questions, please contact our support team.`,
+  );
+}

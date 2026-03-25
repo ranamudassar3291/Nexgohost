@@ -16,6 +16,7 @@ export const domainExtensionsTable = pgTable("domain_extensions", {
   transferPrice: numeric("transfer_price", { precision: 10, scale: 2 }).notNull(),
   privacyEnabled: boolean("privacy_enabled").notNull().default(true),
   isFreeWithHosting: boolean("is_free_with_hosting").notNull().default(false),
+  transferAllowed: boolean("transfer_allowed").notNull().default(true),
   status: extensionStatusEnum("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

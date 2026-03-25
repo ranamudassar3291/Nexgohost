@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff } from "lucide-react";
+import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff, ArrowLeftRight } from "lucide-react";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ interface DomainExtension {
   transferPrice: string;
   privacyEnabled: boolean;
   isFreeWithHosting: boolean;
+  transferAllowed: boolean;
   status: "active" | "inactive";
 }
 
@@ -33,7 +34,7 @@ const EMPTY = {
   extension: "",
   registerPrice: "", register2YearPrice: "", register3YearPrice: "",
   renewalPrice: "", renew2YearPrice: "", renew3YearPrice: "",
-  transferPrice: "", privacyEnabled: true, isFreeWithHosting: false,
+  transferPrice: "", privacyEnabled: true, isFreeWithHosting: false, transferAllowed: true,
 };
 
 export default function DomainExtensions() {
@@ -71,6 +72,7 @@ export default function DomainExtensions() {
         transferPrice: form.transferPrice,
         privacyEnabled: form.privacyEnabled,
         isFreeWithHosting: form.isFreeWithHosting,
+        transferAllowed: form.transferAllowed,
       };
       if (editId) {
         await apiFetch(`/api/admin/domain-extensions/${editId}`, { method: "PUT", body: JSON.stringify(body) });
@@ -99,6 +101,7 @@ export default function DomainExtensions() {
       transferPrice: ext.transferPrice,
       privacyEnabled: ext.privacyEnabled,
       isFreeWithHosting: ext.isFreeWithHosting ?? false,
+      transferAllowed: ext.transferAllowed ?? true,
     });
     setShowForm(true);
   };
@@ -114,13 +117,13 @@ export default function DomainExtensions() {
     }
   };
 
-  const handleToggle = async (ext: DomainExtension, field: "status" | "privacyEnabled" | "isFreeWithHosting") => {
+  const handleToggle = async (ext: DomainExtension, field: "status" | "privacyEnabled" | "isFreeWithHosting" | "transferAllowed") => {
     try {
-      const body = field === "status"
-        ? { status: ext.status === "active" ? "inactive" : "active" }
-        : field === "privacyEnabled"
-          ? { privacyEnabled: !ext.privacyEnabled }
-          : { isFreeWithHosting: !ext.isFreeWithHosting };
+      const body =
+        field === "status"         ? { status: ext.status === "active" ? "inactive" : "active" } :
+        field === "privacyEnabled" ? { privacyEnabled: !ext.privacyEnabled } :
+        field === "isFreeWithHosting" ? { isFreeWithHosting: !ext.isFreeWithHosting } :
+                                    { transferAllowed: !ext.transferAllowed };
       await apiFetch(`/api/admin/domain-extensions/${ext.id}`, { method: "PUT", body: JSON.stringify(body) });
       queryClient.invalidateQueries({ queryKey: ["admin-domain-extensions"] });
     } catch (err: any) {
@@ -217,6 +220,18 @@ export default function DomainExtensions() {
               </button>
             </div>
 
+            <div className="flex items-center gap-3 p-3 bg-blue-500/5 border border-blue-500/20 rounded-xl max-w-md">
+              <ArrowLeftRight size={16} className="text-blue-500" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Allow Domain Transfers</p>
+                <p className="text-xs text-muted-foreground">Allow clients to transfer domains with this TLD into Noehost</p>
+              </div>
+              <button type="button" onClick={() => setForm(f => ({ ...f, transferAllowed: !f.transferAllowed }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.transferAllowed ? "bg-blue-500" : "bg-muted"}`}>
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.transferAllowed ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+            </div>
+
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90">
                 {saving && <Loader2 size={16} className="animate-spin mr-2" />}
@@ -240,18 +255,19 @@ export default function DomainExtensions() {
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 1yr</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 2yr</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 3yr</th>
-                <th className="p-4 text-sm font-medium text-muted-foreground">Transfer</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Transfer Price</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Privacy</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Free w/ Hosting</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Transfers</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Status</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={12} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
+                <tr><td colSpan={13} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
               ) : extensions.length === 0 ? (
-                <tr><td colSpan={12} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
+                <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
               ) : extensions.map(ext => (
                 <tr key={ext.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="p-4 font-mono font-semibold text-primary">{ext.extension}</td>
@@ -274,6 +290,13 @@ export default function DomainExtensions() {
                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.isFreeWithHosting ? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
                       <Globe size={11} />
                       {ext.isFreeWithHosting ? "Yes" : "No"}
+                    </button>
+                  </td>
+                  <td className="p-4">
+                    <button onClick={() => handleToggle(ext, "transferAllowed")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.transferAllowed ? "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
+                      <ArrowLeftRight size={11} />
+                      {ext.transferAllowed ? "Allowed" : "Blocked"}
                     </button>
                   </td>
                   <td className="p-4">
