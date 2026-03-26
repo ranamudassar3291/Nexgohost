@@ -594,9 +594,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
   const { data: creditData } = useQuery<{ creditBalance: string }>({
     queryKey: ["my-credits"],
-    queryFn: () => apiFetch("/api/my/credits"),
+    queryFn: async () => (await apiFetch("/api/my/credits")).json(),
     enabled: step === 3,
-    staleTime: 30_000,
+    staleTime: 0,
   });
   const creditBalance = parseFloat(creditData?.creditBalance ?? "0");
 
