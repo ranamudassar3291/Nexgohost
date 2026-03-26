@@ -231,37 +231,29 @@ export default function InvoiceDetail() {
       </div>
 
       {/* ── INVOICE DOCUMENT ─────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-xl shadow-black/10 overflow-hidden border border-slate-200/80 relative print:shadow-none print:border-none">
-
-        {/* UNPAID diagonal stamp watermark */}
-        {isUnpaid && (
-          <div
-            className="pointer-events-none absolute inset-0 flex items-center justify-center z-10"
-            style={{ transform: "rotate(-35deg)", opacity: 0.055 }}
-          >
-            <span
-              className="select-none font-black uppercase tracking-widest"
-              style={{ fontSize: "clamp(60px,12vw,110px)", color: "#dc2626", whiteSpace: "nowrap", border: "8px solid #dc2626", padding: "4px 24px", lineHeight: 1.1 }}
-            >
-              UNPAID
-            </span>
-          </div>
-        )}
+      <div className="bg-white rounded-2xl shadow-xl shadow-black/10 overflow-hidden border border-slate-200/80 print:shadow-none print:border-none">
 
         {/* ── HEADER BAND ─────────────────────────────────────────────────────── */}
         <div style={{ background: BRAND }} className="px-8 py-6 flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-white font-black text-2xl tracking-tight">N</span>
-              <span className="text-white/90 font-semibold text-2xl tracking-tight">oehost</span>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-white font-black text-2xl tracking-tight leading-none">N</span>
+              <span className="text-white/90 font-semibold text-2xl tracking-tight leading-none">oehost</span>
             </div>
-            <p className="text-white/70 text-[11px] font-medium">Professional Hosting Solutions</p>
-            <p className="text-white/60 text-[10px] mt-1">billing@noehost.com · ns1.noehost.com · ns2.noehost.com</p>
+            <p className="text-white/65 text-[11px] font-medium">Professional Hosting Solutions</p>
+            <p className="text-white/50 text-[10px] mt-0.5">billing@noehost.com</p>
           </div>
-          <div className="text-right">
-            <p className="text-white/70 text-[10px] font-semibold uppercase tracking-widest mb-1">Invoice</p>
-            <p className="text-white font-black text-3xl leading-none">#{invoice.invoiceNumber}</p>
-            <div className={`inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-[11px] font-bold border ${statusCfg.bgClass} ${statusCfg.textClass} ${statusCfg.borderClass}`}>
+          <div className="text-right flex flex-col items-end gap-2">
+            <div>
+              <p className="text-white/60 text-[10px] font-semibold uppercase tracking-widest">Invoice</p>
+              <p className="text-white font-black text-3xl leading-tight">#{invoice.invoiceNumber}</p>
+            </div>
+            {/* Status badge — red pill for unpaid/overdue, elegant for others */}
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
+              isUnpaid
+                ? "bg-red-500 text-white border-red-400"
+                : `${statusCfg.bgClass} ${statusCfg.textClass} ${statusCfg.borderClass}`
+            }`}>
               <StatusIcon size={11} />
               {statusCfg.label}
             </div>
@@ -512,16 +504,22 @@ export default function InvoiceDetail() {
         )}
 
         {/* ── CEO SIGNATURE ────────────────────────────────────────────────── */}
-        <div className="border-t border-slate-100 px-8 py-6">
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Authorized by</p>
-          <div className="flex items-end justify-between gap-6 flex-wrap">
-            <div>
-              <p className="font-black text-xl" style={{ color: BRAND }}>Muhammad Arslan</p>
-              <p className="text-sm font-semibold text-slate-700 mt-0.5">Founder & Chief Executive Officer (CEO)</p>
-              <p className="text-xs font-semibold mt-0.5" style={{ color: BRAND }}>Noehost — Professional Hosting Solutions</p>
-              <p className="text-xs italic text-slate-400 mt-1.5 max-w-sm">
+        <div className="border-t border-slate-100 px-8 py-5">
+          <div className="flex items-center gap-4">
+            {/* Signature block */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 flex-1">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Authorized & Issued by</p>
+              <p className="font-black text-[18px] leading-tight" style={{ color: BRAND }}>Muhammad Arslan</p>
+              <p className="text-[12px] font-semibold text-slate-700 mt-0.5">Founder & CEO, Noehost</p>
+              <p className="text-[11px] italic text-slate-400 mt-1.5">
                 "Empowering your digital journey with premium hosting solutions."
               </p>
+            </div>
+            {/* Decorative brand accent */}
+            <div className="hidden sm:flex flex-col items-center gap-1 shrink-0 opacity-30">
+              <div className="w-0.5 h-10 rounded-full" style={{ background: BRAND }} />
+              <div className="w-2 h-2 rounded-full" style={{ background: BRAND }} />
+              <div className="w-0.5 h-10 rounded-full" style={{ background: BRAND }} />
             </div>
           </div>
         </div>

@@ -90,23 +90,24 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
     // Logo: "N" bold + "oehost" regular
     doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
-    doc.text("N", L, 24, { continued: true });
+    doc.text("N", L, 26, { continued: true });
     doc.font("Helvetica").text("oehost");
 
-    doc.font("Helvetica").fontSize(8).fillColor("rgba(255,255,255,0.65)");
-    doc.text("Professional Hosting Solutions", L, 50);
-    doc.text("billing@noehost.com  ·  ns1.noehost.com  ·  ns2.noehost.com", L, 62);
+    doc.font("Helvetica").fontSize(8).fillColor("rgba(255,255,255,0.62)");
+    doc.text("Professional Hosting Solutions", L, 53);
+    doc.text("billing@noehost.com", L, 65);
 
     // INVOICE label (right side)
-    doc.font("Helvetica").fontSize(8.5).fillColor("rgba(255,255,255,0.60)");
-    doc.text("INVOICE", 0, 24, { width: PW - 44, align: "right" });
+    doc.font("Helvetica").fontSize(8).fillColor("rgba(255,255,255,0.58)");
+    doc.text("INVOICE", 0, 26, { width: PW - 44, align: "right" });
     doc.font("Helvetica-Bold").fontSize(24).fillColor(WHITE);
-    doc.text(`#${data.invoiceNumber}`, 0, 36, { width: PW - 44, align: "right" });
+    doc.text(`#${data.invoiceNumber}`, 0, 38, { width: PW - 44, align: "right" });
 
-    // Status badge
-    doc.roundedRect(R - 95, 68, 95, 18, 3).fill(statusColor);
+    // Status badge — small elegant pill in top-right corner
+    const badgeW = 90;
+    doc.roundedRect(R - badgeW, 68, badgeW, 18, 4).fill(statusColor);
     doc.font("Helvetica-Bold").fontSize(7.5).fillColor(WHITE);
-    doc.text(statusLabel, R - 95, 75, { width: 95, align: "center" });
+    doc.text(statusLabel, R - badgeW, 75, { width: badgeW, align: "center" });
 
     let y = 108;
 
@@ -241,32 +242,31 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     y += 6;
 
     // ── CEO SIGNATURE ───────────────────────────────────────────────────────────
-    // Light separator line
     doc.rect(L, y, W, 0.5).fill(SLATE200);
-    y += 12;
+    y += 10;
 
-    // Signature block (left aligned)
-    doc.font("Helvetica").fontSize(7).fillColor(GREY);
-    doc.text("Authorized by", L, y);
-    y += 11;
+    // Light grey executive box
+    const sigBoxH = 52;
+    doc.roundedRect(L, y, W * 0.65, sigBoxH, 4).fill(SLATE100);
+    doc.roundedRect(L, y, W * 0.65, sigBoxH, 4).stroke(SLATE200);
 
-    // Stylized signature name
+    // Box label
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor(GREY);
+    doc.text("AUTHORIZED & ISSUED BY", L + 10, y + 8, { width: W * 0.65 - 20 });
+
+    // CEO name in brand color
     doc.font("Helvetica-Bold").fontSize(13).fillColor(BRAND);
-    doc.text("Muhammad Arslan", L, y);
-    y += 16;
+    doc.text("Muhammad Arslan", L + 10, y + 19);
 
+    // Title
     doc.font("Helvetica").fontSize(8).fillColor(DARK);
-    doc.text("Founder & Chief Executive Officer (CEO)", L, y);
-    y += 11;
+    doc.text("Founder & CEO, Noehost", L + 10, y + 34);
 
-    doc.font("Helvetica").fontSize(7.5).fillColor(BRAND);
-    doc.text("Noehost — Professional Hosting Solutions", L, y);
-    y += 11;
+    // Quote
+    doc.font("Helvetica-Oblique").fontSize(7).fillColor(GREY);
+    doc.text('"Empowering your digital journey with premium hosting solutions."', L + 10, y + 44, { width: W * 0.62, lineBreak: false, ellipsis: true });
 
-    // CEO quote (italic using Helvetica-Oblique)
-    doc.font("Helvetica-Oblique").fontSize(7.5).fillColor(GREY);
-    doc.text('"Empowering your digital journey with premium hosting solutions."', L, y, { width: W * 0.6 });
-    y += 18;
+    y += sigBoxH + 12;
 
     // ── TERMS & CONDITIONS ──────────────────────────────────────────────────────
     doc.rect(L, y, W, 0.5).fill(SLATE200);
@@ -282,16 +282,6 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
       L, y, { width: W }
     );
     y += 22;
-
-    // ── UNPAID WATERMARK ────────────────────────────────────────────────────────
-    if (isUnpaid) {
-      doc.save();
-      doc.opacity(0.055);
-      doc.font("Helvetica-Bold").fontSize(72).fillColor(UNPAID_C);
-      doc.rotate(-35, { origin: [PW / 2, PH / 2] });
-      doc.text("UNPAID", 40, PH / 2 - 50, { width: PW - 80, align: "center" });
-      doc.restore();
-    }
 
     // ── FOOTER BAND ─────────────────────────────────────────────────────────────
     const footerH = 58;
