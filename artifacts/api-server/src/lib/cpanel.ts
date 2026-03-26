@@ -41,7 +41,25 @@ function httpsGet(url: string, headers: Record<string, string>, timeoutMs = 9000
       res.on("end", () => {
         const body = Buffer.concat(chunks).toString("utf-8");
         if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`WHM API error: HTTP ${res.statusCode} — ${body.substring(0, 200)}`));
+          // Try to extract a human-readable reason from WHM/cPanel JSON error bodies
+          let errorDetail = body.substring(0, 300);
+          try {
+            const errJson = JSON.parse(body);
+            const reason =
+              errJson?.metadata?.reason ??
+              errJson?.cpanelresult?.error ??
+              errJson?.error ??
+              errJson?.data?.reason ??
+              errJson?.result?.[0]?.reason;
+            if (reason) errorDetail = String(reason);
+          } catch { /* body is not JSON — use raw */ }
+          const hint =
+            res.statusCode === 401
+              ? " — Invalid API Token. Check WHM > API Tokens and ensure the token is correct."
+              : res.statusCode === 403
+              ? " — Access Denied. WHM API Token lacks required ACL permission. Go to WHM > API Tokens > select token > set Full Access or add the specific function ACL."
+              : "";
+          reject(new Error(`WHM API error: HTTP ${res.statusCode}${hint} — ${errorDetail}`));
         } else {
           resolve(body);
         }
@@ -82,7 +100,10 @@ function httpsPost(url: string, headers: Record<string, string>, body = "", time
       res.on("end", () => {
         const responseBody = Buffer.concat(chunks).toString("utf-8");
         if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`WHM API error: HTTP ${res.statusCode} — ${responseBody.substring(0, 200)}`));
+          let detail = responseBody.substring(0, 300);
+          try { const j = JSON.parse(responseBody); const r = j?.metadata?.reason ?? j?.cpanelresult?.error ?? j?.error; if (r) detail = String(r); } catch { /* raw */ }
+          const hint = res.statusCode === 401 ? " — Invalid API Token." : res.statusCode === 403 ? " — Access Denied: WHM token lacks permission." : "";
+          reject(new Error(`WHM API error: HTTP ${res.statusCode}${hint} — ${detail}`));
         } else {
           resolve(responseBody);
         }
@@ -1383,4 +1404,80 @@ export async function cpanelGetAllDnsRecords(
 
   // ── Fallback: API2 fetchzone_records via WHM proxy ────────────────────────
   return cpanelGetDnsZone(server, domain, username);
+}
+
+// ─── Permission Diagnostics ──────────────────────────────────────────────────
+
+export interface PermissionResult {
+  name: string;
+  api: string;
+  ok: boolean;
+  reason: string;
+}
+
+/**
+ * Run a non-destructive diagnostic against a WHM server to verify which
+ * API permissions the configured token has. Tests:
+ *   1. WHM Connection & Packages   (listpkgs)
+ *   2. Account Info / Usage        (accountsummary)
+ *   3. DNS Zone Editor             (dumpzone — uses test.invalid; "no zone" = OK)
+ *   4. Backup API                  (listacls — non-destructive)
+ *   5. CSF Firewall Whitelist      (csf_whitelist show — non-destructive)
+ */
+export async function cpanelTestPermissions(
+  server: ServerConfig,
+  testUsername?: string,
+): Promise<{ overall: boolean; results: PermissionResult[] }> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const h = server.hostname;
+
+  async function probe(name: string, api: string, url: string): Promise<PermissionResult> {
+    try {
+      const raw = await httpsGet(url, authHeader, 12_000);
+      let data: any = {};
+      try { data = JSON.parse(raw); } catch { return { name, api, ok: true, reason: "OK" }; }
+      const result = data?.metadata?.result;
+      if (result === 0) {
+        const reason = data?.metadata?.reason || "API returned failure";
+        return { name, api, ok: false, reason };
+      }
+      return { name, api, ok: true, reason: "OK" };
+    } catch (e: any) {
+      return { name, api, ok: false, reason: e.message || "Failed" };
+    }
+  }
+
+  const u = encodeURIComponent(testUsername || authUser);
+  const checks = await Promise.all([
+    probe("WHM Connection & Packages", "listpkgs",
+      `https://${h}:${port}/json-api/listpkgs?api.version=1`),
+    probe("Account Info / Usage", "accountsummary",
+      `https://${h}:${port}/json-api/accountsummary?api.version=1&user=${u}`),
+    probe("DNS Zone Editor", "dumpzone",
+      `https://${h}:${port}/json-api/dumpzone?api.version=1&domain=test.invalid`),
+    probe("Backup API (ACL list)", "listacls",
+      `https://${h}:${port}/json-api/listacls?api.version=1`),
+    probe("CSF Firewall", "csf_whitelist",
+      `https://${h}:${port}/json-api/csf_whitelist?api.version=1&action=show`),
+  ]);
+
+  // dumpzone returning "no zone file" or "could not open" for test.invalid = has permission, domain just doesn't exist
+  const dns = checks[2];
+  if (!dns.ok) {
+    const r = dns.reason.toLowerCase();
+    if (r.includes("no zone") || r.includes("could not open") || r.includes("zone file") || r.includes("test.invalid")) {
+      checks[2] = { ...dns, ok: true, reason: "OK (DNS zone editor accessible)" };
+    }
+  }
+
+  // CSF not installed is not a hard failure
+  const csf = checks[4];
+  if (!csf.ok && (csf.reason.includes("404") || csf.reason.toLowerCase().includes("not found") || csf.reason.toLowerCase().includes("unknown api"))) {
+    checks[4] = { ...csf, ok: true, reason: "OK (CSF plugin not installed — IP whitelisting is manual)" };
+  }
+
+  const overall = checks.filter(r => r.api !== "csf_whitelist" && r.api !== "listacls").every(r => r.ok);
+  return { overall, results: checks };
 }

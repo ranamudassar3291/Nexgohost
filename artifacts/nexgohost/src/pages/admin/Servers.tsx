@@ -47,7 +47,7 @@ export default function Servers() {
   const [apiTokenSaved, setApiTokenSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[] }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[]; permissions?: { name: string; api: string; ok: boolean; reason: string }[] }>>({});
   const [whitelisting, setWhitelisting] = useState<string | null>(null);
   const [whitelistResults, setWhitelistResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
 
@@ -141,11 +141,13 @@ export default function Servers() {
     setTesting(id);
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
-      setTestResults(r => ({ ...r, [id]: { ok: true, msg: result.message, packages: result.packages || [] } }));
+      setTestResults(r => ({ ...r, [id]: { ok: true, msg: result.message, packages: result.packages || [], permissions: result.permissions || [] } }));
       const pkgSuffix = result.packages?.length ? ` — ${result.packages.length} package(s) found` : "";
-      toast({ title: "Server Connected", description: result.message + pkgSuffix });
+      const permFailed = (result.permissions || []).filter((p: any) => !p.ok).length;
+      const permSuffix = permFailed > 0 ? ` · ${permFailed} permission issue(s) detected` : "";
+      toast({ title: "Server Connected", description: result.message + pkgSuffix + permSuffix });
     } catch (err: any) {
-      setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [] } }));
+      setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [], permissions: [] } }));
       toast({ title: "Connection failed", description: err.message, variant: "destructive" });
     } finally { setTesting(null); }
   };
@@ -476,6 +478,17 @@ export default function Servers() {
                               <div className="flex flex-wrap gap-1 pt-0.5">
                                 {testResults[s.id].packages!.map(pkg => (
                                   <span key={pkg} className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">{pkg}</span>
+                                ))}
+                              </div>
+                            )}
+                            {(testResults[s.id].permissions?.length ?? 0) > 0 && (
+                              <div className="mt-1.5 pt-1.5 border-t border-border/30 space-y-0.5">
+                                <p className="text-xs text-muted-foreground font-medium mb-1">API Permissions</p>
+                                {testResults[s.id].permissions!.map(p => (
+                                  <div key={p.api} className={`flex items-start gap-1.5 text-xs ${p.ok ? "text-emerald-400" : "text-red-400"}`}>
+                                    {p.ok ? <CheckCircle size={10} className="mt-0.5 shrink-0" /> : <XCircle size={10} className="mt-0.5 shrink-0" />}
+                                    <span><span className="font-medium">{p.name}:</span> {p.ok ? "OK" : p.reason}</span>
+                                  </div>
                                 ))}
                               </div>
                             )}

@@ -2135,6 +2135,57 @@ router.get("/client/hosting/:id/backup/:backupId", authenticate, async (req: Aut
   }
 });
 
+// DELETE /api/client/hosting/:id/backup/:backupId — remove a backup record (and local files)
+router.delete("/client/hosting/:id/backup/:backupId", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id, backupId } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    const [backup] = await db.select().from(hostingBackupsTable)
+      .where(and(eq(hostingBackupsTable.id, backupId), eq(hostingBackupsTable.serviceId, id))).limit(1);
+    if (!backup) return res.status(404).json({ error: "Backup not found" });
+    // Delete local files if they are local paths (not cPanel home dir paths)
+    const isLocalFile = (p: string | null) =>
+      p && !p.startsWith("~/") && !p.includes("(simulated)") && !p.includes("home dir") && !p.includes("cpanel_backups");
+    if (isLocalFile(backup.filePath)) {
+      try { await _execAsync(`rm -f "${backup.filePath}"`); } catch { /* non-fatal */ }
+    }
+    if (isLocalFile(backup.sqlPath)) {
+      try { await _execAsync(`rm -f "${backup.sqlPath}"`); } catch { /* non-fatal */ }
+    }
+    await db.delete(hostingBackupsTable).where(eq(hostingBackupsTable.id, backupId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[BACKUP] delete error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /api/admin/hosting/:id/backup/:backupId — admin can delete any backup record
+router.delete("/admin/hosting/:id/backup/:backupId", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id, backupId } = req.params;
+    const [backup] = await db.select().from(hostingBackupsTable)
+      .where(and(eq(hostingBackupsTable.id, backupId), eq(hostingBackupsTable.serviceId, id))).limit(1);
+    if (!backup) return res.status(404).json({ error: "Backup not found" });
+    const isLocalFile = (p: string | null) =>
+      p && !p.startsWith("~/") && !p.includes("(simulated)") && !p.includes("home dir") && !p.includes("cpanel_backups");
+    if (isLocalFile(backup.filePath)) {
+      try { await _execAsync(`rm -f "${backup.filePath}"`); } catch { /* non-fatal */ }
+    }
+    if (isLocalFile(backup.sqlPath)) {
+      try { await _execAsync(`rm -f "${backup.sqlPath}"`); } catch { /* non-fatal */ }
+    }
+    await db.delete(hostingBackupsTable).where(eq(hostingBackupsTable.id, backupId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[BACKUP] admin delete error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 /** Core backup logic — runs asynchronously after HTTP response */
 async function runBackup(backupId: string, domain: string, dbName: string | null): Promise<void> {
   const ts = Date.now();
@@ -2234,8 +2285,9 @@ async function runCpanelBackup(
       }
       const result = await cpanelDbDump(server, cpanelUser, dbName);
       await db.update(hostingBackupsTable).set({
-        status: result.status === "initiated" ? "completed" : "failed",
-        filePath: result.filename,
+        // "queued_on_server" = cPanel accepted the DB dump; file appears in ~/cpanel_backups/
+        status: result.status === "initiated" ? "queued_on_server" : "failed",
+        filePath: `~/cpanel_backups/${result.filename}`,
         errorMessage: result.status !== "initiated" ? result.message : null,
         completedAt: new Date(),
       }).where(eq(hostingBackupsTable.id, backupId));
@@ -2243,8 +2295,9 @@ async function runCpanelBackup(
     } else {
       const result = await cpanelFullBackup(server, cpanelUser);
       await db.update(hostingBackupsTable).set({
-        status: result.status === "initiated" ? "completed" : "failed",
-        filePath: `~/backup-${cpanelUser}-*.tar.gz (home dir)`,
+        // "queued_on_server" = cPanel accepted the job; actual file appears in ~/backup-USER-DATE.tar.gz
+        status: result.status === "initiated" ? "queued_on_server" : "failed",
+        filePath: `~/backup-${cpanelUser}-*.tar.gz`,
         errorMessage: result.status !== "initiated" ? result.message : null,
         completedAt: new Date(),
       }).where(eq(hostingBackupsTable.id, backupId));

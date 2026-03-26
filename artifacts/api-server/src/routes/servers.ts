@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { serversTable, serverGroupsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq } from "drizzle-orm";
-import { cpanelTestConnection } from "../lib/cpanel.js";
+import { cpanelTestConnection, cpanelTestPermissions } from "../lib/cpanel.js";
 import { twentyiTestConnection, twentyiGetPackages } from "../lib/twenty-i.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
@@ -187,17 +187,27 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   };
 
   if (server.type === "cpanel") {
-    // Single listpkgs call — tests credentials AND fetches packages simultaneously
+    // Test basic connection first (fast)
     const result = await cpanelTestConnection(serverCfg);
     if (!result.success) {
       res.status(400).json({ error: result.message, success: false });
       return;
+    }
+    // Run detailed permission diagnostics in parallel (non-destructive)
+    let permissions: { name: string; api: string; ok: boolean; reason: string }[] = [];
+    try {
+      const permResult = await cpanelTestPermissions(serverCfg);
+      permissions = permResult.results;
+      console.log(`[SERVERS] Permission test for ${server.hostname}: ${permResult.results.filter(r => r.ok).length}/${permResult.results.length} OK`);
+    } catch (e: any) {
+      console.warn(`[SERVERS] Permission test error: ${e.message}`);
     }
     res.json({
       success: true,
       connected: true,
       message: result.message,
       packages: result.packages,
+      permissions,
     });
     return;
   }

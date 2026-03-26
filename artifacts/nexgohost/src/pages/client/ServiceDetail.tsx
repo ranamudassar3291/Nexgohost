@@ -459,6 +459,43 @@ export default function ServiceDetail() {
     } catch { /* non-fatal */ } finally { setBackupsLoading(false); }
   }
 
+  async function handleDeleteBackup(backupId: string) {
+    if (!service || !confirm("Remove this backup record?")) return;
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/backup/${backupId}`, { method: "DELETE" });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Delete failed"); }
+      toast({ title: "Backup removed" });
+      fetchBackups();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  }
+
+  async function handleCreateDbBackup() {
+    if (!service) return;
+    setCreatingBackup(true);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/backup`, { method: "POST", body: JSON.stringify({ backupType: "db_only" }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Backup failed");
+      toast({ title: "Database backup started", description: "Your database backup is being created." });
+      const poll = setInterval(async () => {
+        const r = await authFetch(`/api/client/hosting/${service!.id}/backup/${data.backupId}`);
+        if (!r.ok) { clearInterval(poll); return; }
+        const b = await r.json();
+        if (b.status !== "running") {
+          clearInterval(poll); setCreatingBackup(false); fetchBackups();
+          if (b.status === "queued_on_server") toast({ title: "DB backup queued", description: `File: ${b.filePath || "~/cpanel_backups/"}` });
+          else if (b.status === "completed") toast({ title: "DB backup complete" });
+          else toast({ title: "DB backup failed", description: b.errorMessage || "Unknown error", variant: "destructive" });
+        }
+      }, 3000);
+    } catch (e: any) {
+      toast({ title: "Backup error", description: e.message, variant: "destructive" });
+      setCreatingBackup(false);
+    }
+  }
+
   async function fetchUsage() {
     if (!service) return;
     setUsageLoading(true);
@@ -489,6 +526,7 @@ export default function ServiceDetail() {
           setCreatingBackup(false);
           fetchBackups();
           if (b.status === "completed") toast({ title: "Backup complete", description: `${b.sizeMb ? b.sizeMb + " MB" : "Files"} backed up successfully.` });
+          else if (b.status === "queued_on_server") toast({ title: "Backup queued on server", description: `cPanel accepted the backup. File: ${b.filePath || "~/backup-*.tar.gz"}` });
           else toast({ title: "Backup failed", description: b.errorMessage || "Unknown error", variant: "destructive" });
         }
       }, 3000);
@@ -1233,7 +1271,7 @@ export default function ServiceDetail() {
       {/* ─── Backup System ─── */}
       {service.status === "active" && (
         <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
                 <ArchiveRestore size={18} className="text-blue-400" />
@@ -1245,16 +1283,28 @@ export default function ServiceDetail() {
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCreateBackup}
-              disabled={creatingBackup || service.status !== "active"}
-              className="gap-1.5 shrink-0"
-            >
-              {creatingBackup ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-              {creatingBackup ? "Creating…" : "Create Backup"}
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreateDbBackup}
+                disabled={creatingBackup || service.status !== "active"}
+                className="gap-1.5 text-xs"
+              >
+                {creatingBackup ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
+                DB Only
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreateBackup}
+                disabled={creatingBackup || service.status !== "active"}
+                className="gap-1.5"
+              >
+                {creatingBackup ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                {creatingBackup ? "Creating…" : "Full Backup"}
+              </Button>
+            </div>
           </div>
 
           {/* Backup list */}
@@ -1263,33 +1313,56 @@ export default function ServiceDetail() {
               <Loader2 size={13} className="animate-spin" /> Loading backups…
             </div>
           ) : backups.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No backups yet. Click "Create Backup" to create your first one.</p>
+            <p className="text-sm text-muted-foreground">No backups yet. Click "Full Backup" to create your first one.</p>
           ) : (
             <div className="space-y-2">
-              {backups.slice(0, 5).map(b => (
-                <div key={b.id} className="flex items-center justify-between gap-3 py-2 border-b border-border/50 last:border-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${b.status === "completed" ? "bg-green-400" : b.status === "failed" ? "bg-red-400" : "bg-yellow-400 animate-pulse"}`} />
-                    <div className="min-w-0">
-                      <p className="text-sm text-foreground truncate">
-                        {b.type === "cron" ? "Scheduled" : "Manual"} backup
-                        {b.sizeMb ? ` — ${b.sizeMb} MB` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock size={10} />
-                        {format(new Date(b.createdAt), "MMM d, yyyy · HH:mm")}
-                      </p>
+              {backups.slice(0, 8).map(b => {
+                const isQueued = b.status === "queued_on_server";
+                const isDone = b.status === "completed";
+                const isFailed = b.status === "failed";
+                return (
+                  <div key={b.id} className="py-2 border-b border-border/50 last:border-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${isDone ? "bg-green-400" : isQueued ? "bg-blue-400" : isFailed ? "bg-red-400" : "bg-yellow-400 animate-pulse"}`} />
+                        <div className="min-w-0">
+                          <p className="text-sm text-foreground truncate">
+                            {b.type === "cron" ? "Scheduled" : b.type === "db_only" ? "Database" : "Full"} backup
+                            {b.sizeMb ? ` — ${b.sizeMb} MB` : ""}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock size={10} />
+                            {format(new Date(b.createdAt), "MMM d, yyyy · HH:mm")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                          isDone    ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                          isQueued  ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                          isFailed  ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                                      "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                        }`}>
+                          {isDone ? "Done" : isQueued ? "On Server" : isFailed ? "Failed" : "Running"}
+                        </span>
+                        <button onClick={() => handleDeleteBackup(b.id)} className="text-muted-foreground hover:text-destructive transition-colors" title="Remove">
+                          <XCircle size={14} />
+                        </button>
+                      </div>
                     </div>
+                    {isQueued && b.filePath && (
+                      <p className="text-xs text-blue-400/80 mt-1 ml-4.5 pl-5">
+                        File queued: <span className="font-mono">{b.filePath}</span> — check cPanel File Manager
+                      </p>
+                    )}
+                    {isFailed && b.errorMessage && (
+                      <p className="text-xs text-red-400/80 mt-1 ml-4.5 pl-5 flex items-center gap-1">
+                        <AlertCircle size={10} /> {b.errorMessage}
+                      </p>
+                    )}
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full border shrink-0 ${
-                    b.status === "completed" ? "bg-green-500/10 text-green-400 border-green-500/20" :
-                    b.status === "failed"    ? "bg-red-500/10 text-red-400 border-red-500/20" :
-                                               "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                  }`}>
-                    {b.status === "completed" ? "Done" : b.status === "failed" ? "Failed" : "Running"}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
