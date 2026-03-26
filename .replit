@@ -35,7 +35,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=23274 BASE_PATH=/ pnpm --filter @workspace/nexgohost run dev"
+args = "PORT=23274 BASE_PATH=/ pnpm --filter @workspace/nexgohost run dev"
 waitForPort = 23274
 
 [agent]
