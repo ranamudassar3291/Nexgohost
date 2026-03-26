@@ -77,6 +77,15 @@ async function logAlert(eventType: string, message: string, status: "sent" | "fa
   }
 }
 
+// ── Silent Baileys logger (all child() calls return same silent object) ───────
+const noop = () => {};
+const baileysLogger: any = {
+  level: "silent",
+  trace: noop, debug: noop, info: noop,
+  warn: noop, error: noop, fatal: noop,
+  child() { return baileysLogger; },
+};
+
 // ── Connect ───────────────────────────────────────────────────────────────────
 export async function connectWhatsApp() {
   if (state.status === "connected" || state.status === "connecting") {
@@ -99,11 +108,11 @@ export async function connectWhatsApp() {
       version,
       auth: {
         creds: authState.creds,
-        keys: makeCacheableSignalKeyStore(authState.keys, console as any),
+        keys: makeCacheableSignalKeyStore(authState.keys, baileysLogger),
       },
-      printQRInTerminal: true,
+      printQRInTerminal: false,
       browser: ["Noehost", "Chrome", "1.0"],
-      logger: { level: "silent", trace: () => {}, debug: () => {}, info: () => {}, warn: console.warn, error: console.error, fatal: console.error, child: () => ({}) as any } as any,
+      logger: baileysLogger,
     });
 
     // QR code event

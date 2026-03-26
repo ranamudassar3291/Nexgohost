@@ -66,6 +66,8 @@ export default function WhatsAppSettings() {
   const [phoneSaving, setPhoneSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [connectingSeconds, setConnectingSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: waStatus, isLoading } = useQuery<WaStatus>({
@@ -84,15 +86,37 @@ export default function WhatsAppSettings() {
     if (waStatus?.adminPhone && !phone) setPhone(waStatus.adminPhone);
   }, [waStatus?.adminPhone]);
 
+  // Track how long we've been in "connecting" state
+  useEffect(() => {
+    if (waStatus?.status === "connecting") {
+      if (!timerRef.current) {
+        setConnectingSeconds(0);
+        timerRef.current = setInterval(() => setConnectingSeconds(s => s + 1), 1000);
+      }
+    } else {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setConnectingSeconds(0);
+    }
+    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
+  }, [waStatus?.status]);
+
   const handleConnect = async () => {
     setConnecting(true);
     try {
       await apiFetch("/api/admin/whatsapp/connect", { method: "POST" });
-      toast({ title: "Connecting…", description: "Scan the QR code below with WhatsApp" });
+      toast({ title: "Connecting…", description: "QR code will appear in a few seconds. Please wait." });
       queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Connection Error", description: err.message, variant: "destructive" });
     } finally { setConnecting(false); }
+  };
+
+  const handleForceReset = async () => {
+    try {
+      await apiFetch("/api/admin/whatsapp/disconnect", { method: "POST" });
+      toast({ title: "Reset done", description: "Click Connect WhatsApp to try again." });
+      queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
+    } catch { /* ignore */ }
   };
 
   const handleDisconnect = async () => {
@@ -193,13 +217,54 @@ export default function WhatsAppSettings() {
               </div>
               <div className="text-center">
                 <p className="font-semibold text-foreground text-sm">Open WhatsApp → Linked Devices → Link a Device</p>
-                <p className="text-xs text-muted-foreground mt-1">Scan this QR code with your phone. The QR refreshes every 60 seconds.</p>
+                <p className="text-xs text-muted-foreground mt-1">Scan this QR code with your phone. The QR expires in ~60 seconds.</p>
               </div>
             </motion.div>
           )}
 
-          {/* Instructions when not connecting */}
-          {(status === "disconnected" || status === "error") && (
+          {/* Connecting state — with countdown and force reset */}
+          {isConnecting && !isQrReady && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <RefreshCw size={16} className="text-amber-400 animate-spin flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-400">
+                    Connecting to WhatsApp… {connectingSeconds > 0 && <span className="font-normal">({connectingSeconds}s)</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">QR code will appear here automatically. Please wait a moment.</p>
+                </div>
+              </div>
+              {connectingSeconds >= 15 && (
+                <div className="flex items-start gap-2.5 pt-1">
+                  <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs text-red-400 font-semibold">Taking too long — connection may have failed.</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Click Force Reset below and try connecting again.</p>
+                  </div>
+                  <Button onClick={handleForceReset} size="sm" variant="destructive" className="rounded-lg text-xs px-3 h-7 flex-shrink-0">
+                    Force Reset
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Error state */}
+          {status === "error" && (
+            <div className="rounded-xl border border-red-500/20 bg-red-950/10 p-4 flex items-start gap-3">
+              <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-400">Connection error</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{waStatus?.error || "Unknown error"}</p>
+              </div>
+              <Button onClick={handleForceReset} size="sm" variant="outline" className="rounded-lg text-xs px-3 h-7 flex-shrink-0 border-red-500/30 text-red-400">
+                Reset &amp; Retry
+              </Button>
+            </div>
+          )}
+
+          {/* Instructions when disconnected */}
+          {status === "disconnected" && (
             <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
               <p className="font-semibold text-foreground text-sm flex items-center gap-2">
                 <Smartphone size={15} style={{ color: BRAND }} /> How to connect
