@@ -1,10 +1,10 @@
 import { useGetAdminDashboard } from "@workspace/api-client-react";
-import { Users, Server, Globe, DollarSign, Activity, Ticket as TicketIcon, ShieldAlert, AlertCircle, Mail, PauseCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, UserPlus, ShoppingCart } from "lucide-react";
+import { Users, Server, Globe, DollarSign, Activity, Ticket as TicketIcon, ShieldAlert, AlertCircle, Mail, PauseCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, UserPlus, ShoppingCart, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { AreaChart, Area, Tooltip, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -12,6 +12,60 @@ async function apiFetch(url: string, opts?: RequestInit) {
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
   if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
   return res.json();
+}
+
+interface WaLog { id: string; eventType: string; message: string; status: string; sentAt: string; }
+interface WaStatus { status: string; phone: string | null; }
+
+const EVENT_LABELS: Record<string, string> = {
+  new_order: "New Order", new_ticket: "New Ticket", payment_proof: "Payment Proof", test: "Test", other: "Alert",
+};
+
+function WaLiveLog() {
+  const { data: waStatus } = useQuery<WaStatus>({
+    queryKey: ["dash-wa-status"],
+    queryFn: () => apiFetch("/api/admin/whatsapp/status"),
+    refetchInterval: 10000,
+  });
+  const { data: logs = [] } = useQuery<WaLog[]>({
+    queryKey: ["dash-wa-logs"],
+    queryFn: () => apiFetch("/api/admin/whatsapp/logs?limit=5"),
+    refetchInterval: 10000,
+  });
+
+  const isConnected = waStatus?.status === "connected";
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <MessageCircle size={15} style={{ color: "#25D366" }} />
+          <span className="font-semibold text-foreground text-sm">WhatsApp Live Log</span>
+          <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500 shadow-[0_0_5px_#22c55e]" : "bg-muted-foreground/30"}`} />
+          <span className="text-xs text-muted-foreground">
+            {isConnected ? `Connected — +${waStatus?.phone}` : "Not connected"}
+          </span>
+        </div>
+        <a href="/admin/whatsapp" className="text-xs text-primary hover:underline">Configure →</a>
+      </div>
+      {logs.length === 0 ? (
+        <div className="py-6 text-center text-xs text-muted-foreground">
+          No alerts sent yet · <a href="/admin/whatsapp" className="text-primary hover:underline">Connect WhatsApp</a>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {logs.slice(0, 5).map(log => (
+            <div key={log.id} className="px-5 py-2.5 flex items-center gap-3">
+              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${log.status === "sent" ? "bg-emerald-500" : "bg-red-500"}`} />
+              <span className="text-xs text-muted-foreground font-medium flex-shrink-0 w-24">{EVENT_LABELS[log.eventType] ?? log.eventType}</span>
+              <span className="text-xs text-foreground truncate flex-1">{log.message.split("\n")[0]}</span>
+              <span className="text-[10px] text-muted-foreground flex-shrink-0">{format(new Date(log.sentAt), "dd MMM HH:mm")}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminDashboard() {
@@ -257,6 +311,9 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* WhatsApp Live Alert Log */}
+      <WaLiveLog />
 
       {/* Quick Stats Bottom Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

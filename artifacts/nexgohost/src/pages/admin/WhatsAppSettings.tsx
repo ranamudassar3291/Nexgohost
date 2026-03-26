@@ -1,0 +1,338 @@
+import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import {
+  MessageCircle, Smartphone, Wifi, WifiOff, RefreshCw,
+  CheckCircle, AlertCircle, Send, Zap, X, Phone, Bell,
+  Clock, ShoppingCart, Ticket, CreditCard,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+
+const BRAND = "#701AFE";
+
+async function apiFetch(url: string, opts: RequestInit = {}) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(url, {
+    ...opts,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts.headers },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+interface WaStatus {
+  status: "disconnected" | "connecting" | "qr_ready" | "connected" | "error";
+  qrDataUrl: string | null;
+  connectedAt: string | null;
+  phone: string | null;
+  error: string | null;
+  adminPhone: string | null;
+}
+
+interface WaLog {
+  id: string;
+  eventType: string;
+  message: string;
+  status: string;
+  errorMessage: string | null;
+  sentAt: string;
+}
+
+const EVENT_ICONS: Record<string, JSX.Element> = {
+  new_order: <ShoppingCart size={12} />,
+  new_ticket: <Ticket size={12} />,
+  payment_proof: <CreditCard size={12} />,
+  test: <Zap size={12} />,
+  other: <Bell size={12} />,
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  new_order: "New Order",
+  new_ticket: "New Ticket",
+  payment_proof: "Payment Proof",
+  test: "Test",
+  other: "Alert",
+};
+
+export default function WhatsAppSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [phone, setPhone] = useState("");
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { data: waStatus, isLoading } = useQuery<WaStatus>({
+    queryKey: ["admin-wa-status"],
+    queryFn: () => apiFetch("/api/admin/whatsapp/status"),
+    refetchInterval: 3000,
+  });
+
+  const { data: logs = [] } = useQuery<WaLog[]>({
+    queryKey: ["admin-wa-logs"],
+    queryFn: () => apiFetch("/api/admin/whatsapp/logs?limit=20"),
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    if (waStatus?.adminPhone && !phone) setPhone(waStatus.adminPhone);
+  }, [waStatus?.adminPhone]);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      await apiFetch("/api/admin/whatsapp/connect", { method: "POST" });
+      toast({ title: "Connecting…", description: "Scan the QR code below with WhatsApp" });
+      queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setConnecting(false); }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Disconnect WhatsApp? You'll need to scan a QR code again to reconnect.")) return;
+    try {
+      await apiFetch("/api/admin/whatsapp/disconnect", { method: "POST" });
+      toast({ title: "Disconnected" });
+      queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleSavePhone = async () => {
+    if (!phone) { toast({ title: "Enter a phone number", variant: "destructive" }); return; }
+    setPhoneSaving(true);
+    try {
+      await apiFetch("/api/admin/whatsapp/phone", { method: "PUT", body: JSON.stringify({ phone }) });
+      toast({ title: "Phone number saved", description: `Alerts will be sent to +${phone.replace(/\D/g, "")}` });
+      queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setPhoneSaving(false); }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const data = await apiFetch("/api/admin/whatsapp/test", { method: "POST" });
+      toast({
+        title: data.success ? "Test sent!" : "Failed",
+        description: data.message,
+        variant: data.success ? "default" : "destructive",
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-wa-logs"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setTesting(false); }
+  };
+
+  const status = waStatus?.status ?? "disconnected";
+  const isConnected = status === "connected";
+  const isQrReady = status === "qr_ready";
+  const isConnecting = status === "connecting";
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-3xl">
+
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-display font-bold text-foreground flex items-center gap-2.5">
+          <MessageCircle size={22} style={{ color: "#25D366" }} />
+          WhatsApp Alerts
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          100% free — uses your personal WhatsApp account via QR code. No monthly fees, no third-party APIs.
+        </p>
+      </div>
+
+      {/* Connection card */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+
+        {/* Status bar */}
+        <div className={`px-5 py-3 flex items-center gap-3 border-b border-border ${
+          isConnected ? "bg-emerald-950/20" : isQrReady || isConnecting ? "bg-amber-950/20" : "bg-muted/30"
+        }`}>
+          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+            isConnected ? "bg-emerald-500 shadow-[0_0_6px_#22c55e]" :
+            isQrReady || isConnecting ? "bg-amber-500 animate-pulse" :
+            "bg-muted-foreground/40"
+          }`} />
+          <span className={`text-sm font-semibold ${
+            isConnected ? "text-emerald-400" :
+            isQrReady || isConnecting ? "text-amber-400" :
+            "text-muted-foreground"
+          }`}>
+            {isConnected ? `Connected — +${waStatus?.phone}` :
+             isQrReady ? "Scan QR Code with your WhatsApp" :
+             isConnecting ? "Connecting…" :
+             status === "error" ? `Error: ${waStatus?.error}` :
+             "Not Connected"}
+          </span>
+          {isConnected && waStatus?.connectedAt && (
+            <span className="text-xs text-muted-foreground ml-auto">
+              Since {format(new Date(waStatus.connectedAt), "dd MMM, h:mm a")}
+            </span>
+          )}
+        </div>
+
+        <div className="p-5 space-y-5">
+
+          {/* QR Code display */}
+          {isQrReady && waStatus?.qrDataUrl && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-3 py-4">
+              <div className="p-3 bg-white rounded-2xl shadow-lg inline-block">
+                <img src={waStatus.qrDataUrl} alt="WhatsApp QR Code" className="w-64 h-64 block" />
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-foreground text-sm">Open WhatsApp → Linked Devices → Link a Device</p>
+                <p className="text-xs text-muted-foreground mt-1">Scan this QR code with your phone. The QR refreshes every 60 seconds.</p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Instructions when not connecting */}
+          {(status === "disconnected" || status === "error") && (
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+              <p className="font-semibold text-foreground text-sm flex items-center gap-2">
+                <Smartphone size={15} style={{ color: BRAND }} /> How to connect
+              </p>
+              <ol className="text-sm text-muted-foreground space-y-1.5 pl-4 list-decimal">
+                <li>Enter your WhatsApp number below (with country code, e.g. 923001234567)</li>
+                <li>Click <strong className="text-foreground">Connect WhatsApp</strong></li>
+                <li>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</li>
+                <li>Scan the QR code that appears here</li>
+                <li>Done! You'll get alerts for new orders, tickets, and payment proofs.</li>
+              </ol>
+            </div>
+          )}
+
+          {/* Phone number input */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold">
+              <Phone size={12} className="inline mr-1" />
+              Admin WhatsApp Number (with country code, no +)
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="e.g. 923001234567"
+                className="rounded-xl font-mono flex-1"
+              />
+              <Button onClick={handleSavePhone} disabled={phoneSaving} variant="outline" className="rounded-xl px-4">
+                {phoneSaving ? <RefreshCw size={14} className="animate-spin" /> : "Save"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Pakistan: start with 92 (e.g. 923xxxxxxxxx). No spaces or dashes.</p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-3">
+            {!isConnected ? (
+              <Button onClick={handleConnect} disabled={connecting || isConnecting || isQrReady}
+                style={{ background: "#25D366" }} className="text-white rounded-xl">
+                {connecting || isConnecting
+                  ? <><RefreshCw size={14} className="animate-spin mr-2" /> Connecting…</>
+                  : <><Wifi size={14} className="mr-2" /> Connect WhatsApp</>}
+              </Button>
+            ) : (
+              <>
+                <Button onClick={handleTest} disabled={testing} variant="outline" className="rounded-xl">
+                  {testing ? <RefreshCw size={14} className="animate-spin mr-2" /> : <Send size={14} className="mr-2" />}
+                  Send Test Message
+                </Button>
+                <Button onClick={handleDisconnect} variant="destructive" className="rounded-xl">
+                  <WifiOff size={14} className="mr-2" /> Disconnect
+                </Button>
+              </>
+            )}
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] })}
+              variant="ghost" size="sm" className="rounded-xl text-muted-foreground">
+              <RefreshCw size={13} className="mr-1.5" /> Refresh
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Notification triggers */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Bell size={15} style={{ color: BRAND }} /> Alert Triggers
+        </h3>
+        <div className="grid sm:grid-cols-3 gap-3">
+          {[
+            { icon: ShoppingCart, label: "New Order", desc: "Client name + service + amount when a new order is placed" },
+            { icon: Ticket, label: "New Support Ticket", desc: "Ticket subject + priority + client name on ticket creation" },
+            { icon: CreditCard, label: "Payment Proof Submitted", desc: "Invoice ID + transaction ID when a client submits payment proof" },
+          ].map(({ icon: Icon, label, desc }) => (
+            <div key={label} className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-950/10 border border-emerald-500/15">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-500/10">
+                <Icon size={13} className="text-emerald-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-xs flex items-center gap-1">
+                  <CheckCircle size={10} className="text-emerald-500" /> {label}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Live log */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+          <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+            <Clock size={14} style={{ color: BRAND }} /> Live Alert Log
+          </h3>
+          <span className="text-xs text-muted-foreground">{logs.length} recent alerts</span>
+        </div>
+
+        {logs.length === 0 ? (
+          <div className="py-10 text-center text-muted-foreground text-sm">
+            <Bell size={28} className="mx-auto mb-2 opacity-20" />
+            No alerts sent yet. Connect WhatsApp and send a test message to get started.
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {logs.map(log => (
+              <div key={log.id} className="px-5 py-3 flex items-start gap-3">
+                <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  log.status === "sent" ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                }`}>
+                  {log.status === "sent" ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                      {EVENT_ICONS[log.eventType]} {EVENT_LABELS[log.eventType] ?? log.eventType}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
+                      log.status === "sent"
+                        ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                        : "bg-red-500/10 text-red-500 border-red-500/20"
+                    }`}>{log.status}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{log.message}</p>
+                  {log.errorMessage && <p className="text-[11px] text-red-500 mt-0.5">{log.errorMessage}</p>}
+                </div>
+                <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5">
+                  {format(new Date(log.sentAt), "dd MMM, HH:mm")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}

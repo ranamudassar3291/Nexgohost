@@ -31,3 +31,4 @@ export * from "./kb";
 export * from "./security-logs";
 export * from "./uploaded-modules";
 export * from "./domain-registrars";
+export * from "./whatsapp-logs";

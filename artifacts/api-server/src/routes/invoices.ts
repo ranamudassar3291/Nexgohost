@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable } from "@workspace/db/schema";
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -104,6 +105,20 @@ router.post("/my/invoices/:id/submit-payment", authenticate, async (req: AuthReq
       .returning();
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+
+    // WhatsApp alert (non-blocking)
+    sendWhatsAppAlert("payment_proof",
+      `💳 *Payment Proof Submitted — Noehost*\n\n` +
+      `👤 Client: ${user ? `${user.firstName} ${user.lastName}` : "Unknown"}\n` +
+      `📧 Email: ${user?.email ?? "—"}\n` +
+      `🧾 Invoice: ${invoice.invoiceNumber}\n` +
+      `💰 Amount: PKR ${Number(invoice.amount).toLocaleString()}\n` +
+      `🏦 Transaction Ref: ${paymentRef}\n` +
+      `📝 Notes: ${paymentNotes || "None"}\n\n` +
+      `⚠️ *Please verify and mark paid in admin panel.*\n` +
+      `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
+    ).catch(() => {});
+
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

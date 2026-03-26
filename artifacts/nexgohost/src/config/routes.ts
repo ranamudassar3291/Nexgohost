@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   BookOpen,
   HelpCircle,
+  MessageCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -70,6 +71,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/cancellation-requests",  label: "Cancellations",      icon: AlertTriangle, inNav: true },
   { path: "/admin/modules",               label: "Modules",            icon: Puzzle,       inNav: true  },
   { path: "/admin/domain-registrars",     label: "Domain Registrars",  icon: Globe,        inNav: true  },
+  { path: "/admin/whatsapp",              label: "WhatsApp Alerts",     icon: MessageCircle,inNav: true  },
   { path: "/admin/reports",               label: "Reports",            icon: BarChart3,    inNav: true  },
   { path: "/admin/product-groups",        label: "Product Groups",     icon: Layers,       inNav: true  },
   { path: "/admin/admin-users",            label: "Admin Users",        icon: ShieldCheck,  inNav: true  },

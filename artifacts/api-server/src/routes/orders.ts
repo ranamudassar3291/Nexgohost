@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 import {
   ordersTable, usersTable, hostingPlansTable, hostingServicesTable,
   invoicesTable, serversTable, domainsTable,
@@ -136,6 +137,18 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
     }).returning();
 
     res.status(201).json(formatOrder(order, `${user.firstName} ${user.lastName}`));
+
+    // WhatsApp alert (non-blocking)
+    sendWhatsAppAlert("new_order",
+      `🛒 *New Order — Noehost*\n\n` +
+      `👤 Client: ${user.firstName} ${user.lastName}\n` +
+      `📧 Email: ${user.email}\n` +
+      `📦 Service: ${itemName}\n` +
+      `💰 Amount: PKR ${Number(amount).toLocaleString()}\n` +
+      `🏷️ Type: ${type}\n\n` +
+      `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
+    ).catch(() => {});
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

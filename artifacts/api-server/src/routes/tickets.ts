@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { ticketsTable, ticketMessagesTable, usersTable } from "@workspace/db/schema";
+import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { createNotification } from "../lib/notifications.js";
@@ -91,6 +92,19 @@ router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
     });
 
     res.status(201).json(formatTicket(ticket, `${user.firstName} ${user.lastName}`));
+
+    // WhatsApp alert (non-blocking)
+    sendWhatsAppAlert("new_ticket",
+      `🎫 *New Support Ticket — Noehost*\n\n` +
+      `👤 Client: ${user.firstName} ${user.lastName}\n` +
+      `📧 Email: ${user.email}\n` +
+      `🏷️ Subject: ${subject}\n` +
+      `⚡ Priority: ${priority || "medium"}\n` +
+      `🏢 Dept: ${department || "General"}\n` +
+      `🔗 ID: ${ticket.ticketNumber}\n\n` +
+      `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
+    ).catch(() => {});
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

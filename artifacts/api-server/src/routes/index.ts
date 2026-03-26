@@ -36,6 +36,7 @@ import kbRouter from "./kb.js";
 import securityRouter from "./security.js";
 import modulesRouter from "./modules.js";
 import domainRegistrarsRouter from "./domain-registrars.js";
+import whatsappRouter from "./whatsapp.js";
 
 const router: IRouter = Router();
 
@@ -80,5 +81,6 @@ router.use(kbRouter);
 router.use(securityRouter);
 router.use(modulesRouter);
 router.use(domainRegistrarsRouter);
+router.use(whatsappRouter);
 
 export default router;

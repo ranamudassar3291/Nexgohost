@@ -1,5 +1,50 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 30 — Free WhatsApp Alert System)
+
+### WhatsApp Gateway Service (`artifacts/api-server/src/lib/whatsapp.ts`)
+- Powered by `@whiskeysockets/baileys` — 100% free, uses personal WhatsApp account via QR code
+- Singleton service with states: `disconnected | connecting | qr_ready | connected | error`
+- Auto-reconnects on server startup if saved session (`whatsapp-session/creds.json`) exists
+- `sendWhatsAppAlert(eventType, message)` — sends to admin's phone, logs result to DB
+- `connectWhatsApp()` — initializes Baileys, emits QR code as base64 data URL
+- `disconnectWhatsApp()` — logs out and clears session
+
+### WhatsApp DB (`lib/db/src/schema/whatsapp-logs.ts`)
+- New table: `whatsapp_logs` (id, event_type, message, status, error_message, sent_at)
+- Enum `wa_event_type`: `new_order | new_ticket | payment_proof | test | other`
+
+### WhatsApp API (`artifacts/api-server/src/routes/whatsapp.ts`)
+- `GET /admin/whatsapp/status` — connection status + QR data URL + admin phone
+- `POST /admin/whatsapp/connect` — start connection / generate QR
+- `POST /admin/whatsapp/disconnect` — logout + clear session
+- `GET/PUT /admin/whatsapp/phone` — admin WhatsApp number (stored in settings table)
+- `POST /admin/whatsapp/test` — send test message to admin
+- `GET /admin/whatsapp/logs` — last 20 alert log entries
+
+### Event Hooks (non-blocking, .catch(() => {}))
+- `routes/orders.ts` → `POST /orders` — New order alert with client name + service + amount
+- `routes/tickets.ts` → `POST /tickets` — New ticket alert with subject + priority + department
+- `routes/invoices.ts` → `POST /my/invoices/:id/submit-payment` — Payment proof alert with invoice + transaction ref
+
+### Admin Page (`artifacts/nexgohost/src/pages/admin/WhatsAppSettings.tsx`)
+- Real-time status bar (green/amber/grey) with pulse animation
+- QR code display (base64 img) auto-updates every 3s via polling
+- Admin phone number input with save button
+- Connect / Disconnect / Send Test Message / Refresh buttons
+- Alert triggers info cards (Order, Ticket, Payment Proof)
+- Full alert log with event type, message preview, status badge, timestamp
+
+### Dashboard Widget (`artifacts/nexgohost/src/pages/admin/Dashboard.tsx`)
+- `WaLiveLog` component — compact row per last 5 alerts
+- Shows connection status with green pulse dot
+- "Configure →" link to `/admin/whatsapp`
+
+### PDF invoice — already verified correct (Session 28):
+- `margins:{top:0,bottom:0,left:0,right:0}` — guarantees single page
+- No nameservers anywhere (removed from header, footer, PAY TO section)
+- CEO signature bottom-right grey box: "Muhammad Arslan, Founder & CEO, Noehost"
+
 ## Recent Changes (Session 29 — Domain Registrar Management System)
 
 ### Domain Registrars DB (`lib/db/src/schema/domain-registrars.ts`)

@@ -48,6 +48,7 @@ import Currencies from "@/pages/admin/Currencies";
 import Servers from "@/pages/admin/Servers";
 import Modules from "@/pages/admin/Modules";
 import DomainRegistrars from "@/pages/admin/DomainRegistrars";
+import WhatsAppSettings from "@/pages/admin/WhatsAppSettings";
 import AdminReports from "@/pages/admin/Reports";
 import AdminTransactions from "@/pages/admin/Transactions";
 import CancellationRequests from "@/pages/admin/CancellationRequests";
@@ -298,6 +299,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/domain-registrars">
         <AdminPage><DomainRegistrars /></AdminPage>
+      </Route>
+      <Route path="/admin/whatsapp">
+        <AdminPage><WhatsAppSettings /></AdminPage>
       </Route>
       <Route path="/admin/vps/add">
         <AdminPage><AddVpsPlan /></AdminPage>

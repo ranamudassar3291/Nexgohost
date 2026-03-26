@@ -4,6 +4,7 @@ import { runAllCronTasks } from "./lib/cron.js";
 import { seedMissingTemplates } from "./routes/email-templates.js";
 import { seedVpsData } from "./lib/seedVps.js";
 import { seedKbContent } from "./routes/kb.js";
+import { initWhatsApp } from "./lib/whatsapp.js";
 
 const rawPort = process.env["PORT"];
 
@@ -66,5 +67,10 @@ app.listen(port, async () => {
     console.log("[KB] Knowledge base content ready");
   }).catch((err: any) => {
     console.warn("[KB] Seed failed (non-fatal):", err.message);
+  });
+
+  // Initialize WhatsApp gateway (auto-reconnects if session exists)
+  initWhatsApp().catch((err: any) => {
+    console.warn("[WA] Init failed (non-fatal):", err.message);
   });
 });
