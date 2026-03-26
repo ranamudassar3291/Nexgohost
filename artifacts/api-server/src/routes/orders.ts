@@ -546,10 +546,12 @@ router.post("/admin/orders/:id/activate-domain", authenticate, requireAdmin, asy
     const domainName = dotIdx > 0 ? fullDomain.substring(0, dotIdx) : fullDomain;
     const tld = dotIdx > 0 ? fullDomain.substring(dotIdx) : ".com";
 
-    // Create or update domain record
-    const existingDomains = await db.select().from(domainsTable)
-      .where(eq(domainsTable.clientId, order.clientId)).limit(100);
-    const alreadyExists = existingDomains.find(d => d.name === domainName && d.tld === tld);
+    // Exact match on name AND tld — never use LIKE/partial matching for domain uniqueness
+    const [alreadyExists] = await db.select().from(domainsTable)
+      .where(and(
+        eq(domainsTable.name, domainName),
+        eq(domainsTable.tld, tld),
+      )).limit(1);
 
     let domain;
     if (alreadyExists) {

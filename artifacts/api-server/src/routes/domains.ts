@@ -162,14 +162,14 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
       return;
     }
 
+    // Exact match on both name AND tld — no partial / LIKE matching
     const [existing] = await db
       .select()
       .from(domainsTable)
-      .where(eq(domainsTable.name, cleanName))
+      .where(and(eq(domainsTable.name, cleanName), eq(domainsTable.tld, cleanTld)))
       .limit(1);
 
-    const takenTld = existing?.tld === cleanTld;
-    if (takenTld) {
+    if (existing) {
       res.status(409).json({ error: `${cleanName}${cleanTld} is already registered` });
       return;
     }

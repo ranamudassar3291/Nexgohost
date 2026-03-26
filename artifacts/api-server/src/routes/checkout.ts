@@ -7,7 +7,7 @@ import {
   creditTransactionsTable, affiliateGroupCommissionsTable, vpsPlansTable,
   domainTransfersTable,
 } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated } from "../lib/email.js";
 import { generateInvoicePdf } from "../lib/invoicePdf.js";
@@ -109,15 +109,25 @@ async function handleCheckout(req: AuthRequest, res: any) {
       if (registerDomain && domain.includes(".")) {
         try {
           const dotIdx = domain.indexOf(".");
-          await db.insert(domainsTable).values({
-            clientId: req.user!.userId,
-            name: domain.slice(0, dotIdx).toLowerCase(),
-            tld: domain.slice(dotIdx).toLowerCase(),
-            registrationDate: new Date(),
-            expiryDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
-            status: "pending", autoRenew: true,
-            nameservers: resolvedNs,
-          });
+          const dName = domain.slice(0, dotIdx).toLowerCase();
+          const dTld  = domain.slice(dotIdx).toLowerCase();
+          // Exact match guard — never use LIKE/partial matching for domain uniqueness
+          const [domainAlreadyExists] = await db
+            .select({ id: domainsTable.id })
+            .from(domainsTable)
+            .where(and(eq(domainsTable.name, dName), eq(domainsTable.tld, dTld)))
+            .limit(1);
+          if (!domainAlreadyExists) {
+            await db.insert(domainsTable).values({
+              clientId: req.user!.userId,
+              name: dName,
+              tld: dTld,
+              registrationDate: new Date(),
+              expiryDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
+              status: "pending", autoRenew: true,
+              nameservers: resolvedNs,
+            });
+          }
         } catch { /* non-fatal */ }
       }
 
