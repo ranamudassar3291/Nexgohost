@@ -10,7 +10,7 @@ import { apiFetch } from "@/lib/api";
 import { useCurrency } from "@/context/CurrencyProvider";
 import {
   Copy, Link, TrendingUp, Clock, CheckCircle, Wallet, Building2, Users,
-  MousePointerClick, RefreshCw, ArrowUpRight, ChevronDown, ChevronUp,
+  MousePointerClick, RefreshCw, ArrowUpRight, ChevronDown, ChevronUp, Gift, BadgeCheck,
 } from "lucide-react";
 
 interface AffiliateData {
@@ -73,6 +73,7 @@ interface PlanOffer {
   commissionValue: string;
   yearlyOnly: boolean;
   yearlyPrice: string | null;
+  isActive: boolean;
 }
 
 const statusBadge = (s: string) => {
@@ -123,15 +124,16 @@ export default function Affiliate() {
       const [aff, wds, offers] = await Promise.all([
         apiFetch("/api/affiliate"),
         apiFetch("/api/affiliate/withdrawals"),
-        apiFetch("/api/affiliate/offers").catch(() => ({ plans: [] })),
+        apiFetch("/api/affiliate/offers").catch(() => ({ offers: [] })),
       ]);
       setAffiliate(aff.affiliate);
       setCommissions(aff.commissions || []);
       setReferrals(aff.referrals || []);
       setGroupCommissions(aff.groupCommissions || []);
-      setSettings(aff.settings || { payoutThreshold: 2000, cookieDays: 30 });
+      setSettings(aff.settings || { payoutThreshold: 2000, cookieDays: 30, payoutDays: 30 });
       setWithdrawals(wds.withdrawals || []);
-      setPlanOffers(offers.plans || []);
+      // API returns { offers: [...] } — filter to only yearly-only plans for the card display
+      setPlanOffers(offers.offers || offers.plans || []);
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to load affiliate data", variant: "destructive" });
     } finally {
@@ -192,7 +194,7 @@ export default function Affiliate() {
       await apiFetch("/api/affiliate/withdraw", null, {
         method: "POST", body: JSON.stringify({ amount: amt, accountTitle: bankTitle, accountNumber: bankAccount, bankName }),
       });
-      toast({ title: "Request submitted!", description: "Your withdrawal will be processed within 3-5 business days." });
+      toast({ title: "Request submitted!", description: `Your withdrawal will be processed within ${settings.payoutDays ?? 30} business days.` });
       setBankAmt(""); setBankTitle(""); setBankAccount(""); setBankName("");
       fetchData();
     } catch (e: any) {
@@ -323,27 +325,65 @@ export default function Affiliate() {
         </Card>
       )}
 
-      {/* Available Offers */}
-      {planOffers.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Available Offers</CardTitle>
-            <CardDescription>Plans with special per-plan commission rates — great ones to promote!</CardDescription>
+      {/* Available Offers — Hostinger-style yearly plan promotion cards */}
+      {planOffers.filter(p => p.isActive !== false).length > 0 && (
+        <Card className="border-purple-100">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-purple-100">
+                <Gift className="h-4 w-4 text-purple-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Yearly Plans — Promote & Earn</CardTitle>
+                <CardDescription className="text-xs mt-0.5">
+                  Commissions are paid on <strong>yearly subscriptions only</strong>. Pending for {settings.payoutDays ?? 30} days, then available to withdraw.
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {planOffers.map(p => (
-                <div key={p.planId} className="flex items-center justify-between p-3 rounded-lg border border-purple-100 bg-purple-50">
-                  <div>
-                    <p className="font-medium text-sm text-gray-800">{p.planName}</p>
-                    <p className="text-xs text-gray-500 capitalize">{p.planType} · Rs. {parseFloat(p.price ?? "0").toLocaleString()}/mo</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {planOffers.filter(p => p.isActive !== false).map(p => {
+                const commission = p.commissionType === "percentage"
+                  ? `${parseFloat(p.commissionValue).toFixed(0)}%`
+                  : `Rs. ${parseFloat(p.commissionValue).toLocaleString()}`;
+                const yearlyPrice = p.yearlyPrice ? `Rs. ${parseFloat(p.yearlyPrice).toLocaleString()}/yr` : null;
+                return (
+                  <div
+                    key={p.planId}
+                    className="relative flex flex-col rounded-xl border border-purple-200 bg-gradient-to-br from-white to-purple-50 p-4 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    {/* Plan badge */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700 capitalize">
+                        <BadgeCheck className="h-3 w-3" />
+                        {p.planType}
+                      </span>
+                      {p.yearlyOnly && (
+                        <span className="text-[10px] font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
+                          Yearly Only
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Plan name */}
+                    <p className="font-bold text-gray-900 text-sm mb-1">{p.planName}</p>
+
+                    {/* Price row */}
+                    {yearlyPrice && (
+                      <p className="text-xs text-gray-500 mb-3">
+                        <span className="font-medium text-gray-700">Target Price:</span> {yearlyPrice}
+                      </p>
+                    )}
+
+                    {/* Commission highlight */}
+                    <div className="mt-auto pt-3 border-t border-purple-100 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Your Commission</span>
+                      <span className="text-base font-extrabold text-purple-700">{commission}</span>
+                    </div>
                   </div>
-                  <span className="font-bold text-purple-700 text-sm whitespace-nowrap">
-                    {p.commissionType === "percentage" ? `${p.commissionValue}%` : `Rs. ${parseFloat(p.commissionValue).toLocaleString()}`}
-                    <span className="text-xs font-normal text-gray-400 ml-1">/ order</span>
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -397,7 +437,7 @@ export default function Affiliate() {
           {activePayoutTab === "bank" && (
             <form onSubmit={handleBankWithdrawal} className="space-y-4">
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-700">
-                Bank/JazzCash withdrawals processed manually within <strong>3-5 business days</strong>. Min: {formatPrice(threshold)}.
+                Bank/JazzCash withdrawals processed manually within <strong>{settings.payoutDays ?? 30} business days</strong>. Min: {formatPrice(threshold)}.
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

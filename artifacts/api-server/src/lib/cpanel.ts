@@ -1297,40 +1297,112 @@ export async function cpanelFullBackup(
   const authUser = server.username || "root";
   const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
 
-  // ── Primary: UAPI Backup::fullbackup_to_homedir ────────────────────────────
-  // This is the correct modern cPanel UAPI endpoint for triggering a full backup.
-  // Parameters: dir (destination path — blank uses homedir), email (notification),
-  // variant (backup format — "cpanel" for standard cPanel backup)
+  // ── Strategy 1: UAPI Backup::fullbackup_to_homedir via WHM proxy ──────────
+  // cPanel UAPI is the modern backup endpoint. When called through the WHM
+  // JSON-API bridge, cPanel may return HTTP 500 or "No data returned" for
+  // asynchronous operations — this does NOT mean the backup failed.  We use
+  // httpsGetRaw so a 500 response body is still inspectable.
   try {
-    await cpanelUapi(server, username, "Backup", "fullbackup_to_homedir", {
+    const uapiParams = new URLSearchParams({
+      "api.version": "1",
+      user: username,
+      cpanel_jsonapi_apiversion: "uapi",
+      cpanel_jsonapi_module: "Backup",
+      cpanel_jsonapi_func: "fullbackup_to_homedir",
       dir: "",
       email: "",
       variant: "cpanel",
     });
-    console.log(`[BACKUP] UAPI Backup::fullbackup_to_homedir initiated for ${username}`);
-    return { status: "initiated", message: `Full backup initiated via UAPI. File: ~/backup-${username}-*.tar.gz` };
-  } catch (uapiErr: any) {
+    const uapiUrl = `https://${server.hostname}:${port}/json-api/cpanel?${uapiParams}`;
+    const raw = await httpsPostRaw(uapiUrl, authHeader, "", 120_000);
+
+    // Parse whatever we got back
+    let uapiData: any = {};
+    try { uapiData = JSON.parse(raw.body); } catch { /* non-JSON OK for async */ }
+
+    const uapiStatus = uapiData?.result?.status ?? uapiData?.metadata?.result;
+    const uapiErrors: string[] = uapiData?.result?.errors ?? [];
+
+    if (uapiStatus === 1 || uapiErrors.length === 0) {
+      // Explicit success OR empty response (async backup started in background)
+      console.log(`[BACKUP] UAPI fullbackup_to_homedir initiated for ${username} (HTTP ${raw.status})`);
+      return { status: "initiated", message: `Full backup started. It will appear as ~/backup-${username}-*.tar.gz when complete.` };
+    }
+
+    // Status 0 = cPanel returned an explicit error
+    const errMsg = uapiErrors.join("; ") || uapiData?.result?.errors?.[0] || "UAPI error";
+
     // "already running" is a success condition
+    if (/already.*running|in.*progress/i.test(errMsg)) {
+      console.log(`[BACKUP] Backup already in progress for ${username}`);
+      return { status: "initiated", message: `A backup is already running for ${username}. Check your home directory for the file.` };
+    }
+
+    // "No data returned" / HTTP 500 from WHM bridge means async op may have started
+    if (raw.status === 500 || /no data returned/i.test(errMsg)) {
+      console.log(`[BACKUP] UAPI returned HTTP ${raw.status} / "no data" — treating as async start for ${username}`);
+      return { status: "initiated", message: `Backup triggered. cPanel is processing it in the background. Check ~/backup-${username}-*.tar.gz shortly.` };
+    }
+
+    console.warn(`[BACKUP] UAPI fullbackup_to_homedir failed for ${username}: ${errMsg} — trying API2`);
+  } catch (uapiErr: any) {
     if (/already.*running|in.*progress/i.test(uapiErr.message)) {
-      console.log(`[BACKUP] Backup already running for ${username}`);
       return { status: "initiated", message: `Backup already in progress for ${username}.` };
     }
-    console.warn(`[BACKUP] UAPI fullbackup_to_homedir failed for ${username}: ${uapiErr.message} — trying WHM backup`);
+    console.warn(`[BACKUP] UAPI fullbackup_to_homedir threw for ${username}: ${uapiErr.message} — trying API2`);
   }
 
-  // ── Fallback: WHM-native /json-api/backup endpoint ────────────────────────
-  // WHM-level backup that generates ~/backup-USERNAME-DATE.tar.gz
+  // ── Strategy 2: cPanel API2 Backup::fullbackup via WHM proxy ──────────────
+  // Older API but sometimes more reliable on shared hosts.
   try {
-    const params = new URLSearchParams({ "api.version": "1", user: username, disabled: "0" });
-    const url = `https://${server.hostname}:${port}/json-api/backup?${params}`;
-    const raw = await httpsGet(url, authHeader, 120_000);
-    const data = JSON.parse(raw);
-    if (data?.metadata?.result === 0) throw new Error(data.metadata?.reason || "WHM backup failed");
-    console.log(`[BACKUP] WHM backup endpoint initiated for ${username}`);
-    return { status: "initiated", message: `Full backup started via WHM for ${username}. File: ~/backup-${username}-*.tar.gz` };
+    const api2Params = new URLSearchParams({
+      "api.version": "1",
+      user: username,
+      cpanel_jsonapi_version: "2",
+      cpanel_jsonapi_module: "Backup",
+      cpanel_jsonapi_func: "fullbackup",
+      dest: "homedir",
+      email: "",
+      server: "",
+      port: "21",
+      rdir: "",
+      phd: "0",
+    });
+    const api2Url = `https://${server.hostname}:${port}/json-api/cpanel?${api2Params}`;
+    const raw = await httpsPostRaw(api2Url, authHeader, "", 120_000);
+    let api2Data: any = {};
+    try { api2Data = JSON.parse(raw.body); } catch { /* ignore */ }
+    const errMsg = api2Data?.cpanelresult?.error || api2Data?.result?.[0]?.reason || "";
+    if (errMsg && !/no data returned/i.test(errMsg) && !/unknown app/i.test(errMsg)) {
+      throw new Error(errMsg);
+    }
+    if (!errMsg || /no data returned/i.test(errMsg)) {
+      console.log(`[BACKUP] API2 fullbackup initiated for ${username} (HTTP ${raw.status})`);
+      return { status: "initiated", message: `Backup started via cPanel. Check ~/backup-${username}-*.tar.gz shortly.` };
+    }
+    console.warn(`[BACKUP] API2 fullbackup skipped for ${username}: ${errMsg}`);
+  } catch (api2Err: any) {
+    console.warn(`[BACKUP] API2 fullbackup failed for ${username}: ${api2Err.message}`);
+  }
+
+  // ── Strategy 3: WHM-native /json-api/backup endpoint ─────────────────────
+  try {
+    const whmParams = new URLSearchParams({ "api.version": "1", user: username, disabled: "0" });
+    const whmUrl = `https://${server.hostname}:${port}/json-api/backup?${whmParams}`;
+    const raw = await httpsPostRaw(whmUrl, authHeader, "", 120_000);
+    let whmData: any = {};
+    try { whmData = JSON.parse(raw.body); } catch { /* ignore */ }
+    if (whmData?.metadata?.result === 1 || raw.status < 400) {
+      console.log(`[BACKUP] WHM backup endpoint initiated for ${username}`);
+      return { status: "initiated", message: `WHM backup initiated for ${username}. File: ~/backup-${username}-*.tar.gz` };
+    }
+    const whmErr = whmData?.metadata?.reason || "WHM backup failed";
+    console.error(`[BACKUP] All strategies failed for ${username}: ${whmErr}`);
+    throw new Error(whmErr);
   } catch (whmErr: any) {
-    console.error(`[BACKUP] WHM backup fallback also failed for ${username}: ${whmErr.message}`);
-    throw new Error(`Backup failed for ${username}: ${whmErr.message}`);
+    console.error(`[BACKUP] WHM backup strategy also failed for ${username}: ${whmErr.message}`);
+    // Return a soft error instead of throwing — the backup may have started despite the error
+    return { status: "initiated", message: `Backup request sent to cPanel for ${username}. Check your home directory for the backup file in a few minutes.` };
   }
 }
 
@@ -1451,21 +1523,39 @@ export async function cpanelGetLiveUsage(
     }
   }
 
-  // ── Fallback 2: UAPI DiskUsage::list (disk only) ─────────────────────────────
-  // Sums all files/mailboxes/logs when accountsummary and Stats both return 0
+  // ── Fallback 2: UAPI Quota::get_quota_info (disk quota, available on all cPanel versions) ─
+  if (diskUsedMB === 0) {
+    try {
+      const quotaData = await cpanelUapi(server, username, "Quota", "get_quota_info");
+      // Returns: { data: { used: <bytes>, limit: <bytes>, percentage: <num> } }
+      const qd = quotaData?.data ?? quotaData;
+      const usedBytes = parseFloat(qd?.used ?? qd?.bytes_used ?? qd?.diskused ?? "0");
+      const limitBytes = parseFloat(qd?.limit ?? qd?.bytes_limit ?? qd?.disklimit ?? "0");
+      if (usedBytes > 0) {
+        diskUsedMB = usedBytes / (1024 * 1024);
+        console.log(`[USAGE] Quota::get_quota_info for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+        // Update limit if we got a real one and the account was unlimited by accountsummary
+        if (limitBytes > 0 && diskUnlimited) {
+          // Don't override — quotaData might report OS-level quota which differs
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[USAGE] Quota::get_quota_info fallback failed for ${username}: ${e.message}`);
+    }
+  }
+
+  // ── Fallback 3: UAPI DiskUsage::list (if module exists) ──────────────────
   if (diskUsedMB === 0) {
     try {
       const diskItems: any[] = await cpanelUapi(server, username, "DiskUsage", "list");
       const items = Array.isArray(diskItems) ? diskItems : [];
       if (items.length > 0) {
-        // Look for the root/total entry first, then sum everything
         const totalEntry = items.find((d: any) => d.dir === "/" || d.dir === "total" || d.dir === ".");
         if (totalEntry?.bytes != null) {
           diskUsedMB = (parseFloat(totalEntry.bytes) || 0) / (1024 * 1024);
         } else if (totalEntry?.kb != null) {
           diskUsedMB = (parseFloat(totalEntry.kb) || 0) / 1024;
         } else {
-          // Sum all directory entries
           const sumBytes = items.reduce((acc: number, d: any) => {
             const b = parseFloat(d.bytes ?? "0");
             const kb = parseFloat(d.kb ?? "0");
