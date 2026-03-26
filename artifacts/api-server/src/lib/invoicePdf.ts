@@ -1,6 +1,6 @@
 /**
  * Noehost Professional Invoice PDF Generator
- * Uses pdfkit to produce WHMCS-style A4 invoices with Noehost branding.
+ * Designed to match the HTML online view — unified branded layout.
  */
 import PDFDocument from "pdfkit";
 
@@ -22,28 +22,40 @@ export interface InvoiceData {
   amount: number;
   tax: number;
   total: number;
+  creditApplied?: number;   // Account credit deducted from total
   items: InvoiceItem[];
   paymentRef?: string | null;
   paymentNotes?: string | null;
 }
 
-const BRAND   = "#701AFE";
-const PAID_C  = "#16a34a";
+// ── Palette (matches HTML view) ───────────────────────────────────────────────
+const BRAND    = "#701AFE";
+const PAID_C   = "#16a34a";
 const UNPAID_C = "#dc2626";
-const GREY    = "#6B7280";
-const DARK    = "#111827";
-const LIGHT   = "#F9FAFB";
-const MID     = "#E5E7EB";
+const GREY     = "#6B7280";
+const DARK     = "#1e293b";
+const SLATE50  = "#F8FAFC";
+const SLATE100 = "#F1F5F9";
+const SLATE200 = "#E2E8F0";
+const WHITE    = "#FFFFFF";
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function formatPKR(amount: number): string {
-  return `Rs. ${amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rs. ${Number(amount).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   } catch { return "—"; }
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return [r, g, b];
 }
 
 export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
@@ -54,101 +66,115 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const W = doc.page.width - 100; // usable width (margins 50 each side)
-    const L = 50;                    // left margin
+    const W  = doc.page.width - 100;   // usable width (50px margin each side)
+    const L  = 50;                      // left margin
+    const PW = doc.page.width;
 
-    // ── HEADER BAND ──────────────────────────────────────────────────────────
-    // Background rectangle
-    doc.rect(0, 0, doc.page.width, 110).fill(BRAND);
+    const isPaid     = data.status === "paid";
+    const isUnpaid   = ["unpaid", "overdue"].includes(data.status);
+    const isCancelled = data.status === "cancelled";
 
-    // Noehost logo text
-    doc.font("Helvetica-Bold").fontSize(26).fillColor("#FFFFFF");
-    doc.text("N", L, 28, { continued: true })
-       .font("Helvetica").text("oehost", { continued: false });
+    const statusLabel = data.status === "payment_pending" ? "PENDING REVIEW"
+      : data.status.replace("_", " ").toUpperCase();
+    const statusColor = isPaid ? PAID_C : isCancelled ? GREY : UNPAID_C;
 
-    doc.font("Helvetica").fontSize(9).fillColor("rgba(255,255,255,0.75)");
-    doc.text("Professional Hosting Solutions", L, 58);
-    doc.text("billing@noehost.com  ·  ns1.noehost.com  ·  ns2.noehost.com", L, 72);
+    // Credit deduction
+    const creditApplied   = data.creditApplied ?? 0;
+    const amountAfterCredit = Number(data.total) - creditApplied;
 
-    // INVOICE label (right side)
-    doc.font("Helvetica-Bold").fontSize(30).fillColor("#FFFFFF");
-    doc.text("INVOICE", 0, 26, { width: doc.page.width - 50, align: "right" });
+    // ── HEADER BAND ────────────────────────────────────────────────────────────
+    const [br, bg, bb] = hexToRgb(BRAND);
+    doc.rect(0, 0, PW, 105).fill(`rgb(${br},${bg},${bb})`);
 
-    doc.font("Helvetica").fontSize(12).fillColor("rgba(255,255,255,0.85)");
-    doc.text(`#${data.invoiceNumber}`, 0, 62, { width: doc.page.width - 50, align: "right" });
+    // Logo
+    doc.font("Helvetica-Bold").fontSize(22).fillColor(WHITE);
+    doc.text("N", L, 30, { continued: true });
+    doc.font("Helvetica").text("oehost");
 
-    // ── STATUS BADGE ─────────────────────────────────────────────────────────
-    const isPaid = data.status === "paid";
-    const statusColor = isPaid ? PAID_C : data.status === "cancelled" ? GREY : UNPAID_C;
-    const statusLabel = data.status.replace("_", " ").toUpperCase();
-    doc.roundedRect(doc.page.width - 140, 80, 90, 22, 5).fill(statusColor);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#FFFFFF");
-    doc.text(statusLabel, doc.page.width - 140, 87, { width: 90, align: "center" });
+    doc.font("Helvetica").fontSize(8.5).fillColor("rgba(255,255,255,0.68)");
+    doc.text("Professional Hosting Solutions", L, 57);
+    doc.text("billing@noehost.com  ·  ns1.noehost.com  ·  ns2.noehost.com", L, 69);
 
-    let y = 130;
+    // INVOICE label (right)
+    doc.font("Helvetica").fontSize(9).fillColor("rgba(255,255,255,0.65)");
+    doc.text("INVOICE", 0, 30, { width: PW - 50, align: "right" });
+    doc.font("Helvetica-Bold").fontSize(26).fillColor(WHITE);
+    doc.text(`#${data.invoiceNumber}`, 0, 42, { width: PW - 50, align: "right" });
 
-    // ── DATE ROW ─────────────────────────────────────────────────────────────
-    doc.rect(L, y, W, 34).fill(LIGHT);
+    // Status badge
+    const [sr, sg, sb] = hexToRgb(statusColor);
+    doc.roundedRect(PW - 148, 76, 98, 20, 4).fill(`rgb(${sr},${sg},${sb})`);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(WHITE);
+    doc.text(statusLabel, PW - 148, 83, { width: 98, align: "center" });
+
+    let y = 120;
+
+    // ── DATE ROW ───────────────────────────────────────────────────────────────
+    doc.rect(L, y, W, 38).fill(SLATE100);
     const dateCols = [
       { label: "Invoice Date", value: fmtDate(data.createdAt) },
-      { label: "Due Date",     value: fmtDate(data.dueDate)   },
+      { label: "Due Date",     value: fmtDate(data.dueDate) },
       { label: "Paid Date",    value: isPaid ? fmtDate(data.paidDate) : "—" },
     ];
     const colW = W / 3;
     dateCols.forEach((col, i) => {
       const cx = L + i * colW;
-      doc.font("Helvetica").fontSize(7.5).fillColor(GREY);
-      doc.text(col.label.toUpperCase(), cx + 8, y + 6, { width: colW - 16 });
+      doc.font("Helvetica").fontSize(7).fillColor(GREY);
+      doc.text(col.label.toUpperCase(), cx + 8, y + 7, { width: colW - 16, align: "center" });
       doc.font("Helvetica-Bold").fontSize(9.5).fillColor(DARK);
-      doc.text(col.value, cx + 8, y + 17, { width: colW - 16 });
+      doc.text(col.value, cx + 8, y + 18, { width: colW - 16, align: "center" });
       if (i < 2) {
-        doc.rect(cx + colW, y + 4, 0.5, 26).fill(MID);
+        doc.rect(cx + colW - 0.5, y + 5, 0.5, 28).fill(SLATE200);
       }
     });
-    y += 34 + 16;
+    y += 38 + 18;
 
-    // ── BILL FROM / BILL TO ───────────────────────────────────────────────────
+    // ── BILL FROM / BILL TO ────────────────────────────────────────────────────
     const halfW = (W - 20) / 2;
 
-    // Bill From
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(BRAND);
+    // Pay To column
+    doc.font("Helvetica-Bold").fontSize(7).fillColor(BRAND);
     doc.text("PAY TO", L, y);
     y += 12;
     doc.font("Helvetica-Bold").fontSize(11).fillColor(DARK);
     doc.text("Noehost", L, y);
     y += 14;
-    doc.font("Helvetica").fontSize(9).fillColor(GREY);
-    doc.text("billing@noehost.com", L, y);   y += 12;
-    doc.text("support@noehost.com", L, y);   y += 12;
+    doc.font("Helvetica").fontSize(8.5).fillColor(GREY);
+    doc.text("billing@noehost.com", L, y);       y += 11;
+    doc.text("support@noehost.com", L, y);       y += 11;
     doc.text("ns1.noehost.com / ns2.noehost.com", L, y);
 
-    // Bill To (right column)
-    let ryStart = y - 38;
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(BRAND);
-    doc.text("BILL TO", L + halfW + 20, ryStart);
+    // Bill To column (right)
+    const billToX = L + halfW + 20;
+    let ryStart = y - 36;
+    doc.font("Helvetica-Bold").fontSize(7).fillColor(BRAND);
+    doc.text("BILL TO", billToX, ryStart);
     ryStart += 12;
     doc.font("Helvetica-Bold").fontSize(11).fillColor(DARK);
-    doc.text(data.clientName || "Client", L + halfW + 20, ryStart);
+    doc.text(data.clientName || "Client", billToX, ryStart);
     ryStart += 14;
     if (data.clientEmail) {
-      doc.font("Helvetica").fontSize(9).fillColor(GREY);
-      doc.text(data.clientEmail, L + halfW + 20, ryStart);
+      doc.font("Helvetica").fontSize(8.5).fillColor(GREY);
+      doc.text(data.clientEmail, billToX, ryStart);
     }
 
-    y += 26;
+    // Vertical divider between columns
+    doc.rect(L + halfW + 10, y - 48, 0.5, 60).fill(SLATE200);
+
+    y += 28;
 
     // Divider
-    doc.rect(L, y, W, 1).fill(MID);
+    doc.rect(L, y, W, 0.5).fill(SLATE200);
     y += 16;
 
-    // ── ITEMS TABLE ───────────────────────────────────────────────────────────
-    // Header row
-    doc.rect(L, y, W, 24).fill(BRAND);
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#FFFFFF");
-    doc.text("DESCRIPTION", L + 10, y + 7, { width: W * 0.55 });
-    doc.text("TAX/VAT", L + W * 0.57, y + 7, { width: W * 0.15, align: "right" });
-    doc.text("UNIT PRICE", L + W * 0.73, y + 7, { width: W * 0.12, align: "right" });
-    doc.text("AMOUNT", L + W * 0.87, y + 7, { width: W * 0.11, align: "right" });
+    // ── LINE ITEMS TABLE ───────────────────────────────────────────────────────
+    // Header
+    doc.roundedRect(L, y, W, 24, 3).fill(BRAND);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(WHITE);
+    doc.text("DESCRIPTION", L + 10, y + 8, { width: W * 0.54 });
+    doc.text("QTY",         L + W * 0.56, y + 8, { width: W * 0.08, align: "center" });
+    doc.text("UNIT PRICE",  L + W * 0.65, y + 8, { width: W * 0.17, align: "right" });
+    doc.text("AMOUNT",      L + W * 0.84, y + 8, { width: W * 0.14, align: "right" });
     y += 24;
 
     const items = data.items && data.items.length > 0
@@ -156,49 +182,57 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
       : [{ description: "Service", quantity: 1, unitPrice: data.amount, total: data.amount }];
 
     items.forEach((item, idx) => {
-      const rowBg = idx % 2 === 0 ? "#FFFFFF" : LIGHT;
-      const rowH = 22;
+      const rowBg = idx % 2 === 0 ? WHITE : SLATE50;
+      const rowH  = 22;
       doc.rect(L, y, W, rowH).fill(rowBg);
       doc.font("Helvetica").fontSize(8.5).fillColor(DARK);
-      doc.text(item.description, L + 10, y + 6, { width: W * 0.54, lineBreak: false, ellipsis: true });
+      doc.text(item.description, L + 10, y + 6, { width: W * 0.53, lineBreak: false, ellipsis: true });
       doc.fillColor(GREY);
-      doc.text("0%", L + W * 0.57, y + 6, { width: W * 0.15, align: "right" });
+      doc.text(String(item.quantity), L + W * 0.56, y + 6, { width: W * 0.08, align: "center" });
       doc.fillColor(DARK);
-      doc.text(formatPKR(Number(item.unitPrice)), L + W * 0.73, y + 6, { width: W * 0.12, align: "right" });
+      doc.text(formatPKR(Number(item.unitPrice)), L + W * 0.65, y + 6, { width: W * 0.17, align: "right" });
       doc.font("Helvetica-Bold");
-      doc.text(formatPKR(Number(item.total)), L + W * 0.87, y + 6, { width: W * 0.11, align: "right" });
+      doc.text(formatPKR(Number(item.total)), L + W * 0.84, y + 6, { width: W * 0.14, align: "right" });
       y += rowH;
     });
 
-    // Table bottom border
-    doc.rect(L, y, W, 1).fill(MID);
+    doc.rect(L, y, W, 0.5).fill(SLATE200);
     y += 16;
 
-    // ── TOTALS ────────────────────────────────────────────────────────────────
-    const totalsX = L + W * 0.57;
-    const totalsW = W * 0.43;
+    // ── TOTALS ─────────────────────────────────────────────────────────────────
+    const totalsX = L + W * 0.55;
+    const totalsW = W * 0.45;
 
-    const totals = [
-      { label: "Subtotal", value: formatPKR(data.amount) },
-      { label: "Tax / VAT (0%)", value: formatPKR(data.tax || 0) },
-    ];
+    // Subtotal
+    doc.font("Helvetica").fontSize(9).fillColor(GREY);
+    doc.text("Subtotal", totalsX, y, { width: totalsW * 0.55 });
+    doc.fillColor(DARK);
+    doc.text(formatPKR(data.amount), totalsX + totalsW * 0.55, y, { width: totalsW * 0.45, align: "right" });
+    y += 14;
 
-    totals.forEach(row => {
-      doc.font("Helvetica").fontSize(9).fillColor(GREY);
-      doc.text(row.label, totalsX, y, { width: totalsW * 0.55 });
-      doc.font("Helvetica").fillColor(DARK);
-      doc.text(row.value, totalsX + totalsW * 0.55, y, { width: totalsW * 0.45, align: "right" });
+    // Tax
+    doc.font("Helvetica").fontSize(9).fillColor(GREY);
+    doc.text("Tax / VAT (0%)", totalsX, y, { width: totalsW * 0.55 });
+    doc.fillColor(DARK);
+    doc.text(formatPKR(data.tax || 0), totalsX + totalsW * 0.55, y, { width: totalsW * 0.45, align: "right" });
+    y += 14;
+
+    // Credit deduction (if applicable)
+    if (creditApplied > 0) {
+      doc.font("Helvetica-Bold").fontSize(9).fillColor("#16a34a");
+      doc.text("Account Credit Applied", totalsX, y, { width: totalsW * 0.55 });
+      doc.text(`− ${formatPKR(creditApplied)}`, totalsX + totalsW * 0.55, y, { width: totalsW * 0.45, align: "right" });
       y += 14;
-    });
+    }
 
-    // Total due row
-    doc.rect(totalsX - 8, y - 4, totalsW + 16, 30).fill(BRAND);
-    doc.font("Helvetica-Bold").fontSize(11).fillColor("#FFFFFF");
+    // Total Due row
+    doc.roundedRect(totalsX - 8, y - 2, totalsW + 16, 30, 4).fill(BRAND);
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(WHITE);
     doc.text("TOTAL DUE", totalsX, y + 8, { width: totalsW * 0.55 });
-    doc.text(formatPKR(data.total), totalsX + totalsW * 0.55, y + 8, { width: totalsW * 0.45, align: "right" });
-    y += 42;
+    doc.text(formatPKR(creditApplied > 0 ? amountAfterCredit : data.total), totalsX + totalsW * 0.55, y + 8, { width: totalsW * 0.45, align: "right" });
+    y += 40;
 
-    // Payment reference (if any)
+    // Payment reference
     if (data.paymentRef) {
       doc.font("Helvetica").fontSize(8).fillColor(GREY);
       doc.text(`Payment Reference: ${data.paymentRef}`, L, y);
@@ -209,25 +243,28 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
       }
     }
 
-    y += 10;
+    y += 8;
 
-    // ── PAID / UNPAID WATERMARK ───────────────────────────────────────────────
-    doc.save();
-    doc.opacity(0.07);
-    doc.font("Helvetica-Bold").fontSize(90).fillColor(isPaid ? PAID_C : UNPAID_C);
-    doc.rotate(isPaid ? -30 : -30, { origin: [doc.page.width / 2, doc.page.height / 2] });
-    doc.text(isPaid ? "PAID" : "UNPAID", 30, doc.page.height / 2 - 60, { width: doc.page.width - 60, align: "center" });
-    doc.restore();
+    // ── UNPAID WATERMARK (only for unpaid / overdue) ────────────────────────────
+    if (isUnpaid) {
+      doc.save();
+      doc.opacity(0.07);
+      doc.font("Helvetica-Bold").fontSize(80).fillColor(UNPAID_C);
+      doc.rotate(-35, { origin: [PW / 2, doc.page.height / 2] });
+      // Draw border box outline + text
+      doc.text("UNPAID", 40, doc.page.height / 2 - 50, { width: PW - 80, align: "center" });
+      doc.restore();
+    }
 
-    // ── FOOTER ────────────────────────────────────────────────────────────────
-    const footerY = doc.page.height - 75;
-    doc.rect(0, footerY - 10, doc.page.width, 85).fill(BRAND);
-    doc.font("Helvetica-Bold").fontSize(10).fillColor("#FFFFFF");
-    doc.text("Thank you for choosing Noehost!", 0, footerY + 2, { width: doc.page.width, align: "center" });
-    doc.font("Helvetica").fontSize(8).fillColor("rgba(255,255,255,0.75)");
-    doc.text("support@noehost.com  ·  https://noehost.com  ·  ns1.noehost.com / ns2.noehost.com", 0, footerY + 16, { width: doc.page.width, align: "center" });
-    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.55)");
-    doc.text(`Invoice #${data.invoiceNumber} — Generated by Noehost Billing System`, 0, footerY + 31, { width: doc.page.width, align: "center" });
+    // ── FOOTER ──────────────────────────────────────────────────────────────────
+    const footerY = doc.page.height - 72;
+    doc.rect(0, footerY, PW, 72).fill(BRAND);
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(WHITE);
+    doc.text("Thank you for choosing Noehost!", 0, footerY + 12, { width: PW, align: "center" });
+    doc.font("Helvetica").fontSize(8).fillColor("rgba(255,255,255,0.65)");
+    doc.text("support@noehost.com  ·  https://noehost.com  ·  ns1.noehost.com / ns2.noehost.com", 0, footerY + 26, { width: PW, align: "center" });
+    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.42)");
+    doc.text(`Invoice #${data.invoiceNumber} — Generated by Noehost Billing System`, 0, footerY + 42, { width: PW, align: "center" });
 
     doc.end();
   });

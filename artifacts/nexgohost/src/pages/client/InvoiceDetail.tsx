@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle, Printer, Building2, Send, AlertCircle, Loader2, Wallet, FileDown } from "lucide-react";
+import {
+  ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle,
+  Printer, Send, AlertCircle, Loader2, Wallet, FileDown, Smartphone,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,9 +13,12 @@ import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface InvoiceItem { description: string; quantity: number; unitPrice: number; total: number; }
 interface Invoice {
   id: string; invoiceNumber: string; clientId: string; clientName: string;
+  clientEmail?: string;
   amount: number; tax: number; total: number; status: string;
   dueDate: string; paidDate?: string;
   paymentRef?: string | null; paymentGatewayId?: string | null; paymentNotes?: string | null;
@@ -23,13 +29,16 @@ interface PaymentMethod {
   publicSettings: Record<string, string | undefined>;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  paid:            { label: "Paid",            icon: CheckCircle, color: "bg-green-500/10 text-green-400 border-green-500/20" },
-  unpaid:          { label: "Unpaid",          icon: Clock,       color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
-  payment_pending: { label: "Payment Pending", icon: Clock,       color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  cancelled:       { label: "Cancelled",       icon: XCircle,     color: "bg-red-500/10 text-red-400 border-red-500/20" },
-  overdue:         { label: "Overdue",         icon: AlertCircle, color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
-  refunded:        { label: "Refunded",        icon: ArrowLeft,   color: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const BRAND = "#701AFE";
+
+const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; bgClass: string; textClass: string; borderClass: string }> = {
+  paid:            { label: "Paid",            icon: CheckCircle, bgClass: "bg-emerald-50",  textClass: "text-emerald-700",  borderClass: "border-emerald-300" },
+  unpaid:          { label: "Unpaid",          icon: Clock,       bgClass: "bg-amber-50",    textClass: "text-amber-700",    borderClass: "border-amber-300"   },
+  payment_pending: { label: "Pending Review",  icon: Clock,       bgClass: "bg-sky-50",      textClass: "text-sky-700",      borderClass: "border-sky-300"     },
+  cancelled:       { label: "Cancelled",       icon: XCircle,     bgClass: "bg-slate-100",   textClass: "text-slate-600",    borderClass: "border-slate-300"   },
+  overdue:         { label: "Overdue",         icon: AlertCircle, bgClass: "bg-red-50",      textClass: "text-red-700",      borderClass: "border-red-300"     },
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -37,37 +46,35 @@ const TYPE_ICONS: Record<string, string> = {
   paypal: "🅿️", stripe: "💳", crypto: "₿", manual: "✍️",
 };
 
+// ─── Payment Instructions sub-component ───────────────────────────────────────
+
 function PaymentInstructions({ method }: { method: PaymentMethod }) {
   const s = method.publicSettings ?? {};
-  const hasSettings = Object.values(s).some(v => v);
-
-  if (!hasSettings) {
-    return <p className="text-xs text-muted-foreground">Contact support for payment details.</p>;
-  }
-
   const rows: { label: string; value: string }[] = [];
-  if (s.bankName)      rows.push({ label: "Bank",           value: s.bankName });
-  if (s.accountTitle)  rows.push({ label: "Account Title",  value: s.accountTitle });
-  if (s.accountNumber) rows.push({ label: "Account No.",    value: s.accountNumber });
-  if (s.iban)          rows.push({ label: "IBAN",           value: s.iban });
-  if (s.swiftCode)     rows.push({ label: "SWIFT",          value: s.swiftCode });
-  if (s.mobileNumber)  rows.push({ label: "Mobile No.",     value: s.mobileNumber });
-  if (s.paypalEmail)   rows.push({ label: "PayPal Email",   value: s.paypalEmail });
-  if (s.walletAddress) rows.push({ label: "Wallet",         value: s.walletAddress });
-  if (s.cryptoType)    rows.push({ label: "Coin",           value: s.cryptoType });
-  if (s.instructions)  rows.push({ label: "Instructions",   value: s.instructions });
-
+  if (s.bankName)      rows.push({ label: "Bank",          value: s.bankName });
+  if (s.accountTitle)  rows.push({ label: "Account Title", value: s.accountTitle });
+  if (s.accountNumber) rows.push({ label: "Account No.",   value: s.accountNumber });
+  if (s.iban)          rows.push({ label: "IBAN",          value: s.iban });
+  if (s.swiftCode)     rows.push({ label: "SWIFT",         value: s.swiftCode });
+  if (s.mobileNumber)  rows.push({ label: "Mobile No.",    value: s.mobileNumber });
+  if (s.paypalEmail)   rows.push({ label: "PayPal Email",  value: s.paypalEmail });
+  if (s.walletAddress) rows.push({ label: "Wallet",        value: s.walletAddress });
+  if (s.cryptoType)    rows.push({ label: "Coin",          value: s.cryptoType });
+  if (s.instructions)  rows.push({ label: "Instructions",  value: s.instructions });
+  if (rows.length === 0) return <p className="text-xs text-slate-500">Contact support for payment details.</p>;
   return (
     <div className="space-y-1.5">
       {rows.map(r => (
         <div key={r.label} className="flex items-start justify-between gap-4 text-xs">
-          <span className="text-muted-foreground shrink-0">{r.label}</span>
-          <span className="font-medium text-foreground text-right break-all">{r.value}</span>
+          <span className="text-slate-500 shrink-0">{r.label}</span>
+          <span className="font-medium text-slate-800 text-right break-all">{r.value}</span>
         </div>
       ))}
     </div>
   );
 }
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -83,6 +90,24 @@ export default function InvoiceDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [payingWithCredits, setPayingWithCredits] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  const { data: invoice, isLoading } = useQuery<Invoice>({
+    queryKey: ["invoice", id],
+    queryFn: () => apiFetch(`/api/my/invoices/${id}`),
+    enabled: !!id,
+  });
+
+  const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
+    queryKey: ["payment-methods"],
+    queryFn: () => apiFetch("/api/payment-methods"),
+  });
+
+  const { data: credits } = useQuery<{ creditBalance: string }>({
+    queryKey: ["my-credits"],
+    queryFn: () => apiFetch("/api/my/credits"),
+  });
+
+  const creditBalance = parseFloat(credits?.creditBalance ?? "0");
 
   const handleDownloadPdf = async () => {
     if (!invoice) return;
@@ -109,24 +134,6 @@ export default function InvoiceDetail() {
     }
   };
 
-  const { data: invoice, isLoading } = useQuery<Invoice>({
-    queryKey: ["invoice", id],
-    queryFn: () => apiFetch(`/api/my/invoices/${id}`),
-    enabled: !!id,
-  });
-
-  const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
-    queryKey: ["payment-methods"],
-    queryFn: () => apiFetch("/api/payment-methods"),
-  });
-
-  const { data: credits } = useQuery<{ creditBalance: string }>({
-    queryKey: ["my-credits"],
-    queryFn: () => apiFetch("/api/my/credits"),
-  });
-
-  const creditBalance = parseFloat(credits?.creditBalance ?? "0");
-
   const handlePayWithCredits = async () => {
     if (!invoice) return;
     setPayingWithCredits(true);
@@ -141,8 +148,6 @@ export default function InvoiceDetail() {
       setPayingWithCredits(false);
     }
   };
-
-  const scrollToPayment = () => paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,12 +169,14 @@ export default function InvoiceDetail() {
   };
 
   if (isLoading) return (
-    <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+    <div className="flex justify-center p-12">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
   );
 
   if (!invoice) return (
     <div className="text-center py-12">
-      <p className="text-muted-foreground">Invoice not found.</p>
+      <p className="text-slate-500">Invoice not found.</p>
       <Button variant="outline" className="mt-4" onClick={() => setLocation("/client/invoices")}>Back to Invoices</Button>
     </div>
   );
@@ -178,209 +185,269 @@ export default function InvoiceDetail() {
   const StatusIcon = statusCfg.icon;
   const isPaid = invoice.status === "paid";
   const isPaymentPending = invoice.status === "payment_pending";
-  const canPay = ["unpaid", "overdue"].includes(invoice.status);
+  const isUnpaid = ["unpaid", "overdue"].includes(invoice.status);
+  const canPay = isUnpaid;
+
+  // Credit deduction shown when invoice is unpaid and user has credits
+  const creditApplicable = canPay && creditBalance > 0;
+  const creditApplied = creditApplicable ? Math.min(creditBalance, Number(invoice.total)) : 0;
+  const amountAfterCredit = Number(invoice.total) - creditApplied;
+
+  // JazzCash / EasyPaisa methods
+  const mobileWalletMethods = paymentMethods.filter(pm => ["jazzcash", "easypaisa"].includes(pm.type));
+  const otherMethods = paymentMethods.filter(pm => !["jazzcash", "easypaisa"].includes(pm.type));
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-3xl mx-auto">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/client/invoices")} className="gap-2">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto space-y-4">
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between print:hidden">
+        <Button variant="ghost" size="sm" onClick={() => setLocation("/client/invoices")} className="gap-2 text-slate-600 hover:text-slate-900">
           <ArrowLeft size={16} /> Back to Invoices
         </Button>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2 print:hidden">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2 text-slate-600">
             <Printer size={15} /> Print
           </Button>
-          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloading} className="gap-2 print:hidden border-primary/30 text-primary hover:bg-primary/5">
+          <Button
+            variant="outline" size="sm"
+            onClick={handleDownloadPdf} disabled={downloading}
+            className="gap-2 border-[#701AFE]/30 text-[#701AFE] hover:bg-[#701AFE]/5"
+          >
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
             {downloading ? "Generating…" : "Download PDF"}
           </Button>
           {canPay && (
-            <Button size="sm" onClick={scrollToPayment} className="bg-primary hover:bg-primary/90 gap-2 print:hidden">
+            <Button
+              size="sm"
+              onClick={() => paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              style={{ background: BRAND }}
+              className="gap-2 text-white hover:opacity-90"
+            >
               <CreditCard size={15} /> Pay Now
             </Button>
           )}
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl overflow-hidden print:border-none print:shadow-none">
+      {/* ── INVOICE DOCUMENT ─────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-xl shadow-black/10 overflow-hidden border border-slate-200/80 relative print:shadow-none print:border-none">
 
-        {/* Header */}
-        <div className="bg-primary/5 border-b border-border p-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px]" />
-          <div className="relative flex justify-between items-start">
-            <div>
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                  <Building2 size={20} className="text-white" />
-                </div>
-                <div>
-                  <div className="font-bold text-foreground text-lg">Noehost</div>
-                  <div className="text-xs text-muted-foreground">Professional Hosting Solutions</div>
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground space-y-0.5">
-                <p>billing@noehost.com</p>
-                <p>support@noehost.com</p>
-              </div>
+        {/* UNPAID diagonal stamp watermark */}
+        {isUnpaid && (
+          <div
+            className="pointer-events-none absolute inset-0 flex items-center justify-center z-10"
+            style={{ transform: "rotate(-35deg)", opacity: 0.055 }}
+          >
+            <span
+              className="select-none font-black uppercase tracking-widest"
+              style={{ fontSize: "clamp(60px,12vw,110px)", color: "#dc2626", whiteSpace: "nowrap", border: "8px solid #dc2626", padding: "4px 24px", lineHeight: 1.1 }}
+            >
+              UNPAID
+            </span>
+          </div>
+        )}
+
+        {/* ── HEADER BAND ─────────────────────────────────────────────────────── */}
+        <div style={{ background: BRAND }} className="px-8 py-6 flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-white font-black text-2xl tracking-tight">N</span>
+              <span className="text-white/90 font-semibold text-2xl tracking-tight">oehost</span>
             </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-foreground">INVOICE</div>
-              <div className="text-primary font-semibold text-lg mt-1">#{invoice.invoiceNumber}</div>
-              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border mt-2 ${statusCfg.color}`}>
-                <StatusIcon size={12} />
-                {statusCfg.label}
-              </div>
+            <p className="text-white/70 text-[11px] font-medium">Professional Hosting Solutions</p>
+            <p className="text-white/60 text-[10px] mt-1">billing@noehost.com · ns1.noehost.com · ns2.noehost.com</p>
+          </div>
+          <div className="text-right">
+            <p className="text-white/70 text-[10px] font-semibold uppercase tracking-widest mb-1">Invoice</p>
+            <p className="text-white font-black text-3xl leading-none">#{invoice.invoiceNumber}</p>
+            <div className={`inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-[11px] font-bold border ${statusCfg.bgClass} ${statusCfg.textClass} ${statusCfg.borderClass}`}>
+              <StatusIcon size={11} />
+              {statusCfg.label}
             </div>
           </div>
         </div>
 
-        {/* Meta info */}
-        <div className="grid grid-cols-3 divide-x divide-border/50 border-b border-border">
+        {/* ── DATE ROW ─────────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
           {[
-            { label: "Invoice Date", value: format(new Date(invoice.createdAt), "MMM d, yyyy") },
-            { label: "Due Date",     value: format(new Date(invoice.dueDate), "MMM d, yyyy") },
-            { label: "Paid Date",    value: isPaid && invoice.paidDate ? format(new Date(invoice.paidDate), "MMM d, yyyy") : "—" },
+            { label: "Invoice Date", value: format(new Date(invoice.createdAt), "d MMMM yyyy") },
+            { label: "Due Date",     value: format(new Date(invoice.dueDate), "d MMMM yyyy") },
+            { label: "Paid Date",    value: isPaid && invoice.paidDate ? format(new Date(invoice.paidDate), "d MMMM yyyy") : "—" },
           ].map(({ label, value }) => (
-            <div key={label} className="p-5 text-center">
-              <div className="text-xs text-muted-foreground mb-1">{label}</div>
-              <div className="font-medium text-foreground">{value}</div>
+            <div key={label} className="px-6 py-4 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">{label}</p>
+              <p className="text-sm font-bold text-slate-800">{value}</p>
             </div>
           ))}
         </div>
 
-        {/* Bill To */}
-        <div className="p-6 border-b border-border/50">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Bill To</div>
-          <div className="font-semibold text-foreground">{invoice.clientName || "Client"}</div>
+        {/* ── BILL FROM / BILL TO ──────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-200 px-0">
+          <div className="px-8 py-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: BRAND }}>Pay To</p>
+            <p className="font-bold text-slate-800 text-[15px]">Noehost</p>
+            <p className="text-xs text-slate-500 mt-1">billing@noehost.com</p>
+            <p className="text-xs text-slate-500">support@noehost.com</p>
+            <p className="text-xs text-slate-500 mt-0.5">ns1.noehost.com / ns2.noehost.com</p>
+          </div>
+          <div className="px-8 py-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: BRAND }}>Bill To</p>
+            <p className="font-bold text-slate-800 text-[15px]">{invoice.clientName || "Client"}</p>
+            {invoice.clientEmail && <p className="text-xs text-slate-500 mt-1">{invoice.clientEmail}</p>}
+          </div>
         </div>
 
-        {/* Line Items */}
-        <div className="p-6">
-          <table className="w-full">
+        {/* ── LINE ITEMS TABLE ─────────────────────────────────────────────────── */}
+        <div className="px-8 py-6">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/50">
-                <th className="text-left py-2 text-sm font-medium text-muted-foreground">Description</th>
-                <th className="text-center py-2 text-sm font-medium text-muted-foreground">Qty</th>
-                <th className="text-right py-2 text-sm font-medium text-muted-foreground">Unit Price</th>
-                <th className="text-right py-2 text-sm font-medium text-muted-foreground">Total</th>
+              <tr style={{ background: BRAND }}>
+                <th className="text-left py-2.5 px-3 text-[11px] font-bold uppercase tracking-wide text-white rounded-l-lg">Description</th>
+                <th className="text-center py-2.5 px-3 text-[11px] font-bold uppercase tracking-wide text-white">Qty</th>
+                <th className="text-right py-2.5 px-3 text-[11px] font-bold uppercase tracking-wide text-white">Unit Price</th>
+                <th className="text-right py-2.5 px-3 text-[11px] font-bold uppercase tracking-wide text-white rounded-r-lg">Amount</th>
               </tr>
             </thead>
             <tbody>
               {(invoice.items || []).length > 0 ? (invoice.items || []).map((item, i) => (
-                <tr key={i} className="border-b border-border/30">
-                  <td className="py-3 text-sm text-foreground">{item.description}</td>
-                  <td className="py-3 text-sm text-center text-muted-foreground">{item.quantity}</td>
-                  <td className="py-3 text-sm text-right text-muted-foreground">{formatPrice(Number(item.unitPrice))}</td>
-                  <td className="py-3 text-sm text-right font-medium text-foreground">{formatPrice(Number(item.total))}</td>
+                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/80"}>
+                  <td className="py-3 px-3 text-slate-800">{item.description}</td>
+                  <td className="py-3 px-3 text-center text-slate-500">{item.quantity}</td>
+                  <td className="py-3 px-3 text-right text-slate-600">{formatPrice(Number(item.unitPrice))}</td>
+                  <td className="py-3 px-3 text-right font-semibold text-slate-800">{formatPrice(Number(item.total))}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={4} className="py-6 text-center text-muted-foreground text-sm">No line items</td></tr>
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-slate-400 text-sm">No line items</td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Totals */}
-        <div className="border-t border-border/50 p-6">
-          <div className="ml-auto max-w-xs space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatPrice(Number(invoice.amount))}</span>
+        {/* ── TOTALS BLOCK ────────────────────────────────────────────────────── */}
+        <div className="border-t border-slate-100 px-8 pb-8">
+          <div className="ml-auto max-w-xs">
+            <div className="space-y-2 pt-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Subtotal</span>
+                <span className="text-slate-700 font-medium">{formatPrice(Number(invoice.amount))}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Tax / VAT (0%)</span>
+                <span className="text-slate-700 font-medium">{formatPrice(Number(invoice.tax || 0))}</span>
+              </div>
+              {creditApplicable && (
+                <div className="flex justify-between text-sm text-emerald-600">
+                  <span className="font-medium">Account Credit Applied</span>
+                  <span className="font-medium">− {formatPrice(creditApplied)}</span>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Tax</span>
-              <span>{formatPrice(Number(invoice.tax || 0))}</span>
+            <div
+              className="mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white"
+              style={{ background: BRAND }}
+            >
+              <span className="text-sm font-bold uppercase tracking-wide">Total Due</span>
+              <span className="text-lg font-black">
+                {creditApplicable ? formatPrice(amountAfterCredit) : formatPrice(Number(invoice.total))}
+              </span>
             </div>
-            <div className="flex justify-between font-bold text-lg border-t border-border/50 pt-2">
-              <span>Total</span>
-              <span className="text-primary">{formatPrice(Number(invoice.total))}</span>
-            </div>
+            {creditApplicable && (
+              <p className="text-[10px] text-emerald-600 text-right mt-1.5">
+                * {formatPrice(creditApplied)} account credit will be applied at checkout
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Payment Pending Notice */}
-        {isPaymentPending && (
-          <div className="border-t border-blue-500/20 p-6 bg-blue-500/5">
+        {/* Payment reference info (if payment_pending) */}
+        {isPaymentPending && invoice.paymentRef && (
+          <div className="border-t border-sky-200 bg-sky-50 px-8 py-5">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
-                <Clock size={18} className="text-blue-400" />
+              <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center shrink-0">
+                <Clock size={15} className="text-sky-600" />
               </div>
               <div>
-                <p className="font-medium text-foreground text-sm">Payment Under Review</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Your payment reference has been submitted and is being verified by our team.</p>
-                {invoice.paymentRef && (
-                  <div className="mt-2 space-y-1 text-xs">
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground">Reference:</span>
-                      <span className="font-mono font-medium text-foreground">{invoice.paymentRef}</span>
-                    </div>
-                    {invoice.paymentNotes && (
-                      <div className="flex gap-2">
-                        <span className="text-muted-foreground">Notes:</span>
-                        <span className="text-foreground">{invoice.paymentNotes}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <p className="text-sm font-semibold text-sky-800">Payment Under Review</p>
+                <p className="text-xs text-sky-600 mt-0.5">Your payment is being verified by our team.</p>
+                <div className="mt-2 text-xs text-sky-700 space-y-0.5">
+                  <div className="flex gap-2"><span className="text-sky-500">Ref:</span><span className="font-mono font-semibold">{invoice.paymentRef}</span></div>
+                  {invoice.paymentNotes && <div className="flex gap-2"><span className="text-sky-500">Notes:</span><span>{invoice.paymentNotes}</span></div>}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Payment Section (unpaid/overdue) */}
+        {/* ── PAYMENT SECTION (HTML only — not printed) ──────────────────────── */}
         {canPay && (
-          <div ref={paymentRef} className="border-t border-border/50 p-6 bg-secondary/20 space-y-5">
-            <div>
-              <div className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-                <CreditCard size={16} className="text-primary" /> Payment Options
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Pay <span className="font-bold text-foreground">{formatPrice(Number(invoice.total))}</span> using your account credits or one of the gateways below.
-              </p>
-            </div>
+          <div ref={paymentRef} className="border-t border-slate-200 bg-slate-50 px-8 py-7 print:hidden">
 
-            {/* Pay with Credits card */}
-            <div className={`rounded-xl border p-4 flex items-center justify-between gap-4 ${creditBalance >= Number(invoice.total) ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"}`}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                  <Wallet size={17} className="text-emerald-500" />
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-5">Payment Options</p>
+
+            {/* Quick-pay CTAs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+              {/* Wallet Balance CTA */}
+              <button
+                onClick={handlePayWithCredits}
+                disabled={payingWithCredits || creditBalance <= 0}
+                className={`flex items-center gap-3 rounded-xl border-2 px-5 py-4 transition-all ${
+                  creditBalance > 0
+                    ? "border-emerald-400 bg-emerald-50 hover:bg-emerald-100 cursor-pointer"
+                    : "border-slate-200 bg-white opacity-60 cursor-not-allowed"
+                }`}
+              >
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                  {payingWithCredits ? <Loader2 size={18} className="animate-spin text-emerald-600" /> : <Wallet size={18} className="text-emerald-600" />}
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Account Credits</p>
-                  <p className="text-xs text-muted-foreground">Balance: <span className={`font-medium ${creditBalance > 0 ? "text-emerald-500" : "text-muted-foreground"}`}>{formatPrice(creditBalance)}</span></p>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-slate-800">Pay with Wallet Balance</p>
+                  <p className="text-xs text-slate-500">
+                    Available: <span className={`font-semibold ${creditBalance > 0 ? "text-emerald-600" : "text-slate-400"}`}>{formatPrice(creditBalance)}</span>
+                  </p>
                 </div>
-              </div>
-              {creditBalance >= Number(invoice.total) ? (
-                <Button
-                  size="sm"
-                  onClick={handlePayWithCredits}
-                  disabled={payingWithCredits}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shrink-0"
+              </button>
+
+              {/* JazzCash / EasyPaisa CTA */}
+              {mobileWalletMethods.length > 0 && (
+                <button
+                  onClick={() => setSelectedGateway(mobileWalletMethods[0].id)}
+                  className={`flex items-center gap-3 rounded-xl border-2 px-5 py-4 transition-all cursor-pointer ${
+                    mobileWalletMethods.some(m => m.id === selectedGateway)
+                      ? "border-[#701AFE] bg-[#701AFE]/5"
+                      : "border-slate-200 bg-white hover:border-[#701AFE]/50"
+                  }`}
                 >
-                  {payingWithCredits ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-                  Pay {formatPrice(Number(invoice.total))}
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground shrink-0">Insufficient balance</span>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xl" style={{ background: "rgba(112,26,254,0.08)" }}>
+                    <Smartphone size={18} style={{ color: BRAND }} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-slate-800">JazzCash / EasyPaisa</p>
+                    <p className="text-xs text-slate-500">Mobile wallet — instant transfer</p>
+                  </div>
+                </button>
               )}
             </div>
 
+            {/* All other payment gateways */}
             {paymentMethods.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-muted-foreground">— or pay via payment gateway —</p>
-
-                {/* Gateway cards */}
+                <p className="text-xs text-slate-400 font-medium">— or choose a payment method —</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {paymentMethods.map(pm => (
                     <div
                       key={pm.id}
                       onClick={() => setSelectedGateway(selectedGateway === pm.id ? "" : pm.id)}
-                      className={`bg-card border rounded-xl p-4 cursor-pointer transition-all ${selectedGateway === pm.id ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40"}`}
+                      className={`bg-white border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                        selectedGateway === pm.id ? "border-[#701AFE] shadow-md shadow-[#701AFE]/10" : "border-slate-200 hover:border-[#701AFE]/40"
+                      }`}
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2.5">
                         <span className="text-lg">{TYPE_ICONS[pm.type] ?? "💳"}</span>
-                        <span className="text-sm font-semibold text-foreground">{pm.name}</span>
-                        {selectedGateway === pm.id && <CheckCircle size={14} className="ml-auto text-primary" />}
+                        <span className="text-sm font-bold text-slate-800">{pm.name}</span>
+                        {selectedGateway === pm.id && <CheckCircle size={14} className="ml-auto" style={{ color: BRAND }} />}
                       </div>
                       <PaymentInstructions method={pm} />
                     </div>
@@ -391,45 +458,73 @@ export default function InvoiceDetail() {
                 <AnimatePresence>
                   {selectedGateway && (
                     <motion.form
-                      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
                       onSubmit={handleSubmitPayment}
-                      className="bg-card border border-primary/20 rounded-xl p-4 space-y-3"
+                      className="bg-white border-2 rounded-xl p-5 space-y-4"
+                      style={{ borderColor: BRAND + "33" }}
                     >
-                      <p className="text-sm font-medium text-foreground">Submit Payment Confirmation</p>
-                      <p className="text-xs text-muted-foreground">After transferring, enter your transaction ID or receipt number below so our team can verify your payment.</p>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">Submit Payment Confirmation</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          After transferring, enter your transaction ID below so our team can verify your payment.
+                        </p>
+                      </div>
                       <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground/70">Transaction ID / Receipt Number *</label>
+                        <label className="text-xs font-semibold text-slate-600">Transaction ID / Receipt Number *</label>
                         <Input
                           value={txRef}
                           onChange={e => setTxRef(e.target.value)}
                           placeholder="e.g. JC-1234567890 or TXN#XXXXX"
                           required
+                          className="border-slate-300"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-foreground/70">Additional Notes (optional)</label>
+                        <label className="text-xs font-semibold text-slate-600">Additional Notes (optional)</label>
                         <Input
                           value={txNotes}
                           onChange={e => setTxNotes(e.target.value)}
                           placeholder="e.g. Sent from 03XX-XXXXXXX at 3:45 PM"
+                          className="border-slate-300"
                         />
                       </div>
-                      <Button type="submit" disabled={submitting || !txRef.trim()} className="w-full gap-2">
+                      <Button
+                        type="submit"
+                        disabled={submitting || !txRef.trim()}
+                        className="w-full gap-2 text-white"
+                        style={{ background: BRAND }}
+                      >
                         {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                        Confirm Payment
+                        Confirm Payment Submission
                       </Button>
                     </motion.form>
                   )}
                 </AnimatePresence>
               </div>
             )}
+
+            {paymentMethods.length === 0 && creditBalance <= 0 && (
+              <p className="text-sm text-slate-500 text-center py-4">No payment methods available. Please contact support.</p>
+            )}
           </div>
         )}
 
-        {/* Footer */}
-        <div className="border-t border-border/50 p-5 text-center text-xs text-muted-foreground">
-          Thank you for your business! Questions? Contact billing@noehost.com | noehost.com
+        {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
+        <div
+          className="px-8 py-5 text-center"
+          style={{ background: BRAND }}
+        >
+          <p className="text-white font-bold text-sm">Thank you for choosing Noehost!</p>
+          <p className="text-white/65 text-[11px] mt-1">
+            support@noehost.com · https://noehost.com · ns1.noehost.com / ns2.noehost.com
+          </p>
+          <p className="text-white/40 text-[10px] mt-0.5">
+            Invoice #{invoice.invoiceNumber} — Generated by Noehost Billing System
+          </p>
         </div>
+
       </div>
     </motion.div>
   );

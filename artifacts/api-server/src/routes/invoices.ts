@@ -9,6 +9,10 @@ import { generateInvoicePdf } from "../lib/invoicePdf.js";
 
 const router = Router();
 
+function isUnpaidStatus(status: string | null | undefined): boolean {
+  return ["unpaid", "overdue"].includes(status ?? "");
+}
+
 async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
   if (order.type !== "renewal" || !order.itemId) return;
   const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, order.itemId)).limit(1);
@@ -540,6 +544,10 @@ router.get("/my/invoices/:id/pdf", authenticate, async (req: AuthRequest, res) =
       unitPrice: Number(it.unitPrice ?? it.amount ?? invoice.amount ?? 0),
       total: Number(it.total ?? it.amount ?? invoice.amount ?? 0),
     }));
+    // Include user's account credit so it appears as a deduction on the PDF
+    const creditApplied = isUnpaidStatus(invoice.status)
+      ? Math.min(parseFloat(user?.creditBalance ?? "0"), Number(invoice.total ?? 0))
+      : 0;
     const pdf = await generateInvoicePdf({
       invoiceNumber: invoice.invoiceNumber ?? invoice.id,
       status: invoice.status ?? "unpaid",
@@ -551,6 +559,7 @@ router.get("/my/invoices/:id/pdf", authenticate, async (req: AuthRequest, res) =
       amount: Number(invoice.amount ?? 0),
       tax: Number(invoice.tax ?? 0),
       total: Number(invoice.total ?? 0),
+      creditApplied,
       items,
       paymentRef: invoice.paymentRef ?? null,
       paymentNotes: invoice.paymentNotes ?? null,
