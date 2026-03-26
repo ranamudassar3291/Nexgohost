@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,12 @@ interface Domain {
   registrationDate?: string; expiryDate?: string; nextDueDate?: string;
   status: string; autoRenew: boolean; nameservers: string[];
   moduleServerId?: string | null;
+  lockStatus?: string | null;
+  eppCode?: string | null;
+  lockOverrideByAdmin?: boolean;
+  isIn60DayLock?: boolean;
+  daysRemainingInLock?: number;
+  lastLockChange?: string | null;
 }
 
 interface Client { id: string; firstName: string; lastName: string; email: string; }
@@ -64,6 +70,8 @@ export default function AdminDomains() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [lockOverrideId, setLockOverrideId] = useState<string | null>(null);
+  const [lockResults, setLockResults] = useState<Record<string, { lockStatus: string; eppCode?: string | null; lockOverrideByAdmin?: boolean }>>({});
 
   const { data: domains = [], isLoading } = useQuery<Domain[]>({
     queryKey: ["admin-domains"],
@@ -150,6 +158,25 @@ export default function AdminDomains() {
     } catch (err: any) {
       toast({ title: "Sync failed", description: err.message, variant: "destructive" });
     } finally { setSyncingId(null); }
+  };
+
+  const handleLockOverride = async (domain: Domain) => {
+    const currentLock = lockResults[domain.id]?.lockStatus ?? domain.lockStatus ?? "locked";
+    const nextLock = currentLock === "locked" ? "unlocked" : "locked";
+    setLockOverrideId(domain.id);
+    try {
+      const data = await apiFetch(`/api/admin/domains/${domain.id}/lock-override`, {
+        method: "PUT",
+        body: JSON.stringify({ lockStatus: nextLock, override: true }),
+      });
+      setLockResults(prev => ({ ...prev, [domain.id]: { lockStatus: data.lockStatus, eppCode: data.eppCode, lockOverrideByAdmin: data.lockOverrideByAdmin } }));
+      toast({
+        title: `Lock ${data.lockStatus === "locked" ? "enabled" : "disabled"} (Admin Override)`,
+        description: `${domain.name}${domain.tld}${data.lockStatus === "unlocked" && data.eppCode ? ` — EPP: ${data.eppCode}` : ""}`,
+      });
+    } catch (err: any) {
+      toast({ title: "Lock override failed", description: err.message, variant: "destructive" });
+    } finally { setLockOverrideId(null); }
   };
 
   const openEdit = (d: Domain) => {
@@ -319,6 +346,7 @@ export default function AdminDomains() {
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Expiry</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Next Due</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Auto Renew</th>
+              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Transfer Lock</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
@@ -353,6 +381,32 @@ export default function AdminDomains() {
                   </span>
                 </td>
                 <td className="px-6 py-4">
+                  {(() => {
+                    const effLock = lockResults[domain.id]?.lockStatus ?? domain.lockStatus ?? "locked";
+                    const effOverride = lockResults[domain.id]?.lockOverrideByAdmin ?? domain.lockOverrideByAdmin ?? false;
+                    const effIn60Day = domain.isIn60DayLock && !effOverride;
+                    return (
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                          effLock === "unlocked"
+                            ? "bg-green-500/10 text-green-400 border-green-500/20"
+                            : effIn60Day
+                              ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                              : "bg-red-500/10 text-red-400 border-red-500/20"
+                        }`}>
+                          {effLock === "unlocked"
+                            ? <><ShieldCheck className="w-3 h-3" /> Unlocked</>
+                            : effIn60Day
+                              ? <><Lock className="w-3 h-3" /> 60-Day ({domain.daysRemainingInLock}d)</>
+                              : <><Lock className="w-3 h-3" /> Locked</>
+                          }
+                        </span>
+                        {effOverride && <span className="text-xs text-green-400 font-medium">Admin override</span>}
+                      </div>
+                    );
+                  })()}
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex gap-1.5 flex-wrap">
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => handleRenew(domain.id)}>
                       <RefreshCw className="w-3 h-3" /> Renew
@@ -366,6 +420,24 @@ export default function AdminDomains() {
                       {syncingId === domain.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                       Sync
                     </Button>
+                    <Button size="sm" variant="outline"
+                      className={`h-7 px-2.5 text-xs gap-1 ${
+                        (lockResults[domain.id]?.lockStatus ?? domain.lockStatus ?? "locked") === "unlocked"
+                          ? "text-red-400 border-red-400/30 hover:bg-red-400/10"
+                          : "text-green-400 border-green-400/30 hover:bg-green-400/10"
+                      }`}
+                      disabled={lockOverrideId === domain.id}
+                      onClick={() => handleLockOverride(domain)}
+                      title="Admin override: bypass 60-day rule"
+                    >
+                      {lockOverrideId === domain.id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : (lockResults[domain.id]?.lockStatus ?? domain.lockStatus ?? "locked") === "unlocked"
+                          ? <Lock className="w-3 h-3" />
+                          : <ShieldCheck className="w-3 h-3" />
+                      }
+                      {(lockResults[domain.id]?.lockStatus ?? domain.lockStatus ?? "locked") === "unlocked" ? "Lock" : "Unlock"}
+                    </Button>
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(domain.id, domain.name + domain.tld)}>
                       <Trash2 className="w-3 h-3" />
                     </Button>
@@ -374,7 +446,7 @@ export default function AdminDomains() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
+              <tr><td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
             )}
           </tbody>
         </table>

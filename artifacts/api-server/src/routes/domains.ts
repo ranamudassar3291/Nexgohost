@@ -45,7 +45,27 @@ function generateInvoiceNumber(): string {
   return `INV-${year}-${rand}`;
 }
 
+const REGISTRATION_LOCK_DAYS = 60;
+
+function calcRegistrationLock(registrationDate: Date | null | undefined, lockOverrideByAdmin: boolean | null) {
+  if (!registrationDate) return { isIn60DayLock: false, registrationAgeDays: 999, daysRemainingInLock: 0 };
+  const now = Date.now();
+  const regTime = new Date(registrationDate).getTime();
+  const registrationAgeDays = Math.floor((now - regTime) / (1000 * 60 * 60 * 24));
+  const isIn60DayLock = !lockOverrideByAdmin && registrationAgeDays < REGISTRATION_LOCK_DAYS;
+  const daysRemainingInLock = isIn60DayLock ? REGISTRATION_LOCK_DAYS - registrationAgeDays : 0;
+  return { isIn60DayLock, registrationAgeDays, daysRemainingInLock };
+}
+
+function generateEppCode(domainId: string): string {
+  const crypto = require("crypto");
+  const seed = `epp-${domainId}-${Math.floor(Date.now() / (1000 * 60 * 60 * 24 * 30))}`;
+  const hash = crypto.createHash("sha256").update(seed).digest("hex");
+  return `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}`.toUpperCase();
+}
+
 function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) {
+  const { isIn60DayLock, registrationAgeDays, daysRemainingInLock } = calcRegistrationLock(d.registrationDate, d.lockOverrideByAdmin);
   return {
     id: d.id,
     clientId: d.clientId,
@@ -59,7 +79,13 @@ function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) 
     status: d.status,
     autoRenew: d.autoRenew,
     nameservers: d.nameservers || [],
-    lockStatus: d.lockStatus ?? null,
+    lockStatus: d.lockStatus ?? "locked",
+    eppCode: d.lockStatus === "unlocked" ? (d.eppCode ?? null) : null,
+    lastLockChange: d.lastLockChange?.toISOString() ?? null,
+    lockOverrideByAdmin: d.lockOverrideByAdmin ?? false,
+    isIn60DayLock,
+    registrationAgeDays,
+    daysRemainingInLock,
     moduleServerId: (d as any).moduleServerId ?? null,
   };
 }
@@ -689,21 +715,98 @@ router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async 
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// Client: toggle transfer lock on own domain
+// Client: toggle transfer lock on own domain (enforces 60-day registration lock)
 router.put("/domains/:id/lock", authenticate, async (req: AuthRequest, res) => {
   try {
     const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
-    if (domain.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
-    const current = (domain as any).lockStatus ?? "unlocked";
-    const next = current === "locked" ? "unlocked" : "locked";
-    const [updated] = await db.update(domainsTable)
-      .set({ ...(next === "locked" ? { lockStatus: "locked" } : { lockStatus: "unlocked" }), updatedAt: new Date() } as any)
-      .where(eq(domainsTable.id, req.params.id))
-      .returning();
-    console.log(`[LOCK] Domain ${domain.name}${domain.tld} lock toggled: ${current} → ${next}`);
-    res.json({ lockStatus: next, domain: `${domain.name}${domain.tld}` });
+
+    const isAdmin = req.user!.role === "admin" || req.user!.adminPermission === "super_admin";
+    if (!isAdmin && domain.clientId !== req.user!.userId) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+
+    const currentLock = domain.lockStatus ?? "locked";
+    const targetLock = req.body.lockStatus ?? (currentLock === "locked" ? "unlocked" : "locked");
+
+    // Enforce 60-day rule: clients cannot unlock within the first 60 days
+    if (!isAdmin && targetLock === "unlocked") {
+      const { isIn60DayLock, daysRemainingInLock } = calcRegistrationLock(domain.registrationDate, domain.lockOverrideByAdmin);
+      if (isIn60DayLock) {
+        return res.status(403).json({
+          error: "60_DAY_LOCK",
+          message: `Domain cannot be transferred within 60 days of registration. ${daysRemainingInLock} day(s) remaining.`,
+          daysRemaining: daysRemainingInLock,
+        });
+      }
+    }
+
+    // Generate and store EPP code when unlocking (so it's stable and persistent)
+    let eppCode = domain.eppCode;
+    if (targetLock === "unlocked" && !eppCode) {
+      eppCode = generateEppCode(domain.id);
+    }
+    // Clear EPP code when locking again (security: force new code on next unlock)
+    if (targetLock === "locked") {
+      eppCode = null;
+    }
+
+    await db.update(domainsTable)
+      .set({
+        lockStatus: targetLock,
+        eppCode,
+        lastLockChange: new Date(),
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(domainsTable.id, domain.id));
+
+    console.log(`[LOCK] Domain ${domain.name}${domain.tld} → ${targetLock}${isAdmin ? " (admin)" : ""}`);
+    res.json({
+      lockStatus: targetLock,
+      eppCode: targetLock === "unlocked" ? eppCode : null,
+      lastLockChange: new Date().toISOString(),
+      domain: `${domain.name}${domain.tld}`,
+    });
   } catch (err) { console.error("[LOCK]", err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: force-override 60-day lock (manual unlock/lock bypass)
+router.put("/admin/domains/:id/lock-override", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+
+    const { lockStatus: targetLock, override } = req.body as { lockStatus?: string; override?: boolean };
+    const nextLock = targetLock ?? (domain.lockStatus === "locked" ? "unlocked" : "locked");
+    const setOverride = override !== undefined ? override : true;
+
+    let eppCode = domain.eppCode;
+    if (nextLock === "unlocked" && !eppCode) {
+      eppCode = generateEppCode(domain.id);
+    }
+    if (nextLock === "locked") {
+      eppCode = null;
+    }
+
+    await db.update(domainsTable)
+      .set({
+        lockStatus: nextLock,
+        eppCode,
+        lastLockChange: new Date(),
+        lockOverrideByAdmin: setOverride,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(domainsTable.id, domain.id));
+
+    console.log(`[ADMIN LOCK OVERRIDE] ${domain.name}${domain.tld} → ${nextLock}, override=${setOverride}`);
+    res.json({
+      lockStatus: nextLock,
+      eppCode: nextLock === "unlocked" ? eppCode : null,
+      lockOverrideByAdmin: setOverride,
+      lastLockChange: new Date().toISOString(),
+      domain: `${domain.name}${domain.tld}`,
+    });
+  } catch (err) { console.error("[ADMIN LOCK]", err); res.status(500).json({ error: "Server error" }); }
 });
 
 // Client: get EPP / auth code for own domain
@@ -711,22 +814,28 @@ router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
   try {
     const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
-    if (req.user!.role !== "admin" && domain.clientId !== req.user!.userId) {
+
+    const isAdmin = req.user!.role === "admin" || req.user!.adminPermission === "super_admin";
+    if (!isAdmin && domain.clientId !== req.user!.userId) {
       res.status(403).json({ error: "Forbidden" }); return;
     }
-    // Block EPP retrieval when domain has transfer lock enabled
-    const lockStatus = (domain as any).lockStatus ?? "locked";
-    if (lockStatus === "locked") {
-      console.log(`[EPP] Blocked for ${domain.name}${domain.tld} — transfer lock is enabled`);
+
+    if (domain.lockStatus === "locked") {
       return res.status(403).json({
-        error: "Transfer lock is enabled. Disable the transfer lock before retrieving the EPP code.",
+        error: "Transfer lock is enabled. Disable the transfer lock to reveal the EPP code.",
         lockStatus: "locked",
       });
     }
-    // Deterministic EPP code derived from domain ID (production: fetch from registrar)
-    const raw = domain.id.replace(/-/g, "");
-    const eppCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`.toUpperCase();
-    console.log(`[EPP] Code generated for ${domain.name}${domain.tld}`);
+
+    // Return stored code, generate if missing (e.g. unlock predates this feature)
+    let eppCode = domain.eppCode;
+    if (!eppCode) {
+      eppCode = generateEppCode(domain.id);
+      await db.update(domainsTable)
+        .set({ eppCode, updatedAt: new Date() } as any)
+        .where(eq(domainsTable.id, domain.id));
+    }
+
     res.json({ domainId: domain.id, domain: `${domain.name}${domain.tld}`, eppCode });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });

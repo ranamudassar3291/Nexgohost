@@ -20,6 +20,9 @@ export const domainsTable = pgTable("domains", {
   moduleServerId: text("module_server_id"),
   transferId: text("transfer_id"),
   isFreeDomain: boolean("is_free_domain").default(false),
+  eppCode: text("epp_code"),
+  lastLockChange: timestamp("last_lock_change"),
+  lockOverrideByAdmin: boolean("lock_override_by_admin").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

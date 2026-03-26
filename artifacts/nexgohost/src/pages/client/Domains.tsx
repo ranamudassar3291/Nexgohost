@@ -19,6 +19,12 @@ interface MyDomain {
   id: string; name: string; tld: string; status: string; registrationDate: string | null;
   expiryDate: string | null; autoRenew: boolean; nameservers: string[] | null;
   lockStatus: string | null;
+  eppCode: string | null;
+  lastLockChange: string | null;
+  lockOverrideByAdmin: boolean;
+  isIn60DayLock: boolean;
+  registrationAgeDays: number;
+  daysRemainingInLock: number;
 }
 
 interface TldResult {
@@ -160,6 +166,8 @@ export default function ClientDomains() {
   const [renewModalItem, setRenewModalItem] = useState<RenewalItem | null>(null);
   const [lockLoading, setLockLoading] = useState<string | null>(null);
   const [lockOverrides, setLockOverrides] = useState<Record<string, string>>({});
+  const [eppOverrides, setEppOverrides] = useState<Record<string, string | null>>({});
+  const [eppCopiedId, setEppCopiedId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -244,17 +252,17 @@ export default function ClientDomains() {
   };
 
   const handleToggleLock = async (domain: MyDomain) => {
-    const currentLock = lockOverrides[domain.id] ?? domain.lockStatus ?? "unlocked";
+    const currentLock = lockOverrides[domain.id] ?? domain.lockStatus ?? "locked";
     const isCurrentlyLocked = currentLock === "locked";
 
-    // 60-day security rule: prevent unlocking within first 60 days of registration
-    if (isCurrentlyLocked && domain.registrationDate) {
-      const regDate = new Date(domain.registrationDate);
-      const daysSinceReg = Math.floor((Date.now() - regDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysSinceReg < 60) {
+    // Client-side pre-check: show a clear message if still in 60-day window
+    // (backend also enforces this — this gives instant feedback without a round-trip)
+    if (isCurrentlyLocked) {
+      const effectiveIn60Day = domain.isIn60DayLock && !domain.lockOverrideByAdmin;
+      if (effectiveIn60Day) {
         toast({
           title: "Transfer Lock Cannot Be Removed",
-          description: `Security Policy: You cannot unlock or transfer this domain within the first 60 days of registration. ${60 - daysSinceReg} day(s) remaining.`,
+          description: `Domain cannot be transferred within 60 days of registration. ${domain.daysRemainingInLock} day(s) remaining.`,
           variant: "destructive",
         });
         return;
@@ -265,12 +273,34 @@ export default function ClientDomains() {
     try {
       const data = await apiFetch(`/api/domains/${domain.id}/lock`, { method: "PUT" });
       setLockOverrides(prev => ({ ...prev, [domain.id]: data.lockStatus }));
-      toast({ title: `Transfer lock ${data.lockStatus === "locked" ? "enabled" : "disabled"}`, description: `${domain.name}${domain.tld}` });
+      // Store EPP code inline when unlocking
+      setEppOverrides(prev => ({ ...prev, [domain.id]: data.eppCode ?? null }));
+      toast({
+        title: data.lockStatus === "locked" ? "Transfer Lock Enabled" : "Transfer Lock Disabled",
+        description: data.lockStatus === "unlocked"
+          ? `${domain.name}${domain.tld} — EPP code is now visible below.`
+          : `${domain.name}${domain.tld}`,
+      });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      const errCode = err?.error ?? err?.message ?? "";
+      if (errCode === "60_DAY_LOCK" || String(errCode).includes("60")) {
+        toast({
+          title: "Transfer Lock Cannot Be Removed",
+          description: err?.message ?? "Domain cannot be transferred within 60 days of registration.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Error", description: err?.message ?? "Failed to update transfer lock", variant: "destructive" });
+      }
     } finally {
       setLockLoading(null);
     }
+  };
+
+  const handleCopyEpp = async (domainId: string, code: string) => {
+    await navigator.clipboard.writeText(code);
+    setEppCopiedId(domainId);
+    setTimeout(() => setEppCopiedId(null), 2000);
   };
 
   const handleSearch = () => {
@@ -555,9 +585,14 @@ export default function ClientDomains() {
                               <AlertCircle className="w-3 h-3" /> Expiring soon
                             </span>
                           )}
-                          {isLocked && (
+                          {isLocked && !domain.isIn60DayLock && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-400 border border-red-500/20">
-                              <BadgeCheck className="w-3 h-3" /> Transfer Locked
+                              <Lock className="w-3 h-3" /> Transfer Locked
+                            </span>
+                          )}
+                          {domain.isIn60DayLock && !domain.lockOverrideByAdmin && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                              <Lock className="w-3 h-3" /> 60-Day Lock · {domain.daysRemainingInLock}d
                             </span>
                           )}
                         </div>
@@ -678,8 +713,10 @@ export default function ClientDomains() {
         const isPending = md.status === "pending";
         const isCancelled = md.status === "cancelled";
         const isPendingTransfer = md.status === "pending_transfer";
-        const mdLockStatus = lockOverrides[md.id] ?? md.lockStatus ?? "unlocked";
+        const mdLockStatus = lockOverrides[md.id] ?? md.lockStatus ?? "locked";
         const mdIsLocked = mdLockStatus === "locked";
+        const mdEppCode = !mdIsLocked ? (eppOverrides[md.id] !== undefined ? eppOverrides[md.id] : md.eppCode) : null;
+        const mdIn60Day = md.isIn60DayLock && !md.lockOverrideByAdmin;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setManageDomainModal(null)}>
             <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -771,40 +808,57 @@ export default function ClientDomains() {
                       </div>
                     </button>
 
-                    {/* Get EPP Code */}
-                    <button
-                      className="flex items-center gap-3 p-3 bg-secondary/40 border border-border rounded-xl hover:border-amber-500/40 hover:bg-amber-500/5 transition-all text-left"
-                      onClick={() => { setManageDomainModal(null); openEppModal(md); }}
-                    >
-                      <div className="w-9 h-9 bg-amber-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        <Key size={15} className="text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Get EPP Code</p>
-                        <p className="text-xs text-muted-foreground">Auth code for transfer</p>
-                      </div>
-                    </button>
+                    {/* Get EPP Code — only shown when unlocked */}
+                    {!mdIsLocked && (
+                      <button
+                        className="flex items-center gap-3 p-3 bg-secondary/40 border border-amber-500/30 rounded-xl hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left"
+                        onClick={() => { setManageDomainModal(null); openEppModal(md); }}
+                      >
+                        <div className="w-9 h-9 bg-amber-500/10 rounded-lg flex items-center justify-center shrink-0">
+                          <Key size={15} className="text-amber-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Get EPP Code</p>
+                          <p className="text-xs text-muted-foreground">Auth code for transfer</p>
+                        </div>
+                      </button>
+                    )}
 
-                    {/* Transfer Lock toggle */}
+                    {/* Transfer Lock — full section spanning 2 cols when in 60-day lock */}
                     <button
-                      disabled={lockLoading === md.id}
-                      className={`flex items-center gap-3 p-3 bg-secondary/40 border rounded-xl hover:bg-primary/5 transition-all text-left ${
-                        mdIsLocked ? "border-red-500/30 hover:border-red-400/50" : "border-green-500/30 hover:border-green-400/50"
+                      disabled={lockLoading === md.id || mdIn60Day}
+                      className={`flex items-center gap-3 p-3 bg-secondary/40 border rounded-xl transition-all text-left ${
+                        mdIn60Day
+                          ? "border-orange-500/30 cursor-not-allowed opacity-80"
+                          : mdIsLocked
+                            ? "border-red-500/30 hover:border-red-400/50 hover:bg-red-500/5"
+                            : "border-green-500/30 hover:border-green-400/50 hover:bg-green-500/5"
                       }`}
-                      onClick={() => handleToggleLock(md)}
+                      onClick={() => !mdIn60Day && handleToggleLock(md)}
                     >
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${mdIsLocked ? "bg-red-500/10" : "bg-green-500/10"}`}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                        mdIn60Day ? "bg-orange-500/10" : mdIsLocked ? "bg-red-500/10" : "bg-green-500/10"
+                      }`}>
                         {lockLoading === md.id
                           ? <Loader2 size={15} className="animate-spin text-muted-foreground" />
-                          : mdIsLocked
-                            ? <Lock size={15} className="text-red-400" />
-                            : <ShieldCheck size={15} className="text-green-400" />
+                          : mdIn60Day
+                            ? <Lock size={15} className="text-orange-400" />
+                            : mdIsLocked
+                              ? <Lock size={15} className="text-red-400" />
+                              : <ShieldCheck size={15} className="text-green-400" />
                         }
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground">Transfer Lock</p>
-                        <p className={`text-xs font-medium ${mdIsLocked ? "text-red-400" : "text-green-400"}`}>
-                          {mdIsLocked ? "Locked — click to unlock" : "Unlocked — click to lock"}
+                        <p className={`text-xs font-medium truncate ${
+                          mdIn60Day ? "text-orange-400" : mdIsLocked ? "text-red-400" : "text-green-400"
+                        }`}>
+                          {mdIn60Day
+                            ? `Locked — ${md.daysRemainingInLock}d remaining`
+                            : mdIsLocked
+                              ? "Locked — click to unlock"
+                              : "Unlocked — click to lock"
+                          }
                         </p>
                       </div>
                     </button>
@@ -826,11 +880,59 @@ export default function ClientDomains() {
                     </button>
                   </div>
 
+                  {/* ── 60-Day Registration Lock Banner ── */}
+                  {mdIn60Day && (
+                    <div className="flex items-start gap-3 rounded-xl border border-orange-500/30 bg-orange-500/5 p-3">
+                      <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <Lock size={14} className="text-orange-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-orange-400">60-Day Registration Lock Active</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Domain cannot be transferred within 60 days of registration.{" "}
+                          <span className="font-bold text-orange-300">{md.daysRemainingInLock} day{md.daysRemainingInLock !== 1 ? "s" : ""} remaining.</span>
+                          {md.lockOverrideByAdmin && (
+                            <span className="ml-1 text-green-400 font-medium">Admin override active.</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── EPP Code Inline Display (when unlocked) ── */}
+                  {!mdIsLocked && mdEppCode && (
+                    <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <Key size={14} className="text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-amber-400">EPP / Auth Code</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <code className="flex-1 bg-black/30 border border-border rounded-lg px-3 py-1.5 text-xs font-mono text-foreground tracking-widest truncate">
+                            {mdEppCode}
+                          </code>
+                          <button
+                            onClick={() => handleCopyEpp(md.id, mdEppCode)}
+                            className="shrink-0 p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 transition-colors"
+                            title="Copy EPP code"
+                          >
+                            {eppCopiedId === md.id ? <CheckCheck size={14} /> : <Copy size={14} />}
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          Share this code with the receiving registrar to complete the domain transfer. Lock the domain again to invalidate this code.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Domain info footer */}
                   <div className="pt-3 border-t border-border/50 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
                     {md.registrationDate && <span>Registered: {format(new Date(md.registrationDate), "MMM d, yyyy")}</span>}
                     {md.expiryDate && <span>Expires: {format(new Date(md.expiryDate), "MMM d, yyyy")}</span>}
                     {md.nameservers?.[0] && <span>NS: {md.nameservers[0]}</span>}
+                    {md.lastLockChange && <span>Lock changed: {format(new Date(md.lastLockChange), "MMM d, yyyy")}</span>}
+                    {md.lockOverrideByAdmin && <span className="text-green-400 font-medium">Admin override active</span>}
                   </div>
                 </div>
               )}

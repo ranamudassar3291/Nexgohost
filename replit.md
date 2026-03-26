@@ -1,6 +1,17 @@
 # Nexgohost - Hosting & Client Management Platform
 
-## Recent Changes (Session 33 — Plug & Play Restoration)
+## Recent Changes (Session 34 — Admin Lock Override UI Complete)
+
+### Admin Domains Page — Transfer Lock Column & Override Button
+- `Domain` interface updated with `lockStatus`, `eppCode`, `lockOverrideByAdmin`, `isIn60DayLock`, `daysRemainingInLock`, `lastLockChange`
+- New `lockOverrideId` / `lockResults` state for optimistic UI updates
+- `handleLockOverride()` calls `PUT /admin/domains/:id/lock-override` — bypasses 60-day rule
+- **Transfer Lock column** shows colour-coded badge: green (Unlocked), orange (60-Day Xd), red (Locked); "Admin override" label shown when active
+- **Lock/Unlock button** in actions column (green = unlock, red = lock); shows spinner while pending
+- EPP code surfaced in toast when domain is unlocked via override
+- `colspan` updated to 10 to match new column count
+
+## Previous Changes (Session 33 — Plug & Play Restoration)
 
 ### Dynamic URL System (`artifacts/api-server/src/lib/app-url.ts`)
 - New `getAppUrl()` / `getClientUrl()` / `getAdminUrl()` utility
