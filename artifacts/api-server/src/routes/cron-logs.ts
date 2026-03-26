@@ -1,15 +1,17 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cronLogsTable } from "@workspace/db/schema";
-import { authenticate, requireAdmin } from "../lib/auth.js";
-import { desc, sql } from "drizzle-orm";
+import { cronLogsTable, hostingServicesTable, invoicesTable, usersTable } from "@workspace/db/schema";
+import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { desc, sql, eq, and } from "drizzle-orm";
 import {
   runAllCronTasks,
-  runBillingCron, runSuspendOverdueCron, runAutoTerminateCron,
+  runBillingCron, runMarkOverdueCron, runSuspendOverdueCron, runAutoTerminateCron,
   runUnsuspendRestoredCron, runHostingRenewalReminderCron,
   runDomainRenewalCron, runInvoiceRemindersCron,
   runVpsPowerOffCron, runDailyBackupCron,
 } from "../lib/cron.js";
+import { suspendHostingAccount } from "../lib/provision.js";
+import { emailServiceTerminated } from "../lib/email.js";
 
 const router = Router();
 
@@ -94,6 +96,7 @@ router.post("/admin/cron/run", authenticate, requireAdmin, async (_req, res) => 
 router.post("/admin/cron/run/:task", authenticate, requireAdmin, async (req, res) => {
   const taskMap: Record<string, () => Promise<void>> = {
     "billing:invoice_generation":      runBillingCron,
+    "billing:mark_overdue":            runMarkOverdueCron,
     "billing:auto_suspend":            runSuspendOverdueCron,
     "billing:auto_terminate":          runAutoTerminateCron,
     "billing:auto_unsuspend":          runUnsuspendRestoredCron,
@@ -110,6 +113,89 @@ router.post("/admin/cron/run/:task", authenticate, requireAdmin, async (req, res
     fn().catch(console.warn);
   } catch {
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// List services pending manual termination approval
+router.get("/admin/pending-terminations", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const services = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.status, "pending_termination" as any));
+
+    const result = await Promise.all(services.map(async (s) => {
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, s.clientId)).limit(1);
+      const [invoice] = await db.select().from(invoicesTable)
+        .where(and(eq(invoicesTable.serviceId, s.id), eq(invoicesTable.status, "overdue"))).limit(1);
+      return {
+        id: s.id,
+        planName: s.planName,
+        domain: s.domain ?? null,
+        clientId: s.clientId,
+        clientName: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email : "Unknown",
+        clientEmail: user?.email ?? null,
+        overdueInvoiceId: invoice?.id ?? null,
+        overdueAmount: invoice ? Number(invoice.total) : 0,
+        dueDate: invoice?.dueDate?.toISOString() ?? null,
+        flaggedAt: s.updatedAt?.toISOString() ?? null,
+      };
+    }));
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin manually confirms termination of a specific service
+router.post("/admin/services/:id/terminate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  const { id } = req.params;
+  try {
+    const [service] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (service.status !== "pending_termination") {
+      return res.status(400).json({ error: "Service is not pending termination" });
+    }
+
+    // Suspend in WHM (non-fatal)
+    try {
+      if (service.username) await suspendHostingAccount(service.username, service.serverId, "Terminated by admin");
+    } catch { /* non-fatal */ }
+
+    await db.update(hostingServicesTable)
+      .set({ status: "terminated", updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+    if (user) {
+      const terminationDate = new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+      emailServiceTerminated(user.email, {
+        clientName: user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email,
+        domain: service.domain ?? service.planName,
+        serviceName: service.planName,
+        terminationDate,
+      }, { clientId: service.clientId, referenceId: service.id }).catch(() => {});
+    }
+
+    res.json({ success: true, message: `Service ${service.planName} terminated` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin cancels pending termination (client paid or admin decided to keep)
+router.post("/admin/services/:id/cancel-termination", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+  const { id } = _req.params;
+  try {
+    const [service] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    await db.update(hostingServicesTable)
+      .set({ status: "suspended", updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+
+    res.json({ success: true, message: `Termination cancelled — service returned to suspended status` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

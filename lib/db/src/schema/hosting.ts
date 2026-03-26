@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const billingCycleEnum = pgEnum("billing_cycle", ["monthly", "yearly"]);
-export const hostingStatusEnum = pgEnum("hosting_status", ["active", "suspended", "terminated", "pending"]);
+export const hostingStatusEnum = pgEnum("hosting_status", ["active", "suspended", "terminated", "pending", "pending_termination"]);
 
 export const hostingPlansTable = pgTable("hosting_plans", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

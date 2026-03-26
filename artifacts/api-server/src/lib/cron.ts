@@ -4,7 +4,7 @@ import {
   cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
   hostingBackupsTable, domainPricingTable,
 } from "@workspace/db/schema";
-import { eq, lte, sql, and, gte } from "drizzle-orm";
+import { eq, lte, sql, and, gte, lt } from "drizzle-orm";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 import { execAsync } from "./shell.js";
 import { isMysqlReachable } from "./wordpress-provisioner.js";
@@ -12,6 +12,7 @@ import {
   emailServiceSuspended, emailHostingRenewalReminder,
   emailDomainRenewalReminder, emailServiceTerminated, emailTerminationWarning,
 } from "./email.js";
+import { sendWhatsAppAlert } from "./whatsapp.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
   try {
@@ -542,15 +543,44 @@ export async function runDailyBackupCron(): Promise<void> {
   }
 }
 
-// ─── Task 7: Auto-terminate + 15-day warning ──────────────────────────────────
-// 15 days overdue: send termination warning email
-// 30 days overdue: terminate service permanently
+// ─── Task 6b: Mark invoices as "overdue" when due date passes ─────────────────
+// Runs every 5 min: finds unpaid invoices past due date and marks them overdue.
+// Suspension (Task 2) runs separately after 3 days.
+export async function runMarkOverdueCron(): Promise<void> {
+  const now = new Date();
+  try {
+    const pastDue = await db.select().from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.status, "unpaid"),
+        lt(invoicesTable.dueDate, now),
+      ));
+
+    let marked = 0;
+    for (const inv of pastDue) {
+      await db.update(invoicesTable)
+        .set({ status: "overdue", updatedAt: new Date() })
+        .where(eq(invoicesTable.id, inv.id));
+      marked++;
+    }
+
+    await logCron("billing:mark_overdue", "success", `Marked ${marked} invoice(s) as overdue`);
+  } catch (err: any) {
+    await logCron("billing:mark_overdue", "failed", err.message);
+    console.error("[CRON] billing:mark_overdue error:", err.message);
+  }
+}
+
+// ─── Task 7: Termination warning + pending-termination approval ───────────────
+// 15 days overdue → send termination warning email to client
+// 30 days overdue → set service status to "pending_termination" + WhatsApp admin
+//                   alert. DOES NOT auto-delete — requires manual admin approval.
 export async function runAutoTerminateCron(): Promise<void> {
   const now = new Date();
   const fifteenDaysAgo = new Date(now);
   fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
 
   try {
     const overdueInvoices = await db.select().from(invoicesTable)
@@ -559,7 +589,7 @@ export async function runAutoTerminateCron(): Promise<void> {
         lte(invoicesTable.dueDate, fifteenDaysAgo),
       ));
 
-    let terminated = 0;
+    let pendingTerminations = 0;
     let warned = 0;
 
     for (const invoice of overdueInvoices) {
@@ -571,36 +601,39 @@ export async function runAutoTerminateCron(): Promise<void> {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
       const clientName = user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email) : "Client";
 
-      // 30+ days overdue → terminate
-      if (invoice.dueDate && invoice.dueDate <= thirtyDaysAgo && service.status !== "terminated") {
-        try {
-          if (service.username) await suspendHostingAccount(service.username, service.serverId, "Terminated: 30 days overdue");
-        } catch { /* non-fatal */ }
+      // 30+ days overdue → flag as "pending_termination" + WhatsApp admin alert
+      // SAFETY: NO automatic deletion — admin must manually approve
+      if (invoice.dueDate && invoice.dueDate <= thirtyDaysAgo
+          && service.status !== "terminated"
+          && service.status !== "pending_termination") {
 
         await db.update(hostingServicesTable)
-          .set({ status: "terminated", updatedAt: new Date() })
+          .set({ status: "pending_termination" as any, updatedAt: new Date() })
           .where(eq(hostingServicesTable.id, service.id));
-        await db.update(invoicesTable)
-          .set({ status: "overdue", updatedAt: new Date() })
-          .where(eq(invoicesTable.id, invoice.id));
 
-        if (user) {
-          const terminationDate = new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
-          try {
-            await emailServiceTerminated(user.email, {
-              clientName,
-              domain: service.domain ?? service.planName,
-              serviceName: service.planName,
-              terminationDate,
-            }, { clientId: service.clientId, referenceId: service.id });
-          } catch { /* non-fatal */ }
-          await logEmail(service.clientId, user.email, "service_terminated", `Your hosting service ${service.planName} has been terminated`, service.id);
-          notify(service.clientId, "system", "Service Terminated", `${service.planName} was terminated due to 30 days of non-payment. Contact support to restore.`, "/clientarea/tickets/new").catch(() => {});
-        }
-        terminated++;
+        // WhatsApp admin alert — requires manual approval in admin panel
+        sendWhatsAppAlert("termination_pending",
+          `⚠️ *Pending Termination Alert — Noehost*\n\n` +
+          `🔴 Service: ${service.planName}\n` +
+          `🌐 Domain: ${service.domain ?? "N/A"}\n` +
+          `👤 Client: ${clientName}\n` +
+          `📧 Email: ${user?.email ?? "N/A"}\n` +
+          `📅 Overdue since: ${invoice.dueDate?.toLocaleDateString("en-PK")}\n\n` +
+          `⛔ *Action Required:* Go to Admin Panel to manually approve or cancel termination.\n\n` +
+          `🔗 ${adminUrl}/admin/automation\n\n` +
+          `_${now.toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
+        ).catch(() => {});
+
+        notify(user?.id ?? service.clientId, "system", "⚠️ Service Pending Termination",
+          `${service.planName} is 30 days overdue and flagged for termination. Pay now to reactivate.`,
+          `/client/invoices`).catch(() => {});
+
+        await logEmail(service.clientId, user?.email ?? "", "termination_pending",
+          `Service ${service.planName} flagged for pending termination`, service.id);
+        pendingTerminations++;
       }
-      // 15–29 days overdue → send warning (once only)
-      else if (invoice.dueDate && invoice.dueDate > thirtyDaysAgo) {
+      // 15–29 days overdue → send warning email (once only)
+      else if (invoice.dueDate && invoice.dueDate > thirtyDaysAgo && service.status !== "pending_termination") {
         const alreadyWarned = await db.select().from(emailLogsTable)
           .where(and(
             eq(emailLogsTable.referenceId, invoice.id),
@@ -624,14 +657,18 @@ export async function runAutoTerminateCron(): Promise<void> {
               amount: `Rs. ${Number(amount).toLocaleString()}`,
             }, { clientId: service.clientId, referenceId: invoice.id });
           } catch { /* non-fatal */ }
-          await logEmail(service.clientId, user.email, "service_termination_warning", `Termination warning for ${service.planName} — pay now to avoid data loss`, invoice.id);
-          notify(service.clientId, "system", "⚠️ Service Termination Warning", `${service.planName} will be permanently terminated on ${terminationDate} unless payment is received.`, "/clientarea/billing").catch(() => {});
+          await logEmail(service.clientId, user.email, "service_termination_warning",
+            `Termination warning for ${service.planName} — pay now to avoid data loss`, invoice.id);
+          notify(service.clientId, "system", "⚠️ Termination Warning",
+            `${service.planName} will be flagged for termination on ${terminationDate} unless payment is received.`,
+            `/client/invoices`).catch(() => {});
           warned++;
         }
       }
     }
 
-    await logCron("billing:auto_terminate", "success", `Terminated: ${terminated}, Termination warnings sent: ${warned}`);
+    await logCron("billing:auto_terminate", "success",
+      `Pending termination: ${pendingTerminations}, Warnings sent: ${warned}`);
   } catch (err: any) {
     await logCron("billing:auto_terminate", "failed", err.message);
     console.error("[CRON] billing:auto_terminate error:", err.message);
@@ -687,6 +724,7 @@ export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
   await Promise.allSettled([
     runBillingCron(),
+    runMarkOverdueCron(),
     runSuspendOverdueCron(),
     runAutoTerminateCron(),
     runUnsuspendRestoredCron(),

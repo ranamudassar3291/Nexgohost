@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -9,10 +9,12 @@ import {
   FileText, Ban, Trash2, RefreshCw, Bell, Mail, Globe,
   Server, HardDrive, Play, PlayCircle, CheckCircle2,
   XCircle, AlertTriangle, Clock, Zap, Activity, ExternalLink,
-  BookOpen, Search,
+  BookOpen, Search, ShieldAlert, ArrowRight, DollarSign, Timer,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+
+const BRAND = "#701AFE";
 
 interface TaskStat {
   task: string;
@@ -39,6 +41,19 @@ interface CronLog {
   executedAt: string;
 }
 
+interface PendingTermination {
+  id: string;
+  planName: string;
+  domain: string | null;
+  clientId: string;
+  clientName: string;
+  clientEmail: string | null;
+  overdueInvoiceId: string | null;
+  overdueAmount: number;
+  dueDate: string | null;
+  flaggedAt: string | null;
+}
+
 const TASK_META: Record<string, {
   name: string;
   description: string;
@@ -46,6 +61,7 @@ const TASK_META: Record<string, {
   icon: React.ElementType;
   color: string;
   category: string;
+  safetyNote?: string;
 }> = {
   "billing:invoice_generation": {
     name: "Invoice Generation",
@@ -53,6 +69,14 @@ const TASK_META: Record<string, {
     schedule: "Every 5 min",
     icon: FileText,
     color: "blue",
+    category: "Billing",
+  },
+  "billing:mark_overdue": {
+    name: "Mark Overdue",
+    description: "Marks unpaid invoices as 'Overdue' immediately when the due date passes.",
+    schedule: "Every 5 min",
+    icon: DollarSign,
+    color: "yellow",
     category: "Billing",
   },
   "billing:auto_suspend": {
@@ -64,16 +88,17 @@ const TASK_META: Record<string, {
     category: "Billing",
   },
   "billing:auto_terminate": {
-    name: "Auto-Termination",
-    description: "Sends termination warning at 15 days overdue. Permanently terminates at 30 days.",
+    name: "Termination Flagging",
+    description: "Sends warning at 15 days overdue. At 30 days, flags for pending termination — NO auto-delete.",
     schedule: "Every 5 min",
     icon: Trash2,
     color: "red",
     category: "Billing",
+    safetyNote: "Manual admin approval required",
   },
   "billing:auto_unsuspend": {
     name: "Auto-Unsuspend",
-    description: "Instantly reactivates suspended services as soon as a payment is received.",
+    description: "Instantly reactivates suspended services as soon as a payment is verified and marked paid.",
     schedule: "Every 5 min",
     icon: RefreshCw,
     color: "green",
@@ -125,6 +150,7 @@ const ALL_TASKS = Object.keys(TASK_META);
 
 const colorMap: Record<string, string> = {
   blue:   "bg-blue-50 text-blue-600 border-blue-100",
+  yellow: "bg-yellow-50 text-yellow-600 border-yellow-100",
   orange: "bg-orange-50 text-orange-600 border-orange-100",
   red:    "bg-red-50 text-red-600 border-red-100",
   green:  "bg-green-50 text-green-600 border-green-100",
@@ -174,7 +200,7 @@ function TaskCard({ taskKey, stat, onRun, running }: {
   return (
     <Card className="border border-border/60 hover:shadow-md transition-shadow flex flex-col">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
           <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border shrink-0", iconClass)}>
             <Icon size={18} />
           </div>
@@ -182,13 +208,17 @@ function TaskCard({ taskKey, stat, onRun, running }: {
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-sm font-semibold leading-tight">{meta.name}</CardTitle>
               <Badge variant="outline" className="text-xs font-normal">{meta.category}</Badge>
+              {meta.safetyNote && (
+                <Badge className="bg-red-50 text-red-600 border-red-100 text-xs gap-1">
+                  <ShieldAlert size={9} />{meta.safetyNote}
+                </Badge>
+              )}
             </div>
             <CardDescription className="text-xs mt-1 leading-snug">{meta.description}</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-3 pt-0">
-        {/* Stats row */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="bg-muted/40 rounded-lg p-2">
             <div className="text-base font-bold text-foreground">{stat?.totalRuns ?? 0}</div>
@@ -204,7 +234,6 @@ function TaskCard({ taskKey, stat, onRun, running }: {
           </div>
         </div>
 
-        {/* Success rate bar */}
         {successRate !== null && (
           <div className="space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -222,7 +251,6 @@ function TaskCard({ taskKey, stat, onRun, running }: {
           </div>
         )}
 
-        {/* Last run info */}
         <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
           <div className="flex items-center gap-1.5 min-w-0">
             {stat ? <StatusBadge status={stat.lastStatus} /> : <StatusBadge status="unknown" />}
@@ -240,11 +268,10 @@ function TaskCard({ taskKey, stat, onRun, running }: {
             onClick={() => onRun(taskKey)}
           >
             <Play size={11} />
-            {running === taskKey ? "Running..." : "Run"}
+            {running === taskKey ? "Running..." : "Run Now"}
           </Button>
         </div>
 
-        {/* Last message */}
         {stat?.lastMessage && (
           <p className="text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1.5 leading-relaxed truncate" title={stat.lastMessage}>
             {stat.lastMessage}
@@ -252,6 +279,29 @@ function TaskCard({ taskKey, stat, onRun, running }: {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function CountdownTimer({ lastRun }: { lastRun: string | null }) {
+  const [secondsLeft, setSecondsLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const calc = () => {
+      if (!lastRun) { setSecondsLeft(300); return; }
+      const elapsed = (Date.now() - new Date(lastRun).getTime()) / 1000;
+      setSecondsLeft(Math.max(0, Math.ceil(300 - (elapsed % 300))));
+    };
+    calc();
+    const interval = setInterval(calc, 1000);
+    return () => clearInterval(interval);
+  }, [lastRun]);
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  return (
+    <span className="font-mono font-bold text-emerald-700">
+      {mins}:{String(secs).padStart(2, "0")}
+    </span>
   );
 }
 
@@ -269,6 +319,12 @@ export default function AutomationSettings() {
     queryKey: ["admin-cron-logs"],
     queryFn: () => apiFetch("/api/admin/cron-logs?limit=30"),
     refetchInterval: 30_000,
+  });
+
+  const { data: pendingTerminations = [], refetch: refetchPending } = useQuery<PendingTermination[]>({
+    queryKey: ["pending-terminations"],
+    queryFn: () => apiFetch("/api/admin/pending-terminations"),
+    refetchInterval: 60_000,
   });
 
   const { data: kbStats } = useQuery({
@@ -306,7 +362,27 @@ export default function AutomationSettings() {
         queryClient.invalidateQueries({ queryKey: ["admin-cron-logs"] });
       }, 5000);
     },
-    onSuccess: () => toast({ title: "All tasks started", description: "Running all 9 automation tasks now" }),
+    onSuccess: () => toast({ title: "All tasks started", description: "Running all automation tasks now" }),
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const terminateMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/admin/services/${id}/terminate`, { method: "POST" }),
+    onSuccess: (_, id) => {
+      toast({ title: "Service terminated", description: "Service has been permanently terminated." });
+      refetchPending();
+      queryClient.invalidateQueries({ queryKey: ["pending-terminations"] });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const cancelTerminationMutation = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/admin/services/${id}/cancel-termination`, { method: "POST" }),
+    onSuccess: () => {
+      toast({ title: "Termination cancelled", description: "Service returned to suspended status." });
+      refetchPending();
+      queryClient.invalidateQueries({ queryKey: ["pending-terminations"] });
+    },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
@@ -327,39 +403,184 @@ export default function AutomationSettings() {
   const statsByTask: Record<string, TaskStat> = {};
   stats?.stats.forEach(s => { statsByTask[s.task] = s; });
 
-  // Group tasks by category
   const categories = Array.from(new Set(ALL_TASKS.map(k => TASK_META[k]?.category ?? "Other")));
 
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-display font-bold text-foreground flex items-center gap-2">
-            <Zap size={28} className="text-primary" />
+            <Zap size={28} className="text-primary" style={{ color: BRAND }} />
             Automation Settings
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            All billing, suspension, email, and backup tasks run automatically every 5 minutes.
+            All billing, suspension, email, and backup tasks run <strong>fully automatically</strong> every 5 minutes — no manual action needed.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-            <Activity size={14} className="animate-pulse" />
-            <span className="font-medium">Engine Running</span>
+        <Button
+          onClick={() => runAllMutation.mutate()}
+          disabled={runningAll}
+          variant="outline"
+          className="gap-2"
+        >
+          <PlayCircle size={16} />
+          {runningAll ? "Running..." : "Run All Now"}
+        </Button>
+      </div>
+
+      {/* ── AUTO-SCHEDULER ACTIVE BANNER ─────────────────────────────────── */}
+      <div className="rounded-2xl border-2 p-5" style={{ borderColor: BRAND + "33", background: BRAND + "06" }}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: BRAND + "15" }}>
+              <Activity size={22} className="animate-pulse" style={{ color: BRAND }} />
+            </div>
+            <div>
+              <p className="font-bold text-foreground text-base">Automation Engine Active</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Running automatically every <strong>5 minutes</strong> in the background — 24/7, no manual intervention required.
+              </p>
+            </div>
           </div>
-          <Button
-            onClick={() => runAllMutation.mutate()}
-            disabled={runningAll}
-            className="gap-2"
-          >
-            <PlayCircle size={16} />
-            {runningAll ? "Running All..." : "Run All Tasks Now"}
-          </Button>
+          <div className="sm:ml-auto flex flex-wrap items-center gap-4">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground font-medium mb-0.5">Next Run In</p>
+              <CountdownTimer lastRun={stats?.lastCronRun ?? null} />
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground font-medium mb-0.5">Last Run</p>
+              <p className="text-sm font-semibold text-foreground">
+                {stats?.lastCronRun
+                  ? formatDistanceToNow(new Date(stats.lastCronRun), { addSuffix: true })
+                  : "Starting..."}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground font-medium mb-0.5">Active Tasks</p>
+              <p className="text-sm font-bold" style={{ color: BRAND }}>{ALL_TASKS.length}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Summary cards */}
+      {/* ── PENDING TERMINATION PANEL (critical — shown prominently) ─────── */}
+      {pendingTerminations.length > 0 && (
+        <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
+              <ShieldAlert size={20} className="text-red-600" />
+            </div>
+            <div>
+              <p className="font-bold text-red-800 text-base">
+                {pendingTerminations.length} Service{pendingTerminations.length > 1 ? "s" : ""} Pending Termination
+              </p>
+              <p className="text-sm text-red-600 mt-0.5">
+                These services are 30+ days overdue. <strong>Your manual approval is required</strong> — nothing will be deleted automatically.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {pendingTerminations.map(pt => (
+              <div key={pt.id} className="bg-white border border-red-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-slate-900">{pt.planName}</span>
+                    {pt.domain && <span className="text-xs text-slate-500 font-mono">{pt.domain}</span>}
+                    <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">30+ Days Overdue</Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                    <span>👤 {pt.clientName}</span>
+                    {pt.clientEmail && <span>{pt.clientEmail}</span>}
+                    <span>💰 PKR {pt.overdueAmount.toLocaleString()} overdue</span>
+                    {pt.dueDate && <span>📅 Due: {new Date(pt.dueDate).toLocaleDateString("en-PK")}</span>}
+                    {pt.flaggedAt && <span>🚩 Flagged: {formatDistanceToNow(new Date(pt.flaggedAt), { addSuffix: true })}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs gap-1 border-slate-300"
+                    onClick={() => cancelTerminationMutation.mutate(pt.id)}
+                    disabled={cancelTerminationMutation.isPending}
+                  >
+                    <RefreshCw size={11} /> Keep Service
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="text-xs gap-1 bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => {
+                      if (confirm(`Permanently terminate ${pt.planName} (${pt.domain ?? pt.clientName})? This cannot be undone.`)) {
+                        terminateMutation.mutate(pt.id);
+                      }
+                    }}
+                    disabled={terminateMutation.isPending}
+                  >
+                    <Trash2 size={11} /> Terminate Now
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── LIFECYCLE RULES ───────────────────────────────────────────────── */}
+      <Card className="border border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Timer size={15} style={{ color: BRAND }} />
+            Service Lifecycle Rules
+          </CardTitle>
+          <CardDescription className="text-xs">Exactly how the automation engine handles unpaid invoices — step by step.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {[
+              { label: "Invoice Created", sub: "14 days before due", color: "bg-blue-100 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+              { arrow: true },
+              { label: "Due Date Passes", sub: "Status: Overdue", color: "bg-yellow-100 text-yellow-700 border-yellow-200", dot: "bg-yellow-500" },
+              { arrow: true },
+              { label: "3 Days Overdue", sub: "Service Suspended", color: "bg-orange-100 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+              { arrow: true },
+              { label: "15 Days Overdue", sub: "Warning Email Sent", color: "bg-red-100 text-red-700 border-red-200", dot: "bg-red-400" },
+              { arrow: true },
+              { label: "30 Days Overdue", sub: "Pending Termination ⚠️", color: "bg-red-100 text-red-800 border-red-300 font-bold", dot: "bg-red-600" },
+              { arrow: true },
+              { label: "Admin Approves", sub: "Permanently Terminated", color: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-500" },
+            ].map((step, i) =>
+              (step as any).arrow ? (
+                <ArrowRight key={i} size={14} className="text-slate-400 shrink-0" />
+              ) : (
+                <div key={i} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${(step as any).color}`}>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${(step as any).dot}`} />
+                  <div>
+                    <div className="font-semibold text-[11px]">{(step as any).label}</div>
+                    <div className="text-[10px] opacity-75">{(step as any).sub}</div>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+          <div className="mt-4 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2.5 flex items-start gap-2">
+            <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-emerald-800">
+              <strong>Auto-Unsuspend:</strong> As soon as a payment is verified and marked paid, the suspended service is automatically reactivated within 5 minutes — no manual action needed.
+            </p>
+          </div>
+          <div className="mt-2 bg-red-50 border border-red-100 rounded-lg px-4 py-2.5 flex items-start gap-2">
+            <ShieldAlert size={14} className="text-red-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-800">
+              <strong>Termination Safety:</strong> No data is ever deleted automatically. At 30 days, the system sends you a WhatsApp alert and flags the service in this panel. You (Muhammad Arslan) must manually approve termination.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-border/60">
           <CardContent className="p-4">
@@ -406,7 +627,7 @@ export default function AutomationSettings() {
       {/* Tasks by category */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 9 }).map((_, i) => (
+          {Array.from({ length: 10 }).map((_, i) => (
             <Card key={i} className="h-56 animate-pulse bg-muted/30 border-border/40" />
           ))}
         </div>
@@ -437,7 +658,7 @@ export default function AutomationSettings() {
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Search size={16} className="text-primary" />
+              <Search size={16} className="text-primary" style={{ color: BRAND }} />
               SEO Auto-Generation
             </CardTitle>
             <CardDescription className="text-xs">
@@ -464,7 +685,7 @@ export default function AutomationSettings() {
         <Card className="border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Globe size={16} className="text-primary" />
+              <Globe size={16} className="text-primary" style={{ color: BRAND }} />
               Sitemap.xml
             </CardTitle>
             <CardDescription className="text-xs">
@@ -480,12 +701,7 @@ export default function AutomationSettings() {
               <span className="text-xs text-blue-600">Live</span>
             </div>
             <div className="flex gap-2">
-              <a
-                href="/sitemap.xml"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
+              <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="flex-1">
                 <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                   <ExternalLink size={12} /> View sitemap.xml
                 </Button>
@@ -532,12 +748,12 @@ export default function AutomationSettings() {
                 {logs.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                      No automation logs yet
+                      No automation logs yet — tasks run every 5 minutes automatically.
                     </td>
                   </tr>
                 ) : logs.map(log => (
                   <tr key={log.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-2.5 font-mono text-xs text-foreground/70">{log.task}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-foreground/70">{TASK_META[log.task]?.name ?? log.task}</td>
                     <td className="px-4 py-2.5">
                       {log.status === "success" && <span className="text-green-600 flex items-center gap-1"><CheckCircle2 size={11} /> Success</span>}
                       {log.status === "failed"  && <span className="text-red-600 flex items-center gap-1"><XCircle size={11} /> Failed</span>}
@@ -557,4 +773,3 @@ export default function AutomationSettings() {
     </div>
   );
 }
-
