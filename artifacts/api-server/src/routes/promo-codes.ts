@@ -30,8 +30,8 @@ function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: strin
   };
 }
 
-// Client: validate a promo code and compute discounted amount
-router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) => {
+// Client: validate a promo code and compute discounted amount (public — no auth required)
+router.get("/promo-codes/validate", async (req: AuthRequest, res) => {
   try {
     const { code, amount, serviceType, groupId, planId, tld, billingCycle } = req.query as {
       code: string; amount: string; serviceType?: string; groupId?: string; planId?: string; tld?: string; billingCycle?: string;

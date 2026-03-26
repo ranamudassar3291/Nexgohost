@@ -1,0 +1,34 @@
+Final Prompt: Hostinger-Style VPS Checkout & Module Automation
+"Execute a full redesign and technical module setup for the VPS Order flow on /client/orders/new, ensuring a Hostinger-style professional look. Perform these tasks:
+
+1. Clean Up & Standardize Plans:
+
+Remove all 7 existing plans.
+
+Create exactly 3 standard plans with distinct feature lists (icons must show): VPS Basic, VPS Standard, VPS Premium. Ensure monthly vs. yearly toggle prices are fixed (e.g., Rs. 21,000/year for Standard).
+
+2. Hostinger-Style Layout (image_16.png):
+
+Implement the exact UI design shown in image_16.png. The 'Most Popular' plan should be highlighted with the purple background. All icons for 'Full Root Access', 'Dedicated IP', 'DDoS Protection', etc., must be visible and aligned professionally.
+
+3. Technical Configuration (image_17.png):
+
+Integrate the OS and Data Center selection blocks on Step 3 of the checkout process. Ensure all icons for Linux (Almalinux, Debian, etc.) and Windows are clear.
+
+Add the missing mandatory technical input fields: 'Hostname' (e.g., myserver.com), 'Root Username' (default: root), and a 'Generate Root Password' field with a 'Show/Hide Password' toggle button.
+
+4. Module Integration (Activation Logic):
+
+Implement the VPS Activation Module system.
+
+When a client selects a plan and configures the OS/Hostname, ensure the system can fetch these values during fulfillment.
+
+Map the OS selection to the correct image IDs (e.g., mapped to Virtualizor or ProxMox APIs).
+
+The goal is to ensure that when an invoice is paid (like 'Muhammad Arslan's INV-20260326-0VSBPM'), the system immediately sends these parameters to the fulfillment module to provision the VPS automatically, allowing a client to resell professionals.
+
+5. Database Update:
+
+Update the SQLite database schema (noehost_latests_backup.sql) to store these newly configured OS templates, Hostnames, and Data Center mappings permanently.
+
+Final Output: The resulting VPS order flow must look professional, accept root credentials from the client, map to an activation module, and store configurations accurately in the database backup.

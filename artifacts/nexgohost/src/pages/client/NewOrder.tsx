@@ -17,6 +17,7 @@ import {
   AlertCircle, CheckCircle2, Key, Shield, Zap, Users, ChevronRight,
   CreditCard, Tag, Wallet, Landmark, Bitcoin, Smartphone, Gift,
   ChevronUp, ChevronDown, RefreshCw, Cpu, MemoryStick, HardDrive, Wifi, MonitorCog,
+  Eye, EyeOff, Shuffle, Terminal, User as UserIcon,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useCart, type BillingCycle, CYCLE_LABELS, CYCLE_SUFFIX } from "@/context/CartContext";
@@ -78,7 +79,7 @@ interface VpsPlan {
   virtualization: string | null; features: string[]; saveAmount: number | null;
   osTemplateIds: string[]; locationIds: string[]; isActive: boolean;
 }
-interface VpsOsTemplate { id: string; name: string; version: string; iconUrl: string | null; }
+interface VpsOsTemplate { id: string; name: string; version: string; iconUrl: string | null; imageId?: string | null; }
 interface VpsLocation { id: string; countryName: string; countryCode: string; flagIcon: string | null; }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -672,6 +673,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [promoLoading,   setPromoLoading]   = useState(false);
   const [promoError,     setPromoError]     = useState("");
 
+  // Wallet: toggle to apply available credit balance (partial or full)
+  const [applyCredits,   setApplyCredits]   = useState(false);
+
   // Domain-first upsell: after user picks a domain in the domain/transfer flow,
   // show "Want to add hosting?" before moving to checkout
   const [domainPendingUpsell, setDomainPendingUpsell] = useState(false);
@@ -681,6 +685,11 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [vpsSelectedCycle,  setVpsSelectedCycle]  = useState<"monthly" | "yearly">("yearly");
   const [selectedOsTemplate, setSelectedOsTemplate] = useState<VpsOsTemplate | null>(null);
   const [selectedLocation,  setSelectedLocation]  = useState<VpsLocation | null>(null);
+  const [vpsHostname,       setVpsHostname]       = useState("");
+  const [vpsRootUser,       setVpsRootUser]       = useState("root");
+  const [vpsRootPassword,   setVpsRootPassword]   = useState("");
+  const [showRootPassword,  setShowRootPassword]  = useState(false);
+  const [vpsConfigFocus,    setVpsConfigFocus]    = useState("");
 
   function setCartDomain(d: CartDomain | null) { setCartDomainRaw(d); saveDomain(d); }
 
@@ -807,8 +816,12 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const _step3Total = service === "vps" && selectedVpsPlan
     ? Math.max(0, _vpsPrice - promoDiscount)
     : Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) - promoDiscount);
-  const _walletSufficient = paymentMethodId !== "credits" || creditBalance >= _step3Total;
-  const step3Complete = !!paymentMethodId && (!!selectedPlan || !!cartDomain || (service === "vps" && !!selectedVpsPlan)) && _walletSufficient;
+  // Wallet deduction: how much credit will be applied
+  const _walletDeducted = applyCredits && creditBalance > 0 ? Math.min(creditBalance, _step3Total) : 0;
+  const _remainingAfterWallet = Math.max(0, parseFloat((_step3Total - _walletDeducted).toFixed(2)));
+  // step3 is complete when: wallet fully covers it OR a secondary payment method is selected
+  const step3Complete = (!!selectedPlan || !!cartDomain || (service === "vps" && !!selectedVpsPlan)) &&
+    (_remainingAfterWallet === 0 || !!paymentMethodId);
   const activeCycle   = step >= 2 ? selectedCycle : pendingCycle;
   const showSidebar   = (step >= 1 && (service === "hosting" || service === "vps")) || step === 3;
 
@@ -823,7 +836,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   function canContinue() {
     if (step === 1 && service === "vps") return !!selectedVpsPlan;
     if (step === 1) return step1Complete;
-    if (step === 2 && service === "vps") return !!selectedOsTemplate && !!selectedLocation;
+    if (step === 2 && service === "vps") return !!selectedOsTemplate && !!selectedLocation && vpsHostname.trim().length >= 3 && vpsRootPassword.trim().length >= 8;
     if (step === 2) return step2Complete;
     if (step === 3) return step3Complete;
     return false;
@@ -934,14 +947,29 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     mutationFn: async () => {
       if (!selectedPlan && !cartDomain && !(service === "vps" && selectedVpsPlan)) throw new Error("Nothing in cart");
 
-      const body: Record<string, unknown> = { paymentMethodId };
+      // Determine effective payment fields
+      // If wallet fully covers: paymentMethodId = "credits"; applyCredits not needed
+      // If wallet partially covers: applyCredits = true; paymentMethodId = secondary method
+      // If no wallet: paymentMethodId = secondary method
+      const effectivePaymentMethodId = _remainingAfterWallet === 0 && applyCredits ? "credits"
+        : paymentMethodId ?? null;
+      const effectiveApplyCredits = applyCredits && _remainingAfterWallet > 0 && creditBalance > 0;
+
+      const body: Record<string, unknown> = {
+        paymentMethodId: effectivePaymentMethodId,
+        applyCredits: effectiveApplyCredits,
+      };
 
       // VPS order
       if (service === "vps" && selectedVpsPlan) {
-        body.vpsPlanId    = selectedVpsPlan.id;
-        body.billingCycle = vpsSelectedCycle;
+        body.vpsPlanId     = selectedVpsPlan.id;
+        body.billingCycle  = vpsSelectedCycle;
         body.vpsOsTemplate = selectedOsTemplate ? `${selectedOsTemplate.name} ${selectedOsTemplate.version}` : null;
         body.vpsLocation   = selectedLocation?.countryName ?? null;
+        body.vpsHostname   = vpsHostname.trim() || null;
+        body.vpsRootUser   = vpsRootUser.trim() || "root";
+        body.vpsRootPassword = vpsRootPassword.trim() || null;
+        body.vpsImageId    = selectedOsTemplate?.imageId ?? null;
         if (promoCode.trim()) body.promoCode = promoCode.trim();
         const r = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
         const d = await r.json();
@@ -1800,99 +1828,242 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VPS — STEP 2: Configure Server (OS + Location)
+  // VPS — STEP 2: Configure Server (OS + Location + Credentials)
   // ─────────────────────────────────────────────────────────────────────────────
 
   function renderStep2Vps() {
     const allOs = vpsOsTemplates.length > 0 ? vpsOsTemplates : [
-      { id: "ubuntu-22", name: "Ubuntu", version: "22.04 LTS", iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420" },
-      { id: "ubuntu-20", name: "Ubuntu", version: "20.04 LTS", iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420" },
-      { id: "debian-12", name: "Debian", version: "12 Bookworm", iconUrl: "https://cdn.simpleicons.org/debian/A81D33" },
-      { id: "centos-9",  name: "CentOS", version: "Stream 9",    iconUrl: "https://cdn.simpleicons.org/centos/262577" },
-      { id: "win-2022",  name: "Windows Server", version: "2022", iconUrl: "https://cdn.simpleicons.org/windows/0078D4" },
+      { id: "ubuntu-24", name: "Ubuntu",         version: "24.04 LTS",  iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420",   imageId: "ubuntu-24-x64" },
+      { id: "ubuntu-22", name: "Ubuntu",         version: "22.04 LTS",  iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420",   imageId: "ubuntu-22-x64" },
+      { id: "debian-12", name: "Debian",         version: "12 Bookworm",iconUrl: "https://cdn.simpleicons.org/debian/A81D33",   imageId: "debian-12-x64" },
+      { id: "alma-9",    name: "AlmaLinux",      version: "9",          iconUrl: "https://cdn.simpleicons.org/almalinux/ACE3B0",imageId: "almalinux-9-x64" },
+      { id: "centos-7",  name: "CentOS",         version: "7",          iconUrl: "https://cdn.simpleicons.org/centos/262577",   imageId: "centos-7-x64" },
+      { id: "rocky-9",   name: "Rocky Linux",    version: "9",          iconUrl: "https://cdn.simpleicons.org/rockylinux/10B981",imageId: "rockylinux-9-x64" },
+      { id: "win-2022",  name: "Windows Server", version: "2022",       iconUrl: "https://cdn.simpleicons.org/windows/0078D4", imageId: "windows-2022-x64" },
+      { id: "win-2019",  name: "Windows Server", version: "2019",       iconUrl: "https://cdn.simpleicons.org/windows/0078D4", imageId: "windows-2019-x64" },
     ];
     const allLocs = vpsLocations.length > 0 ? vpsLocations : [
       { id: "us", countryName: "United States", countryCode: "US", flagIcon: "🇺🇸" },
       { id: "de", countryName: "Germany",        countryCode: "DE", flagIcon: "🇩🇪" },
       { id: "gb", countryName: "United Kingdom", countryCode: "GB", flagIcon: "🇬🇧" },
       { id: "sg", countryName: "Singapore",      countryCode: "SG", flagIcon: "🇸🇬" },
+      { id: "in", countryName: "India",          countryCode: "IN", flagIcon: "🇮🇳" },
     ];
+
+    function generatePassword() {
+      const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+      let pw = "";
+      for (let i = 0; i < 16; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+      setVpsRootPassword(pw);
+      setShowRootPassword(true);
+    }
+
+    const inputStyle = (focused: boolean) => ({
+      borderColor: focused ? P : "#E5E7EB",
+      boxShadow: focused ? `0 0 0 3px ${P}20` : "",
+    });
+
+    const osValid       = !!selectedOsTemplate;
+    const locValid      = !!selectedLocation;
+    const hostnameValid = vpsHostname.trim().length >= 3;
+    const passValid     = vpsRootPassword.trim().length >= 8;
+    const allValid      = osValid && locValid && hostnameValid && passValid;
+    const setFocusedField = setVpsConfigFocus;
+    const focusedField    = vpsConfigFocus;
+
     return (
       <motion.div key="vps2" {...fade}>
-        <div className="text-center mb-6 max-w-xl mx-auto">
+        <button onClick={() => setStep(1)}
+          className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
+          <ArrowLeft size={13}/> Back to plan selection
+        </button>
+
+        <div className="text-center mb-7 max-w-xl mx-auto">
           <h1 className="text-2xl font-extrabold text-gray-900 mb-2">Configure Your Server</h1>
-          <p className="text-gray-500 text-[14px]">Choose the operating system and data center location for your VPS.</p>
+          <p className="text-gray-500 text-[14px]">Choose your operating system, data center, and set your root credentials.</p>
         </div>
 
-        {/* OS Selection */}
-        <div className="mb-8">
-          <h2 className="text-[15px] font-bold text-gray-800 mb-3 flex items-center gap-2">
-            <MonitorCog size={16} style={{ color: P }}/> Operating System
-            {selectedOsTemplate && <span className="text-[12px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ {selectedOsTemplate.name} {selectedOsTemplate.version}</span>}
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {allOs.map(os => {
-              const isSelected = selectedOsTemplate?.id === os.id;
-              return (
-                <button key={os.id} onClick={() => setSelectedOsTemplate(isSelected ? null : os as VpsOsTemplate)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border bg-white text-center transition-all duration-200"
-                  style={isSelected
-                    ? { border: `2px solid ${P}`, background: `${P}08`, boxShadow: `0 4px 16px ${P}20` }
-                    : { border: "1px solid #E5E7EB" }}>
-                  {os.iconUrl ? (
-                    <img src={os.iconUrl} alt={os.name} className="w-9 h-9 object-contain"/>
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-gray-200 flex items-center justify-center text-gray-400">
-                      <MonitorCog size={16}/>
+        <div className="space-y-8 max-w-3xl mx-auto">
+          {/* ── OS Selection ── */}
+          <div>
+            <h2 className="text-[14px] font-bold text-gray-700 mb-3 flex items-center gap-2">
+              <MonitorCog size={15} style={{ color: P }}/>
+              Operating System
+              {selectedOsTemplate && (
+                <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Check size={9}/> {selectedOsTemplate.name} {selectedOsTemplate.version}
+                </span>
+              )}
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {allOs.map(os => {
+                const isSelected = selectedOsTemplate?.id === os.id;
+                const isWindows  = os.name.toLowerCase().includes("windows");
+                return (
+                  <button key={os.id} onClick={() => setSelectedOsTemplate(isSelected ? null : os as VpsOsTemplate)}
+                    className="flex flex-col items-center gap-2 p-3.5 rounded-2xl border bg-white text-center transition-all duration-200 focus:outline-none"
+                    style={isSelected
+                      ? { border: `2px solid ${P}`, background: `${P}07`, boxShadow: `0 4px 16px ${P}22` }
+                      : { border: "1.5px solid #E5E7EB" }}>
+                    {os.iconUrl ? (
+                      <img src={os.iconUrl} alt={os.name} className="w-8 h-8 object-contain"/>
+                    ) : (
+                      <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
+                        <MonitorCog size={15} className="text-gray-400"/>
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-[11.5px] font-bold text-gray-800 leading-snug">{os.name}</div>
+                      <div className="text-[10.5px] text-gray-400 leading-snug">{os.version}</div>
                     </div>
-                  )}
-                  <div>
-                    <div className="text-[12.5px] font-bold text-gray-800">{os.name}</div>
-                    <div className="text-[11px] text-gray-400">{os.version}</div>
-                  </div>
-                  {isSelected && <div className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: P }}>Selected</div>}
-                </button>
-              );
-            })}
+                    {isWindows && (
+                      <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-full border text-amber-600 border-amber-200 bg-amber-50">+License Fee</span>
+                    )}
+                    {isSelected && (
+                      <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: P }}>
+                        <Check size={8} strokeWidth={3} className="text-white"/>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Location Selection */}
-        <div className="mb-8">
-          <h2 className="text-[15px] font-bold text-gray-800 mb-3 flex items-center gap-2">
-            <Globe size={16} style={{ color: P }}/> Data Center Location
-            {selectedLocation && <span className="text-[12px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ {selectedLocation.countryName}</span>}
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {allLocs.map(loc => {
-              const isSelected = selectedLocation?.id === loc.id;
-              return (
-                <button key={loc.id} onClick={() => setSelectedLocation(isSelected ? null : loc as VpsLocation)}
-                  className="flex items-center gap-3 px-4 py-3.5 rounded-2xl border bg-white text-left transition-all duration-200"
-                  style={isSelected
-                    ? { border: `2px solid ${P}`, background: `${P}08`, boxShadow: `0 4px 16px ${P}20` }
-                    : { border: "1px solid #E5E7EB" }}>
-                  <span className="text-[24px] leading-none">{loc.flagIcon ?? "🌐"}</span>
-                  <div>
-                    <div className="text-[12.5px] font-bold text-gray-800">{loc.countryName}</div>
-                    <div className="text-[11px] text-gray-400">{loc.countryCode}</div>
-                  </div>
-                  {isSelected && <Check size={12} style={{ color: P }} className="ml-auto shrink-0"/>}
-                </button>
-              );
-            })}
+          {/* ── Data Center Location ── */}
+          <div>
+            <h2 className="text-[14px] font-bold text-gray-700 mb-3 flex items-center gap-2">
+              <Globe size={15} style={{ color: P }}/>
+              Data Center Location
+              {selectedLocation && (
+                <span className="text-[11px] font-semibold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Check size={9}/> {selectedLocation.countryName}
+                </span>
+              )}
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              {allLocs.map(loc => {
+                const isSelected = selectedLocation?.id === loc.id;
+                return (
+                  <button key={loc.id} onClick={() => setSelectedLocation(isSelected ? null : loc as VpsLocation)}
+                    className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border bg-white text-center transition-all duration-200 focus:outline-none"
+                    style={isSelected
+                      ? { border: `2px solid ${P}`, background: `${P}07`, boxShadow: `0 4px 16px ${P}22` }
+                      : { border: "1.5px solid #E5E7EB" }}>
+                    <span className="text-[26px] leading-none">{loc.flagIcon ?? "🌐"}</span>
+                    <div className="text-[11px] font-bold text-gray-800 leading-snug">{loc.countryName}</div>
+                    {isSelected && <Check size={11} style={{ color: P }}/>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {(!selectedOsTemplate || !selectedLocation) && (
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-700 flex items-center gap-2">
-            <AlertCircle size={13}/>
-            {!selectedOsTemplate && !selectedLocation
-              ? "Please select an OS and a data center location to continue."
-              : !selectedOsTemplate ? "Please select an operating system."
-              : "Please select a data center location."}
+          {/* ── Server Credentials ── */}
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <Terminal size={13} style={{ color: P }}/>
+              <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Server Credentials & Hostname</span>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Hostname */}
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-1.5">
+                  Hostname <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Globe size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+                  <input
+                    value={vpsHostname}
+                    onChange={e => setVpsHostname(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ""))}
+                    placeholder="myserver.yourdomain.com"
+                    className="w-full pl-10 pr-4 py-2.5 border rounded-xl text-[13px] font-mono focus:outline-none transition-all"
+                    style={inputStyle(focusedField === "hostname")}
+                    onFocus={() => setFocusedField("hostname")}
+                    onBlur={() => setFocusedField("")}/>
+                </div>
+                {vpsHostname && vpsHostname.trim().length < 3 && (
+                  <p className="text-[11px] text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={10}/> Hostname must be at least 3 characters</p>
+                )}
+                <p className="text-[11px] text-gray-400 mt-1">e.g., server1.mycompany.com or myserver.com</p>
+              </div>
+
+              {/* Root Username */}
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-1.5">Root Username</label>
+                <div className="relative">
+                  <UserIcon size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+                  <input
+                    value={vpsRootUser}
+                    onChange={e => setVpsRootUser(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                    placeholder="root"
+                    className="w-full pl-10 pr-4 py-2.5 border rounded-xl text-[13px] font-mono focus:outline-none transition-all"
+                    style={inputStyle(focusedField === "rootuser")}
+                    onFocus={() => setFocusedField("rootuser")}
+                    onBlur={() => setFocusedField("")}/>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Default is "root". Change only if your OS requires a different admin username.</p>
+              </div>
+
+              {/* Root Password */}
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-1.5">
+                  Root Password <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+                    <input
+                      type={showRootPassword ? "text" : "password"}
+                      value={vpsRootPassword}
+                      onChange={e => setVpsRootPassword(e.target.value)}
+                      placeholder="Min. 8 characters"
+                      className="w-full pl-10 pr-10 py-2.5 border rounded-xl text-[13px] font-mono focus:outline-none transition-all"
+                      style={inputStyle(focusedField === "rootpass")}
+                      onFocus={() => setFocusedField("rootpass")}
+                      onBlur={() => setFocusedField("")}/>
+                    <button type="button"
+                      onClick={() => setShowRootPassword(!showRootPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {showRootPassword ? <EyeOff size={14}/> : <Eye size={14}/>}
+                    </button>
+                  </div>
+                  <button type="button" onClick={generatePassword}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[12px] font-semibold transition-all hover:border-purple-300"
+                    style={{ borderColor: "#E5E7EB", color: P, background: `${P}08` }}
+                    title="Generate a strong random password">
+                    <Shuffle size={13}/> Generate
+                  </button>
+                </div>
+                {vpsRootPassword && vpsRootPassword.length > 0 && vpsRootPassword.length < 8 && (
+                  <p className="text-[11px] text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={10}/> Password must be at least 8 characters</p>
+                )}
+                {passValid && (
+                  <p className="text-[11px] text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 size={10}/> Strong password set</p>
+                )}
+                <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1.5 font-semibold">
+                  <Shield size={10}/> Store this password safely — it will not be shown again after provisioning.
+                </p>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Validation banner */}
+          {!allValid && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-700 flex items-start gap-2.5">
+              <AlertCircle size={14} className="shrink-0 mt-0.5"/>
+              <div>
+                <p className="font-semibold mb-0.5">Complete all required fields to continue:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-[11.5px]">
+                  {!osValid  && <li>Select an operating system</li>}
+                  {!locValid && <li>Select a data center location</li>}
+                  {!hostnameValid && <li>Enter a valid hostname (min. 3 chars)</li>}
+                  {!passValid && <li>Set a root password (min. 8 chars)</li>}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
       </motion.div>
     );
   }
@@ -2336,9 +2507,23 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                   <span className="text-[14px] font-bold text-green-600">-{formatPrice(promoDiscount)}</span>
                 </div>
               )}
+              {_walletDeducted > 0 && (
+                <div className="flex items-center justify-between px-5 py-3 bg-green-50/60">
+                  <div className="flex items-center gap-2">
+                    <Wallet size={13} className="text-green-600"/>
+                    <span className="text-[13px] font-semibold text-green-700">Wallet Balance Applied</span>
+                  </div>
+                  <span className="text-[14px] font-bold text-green-600">-{formatPrice(_walletDeducted)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between px-5 py-4 bg-gray-50">
-                <span className="text-[15px] font-extrabold text-gray-900">Total Due Today</span>
-                <span className="text-[22px] font-extrabold text-gray-900">{formatPrice(total)}</span>
+                <div>
+                  <span className="text-[15px] font-extrabold text-gray-900">Total Due Today</span>
+                  {_walletDeducted > 0 && _remainingAfterWallet > 0 && (
+                    <p className="text-[11px] text-amber-600 font-semibold mt-0.5">Remaining after wallet</p>
+                  )}
+                </div>
+                <span className="text-[22px] font-extrabold text-gray-900">{formatPrice(_remainingAfterWallet > 0 ? _remainingAfterWallet : total)}</span>
               </div>
             </div>
           </div>
@@ -2417,99 +2602,94 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Payment Method</span>
             </div>
             <div className="p-4 space-y-3">
-              {/* Pay via Wallet */}
-              {(() => {
-                const _walletPlanAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
-                const _walletDomAmt  = isDomForceFree ? 0 : (cartDomain?.price ?? 0);
-                const _walletTotal   = Math.max(0, _walletPlanAmt + _walletDomAmt - promoDiscount);
-                const hasSufficient  = creditBalance >= _walletTotal;
-                const showWallet     = creditBalance > 0 || true; // always show wallet option
-                return showWallet ? (
-                  <div>
-                    <button
-                      onClick={() => {
-                        if (!hasSufficient && _walletTotal > 0) return;
-                        setPaymentMethodId(paymentMethodId === "credits" ? null : "credits");
-                      }}
-                      disabled={!hasSufficient && _walletTotal > 0}
-                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none disabled:cursor-not-allowed"
-                      style={paymentMethodId === "credits"
-                        ? { borderColor: P, background: `${P}07` }
-                        : hasSufficient || _walletTotal === 0
-                          ? { borderColor: "#E5E7EB", background: "#fff" }
-                          : { borderColor: "#E5E7EB", background: "#F9FAFB", opacity: 0.75 }}>
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ background: paymentMethodId === "credits" ? `${P}15` : "#F3F4F6" }}>
-                        <Wallet size={18} style={{ color: paymentMethodId === "credits" ? P : "#6B7280" }}/>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-[13px] font-bold text-gray-900">Pay with Wallet Balance</p>
-                          {hasSufficient && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: P }}>INSTANT</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] mt-0.5 font-semibold" style={{ color: creditBalance > 0 ? (hasSufficient ? "#16a34a" : "#dc2626") : "#6B7280" }}>
-                          {creditBalance > 0 ? `${formatPrice(creditBalance)} available` : "Rs. 0 available"}
-                          {!hasSufficient && _walletTotal > 0 && ` — need ${formatPrice(_walletTotal - creditBalance)} more`}
-                        </p>
-                      </div>
-                      <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${paymentMethodId === "credits" ? "" : "border-gray-300"}`}
-                        style={paymentMethodId === "credits" ? { background: P, borderColor: P } : {}}>
-                        {paymentMethodId === "credits" && <Check size={10} strokeWidth={3} className="text-white"/>}
-                      </div>
-                    </button>
-                    {!hasSufficient && _walletTotal > 0 && (
-                      <div className="mt-2 flex items-center gap-2 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                        <AlertCircle size={12} className="shrink-0"/>
-                        Insufficient balance.{" "}
-                        <a href="/client/billing" className="underline font-semibold hover:text-amber-900" onClick={e => { e.preventDefault(); setLocation("/client/billing"); }}>
-                          Add Funds
-                        </a>
-                        {" "}to use wallet payment.
-                      </div>
-                    )}
+              {/* ── Wallet Balance Toggle (always shown if creditBalance > 0) ── */}
+              {creditBalance > 0 && (
+                <button
+                  onClick={() => {
+                    const next = !applyCredits;
+                    setApplyCredits(next);
+                    // If disabling wallet and was "credits"-only, clear secondary selection
+                    if (!next) setPaymentMethodId(null);
+                  }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
+                  style={applyCredits
+                    ? { borderColor: P, background: `${P}07` }
+                    : { borderColor: "#E5E7EB", background: "#fff" }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: applyCredits ? `${P}15` : "#F3F4F6" }}>
+                    <Wallet size={18} style={{ color: applyCredits ? P : "#6B7280" }}/>
                   </div>
-                ) : null;
-              })()}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[13px] font-bold text-gray-900">Apply Wallet Balance</p>
+                      {_remainingAfterWallet === 0 && applyCredits && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: P }}>INSTANT</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
+                      {formatPrice(creditBalance)} available
+                      {applyCredits && _remainingAfterWallet > 0 && (
+                        <span className="text-amber-600"> · {formatPrice(_walletDeducted)} will be applied — {formatPrice(_remainingAfterWallet)} remaining</span>
+                      )}
+                      {applyCredits && _remainingAfterWallet === 0 && (
+                        <span className="text-green-600"> · Full payment covered!</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all`}
+                    style={applyCredits ? { background: P, borderColor: P } : { borderColor: "#D1D5DB" }}>
+                    {applyCredits && <Check size={10} strokeWidth={3} className="text-white"/>}
+                  </div>
+                </button>
+              )}
 
-              {paymentMethods.length === 0 && creditBalance === 0 ? (
-                <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-700">
-                  <AlertCircle size={14}/> No payment methods configured. Please contact support.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {paymentMethods.map(pm => {
-                    const isSel = paymentMethodId === pm.id;
-                    return (
-                      <button key={pm.id} onClick={() => setPaymentMethodId(isSel ? null : pm.id)}
-                        className="flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
-                        style={isSel ? { borderColor: P, background: `${P}07` } : { borderColor: "#E5E7EB", background: "#fff" }}>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                          style={{ background: isSel ? `${P}15` : "#F3F4F6" }}>
-                          <PayIcon type={pm.type}/>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[13px] font-bold text-gray-900">{pm.name}</p>
-                            {pm.isSandbox && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Test</span>}
-                          </div>
-                          {pm.description && <p className="text-[11px] text-gray-400 truncate mt-0.5">{pm.description}</p>}
-                          {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings.mobileNumber && (
-                            <p className="text-[11px] text-gray-500 mt-0.5 font-medium">Send to: {pm.publicSettings.mobileNumber}</p>
-                          )}
-                          {pm.type === "bank_transfer" && pm.publicSettings.bankName && (
-                            <p className="text-[11px] text-gray-500 mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
-                          )}
-                        </div>
-                        <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSel ? "" : "border-gray-300"}`}
-                          style={isSel ? { background: P, borderColor: P } : {}}>
-                          {isSel && <Check size={10} strokeWidth={3} className="text-white"/>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* ── Secondary payment method (required when remaining > 0 or no wallet) ── */}
+              {(_remainingAfterWallet > 0 || !applyCredits) && (
+                <>
+                  {applyCredits && _remainingAfterWallet > 0 && (
+                    <p className="text-[12px] font-semibold text-amber-700 px-1">
+                      Choose a payment method for the remaining {formatPrice(_remainingAfterWallet)}:
+                    </p>
+                  )}
+                  {paymentMethods.length === 0 && creditBalance === 0 ? (
+                    <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-700">
+                      <AlertCircle size={14}/> No payment methods configured. Please contact support.
+                    </div>
+                  ) : paymentMethods.length === 0 ? null : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {paymentMethods.map(pm => {
+                        const isSel = paymentMethodId === pm.id;
+                        return (
+                          <button key={pm.id} onClick={() => setPaymentMethodId(isSel ? null : pm.id)}
+                            className="flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
+                            style={isSel ? { borderColor: P, background: `${P}07` } : { borderColor: "#E5E7EB", background: "#fff" }}>
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                              style={{ background: isSel ? `${P}15` : "#F3F4F6" }}>
+                              <PayIcon type={pm.type}/>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-[13px] font-bold text-gray-900">{pm.name}</p>
+                                {pm.isSandbox && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Test</span>}
+                              </div>
+                              {pm.description && <p className="text-[11px] text-gray-400 truncate mt-0.5">{pm.description}</p>}
+                              {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings.mobileNumber && (
+                                <p className="text-[11px] text-gray-500 mt-0.5 font-medium">Send to: {pm.publicSettings.mobileNumber}</p>
+                              )}
+                              {pm.type === "bank_transfer" && pm.publicSettings.bankName && (
+                                <p className="text-[11px] text-gray-500 mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
+                              )}
+                            </div>
+                            <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSel ? "" : "border-gray-300"}`}
+                              style={isSel ? { background: P, borderColor: P } : {}}>
+                              {isSel && <Check size={10} strokeWidth={3} className="text-white"/>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

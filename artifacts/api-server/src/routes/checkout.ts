@@ -25,7 +25,11 @@ async function handleCheckout(req: AuthRequest, res: any) {
       registerDomain, transferDomain, freeDomain,
       domainAmount: clientDomainAmount, eppCode,
       nameservers: clientNameservers,
+      applyCredits: applyCreditsRaw,
     } = req.body;
+    // applyCredits: true = deduct whatever wallet balance is available (partial or full)
+    // paymentMethodId === "credits" = full wallet payment (error if insufficient)
+    const applyCredits = applyCreditsRaw === true || applyCreditsRaw === "true";
     const resolvedNs: string[] = (Array.isArray(clientNameservers) && clientNameservers.length >= 2)
       ? clientNameservers.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
       : ["ns1.noehost.com", "ns2.noehost.com"];
@@ -160,34 +164,47 @@ async function handleCheckout(req: AuthRequest, res: any) {
         } catch (err) { console.warn("[CHECKOUT TRANSFER RECORD]", err); }
       }
 
-      // Auto-pay with credits
-      if (paymentMethodId === "credits" && finalAmount > 0) {
+      // Auto-pay with credits (full or partial)
+      if ((paymentMethodId === "credits" || applyCredits) && finalAmount > 0) {
         const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
-        if (bal < finalAmount) {
+        if (paymentMethodId === "credits" && bal < finalAmount) {
           res.status(400).json({ error: `Insufficient credits. Balance: Rs. ${bal.toFixed(2)}, Required: Rs. ${finalAmount.toFixed(2)}.` });
           return;
         }
-        await db.update(usersTable).set({ creditBalance: String((bal - finalAmount).toFixed(2)), updatedAt: new Date() })
-          .where(eq(usersTable.id, req.user!.userId));
-        await db.insert(creditTransactionsTable).values({
-          userId: req.user!.userId, amount: String(finalAmount.toFixed(2)), type: "invoice_payment",
-          description: `Payment for ${domain} order`, invoiceId: invoice.id,
-        });
-        await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
-          .where(eq(invoicesTable.id, invoice.id));
-        await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+        const deducted = parseFloat(Math.min(bal, finalAmount).toFixed(2));
+        const remaining = parseFloat((finalAmount - deducted).toFixed(2));
+        if (deducted > 0) {
+          await db.update(usersTable).set({ creditBalance: String((bal - deducted).toFixed(2)), updatedAt: new Date() })
+            .where(eq(usersTable.id, req.user!.userId));
+          await db.insert(creditTransactionsTable).values({
+            userId: req.user!.userId, amount: String(deducted.toFixed(2)), type: "invoice_payment",
+            description: `Wallet payment for ${domain} order`, invoiceId: invoice.id,
+          });
+          // Update invoice: reduce amount owed to remaining
+          await db.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
+            .where(eq(invoicesTable.id, invoice.id));
+        }
+        if (remaining === 0) {
+          await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+            .where(eq(invoicesTable.id, invoice.id));
+          await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+        }
       }
 
       try { await createNotification(req.user!.userId, "order_placed", `Domain order placed: ${domain}`, `/client/invoices/${invoice.id}`); } catch {}
-      res.json({ orderId: order.id, invoiceId: invoice.id });
+      res.json({ orderId: order.id, invoiceId: invoice.id, walletApplied: applyCredits || paymentMethodId === "credits" });
       return;
     }
 
     // ── VPS order ─────────────────────────────────────────────────────────────
     const vpsPlanId    = req.body.vpsPlanId;
-    const vpsOsTemplate = req.body.vpsOsTemplate ?? null;
-    const vpsLocation  = req.body.vpsLocation ?? null;
+    const vpsOsTemplate   = req.body.vpsOsTemplate ?? null;
+    const vpsLocation     = req.body.vpsLocation ?? null;
+    const vpsHostname     = req.body.vpsHostname ?? null;
+    const vpsRootUser     = req.body.vpsRootUser ?? "root";
+    const vpsRootPassword = req.body.vpsRootPassword ?? null;
+    const vpsImageId      = req.body.vpsImageId ?? null;
 
     if (vpsPlanId) {
       const [vpsPlan] = await db.select().from(vpsPlansTable)
@@ -216,7 +233,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       }
       const finalVpsAmount = Math.max(0, vpsAmount - vpsDiscount);
 
-      // Credits payment
+      // Credits pre-check (full-credits mode only)
       if (paymentMethodId === "credits" && finalVpsAmount > 0) {
         const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
@@ -267,25 +284,37 @@ async function handleCheckout(req: AuthRequest, res: any) {
         vpsPlanId: vpsPlan.id,
         vpsOsTemplate: vpsOsTemplate,
         vpsLocation: vpsLocation,
+        vpsHostname: vpsHostname,
+        vpsRootUser: vpsRootUser,
+        vpsRootPassword: vpsRootPassword,
+        vpsImageId: vpsImageId,
         startDate: new Date(),
         expiryDate: (() => { const d = new Date(); if (cycle === "yearly") d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); return d; })(),
       }).returning();
 
       await db.update(invoicesTable).set({ serviceId: service.id, updatedAt: new Date() }).where(eq(invoicesTable.id, invoice.id));
 
-      // Auto-pay with credits
-      if (paymentMethodId === "credits" && finalVpsAmount > 0) {
+      // Auto-pay with credits (full or partial)
+      if ((paymentMethodId === "credits" || applyCredits) && finalVpsAmount > 0) {
         const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
-        await db.update(usersTable).set({ creditBalance: String((bal - finalVpsAmount).toFixed(2)), updatedAt: new Date() })
-          .where(eq(usersTable.id, req.user!.userId));
-        await db.insert(creditTransactionsTable).values({
-          userId: req.user!.userId, amount: String(finalVpsAmount.toFixed(2)), type: "invoice_payment",
-          description: `Payment for VPS order: ${vpsPlan.name}`, invoiceId: invoice.id,
-        });
-        await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
-          .where(eq(invoicesTable.id, invoice.id));
-        await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+        const deducted = parseFloat(Math.min(bal, finalVpsAmount).toFixed(2));
+        const remaining = parseFloat((finalVpsAmount - deducted).toFixed(2));
+        if (deducted > 0) {
+          await db.update(usersTable).set({ creditBalance: String((bal - deducted).toFixed(2)), updatedAt: new Date() })
+            .where(eq(usersTable.id, req.user!.userId));
+          await db.insert(creditTransactionsTable).values({
+            userId: req.user!.userId, amount: String(deducted.toFixed(2)), type: "invoice_payment",
+            description: `Wallet payment for VPS order: ${vpsPlan.name}`, invoiceId: invoice.id,
+          });
+          await db.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
+            .where(eq(invoicesTable.id, invoice.id));
+        }
+        if (remaining === 0) {
+          await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+            .where(eq(invoicesTable.id, invoice.id));
+          await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+        }
       }
 
       try { await createNotification(req.user!.userId, "order_placed", `VPS order placed: ${vpsPlan.name}`, `/client/invoices/${invoice.id}`); } catch {}
@@ -545,39 +574,46 @@ async function handleCheckout(req: AuthRequest, res: any) {
       } catch (err) { console.warn("[CHECKOUT DOMAIN RECORD]", err); }
     }
 
-    // 5b. Auto-pay with credits if selected
+    // 5b. Auto-pay with credits (full or partial wallet)
     let paidWithCredits = false;
-    if (paymentMethodId === "credits") {
+    if ((paymentMethodId === "credits" || applyCredits) && finalAmount > 0) {
       const freshUser = await db.select({ creditBalance: usersTable.creditBalance })
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]);
       const balance = parseFloat(freshUser?.creditBalance ?? "0");
-      if (balance < finalAmount) {
-        // Rollback would be complex — return error early instead
+      if (paymentMethodId === "credits" && balance < finalAmount) {
         res.status(400).json({
           error: `Insufficient credits. Your balance is Rs. ${balance.toFixed(2)} but the order total is Rs. ${finalAmount.toFixed(2)}.`,
           creditBalance: balance,
         });
         return;
       }
-      const newBalance = parseFloat((balance - finalAmount).toFixed(2));
-      await db.update(usersTable)
-        .set({ creditBalance: String(newBalance), updatedAt: new Date() })
-        .where(eq(usersTable.id, req.user!.userId));
-      await db.insert(creditTransactionsTable).values({
-        userId: req.user!.userId,
-        amount: String(finalAmount.toFixed(2)),
-        type: "invoice_payment",
-        description: `Payment for ${plan.name} order #${order.id.slice(0, 8).toUpperCase()}`,
-        invoiceId: invoice.id,
-      });
-      await db.update(invoicesTable).set({
-        status: "paid", paidDate: new Date(), updatedAt: new Date(),
-      }).where(eq(invoicesTable.id, invoice.id));
-      await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
-        .where(eq(ordersTable.id, order.id));
-      await db.update(hostingServicesTable).set({ status: "active", updatedAt: new Date() })
-        .where(eq(hostingServicesTable.id, service.id));
-      paidWithCredits = true;
+      const deducted = parseFloat(Math.min(balance, finalAmount).toFixed(2));
+      const remaining = parseFloat((finalAmount - deducted).toFixed(2));
+      if (deducted > 0) {
+        await db.update(usersTable)
+          .set({ creditBalance: String((balance - deducted).toFixed(2)), updatedAt: new Date() })
+          .where(eq(usersTable.id, req.user!.userId));
+        await db.insert(creditTransactionsTable).values({
+          userId: req.user!.userId,
+          amount: String(deducted.toFixed(2)),
+          type: "invoice_payment",
+          description: `Wallet payment for ${plan.name} order #${order.id.slice(0, 8).toUpperCase()}`,
+          invoiceId: invoice.id,
+        });
+        // Reduce invoice amount owed to remainder
+        await db.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
+          .where(eq(invoicesTable.id, invoice.id));
+      }
+      if (remaining === 0) {
+        await db.update(invoicesTable).set({
+          status: "paid", paidDate: new Date(), updatedAt: new Date(),
+        }).where(eq(invoicesTable.id, invoice.id));
+        await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+          .where(eq(ordersTable.id, order.id));
+        await db.update(hostingServicesTable).set({ status: "active", updatedAt: new Date() })
+          .where(eq(hostingServicesTable.id, service.id));
+        paidWithCredits = true;
+      }
     }
 
     // 6. Fraud detection (non-blocking)

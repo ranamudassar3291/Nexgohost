@@ -25,6 +25,7 @@ export const vpsOsTemplatesTable = pgTable("vps_os_templates", {
   name: text("name").notNull(),
   version: text("version").notNull(),
   iconUrl: text("icon_url"),
+  imageId: text("image_id"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
