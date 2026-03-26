@@ -10,6 +10,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated } from "../lib/email.js";
+import { generateInvoicePdf } from "../lib/invoicePdf.js";
 import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
@@ -667,12 +668,26 @@ async function handleCheckout(req: AuthRequest, res: any) {
 
     // 8. Send emails (non-blocking)
     const dueFormatted = dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    emailInvoiceCreated(user.email, {
-      clientName: `${user.firstName} ${user.lastName}`,
-      invoiceId: invoiceNumber,
-      amount: `Rs. ${finalAmount.toFixed(2)}`,
-      dueDate: dueFormatted,
-    }).catch(console.warn);
+    (async () => {
+      try {
+        const pdfItems = [{ description: plan.name + (domain ? ` — ${domain}` : ""), quantity: 1, unitPrice: finalAmount, total: finalAmount }];
+        const pdfBuf = await generateInvoicePdf({
+          invoiceNumber, status: paidWithCredits ? "paid" : "unpaid",
+          createdAt: new Date().toISOString(), dueDate: dueDate.toISOString(),
+          paidDate: paidWithCredits ? new Date().toISOString() : null,
+          clientName: `${user.firstName} ${user.lastName}`, clientEmail: user.email,
+          amount: finalAmount, tax: 0, total: finalAmount, items: pdfItems,
+        }).catch(() => undefined);
+        emailInvoiceCreated(user.email, {
+          clientName: `${user.firstName} ${user.lastName}`,
+          invoiceId: invoice.id,
+          invoiceNumber,
+          amount: `Rs. ${finalAmount.toFixed(2)}`,
+          dueDate: dueFormatted,
+          invoicePdf: pdfBuf,
+        }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
+      } catch { /* non-fatal */ }
+    })();
     emailOrderCreated(user.email, {
       clientName: `${user.firstName} ${user.lastName}`,
       serviceName: plan.name,

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle, Printer, Building2, Send, AlertCircle, Loader2, Wallet } from "lucide-react";
+import { ArrowLeft, Download, CreditCard, CheckCircle, Clock, XCircle, Printer, Building2, Send, AlertCircle, Loader2, Wallet, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -82,6 +82,32 @@ export default function InvoiceDetail() {
   const [txNotes, setTxNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [payingWithCredits, setPayingWithCredits] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    setDownloading(true);
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`/api/my/invoices/${id}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Noehost-Invoice-${invoice.invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -160,12 +186,16 @@ export default function InvoiceDetail() {
         <Button variant="ghost" size="sm" onClick={() => setLocation("/client/invoices")} className="gap-2">
           <ArrowLeft size={16} /> Back to Invoices
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2 print:hidden">
             <Printer size={15} /> Print
           </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloading} className="gap-2 print:hidden border-primary/30 text-primary hover:bg-primary/5">
+            {downloading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
+            {downloading ? "Generating…" : "Download PDF"}
+          </Button>
           {canPay && (
-            <Button size="sm" onClick={scrollToPayment} className="bg-primary hover:bg-primary/90 gap-2">
+            <Button size="sm" onClick={scrollToPayment} className="bg-primary hover:bg-primary/90 gap-2 print:hidden">
               <CreditCard size={15} /> Pay Now
             </Button>
           )}

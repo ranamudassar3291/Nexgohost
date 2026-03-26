@@ -3,11 +3,12 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Search, CheckCircle, Plus, FileText, TrendingUp, Clock,
-  Trash2, Edit2, Eye, ChevronLeft, ChevronRight, X, Loader2, XCircle,
+  Trash2, Edit2, Eye, ChevronLeft, ChevronRight, X, Loader2, XCircle, FileDown,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
 
@@ -51,16 +52,6 @@ interface PagedResponse {
   totalPages: number;
 }
 
-async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
-  const res = await fetch(url, {
-    ...opts,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data;
-}
 
 interface EditModal {
   id: string;
@@ -91,6 +82,31 @@ export default function AdminInvoices() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<EditModal | null>(null);
   const [viewModal, setViewModal] = useState<ViewModal | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string) => {
+    setDownloadingPdf(true);
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`/api/admin/invoices/${invoiceId}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Noehost-Invoice-${invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
@@ -368,11 +384,20 @@ export default function AdminInvoices() {
               )}
             </div>
 
-            <div className="mt-5 flex gap-3">
-              <Button className="flex-1" onClick={() => { setViewModal(null); openEdit(viewModal.invoice); }}>
+            <div className="mt-5 flex gap-3 flex-wrap">
+              <Button className="flex-1 min-w-[120px]" onClick={() => { setViewModal(null); openEdit(viewModal.invoice); }}>
                 <Edit2 size={14} className="mr-2" /> Edit Invoice
               </Button>
-              <Button variant="outline" onClick={() => setViewModal(null)} className="flex-1">Close</Button>
+              <Button
+                variant="outline"
+                className="flex-1 min-w-[120px] border-primary/30 text-primary hover:bg-primary/5"
+                disabled={downloadingPdf}
+                onClick={() => handleDownloadPdf(viewModal.invoice.id, viewModal.invoice.invoiceNumber)}
+              >
+                {downloadingPdf ? <Loader2 size={14} className="animate-spin mr-2" /> : <FileDown size={14} className="mr-2" />}
+                {downloadingPdf ? "Generating…" : "Download PDF"}
+              </Button>
+              <Button variant="outline" onClick={() => setViewModal(null)} className="flex-1 min-w-[80px]">Close</Button>
             </div>
           </div>
         </div>

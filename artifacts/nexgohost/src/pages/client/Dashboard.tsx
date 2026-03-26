@@ -300,14 +300,24 @@ export default function ClientDashboard() {
               <table className="w-full text-left">
                 <tbody>
                   {stats.recentInvoices.map(inv => (
-                    <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 cursor-pointer"
-                      onClick={() => navigate("/client/invoices")}>
-                      <td className="p-4 font-mono font-medium text-sm text-foreground">{inv.invoiceNumber}</td>
-                      <td className="p-4 text-sm font-semibold">{formatPrice(Number(inv.total))}</td>
-                      <td className="p-4 text-right">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${inv.status === "unpaid" ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                          {inv.status}
+                    <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 cursor-pointer group"
+                      onClick={() => navigate(`/client/invoices/${inv.id}`)}>
+                      <td className="p-4">
+                        <p className="font-mono font-medium text-sm text-foreground group-hover:text-primary transition-colors">{inv.invoiceNumber}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{formatPrice(Number(inv.total))}</p>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold border ${
+                          inv.status === "paid" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                          inv.status === "unpaid" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                          inv.status === "payment_pending" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                          "bg-secondary text-muted-foreground border-border"
+                        }`}>
+                          {inv.status === "payment_pending" ? "Pending" : inv.status}
                         </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity font-medium">View →</span>
                       </td>
                     </tr>
                   ))}

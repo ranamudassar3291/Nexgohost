@@ -5,6 +5,7 @@ import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
 import { provisionHostingService } from "../lib/provision.js";
+import { generateInvoicePdf } from "../lib/invoicePdf.js";
 
 const router = Router();
 
@@ -441,10 +442,30 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
       }
     } catch { /* non-blocking */ }
 
-    // Send paid email
+    // Send paid email with PDF attachment
     try {
       const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-      if (u) await emailInvoicePaid(u.email, `${u.firstName} ${u.lastName}`, formatInvoice(updated));
+      if (u) {
+        const inv = formatInvoice(updated, `${u.firstName} ${u.lastName}`);
+        let pdfBuf: Buffer | undefined;
+        try {
+          pdfBuf = await generateInvoicePdf({
+            invoiceNumber: inv.invoiceNumber, status: "paid",
+            createdAt: inv.createdAt, dueDate: inv.dueDate, paidDate: inv.paidDate,
+            clientName: `${u.firstName} ${u.lastName}`, clientEmail: u.email,
+            amount: inv.amount, tax: inv.tax, total: inv.total, items: inv.items,
+            paymentRef: inv.paymentRef, paymentNotes: inv.paymentNotes,
+          });
+        } catch { /* PDF generation failure is non-fatal */ }
+        await emailInvoicePaid(u.email, {
+          clientName: `${u.firstName} ${u.lastName}`,
+          invoiceId: updated.id,
+          invoiceNumber: inv.invoiceNumber,
+          amount: `Rs. ${Number(updated.total).toFixed(2)}`,
+          paymentDate: new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
+          invoicePdf: pdfBuf,
+        });
+      }
     } catch { /* non-blocking */ }
 
     const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -498,6 +519,83 @@ router.delete("/admin/invoices/:id", authenticate, requireAdmin, async (req: Aut
     const [deleted] = await db.delete(invoicesTable).where(eq(invoicesTable.id, req.params.id)).returning();
     if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ success: true, id: req.params.id });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// ── PDF Download: Client ───────────────────────────────────────────────────────
+router.get("/my/invoices/:id/pdf", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const [invoice] = await db.select().from(invoicesTable)
+      .where(and(eq(invoicesTable.id, req.params.id), eq(invoicesTable.clientId, userId)))
+      .limit(1);
+    if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    const clientName = user ? `${user.firstName} ${user.lastName}` : "Client";
+    const clientEmail = user?.email ?? "";
+    const rawItems = (invoice.items ?? []) as Array<any>;
+    const items = rawItems.map((it: any) => ({
+      description: it.description ?? "Service",
+      quantity: it.quantity ?? 1,
+      unitPrice: Number(it.unitPrice ?? it.amount ?? invoice.amount ?? 0),
+      total: Number(it.total ?? it.amount ?? invoice.amount ?? 0),
+    }));
+    const pdf = await generateInvoicePdf({
+      invoiceNumber: invoice.invoiceNumber ?? invoice.id,
+      status: invoice.status ?? "unpaid",
+      createdAt: invoice.createdAt?.toISOString() ?? new Date().toISOString(),
+      dueDate: invoice.dueDate?.toISOString() ?? new Date().toISOString(),
+      paidDate: invoice.paidDate?.toISOString() ?? null,
+      clientName,
+      clientEmail,
+      amount: Number(invoice.amount ?? 0),
+      tax: Number(invoice.tax ?? 0),
+      total: Number(invoice.total ?? 0),
+      items,
+      paymentRef: invoice.paymentRef ?? null,
+      paymentNotes: invoice.paymentNotes ?? null,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Noehost-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
+    res.setHeader("Content-Length", pdf.length);
+    res.end(pdf);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// ── PDF Download: Admin ────────────────────────────────────────────────────────
+router.get("/admin/invoices/:id/pdf", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, req.params.id)).limit(1);
+    if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, invoice.clientId)).limit(1);
+    const clientName = user ? `${user.firstName} ${user.lastName}` : "Client";
+    const clientEmail = user?.email ?? "";
+    const rawItems = (invoice.items ?? []) as Array<any>;
+    const items = rawItems.map((it: any) => ({
+      description: it.description ?? "Service",
+      quantity: it.quantity ?? 1,
+      unitPrice: Number(it.unitPrice ?? it.amount ?? invoice.amount ?? 0),
+      total: Number(it.total ?? it.amount ?? invoice.amount ?? 0),
+    }));
+    const pdf = await generateInvoicePdf({
+      invoiceNumber: invoice.invoiceNumber ?? invoice.id,
+      status: invoice.status ?? "unpaid",
+      createdAt: invoice.createdAt?.toISOString() ?? new Date().toISOString(),
+      dueDate: invoice.dueDate?.toISOString() ?? new Date().toISOString(),
+      paidDate: invoice.paidDate?.toISOString() ?? null,
+      clientName,
+      clientEmail,
+      amount: Number(invoice.amount ?? 0),
+      tax: Number(invoice.tax ?? 0),
+      total: Number(invoice.total ?? 0),
+      items,
+      paymentRef: invoice.paymentRef ?? null,
+      paymentNotes: invoice.paymentNotes ?? null,
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Noehost-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
+    res.setHeader("Content-Length", pdf.length);
+    res.end(pdf);
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

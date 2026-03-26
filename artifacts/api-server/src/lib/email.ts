@@ -155,10 +155,16 @@ async function writeLog(opts: {
   }
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 /** Attempt to send once. Returns true on success, throws on failure. */
 async function trySend(
   transport: nodemailer.Transporter,
-  mail: { from: string; to: string; subject: string; html: string; text: string },
+  mail: { from: string; to: string; subject: string; html: string; text: string; attachments?: EmailAttachment[] },
 ): Promise<void> {
   await transport.sendMail(mail);
 }
@@ -174,6 +180,7 @@ export async function sendEmail(opts: {
   emailType?: string;
   clientId?: string;
   referenceId?: string;
+  attachments?: EmailAttachment[];
 }): Promise<{ sent: boolean; message: string }> {
   const cfg = await getSmtpConfig();
   const transport = createTransport(cfg);
@@ -191,7 +198,14 @@ export async function sendEmail(opts: {
 
   const text = stripHtml(opts.html);
   const from = buildFromAddress(cfg);
-  const mail  = { from, to: opts.to, subject: opts.subject, html: opts.html, text };
+  const mail: any = { from, to: opts.to, subject: opts.subject, html: opts.html, text };
+  if (opts.attachments && opts.attachments.length > 0) {
+    mail.attachments = opts.attachments.map(a => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+    }));
+  }
 
   const MAX_ATTEMPTS = 3;
   let lastError = "";
@@ -221,6 +235,7 @@ export async function sendTemplatedEmail(
   to: string,
   variables: Record<string, string>,
   meta?: { clientId?: string; referenceId?: string },
+  attachments?: EmailAttachment[],
 ): Promise<{ sent: boolean; message: string }> {
   try {
     const [template] = await db
@@ -253,6 +268,7 @@ export async function sendTemplatedEmail(
       emailType: slug,
       clientId: meta?.clientId,
       referenceId: meta?.referenceId,
+      attachments,
     });
   } catch (err: any) {
     console.error(`[EMAIL] Failed to send "${slug}" to ${to}:`, err.message);
@@ -282,27 +298,49 @@ export async function emailVerificationCode(
 
 export async function emailInvoiceCreated(to: string, vars: {
   clientName: string; invoiceId: string; amount: string; dueDate: string; clientAreaUrl?: string;
-}) {
+  invoicePdf?: Buffer; invoiceNumber?: string;
+}, meta?: { clientId?: string; referenceId?: string }) {
+  const attachments: EmailAttachment[] = [];
+  if (vars.invoicePdf) {
+    attachments.push({
+      filename: `Noehost-Invoice-${vars.invoiceNumber ?? vars.invoiceId}.pdf`,
+      content: vars.invoicePdf,
+      contentType: "application/pdf",
+    });
+  }
   return sendTemplatedEmail("invoice-created", to, {
     company_name: COMPANY,
     client_area_url: vars.clientAreaUrl || "https://noehost.com/client",
     client_name: vars.clientName,
     invoice_id: vars.invoiceId,
+    invoice_number: vars.invoiceNumber ?? vars.invoiceId,
     amount: vars.amount,
     due_date: vars.dueDate,
-  });
+    view_invoice_url: `${vars.clientAreaUrl || "https://noehost.com/client"}/invoices/${vars.invoiceId}`,
+  }, meta, attachments.length > 0 ? attachments : undefined);
 }
 
 export async function emailInvoicePaid(to: string, vars: {
   clientName: string; invoiceId: string; amount: string; paymentDate: string;
-}) {
+  invoicePdf?: Buffer; invoiceNumber?: string;
+}, invoice?: any) {
+  const attachments: EmailAttachment[] = [];
+  if (vars.invoicePdf) {
+    attachments.push({
+      filename: `Noehost-Invoice-${vars.invoiceNumber ?? vars.invoiceId}-PAID.pdf`,
+      content: vars.invoicePdf,
+      contentType: "application/pdf",
+    });
+  }
   return sendTemplatedEmail("invoice-paid", to, {
     company_name: COMPANY,
     client_name: vars.clientName,
     invoice_id: vars.invoiceId,
+    invoice_number: vars.invoiceNumber ?? vars.invoiceId,
     amount: vars.amount,
     payment_date: vars.paymentDate,
-  });
+    view_invoice_url: `https://noehost.com/client/invoices/${vars.invoiceId}`,
+  }, undefined, attachments.length > 0 ? attachments : undefined);
 }
 
 export async function emailHostingCreated(
