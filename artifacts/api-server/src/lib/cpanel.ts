@@ -1185,3 +1185,50 @@ export async function cpanelCreateUserSession(
   }
   return loginUrl;
 }
+
+// ─── cPanel Backup API ────────────────────────────────────────────────────────
+
+/**
+ * Trigger a full cPanel backup to the user's home directory.
+ * Uses UAPI Backup::fullbackup_to_homedir — backup appears in ~/backup-*.tar.gz
+ */
+export async function cpanelFullBackup(
+  server: ServerConfig,
+  username: string,
+): Promise<{ status: string; message: string }> {
+  const result = await cpanelUapi(server, username, "Backup", "fullbackup_to_homedir", {
+    notification_target: "disabled",
+  });
+  const ok = result?.status === 0 || result?.result === 1 || result?.data?.result === 1;
+  return {
+    status: ok ? "initiated" : "failed",
+    message: ok
+      ? "Full cPanel backup initiated. The file will appear in your home directory."
+      : (result?.errors?.[0] || result?.messages?.[0] || "Backup initiation failed"),
+  };
+}
+
+/**
+ * Dump a single MySQL database from cPanel to a .sql.gz file in ~/cpanel_backups/.
+ * Uses UAPI Mysql::dump — file ends up in the user's home directory.
+ */
+export async function cpanelDbDump(
+  server: ServerConfig,
+  username: string,
+  database: string,
+): Promise<{ status: string; filename: string; message: string }> {
+  const ts = Date.now();
+  const filename = `db_${database}_${ts}.sql.gz`;
+  const result = await cpanelUapi(server, username, "Mysql", "dump", {
+    dbname: database,
+    filename,
+  });
+  const ok = result?.status === 0 || result?.result === 1 || result?.data?.result === 1;
+  return {
+    status: ok ? "initiated" : "failed",
+    filename,
+    message: ok
+      ? `Database dump initiated → ~/cpanel_backups/${filename}`
+      : (result?.errors?.[0] || "DB dump initiation failed"),
+  };
+}

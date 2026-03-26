@@ -5,7 +5,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -2043,10 +2043,13 @@ router.get("/client/hosting/:id/backups", authenticate, async (req: AuthRequest,
 });
 
 // POST /api/client/hosting/:id/backup — trigger a new manual backup
+// Body: { backupType?: "full" | "db_only" }  (default: "full")
 router.post("/client/hosting/:id/backup", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
+    const backupType: "full" | "db_only" = req.body?.backupType === "db_only" ? "db_only" : "full";
+
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
@@ -2057,15 +2060,40 @@ router.post("/client/hosting/:id/backup", authenticate, async (req: AuthRequest,
       clientId,
       domain: service.domain,
       status: "running",
-      type: "manual",
+      type: backupType,
     }).returning();
 
-    // Run backup in background — respond immediately so client can poll
-    runBackup(backup.id, service.domain, service.wpDbName ?? null).catch(err =>
-      console.error("[BACKUP] background error:", err)
+    // Auto-cleanup: delete backups older than 24 hours for this service (non-fatal)
+    cleanupOldBackups(id).catch(err =>
+      console.warn("[BACKUP] Cleanup error (non-fatal):", err.message)
     );
 
-    res.json({ success: true, backupId: backup.id, message: "Backup started" });
+    // Resolve cPanel server if available
+    let cpanelServer: ReturnType<typeof toServerCfg> | null = null;
+    if (service.serverId && service.username) {
+      const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+      if (server && (server.type === "cpanel" || server.type === "whm") && server.apiToken) {
+        cpanelServer = toServerCfg(server);
+      }
+    }
+
+    if (cpanelServer && service.username) {
+      // Run cPanel backup via API in background
+      runCpanelBackup(backup.id, cpanelServer, service.username, backupType, service.wpDbName ?? null)
+        .catch(err => console.error("[BACKUP] cPanel background error:", err));
+    } else {
+      // Fallback: VPS/simulation backup
+      runBackup(backup.id, service.domain, service.wpDbName ?? null).catch(err =>
+        console.error("[BACKUP] background error:", err)
+      );
+    }
+
+    res.json({
+      success: true,
+      backupId: backup.id,
+      backupType,
+      message: backupType === "db_only" ? "Database backup started" : "Full backup started",
+    });
   } catch (err) {
     console.error("[BACKUP] start error:", err);
     res.status(500).json({ error: "Server error" });
@@ -2158,6 +2186,62 @@ async function runBackup(backupId: string, domain: string, dbName: string | null
 
 // Export runBackup so cron can use it
 export { runBackup };
+
+/** Remove backup records older than 24 hours for a service (non-destructive — DB only) */
+async function cleanupOldBackups(serviceId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const deleted = await db.delete(hostingBackupsTable)
+    .where(and(
+      eq(hostingBackupsTable.serviceId, serviceId),
+      sql`created_at < ${cutoff.toISOString()}`,
+    )).returning({ id: hostingBackupsTable.id });
+  if (deleted.length > 0) {
+    console.log(`[BACKUP] Cleaned up ${deleted.length} backup record(s) older than 24h for service ${serviceId}`);
+  }
+}
+
+/** Run a cPanel backup (full or db_only) via cPanel UAPI */
+async function runCpanelBackup(
+  backupId: string,
+  server: { hostname: string; port: number; username: string; apiToken: string },
+  cpanelUser: string,
+  backupType: "full" | "db_only",
+  dbName: string | null,
+): Promise<void> {
+  console.log(`[BACKUP] cPanel ${backupType} backup ${backupId} for user ${cpanelUser}`);
+  try {
+    if (backupType === "db_only") {
+      if (!dbName) {
+        throw new Error("No database name available for DB-only backup");
+      }
+      const result = await cpanelDbDump(server, cpanelUser, dbName);
+      await db.update(hostingBackupsTable).set({
+        status: result.status === "initiated" ? "completed" : "failed",
+        filePath: result.filename,
+        errorMessage: result.status !== "initiated" ? result.message : null,
+        completedAt: new Date(),
+      }).where(eq(hostingBackupsTable.id, backupId));
+      console.log(`[BACKUP] cPanel DB dump ${backupId}: ${result.message}`);
+    } else {
+      const result = await cpanelFullBackup(server, cpanelUser);
+      await db.update(hostingBackupsTable).set({
+        status: result.status === "initiated" ? "completed" : "failed",
+        filePath: `~/backup-${cpanelUser}-*.tar.gz (home dir)`,
+        errorMessage: result.status !== "initiated" ? result.message : null,
+        completedAt: new Date(),
+      }).where(eq(hostingBackupsTable.id, backupId));
+      console.log(`[BACKUP] cPanel full backup ${backupId}: ${result.message}`);
+    }
+  } catch (err: any) {
+    const msg = err?.message || "cPanel backup failed";
+    console.error(`[BACKUP] cPanel error for ${backupId}: ${msg}`);
+    await db.update(hostingBackupsTable).set({
+      status: "failed",
+      errorMessage: msg,
+      completedAt: new Date(),
+    }).where(eq(hostingBackupsTable.id, backupId));
+  }
+}
 
 // ── AI WEBSITE BUILDER ────────────────────────────────────────────────────────
 
