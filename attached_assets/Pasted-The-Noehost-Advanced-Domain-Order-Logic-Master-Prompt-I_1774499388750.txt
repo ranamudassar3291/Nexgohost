@@ -1,0 +1,31 @@
+The "Noehost Advanced Domain & Order Logic" Master Prompt
+"I want to refine the domain ordering process and service management logic to prevent errors and unauthorized actions. Execute these technical requirements:
+
+1. Domain Checkout Refinement:
+
+Order/Transfer Pages: order/new-domain aur domain/transfer pages par Promo Code input aur Payment Method Selection (Wallet/JazzCash/EasyPaisa) ka section add karein.
+
+Promo Logic: Ensure karein ke promo codes domain registration aur transfer fees par sahi se apply hon aur price update ho jaye.
+
+2. Domain Management Restrictions:
+
+Pending/Cancelled Status: Agar domain status 'Pending' ya 'Cancelled' hai, toh 'Manage Domain' buttons ko disable karein. Client in domains ki settings (Nameservers/DNS) tab tak change na kar sake jab tak status 'Active' na ho jaye.
+
+Transfer Lock (60-Day Rule): Agar client domain 'Unlock' karne ki koshish kare aur domain registration ko 60 days se kam hue hon, toh usey unlock na karne dein aur ye message show karein: 'Security Policy: You cannot unlock or transfer this domain within the first 60 days of registration.'
+
+In-Progress Transfers: Jab tak domain transfer 'Pending' ya 'In Progress' hai, management options hide rakhein.
+
+3. Dashboard Expiry Alerts:
+
+Countdown Alerts: Client dashboard par ek prominent alert box dikhayein. Agar kisi Hosting ya Domain ki expiry mein 15 days ya us se kam rehte hon, toh message show karein: 'Attention: Your service [Service Name] is expiring in [X] days. Please renew to avoid suspension.'
+
+4. Order Page VPS Grouping:
+
+VPS Section: order/new page par VPS ka ek alag Group banayein. Is group par click karte hi uske andar mojud saare plans (Starter, Professional, etc.) aik clean grid layout mein show hon.
+
+5. Data Integrity:
+
+Ensure karein ke ye saari changes background automation (Cron Jobs) ke sath synced hon taake expiry days automatically update hote rahein.
+
+Verification:
+Show me the Domain Transfer page with the 60-day warning logic and the VPS Group layout on the order page."

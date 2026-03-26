@@ -212,6 +212,23 @@ export default function ClientDomains() {
   };
 
   const handleToggleLock = async (domain: MyDomain) => {
+    const currentLock = lockOverrides[domain.id] ?? domain.lockStatus ?? "unlocked";
+    const isCurrentlyLocked = currentLock === "locked";
+
+    // 60-day security rule: prevent unlocking within first 60 days of registration
+    if (isCurrentlyLocked && domain.registrationDate) {
+      const regDate = new Date(domain.registrationDate);
+      const daysSinceReg = Math.floor((Date.now() - regDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceReg < 60) {
+        toast({
+          title: "Transfer Lock Cannot Be Removed",
+          description: `Security Policy: You cannot unlock or transfer this domain within the first 60 days of registration. ${60 - daysSinceReg} day(s) remaining.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setLockLoading(domain.id);
     try {
       const data = await apiFetch(`/api/domains/${domain.id}/lock`, { method: "PUT" });
@@ -519,10 +536,16 @@ export default function ClientDomains() {
                     </div>
                     <button
                       onClick={() => setManageDomainModal(domain)}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/30 hover:bg-primary/20 text-primary rounded-lg text-sm font-medium transition-colors"
+                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                        domain.status === "active" || domain.status === "expired"
+                          ? "bg-primary/10 border-primary/30 hover:bg-primary/20 text-primary"
+                          : domain.status === "pending"
+                            ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/20"
+                            : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary cursor-not-allowed opacity-70"
+                      }`}
                     >
                       <Settings size={14} />
-                      Manage
+                      {domain.status === "pending" ? "Pay Now" : "Manage"}
                     </button>
                   </div>
                 </div>
@@ -620,6 +643,8 @@ export default function ClientDomains() {
       {manageDomainModal && (() => {
         const md = manageDomainModal;
         const isPending = md.status === "pending";
+        const isCancelled = md.status === "cancelled";
+        const isPendingTransfer = md.status === "pending_transfer";
         const mdLockStatus = lockOverrides[md.id] ?? md.lockStatus ?? "unlocked";
         const mdIsLocked = mdLockStatus === "locked";
         return (
@@ -638,17 +663,34 @@ export default function ClientDomains() {
                 </button>
               </div>
 
-              {/* Pending guard */}
-              {isPending ? (
+              {/* Status guard */}
+              {(isPending || isCancelled || isPendingTransfer) ? (
                 <div className="p-6 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto">
-                    <AlertCircle size={22} className="text-yellow-400" />
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${
+                    isPending ? "bg-yellow-500/10" : isCancelled ? "bg-secondary" : "bg-purple-500/10"
+                  }`}>
+                    <AlertCircle size={22} className={isPending ? "text-yellow-400" : isCancelled ? "text-muted-foreground" : "text-purple-400"} />
                   </div>
-                  <p className="font-medium text-foreground">Service is pending</p>
-                  <p className="text-sm text-muted-foreground">Complete payment to manage this domain.</p>
-                  <Button onClick={() => { setManageDomainModal(null); navigate("/client/invoices"); }} className="gap-2">
-                    <Receipt size={15} /> View Invoices
-                  </Button>
+                  <p className="font-medium text-foreground">
+                    {isPending ? "Payment Required" : isCancelled ? "Domain Cancelled" : "Transfer In Progress"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {isPending
+                      ? "Complete payment to activate this domain and access management settings."
+                      : isCancelled
+                        ? "This domain has been cancelled. Management settings are unavailable."
+                        : "Domain settings cannot be changed while a transfer is in progress. Management will be available once the transfer completes."}
+                  </p>
+                  {isPending && (
+                    <Button onClick={() => { setManageDomainModal(null); navigate("/client/invoices"); }} className="gap-2">
+                      <Receipt size={15} /> Pay Now
+                    </Button>
+                  )}
+                  {isPendingTransfer && (
+                    <Button variant="outline" onClick={() => { setManageDomainModal(null); }} className="gap-2">
+                      View Transfer Status
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="p-5 space-y-3">

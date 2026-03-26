@@ -10,6 +10,7 @@ import {
   affiliatesTable,
   affiliateReferralsTable,
   affiliateCommissionsTable,
+  promoCodesTable,
 } from "@workspace/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
@@ -275,7 +276,7 @@ router.post("/domains/transfer/validate", authenticate, async (req: AuthRequest,
 // ── Client: Submit a transfer request (creates order + invoice + domain entry) ─
 router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { domainName, epp } = req.body;
+    const { domainName, epp, promoCode, paymentMethodId } = req.body;
 
     if (!domainName || !epp) {
       res.status(400).json({ error: "Domain name and EPP code are required" });
@@ -322,14 +323,33 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       return;
     }
 
-    const transferPrice = Number(pricing.transferPrice);
+    let transferPrice = Number(pricing.transferPrice);
     const lockStatus = rdap.lockStatus; // "unlocked" | "unknown"
     const userId = req.user!.userId;
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    console.log("[DOMAIN TRANSFER SUBMIT]", { domain, tld, transferPrice, lockStatus, eppValid: true });
+    // Apply promo code if provided
+    let discountAmount = 0;
+    let appliedPromo: string | null = null;
+    if (promoCode) {
+      const [promo] = await db.select().from(promoCodesTable)
+        .where(eq(promoCodesTable.code, promoCode.toUpperCase())).limit(1);
+      if (promo && promo.isActive &&
+          (!promo.usageLimit || promo.usedCount < promo.usageLimit) &&
+          (!promo.expiresAt || new Date() < promo.expiresAt)) {
+        const at = (promo as any).applicableTo ?? "all";
+        if (at === "all" || at === "domain") {
+          discountAmount = Number((transferPrice * Number(promo.discountPercent) / 100).toFixed(2));
+          transferPrice = Math.max(0, Number((transferPrice - discountAmount).toFixed(2)));
+          appliedPromo = promo.code;
+          await db.update(promoCodesTable).set({ usedCount: promo.usedCount + 1 }).where(eq(promoCodesTable.id, promo.id));
+        }
+      }
+    }
+
+    console.log("[DOMAIN TRANSFER SUBMIT]", { domain, tld, transferPrice, discountAmount, lockStatus, eppValid: true, promo: appliedPromo });
 
     // Create Order
     const [order] = await db.insert(ordersTable).values({
@@ -338,7 +358,7 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       itemName: `${domain} - Domain Transfer`,
       amount: String(transferPrice),
       status: "pending",
-      notes: `Domain transfer request for ${domain}`,
+      notes: `Domain transfer request for ${domain}${appliedPromo ? ` (promo: ${appliedPromo})` : ""}${paymentMethodId ? ` | Payment: ${paymentMethodId}` : ""}`,
     }).returning();
 
     // Create Invoice
@@ -353,12 +373,20 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
       total: String(transferPrice),
       status: "unpaid",
       dueDate,
-      items: [{
-        description: `${domain} - Domain Transfer (1 year)`,
-        quantity: 1,
-        unitPrice: transferPrice,
-        total: transferPrice,
-      }],
+      items: [
+        {
+          description: `${domain} - Domain Transfer (1 year)`,
+          quantity: 1,
+          unitPrice: transferPrice,
+          total: transferPrice,
+        },
+        ...(discountAmount > 0 ? [{
+          description: `Promo Code (${appliedPromo})`,
+          quantity: 1,
+          unitPrice: -discountAmount,
+          total: -discountAmount,
+        }] : []),
+      ],
     }).returning();
 
     // Insert domain with "pending_transfer" status

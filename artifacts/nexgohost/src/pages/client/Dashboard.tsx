@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,10 @@ interface HostingService {
   id: string; planName: string; domain: string | null; status: string;
   cpanelUrl: string | null; webmailUrl: string | null; username: string | null;
   nextDueDate: string | null; billingCycle: string; freeDomainAvailable: boolean;
+}
+
+interface DomainItem {
+  id: string; name: string; tld: string; status: string; expiryDate: string | null;
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -76,7 +80,32 @@ export default function ClientDashboard() {
     queryKey: ["client-services-dashboard"],
     queryFn: () => apiFetch("/api/client/hosting").then(d => d || []),
   });
+  const { data: allDomains = [] } = useQuery<DomainItem[]>({
+    queryKey: ["client-domains-dashboard"],
+    queryFn: () => apiFetch("/api/domains").then(d => d || []),
+  });
   const activeServices = allServices.filter(s => s.status === "active");
+
+  // Expiry alerts: services/domains expiring within 15 days
+  const now = Date.now();
+  const ALERT_DAYS = 15;
+  const expiringServices = allServices
+    .filter(s => s.status === "active" && s.nextDueDate)
+    .map(s => {
+      const due = new Date(s.nextDueDate!).getTime();
+      const daysLeft = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+      return { name: s.domain || s.planName, type: "Hosting", daysLeft };
+    })
+    .filter(s => s.daysLeft >= 0 && s.daysLeft <= ALERT_DAYS);
+  const expiringDomains = allDomains
+    .filter(d => d.status === "active" && d.expiryDate)
+    .map(d => {
+      const exp = new Date(d.expiryDate!).getTime();
+      const daysLeft = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+      return { name: `${d.name}${d.tld}`, type: "Domain", daysLeft };
+    })
+    .filter(d => d.daysLeft >= 0 && d.daysLeft <= ALERT_DAYS);
+  const expiryAlerts = [...expiringServices, ...expiringDomains].sort((a, b) => a.daysLeft - b.daysLeft);
   const freeDomainService = allServices.find(s => s.freeDomainAvailable);
 
   async function handleClaimFreeDomain() {
@@ -143,6 +172,49 @@ export default function ClientDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Expiry Alerts — show when any service/domain expires within 15 days */}
+      {expiryAlerts.length > 0 && (
+        <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-orange-500/20 bg-orange-500/10">
+            <AlertTriangle size={16} className="text-orange-400 shrink-0" />
+            <p className="text-sm font-bold text-orange-400">
+              Attention — {expiryAlerts.length} service{expiryAlerts.length > 1 ? "s" : ""} expiring soon
+            </p>
+          </div>
+          <div className="divide-y divide-orange-500/10">
+            {expiryAlerts.map((alert, i) => (
+              <div key={i} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${alert.type === "Hosting" ? "bg-blue-500/10" : "bg-purple-500/10"}`}>
+                    {alert.type === "Hosting" ? <Server size={14} className="text-blue-400" /> : <Globe size={14} className="text-purple-400" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{alert.name}</p>
+                    <p className="text-xs text-muted-foreground">{alert.type}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                    alert.daysLeft <= 3
+                      ? "bg-red-500/15 text-red-400 border-red-500/30"
+                      : alert.daysLeft <= 7
+                        ? "bg-orange-500/15 text-orange-400 border-orange-500/30"
+                        : "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                  }`}>
+                    {alert.daysLeft === 0 ? "Expires today!" : `${alert.daysLeft} day${alert.daysLeft === 1 ? "" : "s"} left`}
+                  </span>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    <Link href={alert.type === "Hosting" ? "/client/hosting" : "/client/domains"} className="hover:text-primary transition-colors">
+                      Renew →
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Credit Balance banner */}
       {creditBalance > 0 && (

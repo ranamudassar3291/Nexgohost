@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Loader2, ShieldCheck, Key, Package, Lock, Unlock, FileText, Receipt, AlertTriangle, Info } from "lucide-react";
+import {
+  Globe, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Loader2, ShieldCheck,
+  Key, Package, Lock, Unlock, FileText, Receipt, AlertTriangle, Info,
+  Tag, Smartphone, Landmark, CreditCard, Wallet, Bitcoin, CheckCircle, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -8,6 +12,27 @@ import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/api";
 
 type Step = "enter" | "validate" | "submit" | "success";
+
+interface PaymentMethod {
+  id: string; name: string; type: string; description: string | null;
+  publicSettings: {
+    bankName?: string; accountTitle?: string; accountNumber?: string;
+    mobileNumber?: string; paypalEmail?: string; walletAddress?: string;
+    cryptoType?: string; instructions?: string; iban?: string;
+  };
+}
+
+function PayIcon({ type }: { type: string }) {
+  switch (type) {
+    case "jazzcash":      return <Smartphone size={18} className="text-orange-400" />;
+    case "easypaisa":    return <Smartphone size={18} className="text-green-400" />;
+    case "bank_transfer":return <Landmark   size={18} className="text-blue-400" />;
+    case "stripe":       return <CreditCard size={18} className="text-violet-400" />;
+    case "paypal":       return <Wallet     size={18} className="text-blue-500" />;
+    case "crypto":       return <Bitcoin    size={18} className="text-orange-500" />;
+    default:             return <CreditCard size={18} className="text-muted-foreground" />;
+  }
+}
 
 export default function DomainTransfer() {
   const { formatPrice } = useCurrency();
@@ -19,6 +44,56 @@ export default function DomainTransfer() {
   const [error, setError] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
   const [transferResult, setTransferResult] = useState<any>(null);
+
+  // Promo code state
+  const [promoCode, setPromoCode] = useState("");
+  const [promoApplied, setPromoApplied] = useState<{ code: string; discount: number; finalPrice: number } | null>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  // Payment method state
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("");
+  const [pmLoading, setPmLoading] = useState(false);
+
+  // Fetch payment methods
+  useEffect(() => {
+    setPmLoading(true);
+    apiFetch("/api/payment-methods")
+      .then((data: PaymentMethod[]) => {
+        setPaymentMethods(data || []);
+        if (data?.length > 0) setSelectedPaymentMethod(data[0].id);
+      })
+      .catch(() => {})
+      .finally(() => setPmLoading(false));
+  }, []);
+
+  const basePrice = Number(validationResult?.transferPrice || 0);
+  const finalPrice = promoApplied ? promoApplied.finalPrice : basePrice;
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoError(null);
+    setPromoLoading(true);
+    try {
+      const params = new URLSearchParams({
+        code: promoCode.trim().toUpperCase(),
+        amount: String(basePrice),
+        serviceType: "domain",
+      });
+      const result = await apiFetch(`/api/promo-codes/validate?${params}`);
+      if (result.valid) {
+        const discountedPrice = Math.max(0, basePrice - result.discountAmount);
+        setPromoApplied({ code: promoCode.trim().toUpperCase(), discount: result.discountAmount, finalPrice: discountedPrice });
+      } else {
+        setPromoError(result.message || "Invalid or expired promo code");
+      }
+    } catch (err: any) {
+      setPromoError(err.message || "Failed to validate promo code");
+    } finally {
+      setPromoLoading(false);
+    }
+  };
 
   const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +123,12 @@ export default function DomainTransfer() {
     try {
       const result = await apiFetch("/api/domains/transfer", {
         method: "POST",
-        body: JSON.stringify({ domainName: domain, epp }),
+        body: JSON.stringify({
+          domainName: domain,
+          epp,
+          promoCode: promoApplied?.code || undefined,
+          paymentMethodId: selectedPaymentMethod || undefined,
+        }),
       });
       setTransferResult(result);
       setStep("success");
@@ -62,12 +142,13 @@ export default function DomainTransfer() {
   const steps = [
     { id: "enter",   label: "Domain & EPP" },
     { id: "validate", label: "Validation" },
-    { id: "submit",  label: "Confirm" },
+    { id: "submit",  label: "Confirm & Pay" },
     { id: "success", label: "Submitted" },
   ];
   const stepIndex = steps.findIndex(s => s.id === step);
 
   const lockStatus: "locked" | "unlocked" | "unknown" = validationResult?.lockStatus ?? "unknown";
+  const selectedPm = paymentMethods.find(pm => pm.id === selectedPaymentMethod);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-6">
@@ -222,7 +303,7 @@ export default function DomainTransfer() {
             </motion.div>
           )}
 
-          {/* Step 3: Confirm */}
+          {/* Step 3: Confirm & Pay */}
           {step === "submit" && (
             <motion.div key="submit" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-5">
               <div className="flex items-center gap-3 mb-4">
@@ -230,11 +311,12 @@ export default function DomainTransfer() {
                   <ShieldCheck size={20} className="text-primary" />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-foreground">Confirm Transfer Request</h2>
-                  <p className="text-xs text-muted-foreground">Review your transfer details before submitting</p>
+                  <h2 className="font-semibold text-foreground">Confirm & Select Payment</h2>
+                  <p className="text-xs text-muted-foreground">Review details, apply promo, and select payment method</p>
                 </div>
               </div>
 
+              {/* Order summary */}
               <div className="bg-secondary/50 rounded-xl p-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Domain</span>
@@ -256,12 +338,102 @@ export default function DomainTransfer() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-between border-t border-border pt-3">
-                  <span className="text-muted-foreground">Transfer Fee</span>
-                  <span className="font-bold text-foreground text-base">
-                    {formatPrice(Number(validationResult?.transferPrice || 0))}
-                  </span>
+                <div className="border-t border-border pt-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Transfer Fee</span>
+                    <span className={`font-medium ${promoApplied ? "line-through text-muted-foreground text-xs" : "font-bold text-foreground text-base"}`}>
+                      {formatPrice(basePrice)}
+                    </span>
+                  </div>
+                  {promoApplied && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-green-400 flex items-center gap-1"><Tag size={12} /> Promo ({promoApplied.code})</span>
+                      <span className="text-green-400 font-medium">- {formatPrice(promoApplied.discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-t border-border/50 pt-1.5">
+                    <span className="font-semibold text-foreground">Total</span>
+                    <span className="font-bold text-foreground text-base">{formatPrice(finalPrice)}</span>
+                  </div>
                 </div>
+              </div>
+
+              {/* Promo code */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5"><Tag size={14} /> Promo Code</label>
+                {promoApplied ? (
+                  <div className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                    <span className="text-sm text-green-400 font-medium flex items-center gap-2">
+                      <CheckCircle size={14} /> {promoApplied.code} — {formatPrice(promoApplied.discount)} off
+                    </span>
+                    <button onClick={() => { setPromoApplied(null); setPromoCode(""); setPromoError(null); }} className="text-muted-foreground hover:text-foreground">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={promoCode}
+                      onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError(null); }}
+                      placeholder="Enter promo code"
+                      className="bg-background/60 border-border h-10 flex-1 uppercase"
+                    />
+                    <Button variant="outline" onClick={handleApplyPromo} disabled={promoLoading || !promoCode.trim()} className="h-10 gap-1.5 shrink-0">
+                      {promoLoading ? <Loader2 size={13} className="animate-spin" /> : "Apply"}
+                    </Button>
+                  </div>
+                )}
+                {promoError && (
+                  <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle size={11} /> {promoError}</p>
+                )}
+              </div>
+
+              {/* Payment method selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5"><CreditCard size={14} /> Payment Method</label>
+                {pmLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground p-3">
+                    <Loader2 size={14} className="animate-spin" /> Loading payment methods...
+                  </div>
+                ) : paymentMethods.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No payment methods configured.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {paymentMethods.map(pm => (
+                      <button
+                        key={pm.id}
+                        onClick={() => setSelectedPaymentMethod(pm.id)}
+                        className={`w-full text-left p-3 rounded-xl border transition-all ${
+                          selectedPaymentMethod === pm.id
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border bg-secondary/30 hover:border-border/80"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <PayIcon type={pm.type} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">{pm.name}</p>
+                            {pm.description && <p className="text-xs text-muted-foreground truncate">{pm.description}</p>}
+                          </div>
+                          {selectedPaymentMethod === pm.id && (
+                            <CheckCircle size={16} className="text-primary shrink-0" />
+                          )}
+                        </div>
+                        {selectedPaymentMethod === pm.id && pm.publicSettings && (
+                          <div className="mt-2.5 pt-2.5 border-t border-border/50 space-y-1 text-xs text-muted-foreground">
+                            {pm.publicSettings.bankName && <p>Bank: <span className="text-foreground font-medium">{pm.publicSettings.bankName}</span></p>}
+                            {pm.publicSettings.accountTitle && <p>Account: <span className="text-foreground font-medium">{pm.publicSettings.accountTitle}</span></p>}
+                            {pm.publicSettings.accountNumber && <p>Number: <span className="text-foreground font-mono font-medium">{pm.publicSettings.accountNumber}</span></p>}
+                            {pm.publicSettings.mobileNumber && <p>Mobile: <span className="text-foreground font-mono font-medium">{pm.publicSettings.mobileNumber}</span></p>}
+                            {pm.publicSettings.iban && <p>IBAN: <span className="text-foreground font-mono font-medium">{pm.publicSettings.iban}</span></p>}
+                            {pm.publicSettings.walletAddress && <p>Wallet: <span className="text-foreground font-mono font-medium break-all">{pm.publicSettings.walletAddress}</span></p>}
+                            {pm.publicSettings.instructions && <p className="text-blue-400">{pm.publicSettings.instructions}</p>}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-400 space-y-1.5">
@@ -283,7 +455,7 @@ export default function DomainTransfer() {
                 <Button variant="outline" onClick={() => setStep("validate")} className="flex-1 gap-2">
                   <ArrowLeft size={16} /> Back
                 </Button>
-                <Button onClick={handleSubmit} disabled={loading} className="flex-1 gap-2">
+                <Button onClick={handleSubmit} disabled={loading || !selectedPaymentMethod} className="flex-1 gap-2">
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <><span>Submit Transfer Request</span> <ArrowRight size={16} /></>}
                 </Button>
               </div>
@@ -317,6 +489,12 @@ export default function DomainTransfer() {
                       </div>
                     </>
                   )}
+                  {selectedPm && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Payment Via</span>
+                      <span className="font-medium text-foreground flex items-center gap-1.5"><PayIcon type={selectedPm.type} /> {selectedPm.name}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status</span>
                     <span className="font-medium text-yellow-400">Pending Review</span>
@@ -330,7 +508,7 @@ export default function DomainTransfer() {
               </div>
 
               <div className="flex gap-3 justify-center flex-wrap">
-                <Button variant="outline" onClick={() => { setStep("enter"); setDomain(""); setEpp(""); setError(null); setValidationResult(null); setTransferResult(null); }}>
+                <Button variant="outline" onClick={() => { setStep("enter"); setDomain(""); setEpp(""); setError(null); setValidationResult(null); setTransferResult(null); setPromoApplied(null); setPromoCode(""); setSelectedPaymentMethod(paymentMethods[0]?.id ?? ""); }}>
                   Transfer Another
                 </Button>
                 {transferResult?.invoice && (

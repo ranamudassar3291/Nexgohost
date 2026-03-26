@@ -477,6 +477,129 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// VPS GROUP SECTION — Collapsible group on step 0 that shows VPS plans inline
+// ─────────────────────────────────────────────────────────────────────────────
+
+function VpsGroupSection({ onSelectVps }: { onSelectVps: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const { formatPrice } = useCurrency();
+  const { data: vpsPlans = [], isLoading } = useQuery<VpsPlan[]>({
+    queryKey: ["vps-plans-preview"],
+    queryFn: () => fetch("/api/vps-plans", {
+      headers: { Authorization: `Bearer ${tok()}` },
+    }).then(r => r.json()).then(d => Array.isArray(d) ? d.filter((p: VpsPlan) => p.isActive) : []),
+    staleTime: 60000,
+  });
+
+  return (
+    <div className="max-w-4xl mx-auto mt-6">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full text-left rounded-2xl bg-white transition-all duration-200 focus:outline-none"
+        style={{ border: `1px dashed ${P}`, padding: "18px 24px" }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderStyle = "solid"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 24px rgba(112,26,254,0.10)"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderStyle = "dashed"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(112,26,254,0.08)" }}>
+              <Cpu size={20} strokeWidth={1.7} style={{ color: P }} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-[15px] font-bold text-gray-900">VPS Hosting</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: P }}>NEW</span>
+              </div>
+              <p className="text-[12px] text-gray-500 mt-0.5">Dedicated virtual servers — full root access, NVMe storage, multiple OS templates</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {vpsPlans.length > 0 && (
+              <span className="text-[12px] text-gray-400">{vpsPlans.length} plan{vpsPlans.length > 1 ? "s" : ""}</span>
+            )}
+            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "rgba(112,26,254,0.08)" }}>
+              {expanded ? <ChevronUp size={14} style={{ color: P }}/> : <ChevronDown size={14} style={{ color: P }}/>}
+            </div>
+          </div>
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm">
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
+                  <Loader2 size={16} className="animate-spin"/> Loading VPS plans...
+                </div>
+              ) : vpsPlans.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-[13px]">No VPS plans available at this time.</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                    {vpsPlans.map(plan => (
+                      <button
+                        key={plan.id}
+                        onClick={onSelectVps}
+                        className="text-left p-4 rounded-xl border border-gray-200 hover:border-[#701AFE] hover:shadow-md transition-all duration-200 group"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="text-[14px] font-bold text-gray-900 group-hover:text-[#701AFE] transition-colors">{plan.name}</p>
+                            {plan.description && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{plan.description}</p>}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                            <Cpu size={11} className="text-gray-400 shrink-0"/> {plan.cpuCores} vCPU{plan.cpuCores > 1 ? "s" : ""}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                            <MemoryStick size={11} className="text-gray-400 shrink-0"/> {plan.ramGb} GB RAM
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                            <HardDrive size={11} className="text-gray-400 shrink-0"/> {plan.storageGb} GB NVMe
+                          </div>
+                          {plan.bandwidthTb && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                              <Wifi size={11} className="text-gray-400 shrink-0"/> {plan.bandwidthTb} TB BW
+                            </div>
+                          )}
+                        </div>
+                        <div className="border-t border-gray-100 pt-3 flex items-end justify-between">
+                          <div>
+                            <span className="text-[16px] font-extrabold" style={{ color: P }}>{formatPrice(plan.price)}</span>
+                            <span className="text-[11px] text-gray-400">/mo</span>
+                            {plan.yearlyPrice && (
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                or {formatPrice(Math.round(plan.yearlyPrice / 12))}/mo billed yearly
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] font-bold" style={{ color: P }}>
+                            Select <ChevronRight size={11} strokeWidth={2.5}/>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-400 text-center">Click any plan to configure OS, location, and billing cycle →</p>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -925,6 +1048,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             </button>
           ))}
         </div>
+
+        {/* VPS Hosting Group — click to expand plans */}
+        <VpsGroupSection onSelectVps={() => { setService("vps"); setStep(1); }} />
+
         <div className="flex flex-wrap justify-center gap-4 mt-8 text-[12px] text-gray-400">
           <span className="flex items-center gap-1.5"><Lock size={11}/> Secure Checkout</span>
           <span>·</span>
