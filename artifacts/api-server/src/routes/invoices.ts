@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
-import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable } from "@workspace/db/schema";
+import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable, affiliateCommissionsTable, affiliatesTable } from "@workspace/db/schema";
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
@@ -358,6 +358,44 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
         await activateDomainOrder(order, updated.invoiceNumber, updated.dueDate ?? null);
       }
     } catch (e) { console.error("[PROVISION] mark-paid downstream error:", e); /* non-blocking */ }
+
+    // Auto-approve & credit affiliate commission when order invoice is paid
+    try {
+      if (updated.orderId) {
+        const [pendingComm] = await db.select().from(affiliateCommissionsTable)
+          .where(and(eq(affiliateCommissionsTable.orderId, updated.orderId), eq(affiliateCommissionsTable.status, "pending")))
+          .limit(1);
+        if (pendingComm) {
+          await db.update(affiliateCommissionsTable)
+            .set({ status: "approved", paidAt: new Date() })
+            .where(eq(affiliateCommissionsTable.id, pendingComm.id));
+
+          const [affiliate] = await db.select({ userId: affiliatesTable.userId })
+            .from(affiliatesTable).where(eq(affiliatesTable.id, pendingComm.affiliateId)).limit(1);
+          if (affiliate) {
+            await db.update(usersTable)
+              .set({ creditBalance: sql`COALESCE(${usersTable.creditBalance}::numeric, 0) + ${pendingComm.amount}::numeric`, updatedAt: new Date() })
+              .where(eq(usersTable.id, affiliate.userId));
+            await db.insert(creditTransactionsTable).values({
+              userId: affiliate.userId,
+              amount: pendingComm.amount,
+              type: "affiliate_payout",
+              description: `Affiliate commission — invoice ${updated.invoiceNumber}`,
+              performedBy: req.user!.userId,
+            });
+            await db.update(affiliatesTable)
+              .set({
+                pendingEarnings: sql`GREATEST(0, ${affiliatesTable.pendingEarnings}::numeric - ${pendingComm.amount}::numeric)`,
+                paidEarnings: sql`${affiliatesTable.paidEarnings}::numeric + ${pendingComm.amount}::numeric`,
+                updatedAt: new Date(),
+              })
+              .where(eq(affiliatesTable.id, pendingComm.affiliateId));
+            console.log(`[AFFILIATE] Credited Rs. ${pendingComm.amount} to affiliate ${pendingComm.affiliateId} for invoice ${updated.invoiceNumber}`);
+          }
+        }
+      }
+    } catch (e) { console.error("[AFFILIATE] commission auto-credit error:", e); }
+
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
   } catch (err) {

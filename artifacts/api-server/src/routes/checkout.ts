@@ -5,7 +5,7 @@ import {
   ordersTable, invoicesTable, hostingPlansTable, hostingServicesTable,
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
   domainExtensionsTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable,
-  creditTransactionsTable, affiliateGroupCommissionsTable, vpsPlansTable,
+  creditTransactionsTable, affiliateGroupCommissionsTable, affiliatePlanCommissionsTable, vpsPlansTable,
   domainTransfersTable,
 } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
@@ -732,11 +732,25 @@ async function handleCheckout(req: AuthRequest, res: any) {
           const [affiliate] = await db.select().from(affiliatesTable)
             .where(eq(affiliatesTable.id, referral.affiliateId)).limit(1);
           if (affiliate && affiliate.status === "active") {
-            // Check for per-group commission rate first, fallback to affiliate personal rate
+            // Priority: 1) per-plan commission, 2) per-group commission, 3) affiliate personal rate
             let commType = affiliate.commissionType;
             let commValue = parseFloat(affiliate.commissionValue);
 
-            if (plan?.groupId) {
+            if (plan?.id) {
+              const [planComm] = await db.select().from(affiliatePlanCommissionsTable)
+                .where(eq(affiliatePlanCommissionsTable.planId, plan.id)).limit(1);
+              if (planComm && planComm.isActive) {
+                commType = planComm.commissionType as typeof commType;
+                commValue = parseFloat(planComm.commissionValue);
+              } else if (plan?.groupId) {
+                const [groupComm] = await db.select().from(affiliateGroupCommissionsTable)
+                  .where(eq(affiliateGroupCommissionsTable.groupId, plan.groupId)).limit(1);
+                if (groupComm && groupComm.isActive) {
+                  commType = groupComm.commissionType;
+                  commValue = parseFloat(groupComm.commissionValue);
+                }
+              }
+            } else if (plan?.groupId) {
               const [groupComm] = await db.select().from(affiliateGroupCommissionsTable)
                 .where(eq(affiliateGroupCommissionsTable.groupId, plan.groupId)).limit(1);
               if (groupComm && groupComm.isActive) {

@@ -83,6 +83,18 @@ export const affiliateGroupCommissionsTable = pgTable("affiliate_group_commissio
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const affiliatePlanCommissionsTable = pgTable("affiliate_plan_commissions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  planId: text("plan_id").notNull(),
+  planName: text("plan_name").notNull(),
+  planType: text("plan_type").notNull().default("hosting"),
+  commissionType: commissionTypeEnum("commission_type_pc").notNull().default("fixed"),
+  commissionValue: numeric("commission_value_pc", { precision: 10, scale: 2 }).notNull().default("0"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertAffiliateSchema = createInsertSchema(affiliatesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertAffiliate = z.infer<typeof insertAffiliateSchema>;
 export type Affiliate = typeof affiliatesTable.$inferSelect;

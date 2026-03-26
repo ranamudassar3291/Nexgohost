@@ -70,6 +70,9 @@ import VpsLocations from "@/pages/admin/VpsLocations";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import KnowledgeBase from "@/pages/admin/KnowledgeBase";
 import KbArticleEditor from "@/pages/admin/KbArticleEditor";
+import Announcements from "@/pages/admin/Announcements";
+import ServerNodes from "@/pages/admin/ServerNodes";
+import Status from "@/pages/public/Status";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -473,6 +476,13 @@ function RouterRoot() {
       <Route path="/admin/knowledge-base">
         <AdminPage><KnowledgeBase /></AdminPage>
       </Route>
+      <Route path="/admin/announcements">
+        <AdminPage><Announcements /></AdminPage>
+      </Route>
+      <Route path="/admin/server-nodes">
+        <AdminPage><ServerNodes /></AdminPage>
+      </Route>
+      <Route path="/status" component={Status} />
       <Route path="/help/:slug">
         <HelpPage><HelpCenterArticle /></HelpPage>
       </Route>

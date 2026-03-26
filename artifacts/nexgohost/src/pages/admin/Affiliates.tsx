@@ -44,6 +44,10 @@ interface GroupCommission {
   groupId: string; groupName: string; commissionType: string;
   commissionValue: string; isActive: boolean; id: string | null;
 }
+interface PlanItem {
+  planId: string; planName: string; planType: string; price: string;
+  commission: { commissionType: string; commissionValue: string; isActive: boolean } | null;
+}
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" });
 
@@ -71,6 +75,9 @@ export default function AdminAffiliates() {
   const [commissions, setCommissions] = useState<CommissionRow[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [groupCommissions, setGroupCommissions] = useState<GroupCommission[]>([]);
+  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
+  const [planEdits, setPlanEdits] = useState<Record<string, { commissionType: string; commissionValue: string; isActive: boolean }>>({});
+  const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Settings state
@@ -101,17 +108,19 @@ export default function AdminAffiliates() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [affs, comms, wds, grpComms, sett] = await Promise.all([
+      const [affs, comms, wds, grpComms, sett, planComms] = await Promise.all([
         apiFetch("/api/admin/affiliates"),
         apiFetch("/api/admin/affiliates/commissions/all"),
         apiFetch("/api/admin/affiliates/withdrawals/all"),
         apiFetch("/api/admin/affiliates/group-commissions"),
         apiFetch("/api/admin/affiliates/settings"),
+        apiFetch("/api/admin/affiliates/plan-commissions"),
       ]);
       setAffiliates(affs.affiliates || []);
       setCommissions(comms.commissions || []);
       setWithdrawals(wds.withdrawals || []);
       setGroupCommissions(grpComms.groupCommissions || []);
+      setPlanItems(planComms.plans || []);
       setPayoutThreshold(String(sett.payoutThreshold ?? 2000));
       setCookieDays(String(sett.cookieDays ?? 30));
     } catch (e: any) {
@@ -252,6 +261,7 @@ export default function AdminAffiliates() {
             <TabsTrigger value="withdrawals">
               Withdrawals {totalWithdrawalsPending > 0 && <span className="ml-1 bg-blue-500 text-white text-xs rounded-full px-1.5">{totalWithdrawalsPending}</span>}
             </TabsTrigger>
+            <TabsTrigger value="plan-commissions"><DollarSign className="h-3.5 w-3.5 mr-1" />Plan Rates</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="h-3.5 w-3.5 mr-1" />Settings</TabsTrigger>
           </TabsList>
 
@@ -466,6 +476,108 @@ export default function AdminAffiliates() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Plan Commissions Tab ── */}
+          <TabsContent value="plan-commissions">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-purple-600" />
+                  Per-Plan Commission Rates
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Set a fixed or % commission for each plan. Overrides group-level rates.</p>
+              </CardHeader>
+              <CardContent>
+                {planItems.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">No active plans found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {planItems.map(p => {
+                      const isEditing = editingPlan === p.planId;
+                      const edit = planEdits[p.planId] ?? {
+                        commissionType: p.commission?.commissionType ?? "fixed",
+                        commissionValue: p.commission?.commissionValue ?? "0",
+                        isActive: p.commission?.isActive ?? true,
+                      };
+                      return (
+                        <div key={p.planId} className="border rounded-lg p-3 bg-card">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="font-medium text-sm">{p.planName}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{p.planType} · Rs. {parseFloat(p.price ?? "0").toLocaleString()}/mo</p>
+                            </div>
+                            {!isEditing ? (
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-purple-600"
+                                onClick={() => {
+                                  setEditingPlan(p.planId);
+                                  setPlanEdits(prev => ({
+                                    ...prev,
+                                    [p.planId]: {
+                                      commissionType: p.commission?.commissionType ?? "fixed",
+                                      commissionValue: p.commission?.commissionValue ?? "0",
+                                      isActive: p.commission?.isActive ?? true,
+                                    },
+                                  }));
+                                }}>
+                                <Pencil className="h-3 w-3 mr-1" /> {p.commission ? "Edit" : "Set Rate"}
+                              </Button>
+                            ) : (
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="ghost" className="h-7 text-xs text-green-600"
+                                  onClick={async () => {
+                                    try {
+                                      await apiFetch(`/api/admin/affiliates/plan-commissions/${p.planId}`, {
+                                        method: "PUT",
+                                        body: JSON.stringify({ planName: p.planName, planType: p.planType, ...edit }),
+                                      });
+                                      toast({ title: "Saved" });
+                                      setEditingPlan(null);
+                                      fetchAll();
+                                    } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+                                  }}>
+                                  <Save className="h-3 w-3 mr-1" /> Save
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-xs text-gray-400" onClick={() => setEditingPlan(null)}>Cancel</Button>
+                              </div>
+                            )}
+                          </div>
+                          {isEditing ? (
+                            <div className="flex gap-2 flex-wrap items-center">
+                              <Select value={edit.commissionType}
+                                onValueChange={v => setPlanEdits(pr => ({ ...pr, [p.planId]: { ...edit, commissionType: v } }))}>
+                                <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="fixed">Fixed (Rs.)</SelectItem>
+                                  <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input type="number" min="0" step="1" value={edit.commissionValue}
+                                onChange={e => setPlanEdits(pr => ({ ...pr, [p.planId]: { ...edit, commissionValue: e.target.value } }))}
+                                className="h-8 text-xs w-28" placeholder="Amount" />
+                              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                                <input type="checkbox" checked={edit.isActive}
+                                  onChange={e => setPlanEdits(pr => ({ ...pr, [p.planId]: { ...edit, isActive: e.target.checked } }))} />
+                                Active
+                              </label>
+                            </div>
+                          ) : (
+                            <p className="text-sm font-semibold text-purple-700">
+                              {p.commission && parseFloat(p.commission.commissionValue) > 0
+                                ? p.commission.commissionType === "percentage"
+                                  ? `${p.commission.commissionValue}% per order`
+                                  : `Rs. ${parseFloat(p.commission.commissionValue).toLocaleString()} per order`
+                                : <span className="text-muted-foreground font-normal text-xs">No specific rate set (uses group/default)</span>}
+                              {p.commission && !p.commission.isActive && <span className="ml-2 text-xs text-muted-foreground">(disabled)</span>}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

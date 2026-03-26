@@ -64,6 +64,10 @@ interface Settings {
   payoutThreshold: number;
   cookieDays: number;
 }
+interface PlanOffer {
+  planId: string; planName: string; planType: string; price: string;
+  commissionType: string; commissionValue: string;
+}
 
 const statusBadge = (s: string) => {
   const map: Record<string, string> = {
@@ -92,6 +96,7 @@ export default function Affiliate() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [groupCommissions, setGroupCommissions] = useState<GroupCommission[]>([]);
+  const [planOffers, setPlanOffers] = useState<PlanOffer[]>([]);
   const [settings, setSettings] = useState<Settings>({ payoutThreshold: 2000, cookieDays: 30 });
   const [loading, setLoading] = useState(true);
   const [activePayoutTab, setActivePayoutTab] = useState<"wallet" | "bank">("wallet");
@@ -109,9 +114,10 @@ export default function Affiliate() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [aff, wds] = await Promise.all([
+      const [aff, wds, offers] = await Promise.all([
         apiFetch("/api/affiliate"),
         apiFetch("/api/affiliate/withdrawals"),
+        apiFetch("/api/affiliate/offers").catch(() => ({ plans: [] })),
       ]);
       setAffiliate(aff.affiliate);
       setCommissions(aff.commissions || []);
@@ -119,6 +125,7 @@ export default function Affiliate() {
       setGroupCommissions(aff.groupCommissions || []);
       setSettings(aff.settings || { payoutThreshold: 2000, cookieDays: 30 });
       setWithdrawals(wds.withdrawals || []);
+      setPlanOffers(offers.plans || []);
     } catch (e: any) {
       toast({ title: "Error", description: e.message || "Failed to load affiliate data", variant: "destructive" });
     } finally {
@@ -301,6 +308,32 @@ export default function Affiliate() {
                   <span className="font-medium text-gray-700 text-sm">{g.groupName}</span>
                   <span className="font-bold text-purple-700 text-sm">
                     {g.commissionType === "percentage" ? `${g.commissionValue}%` : formatPrice(parseFloat(g.commissionValue))}
+                    <span className="text-xs font-normal text-gray-400 ml-1">/ order</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Available Offers */}
+      {planOffers.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Available Offers</CardTitle>
+            <CardDescription>Plans with special per-plan commission rates — great ones to promote!</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {planOffers.map(p => (
+                <div key={p.planId} className="flex items-center justify-between p-3 rounded-lg border border-purple-100 bg-purple-50">
+                  <div>
+                    <p className="font-medium text-sm text-gray-800">{p.planName}</p>
+                    <p className="text-xs text-gray-500 capitalize">{p.planType} · Rs. {parseFloat(p.price ?? "0").toLocaleString()}/mo</p>
+                  </div>
+                  <span className="font-bold text-purple-700 text-sm whitespace-nowrap">
+                    {p.commissionType === "percentage" ? `${p.commissionValue}%` : `Rs. ${parseFloat(p.commissionValue).toLocaleString()}`}
                     <span className="text-xs font-normal text-gray-400 ml-1">/ order</span>
                   </span>
                 </div>

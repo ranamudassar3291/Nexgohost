@@ -32,3 +32,5 @@ export * from "./security-logs";
 export * from "./uploaded-modules";
 export * from "./domain-registrars";
 export * from "./whatsapp-logs";
+export * from "./announcements";
+export * from "./server-status";

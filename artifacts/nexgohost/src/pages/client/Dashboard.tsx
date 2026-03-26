@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,9 @@ interface HostingService {
 
 interface DomainItem {
   id: string; name: string; tld: string; status: string; expiryDate: string | null;
+}
+interface Announcement {
+  id: string; title: string; message: string; type: string; isActive: boolean;
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -83,6 +86,11 @@ export default function ClientDashboard() {
   const { data: allDomains = [] } = useQuery<DomainItem[]>({
     queryKey: ["client-domains-dashboard"],
     queryFn: () => apiFetch("/api/domains").then(d => d || []),
+  });
+  const { data: announcements = [] } = useQuery<Announcement[]>({
+    queryKey: ["public-announcements"],
+    queryFn: () => fetch("/api/announcements").then(r => r.json()).then(d => (d.announcements || []).filter((a: Announcement) => a.isActive)),
+    staleTime: 60_000,
   });
   const activeServices = allServices.filter(s => s.status === "active");
 
@@ -171,6 +179,31 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Announcements Marquee */}
+      {announcements.length > 0 && (
+        <div className="flex items-center gap-3 bg-primary/8 border border-primary/20 rounded-xl px-4 py-2.5 overflow-hidden">
+          <div className="flex items-center gap-1.5 shrink-0 text-primary font-semibold text-xs uppercase tracking-wide">
+            <Megaphone className="h-3.5 w-3.5" />
+            News
+          </div>
+          <div className="h-4 w-px bg-primary/20 shrink-0" />
+          <div className="overflow-hidden flex-1 relative">
+            <div
+              className="flex gap-12 whitespace-nowrap"
+              style={{ animation: `marquee ${Math.max(15, announcements.length * 8)}s linear infinite` }}
+            >
+              {[...announcements, ...announcements].map((a, i) => (
+                <span key={i} className="text-sm text-foreground/80 inline-flex items-center gap-2">
+                  <span className="font-semibold text-foreground">{a.title}:</span>
+                  {a.message}
+                </span>
+              ))}
+            </div>
+          </div>
+          <style>{`@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+        </div>
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

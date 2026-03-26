@@ -44,6 +44,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "Tickets",          href: "/admin/tickets",                 icon: (() => null) as any },
       { name: "Knowledge Base",   href: "/admin/knowledge-base",          icon: (() => null) as any },
+      { name: "Announcements",    href: "/admin/announcements",           icon: (() => null) as any },
       { name: "Migrations",       href: "/admin/migrations",              icon: (() => null) as any },
       { name: "Cancellations",    href: "/admin/cancellation-requests",   icon: (() => null) as any },
     ],
@@ -64,6 +65,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: "Infrastructure",
     items: [
       { name: "Servers",            href: "/admin/servers",            icon: (() => null) as any },
+      { name: "Server Nodes",       href: "/admin/server-nodes",       icon: (() => null) as any },
       { name: "Modules",            href: "/admin/modules",            icon: (() => null) as any },
       { name: "VPS Plans",          href: "/admin/vps",                icon: (() => null) as any },
       { name: "Domain Registrars",  href: "/admin/domain-registrars",  icon: (() => null) as any },
