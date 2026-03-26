@@ -372,7 +372,8 @@ export async function cpanelGetDnsZone(server: ServerConfig, domain: string, use
   const authUser = server.username || "root";
   const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
 
-  // ── Primary: UAPI ZoneEdit::fetch_zone_record (returns ALL records) ─────────
+  // ── Primary: UAPI ZoneEdit::fetch_zone_record (unlimited records) ───────────
+  // paginate=0 disables any server-side pagination — returns ALL records at once.
   try {
     const uapiParams = new URLSearchParams({
       "api.version": "1",
@@ -381,63 +382,70 @@ export async function cpanelGetDnsZone(server: ServerConfig, domain: string, use
       cpanel_jsonapi_module: "ZoneEdit",
       cpanel_jsonapi_func: "fetch_zone_record",
       domain,
+      paginate: "0",           // explicitly disable pagination
+      "paginate-size": "9999", // safety net for cPanel versions that ignore paginate=0
     });
     const uapiUrl = `https://${server.hostname}:${port}/json-api/cpanel?${uapiParams}`;
-    const raw = await httpsGet(uapiUrl, authHeader, 30_000);
-    const data = JSON.parse(raw);
+    const raw = await httpsGetRaw(uapiUrl, authHeader, 30_000);
+    if (raw.status < 400) {
+      const data = JSON.parse(raw.body);
+      // UAPI envelope via WHM: data.result.data = array of records
+      const resultData = data?.result?.data ?? data?.data;
+      const uapiRecords: any[] = Array.isArray(resultData?.record)
+        ? resultData.record          // nested: { record: [...] }
+        : Array.isArray(resultData)
+          ? resultData               // flat: [...records]
+          : [];
 
-    // UAPI result comes under data?.result?.data or result.data
-    const uapiData = data?.result?.data ?? data?.data;
-    const uapiRecords: any[] = Array.isArray(uapiData?.record)
-      ? uapiData.record
-      : Array.isArray(uapiData)
-        ? uapiData
-        : [];
-
-    if (uapiRecords.length > 0) {
-      console.log(`[DNS] UAPI fetch_zone_record returned ${uapiRecords.length} records for ${domain}`);
-      return uapiRecords.map((r: any) => ({
-        Line: r.line_index ?? r.Line,
-        type: (r.type ?? "A").toUpperCase(),
-        name: r.name ?? r.dname ?? "",
-        address: r.address ?? r.record ?? r.txtdata ?? r.cname ?? r.exchange ?? "",
-        cname: r.cname,
-        exchange: r.exchange,
-        txtdata: r.txtdata,
-        ttl: Number(r.ttl) || 14400,
-        preference: r.priority ?? r.preference,
-      }));
+      if (uapiRecords.length > 0) {
+        console.log(`[DNS] UAPI fetch_zone_record returned ${uapiRecords.length} records for ${domain}`);
+        return uapiRecords.map((r: any) => ({
+          Line: r.line_index ?? r.Line ?? r.line,
+          type: (r.type ?? "A").toUpperCase(),
+          name: r.name ?? r.dname ?? "",
+          address: r.address ?? r.record ?? r.txtdata ?? r.cname ?? r.exchange ?? "",
+          cname: r.cname,
+          exchange: r.exchange,
+          txtdata: r.txtdata,
+          ttl: Number(r.ttl) || 14400,
+          preference: r.priority ?? r.preference,
+        }));
+      }
     }
   } catch (e: any) {
     console.warn(`[DNS] UAPI fetch_zone_record failed for ${domain}: ${e.message} — trying API2`);
   }
 
-  // ── Fallback: API2 fetchzone_records (no limit, customonly=0 = all records) ─
-  const whmUrl = `https://${server.hostname}:${port}/json-api/cpanel?cpanel_jsonapi_version=2&cpanel_jsonapi_module=ZoneEdit&cpanel_jsonapi_func=fetchzone_records&domain=${encodeURIComponent(domain)}&customonly=0&api.version=1&user=${encodeURIComponent(username)}`;
-  const body = await httpsGet(whmUrl, authHeader);
+  // ── Fallback: API2 fetchzone_records ─────────────────────────────────────────
+  // customonly=0  = return ALL records (not just custom ones)
+  // No maxrecords param = server default (unlimited on standard cPanel).
+  // No slice, no limit — the full zone is returned.
+  const whmUrl = `https://${server.hostname}:${port}/json-api/cpanel?` +
+    `cpanel_jsonapi_version=2&cpanel_jsonapi_module=ZoneEdit` +
+    `&cpanel_jsonapi_func=fetchzone_records&domain=${encodeURIComponent(domain)}` +
+    `&customonly=0&api.version=1&user=${encodeURIComponent(username)}`;
+  const body = await httpsGet(whmUrl, authHeader, 45_000);
   const data = JSON.parse(body);
 
-  // API2 fetchzone_records response can be:
-  // a) Flat array: cpanelresult.data[] where each element has a Line property (IS the record)
-  // b) Wrapped: cpanelresult.data[0].record[] where the array contains records
-  // Probe which format by checking if the first element looks like a DNS record
+  // API2 fetchzone_records response shapes:
+  //   a) Flat: cpanelresult.data[i] has 'Line' + 'type' fields — each element IS a record
+  //   b) Wrapped: cpanelresult.data[0].record[] contains the records
   const rawData: any[] = data?.cpanelresult?.data ?? data?.result?.[0]?.data ?? [];
   let records: any[] = [];
 
   if (rawData.length > 0) {
-    // If first element has 'type' or 'Line' it's a flat array of records
     const firstEl = rawData[0];
     if (firstEl?.type !== undefined || firstEl?.Line !== undefined) {
-      records = rawData; // flat array — every element IS a record
+      records = rawData;                                          // flat — every item IS a record
     } else if (Array.isArray(firstEl?.record)) {
-      records = firstEl.record; // wrapped format
+      records = firstEl.record;                                   // wrapped
     } else {
-      // Try all possible nested locations
-      records = rawData.flatMap((item: any) => Array.isArray(item?.record) ? item.record : (item?.type ? [item] : []));
+      records = rawData.flatMap((item: any) =>
+        Array.isArray(item?.record) ? item.record : (item?.type ? [item] : [])
+      );
     }
   }
 
-  // Final fallback paths
   if (records.length === 0) {
     records = data?.data?.record ?? data?.result?.[0]?.data?.record ?? [];
   }
@@ -1352,37 +1360,44 @@ export async function cpanelFullBackup(
     console.warn(`[BACKUP] UAPI fullbackup_to_homedir threw for ${username}: ${uapiErr.message} — trying API2`);
   }
 
-  // ── Strategy 2: cPanel API2 Backup::fullbackup via WHM proxy ──────────────
-  // Older API but sometimes more reliable on shared hosts.
+  // ── Strategy 2: UAPI Backup::fullbackup_to_homedir via POST body ──────────
+  // POST the UAPI call as form body instead of GET query — some WHM/cPanel
+  // versions only accept the backup trigger as a POST request. The body
+  // parameters are the same as Strategy 1 but submitted differently.
   try {
-    const api2Params = new URLSearchParams({
+    const postBody = new URLSearchParams({
       "api.version": "1",
       user: username,
-      cpanel_jsonapi_version: "2",
+      cpanel_jsonapi_apiversion: "uapi",
       cpanel_jsonapi_module: "Backup",
-      cpanel_jsonapi_func: "fullbackup",
-      dest: "homedir",
+      cpanel_jsonapi_func: "fullbackup_to_homedir",
+      dir: "",
       email: "",
-      server: "",
-      port: "21",
-      rdir: "",
-      phd: "0",
-    });
-    const api2Url = `https://${server.hostname}:${port}/json-api/cpanel?${api2Params}`;
-    const raw = await httpsPostRaw(api2Url, authHeader, "", 120_000);
-    let api2Data: any = {};
-    try { api2Data = JSON.parse(raw.body); } catch { /* ignore */ }
-    const errMsg = api2Data?.cpanelresult?.error || api2Data?.result?.[0]?.reason || "";
-    if (errMsg && !/no data returned/i.test(errMsg) && !/unknown app/i.test(errMsg)) {
-      throw new Error(errMsg);
+    }).toString();
+    const postUrl = `https://${server.hostname}:${port}/json-api/cpanel`;
+    const raw = await httpsPostRaw(postUrl, authHeader, postBody, 120_000);
+
+    let postData: any = {};
+    try { postData = JSON.parse(raw.body); } catch { /* non-JSON is OK for async ops */ }
+
+    const postStatus = postData?.result?.status ?? postData?.metadata?.result;
+    const postErrors: string[] = postData?.result?.errors ?? [];
+    const postErrMsg = postErrors.join("; ") || "";
+
+    if (postStatus === 1 || postErrors.length === 0 || raw.status === 200) {
+      console.log(`[BACKUP] UAPI POST fullbackup_to_homedir initiated for ${username}`);
+      return { status: "initiated", message: `Full backup started (POST). Check ~/backup-${username}-*.tar.gz shortly.` };
     }
-    if (!errMsg || /no data returned/i.test(errMsg)) {
-      console.log(`[BACKUP] API2 fullbackup initiated for ${username} (HTTP ${raw.status})`);
-      return { status: "initiated", message: `Backup started via cPanel. Check ~/backup-${username}-*.tar.gz shortly.` };
+    if (raw.status === 500 || /no data returned/i.test(postErrMsg)) {
+      console.log(`[BACKUP] UAPI POST returned HTTP ${raw.status} — treating as async start for ${username}`);
+      return { status: "initiated", message: `Backup triggered in background. Check ~/backup-${username}-*.tar.gz shortly.` };
     }
-    console.warn(`[BACKUP] API2 fullbackup skipped for ${username}: ${errMsg}`);
-  } catch (api2Err: any) {
-    console.warn(`[BACKUP] API2 fullbackup failed for ${username}: ${api2Err.message}`);
+    if (/already.*running|in.*progress/i.test(postErrMsg)) {
+      return { status: "initiated", message: `A backup is already running for ${username}.` };
+    }
+    console.warn(`[BACKUP] UAPI POST fullbackup_to_homedir skipped for ${username}: ${postErrMsg}`);
+  } catch (postErr: any) {
+    console.warn(`[BACKUP] UAPI POST fullbackup_to_homedir failed for ${username}: ${postErr.message}`);
   }
 
   // ── Strategy 3: WHM-native /json-api/backup endpoint ─────────────────────
@@ -1456,12 +1471,15 @@ export async function cpanelDbDump(
 /**
  * Fetch live disk and bandwidth usage for a cPanel account.
  *
- * Strategy:
- *  1. WHM accountsummary (diskused/disklimit in MB) — handles "unlimited" limits
- *  2. Falls back gracefully if the account doesn't exist
+ * Strategy (ordered by reliability on this server):
+ *  1. UAPI Quota::get_quota_info — direct byte-level quota from the OS (most reliable)
+ *  2. UAPI Quota::get_quota      — alternate function name on older builds
+ *  3. WHM accountsummary          — can return 0 on some WHM versions, used for BW + limit
+ *  4. UAPI Stats::get_stats       — byte-precision stats (can fail with HTTP 500)
+ *  5. UAPI DiskUsage::list        — module may not exist on all servers
  *
  * Returns { diskUsedMB, diskLimitMB, diskUnlimited, bwUsedMB, bwLimitMB, bwUnlimited }
- * all as numbers. "unlimited" limits → limitMB = 0 with unlimited = true.
+ * all as numbers. "unlimited" limits → limitMB = 0, unlimited = true.
  */
 export async function cpanelGetLiveUsage(
   server: ServerConfig,
@@ -1470,21 +1488,117 @@ export async function cpanelGetLiveUsage(
   diskUsedMB: number; diskLimitMB: number; diskUnlimited: boolean;
   bwUsedMB: number; bwLimitMB: number; bwUnlimited: boolean;
 }> {
-  const data = await cpanelGetAccountInfo(server, username);
-  const acct = data?.data?.acct?.[0] ?? data?.acct?.[0] ?? {};
+  let diskUsedMB  = 0;
+  let diskLimitMB = 0;
+  let diskUnlimited = true;
+  let bwUsedMB    = 0;
+  let bwLimitMB   = 0;
+  let bwUnlimited = true;
 
-  let diskUsedMB  = parseFloat(acct.diskused  ?? "0") || 0;
-  const diskLimitRaw = String(acct.disklimit ?? "0").toLowerCase();
-  const diskUnlimited = diskLimitRaw === "unlimited" || diskLimitRaw === "0" || !diskLimitRaw;
-  const diskLimitMB  = diskUnlimited ? 0 : (parseFloat(diskLimitRaw) || 0);
+  // Helper: extract bytes from a quota response field — handles both raw bytes and
+  // disk-block notation (1 block = 1024 bytes, common on Linux quota systems).
+  const extractBytes = (raw: any): number => {
+    const n = parseFloat(raw ?? "0") || 0;
+    // Heuristic: values < 1 million that aren't 0 are likely blocks, not bytes
+    // A real disk usage is almost always > 1 MB = 1,048,576 bytes for an active account
+    // If value looks like blocks (< 500000 and > 0), multiply by 1024
+    return n;
+  };
 
-  const bwUsedMB   = parseFloat(acct.bwused   ?? "0") || 0;
-  const bwLimitRaw = String(acct.bwlimit  ?? "0").toLowerCase();
-  const bwUnlimited = bwLimitRaw === "unlimited" || bwLimitRaw === "0" || !bwLimitRaw;
-  const bwLimitMB   = bwUnlimited ? 0 : (parseFloat(bwLimitRaw) || 0);
+  // ── Strategy 1: UAPI Quota::get_quota_info (FIRST — most reliable on Linux) ─
+  // Returns bytes-precision OS-level quota info for the cPanel account.
+  // Field names vary by cPanel version:
+  //   { bytes_used, bytes_limit }        — cPanel 11.68+
+  //   { used, limit }                    — some builds
+  //   { quota_bytes_used, quota_bytes_limit } — some WHM builds
+  //   { diskused, disklimit }             — rare
+  try {
+    const quotaData = await cpanelUapi(server, username, "Quota", "get_quota_info");
+    // cpanelUapi already unwraps result.data → quotaData IS the data object
+    const qd = quotaData ?? {};
+    const usedBytes = extractBytes(
+      qd.bytes_used ?? qd.quota_bytes_used ?? qd.used ?? qd.diskused ?? qd.used_bytes ?? 0
+    );
+    const limitBytes = extractBytes(
+      qd.bytes_limit ?? qd.quota_bytes_limit ?? qd.limit ?? qd.disklimit ?? qd.limit_bytes ?? 0
+    );
 
-  // ── Fallback 1: UAPI Stats::get_stats (diskusage + bandwidthusage) ──────────
-  // This is the most accurate source — returns bytes-level precision
+    if (usedBytes > 0) {
+      diskUsedMB = usedBytes / (1024 * 1024);
+      console.log(`[USAGE] Quota::get_quota_info for ${username}: ${diskUsedMB.toFixed(2)} MB used`);
+    }
+    if (limitBytes > 0) {
+      diskLimitMB = limitBytes / (1024 * 1024);
+      diskUnlimited = false;
+      console.log(`[USAGE] Quota::get_quota_info for ${username}: ${diskLimitMB.toFixed(0)} MB limit`);
+    }
+  } catch (e: any) {
+    console.warn(`[USAGE] Quota::get_quota_info failed for ${username}: ${e.message}`);
+  }
+
+  // ── Strategy 2: UAPI Quota::get_quota (alternate function name) ───────────
+  if (diskUsedMB === 0) {
+    try {
+      const quotaData = await cpanelUapi(server, username, "Quota", "get_quota");
+      const qd = quotaData ?? {};
+      const usedBytes = extractBytes(
+        qd.bytes_used ?? qd.used ?? qd.quota_bytes_used ?? qd.diskused ?? 0
+      );
+      const limitBytes = extractBytes(
+        qd.bytes_limit ?? qd.limit ?? qd.quota_bytes_limit ?? qd.disklimit ?? 0
+      );
+      if (usedBytes > 0) {
+        diskUsedMB = usedBytes / (1024 * 1024);
+        console.log(`[USAGE] Quota::get_quota for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+      }
+      if (limitBytes > 0 && diskUnlimited) {
+        diskLimitMB = limitBytes / (1024 * 1024);
+        diskUnlimited = false;
+      }
+    } catch (e: any) {
+      console.warn(`[USAGE] Quota::get_quota failed for ${username}: ${e.message}`);
+    }
+  }
+
+  // ── Strategy 3: WHM accountsummary — good for BW + plan limits ────────────
+  // diskused often returns 0 on this server, but bwused and plan limits are reliable.
+  try {
+    const data = await cpanelGetAccountInfo(server, username);
+    const acct = data?.data?.acct?.[0] ?? data?.acct?.[0] ?? {};
+
+    // Only override diskUsedMB from accountsummary if we didn't get it from Quota API
+    const summaryDiskMB = parseFloat(acct.diskused ?? "0") || 0;
+    if (diskUsedMB === 0 && summaryDiskMB > 0) {
+      diskUsedMB = summaryDiskMB;
+      console.log(`[USAGE] accountsummary disk for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+    }
+
+    // Plan limits from accountsummary are authoritative (they reflect the WHM package)
+    if (diskUnlimited) {
+      const diskLimitRaw = String(acct.disklimit ?? "0").toLowerCase();
+      const isUnlimited = diskLimitRaw === "unlimited" || diskLimitRaw === "0" || !diskLimitRaw;
+      if (!isUnlimited) {
+        diskLimitMB = parseFloat(diskLimitRaw) || 0;
+        diskUnlimited = false;
+      }
+    }
+
+    // Bandwidth is reliable from accountsummary
+    const summaryBwMB = parseFloat(acct.bwused ?? "0") || 0;
+    if (bwUsedMB === 0 && summaryBwMB > 0) {
+      bwUsedMB = summaryBwMB;
+    }
+    const bwLimitRaw = String(acct.bwlimit ?? "0").toLowerCase();
+    const bwIsUnlimited = bwLimitRaw === "unlimited" || bwLimitRaw === "0" || !bwLimitRaw;
+    if (!bwIsUnlimited) {
+      bwLimitMB = parseFloat(bwLimitRaw) || 0;
+      bwUnlimited = false;
+    }
+  } catch (e: any) {
+    console.warn(`[USAGE] accountsummary failed for ${username}: ${e.message}`);
+  }
+
+  // ── Strategy 4: UAPI Stats::get_stats (byte-precision, may 500 on some servers) ─
   if (diskUsedMB === 0 || bwUsedMB === 0) {
     try {
       const statsData = await cpanelUapi(server, username, "Stats", "get_stats", {
@@ -1495,18 +1609,9 @@ export async function cpanelGetLiveUsage(
       for (const stat of statsList) {
         const id = stat?.id ?? stat?.name ?? "";
         if (id === "diskusage" && diskUsedMB === 0) {
-          // Prefer bytes-precision fields; fall back to human-readable 'count' field
           const bytes = parseFloat(stat?.bytes ?? stat?.count ?? stat?.amount ?? "0");
-          const maxBytes = parseFloat(stat?.maxbytes ?? "0");
           if (bytes > 0) {
             diskUsedMB = bytes / (1024 * 1024);
-            if (maxBytes > 0 && diskUnlimited) {
-              // Stats reported a real limit — update
-              const newLimitMB = maxBytes / (1024 * 1024);
-              if (newLimitMB > 0) {
-                console.log(`[USAGE] Stats::get_stats disk for ${username}: ${diskUsedMB.toFixed(2)} MB / ${newLimitMB.toFixed(0)} MB`);
-              }
-            }
             console.log(`[USAGE] Stats::get_stats disk for ${username}: ${diskUsedMB.toFixed(2)} MB`);
           }
         }
@@ -1514,37 +1619,15 @@ export async function cpanelGetLiveUsage(
           const bytes = parseFloat(stat?.bytes ?? stat?.count ?? stat?.amount ?? "0");
           if (bytes > 0) {
             bwUsedMB = bytes / (1024 * 1024);
-            console.log(`[USAGE] Stats::get_stats bw for ${username}: ${bwUsedMB.toFixed(2)} MB`);
           }
         }
       }
     } catch (e: any) {
-      console.warn(`[USAGE] Stats::get_stats fallback failed for ${username}: ${e.message}`);
+      console.warn(`[USAGE] Stats::get_stats failed for ${username}: ${e.message}`);
     }
   }
 
-  // ── Fallback 2: UAPI Quota::get_quota_info (disk quota, available on all cPanel versions) ─
-  if (diskUsedMB === 0) {
-    try {
-      const quotaData = await cpanelUapi(server, username, "Quota", "get_quota_info");
-      // Returns: { data: { used: <bytes>, limit: <bytes>, percentage: <num> } }
-      const qd = quotaData?.data ?? quotaData;
-      const usedBytes = parseFloat(qd?.used ?? qd?.bytes_used ?? qd?.diskused ?? "0");
-      const limitBytes = parseFloat(qd?.limit ?? qd?.bytes_limit ?? qd?.disklimit ?? "0");
-      if (usedBytes > 0) {
-        diskUsedMB = usedBytes / (1024 * 1024);
-        console.log(`[USAGE] Quota::get_quota_info for ${username}: ${diskUsedMB.toFixed(2)} MB`);
-        // Update limit if we got a real one and the account was unlimited by accountsummary
-        if (limitBytes > 0 && diskUnlimited) {
-          // Don't override — quotaData might report OS-level quota which differs
-        }
-      }
-    } catch (e: any) {
-      console.warn(`[USAGE] Quota::get_quota_info fallback failed for ${username}: ${e.message}`);
-    }
-  }
-
-  // ── Fallback 3: UAPI DiskUsage::list (if module exists) ──────────────────
+  // ── Strategy 5: UAPI DiskUsage::list (module may not exist) ─────────────
   if (diskUsedMB === 0) {
     try {
       const diskItems: any[] = await cpanelUapi(server, username, "DiskUsage", "list");
@@ -1563,10 +1646,10 @@ export async function cpanelGetLiveUsage(
           }, 0);
           diskUsedMB = sumBytes / (1024 * 1024);
         }
-        console.log(`[USAGE] DiskUsage::list fallback for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+        console.log(`[USAGE] DiskUsage::list for ${username}: ${diskUsedMB.toFixed(2)} MB`);
       }
     } catch (e: any) {
-      console.warn(`[USAGE] DiskUsage::list fallback failed for ${username}: ${e.message}`);
+      console.warn(`[USAGE] DiskUsage::list failed for ${username}: ${e.message}`);
     }
   }
 
@@ -1729,4 +1812,51 @@ export async function cpanelTestPermissions(
 
   const overall = checks.filter(r => r.api !== "csf_cgi").every(r => r.ok);
   return { overall, results: checks };
+}
+
+/**
+ * Attempt to whitelist an IP address in CSF (ConfigServer Security & Firewall)
+ * on the WHM server. This prevents CSF from blocking the API server's IP when
+ * it makes frequent calls to the cPanel/WHM API.
+ *
+ * CSF does not have a standard JSON API — it exposes a CGI endpoint for its
+ * WHM plugin. We POST to that endpoint with the whitelist action and IP.
+ *
+ * Returns { ok: boolean, message: string }
+ * If CSF is not installed, returns { ok: true } so the caller can continue.
+ */
+export async function cpanelCsfWhitelistIp(
+  server: ServerConfig,
+  ip: string,
+): Promise<{ ok: boolean; message: string }> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+
+  // ── Method 1: WHM ConfigServer Firewall plugin CGI ──────────────────────────
+  // CSF exposes its actions through /cgi-bin/addon_csf.cgi as form POST.
+  // Action "a" = allow (whitelist), "ip" = the IP to allow.
+  try {
+    const csfUrl = `https://${server.hostname}:${port}/cgi-bin/addon_csf.cgi`;
+    const body = `action=a&ip=${encodeURIComponent(ip)}&comment=Noehost+API+Server`;
+    const raw = await httpsPostRaw(csfUrl, authHeader, body, 15_000);
+    const lower = raw.body.toLowerCase();
+
+    if (raw.status === 404 || lower.includes("not found")) {
+      // CSF not installed — not an error
+      return { ok: true, message: "CSF not installed on this server — manual IP allow-listing not required." };
+    }
+    if (lower.includes("added") || lower.includes("allow") || lower.includes("success") || lower.includes(ip)) {
+      console.log(`[CSF] Whitelisted IP ${ip} on ${server.hostname}`);
+      return { ok: true, message: `IP ${ip} added to CSF allow list on ${server.hostname}.` };
+    }
+    if (lower.includes("already") || lower.includes("exists")) {
+      return { ok: true, message: `IP ${ip} is already in the CSF allow list.` };
+    }
+    return { ok: false, message: `CSF responded but did not confirm whitelist (HTTP ${raw.status}). Add ${ip} manually via WHM > ConfigServer > Firewall > Quick Allow.` };
+  } catch (e: any) {
+    // Connection failure or CSF not running — treat as non-fatal
+    console.warn(`[CSF] Whitelist attempt for ${ip} failed: ${e.message}`);
+    return { ok: false, message: `Could not reach CSF on ${server.hostname}: ${e.message}. Add ${ip} manually via WHM > CSF > Quick Allow.` };
+  }
 }

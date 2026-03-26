@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { serversTable, serverGroupsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq } from "drizzle-orm";
-import { cpanelTestConnection, cpanelTestPermissions } from "../lib/cpanel.js";
+import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
 import { twentyiTestConnection, twentyiGetPackages } from "../lib/twenty-i.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
@@ -193,14 +193,35 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
       res.status(400).json({ error: result.message, success: false });
       return;
     }
-    // Run detailed permission diagnostics in parallel (non-destructive)
+    // Run permission diagnostics + CSF whitelist in parallel (both non-destructive)
     let permissions: { name: string; api: string; ok: boolean; reason: string }[] = [];
+    let csfMessage = "";
     try {
-      const permResult = await cpanelTestPermissions(serverCfg);
+      // Detect the outbound IP of this API server so CSF can whitelist it
+      const serverIp: string = await new Promise((resolve) => {
+        const req = https.get({ hostname: "api.ipify.org", path: "/?format=json", rejectUnauthorized: false }, (resp) => {
+          let d = "";
+          resp.on("data", c => d += c);
+          resp.on("end", () => {
+            try { resolve(JSON.parse(d).ip ?? ""); } catch { resolve(""); }
+          });
+        });
+        req.on("error", () => resolve(""));
+        req.setTimeout(5000, () => { req.destroy(); resolve(""); });
+      });
+
+      const [permResult, csfResult] = await Promise.all([
+        cpanelTestPermissions(serverCfg),
+        serverIp
+          ? cpanelCsfWhitelistIp(serverCfg, serverIp)
+          : Promise.resolve({ ok: true, message: "Could not detect outbound IP for CSF whitelist." }),
+      ]);
       permissions = permResult.results;
+      csfMessage = csfResult.message;
       console.log(`[SERVERS] Permission test for ${server.hostname}: ${permResult.results.filter(r => r.ok).length}/${permResult.results.length} OK`);
+      console.log(`[SERVERS] CSF whitelist for ${server.hostname} (IP: ${serverIp || "unknown"}): ${csfMessage}`);
     } catch (e: any) {
-      console.warn(`[SERVERS] Permission test error: ${e.message}`);
+      console.warn(`[SERVERS] Permission/CSF test error: ${e.message}`);
     }
     res.json({
       success: true,
@@ -208,6 +229,7 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
       message: result.message,
       packages: result.packages,
       permissions,
+      csfWhitelist: csfMessage,
     });
     return;
   }
