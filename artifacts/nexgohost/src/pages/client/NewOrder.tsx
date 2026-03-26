@@ -72,13 +72,35 @@ interface PaymentMethod {
 
 interface CartDomain { fullName: string; price: number; originalPrice?: number; mode: DomainMode; }
 
+type VpsCycle = "monthly" | "quarterly" | "semiannual" | "yearly" | "biennial";
+
 interface VpsPlan {
   id: string; name: string; description: string | null;
-  price: number; yearlyPrice: number | null;
+  price: number;
+  quarterlyPrice: number | null;
+  semiannualPrice: number | null;
+  yearlyPrice: number | null;
+  biennialPrice: number | null;
   cpuCores: number; ramGb: number; storageGb: number; bandwidthTb: number | null;
   virtualization: string | null; features: string[]; saveAmount: number | null;
   osTemplateIds: string[]; locationIds: string[]; isActive: boolean;
 }
+
+function vpsPriceForCycle(plan: VpsPlan, cycle: VpsCycle): number {
+  if (cycle === "quarterly" && plan.quarterlyPrice) return plan.quarterlyPrice;
+  if (cycle === "semiannual" && plan.semiannualPrice) return plan.semiannualPrice;
+  if (cycle === "yearly" && plan.yearlyPrice) return plan.yearlyPrice;
+  if (cycle === "biennial" && plan.biennialPrice) return plan.biennialPrice;
+  return plan.price;
+}
+
+const VPS_CYCLE_OPTS: { value: VpsCycle; label: string; months: number }[] = [
+  { value: "monthly",    label: "1 Month",   months: 1  },
+  { value: "quarterly",  label: "3 Months",  months: 3  },
+  { value: "semiannual", label: "6 Months",  months: 6  },
+  { value: "yearly",     label: "1 Year",    months: 12 },
+  { value: "biennial",   label: "2 Years",   months: 24 },
+];
 interface VpsOsTemplate { id: string; name: string; version: string; iconUrl: string | null; imageId?: string | null; }
 interface VpsLocation { id: string; countryName: string; countryCode: string; flagIcon: string | null; }
 
@@ -228,7 +250,7 @@ interface MobileSummaryProps {
   freeDomain: boolean; fmt: (n: number) => string;
   ctaLabel: string; canContinue: boolean; onContinue: () => void;
   loading?: boolean;
-  vpsPlan?: VpsPlan | null; vpsCycle?: "monthly" | "yearly"; vpsPrice?: number;
+  vpsPlan?: VpsPlan | null; vpsCycle?: VpsCycle; vpsPrice?: number;
 }
 
 function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canContinue, onContinue, loading, vpsPlan, vpsCycle, vpsPrice }: MobileSummaryProps) {
@@ -257,7 +279,7 @@ function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canC
               <div className="flex justify-between items-center py-2.5 border-b border-gray-100">
                 <div>
                   <p className="text-[13px] font-semibold text-black">{vpsPlan.name}</p>
-                  <p className="text-[11px] text-gray-400">VPS · {vpsCycle === "yearly" ? "Yearly" : "Monthly"}</p>
+                  <p className="text-[11px] text-gray-400">VPS · {VPS_CYCLE_OPTS.find(o => o.value === vpsCycle)?.label ?? vpsCycle}</p>
                 </div>
                 <span className="text-[14px] font-extrabold">{fmt(vpsPrice ?? 0)}</span>
               </div>
@@ -309,7 +331,7 @@ function MobileSummaryBar({ plan, cycle, domain, freeDomain, fmt, ctaLabel, canC
                 </p>
                 {expanded ? <ChevronDown size={13} className="text-gray-400 shrink-0"/> : <ChevronUp size={13} className="text-gray-400 shrink-0"/>}
               </div>
-              <p className="text-[13px] font-extrabold" style={{ color: P }}>{fmt(total)} <span className="text-[11px] font-medium text-gray-400">/ {vpsPlan ? (vpsCycle === "yearly" ? "year" : "month") : CYCLE_LABELS[cycle].toLowerCase()}</span></p>
+              <p className="text-[13px] font-extrabold" style={{ color: P }}>{fmt(total)} <span className="text-[11px] font-medium text-gray-400">/ {vpsPlan ? (VPS_CYCLE_OPTS.find(o => o.value === vpsCycle)?.label.toLowerCase() ?? vpsCycle) : CYCLE_LABELS[cycle].toLowerCase()}</span></p>
             </button>
             <button onClick={onContinue} disabled={!canContinue || loading}
               className="shrink-0 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white flex items-center gap-1.5 transition-all"
@@ -339,7 +361,7 @@ interface SidebarProps {
   onRmPlan: () => void; onRmDom: () => void;
   ctaLabel: string; canContinue: boolean; onContinue: () => void; loading?: boolean;
   // VPS
-  vpsPlan?: VpsPlan | null; vpsCycle?: "monthly" | "yearly"; vpsPrice?: number;
+  vpsPlan?: VpsPlan | null; vpsCycle?: VpsCycle; vpsPrice?: number;
   onRmVps?: () => void;
   vpsOsName?: string; vpsLocationName?: string;
   vpsAutoRenew?: boolean; vpsWeeklyBackups?: boolean;
@@ -380,7 +402,7 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
                   <p className="text-[13px] font-bold text-black truncate">
                     <Cpu size={10} className="inline mr-1" style={{ color: P }}/>{vpsPlan.name}
                   </p>
-                  <p className="text-[11px] text-gray-400">{vpsCycle === "yearly" ? "Yearly" : "Monthly"} · KVM VPS</p>
+                  <p className="text-[11px] text-gray-400">{VPS_CYCLE_OPTS.find(o => o.value === vpsCycle)?.label ?? vpsCycle} · KVM VPS</p>
                   <p className="text-[10.5px] text-gray-400">{vpsPlan.cpuCores} vCPU · {vpsPlan.ramGb}GB RAM · {vpsPlan.storageGb}GB NVMe</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -485,7 +507,7 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
                 <span className="text-[20px] font-extrabold text-black">{fmt(total)}</span>
               </div>
               <p className="text-[11px] text-right text-gray-400 mt-0.5">
-                per {vpsPlan ? (vpsCycle === "yearly" ? "year" : "month") : CYCLE_LABELS[activeCycle].toLowerCase()}
+                per {vpsPlan ? (VPS_CYCLE_OPTS.find(o => o.value === vpsCycle)?.label.toLowerCase() ?? vpsCycle) : CYCLE_LABELS[activeCycle].toLowerCase()}
               </p>
             </div>
           </div>
@@ -717,7 +739,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
   // VPS flow
   const [selectedVpsPlan,   setSelectedVpsPlan]   = useState<VpsPlan | null>(null);
-  const [vpsSelectedCycle,  setVpsSelectedCycle]  = useState<"monthly" | "yearly">("yearly");
+  const [vpsSelectedCycle,  setVpsSelectedCycle]  = useState<VpsCycle>("yearly");
   const [selectedOsTemplate, setSelectedOsTemplate] = useState<VpsOsTemplate | null>(null);
   const [selectedLocation,  setSelectedLocation]  = useState<VpsLocation | null>(null);
   const [vpsHostname,       setVpsHostname]       = useState("");
@@ -847,9 +869,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // Step completion gates
   const step1Complete = !!pendingPlan;
   const step2Complete = domainMode !== null;
-  const _vpsPrice = selectedVpsPlan
-    ? (vpsSelectedCycle === "yearly" && selectedVpsPlan.yearlyPrice ? selectedVpsPlan.yearlyPrice : selectedVpsPlan.price)
-    : 0;
+  const _vpsPrice = selectedVpsPlan ? vpsPriceForCycle(selectedVpsPlan, vpsSelectedCycle) : 0;
   const _step3Total = service === "vps" && selectedVpsPlan
     ? Math.max(0, _vpsPrice - promoDiscount)
     : Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) - promoDiscount);
@@ -1630,12 +1650,24 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     const allPlans = vpsPlans;
     const midIdx   = Math.floor(allPlans.length / 2);
 
-    // Compute save-percentage for the yearly toggle badge
+    // Compute save-percentage for the currently selected cycle
+    const cycleOptNow = VPS_CYCLE_OPTS.find(o => o.value === vpsSelectedCycle)!;
     const maxSavePct = allPlans.reduce((best, plan) => {
-      if (!plan.yearlyPrice || !plan.price) return best;
-      const pct = Math.round((1 - plan.yearlyPrice / (plan.price * 12)) * 100);
+      const cp = vpsPriceForCycle(plan, vpsSelectedCycle);
+      const pct = Math.round((1 - (cp / cycleOptNow.months) / plan.price) * 100);
       return pct > best ? pct : best;
     }, 0);
+
+    // Next due date preview for the selected cycle
+    const nextDueDate = (() => {
+      const d = new Date();
+      if (vpsSelectedCycle === "quarterly") d.setMonth(d.getMonth() + 3);
+      else if (vpsSelectedCycle === "semiannual") d.setMonth(d.getMonth() + 6);
+      else if (vpsSelectedCycle === "yearly") d.setFullYear(d.getFullYear() + 1);
+      else if (vpsSelectedCycle === "biennial") d.setFullYear(d.getFullYear() + 2);
+      else d.setMonth(d.getMonth() + 1);
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    })();
 
     return (
       <motion.div key="vps1" {...fade}>
@@ -1663,45 +1695,58 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
           </div>
         ) : (
           <>
-            {/* Billing cycle toggle — prominent with save badge */}
-            <div className="flex flex-col items-center gap-2 mb-8">
-              <div className="inline-flex bg-gray-100 rounded-2xl p-1.5 gap-1">
-                <button onClick={() => setVpsSelectedCycle("monthly")}
-                  className="relative px-8 py-2.5 rounded-xl text-[13px] font-bold transition-all"
-                  style={vpsSelectedCycle === "monthly"
-                    ? { background: "#fff", color: "#111", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }
-                    : { color: "#9CA3AF" }}>
-                  Monthly
-                </button>
-                <button onClick={() => setVpsSelectedCycle("yearly")}
-                  className="relative px-8 py-2.5 rounded-xl text-[13px] font-bold transition-all"
-                  style={vpsSelectedCycle === "yearly"
-                    ? { background: P, color: "#fff", boxShadow: PSHADOW }
-                    : { color: "#9CA3AF" }}>
-                  Yearly
-                  {maxSavePct > 0 && (
-                    <span className="absolute -top-2.5 -right-2.5 text-[10px] font-extrabold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">
-                      -{maxSavePct}%
-                    </span>
-                  )}
-                </button>
+            {/* Billing cycle — 5 quick-select buttons */}
+            <div className="flex flex-col items-center gap-3 mb-8">
+              <p className="text-[12px] font-semibold text-gray-400 uppercase tracking-widest">Select Billing Period</p>
+              <div className="inline-flex flex-wrap justify-center gap-2">
+                {VPS_CYCLE_OPTS.map(opt => {
+                  const isActive = vpsSelectedCycle === opt.value;
+                  const firstPlan = allPlans[0];
+                  const cyclePrice = firstPlan ? vpsPriceForCycle(firstPlan, opt.value) : null;
+                  const monthlyCyclePrice = cyclePrice != null ? cyclePrice / opt.months : null;
+                  const savePctCycle = firstPlan && monthlyCyclePrice != null
+                    ? Math.round((1 - monthlyCyclePrice / firstPlan.price) * 100)
+                    : 0;
+                  return (
+                    <button key={opt.value}
+                      onClick={() => setVpsSelectedCycle(opt.value)}
+                      className="relative flex flex-col items-center px-5 py-2.5 rounded-xl border-2 text-[13px] font-bold transition-all focus:outline-none"
+                      style={isActive
+                        ? { background: P, borderColor: P, color: "#fff", boxShadow: PSHADOW }
+                        : { background: "#fff", borderColor: "#E5E7EB", color: "#374151" }}>
+                      <span>{opt.label}</span>
+                      {savePctCycle > 0 && (
+                        <span className="text-[9.5px] font-extrabold mt-0.5"
+                          style={{ color: isActive ? "rgba(255,255,255,0.85)" : "#16A34A" }}>
+                          -{savePctCycle}%
+                        </span>
+                      )}
+                      {opt.value === "yearly" && (
+                        <span className="absolute -top-2 -right-2 text-[9px] font-black bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                          BEST
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-              {vpsSelectedCycle === "yearly" && maxSavePct > 0 && (
+              {maxSavePct > 0 && (
                 <motion.p {...fade} className="text-[12px] text-green-600 font-semibold flex items-center gap-1">
-                  <Check size={11} strokeWidth={2.5}/> You save up to {maxSavePct}% with annual billing
+                  <Check size={11} strokeWidth={2.5}/> Save {maxSavePct}% vs monthly billing
                 </motion.p>
               )}
+              <p className="text-[11.5px] text-gray-400 flex items-center gap-1">
+                <span className="font-semibold text-gray-500">Next due date:</span> {nextDueDate}
+              </p>
             </div>
 
             {/* Plan cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto items-stretch">
               {allPlans.map((plan, i) => {
-                const monthlyPrice = plan.price;
-                const yearlyPrice  = plan.yearlyPrice;
-                const displayPrice = vpsSelectedCycle === "yearly" && yearlyPrice ? yearlyPrice : monthlyPrice;
-                const monthlyEquiv = vpsSelectedCycle === "yearly" && yearlyPrice ? yearlyPrice / 12 : monthlyPrice;
-                const saveAmt      = plan.saveAmount ?? (yearlyPrice != null ? Math.max(0, monthlyPrice * 12 - yearlyPrice) : null);
-                const savePct      = yearlyPrice && monthlyPrice ? Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100) : 0;
+                const cycleOpt     = VPS_CYCLE_OPTS.find(o => o.value === vpsSelectedCycle)!;
+                const displayPrice = vpsPriceForCycle(plan, vpsSelectedCycle);
+                const monthlyEquiv = displayPrice / cycleOpt.months;
+                const savePct      = Math.round((1 - monthlyEquiv / plan.price) * 100);
                 const isSelected   = selectedVpsPlan?.id === plan.id;
                 const isPopular    = i === midIdx && allPlans.length > 1;
 
@@ -1742,8 +1787,8 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                       </div>
                     )}
 
-                    {/* Yearly save badge */}
-                    {!isSelected && vpsSelectedCycle === "yearly" && savePct > 0 && (
+                    {/* Save badge */}
+                    {!isSelected && savePct > 0 && (
                       <div className="absolute top-3 right-3 text-[10px] font-extrabold px-2 py-0.5 rounded-full"
                         style={isPopular
                           ? { background: "rgba(255,220,50,0.9)", color: "#7a4200" }
@@ -1766,32 +1811,29 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
                     {/* Price block */}
                     <div className="mb-5">
-                      {vpsSelectedCycle === "yearly" && yearlyPrice && monthlyPrice > 0 && (
+                      {savePct > 0 && (
                         <div className={`text-[11.5px] line-through mb-0.5 ${isPopular ? "text-white/50" : "text-gray-400"}`}>
-                          {formatPrice(monthlyPrice)}/mo
+                          {formatPrice(plan.price)}/mo
                         </div>
                       )}
                       <div className="flex items-end gap-1.5">
                         <span className={`text-[36px] font-extrabold leading-none tracking-tight ${isPopular ? "text-white" : "text-gray-900"}`}>
-                          {formatPrice(monthlyEquiv)}
+                          {formatPrice(Math.round(monthlyEquiv))}
                         </span>
                         <span className={`text-[13px] font-medium mb-1 ${isPopular ? "text-white/70" : "text-gray-400"}`}>/mo</span>
                       </div>
-                      {vpsSelectedCycle === "yearly" && yearlyPrice && (
-                        <div className={`text-[11px] mt-1 font-medium ${isPopular ? "text-white/75" : "text-gray-400"}`}>
-                          Billed {formatPrice(yearlyPrice)}/year
-                          {saveAmt != null && saveAmt > 0 && (
-                            <span className={`ml-1.5 font-extrabold ${isPopular ? "text-yellow-300" : "text-green-600"}`}>
-                              · Save {formatPrice(saveAmt)}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {vpsSelectedCycle === "monthly" && (
-                        <div className={`text-[10.5px] mt-1 ${isPopular ? "text-white/60" : "text-gray-400"}`}>
-                          Billed monthly · No contract
-                        </div>
-                      )}
+                      <div className={`text-[11px] mt-1 font-medium ${isPopular ? "text-white/75" : "text-gray-400"}`}>
+                        {vpsSelectedCycle === "monthly"
+                          ? "Billed monthly · No contract"
+                          : <>Billed {formatPrice(displayPrice)} / {cycleOpt.label.toLowerCase()}
+                            {savePct > 0 && (
+                              <span className={`ml-1.5 font-extrabold ${isPopular ? "text-yellow-300" : "text-green-600"}`}>
+                                · Save {savePct}%
+                              </span>
+                            )}
+                          </>
+                        }
+                      </div>
                     </div>
 
                     {/* Specs — 2×2 grid */}

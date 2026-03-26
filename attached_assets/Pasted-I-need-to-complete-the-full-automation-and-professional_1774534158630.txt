@@ -1,0 +1,35 @@
+I need to complete the full automation and professional redesign of the VPS Ordering, Provisioning, and Billing system. The entire flow on /client/orders/new must match 'Hostinger' style professionalism and be 'Reseller Ready'. Execute all these technical steps in one single action:
+
+1. UI & Plan Standardization (image_16.png):
+
+Remove all existing 7-plan options.
+
+Implement exactly 3 standard plans: VPS Basic, VPS Standard (marked 'Most Popular' with purple high-light), and VPS Premium. Fix their monthly/yearly price toggles (e.g., Rs. 21,000/year for Standard).
+
+Fix all feature icons (SSD, CPU, Dedicated IP, DDoS Protection, etc.) so they are clearly visible in the standard Hostinger alignment.
+
+2. Incomplete Icons & Field Fix (image_15.png, image_17.png):
+
+On Step 3 ('Configure Your Server'), fix the missing or broken icons for OS selections (Almalinux, Debian, Windows) and Data Center flags. The missing icons in image_15.png must be resolved.
+
+Mandatory Technical Fields: On the same page, add mandatory Hostname (e.g., server.noehost.com) input field, and a Root Username field.
+
+Root Password Field: Add a security-checked Root Password input with a 'Generate' and 'Show/Hide Password' toggle button.
+
+3. Accurate Billing & Due Date Logic (image_15bc77.png):
+
+Instead of manual date picking, apply the Automated Quick Cycle Buttons logic to VPS Orders. Buttons: '1 Month', '3 Months', '6 Months', '1 Year', '2 Years'.
+
+Logic: Clicking a button must instantly set the Next Due Date in the system from the original order date. If '1 Year' is chosen (Rs. 21,000), set the due date to exactly 365 days from today.
+
+4. Activation Module Integration (Provisioning):
+
+Implement the VPS Provisioning Module. Map the configurations (OS template ID, Hostname, root creds) to this module.
+
+Automatic Trigger: Ensure that when an invoice (like INV-20260326-0QL37X) changes to 'Paid' (either by JazzCash or Wallet Balance), the system instantly fetches these client-defined parameters and sends them to the fulfillment API to provision the VPS automatically, matching 'Muhammad Arslan's' standard resell requirements.
+
+5. Database Integrity:
+
+Update the SQLite database schema (noehost_latests_backup.sql) to permanently store these 3 plan details, OS templates, Hostnames, and Data Center mappings.
+
+Final Output: The new VPS order page must look professional, accept root credentials from the client, map to an automated activation module, use quick-duration buttons, and accurately store billing dates and configurations in the database backup."

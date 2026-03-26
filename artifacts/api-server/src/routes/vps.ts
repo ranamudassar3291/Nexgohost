@@ -12,7 +12,10 @@ function formatPlan(p: typeof vpsPlansTable.$inferSelect) {
   return {
     ...p,
     price: fmt(p.price),
+    quarterlyPrice: fmt(p.quarterlyPrice),
+    semiannualPrice: fmt(p.semiannualPrice),
     yearlyPrice: fmt(p.yearlyPrice),
+    biennialPrice: fmt(p.biennialPrice),
     bandwidthTb: fmt(p.bandwidthTb),
     saveAmount: fmt(p.saveAmount),
     features: p.features ?? [],

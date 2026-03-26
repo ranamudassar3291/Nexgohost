@@ -218,8 +218,14 @@ async function handleCheckout(req: AuthRequest, res: any) {
 
       const cycle: string = billingCycleRaw || "monthly";
       let vpsAmount: number;
-      if (cycle === "yearly" && vpsPlan.yearlyPrice) {
+      if (cycle === "quarterly" && (vpsPlan as any).quarterlyPrice) {
+        vpsAmount = Number((vpsPlan as any).quarterlyPrice);
+      } else if (cycle === "semiannual" && (vpsPlan as any).semiannualPrice) {
+        vpsAmount = Number((vpsPlan as any).semiannualPrice);
+      } else if (cycle === "yearly" && vpsPlan.yearlyPrice) {
         vpsAmount = Number(vpsPlan.yearlyPrice);
+      } else if (cycle === "biennial" && (vpsPlan as any).biennialPrice) {
+        vpsAmount = Number((vpsPlan as any).biennialPrice);
       } else {
         vpsAmount = Number(vpsPlan.price);
       }
@@ -294,7 +300,15 @@ async function handleCheckout(req: AuthRequest, res: any) {
         vpsWeeklyBackups: vpsWeeklyBackups,
         vpsProvisionStatus: "not_started",
         startDate: new Date(),
-        expiryDate: (() => { const d = new Date(); if (cycle === "yearly") d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); return d; })(),
+        expiryDate: (() => {
+          const d = new Date();
+          if (cycle === "quarterly") d.setMonth(d.getMonth() + 3);
+          else if (cycle === "semiannual") d.setMonth(d.getMonth() + 6);
+          else if (cycle === "yearly") d.setFullYear(d.getFullYear() + 1);
+          else if (cycle === "biennial") d.setFullYear(d.getFullYear() + 2);
+          else d.setMonth(d.getMonth() + 1);
+          return d;
+        })(),
       }).returning();
 
       await db.update(invoicesTable).set({ serviceId: service.id, updatedAt: new Date() }).where(eq(invoicesTable.id, invoice.id));
