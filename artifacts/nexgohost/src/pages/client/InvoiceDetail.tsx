@@ -511,6 +511,29 @@ export default function InvoiceDetail() {
           </div>
         )}
 
+        {/* ── CEO SIGNATURE ────────────────────────────────────────────────── */}
+        <div className="border-t border-slate-100 px-8 py-6">
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Authorized by</p>
+          <div className="flex items-end justify-between gap-6 flex-wrap">
+            <div>
+              <p className="font-black text-xl" style={{ color: BRAND }}>Muhammad Arslan</p>
+              <p className="text-sm font-semibold text-slate-700 mt-0.5">Founder & Chief Executive Officer (CEO)</p>
+              <p className="text-xs font-semibold mt-0.5" style={{ color: BRAND }}>Noehost — Professional Hosting Solutions</p>
+              <p className="text-xs italic text-slate-400 mt-1.5 max-w-sm">
+                "Empowering your digital journey with premium hosting solutions."
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── TERMS & CONDITIONS ──────────────────────────────────────────────── */}
+        <div className="border-t border-slate-100 px-8 py-5 bg-slate-50/70">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Terms & Conditions</p>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            All services are governed by Noehost Terms of Service (noehost.com/tos). Invoices must be paid by the due date to avoid service interruption. For any billing queries, contact <span className="text-slate-600 font-medium">billing@noehost.com</span>. Thank you for choosing Noehost!
+          </p>
+        </div>
+
         {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
         <div
           className="px-8 py-5 text-center"

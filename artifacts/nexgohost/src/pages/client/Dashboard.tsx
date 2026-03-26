@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -131,6 +131,22 @@ export default function ClientDashboard() {
 
   const pendingOrders = recentOrders.filter(o => o.status === "pending").length;
 
+  // Client lifecycle
+  const clientSince = user?.createdAt ? new Date(user.createdAt) : null;
+  const daysSinceJoining = clientSince
+    ? Math.floor((Date.now() - clientSince.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const isNewClient = daysSinceJoining <= 30;
+  const isReturningClient = daysSinceJoining > 30;
+  const loyaltyLabel = daysSinceJoining >= 365
+    ? "⭐ Premium Member"
+    : daysSinceJoining >= 180
+      ? "🥈 Silver Member"
+      : "🥉 Bronze Member";
+  const tenureLabel = daysSinceJoining >= 365
+    ? `${Math.floor(daysSinceJoining / 365)} Year${Math.floor(daysSinceJoining / 365) === 1 ? "" : "s"}`
+    : `${Math.max(1, Math.floor(daysSinceJoining / 30))} Month${Math.max(1, Math.floor(daysSinceJoining / 30)) === 1 ? "" : "s"}`;
+
   return (
     <div className="space-y-8">
       {/* Hero banner */}
@@ -172,6 +188,67 @@ export default function ClientDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* ── Client Lifecycle Widget ─────────────────────────────────────── */}
+
+      {/* New Client (Month 1) — Getting Started Guide */}
+      {isNewClient && (
+        <div className="rounded-2xl border border-primary/20 overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(112,26,254,0.02) 100%)" }}>
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-primary/15" style={{ background: "rgba(112,26,254,0.08)" }}>
+            <Sparkles size={16} className="text-primary shrink-0" />
+            <p className="text-sm font-bold text-primary">Welcome to Noehost! Your journey starts here.</p>
+            {daysSinceJoining === 0 && <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Just joined!</span>}
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-xs text-muted-foreground mb-3">
+              You joined <span className="font-semibold text-foreground">{daysSinceJoining === 0 ? "today" : `${daysSinceJoining} day${daysSinceJoining === 1 ? "" : "s"} ago`}</span>. Here are some guides to help you get started quickly:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                { label: "How to access your cPanel", href: "/client/hosting" },
+                { label: "How to add or transfer a domain", href: "/client/domains" },
+                { label: "How to set up email accounts", href: "/client/hosting" },
+                { label: "How to submit a support ticket", href: "/client/tickets" },
+              ].map(g => (
+                <Link key={g.label} href={g.href}
+                  className="flex items-center gap-2 text-xs font-medium text-primary bg-primary/5 border border-primary/15 rounded-lg px-3 py-2 hover:bg-primary/10 transition-colors">
+                  <BookOpen size={12} className="shrink-0" />
+                  {g.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Returning Client (Month 2+) — Loyalty Status */}
+      {isReturningClient && (
+        <div className="rounded-2xl border border-amber-500/25 overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.06) 0%, rgba(245,158,11,0.02) 100%)" }}>
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-amber-500/15" style={{ background: "rgba(245,158,11,0.08)" }}>
+            <Award size={16} className="text-amber-400 shrink-0" />
+            <p className="text-sm font-bold text-amber-400">Loyalty Status — {loyaltyLabel}</p>
+            <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">{tenureLabel} with Noehost</span>
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-xs text-muted-foreground mb-3">
+              Thank you for your continued trust, <span className="font-semibold text-foreground">{user?.firstName}</span>! Here's a summary of your Noehost journey:
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "Active Services", value: stats.activeServices },
+                { label: "Active Domains", value: stats.activeDomains },
+                { label: "Unpaid Invoices", value: stats.unpaidInvoices },
+                { label: "Support Tickets", value: stats.openTickets },
+              ].map(item => (
+                <div key={item.label} className="bg-card/60 rounded-xl border border-border/40 p-3 text-center">
+                  <p className="text-2xl font-black text-foreground">{item.value}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Expiry Alerts — show when any service/domain expires within 15 days */}
       {expiryAlerts.length > 0 && (
