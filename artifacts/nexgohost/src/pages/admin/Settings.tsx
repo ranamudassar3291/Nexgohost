@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight, MailCheck, Wallet } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight, MailCheck, Wallet, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
@@ -112,6 +113,38 @@ export default function AdminSettings() {
   // Populate wallet fields from platform settings
   const walletMinValue = walletMin !== "" ? walletMin : String(platformSettings?.wallet_min_deposit ?? 270);
   const walletMaxValue = walletMax !== "" ? walletMax : String(platformSettings?.wallet_max_deposit ?? 100000);
+
+  // ── Announcement Banner ──────────────────────────────────────────────────
+  interface AnnouncementItem { id: string; title: string; message: string; type: string; isActive: boolean; priority: number; }
+  const { data: announcementsData, refetch: refetchAnnouncements } = useQuery<{ announcements: AnnouncementItem[] }>({
+    queryKey: ["admin-announcements-settings"],
+    queryFn: () => apiFetch("/api/admin/announcements"),
+  });
+  const firstAnnouncement = announcementsData?.announcements?.[0] ?? null;
+  const [bannerText, setBannerText] = useState<string>("");
+  const [bannerActive, setBannerActive] = useState<boolean | null>(null);
+  const [savingBanner, setSavingBanner] = useState(false);
+  const bannerTextValue = bannerText !== "" ? bannerText : (firstAnnouncement ? `${firstAnnouncement.title} ${firstAnnouncement.message}` : "");
+  const bannerActiveValue = bannerActive !== null ? bannerActive : (firstAnnouncement?.isActive ?? true);
+
+  const handleSaveBanner = async () => {
+    setSavingBanner(true);
+    try {
+      const combined = bannerTextValue.trim();
+      const title = firstAnnouncement?.title ?? "🚀 Welcome to Noehost!";
+      const message = combined;
+      const body = { title, message, type: firstAnnouncement?.type ?? "info", isActive: bannerActiveValue, priority: firstAnnouncement?.priority ?? 10 };
+      if (firstAnnouncement) {
+        await apiFetch(`/api/admin/announcements/${firstAnnouncement.id}`, { method: "PUT", body: JSON.stringify(body) });
+      } else {
+        await apiFetch("/api/admin/announcements", { method: "POST", body: JSON.stringify(body) });
+      }
+      await refetchAnnouncements();
+      toast({ title: "Announcement saved", description: "The marquee banner has been updated." });
+    } catch (err: any) {
+      toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+    } finally { setSavingBanner(false); }
+  };
 
   const handleSaveWallet = async () => {
     const min = Number(walletMinValue);
@@ -349,6 +382,45 @@ export default function AdminSettings() {
               {savingWallet ? <><Loader2 size={15} className="animate-spin mr-2"/>Saving…</> : "Save Wallet Limits"}
             </Button>
             <p className="text-[11px] text-muted-foreground">Current: Rs. {Number(walletMinValue).toLocaleString()} – Rs. {Number(walletMaxValue).toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Announcement Banner */}
+        <div className="p-6 border-t border-border/50">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="p-2 bg-blue-500/10 rounded-lg"><Megaphone className="w-5 h-5 text-blue-500" /></div>
+            <div>
+              <h3 className="font-semibold text-foreground">Announcement Banner</h3>
+              <p className="text-xs text-muted-foreground">Controls the scrolling marquee shown at the top of the client dashboard</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/50">
+              <div>
+                <p className="text-sm font-medium text-foreground">Show announcement bar</p>
+                <p className="text-xs text-muted-foreground">Toggle to show or hide the scrolling marquee for all clients</p>
+              </div>
+              <Switch
+                checked={bannerActiveValue}
+                onCheckedChange={v => setBannerActive(v)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Announcement Text</label>
+              <Textarea
+                rows={2}
+                placeholder="e.g. 🚀 Welcome to Noehost! Experience 99.9% Uptime with our new Optimized VPS Nodes."
+                value={bannerTextValue}
+                onChange={e => setBannerText(e.target.value)}
+                className="bg-background border-border resize-none"
+              />
+              <p className="text-[11px] text-muted-foreground">This text scrolls across the blue banner on the client dashboard. For more control (multiple messages, types, priorities) visit the Announcements page.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button onClick={handleSaveBanner} disabled={savingBanner} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {savingBanner ? <><Loader2 size={15} className="animate-spin mr-2"/>Saving…</> : "Save Banner"}
+              </Button>
+            </div>
           </div>
         </div>
 

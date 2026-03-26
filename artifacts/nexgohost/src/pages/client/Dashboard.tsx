@@ -157,6 +157,35 @@ export default function ClientDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Announcements Marquee — Hostinger-style slim bar at the very top */}
+      {announcements.length > 0 && (
+        <div className="flex items-center rounded-xl overflow-hidden shadow-md"
+          style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #2563eb 60%, #1e40af 100%)" }}>
+          {/* Label badge */}
+          <div className="flex items-center gap-1.5 shrink-0 px-4 py-2.5 font-bold text-xs uppercase tracking-widest text-white whitespace-nowrap border-r border-white/20"
+            style={{ background: "rgba(0,0,0,0.18)" }}>
+            <Megaphone className="h-3.5 w-3.5" />
+            <span>News</span>
+          </div>
+          {/* Scrolling text */}
+          <div className="overflow-hidden flex-1 relative py-2.5 px-4">
+            <div
+              className="flex gap-14 whitespace-nowrap"
+              style={{ animation: `nexgo-marquee ${Math.max(18, announcements.length * 10)}s linear infinite` }}
+            >
+              {[...announcements, ...announcements].map((a, i) => (
+                <span key={i} className="text-sm inline-flex items-center gap-2 text-white">
+                  <span className="font-bold">{a.title}</span>
+                  <span className="opacity-90">{a.message}</span>
+                  <span className="opacity-40 mx-2">•</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <style>{`@keyframes nexgo-marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
+        </div>
+      )}
+
       {/* Hero banner */}
       <div className="bg-gradient-to-r from-primary/20 via-purple-600/10 to-transparent border border-primary/10 rounded-3xl p-5 sm:p-8 relative overflow-hidden shadow-lg">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px]" />
@@ -179,31 +208,6 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
-
-      {/* Announcements Marquee */}
-      {announcements.length > 0 && (
-        <div className="flex items-center gap-3 bg-primary/8 border border-primary/20 rounded-xl px-4 py-2.5 overflow-hidden">
-          <div className="flex items-center gap-1.5 shrink-0 text-primary font-semibold text-xs uppercase tracking-wide">
-            <Megaphone className="h-3.5 w-3.5" />
-            News
-          </div>
-          <div className="h-4 w-px bg-primary/20 shrink-0" />
-          <div className="overflow-hidden flex-1 relative">
-            <div
-              className="flex gap-12 whitespace-nowrap"
-              style={{ animation: `marquee ${Math.max(15, announcements.length * 8)}s linear infinite` }}
-            >
-              {[...announcements, ...announcements].map((a, i) => (
-                <span key={i} className="text-sm text-foreground/80 inline-flex items-center gap-2">
-                  <span className="font-semibold text-foreground">{a.title}:</span>
-                  {a.message}
-                </span>
-              ))}
-            </div>
-          </div>
-          <style>{`@keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }`}</style>
-        </div>
-      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
