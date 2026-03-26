@@ -17,6 +17,7 @@ export const promoCodesTable = pgTable("promo_codes", {
   applicableGroupId: text("applicable_group_id"),
   applicableDomainTld: text("applicable_domain_tld"),
   applicablePlanId: text("applicable_plan_id"),
+  billingCycleLock: text("billing_cycle_lock").default("all").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

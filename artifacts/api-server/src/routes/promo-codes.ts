@@ -25,6 +25,7 @@ function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: strin
     applicableDomainTld: (c as any).applicableDomainTld ?? null,
     applicablePlanId: (c as any).applicablePlanId ?? null,
     applicablePlanName: (c as any).planName ?? null,
+    billingCycleLock: (c as any).billingCycleLock ?? "all",
     createdAt: c.createdAt.toISOString(),
   };
 }
@@ -32,8 +33,8 @@ function formatCode(c: typeof promoCodesTable.$inferSelect & { groupName?: strin
 // Client: validate a promo code and compute discounted amount
 router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { code, amount, serviceType, groupId, planId, tld } = req.query as {
-      code: string; amount: string; serviceType?: string; groupId?: string; planId?: string; tld?: string;
+    const { code, amount, serviceType, groupId, planId, tld, billingCycle } = req.query as {
+      code: string; amount: string; serviceType?: string; groupId?: string; planId?: string; tld?: string; billingCycle?: string;
     };
     if (!code) { res.status(400).json({ error: "code is required" }); return; }
 
@@ -53,6 +54,13 @@ router.get("/promo-codes/validate", authenticate, async (req: AuthRequest, res) 
     const applicableTo = (promo as any).applicableTo ?? "all";
     if (serviceType && applicableTo !== "all" && applicableTo !== serviceType) {
       res.status(400).json({ error: `This promo code is only valid for ${applicableTo} services` }); return;
+    }
+
+    // Billing cycle lock check
+    const cycleLock = (promo as any).billingCycleLock ?? "all";
+    if (cycleLock !== "all" && billingCycle && cycleLock !== billingCycle) {
+      const lockLabel = cycleLock === "yearly" ? "Yearly (Annual)" : "Monthly";
+      res.status(400).json({ error: `This promo code is only valid for ${lockLabel} billing plans` }); return;
     }
 
     // Group scope check
@@ -197,6 +205,7 @@ router.post("/admin/promo-codes", authenticate, requireAdmin, async (req: AuthRe
       discountType = "percent", discountPercent, fixedAmount,
       usageLimit, expiresAt,
       applicableTo = "all", applicableGroupId, applicableDomainTld, applicablePlanId,
+      billingCycleLock = "all",
     } = req.body;
 
     if (!code) { res.status(400).json({ error: "code is required" }); return; }
@@ -226,6 +235,7 @@ router.post("/admin/promo-codes", authenticate, requireAdmin, async (req: AuthRe
       applicableGroupId: applicableGroupId || null,
       applicableDomainTld: applicableDomainTld ? (applicableDomainTld.startsWith(".") ? applicableDomainTld : `.${applicableDomainTld}`) : null,
       applicablePlanId: applicablePlanId || null,
+      billingCycleLock: ["all", "yearly", "monthly"].includes(billingCycleLock) ? billingCycleLock : "all",
     } as any).returning();
 
     res.status(201).json(formatCode(promo));
@@ -248,6 +258,43 @@ router.post("/admin/promo-codes/:id/toggle", authenticate, requireAdmin, async (
       .set({ isActive: !existing.isActive })
       .where(eq(promoCodesTable.id, req.params.id))
       .returning();
+    res.json(formatCode(promo));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Admin: edit promo code
+router.patch("/admin/promo-codes/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      description, discountType, discountPercent, fixedAmount,
+      usageLimit, expiresAt, applicableTo, applicableGroupId,
+      applicableDomainTld, applicablePlanId, billingCycleLock, isActive,
+    } = req.body;
+
+    const updates: Record<string, any> = {};
+    if (description !== undefined) updates.description = description || null;
+    if (discountType !== undefined) updates.discountType = discountType;
+    if (discountPercent !== undefined) updates.discountPercent = discountType === "percent" ? parseInt(discountPercent) : 0;
+    if (fixedAmount !== undefined) updates.fixedAmount = discountType === "fixed" ? String(parseFloat(fixedAmount)) : null;
+    if (usageLimit !== undefined) updates.usageLimit = usageLimit ? parseInt(usageLimit) : null;
+    if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (applicableTo !== undefined) updates.applicableTo = ["all", "hosting", "domain"].includes(applicableTo) ? applicableTo : "all";
+    if (applicableGroupId !== undefined) updates.applicableGroupId = applicableGroupId || null;
+    if (applicableDomainTld !== undefined) updates.applicableDomainTld = applicableDomainTld
+      ? (applicableDomainTld.startsWith(".") ? applicableDomainTld : `.${applicableDomainTld}`) : null;
+    if (applicablePlanId !== undefined) updates.applicablePlanId = applicablePlanId || null;
+    if (billingCycleLock !== undefined) updates.billingCycleLock = ["all", "yearly", "monthly"].includes(billingCycleLock) ? billingCycleLock : "all";
+    if (isActive !== undefined) updates.isActive = isActive;
+
+    const [promo] = await db.update(promoCodesTable)
+      .set(updates)
+      .where(eq(promoCodesTable.id, req.params.id))
+      .returning();
+
+    if (!promo) { res.status(404).json({ error: "Promo code not found" }); return; }
     res.json(formatCode(promo));
   } catch (err) {
     console.error(err);

@@ -910,7 +910,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       const planAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
       const domAmt = isDomForceFree ? 0 : (cartDomain?.price ?? 0);
       const amount = planAmt + domAmt;
-      const params = new URLSearchParams({ code: promoCode.trim(), amount: String(amount), serviceType: "hosting" });
+      const params = new URLSearchParams({ code: promoCode.trim(), amount: String(amount), serviceType: "hosting", billingCycle: selectedCycle });
       if (selectedPlan?.groupId) params.set("groupId", selectedPlan.groupId);
       if (cartDomain?.fullName) {
         const tld = cartDomain.fullName.includes(".") ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")) : "";
