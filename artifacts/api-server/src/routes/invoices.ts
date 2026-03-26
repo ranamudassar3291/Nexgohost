@@ -107,15 +107,17 @@ router.post("/my/invoices/:id/submit-payment", authenticate, async (req: AuthReq
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
 
     // WhatsApp alert (non-blocking)
+    const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
     sendWhatsAppAlert("payment_proof",
-      `💳 *Payment Proof Submitted — Noehost*\n\n` +
+      `💰 *Payment Submitted — Noehost*\n\n` +
       `👤 Client: ${user ? `${user.firstName} ${user.lastName}` : "Unknown"}\n` +
       `📧 Email: ${user?.email ?? "—"}\n` +
       `🧾 Invoice: ${invoice.invoiceNumber}\n` +
-      `💰 Amount: PKR ${Number(invoice.amount).toLocaleString()}\n` +
+      `💵 Amount: PKR ${Number(invoice.amount).toLocaleString()}\n` +
       `🏦 Transaction Ref: ${paymentRef}\n` +
-      `📝 Notes: ${paymentNotes || "None"}\n\n` +
-      `⚠️ *Please verify and mark paid in admin panel.*\n` +
+      (paymentNotes ? `📱 Sender Info: ${paymentNotes}\n` : "") +
+      `\n🔗 View Invoice:\n${adminUrl}/admin/invoices/${invoice.id}\n\n` +
+      `⚠️ *Please verify and mark as paid.*\n` +
       `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
     ).catch(() => {});
 

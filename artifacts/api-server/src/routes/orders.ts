@@ -139,13 +139,15 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
     res.status(201).json(formatOrder(order, `${user.firstName} ${user.lastName}`));
 
     // WhatsApp alert (non-blocking)
+    const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
     sendWhatsAppAlert("new_order",
-      `🛒 *New Order — Noehost*\n\n` +
+      `📦 *New Order Received — Noehost*\n\n` +
       `👤 Client: ${user.firstName} ${user.lastName}\n` +
       `📧 Email: ${user.email}\n` +
-      `📦 Service: ${itemName}\n` +
+      `🛒 Service: ${itemName}\n` +
       `💰 Amount: PKR ${Number(amount).toLocaleString()}\n` +
       `🏷️ Type: ${type}\n\n` +
+      `🔗 View Order:\n${adminUrl}/admin/orders/${order.id}\n\n` +
       `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
     ).catch(() => {});
 

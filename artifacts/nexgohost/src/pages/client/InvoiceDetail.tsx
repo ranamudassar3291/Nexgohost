@@ -50,26 +50,47 @@ const TYPE_ICONS: Record<string, string> = {
 
 function PaymentInstructions({ method }: { method: PaymentMethod }) {
   const s = method.publicSettings ?? {};
-  const rows: { label: string; value: string }[] = [];
-  if (s.bankName)      rows.push({ label: "Bank",          value: s.bankName });
-  if (s.accountTitle)  rows.push({ label: "Account Title", value: s.accountTitle });
-  if (s.accountNumber) rows.push({ label: "Account No.",   value: s.accountNumber });
-  if (s.iban)          rows.push({ label: "IBAN",          value: s.iban });
-  if (s.swiftCode)     rows.push({ label: "SWIFT",         value: s.swiftCode });
-  if (s.mobileNumber)  rows.push({ label: "Mobile No.",    value: s.mobileNumber });
-  if (s.paypalEmail)   rows.push({ label: "PayPal Email",  value: s.paypalEmail });
-  if (s.walletAddress) rows.push({ label: "Wallet",        value: s.walletAddress });
-  if (s.cryptoType)    rows.push({ label: "Coin",          value: s.cryptoType });
-  if (s.instructions)  rows.push({ label: "Instructions",  value: s.instructions });
-  if (rows.length === 0) return <p className="text-xs text-slate-500">Contact support for payment details.</p>;
+  const isWallet = ["jazzcash", "easypaisa"].includes(method.type);
+
   return (
-    <div className="space-y-1.5">
-      {rows.map(r => (
+    <div className="space-y-2">
+      {/* Receiver name + number — always bold and prominent */}
+      {(s.accountTitle || s.mobileNumber || s.accountNumber) && (
+        <div className="rounded-lg bg-[#701AFE]/5 border border-[#701AFE]/20 p-3 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#701AFE]/70">
+            {isWallet ? "Send Payment To" : "Transfer To"}
+          </p>
+          {s.accountTitle && (
+            <p className="text-sm font-extrabold text-slate-900">{s.accountTitle}</p>
+          )}
+          {s.mobileNumber && (
+            <p className="text-base font-black text-[#701AFE] tracking-wide">{s.mobileNumber}</p>
+          )}
+          {s.accountNumber && !s.mobileNumber && (
+            <p className="text-base font-black text-[#701AFE] tracking-wide">{s.accountNumber}</p>
+          )}
+          {s.bankName && (
+            <p className="text-xs text-slate-500">{s.bankName}</p>
+          )}
+        </div>
+      )}
+      {/* Additional fields */}
+      {[
+        s.iban && { label: "IBAN", value: s.iban },
+        s.swiftCode && { label: "SWIFT", value: s.swiftCode },
+        s.paypalEmail && { label: "PayPal", value: s.paypalEmail },
+        s.walletAddress && { label: "Wallet", value: s.walletAddress },
+        s.cryptoType && { label: "Coin", value: s.cryptoType },
+        s.instructions && { label: "Note", value: s.instructions },
+      ].filter(Boolean).map((r: any) => (
         <div key={r.label} className="flex items-start justify-between gap-4 text-xs">
-          <span className="text-slate-500 shrink-0">{r.label}</span>
-          <span className="font-medium text-slate-800 text-right break-all">{r.value}</span>
+          <span className="text-slate-400 shrink-0">{r.label}</span>
+          <span className="font-medium text-slate-700 text-right break-all">{r.value}</span>
         </div>
       ))}
+      {!s.accountTitle && !s.mobileNumber && !s.accountNumber && (
+        <p className="text-xs text-slate-500">Contact support for payment details.</p>
+      )}
     </div>
   );
 }
@@ -86,7 +107,7 @@ export default function InvoiceDetail() {
 
   const [selectedGateway, setSelectedGateway] = useState<string>("");
   const [txRef, setTxRef] = useState("");
-  const [txNotes, setTxNotes] = useState("");
+  const [senderPhone, setSenderPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [payingWithCredits, setPayingWithCredits] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -156,11 +177,11 @@ export default function InvoiceDetail() {
     try {
       await apiFetch(`/api/my/invoices/${id}/submit-payment`, {
         method: "POST",
-        body: JSON.stringify({ paymentRef: txRef.trim(), paymentGatewayId: selectedGateway, paymentNotes: txNotes.trim() || undefined }),
+        body: JSON.stringify({ paymentRef: txRef.trim(), paymentGatewayId: selectedGateway, paymentNotes: senderPhone.trim() || undefined }),
       });
       qc.invalidateQueries({ queryKey: ["invoice", id] });
       toast({ title: "Payment submitted!", description: "We'll verify and confirm your payment shortly." });
-      setTxRef(""); setTxNotes(""); setSelectedGateway("");
+      setTxRef(""); setSenderPhone(""); setSelectedGateway("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -458,11 +479,37 @@ export default function InvoiceDetail() {
                       style={{ borderColor: BRAND + "33" }}
                     >
                       <div>
-                        <p className="text-sm font-bold text-slate-800">Submit Payment Confirmation</p>
+                        <p className="text-sm font-bold text-slate-800">Confirm Your Payment</p>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          After transferring, enter your transaction ID below so our team can verify your payment.
+                          After transferring, fill in the details below and our team will verify shortly.
                         </p>
                       </div>
+
+                      {/* Client name — read-only */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-600">Client Name</label>
+                        <Input
+                          value={invoice?.clientName ?? ""}
+                          readOnly
+                          className="border-slate-200 bg-slate-50 text-slate-500 cursor-default"
+                        />
+                      </div>
+
+                      {/* Sender WhatsApp/Phone */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-600">Your WhatsApp / Phone Number *</label>
+                        <Input
+                          value={senderPhone}
+                          onChange={e => setSenderPhone(e.target.value.replace(/\D/g, ""))}
+                          placeholder="e.g. 923001234567"
+                          inputMode="numeric"
+                          required
+                          className="border-slate-300 font-mono"
+                        />
+                        <p className="text-[11px] text-slate-400">Numbers only — no spaces, dashes or +</p>
+                      </div>
+
+                      {/* Transaction ID */}
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-slate-600">Transaction ID / Receipt Number *</label>
                         <Input
@@ -470,26 +517,18 @@ export default function InvoiceDetail() {
                           onChange={e => setTxRef(e.target.value)}
                           placeholder="e.g. JC-1234567890 or TXN#XXXXX"
                           required
-                          className="border-slate-300"
+                          className="border-slate-300 font-mono"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600">Additional Notes (optional)</label>
-                        <Input
-                          value={txNotes}
-                          onChange={e => setTxNotes(e.target.value)}
-                          placeholder="e.g. Sent from 03XX-XXXXXXX at 3:45 PM"
-                          className="border-slate-300"
-                        />
-                      </div>
+
                       <Button
                         type="submit"
-                        disabled={submitting || !txRef.trim()}
+                        disabled={submitting || !txRef.trim() || !senderPhone.trim()}
                         className="w-full gap-2 text-white"
                         style={{ background: BRAND }}
                       >
                         {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                        Confirm Payment Submission
+                        Submit Payment Confirmation
                       </Button>
                     </motion.form>
                   )}

@@ -94,14 +94,16 @@ router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
     res.status(201).json(formatTicket(ticket, `${user.firstName} ${user.lastName}`));
 
     // WhatsApp alert (non-blocking)
+    const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
     sendWhatsAppAlert("new_ticket",
       `🎫 *New Support Ticket — Noehost*\n\n` +
       `👤 Client: ${user.firstName} ${user.lastName}\n` +
       `📧 Email: ${user.email}\n` +
       `🏷️ Subject: ${subject}\n` +
-      `⚡ Priority: ${priority || "medium"}\n` +
+      `⚡ Priority: ${(priority || "medium").toUpperCase()}\n` +
       `🏢 Dept: ${department || "General"}\n` +
-      `🔗 ID: ${ticket.ticketNumber}\n\n` +
+      `🎫 Ticket: ${ticket.ticketNumber}\n\n` +
+      `🔗 View Ticket:\n${adminUrl}/admin/tickets/${ticket.id}\n\n` +
       `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
     ).catch(() => {});
 
