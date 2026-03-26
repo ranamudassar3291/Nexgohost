@@ -43,7 +43,13 @@ function publicSettings(type: string, settings: Record<string, unknown>) {
     case "crypto":
       return { walletAddress: settings.walletAddress, cryptoType: settings.cryptoType };
     case "manual":
-      return { instructions: settings.instructions };
+      return {
+        accountTitle: settings.accountTitle,
+        mobileNumber: settings.mobileNumber,
+        accountNumber: settings.accountNumber,
+        bankName: settings.bankName,
+        instructions: settings.instructions,
+      };
     case "stripe":
       return { publishableKey: settings.publishableKey };
     default:
