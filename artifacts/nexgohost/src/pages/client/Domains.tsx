@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { RenewalCartModal, type RenewalItem } from "./RenewalCartModal";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import {
   Loader2, Trash2, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
   Server, Plus, Minus, Save, Key, Copy, CheckCheck, ArrowLeft, ClipboardList,
   ArrowRightLeft, ShieldCheck, Lock, Network, Settings, Receipt,
+  Tag, Wallet, CreditCard, Smartphone, Landmark,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -280,7 +281,7 @@ export default function ClientDomains() {
     setOrderView("review");
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = async (promoCode = "", paymentMethodId: string | null = null) => {
     if (cart.length === 0 || checkingOut) return;
     setCheckingOut(true);
     const errors: string[] = [];
@@ -291,10 +292,13 @@ export default function ClientDomains() {
         const token = localStorage.getItem("token");
         const cleanedNs = orderNameservers.map(n => n.trim()).filter(Boolean);
         const nameserversToSend = cleanedNs.length >= 2 ? cleanedNs : ["ns1.noehost.com", "ns2.noehost.com"];
+        const body: Record<string, unknown> = { domain: item.name, tld: item.tld, period: item.period, nameservers: nameserversToSend };
+        if (promoCode.trim()) body.promoCode = promoCode.trim();
+        if (paymentMethodId) body.paymentMethodId = paymentMethodId;
         const res = await fetch("/api/checkout/domain", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ domain: item.name, tld: item.tld, period: item.period, nameservers: nameserversToSend }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to place order");
@@ -1061,18 +1065,85 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onReview, total }
   );
 }
 
+interface DomainPaymentMethod {
+  id: string; name: string; type: string; description: string | null;
+  isSandbox: boolean;
+  publicSettings: {
+    bankName?: string; accountTitle?: string; accountNumber?: string;
+    mobileNumber?: string; paypalEmail?: string;
+  };
+}
+
+function DomainPayIcon({ type }: { type: string }) {
+  switch (type) {
+    case "jazzcash":      return <Smartphone size={18} style={{ color: "#f0612e" }}/>;
+    case "easypaisa":    return <Smartphone size={18} style={{ color: "#3bb54a" }}/>;
+    case "bank_transfer":return <Landmark   size={18} style={{ color: "#1d4ed8" }}/>;
+    case "stripe":       return <CreditCard size={18} style={{ color: "#635bff" }}/>;
+    case "paypal":       return <Wallet     size={18} style={{ color: "#003087" }}/>;
+    default:             return <CreditCard size={18} className="text-muted-foreground"/>;
+  }
+}
+
 function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLoading, nameservers, onNameserversChange }: {
   cart: CartItem[];
   onBack: () => void;
   onUpdatePeriod: (idx: number, period: 1 | 2 | 3) => void;
   onRemove: (idx: number) => void;
-  onPlaceOrder: () => void;
+  onPlaceOrder: (promoCode: string, paymentMethodId: string | null) => void;
   isLoading: boolean;
   nameservers: string[];
   onNameserversChange: (ns: string[]) => void;
 }) {
   const { formatPrice } = useCurrency();
-  const total = getCartTotal(cart);
+  const rawTotal = getCartTotal(cart);
+
+  const [promoCode,     setPromoCode]     = useState("");
+  const [promoLoading,  setPromoLoading]  = useState(false);
+  const [promoApplied,  setPromoApplied]  = useState(false);
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [promoError,    setPromoError]    = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
+  const [paymentMethods, setPaymentMethods]   = useState<DomainPaymentMethod[]>([]);
+  const [creditBalance,  setCreditBalance]    = useState(0);
+  const [pmLoading,      setPmLoading]        = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token") || "";
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch("/api/payment-methods", { headers }).then(r => r.ok ? r.json() : []),
+      fetch("/api/client/profile", { headers }).then(r => r.ok ? r.json() : {}),
+    ]).then(([pms, profile]) => {
+      setPaymentMethods(Array.isArray(pms) ? pms.filter((p: DomainPaymentMethod & { isActive?: boolean }) => p.isActive !== false) : []);
+      setCreditBalance(parseFloat(profile?.creditBalance ?? "0") || 0);
+    }).catch(() => {}).finally(() => setPmLoading(false));
+  }, []);
+
+  const total = Math.max(0, rawTotal - promoDiscount);
+
+  async function handleApplyPromo() {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
+    setPromoApplied(false);
+    setPromoDiscount(0);
+    try {
+      const token = localStorage.getItem("token") || "";
+      const params = new URLSearchParams({ code: promoCode.trim(), amount: String(rawTotal), serviceType: "domain" });
+      const res = await fetch(`/api/promo-codes/validate?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setPromoError(data.error || "Invalid promo code"); return; }
+      setPromoDiscount(data.discountAmount ?? 0);
+      setPromoApplied(true);
+    } catch {
+      setPromoError("Failed to validate promo code");
+    } finally {
+      setPromoLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -1151,10 +1222,130 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
                 <span>{formatPrice(getPriceForPeriod(item))}</span>
               </div>
             ))}
+            {promoApplied && promoDiscount > 0 && (
+              <div className="flex justify-between text-sm text-green-500 font-semibold">
+                <span className="flex items-center gap-1.5"><Tag size={12}/> Promo: {promoCode}</span>
+                <span>-{formatPrice(promoDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-xl border-t border-border pt-3 mt-2">
               <span>Total Due</span>
               <span className="text-primary">{formatPrice(total)}</span>
             </div>
+          </div>
+
+          {/* Promo Code */}
+          <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Tag size={14} className="text-primary" />
+              <p className="text-sm font-semibold text-foreground">Promo Code (Optional)</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Tag size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+                <input
+                  value={promoCode}
+                  onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoApplied(false); setPromoDiscount(0); setPromoError(""); }}
+                  placeholder="Enter promo code"
+                  className="w-full pl-9 pr-3 py-2 bg-card border border-border rounded-lg text-sm font-mono uppercase focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleApplyPromo}
+                disabled={promoLoading || !promoCode.trim()}
+                className={promoApplied ? "border-green-500 text-green-500 hover:text-green-600" : ""}
+              >
+                {promoLoading ? <Loader2 size={13} className="animate-spin"/> : promoApplied ? <CheckCircle2 size={13}/> : null}
+                <span className="ml-1">{promoApplied ? "Applied" : "Apply"}</span>
+              </Button>
+            </div>
+            {promoError && (
+              <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle size={11}/> {promoError}</p>
+            )}
+            {promoApplied && promoDiscount > 0 && (
+              <p className="text-xs text-green-500 flex items-center gap-1 font-semibold"><CheckCircle2 size={11}/> Saved {formatPrice(promoDiscount)}!</p>
+            )}
+          </div>
+
+          {/* Payment Method */}
+          <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard size={14} className="text-primary" />
+              <p className="text-sm font-semibold text-foreground">Payment Method</p>
+            </div>
+            {pmLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <Loader2 size={13} className="animate-spin"/> Loading payment options…
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Wallet option */}
+                {(() => {
+                  const hasSufficient = creditBalance >= total;
+                  return (
+                    <button
+                      onClick={() => setPaymentMethodId(paymentMethodId === "credits" ? null : "credits")}
+                      disabled={!hasSufficient && total > 0}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
+                        paymentMethodId === "credits" ? "border-primary bg-primary/5" : "border-border bg-card"
+                      }`}
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${paymentMethodId === "credits" ? "bg-primary/15" : "bg-secondary"}`}>
+                        <Wallet size={16} className={paymentMethodId === "credits" ? "text-primary" : "text-muted-foreground"}/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">Wallet Balance</p>
+                        <p className={`text-xs font-medium ${creditBalance > 0 ? (hasSufficient ? "text-green-500" : "text-red-400") : "text-muted-foreground"}`}>
+                          {formatPrice(creditBalance)} available
+                          {!hasSufficient && total > 0 && ` — need ${formatPrice(total - creditBalance)} more`}
+                        </p>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${paymentMethodId === "credits" ? "bg-primary border-primary" : "border-muted-foreground"}`}>
+                        {paymentMethodId === "credits" && <CheckCircle2 size={10} className="text-white"/>}
+                      </div>
+                    </button>
+                  );
+                })()}
+                {/* Other payment methods */}
+                {paymentMethods.map(pm => {
+                  const isSel = paymentMethodId === pm.id;
+                  return (
+                    <button key={pm.id} onClick={() => setPaymentMethodId(isSel ? null : pm.id)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all focus:outline-none ${
+                        isSel ? "border-primary bg-primary/5" : "border-border bg-card"
+                      }`}
+                    >
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isSel ? "bg-primary/15" : "bg-secondary"}`}>
+                        <DomainPayIcon type={pm.type}/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-foreground">{pm.name}</p>
+                          {pm.isSandbox && <span className="text-[10px] font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full">Test</span>}
+                        </div>
+                        {pm.description && <p className="text-xs text-muted-foreground truncate">{pm.description}</p>}
+                        {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings.mobileNumber && (
+                          <p className="text-xs text-muted-foreground">Send to: {pm.publicSettings.mobileNumber}</p>
+                        )}
+                        {pm.type === "bank_transfer" && pm.publicSettings.bankName && (
+                          <p className="text-xs text-muted-foreground">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
+                        )}
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${isSel ? "bg-primary border-primary" : "border-muted-foreground"}`}>
+                        {isSel && <CheckCircle2 size={10} className="text-white"/>}
+                      </div>
+                    </button>
+                  );
+                })}
+                {paymentMethods.length === 0 && creditBalance === 0 && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
+                    <AlertCircle size={13}/> No payment methods configured. Please contact support.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Nameservers */}
@@ -1199,7 +1390,7 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
           </div>
 
           <Button
-            onClick={onPlaceOrder}
+            onClick={() => onPlaceOrder(promoCode, paymentMethodId)}
             disabled={isLoading || cart.length === 0}
             className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold text-base gap-2 shadow-lg shadow-primary/20"
           >

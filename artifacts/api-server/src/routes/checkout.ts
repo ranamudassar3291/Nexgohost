@@ -738,7 +738,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
 // POST /api/checkout/domain — domain-only order
 async function handleDomainCheckout(req: AuthRequest, res: any) {
   try {
-    const { domain, tld, period = 1, nameservers: _ns } = req.body;
+    const { domain, tld, period = 1, nameservers: _ns, promoCode, paymentMethodId } = req.body;
     const resolvedNs: string[] = (Array.isArray(_ns) && _ns.length >= 2)
       ? _ns.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
       : ["ns1.noehost.com", "ns2.noehost.com"];
@@ -752,6 +752,15 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
     const [user] = await db.select().from(usersTable)
       .where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    if (paymentMethodId && paymentMethodId !== "credits") {
+      const [pm] = await db.select().from(paymentMethodsTable)
+        .where(eq(paymentMethodsTable.id, paymentMethodId)).limit(1);
+      if (!pm || !pm.isActive) {
+        res.status(400).json({ error: "Selected payment method is not available" });
+        return;
+      }
+    }
 
     const cleanTld = tld.startsWith(".") ? tld : `.${tld}`;
     const [ext] = await db.select().from(domainExtensionsTable)
@@ -771,8 +780,41 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       return;
     }
 
+    // Apply promo code if provided
+    let discountAmount = 0;
+    let promoDetails: { code: string; discountPercent: number; discountType: string } | null = null;
+    if (promoCode) {
+      const [promo] = await db.select().from(promoCodesTable)
+        .where(eq(promoCodesTable.code, promoCode.toUpperCase())).limit(1);
+      if (promo && promo.isActive) {
+        const limitOk = promo.usageLimit === null || promo.usedCount < promo.usageLimit;
+        const notExpired = !promo.expiresAt || new Date() <= promo.expiresAt;
+        const applicableTo = (promo as any).applicableTo ?? "all";
+        const scopeOk = applicableTo === "all" || applicableTo === "domain";
+        const applicableDomainTld = (promo as any).applicableDomainTld;
+        const tldOk = !applicableDomainTld || applicableDomainTld.toLowerCase() === cleanTld.toLowerCase();
+        if (limitOk && notExpired && scopeOk && tldOk) {
+          const discountType = (promo as any).discountType ?? "percent";
+          if (discountType === "fixed") {
+            discountAmount = Math.min(Number((promo as any).fixedAmount ?? 0), orderAmount);
+          } else {
+            discountAmount = orderAmount * (promo.discountPercent / 100);
+          }
+          promoDetails = { code: promo.code, discountPercent: promo.discountPercent, discountType };
+          await db.update(promoCodesTable)
+            .set({ usedCount: promo.usedCount + 1 })
+            .where(eq(promoCodesTable.id, promo.id));
+        }
+      }
+    }
+
+    const finalAmount = Math.max(0, orderAmount - discountAmount);
     const fullDomain = domain.replace(/^\./, "") + cleanTld;
     const periodLabel = `${registrationYears} year${registrationYears > 1 ? "s" : ""}`;
+
+    const noteParts = [`Domain registration: ${fullDomain} (${periodLabel})`];
+    if (promoDetails) noteParts.push(`Promo: ${promoDetails.code} (-${promoDetails.discountPercent}%)`);
+    if (paymentMethodId) noteParts.push(`Payment: ${paymentMethodId}`);
 
     const [order] = await db.insert(ordersTable).values({
       clientId: req.user!.userId,
@@ -780,10 +822,10 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       itemId: null,
       itemName: fullDomain,
       domain: fullDomain,
-      amount: String(orderAmount.toFixed(2)),
+      amount: String(finalAmount.toFixed(2)),
       billingCycle: registrationYears === 1 ? "yearly" : `${registrationYears}years`,
       status: "pending",
-      notes: `Domain registration: ${fullDomain} (${periodLabel})`,
+      notes: noteParts.join(", "),
     }).returning();
 
     const dueDate = new Date();
@@ -792,21 +834,31 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
     const invoiceNumber = `INV-${dateStr}-${rand}`;
 
+    const invoiceItems: any[] = [{
+      description: `Domain Registration: ${fullDomain} (${periodLabel})`,
+      quantity: 1,
+      unitPrice: orderAmount,
+      total: orderAmount,
+    }];
+    if (discountAmount > 0 && promoDetails) {
+      invoiceItems.push({
+        description: `Promo Code: ${promoDetails.code}`,
+        quantity: 1,
+        unitPrice: -discountAmount,
+        total: -discountAmount,
+      });
+    }
+
     const [invoice] = await db.insert(invoicesTable).values({
       invoiceNumber,
       clientId: req.user!.userId,
       orderId: order.id,
       serviceId: null,
-      amount: String(orderAmount.toFixed(2)),
-      total: String(orderAmount.toFixed(2)),
+      amount: String(finalAmount.toFixed(2)),
+      total: String(finalAmount.toFixed(2)),
       status: "unpaid",
       dueDate,
-      items: [{
-        description: `Domain Registration: ${fullDomain} (${periodLabel})`,
-        quantity: 1,
-        unitPrice: orderAmount,
-        total: orderAmount,
-      }],
+      items: invoiceItems,
     }).returning();
 
     // Create domain record so it appears immediately in client's domain list
@@ -838,8 +890,8 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
 
     res.status(201).json({
       success: true,
-      order: { id: order.id, domain: fullDomain, amount: orderAmount, status: order.status },
-      invoice: { id: invoice.id, invoiceNumber, amount: orderAmount, status: invoice.status, dueDate: invoice.dueDate?.toISOString() },
+      order: { id: order.id, domain: fullDomain, amount: finalAmount, status: order.status },
+      invoice: { id: invoice.id, invoiceNumber, amount: finalAmount, status: invoice.status, dueDate: invoice.dueDate?.toISOString() },
     });
   } catch (err) {
     console.error(err);

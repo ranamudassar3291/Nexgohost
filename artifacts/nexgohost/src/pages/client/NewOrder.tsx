@@ -916,7 +916,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         const tld = cartDomain.fullName.includes(".") ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")) : "";
         if (tld) params.set("tld", tld);
       }
-      const res = await fetch(`/api/promo-codes/validate?${params.toString()}`);
+      const res = await apiFetch(`/api/promo-codes/validate?${params.toString()}`);
       const data = await res.json();
       if (!res.ok || data.error) { setPromoError(data.error || "Invalid promo code"); return; }
       setPromoDiscount(data.discountAmount ?? 0);
