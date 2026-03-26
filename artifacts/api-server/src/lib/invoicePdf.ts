@@ -1,6 +1,21 @@
 /**
- * Noehost Professional Invoice PDF Generator
- * Guaranteed single-page A4 layout — compact, clean, premium brand.
+ * Noehost — Professional Single-Page Invoice PDF
+ *
+ * Root-cause fix: PDFKit auto-adds pages when doc.y > (PH - margin).
+ * Drawing the footer at y≈790 pushed the cursor past maxY=801, causing
+ * 3 phantom pages. Fix: margin=0 → maxY=841.89 — nothing we draw
+ * ever reaches that, so auto-page-break is permanently disabled.
+ *
+ * Layout budget (A4 = 595 × 841.89 pt, virtual margin = 40):
+ *   Header band      : 0–90
+ *   Date row         : 100–130
+ *   Bill section     : 140–186
+ *   Table            : 195–(195 + items×18)
+ *   Totals           : +60 max
+ *   CEO signature    : +60
+ *   T&C              : +30
+ *   Footer band      : 789–841
+ * ──────────────────────────────────────────────────────────────────────────
  */
 import PDFDocument from "pdfkit";
 
@@ -32,22 +47,22 @@ export interface InvoiceData {
 const BRAND    = "#701AFE";
 const PAID_C   = "#16a34a";
 const UNPAID_C = "#dc2626";
-const GREY     = "#6B7280";
-const DARK     = "#1e293b";
+const GREY     = "#94A3B8";
+const DARK_G   = "#475569";
+const DARK     = "#1E293B";
 const SLATE50  = "#F8FAFC";
 const SLATE100 = "#F1F5F9";
 const SLATE200 = "#E2E8F0";
 const WHITE    = "#FFFFFF";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function formatPKR(amount: number): string {
-  return `Rs. ${Number(amount).toLocaleString("en-PK", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+// ── Formatters ────────────────────────────────────────────────────────────────
+function pkr(n: number): string {
+  return "Rs. " + Number(n).toLocaleString("en-PK", {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
 }
 
-function fmtDate(iso: string | null | undefined): string {
+function dt(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleDateString("en-GB", {
@@ -56,261 +71,277 @@ function fmtDate(iso: string | null | undefined): string {
   } catch { return "—"; }
 }
 
+// ── Generator ─────────────────────────────────────────────────────────────────
 export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const MARGIN = 40;
+
+    // KEY FIX: margin=0 → maxY = 841.89 → no auto page-break ever fires.
+    // We manage all spacing manually with a virtual 40pt gutter.
     const doc = new PDFDocument({
       size: "A4",
-      margin: MARGIN,
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
       bufferPages: true,
       autoFirstPage: true,
+      info: {
+        Title: `Noehost Invoice #${data.invoiceNumber}`,
+        Author: "Noehost Billing System",
+        Creator: "Noehost",
+      },
     });
 
     const chunks: Buffer[] = [];
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("data", (c: Buffer) => chunks.push(c));
+    doc.on("end",  () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const PW = doc.page.width;   // 595.28
-    const PH = doc.page.height;  // 841.89
-    const L  = MARGIN;
-    const R  = PW - MARGIN;
-    const W  = R - L;            // 515.28
+    // Page geometry
+    const PW  = doc.page.width;     // 595.28
+    const PH  = doc.page.height;    // 841.89
+    const VM  = 40;                 // virtual margin (left/right gutter)
+    const L   = VM;
+    const R   = PW - VM;
+    const W   = R - L;              // 515.28
 
+    // Status helpers
     const isPaid      = data.status === "paid";
-    const isUnpaid    = ["unpaid", "overdue"].includes(data.status);
     const isCancelled = data.status === "cancelled";
-    const statusLabel = data.status === "payment_pending"
-      ? "PENDING"
-      : data.status.replace("_", " ").toUpperCase();
+    const statusLabel = data.status === "payment_pending" ? "PENDING"
+      : data.status.replace(/_/g, " ").toUpperCase();
     const statusColor = isPaid ? PAID_C : isCancelled ? GREY : UNPAID_C;
 
-    const creditApplied     = data.creditApplied ?? 0;
-    const amountAfterCredit = Number(data.total) - creditApplied;
+    const credit         = Number(data.creditApplied ?? 0);
+    const totalAfterCred = Number(data.total) - credit;
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // FOOTER BAND — drawn first at absolute bottom, so content never pushes it
-    // ──────────────────────────────────────────────────────────────────────────
-    const FOOTER_H = 52;
-    const FOOTER_Y = PH - FOOTER_H;
-    // Bottom boundary for content — stay well above footer
-    const CONTENT_BOTTOM = FOOTER_Y - 8;
+    // ── 1. HEADER BAND (0–90) ─────────────────────────────────────────────────
+    doc.rect(0, 0, PW, 90).fill(BRAND);
 
-    doc.rect(0, FOOTER_Y, PW, FOOTER_H).fill(BRAND);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE);
-    doc.text("Thank you for choosing Noehost!", 0, FOOTER_Y + 9, { width: PW, align: "center" });
-    doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.60)");
-    doc.text("support@noehost.com  ·  noehost.com  ·  billing@noehost.com",
-      0, FOOTER_Y + 23, { width: PW, align: "center" });
-    doc.font("Helvetica").fontSize(6.5).fillColor("rgba(255,255,255,0.38)");
-    doc.text(`Invoice #${data.invoiceNumber} — Generated by Noehost Billing System`,
-      0, FOOTER_Y + 36, { width: PW, align: "center" });
+    // Logo
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
+    doc.text("N", L, 20, { continued: true, lineBreak: false });
+    doc.font("Helvetica").fillColor("rgba(255,255,255,0.90)").text("oehost", { lineBreak: false });
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // HEADER BAND
-    // ──────────────────────────────────────────────────────────────────────────
-    const HEADER_H = 90;
-    doc.rect(0, 0, PW, HEADER_H).fill(BRAND);
-
-    // Noehost logo text
-    doc.font("Helvetica-Bold").fontSize(19).fillColor(WHITE);
-    doc.text("N", L, 22, { continued: true, lineBreak: false });
-    doc.font("Helvetica").text("oehost");
-    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.60)");
+    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.58)");
     doc.text("Professional Hosting Solutions", L, 46, { lineBreak: false });
-    doc.text("billing@noehost.com", L, 57, { lineBreak: false });
+    doc.text("billing@noehost.com  ·  noehost.com", L, 57, { lineBreak: false });
 
-    // Invoice number (right)
-    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.55)");
-    doc.text("INVOICE", 0, 22, { width: PW - MARGIN, align: "right", lineBreak: false });
-    doc.font("Helvetica-Bold").fontSize(22).fillColor(WHITE);
-    doc.text(`#${data.invoiceNumber}`, 0, 33, { width: PW - MARGIN, align: "right", lineBreak: false });
+    // Invoice number (right-aligned)
+    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.52)");
+    doc.text("INVOICE", 0, 20, { width: R, align: "right", lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(23).fillColor(WHITE);
+    doc.text(`#${data.invoiceNumber}`, 0, 31, { width: R, align: "right", lineBreak: false });
 
-    // Status badge (red pill for unpaid, green for paid, etc.)
-    const badgeW = 82;
-    const badgeH = 16;
-    doc.roundedRect(R - badgeW, 65, badgeW, badgeH, 4).fill(statusColor);
-    doc.font("Helvetica-Bold").fontSize(7).fillColor(WHITE);
-    doc.text(statusLabel, R - badgeW, 70, { width: badgeW, align: "center", lineBreak: false });
+    // Status badge — bold coloured pill, top-right
+    const bw = 88;
+    doc.roundedRect(R - bw, 63, bw, 18, 4).fill(statusColor);
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(WHITE);
+    doc.text(statusLabel, R - bw, 69, { width: bw, align: "center", lineBreak: false });
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // CONTENT — compact, absolute-y drawing to prevent auto page-break
-    // ──────────────────────────────────────────────────────────────────────────
-    let y = HEADER_H + 10;
-
-    // DATE ROW
-    const DR_H = 30;
-    doc.rect(L, y, W, DR_H).fill(SLATE100);
-    const dateCols = [
-      { label: "Invoice Date", value: fmtDate(data.createdAt) },
-      { label: "Due Date",     value: fmtDate(data.dueDate)   },
-      { label: "Paid Date",    value: isPaid ? fmtDate(data.paidDate) : "—" },
+    // ── 2. DATE ROW (100–130) ─────────────────────────────────────────────────
+    let y = 100;
+    const DR = 30;
+    doc.rect(L, y, W, DR).fill(SLATE100);
+    const dates = [
+      { label: "INVOICE DATE", val: dt(data.createdAt) },
+      { label: "DUE DATE",     val: dt(data.dueDate)   },
+      { label: "PAID DATE",    val: isPaid ? dt(data.paidDate) : "—" },
     ];
-    const colW = W / 3;
-    dateCols.forEach((col, i) => {
-      const cx = L + i * colW;
-      doc.font("Helvetica").fontSize(6).fillColor(GREY);
-      doc.text(col.label.toUpperCase(), cx + 4, y + 5, { width: colW - 8, align: "center", lineBreak: false });
+    const cW = W / 3;
+    dates.forEach(({ label, val }, i) => {
+      const cx = L + i * cW;
+      doc.font("Helvetica").fontSize(5.5).fillColor(GREY);
+      doc.text(label, cx, y + 5, { width: cW, align: "center", lineBreak: false });
       doc.font("Helvetica-Bold").fontSize(8.5).fillColor(DARK);
-      doc.text(col.value, cx + 4, y + 14, { width: colW - 8, align: "center", lineBreak: false });
-      if (i < 2) doc.rect(cx + colW - 0.5, y + 4, 0.5, 22).fill(SLATE200);
+      doc.text(val, cx, y + 14, { width: cW, align: "center", lineBreak: false });
+      if (i < 2) doc.rect(cx + cW, y + 6, 0.5, 18).fill(SLATE200);
     });
-    y += DR_H + 10;
 
-    // BILL FROM / BILL TO
-    const halfW = (W - 12) / 2;
-    const billToX = L + halfW + 12;
-    const billStartY = y;
+    // ── 3. BILL FROM / BILL TO (140–184) ──────────────────────────────────────
+    y = 140;
+    const half = (W - 16) / 2;
+    const btX  = L + half + 16;
 
+    // PAY TO
     doc.font("Helvetica-Bold").fontSize(6).fillColor(BRAND);
     doc.text("PAY TO", L, y, { lineBreak: false });
-    y += 9;
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(DARK);
-    doc.text("Noehost", L, y, { lineBreak: false });
-    y += 12;
-    doc.font("Helvetica").fontSize(7.5).fillColor(GREY);
-    doc.text("billing@noehost.com", L, y, { lineBreak: false });
-    y += 9;
-    doc.text("support@noehost.com", L, y, { lineBreak: false });
-    y += 9;
+    doc.font("Helvetica-Bold").fontSize(10.5).fillColor(DARK);
+    doc.text("Noehost", L, y + 9, { lineBreak: false });
+    doc.font("Helvetica").fontSize(7.5).fillColor(DARK_G);
+    doc.text("billing@noehost.com", L, y + 22, { lineBreak: false });
+    doc.text("support@noehost.com", L, y + 31, { lineBreak: false });
 
-    // Bill To column (absolute, same start y)
-    let bty = billStartY;
+    // BILL TO
     doc.font("Helvetica-Bold").fontSize(6).fillColor(BRAND);
-    doc.text("BILL TO", billToX, bty, { lineBreak: false });
-    bty += 9;
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(DARK);
-    doc.text(data.clientName || "Client", billToX, bty, { lineBreak: false });
-    bty += 12;
+    doc.text("BILL TO", btX, y, { lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(10.5).fillColor(DARK);
+    doc.text(String(data.clientName || "Client").slice(0, 40), btX, y + 9, { width: half, lineBreak: false, ellipsis: true });
     if (data.clientEmail) {
-      doc.font("Helvetica").fontSize(7.5).fillColor(GREY);
-      doc.text(data.clientEmail, billToX, bty, { lineBreak: false });
+      doc.font("Helvetica").fontSize(7.5).fillColor(DARK_G);
+      doc.text(data.clientEmail, btX, y + 22, { width: half, lineBreak: false, ellipsis: true });
     }
 
-    // Divider between columns
-    doc.rect(L + halfW + 5, billStartY, 0.5, 42).fill(SLATE200);
+    // Column divider
+    doc.rect(L + half + 7, y, 0.5, 44).fill(SLATE200);
 
-    y = billStartY + 42 + 8;
-
-    // Thin divider
+    // Separator line
+    y = 192;
     doc.rect(L, y, W, 0.5).fill(SLATE200);
-    y += 9;
 
-    // ITEMS TABLE — header row
-    const ROW_H = 18;
-    doc.roundedRect(L, y, W, 20, 2).fill(BRAND);
+    // ── 4. ITEMS TABLE (200 onward) ───────────────────────────────────────────
+    y = 200;
+
+    // Table header
+    doc.rect(L, y, W, 22).fill(BRAND);
     doc.font("Helvetica-Bold").fontSize(7).fillColor(WHITE);
-    doc.text("DESCRIPTION", L + 6,  y + 6, { width: W * 0.52, lineBreak: false });
-    doc.text("QTY",          L + W * 0.54, y + 6, { width: W * 0.08, align: "center", lineBreak: false });
-    doc.text("UNIT PRICE",   L + W * 0.63, y + 6, { width: W * 0.18, align: "right",  lineBreak: false });
-    doc.text("AMOUNT",       L + W * 0.83, y + 6, { width: W * 0.15, align: "right",  lineBreak: false });
-    y += 20;
+    doc.text("DESCRIPTION",  L + 8,        y + 7, { width: W * 0.50, lineBreak: false });
+    doc.text("QTY",          L + W * 0.52, y + 7, { width: W * 0.08, align: "center", lineBreak: false });
+    doc.text("UNIT PRICE",   L + W * 0.61, y + 7, { width: W * 0.20, align: "right",  lineBreak: false });
+    doc.text("AMOUNT",       L + W * 0.83, y + 7, { width: W * 0.16, align: "right",  lineBreak: false });
+    y += 22;
 
-    const items = data.items && data.items.length > 0
-      ? data.items
-      : [{ description: "Service", quantity: 1, unitPrice: data.amount, total: data.amount }];
+    const items = (data.items?.length ? data.items : [{
+      description: "Service", quantity: 1,
+      unitPrice: Number(data.amount), total: Number(data.amount),
+    }]).slice(0, 10); // hard cap at 10 rows
 
-    // Cap at 10 items to guarantee single page
-    const visibleItems = items.slice(0, 10);
-    visibleItems.forEach((item, idx) => {
-      doc.rect(L, y, W, ROW_H).fill(idx % 2 === 0 ? WHITE : SLATE50);
+    const ROW = 18;
+    items.forEach((item, idx) => {
+      // Row background — subtle alternating stripe
+      doc.rect(L, y, W, ROW).fill(idx % 2 === 0 ? WHITE : SLATE50);
+      // Light bottom border
+      doc.rect(L, y + ROW - 0.5, W, 0.5).fill(SLATE200);
+
       doc.font("Helvetica").fontSize(7.5).fillColor(DARK);
-      doc.text(item.description, L + 6, y + 4, { width: W * 0.51, lineBreak: false, ellipsis: true });
-      doc.fillColor(GREY);
-      doc.text(String(item.quantity), L + W * 0.54, y + 4, { width: W * 0.08, align: "center", lineBreak: false });
+      doc.text(String(item.description), L + 8, y + 5,
+        { width: W * 0.49, lineBreak: false, ellipsis: true });
+
+      doc.fillColor(DARK_G);
+      doc.text(String(item.quantity), L + W * 0.52, y + 5,
+        { width: W * 0.08, align: "center", lineBreak: false });
+
       doc.fillColor(DARK);
-      doc.text(formatPKR(Number(item.unitPrice)), L + W * 0.63, y + 4, { width: W * 0.18, align: "right", lineBreak: false });
-      doc.font("Helvetica-Bold");
-      doc.text(formatPKR(Number(item.total)), L + W * 0.83, y + 4, { width: W * 0.15, align: "right", lineBreak: false });
-      y += ROW_H;
+      doc.text(pkr(Number(item.unitPrice)), L + W * 0.61, y + 5,
+        { width: W * 0.20, align: "right", lineBreak: false });
+
+      doc.font("Helvetica-Bold").fillColor(DARK);
+      doc.text(pkr(Number(item.total)), L + W * 0.83, y + 5,
+        { width: W * 0.16, align: "right", lineBreak: false });
+
+      y += ROW;
     });
 
-    doc.rect(L, y, W, 0.5).fill(SLATE200);
-    y += 9;
+    // Table bottom border
+    doc.rect(L, y, W, 1).fill(SLATE200);
+    y += 10;
 
-    // TOTALS
-    const totalsX = L + W * 0.54;
-    const totalsW = W * 0.46;
+    // ── 5. TOTALS (right-aligned block) ───────────────────────────────────────
+    const tX  = L + W * 0.56;
+    const tW  = W * 0.44;
+    const lW  = tW * 0.56;
+    const vW  = tW * 0.44;
 
-    const totalsRows: { label: string; value: string; color?: string; bold?: boolean }[] = [
-      { label: "Subtotal",       value: formatPKR(data.amount) },
-      { label: "Tax / VAT (0%)", value: formatPKR(data.tax || 0) },
+    const totals: { label: string; value: string; green?: boolean; bold?: boolean }[] = [
+      { label: "Subtotal",       value: pkr(Number(data.amount)) },
+      { label: "Tax / VAT (0%)", value: pkr(Number(data.tax || 0)) },
     ];
-    if (creditApplied > 0) {
-      totalsRows.push({
-        label: "Account Credit Applied",
-        value: `- ${formatPKR(creditApplied)}`,
-        color: PAID_C, bold: true,
-      });
+    if (credit > 0) {
+      totals.push({ label: "Account Credit Applied", value: `− ${pkr(credit)}`, green: true, bold: true });
     }
 
-    totalsRows.forEach(row => {
-      doc.font(row.bold ? "Helvetica-Bold" : "Helvetica").fontSize(8).fillColor(row.color ?? GREY);
-      doc.text(row.label, totalsX, y, { width: totalsW * 0.55, lineBreak: false });
-      doc.fillColor(row.color ?? DARK);
-      doc.text(row.value, totalsX + totalsW * 0.55, y, { width: totalsW * 0.45, align: "right", lineBreak: false });
-      y += 12;
+    totals.forEach(row => {
+      const fc = row.green ? PAID_C : DARK_G;
+      doc.font(row.bold ? "Helvetica-Bold" : "Helvetica").fontSize(8).fillColor(fc);
+      doc.text(row.label, tX, y, { width: lW, lineBreak: false });
+      doc.fillColor(row.green ? PAID_C : DARK).font(row.bold ? "Helvetica-Bold" : "Helvetica");
+      doc.text(row.value, tX + lW, y, { width: vW, align: "right", lineBreak: false });
+      y += 13;
     });
 
-    // Total Due band
-    doc.roundedRect(totalsX - 4, y - 1, totalsW + 8, 24, 3).fill(BRAND);
+    // Total Due pill
+    y += 2;
+    doc.rect(tX - 6, y - 2, tW + 12, 26).fill(BRAND);
     doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE);
-    doc.text("TOTAL DUE", totalsX, y + 6, { width: totalsW * 0.55, lineBreak: false });
-    doc.text(
-      formatPKR(creditApplied > 0 ? amountAfterCredit : data.total),
-      totalsX + totalsW * 0.55, y + 6,
-      { width: totalsW * 0.45, align: "right", lineBreak: false }
-    );
-    y += 30;
+    doc.text("TOTAL DUE", tX, y + 6, { width: lW, lineBreak: false });
+    doc.text(pkr(credit > 0 ? totalAfterCred : Number(data.total)),
+      tX + lW, y + 6, { width: vW, align: "right", lineBreak: false });
+    y += 32;
 
-    // Payment reference (optional, compact)
+    // Payment ref (compact, single line)
     if (data.paymentRef) {
       doc.font("Helvetica").fontSize(7).fillColor(GREY);
-      doc.text(`Payment Ref: ${data.paymentRef}${data.paymentNotes ? "  |  Notes: " + data.paymentNotes : ""}`,
-        L, y, { width: W, lineBreak: false, ellipsis: true });
-      y += 10;
+      const refLine = `Ref: ${data.paymentRef}${data.paymentNotes ? "  |  " + data.paymentNotes : ""}`;
+      doc.text(refLine, L, y, { width: W, lineBreak: false, ellipsis: true });
+      y += 11;
     }
 
-    y += 4;
+    y += 6;
 
-    // CEO SIGNATURE — compact grey box
+    // ── 6. DIVIDER ────────────────────────────────────────────────────────────
     doc.rect(L, y, W, 0.5).fill(SLATE200);
-    y += 8;
+    y += 10;
 
-    const SIG_H = 46;
-    doc.roundedRect(L, y, W * 0.62, SIG_H, 3).fill(SLATE100);
+    // ── 7. CEO SIGNATURE (bottom-right) + TERMS (bottom-left) ────────────────
+    // Two-column layout: T&C on left, Signature on right
+    const sigW  = W * 0.50;
+    const termsW = W * 0.46;
+    const sigX  = R - sigW;
 
-    doc.font("Helvetica-Bold").fontSize(6).fillColor(GREY);
-    doc.text("AUTHORIZED & ISSUED BY", L + 8, y + 6, { width: W * 0.58, lineBreak: false });
+    // Signature box (right)
+    const sigH = 52;
+    doc.rect(sigX, y, sigW, sigH).fill(SLATE100);
 
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(BRAND);
-    doc.text("Muhammad Arslan", L + 8, y + 16, { lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(5.5).fillColor(GREY);
+    doc.text("AUTHORIZED & ISSUED BY", sigX + 8, y + 6,
+      { width: sigW - 16, lineBreak: false });
 
-    doc.font("Helvetica").fontSize(7.5).fillColor(DARK);
-    doc.text("Founder & CEO, Noehost", L + 8, y + 31, { lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(13).fillColor(BRAND);
+    doc.text("Muhammad Arslan", sigX + 8, y + 16, { lineBreak: false });
+
+    doc.font("Helvetica").fontSize(8).fillColor(DARK);
+    doc.text("Founder & CEO, Noehost", sigX + 8, y + 31, { lineBreak: false });
 
     doc.font("Helvetica-Oblique").fontSize(6.5).fillColor(GREY);
     doc.text(
-      '"Empowering your digital journey with premium hosting solutions."',
-      L + 8, y + 41,
-      { width: W * 0.58, lineBreak: false, ellipsis: true }
+      "\u201CEmpowering your digital journey with premium hosting solutions.\u201D",
+      sigX + 8, y + 42,
+      { width: sigW - 16, lineBreak: false, ellipsis: true }
     );
 
-    y += SIG_H + 8;
+    // T&C text (left of signature box)
+    doc.font("Helvetica-Bold").fontSize(6).fillColor(DARK_G);
+    doc.text("TERMS & CONDITIONS", L, y + 6, { width: termsW, lineBreak: false });
 
-    // TERMS & CONDITIONS — single compact line
-    doc.rect(L, y, W, 0.5).fill(SLATE200);
-    y += 7;
-    doc.font("Helvetica-Bold").fontSize(6).fillColor(GREY);
-    doc.text("TERMS & CONDITIONS", L, y, { lineBreak: false });
-    y += 8;
     doc.font("Helvetica").fontSize(6.5).fillColor(GREY);
     doc.text(
-      "All services are governed by Noehost TOS (noehost.com/tos). Invoices must be paid by the due date to avoid service interruption. Thank you for choosing Noehost!",
-      L, y, { width: W, lineBreak: true }
+      "All services are governed by Noehost Terms of Service (noehost.com/tos). "
+      + "Invoices must be paid by the due date to avoid service interruption. "
+      + "For billing queries, contact billing@noehost.com.",
+      L, y + 16,
+      { width: termsW, lineBreak: false, ellipsis: true }
     );
 
-    // Finalize — only one page should exist
+    // ── 8. FOOTER BAND (PH-52 to PH) — drawn LAST so cursor reset is harmless
+    const FY = PH - 52;
+    doc.rect(0, FY, PW, 52).fill(BRAND);
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE);
+    doc.text("Thank you for choosing Noehost!",
+      0, FY + 10, { width: PW, align: "center", lineBreak: false });
+    doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.58)");
+    doc.text("support@noehost.com  ·  noehost.com  ·  billing@noehost.com",
+      0, FY + 24, { width: PW, align: "center", lineBreak: false });
+    doc.font("Helvetica").fontSize(6.5).fillColor("rgba(255,255,255,0.35)");
+    doc.text(
+      `Invoice #${data.invoiceNumber} \u2014 Generated by Noehost Billing System`,
+      0, FY + 37, { width: PW, align: "center", lineBreak: false }
+    );
+
+    // ── END — bufferPages=true, single page guaranteed ────────────────────────
+    // Trim any phantom pages (safety net — should never be needed after margin=0 fix)
+    const range = doc.bufferedPageRange();
+    for (let i = range.start + 1; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      (doc as any)._pageBuffer.splice(i, 1);
+    }
+
     doc.end();
   });
 }
