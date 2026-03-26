@@ -370,31 +370,89 @@ export interface DnsRecord {
 export async function cpanelGetDnsZone(server: ServerConfig, domain: string, username: string): Promise<DnsRecord[]> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
+  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+
+  // ── Primary: UAPI ZoneEdit::fetch_zone_record (returns ALL records) ─────────
+  try {
+    const uapiParams = new URLSearchParams({
+      "api.version": "1",
+      user: username,
+      cpanel_jsonapi_apiversion: "uapi",
+      cpanel_jsonapi_module: "ZoneEdit",
+      cpanel_jsonapi_func: "fetch_zone_record",
+      domain,
+    });
+    const uapiUrl = `https://${server.hostname}:${port}/json-api/cpanel?${uapiParams}`;
+    const raw = await httpsGet(uapiUrl, authHeader, 30_000);
+    const data = JSON.parse(raw);
+
+    // UAPI result comes under data?.result?.data or result.data
+    const uapiData = data?.result?.data ?? data?.data;
+    const uapiRecords: any[] = Array.isArray(uapiData?.record)
+      ? uapiData.record
+      : Array.isArray(uapiData)
+        ? uapiData
+        : [];
+
+    if (uapiRecords.length > 0) {
+      console.log(`[DNS] UAPI fetch_zone_record returned ${uapiRecords.length} records for ${domain}`);
+      return uapiRecords.map((r: any) => ({
+        Line: r.line_index ?? r.Line,
+        type: (r.type ?? "A").toUpperCase(),
+        name: r.name ?? r.dname ?? "",
+        address: r.address ?? r.record ?? r.txtdata ?? r.cname ?? r.exchange ?? "",
+        cname: r.cname,
+        exchange: r.exchange,
+        txtdata: r.txtdata,
+        ttl: Number(r.ttl) || 14400,
+        preference: r.priority ?? r.preference,
+      }));
+    }
+  } catch (e: any) {
+    console.warn(`[DNS] UAPI fetch_zone_record failed for ${domain}: ${e.message} — trying API2`);
+  }
+
+  // ── Fallback: API2 fetchzone_records (no limit, customonly=0 = all records) ─
   const whmUrl = `https://${server.hostname}:${port}/json-api/cpanel?cpanel_jsonapi_version=2&cpanel_jsonapi_module=ZoneEdit&cpanel_jsonapi_func=fetchzone_records&domain=${encodeURIComponent(domain)}&customonly=0&api.version=1&user=${encodeURIComponent(username)}`;
-  const body = await httpsGet(whmUrl, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const body = await httpsGet(whmUrl, authHeader);
   const data = JSON.parse(body);
 
-  // API2 fetchzone_records returns records as a flat array in cpanelresult.data
-  // (not nested inside data[0].record) — also handle legacy/proxy wrappers
-  const records: any[] =
-    (Array.isArray(data?.cpanelresult?.data) && data.cpanelresult.data.length > 0 && data.cpanelresult.data[0]?.Line !== undefined
-      ? data.cpanelresult.data           // flat array (each element IS a record)
-      : data?.cpanelresult?.data?.[0]?.record) // wrapped format
-    ?? data?.data?.record
-    ?? data?.result?.[0]?.data?.record
-    ?? [];
+  // API2 fetchzone_records response can be:
+  // a) Flat array: cpanelresult.data[] where each element has a Line property (IS the record)
+  // b) Wrapped: cpanelresult.data[0].record[] where the array contains records
+  // Probe which format by checking if the first element looks like a DNS record
+  const rawData: any[] = data?.cpanelresult?.data ?? data?.result?.[0]?.data ?? [];
+  let records: any[] = [];
 
-  console.log(`[DNS] cpanelGetDnsZone returned ${records.length} records for ${domain}`);
+  if (rawData.length > 0) {
+    // If first element has 'type' or 'Line' it's a flat array of records
+    const firstEl = rawData[0];
+    if (firstEl?.type !== undefined || firstEl?.Line !== undefined) {
+      records = rawData; // flat array — every element IS a record
+    } else if (Array.isArray(firstEl?.record)) {
+      records = firstEl.record; // wrapped format
+    } else {
+      // Try all possible nested locations
+      records = rawData.flatMap((item: any) => Array.isArray(item?.record) ? item.record : (item?.type ? [item] : []));
+    }
+  }
+
+  // Final fallback paths
+  if (records.length === 0) {
+    records = data?.data?.record ?? data?.result?.[0]?.data?.record ?? [];
+  }
+
+  console.log(`[DNS] API2 fetchzone_records returned ${records.length} records for ${domain}`);
   return records.map((r: any) => ({
-    Line: r.Line,
-    type: r.type,
-    name: r.name,
-    address: r.address,
+    Line: r.Line ?? r.line,
+    type: (r.type ?? "A").toUpperCase(),
+    name: r.name ?? "",
+    address: r.address ?? r.txtdata ?? r.cname ?? r.exchange ?? "",
     cname: r.cname,
     exchange: r.exchange,
     txtdata: r.txtdata,
     ttl: Number(r.ttl) || 14400,
-    preference: r.preference,
+    preference: r.preference ?? r.priority,
   }));
 }
 
@@ -1239,38 +1297,29 @@ export async function cpanelFullBackup(
   const authUser = server.username || "root";
   const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
 
-  // ── Primary: cPanel API2 Backup::fullbackup via WHM proxy ─────────────────
+  // ── Primary: UAPI Backup::fullbackup_to_homedir ────────────────────────────
+  // This is the correct modern cPanel UAPI endpoint for triggering a full backup.
+  // Parameters: dir (destination path — blank uses homedir), email (notification),
+  // variant (backup format — "cpanel" for standard cPanel backup)
   try {
-    const params = new URLSearchParams({
-      "api.version": "1",
-      user: username,
-      cpanel_jsonapi_version: "2",
-      cpanel_jsonapi_module: "Backup",
-      cpanel_jsonapi_func: "fullbackup",
-      dest: "homedir",
+    await cpanelUapi(server, username, "Backup", "fullbackup_to_homedir", {
+      dir: "",
       email: "",
-      server: "",
-      port: "21",
-      rdir: "",
-      phd: "",
+      variant: "cpanel",
     });
-    const url = `https://${server.hostname}:${port}/json-api/cpanel?${params}`;
-    const raw = await httpsGet(url, authHeader, 120_000);
-    const data = JSON.parse(raw);
-    // API2 response shape via WHM proxy
-    const cpResult = data?.cpanelresult ?? data?.result?.[0] ?? {};
-    const errMsg: string | undefined = cpResult?.error || data?.metadata?.reason;
-    if (errMsg && !/no data returned/i.test(errMsg)) throw new Error(errMsg);
-    if (!errMsg) {
-      console.log(`[BACKUP] API2 fullbackup initiated for ${username}`);
-      return { status: "initiated", message: `Full backup initiated. File: ~/backup-${username}-*.tar.gz` };
+    console.log(`[BACKUP] UAPI Backup::fullbackup_to_homedir initiated for ${username}`);
+    return { status: "initiated", message: `Full backup initiated via UAPI. File: ~/backup-${username}-*.tar.gz` };
+  } catch (uapiErr: any) {
+    // "already running" is a success condition
+    if (/already.*running|in.*progress/i.test(uapiErr.message)) {
+      console.log(`[BACKUP] Backup already running for ${username}`);
+      return { status: "initiated", message: `Backup already in progress for ${username}.` };
     }
-    throw new Error(errMsg || "API2 returned no result");
-  } catch (api2Err: any) {
-    console.warn(`[BACKUP] API2 fullbackup failed for ${username}: ${api2Err.message} — trying WHM backup`);
+    console.warn(`[BACKUP] UAPI fullbackup_to_homedir failed for ${username}: ${uapiErr.message} — trying WHM backup`);
   }
 
-  // ── Fallback: WHM-native backup endpoint ──────────────────────────────────
+  // ── Fallback: WHM-native /json-api/backup endpoint ────────────────────────
+  // WHM-level backup that generates ~/backup-USERNAME-DATE.tar.gz
   try {
     const params = new URLSearchParams({ "api.version": "1", user: username, disabled: "0" });
     const url = `https://${server.hostname}:${port}/json-api/backup?${params}`;
@@ -1281,7 +1330,7 @@ export async function cpanelFullBackup(
     return { status: "initiated", message: `Full backup started via WHM for ${username}. File: ~/backup-${username}-*.tar.gz` };
   } catch (whmErr: any) {
     console.error(`[BACKUP] WHM backup fallback also failed for ${username}: ${whmErr.message}`);
-    throw new Error(`All backup methods failed for ${username}: ${whmErr.message}`);
+    throw new Error(`Backup failed for ${username}: ${whmErr.message}`);
   }
 }
 
@@ -1362,32 +1411,72 @@ export async function cpanelGetLiveUsage(
   const bwUnlimited = bwLimitRaw === "unlimited" || bwLimitRaw === "0" || !bwLimitRaw;
   const bwLimitMB   = bwUnlimited ? 0 : (parseFloat(bwLimitRaw) || 0);
 
-  // ── Fallback: if accountsummary returned 0 disk, try UAPI DiskUsage::list ─
-  // DiskUsage::list returns total disk usage more accurately for accounts with
-  // files spread across mailboxes, logs, and databases.
-  if (diskUsedMB === 0) {
+  // ── Fallback 1: UAPI Stats::get_stats (diskusage + bandwidthusage) ──────────
+  // This is the most accurate source — returns bytes-level precision
+  if (diskUsedMB === 0 || bwUsedMB === 0) {
     try {
-      const port = server.port || 2087;
-      const authUser = server.username || "root";
-      const u = encodeURIComponent(username);
-      const diskUrl = `https://${server.hostname}:${port}/json-api/cpanel?api.version=1&cpanel_jsonapi_version=2&cpanel_jsonapi_module=DiskUsage&cpanel_jsonapi_func=list&cpanel_apiuser=${u}`;
-      const raw = await httpsGet(diskUrl, { "Authorization": `whm ${authUser}:${server.apiToken}` }, 15_000);
-      const diskData = JSON.parse(raw);
-      const diskItems: any[] = diskData?.cpanelresult?.data ?? diskData?.result?.[0]?.data ?? [];
-      if (Array.isArray(diskItems) && diskItems.length > 0) {
-        // Sum all top-level directories (or look for 'total' or '/' entry)
-        const totalEntry = diskItems.find((d: any) => d.dir === "/" || d.dir === "total" || d.dir === ".");
-        if (totalEntry && totalEntry.kb != null) {
-          diskUsedMB = (parseFloat(totalEntry.kb) || 0) / 1024;
-        } else {
-          // Sum all entries
-          const sumKb = diskItems.reduce((acc: number, d: any) => acc + (parseFloat(d.kb) || 0), 0);
-          diskUsedMB = sumKb / 1024;
+      const statsData = await cpanelUapi(server, username, "Stats", "get_stats", {
+        "stat-0": "diskusage",
+        "stat-1": "bandwidthusage",
+      });
+      const statsList: any[] = Array.isArray(statsData) ? statsData : (statsData?.stats ?? []);
+      for (const stat of statsList) {
+        const id = stat?.id ?? stat?.name ?? "";
+        if (id === "diskusage" && diskUsedMB === 0) {
+          // Prefer bytes-precision fields; fall back to human-readable 'count' field
+          const bytes = parseFloat(stat?.bytes ?? stat?.count ?? stat?.amount ?? "0");
+          const maxBytes = parseFloat(stat?.maxbytes ?? "0");
+          if (bytes > 0) {
+            diskUsedMB = bytes / (1024 * 1024);
+            if (maxBytes > 0 && diskUnlimited) {
+              // Stats reported a real limit — update
+              const newLimitMB = maxBytes / (1024 * 1024);
+              if (newLimitMB > 0) {
+                console.log(`[USAGE] Stats::get_stats disk for ${username}: ${diskUsedMB.toFixed(2)} MB / ${newLimitMB.toFixed(0)} MB`);
+              }
+            }
+            console.log(`[USAGE] Stats::get_stats disk for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+          }
         }
-        console.log(`[USAGE] DiskUsage fallback for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+        if (id === "bandwidthusage" && bwUsedMB === 0) {
+          const bytes = parseFloat(stat?.bytes ?? stat?.count ?? stat?.amount ?? "0");
+          if (bytes > 0) {
+            bwUsedMB = bytes / (1024 * 1024);
+            console.log(`[USAGE] Stats::get_stats bw for ${username}: ${bwUsedMB.toFixed(2)} MB`);
+          }
+        }
       }
     } catch (e: any) {
-      console.warn(`[USAGE] DiskUsage fallback failed for ${username}: ${e.message}`);
+      console.warn(`[USAGE] Stats::get_stats fallback failed for ${username}: ${e.message}`);
+    }
+  }
+
+  // ── Fallback 2: UAPI DiskUsage::list (disk only) ─────────────────────────────
+  // Sums all files/mailboxes/logs when accountsummary and Stats both return 0
+  if (diskUsedMB === 0) {
+    try {
+      const diskItems: any[] = await cpanelUapi(server, username, "DiskUsage", "list");
+      const items = Array.isArray(diskItems) ? diskItems : [];
+      if (items.length > 0) {
+        // Look for the root/total entry first, then sum everything
+        const totalEntry = items.find((d: any) => d.dir === "/" || d.dir === "total" || d.dir === ".");
+        if (totalEntry?.bytes != null) {
+          diskUsedMB = (parseFloat(totalEntry.bytes) || 0) / (1024 * 1024);
+        } else if (totalEntry?.kb != null) {
+          diskUsedMB = (parseFloat(totalEntry.kb) || 0) / 1024;
+        } else {
+          // Sum all directory entries
+          const sumBytes = items.reduce((acc: number, d: any) => {
+            const b = parseFloat(d.bytes ?? "0");
+            const kb = parseFloat(d.kb ?? "0");
+            return acc + (b > 0 ? b : kb * 1024);
+          }, 0);
+          diskUsedMB = sumBytes / (1024 * 1024);
+        }
+        console.log(`[USAGE] DiskUsage::list fallback for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+      }
+    } catch (e: any) {
+      console.warn(`[USAGE] DiskUsage::list fallback failed for ${username}: ${e.message}`);
     }
   }
 

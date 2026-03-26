@@ -167,11 +167,19 @@ router.post("/auth/login", async (req, res) => {
       res.status(400).json({ error: "Validation error", message: "Email and password required" }); return;
     }
 
+    // ── Fetch user early so admins can bypass IP rate-limiting ──────────────
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+
     // ── Security checks ────────────────────────────────────────────────────────
     const ip = getClientIp(req);
-    const ipBlocked = await isIpBlockedInDb(ip);
-    if (ipBlocked) {
-      res.status(429).json({ error: "Too many failed attempts. Your IP is temporarily blocked for 30 minutes.", code: "IP_BLOCKED" }); return;
+    const isAdmin = user?.role === "admin";
+
+    // Admin accounts bypass IP blocking to prevent panel lockout
+    if (!isAdmin) {
+      const ipBlocked = await isIpBlockedInDb(ip);
+      if (ipBlocked) {
+        res.status(429).json({ error: "Too many failed attempts. Your IP is temporarily blocked for 30 minutes.", code: "IP_BLOCKED" }); return;
+      }
     }
 
     const secConfig = await getSecurityConfig();
@@ -182,13 +190,13 @@ router.post("/auth/login", async (req, res) => {
       }
     }
 
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
     if (!user) { res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return; }
     if (user.status === "suspended") { res.status(401).json({ error: "Unauthorized", message: "Account suspended" }); return; }
+
     const valid = await comparePassword(password, user.passwordHash);
     if (!valid) {
       logActivity(user.id, "login_failed", req, "failed", "Invalid password").catch(() => {});
-      await recordFailedAttempt(ip, req, email).catch(() => {});
+      if (!isAdmin) await recordFailedAttempt(ip, req, email).catch(() => {});
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 

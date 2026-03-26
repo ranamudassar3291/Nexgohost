@@ -1044,11 +1044,24 @@ export default function ServiceDetail() {
       <div className="bg-card border border-border rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-foreground">Resource Usage</h3>
-          {usageLoading ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 size={11} className="animate-spin" /> Fetching live data…</span>
-          ) : hasRealUsage ? (
-            <span className="flex items-center gap-1.5 text-xs text-green-400"><div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live from cPanel</span>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {usageLoading ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 size={11} className="animate-spin" /> Fetching live data…</span>
+            ) : hasRealUsage ? (
+              <span className="flex items-center gap-1.5 text-xs text-green-400"><div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live from cPanel</span>
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 gap-1 text-xs"
+              disabled={usageLoading}
+              onClick={() => { setUsageData(null); fetchUsage(); }}
+              title="Force refresh usage from cPanel"
+            >
+              <RefreshCw size={11} className={usageLoading ? "animate-spin" : ""} />
+              Refresh
+            </Button>
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {[
