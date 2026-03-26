@@ -1,10 +1,28 @@
 import { useState } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2 } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+
+const DOMAIN_CYCLE_OPTIONS = [
+  { label: "1 Year", years: 1 },
+  { label: "2 Years", years: 2 },
+  { label: "3 Years", years: 3 },
+];
+
+function addYearsToDate(baseIso: string, years: number): string {
+  const base = baseIso ? new Date(baseIso + "T00:00:00") : new Date();
+  base.setFullYear(base.getFullYear() + years);
+  return base.toISOString().split("T")[0];
+}
+
+function fmtDateShort(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 interface Domain {
   id: string; clientId: string; clientName: string;
@@ -189,18 +207,37 @@ export default function AdminDomains() {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { field: "registrationDate", label: "Registration Date" },
-              { field: "expiryDate", label: "Expiry Date" },
-              { field: "nextDueDate", label: "Next Due Date" },
-            ].map(({ field, label }) => (
-              <div key={field} className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">{label}</label>
-                <Input type="date" value={form[field as keyof typeof form] as string}
-                  onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">Registration Date</label>
+              <Input type="date" value={form.registrationDate}
+                onChange={e => setForm(f => ({ ...f, registrationDate: e.target.value }))} />
+              {form.registrationDate && (
+                <p className="text-xs text-muted-foreground">{fmtDateShort(form.registrationDate)}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground/80">Domain Cycle</label>
+              <div className="flex gap-2 flex-wrap">
+                {DOMAIN_CYCLE_OPTIONS.map(opt => {
+                  const expiry = addYearsToDate(form.registrationDate, opt.years);
+                  const active = form.expiryDate === expiry && form.nextDueDate === expiry;
+                  return (
+                    <button key={opt.years} type="button"
+                      onClick={() => setForm(f => ({ ...f, expiryDate: expiry, nextDueDate: expiry }))}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${active ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400" : "border-border text-muted-foreground hover:border-emerald-500/30 hover:text-emerald-400"}`}>
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+              {form.expiryDate && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Calendar size={11} className="text-emerald-400" />
+                  Expires & due: <span className="text-emerald-400 font-medium">{fmtDateShort(form.expiryDate)}</span>
+                </p>
+              )}
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground/80">Nameservers</label>

@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Search, CheckCircle, Plus, FileText, TrendingUp, Clock,
-  Trash2, Edit2, Eye, ChevronLeft, ChevronRight, X, Loader2, XCircle, FileDown,
+  Trash2, Edit2, Eye, ChevronLeft, ChevronRight, X, Loader2, XCircle, FileDown, Calendar,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
@@ -11,6 +11,26 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
+
+const INV_DURATION_OPTIONS = [
+  { label: "1 Mo",   months: 1  },
+  { label: "3 Mo",   months: 3  },
+  { label: "6 Mo",   months: 6  },
+  { label: "1 Year", months: 12 },
+  { label: "2 Yrs",  months: 24 },
+];
+
+function addMonthsFromToday(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function fmtShort(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 const statusColors: Record<string, string> = {
   unpaid:          "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
@@ -233,15 +253,31 @@ export default function AdminInvoices() {
                   {ALL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Due Date</label>
-                  <Input type="date" value={editModal.dueDate} onChange={e => setEditModal(m => m ? { ...m, dueDate: e.target.value } : m)} className="bg-secondary/60" />
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Due Date — Quick Set</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {INV_DURATION_OPTIONS.map(opt => {
+                    const val = addMonthsFromToday(opt.months);
+                    const active = editModal.dueDate === val;
+                    return (
+                      <button key={opt.months} type="button"
+                        onClick={() => setEditModal(m => m ? { ...m, dueDate: val } : m)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${active ? "bg-blue-500/15 border-blue-500/40 text-blue-400" : "border-border text-muted-foreground hover:border-blue-500/30 hover:text-blue-400"}`}>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Paid Date</label>
-                  <Input type="date" value={editModal.paidDate} onChange={e => setEditModal(m => m ? { ...m, paidDate: e.target.value } : m)} className="bg-secondary/60" />
-                </div>
+                {editModal.dueDate && (
+                  <p className="text-xs flex items-center gap-1.5">
+                    <Calendar size={11} className="text-blue-400" />
+                    <span className="text-blue-400 font-medium">{fmtShort(editModal.dueDate)}</span>
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Paid Date</label>
+                <Input type="date" value={editModal.paidDate} onChange={e => setEditModal(m => m ? { ...m, paidDate: e.target.value } : m)} className="bg-secondary/60" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
