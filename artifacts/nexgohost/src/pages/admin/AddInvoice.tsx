@@ -1,13 +1,32 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { FileText, ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import { FileText, ArrowLeft, Loader2, Plus, Trash2, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { format, addDays } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
+
+const DURATION_OPTIONS = [
+  { label: "1 Month",  months: 1  },
+  { label: "3 Months", months: 3  },
+  { label: "6 Months", months: 6  },
+  { label: "1 Year",   months: 12 },
+  { label: "2 Years",  months: 24 },
+];
+
+function addMonthsToToday(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function formatDisplayDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 interface Client { id: string; firstName: string; lastName: string; email: string; }
 interface InvoiceItem { description: string; quantity: number; unitPrice: number; total: number; }
@@ -20,7 +39,8 @@ export default function AddInvoice() {
 
   const [clients, setClients] = useState<Client[]>([]);
   const [clientId, setClientId] = useState("");
-  const [dueDate, setDueDate] = useState(format(addDays(new Date(), 7), "yyyy-MM-dd"));
+  const [dueDate, setDueDate] = useState(addMonthsToToday(1));
+  const [activeDuration, setActiveDuration] = useState<number | null>(1);
   const [items, setItems] = useState<InvoiceItem[]>([{ description: "", quantity: 1, unitPrice: 0, total: 0 }]);
   const [tax, setTax] = useState("0");
   const [loading, setLoading] = useState(false);
@@ -97,18 +117,34 @@ export default function AddInvoice() {
             </div>
 
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground/80">Client *</label>
-                  <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                    <option value="">Select a client...</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>)}
-                  </select>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">Client *</label>
+                <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  <option value="">Select a client...</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground/80">Due Date — Quick Duration</label>
+                <div className="flex flex-wrap gap-2">
+                  {DURATION_OPTIONS.map(opt => {
+                    const active = activeDuration === opt.months;
+                    return (
+                      <button key={opt.months} type="button"
+                        onClick={() => { const val = addMonthsToToday(opt.months); setDueDate(val); setActiveDuration(opt.months); }}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${active ? "bg-blue-500/15 border-blue-500/40 text-blue-400" : "border-border text-muted-foreground hover:border-blue-500/30 hover:text-blue-400"}`}>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground/80">Due Date *</label>
-                  <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-                </div>
+                {dueDate && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                    <Calendar size={12} className="text-blue-400" />
+                    Due: <span className="text-blue-400 font-medium">{formatDisplayDate(dueDate)}</span>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-3">

@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ShoppingCart, ArrowLeft, Loader2, CheckCircle, AlertCircle,
-  FileText, Zap, DollarSign, Calendar, User, Package, RefreshCw,
+  ShoppingCart, ArrowLeft, Loader2, CheckCircle,
+  FileText, Zap, DollarSign, Calendar, User, Package,
   Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,26 @@ async function apiFetch(url: string, opts?: RequestInit) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
+}
+
+const DURATION_OPTIONS = [
+  { label: "1 Month",  months: 1  },
+  { label: "3 Months", months: 3  },
+  { label: "6 Months", months: 6  },
+  { label: "1 Year",   months: 12 },
+  { label: "2 Years",  months: 24 },
+];
+
+function addMonthsToToday(months: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function formatDisplayDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const MODULE_BADGES: Record<string, { label: string; color: string; icon: string }> = {
@@ -386,11 +406,30 @@ export default function AddOrder() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Due Date</label>
-              <Input type="date" value={form.dueDate} onChange={set("dueDate")} />
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground/80">Next Due Date</label>
+            <div className="flex flex-wrap gap-2">
+              {DURATION_OPTIONS.map(opt => {
+                const val = addMonthsToToday(opt.months);
+                const active = form.dueDate === val;
+                return (
+                  <button key={opt.months} type="button"
+                    onClick={() => setForm(f => ({ ...f, dueDate: val }))}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${active ? "bg-blue-500/15 border-blue-500/40 text-blue-400" : "border-border text-muted-foreground hover:border-blue-500/30 hover:text-blue-400"}`}>
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
+            {form.dueDate && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                <Calendar size={12} className="text-blue-400" />
+                Due: <span className="text-blue-400 font-medium">{formatDisplayDate(form.dueDate)}</span>
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">Initial Status</label>
               <select value={form.status} onChange={set("status")}
