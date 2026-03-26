@@ -5,7 +5,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -1303,6 +1303,56 @@ router.post("/client/hosting/:id/change-password", authenticate, async (req: Aut
   } catch (err) {
     console.error("[CLIENT] change-password error:", err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── GET /client/hosting/:id/usage — real cPanel disk & bandwidth via WHM accountsummary ───
+router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const clientId = req.user!.userId;
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    if (!service.serverId || !service.username) {
+      return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0 });
+    }
+
+    const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+    if (!server || (server.type !== "cpanel" && server.type !== "whm")) {
+      return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0 });
+    }
+
+    const serverCfg = toServerCfg(server);
+    const data = await cpanelGetAccountInfo(serverCfg, service.username);
+
+    // accountsummary returns data.acct[0] with diskused/disklimit/bwused/bwlimit in MB
+    const acct = data?.data?.acct?.[0] ?? data?.acct?.[0] ?? {};
+
+    const diskUsedMB = parseFloat(acct.diskused ?? "0") || 0;
+    const diskLimitMB = parseFloat(acct.disklimit ?? "0") || 0;
+    const bwUsedMB = parseFloat(acct.bwused ?? "0") || 0;
+    const bwLimitMB = parseFloat(acct.bwlimit ?? "0") || 0;
+
+    function fmtMB(mb: number): string {
+      if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+      return `${Math.round(mb)} MB`;
+    }
+
+    const diskPct = diskLimitMB > 0 ? Math.min(100, Math.round((diskUsedMB / diskLimitMB) * 100)) : 0;
+    const bwPct   = bwLimitMB   > 0 ? Math.min(100, Math.round((bwUsedMB   / bwLimitMB)   * 100)) : 0;
+
+    res.json({
+      source: "cpanel",
+      diskUsed: fmtMB(diskUsedMB),
+      diskPct,
+      bwUsed: fmtMB(bwUsedMB),
+      bwPct,
+    });
+  } catch (err: any) {
+    console.warn("[CLIENT] usage fetch error (non-fatal):", err.message);
+    res.json({ source: "error", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0 });
   }
 });
 

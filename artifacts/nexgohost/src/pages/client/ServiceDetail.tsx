@@ -11,7 +11,7 @@ import {
   KeyRound, Loader2, LayoutGrid, Eye, EyeOff, CheckCircle2,
   AlertTriangle, AlertCircle, X, XCircle, ArrowUpCircle, CheckCircle,
   Lock, ChevronDown, ChevronUp, Network, Plus, Trash2, Pencil,
-  Database, Download, Wand2, ArchiveRestore, Clock,
+  Database, Download, ArchiveRestore, Clock,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -127,8 +127,6 @@ export default function ServiceDetail() {
   const [wpDomains, setWpDomains] = useState<{ domain: string; docroot: string; type: string }[]>([]);
   const [wpDomainsLoading, setWpDomainsLoading] = useState(false);
   const [wpSelectedDomain, setWpSelectedDomain] = useState("");
-  // Sitejet Builder
-  const [sitejetLoading, setSitejetLoading] = useState(false);
 
   // Password change state
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -154,6 +152,10 @@ export default function ServiceDetail() {
 
   // SSL reinstall state
   const [reinstallingSSL, setReinstallingSSL] = useState(false);
+
+  // Real cPanel resource usage
+  const [usageData, setUsageData] = useState<{ source: string; diskUsed: string | null; diskPct: number; bwUsed: string | null; bwPct: number } | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
 
   // Backup state
   type Backup = { id: string; domain: string; status: string; type: string; filePath: string | null; sqlPath: string | null; sizeMb: string | null; createdAt: string; completedAt: string | null; errorMessage: string | null };
@@ -194,6 +196,7 @@ export default function ServiceDetail() {
   useEffect(() => {
     if (service?.id && service.status === "active") {
       fetchBackups();
+      fetchUsage();
     }
   }, [service?.id]);
 
@@ -354,27 +357,6 @@ export default function ServiceDetail() {
     }
   }
 
-  // Open cPanel Sitejet Builder via SSO for the selected domain
-  async function handleOpenSitejet() {
-    if (!service) return;
-    setSitejetLoading(true);
-    const useDomain = wpSelectedDomain || service.domain;
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/sitejet-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: useDomain }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not generate Sitejet URL");
-      window.open(data.url, "_blank");
-    } catch (e: any) {
-      toast({ title: "Cannot open Sitejet", description: e.message, variant: "destructive" });
-    } finally {
-      setSitejetLoading(false);
-    }
-  }
-
   async function handleChangePassword() {
     if (!service) return;
     if (newPassword.length < 8) {
@@ -471,6 +453,18 @@ export default function ServiceDetail() {
       const res = await authFetch(`/api/client/hosting/${service.id}/backups`);
       if (res.ok) setBackups(await res.json());
     } catch { /* non-fatal */ } finally { setBackupsLoading(false); }
+  }
+
+  async function fetchUsage() {
+    if (!service) return;
+    setUsageLoading(true);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/usage`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsageData(data);
+      }
+    } catch { /* non-fatal — falls back to simulated */ } finally { setUsageLoading(false); }
   }
 
   async function handleCreateBackup() {
@@ -603,10 +597,11 @@ export default function ServiceDetail() {
 
   const diskSim = simulateUsage(service.id, diskLimitNum, "disk");
   const bwSim = simulateUsage(service.id, bwLimitNum, "bw");
-  const diskUsedDisplay = service.diskUsed || diskSim.display;
-  const bwUsedDisplay = service.bandwidthUsed || bwSim.display;
-  const diskPct = service.diskUsed ? parseUsagePercent(service.diskUsed, diskLimitNum) : diskSim.pct;
-  const bwPct = service.bandwidthUsed ? parseUsagePercent(service.bandwidthUsed, bwLimitNum) : bwSim.pct;
+  const hasRealUsage = usageData?.source === "cpanel" && (usageData.diskUsed !== null || usageData.bwUsed !== null);
+  const diskUsedDisplay = hasRealUsage ? (usageData!.diskUsed ?? "0 MB") : (service.diskUsed || diskSim.display);
+  const bwUsedDisplay = hasRealUsage ? (usageData!.bwUsed ?? "0 MB") : (service.bandwidthUsed || bwSim.display);
+  const diskPct = hasRealUsage ? usageData!.diskPct : (service.diskUsed ? parseUsagePercent(service.diskUsed, diskLimitNum) : diskSim.pct);
+  const bwPct = hasRealUsage ? usageData!.bwPct : (service.bandwidthUsed ? parseUsagePercent(service.bandwidthUsed, bwLimitNum) : bwSim.pct);
 
   const otherPlans = plans.filter(p => p.id !== service.planId);
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
@@ -1002,7 +997,14 @@ export default function ServiceDetail() {
 
       {/* Usage */}
       <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="font-semibold text-foreground mb-4">Resource Usage</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-foreground">Resource Usage</h3>
+          {usageLoading ? (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 size={11} className="animate-spin" /> Fetching live data…</span>
+          ) : hasRealUsage ? (
+            <span className="flex items-center gap-1.5 text-xs text-green-400"><div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live from cPanel</span>
+          ) : null}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {[
             { label: "Disk Usage", used: diskUsedDisplay, limit: diskLimit, pct: diskPct, icon: HardDrive },
@@ -1212,34 +1214,6 @@ export default function ServiceDetail() {
           </div>
         )}
       </div>
-
-      {/* ─── AI Website Builder (Sitejet) ─── */}
-      {service.status === "active" && (
-        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-violet-500/10 border border-violet-500/20 rounded-xl flex items-center justify-center shrink-0">
-              <Wand2 size={18} className="text-violet-400" />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">AI Website Builder</p>
-              <p className="text-sm text-muted-foreground">
-                Build your website visually using the cPanel Sitejet Builder — no installation required.
-                {wpSelectedDomain && wpSelectedDomain !== service.domain && (
-                  <> Opens for <strong className="text-foreground">{wpSelectedDomain}</strong>.</>
-                )}
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={handleOpenSitejet}
-            disabled={sitejetLoading}
-            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-          >
-            {sitejetLoading ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />}
-            {sitejetLoading ? "Opening…" : "Open Sitejet Builder"}
-          </Button>
-        </div>
-      )}
 
       {/* ─── Backup System ─── */}
       {service.status === "active" && (
