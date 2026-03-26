@@ -78,11 +78,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Analytics & Logs",
     items: [
-      { name: "Reports",          href: "/admin/reports",          icon: (() => null) as any },
+      { name: "Reports",           href: "/admin/reports",          icon: (() => null) as any },
       { name: "Transactions",     href: "/admin/transactions",     icon: (() => null) as any },
       { name: "Fraud Logs",       href: "/admin/fraud-logs",       icon: (() => null) as any },
       { name: "Automation",       href: "/admin/cron-logs",        icon: (() => null) as any },
       { name: "Server Logs",      href: "/admin/server-logs",      icon: (() => null) as any },
+      { name: "WhatsApp Alerts",  href: "/admin/whatsapp",         icon: (() => null) as any },
       { name: "Security",         href: "/admin/security",         icon: (() => null) as any },
     ],
   },
@@ -91,7 +92,6 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "Admin Users",      href: "/admin/admin-users",      icon: (() => null) as any },
       { name: "Email Templates",  href: "/admin/email-templates",  icon: (() => null) as any },
-      { name: "WhatsApp Alerts",  href: "/admin/whatsapp",         icon: (() => null) as any },
       { name: "Settings",         href: "/admin/settings",         icon: (() => null) as any },
     ],
   },
