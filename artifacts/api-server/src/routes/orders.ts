@@ -316,15 +316,19 @@ router.post("/admin/orders/:id/generate-invoice", authenticate, requireAdmin, as
 });
 
 // Shared domain activation logic (orders context)
-async function activateDomainOrderLocal(order: any): Promise<void> {
+// invoiceDueDate: the invoice's due date (service renewal date = domain expiry for exact 365-day sync)
+async function activateDomainOrderLocal(order: any, invoiceDueDate?: Date | null): Promise<void> {
   const fullDomain = (order.domain || order.itemName || "").toLowerCase().trim();
   const dotIdx = fullDomain.indexOf(".");
   const domainName = dotIdx > 0 ? fullDomain.substring(0, dotIdx) : fullDomain;
   const tld = dotIdx > 0 ? fullDomain.substring(dotIdx) : ".com";
   if (!domainName) return;
 
-  const expiryDate = new Date();
-  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+  const now = new Date();
+  // 365-Day Rule: use invoice due date as master expiry for exact sync
+  const expiryDate = (invoiceDueDate && !isNaN(new Date(invoiceDueDate).getTime()))
+    ? new Date(invoiceDueDate)
+    : (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })();
 
   // Exact match — no LIKE/partial matching
   const [existing] = await db.select().from(domainsTable)
@@ -335,8 +339,9 @@ async function activateDomainOrderLocal(order: any): Promise<void> {
       status: "active",
       expiryDate,
       nextDueDate: expiryDate,
-      registrationDate: existing.registrationDate ?? new Date(),
-      updatedAt: new Date(),
+      lockStatus: "unlocked",        // Remove transfer lock when domain is approved
+      registrationDate: existing.registrationDate ?? now,
+      updatedAt: now,
     }).where(eq(domainsTable.id, existing.id));
   } else {
     await db.insert(domainsTable).values({
@@ -346,12 +351,13 @@ async function activateDomainOrderLocal(order: any): Promise<void> {
       status: "active",
       expiryDate,
       nextDueDate: expiryDate,
-      registrationDate: new Date(),
+      lockStatus: "unlocked",
+      registrationDate: now,
       autoRenew: true,
       nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
     });
   }
-  console.log(`[DOMAIN] Activated ${domainName}${tld} on approve for order ${order.id}`);
+  console.log(`[DOMAIN] Activated ${domainName}${tld} — expiry ${expiryDate.toISOString().slice(0, 10)} — order ${order.id}`);
 }
 
 // Admin: approve order → create service + invoice if needed
@@ -368,16 +374,21 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
     // Domain order: auto-activate the domain immediately on approve
     if (updated.type === "domain") {
       try {
-        await activateDomainOrderLocal(updated);
-        // If invoice is zero-amount or doesn't exist, also mark it paid now
+        // Look up invoice due date for exact 365-day expiry sync
+        let invDueDate: Date | null = null;
         if (updated.invoiceId) {
           const [inv] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, updated.invoiceId)).limit(1);
-          if (inv && (Number(inv.total) === 0 || inv.status !== "paid")) {
-            await db.update(invoicesTable)
-              .set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
-              .where(eq(invoicesTable.id, inv.id));
+          if (inv) {
+            invDueDate = inv.dueDate ?? null;
+            // Mark zero-amount or unpaid invoices as paid
+            if (Number(inv.total) === 0 || inv.status !== "paid") {
+              await db.update(invoicesTable)
+                .set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+                .where(eq(invoicesTable.id, inv.id));
+            }
           }
         }
+        await activateDomainOrderLocal(updated, invDueDate);
       } catch (domErr: any) {
         console.warn("[ORDER APPROVE] Domain activation error:", domErr.message);
       }
@@ -619,7 +630,7 @@ router.post("/admin/orders/:id/activate-domain", authenticate, requireAdmin, asy
     let domain;
     if (alreadyExists) {
       [domain] = await db.update(domainsTable)
-        .set({ status: "active", expiryDate, nextDueDate: expiryDate, updatedAt: new Date() })
+        .set({ status: "active", expiryDate, nextDueDate: expiryDate, lockStatus: "unlocked", updatedAt: new Date() })
         .where(eq(domainsTable.id, alreadyExists.id))
         .returning();
     } else {

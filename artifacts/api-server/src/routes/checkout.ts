@@ -126,7 +126,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
             // Update existing record to active if this is a free domain
             if (finalAmount === 0) {
               await db.update(domainsTable).set({
-                status: "active", expiryDate, nextDueDate: expiryDate, updatedAt: new Date(),
+                status: "active", expiryDate, nextDueDate: expiryDate,
+                lockStatus: "unlocked", updatedAt: new Date(),
               }).where(eq(domainsTable.id, domainAlreadyExists.id));
             }
           } else {
@@ -137,6 +138,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
               registrationDate: new Date(),
               expiryDate,
               nextDueDate: expiryDate,
+              lockStatus: finalAmount === 0 ? "unlocked" : "locked",
               status: domainStatus, autoRenew: true,
               nameservers: resolvedNs,
             });

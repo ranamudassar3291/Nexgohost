@@ -735,7 +735,12 @@ export default function VpsManage() {
                             ? { borderColor: P, background: `${P}08`, color: P }
                             : { borderColor: "#E5E7EB", color: "#374151" }}>
                           {os.iconUrl ? (
-                            <img src={os.iconUrl} alt={os.name} className="w-5 h-5 object-contain shrink-0"/>
+                            <img
+                              src={os.iconUrl}
+                              alt={os.name}
+                              className="w-5 h-5 object-contain shrink-0"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
                           ) : (
                             <Server size={14} className="shrink-0"/>
                           )}

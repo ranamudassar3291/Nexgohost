@@ -59,7 +59,7 @@ function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) 
     status: d.status,
     autoRenew: d.autoRenew,
     nameservers: d.nameservers || [],
-    lockStatus: (d as any).lockStatus ?? "locked",
+    lockStatus: d.lockStatus ?? null,
     moduleServerId: (d as any).moduleServerId ?? null,
   };
 }

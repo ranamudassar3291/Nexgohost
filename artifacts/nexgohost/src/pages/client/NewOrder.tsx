@@ -1987,12 +1987,26 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                       ? { border: `2px solid ${P}`, background: `${P}07`, boxShadow: `0 4px 16px ${P}22` }
                       : { border: "1.5px solid #E5E7EB" }}>
                     {os.iconUrl ? (
-                      <img src={os.iconUrl} alt={os.name} className="w-8 h-8 object-contain"/>
-                    ) : (
-                      <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
-                        <MonitorCog size={15} className="text-gray-400"/>
-                      </div>
-                    )}
+                      <img
+                        src={os.iconUrl}
+                        alt={os.name}
+                        className="w-8 h-8 object-contain"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          el.style.display = "none";
+                          const fb = el.nextElementSibling as HTMLElement | null;
+                          if (fb) fb.style.display = "flex";
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      style={{ display: os.iconUrl ? "none" : "flex" }}
+                      className="w-8 h-8 rounded-xl bg-gray-100 items-center justify-center shrink-0"
+                    >
+                      <span className="text-[9px] font-black text-gray-500 leading-none text-center">
+                        {os.name.slice(0, 3).toUpperCase()}
+                      </span>
+                    </div>
                     <div>
                       <div className="text-[11.5px] font-bold text-gray-800 leading-snug">{os.name}</div>
                       <div className="text-[10.5px] text-gray-400 leading-snug">{os.version}</div>

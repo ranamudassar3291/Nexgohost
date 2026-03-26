@@ -65,10 +65,41 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return data;
 }
 
-const TLD_ICONS: Record<string, string> = {
-  ".com": "🌐", ".net": "🔗", ".org": "🏛️", ".co": "🏢", ".io": "💻",
-  ".uk": "🇬🇧", ".pk": "🇵🇰", ".us": "🇺🇸", ".de": "🇩🇪", ".in": "🇮🇳",
+// Professional TLD badge color palette — registry-brand inspired
+const TLD_COLORS: Record<string, { bg: string; text: string }> = {
+  ".com":    { bg: "#1a73e8", text: "#fff" },
+  ".net":    { bg: "#0f9d58", text: "#fff" },
+  ".org":    { bg: "#8430d6", text: "#fff" },
+  ".co":     { bg: "#e67c00", text: "#fff" },
+  ".io":     { bg: "#1a1a2e", text: "#e0e0ff" },
+  ".uk":     { bg: "#012169", text: "#fff" },
+  ".pk":     { bg: "#01411c", text: "#fff" },
+  ".us":     { bg: "#3c3b6e", text: "#fff" },
+  ".de":     { bg: "#000000", text: "#fff" },
+  ".in":     { bg: "#FF9933", text: "#fff" },
+  ".ae":     { bg: "#00732f", text: "#fff" },
+  ".biz":    { bg: "#b5451b", text: "#fff" },
+  ".blog":   { bg: "#21759b", text: "#fff" },
+  ".co.uk":  { bg: "#003087", text: "#fff" },
+  ".com.pk": { bg: "#01411c", text: "#fff" },
+  ".eu":     { bg: "#003399", text: "#ffcc00" },
+  ".gkp.pk": { bg: "#01411c", text: "#fff" },
+  ".info":   { bg: "#2aa0d4", text: "#fff" },
 };
+
+function TldIcon({ tld }: { tld: string }) {
+  const color = TLD_COLORS[tld] ?? { bg: "#4b5563", text: "#fff" };
+  const label = tld.startsWith(".") ? tld.slice(1).toUpperCase() : tld.toUpperCase();
+  const fontSize = label.length > 4 ? "8px" : label.length > 3 ? "9px" : "10px";
+  return (
+    <div
+      style={{ background: color.bg, color: color.text, fontSize }}
+      className="w-11 h-11 rounded-xl flex items-center justify-center font-black tracking-tight shrink-0 select-none shadow-sm"
+    >
+      {label}
+    </div>
+  );
+}
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -512,9 +543,7 @@ export default function ClientDomains() {
                   {/* Domain row */}
                   <div className="flex items-start justify-between gap-4 p-5">
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-11 h-11 bg-secondary rounded-xl flex items-center justify-center text-2xl shrink-0">
-                        {TLD_ICONS[domain.tld] || "🌐"}
-                      </div>
+                      <TldIcon tld={domain.tld} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-lg font-bold text-foreground font-mono">{domain.name}{domain.tld}</h3>
@@ -915,7 +944,7 @@ function TldCard({ name, result, inCart, onAddToCart }: {
       )}
 
       <div className="flex items-center gap-3 mb-3">
-        <span className="text-2xl">{TLD_ICONS[result.tld] || "🌐"}</span>
+        <TldIcon tld={result.tld} />
         <div>
           <span className="font-mono font-bold text-foreground text-lg">{name}</span>
           <span className="font-mono font-bold text-primary text-lg">{result.tld}</span>
@@ -1171,7 +1200,7 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
             <div key={idx} className="bg-background border border-border rounded-xl p-4">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{TLD_ICONS[item.tld] || "🌐"}</span>
+                  <TldIcon tld={item.tld} />
                   <div>
                     <p className="font-mono font-bold text-foreground text-lg">
                       <span>{item.name}</span><span className="text-primary">{item.tld}</span>
