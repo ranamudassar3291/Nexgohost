@@ -35,6 +35,7 @@ import adminUsersRouter from "./admin-users.js";
 import kbRouter from "./kb.js";
 import securityRouter from "./security.js";
 import modulesRouter from "./modules.js";
+import domainRegistrarsRouter from "./domain-registrars.js";
 
 const router: IRouter = Router();
 
@@ -78,5 +79,6 @@ router.use(adminUsersRouter);
 router.use(kbRouter);
 router.use(securityRouter);
 router.use(modulesRouter);
+router.use(domainRegistrarsRouter);
 
 export default router;

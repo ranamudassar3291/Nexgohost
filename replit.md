@@ -1,5 +1,32 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 29 — Domain Registrar Management System)
+
+### Domain Registrars DB (`lib/db/src/schema/domain-registrars.ts`)
+- New table: `domain_registrars` (id, name, type, description, config JSON, isActive, isDefault, lastTestedAt, lastTestResult)
+- Enum `registrar_type`: `namecheap | logicboxes | resellerclub | enom | opensrs | custom | none`
+
+### Domain Registrar API (`artifacts/api-server/src/routes/domain-registrars.ts`)
+- `GET /admin/domain-registrars` — list all with config fields
+- `GET /admin/domain-registrars/fields/:type` — get field definitions per type
+- `POST /admin/domain-registrars` — create registrar
+- `PUT /admin/domain-registrars/:id` — update config/name/active/default
+- `POST /admin/domain-registrars/:id/toggle` — toggle active state
+- `POST /admin/domain-registrars/:id/test` — test API connection
+- `DELETE /admin/domain-registrars/:id` — delete
+- `POST /admin/orders/:id/activate-domain-registrar` — activate domain order with registrar API call (sets NS, status=active, invoice=paid)
+
+### Admin Page (`artifacts/nexgohost/src/pages/admin/DomainRegistrars.tsx`)
+- 3-step flow: preset picker → configure credentials → save
+- Cards per registrar: gradient header, toggle active, set default (star), expand config, test connection, delete
+- `FieldInput` component handles text/password (show/hide)/checkbox/textarea field types
+- Route: `/admin/domain-registrars` (added to nav config + App.tsx + routes.ts)
+
+### Admin Orders Integration (`artifacts/nexgohost/src/pages/admin/Orders.tsx`)
+- "Activate Domain" button now opens registrar selection modal instead of directly activating
+- Modal shows domain name + client name, registrar dropdown (active only), NS info, confirm button
+- Default registrar pre-selected; shows warning + link to configure if no registrars set up
+
 ## Recent Changes (Session 28 — Iron-Clad Security & Anti-Bot System)
 
 ### Security System (`lib/db/src/schema/security-logs.ts`)

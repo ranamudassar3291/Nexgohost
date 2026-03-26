@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   CheckCircle, XCircle, Search, Plus, FileText,
   ChevronDown, Loader2, AlertTriangle, StopCircle,
@@ -119,6 +119,20 @@ interface EditOrderModal {
   notes: string;
 }
 
+interface DomainActivateModal {
+  orderId: string;
+  domain: string;
+  clientName: string;
+}
+
+interface Registrar {
+  id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+  isDefault: boolean;
+}
+
 export default function AdminOrders() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -139,6 +153,14 @@ export default function AdminOrders() {
   const [editModal, setEditModal] = useState<EditOrderModal | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [allServers, setAllServers] = useState<ServerOption[]>([]);
+  const [domainActivateModal, setDomainActivateModal] = useState<DomainActivateModal | null>(null);
+  const [selectedRegistrarId, setSelectedRegistrarId] = useState<string>("");
+  const [domainActivating, setDomainActivating] = useState(false);
+
+  const { data: registrars = [] } = useQuery<Registrar[]>({
+    queryKey: ["admin-registrars-for-orders"],
+    queryFn: () => apiFetch("/api/admin/domain-registrars"),
+  });
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
@@ -253,6 +275,30 @@ export default function AdminOrders() {
     } finally { setLoadingId(null); }
   };
 
+  // Domain order: open registrar selection modal
+  const openDomainActivateModal = (order: Order) => {
+    const defaultReg = registrars.find(r => r.isDefault && r.isActive) ?? registrars.find(r => r.isActive);
+    setSelectedRegistrarId(defaultReg?.id ?? "none");
+    setDomainActivateModal({ orderId: order.id, domain: order.domain || order.itemName, clientName: order.clientName });
+    setOpenMenuId(null);
+  };
+
+  const doActivateDomainWithRegistrar = async () => {
+    if (!domainActivateModal) return;
+    setDomainActivating(true);
+    try {
+      const data = await apiFetch(`/api/admin/orders/${domainActivateModal.orderId}/activate-domain-registrar`, {
+        method: "POST",
+        body: JSON.stringify({ registrarId: selectedRegistrarId === "none" ? null : selectedRegistrarId }),
+      });
+      toast({ title: "Domain Activated!", description: data.message });
+      setDomainActivateModal(null);
+      fetchOrders();
+    } catch (err: any) {
+      toast({ title: "Activation failed", description: err.message, variant: "destructive" });
+    } finally { setDomainActivating(false); }
+  };
+
   // Step 1: open pre-activation modal with auto-generated credentials
   const openActivateModal = (order: Order) => {
     setOpenMenuId(null);
@@ -324,6 +370,79 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6" onClick={() => setOpenMenuId(null)}>
+
+      {/* Domain Registrar Activation Modal */}
+      {domainActivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setDomainActivateModal(null)}>
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-foreground text-[16px]">Activate Domain</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  <span className="font-mono text-foreground font-medium">{domainActivateModal.domain}</span>
+                  {" · "}{domainActivateModal.clientName}
+                </p>
+              </div>
+              <button onClick={() => setDomainActivateModal(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
+                  Select Domain Registrar
+                </label>
+                <select
+                  value={selectedRegistrarId}
+                  onChange={e => setSelectedRegistrarId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
+                  <option value="none">None / Manual Processing (Email Only)</option>
+                  {registrars.filter(r => r.isActive).map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}{r.isDefault ? " (Default)" : ""}
+                    </option>
+                  ))}
+                </select>
+                {registrars.length === 0 && (
+                  <p className="text-xs text-amber-500 mt-1.5 flex items-center gap-1">
+                    <AlertTriangle size={11} />
+                    No registrars configured. Domain will be created manually.
+                    <a href="/admin/domain-registrars" className="underline hover:text-amber-400">Configure →</a>
+                  </p>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl bg-muted/30 border border-border text-xs text-muted-foreground">
+                <Globe size={12} className="inline mr-1.5 text-primary" />
+                Nameservers will be set to <span className="font-mono text-foreground">ns1.noehost.com</span> and{" "}
+                <span className="font-mono text-foreground">ns2.noehost.com</span>.
+                Domain record will be marked <span className="text-green-500 font-semibold">Active</span> and
+                invoice will be marked <span className="text-green-500 font-semibold">Paid</span>.
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => setDomainActivateModal(null)} className="rounded-xl flex-1">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={doActivateDomainWithRegistrar}
+                  disabled={domainActivating}
+                  className="rounded-xl flex-1 bg-blue-600 hover:bg-blue-700 text-white">
+                  {domainActivating
+                    ? <><Loader2 size={13} className="animate-spin mr-2" /> Activating…</>
+                    : <><Globe size={13} className="mr-2" /> Activate Domain</>
+                  }
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Order Modal */}
       {editModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setEditModal(null)}>
@@ -738,7 +857,7 @@ export default function AdminOrders() {
                       <Button size="sm"
                         className="h-7 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
                         disabled={loadingId === order.id}
-                        onClick={() => doAction(order.id, "activate-domain")}>
+                        onClick={() => openDomainActivateModal(order)}>
                         {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <Globe className="w-3 h-3 mr-1" />}
                         Activate Domain
                       </Button>
