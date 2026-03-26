@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon, KeyRound, Eye, EyeOff, X, RefreshCw, ArrowUpCircle, CheckCircle } from "lucide-react";
+import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, Key, LinkIcon, KeyRound, Eye, EyeOff, X, RefreshCw, ArrowUpCircle, CheckCircle, RotateCcw, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +40,7 @@ export default function AdminHosting() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [linkingServers, setLinkingServers] = useState(false);
+  const [syncingUsage, setSyncingUsage] = useState<string | null>(null);
   const [changePwModal, setChangePwModal] = useState<{ id: string; domain: string | null } | null>(null);
   const [changePwValue, setChangePwValue] = useState("");
   const [showChangePw, setShowChangePw] = useState(false);
@@ -47,6 +48,17 @@ export default function AdminHosting() {
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
+
+  const handleSyncUsage = async (id: string, domain: string | null) => {
+    setSyncingUsage(id);
+    try {
+      const result = await apiFetch(`/api/admin/hosting/${id}/sync-usage`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
+      toast({ title: "Usage Synced", description: result.message || `Live usage updated for ${domain || id}` });
+    } catch (err: any) {
+      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    } finally { setSyncingUsage(null); }
+  };
 
   const { data: services = [], isLoading: isLoadingServices } = useQuery<HostingService[]>({
     queryKey: ["admin-hosting"],
@@ -391,6 +403,12 @@ export default function AdminHosting() {
                           onClick={() => { setChangePwModal({ id: s.id, domain: s.domain }); setChangePwValue(""); }}>
                           <KeyRound size={13} /> Password
                         </Button>
+                        {s.status === "active" && (
+                          <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                            onClick={() => handleSyncUsage(s.id, s.domain)} disabled={syncingUsage === s.id}>
+                            {syncingUsage === s.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />} Sync
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

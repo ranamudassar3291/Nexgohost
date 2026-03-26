@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,8 @@ export default function Servers() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[] }>>({});
+  const [whitelisting, setWhitelisting] = useState<string | null>(null);
+  const [whitelistResults, setWhitelistResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
 
   // 20i in-form test state
   const [testingForm, setTestingForm] = useState(false);
@@ -146,6 +148,18 @@ export default function Servers() {
       setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [] } }));
       toast({ title: "Connection failed", description: err.message, variant: "destructive" });
     } finally { setTesting(null); }
+  };
+
+  const handleWhitelistSelf = async (id: string) => {
+    setWhitelisting(id);
+    try {
+      const result = await apiFetch(`/api/admin/servers/${id}/whitelist-self`, { method: "POST" });
+      setWhitelistResults(r => ({ ...r, [id]: { ok: true, msg: result.message || `IP ${result.ip} whitelisted` } }));
+      toast({ title: "Firewall Whitelisted", description: result.message || `${result.ip} added to CSF whitelist` });
+    } catch (err: any) {
+      setWhitelistResults(r => ({ ...r, [id]: { ok: false, msg: err.message } }));
+      toast({ title: "Whitelist failed", description: err.message, variant: "destructive" });
+    } finally { setWhitelisting(null); }
   };
 
   const handleDeleteServer = async (id: string) => {
@@ -446,6 +460,12 @@ export default function Servers() {
                           {s.type !== "20i" && s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accts</span>}
                           {s.hasApiToken && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> API key set</span>}
                         </div>
+                        {whitelistResults[s.id] && (
+                          <div className={`mt-2 flex items-center gap-1.5 text-xs ${whitelistResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
+                            {whitelistResults[s.id].ok ? <ShieldCheck size={11} /> : <XCircle size={11} />}
+                            {whitelistResults[s.id].msg}
+                          </div>
+                        )}
                         {testResults[s.id] && (
                           <div className="mt-2 space-y-1.5">
                             <div className={`flex items-center gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
@@ -467,6 +487,12 @@ export default function Servers() {
                       <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs" onClick={() => handleTest(s.id)} disabled={testing === s.id}>
                         {testing === s.id ? <Loader2 size={13} className="animate-spin mr-1" /> : <Shield size={13} className="mr-1" />} Test
                       </Button>
+                      {(s.type === "cpanel" || s.type === "directadmin" || s.type === "plesk") && (
+                        <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                          onClick={() => handleWhitelistSelf(s.id)} disabled={whitelisting === s.id}>
+                          {whitelisting === s.id ? <Loader2 size={13} className="animate-spin mr-1" /> : <ShieldCheck size={13} className="mr-1" />} Whitelist IP
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => {
                         setEditServerId(s.id);
                         setApiTokenSaved(!!s.hasApiToken);

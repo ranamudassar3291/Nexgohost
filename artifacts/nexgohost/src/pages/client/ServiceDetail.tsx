@@ -154,7 +154,11 @@ export default function ServiceDetail() {
   const [reinstallingSSL, setReinstallingSSL] = useState(false);
 
   // Real cPanel resource usage
-  const [usageData, setUsageData] = useState<{ source: string; diskUsed: string | null; diskPct: number; bwUsed: string | null; bwPct: number } | null>(null);
+  const [usageData, setUsageData] = useState<{
+    source: string;
+    diskUsed: string | null; diskLimit?: string; diskPct: number; diskUnlimited?: boolean;
+    bwUsed: string | null; bwLimit?: string; bwPct: number; bwUnlimited?: boolean;
+  } | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
 
   // Backup state
@@ -590,18 +594,21 @@ export default function ServiceDetail() {
   if (!service) return null;
 
   const currentPlan = plans.find(p => p.id === service.planId);
-  const diskLimit = currentPlan?.diskSpace || "10 GB";
-  const bwLimit = currentPlan?.bandwidth || "100 GB";
-  const diskLimitNum = diskLimit.replace(/[^0-9.]/g, "");
-  const bwLimitNum = bwLimit.replace(/[^0-9.]/g, "");
+  const planDiskLimit = currentPlan?.diskSpace || "10 GB";
+  const planBwLimit = currentPlan?.bandwidth || "100 GB";
+  const diskLimitNum = planDiskLimit.replace(/[^0-9.]/g, "");
+  const bwLimitNum = planBwLimit.replace(/[^0-9.]/g, "");
 
   const diskSim = simulateUsage(service.id, diskLimitNum, "disk");
   const bwSim = simulateUsage(service.id, bwLimitNum, "bw");
-  const hasRealUsage = usageData?.source === "cpanel" && (usageData.diskUsed !== null || usageData.bwUsed !== null);
+  const hasRealUsage = (usageData?.source === "cpanel" || usageData?.source === "cached") && (usageData.diskUsed !== null || usageData.bwUsed !== null);
   const diskUsedDisplay = hasRealUsage ? (usageData!.diskUsed ?? "0 MB") : (service.diskUsed || diskSim.display);
   const bwUsedDisplay = hasRealUsage ? (usageData!.bwUsed ?? "0 MB") : (service.bandwidthUsed || bwSim.display);
   const diskPct = hasRealUsage ? usageData!.diskPct : (service.diskUsed ? parseUsagePercent(service.diskUsed, diskLimitNum) : diskSim.pct);
   const bwPct = hasRealUsage ? usageData!.bwPct : (service.bandwidthUsed ? parseUsagePercent(service.bandwidthUsed, bwLimitNum) : bwSim.pct);
+  // Use live limits from API when available, otherwise fall back to plan limits
+  const diskLimit = (hasRealUsage && usageData?.diskLimit) ? usageData.diskLimit : planDiskLimit;
+  const bwLimit = (hasRealUsage && usageData?.bwLimit) ? usageData.bwLimit : planBwLimit;
 
   const otherPlans = plans.filter(p => p.id !== service.planId);
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
@@ -1007,23 +1014,31 @@ export default function ServiceDetail() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {[
-            { label: "Disk Usage", used: diskUsedDisplay, limit: diskLimit, pct: diskPct, icon: HardDrive },
-            { label: "Bandwidth", used: bwUsedDisplay, limit: bwLimit, pct: bwPct, icon: Activity },
-          ].map(({ label, used, limit, pct, icon: Icon }) => (
+            { label: "Disk Usage", used: diskUsedDisplay, limit: diskLimit, pct: diskPct, unlimited: usageData?.diskUnlimited, icon: HardDrive },
+            { label: "Bandwidth", used: bwUsedDisplay, limit: bwLimit, pct: bwPct, unlimited: usageData?.bwUnlimited, icon: Activity },
+          ].map(({ label, used, limit, pct, unlimited, icon: Icon }) => (
             <div key={label}>
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <Icon size={14} /> {label}
                 </div>
-                <span className="text-sm font-medium text-foreground">{used} / {limit}</span>
+                <span className="text-sm font-medium text-foreground">{used} / {unlimited ? "Unlimited" : limit}</span>
               </div>
-              <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${pct > 80 ? "bg-red-400" : pct > 60 ? "bg-yellow-400" : "bg-primary"}`}
-                  style={{ width: `${pct}%` }}
-                />
+              {unlimited ? (
+                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full w-full rounded-full bg-primary opacity-20" />
+                </div>
+              ) : (
+                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${pct > 80 ? "bg-red-400" : pct > 60 ? "bg-yellow-400" : "bg-primary"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-1">
+                {unlimited ? "Unlimited — no quota" : `${pct}% used`}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">{pct}% used</div>
             </div>
           ))}
         </div>

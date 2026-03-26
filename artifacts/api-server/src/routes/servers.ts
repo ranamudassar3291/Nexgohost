@@ -302,4 +302,102 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
   res.json({ plans: [{ id: "default", name: "Default Package", monthlyPrice: 4.99, yearlyPrice: 49.99 }] as Plan[] });
 });
 
+// ─── POST /admin/servers/:id/whitelist-self — Add this API server's IP to CSF/WHM allowlist ───
+// Detects the outbound IP used when reaching the WHM server, then attempts to add it to
+// the server's CSF firewall whitelist via WHM's csf_whitelist API.
+// Falls back to returning the IP with manual instructions if CSF API is unavailable.
+router.post("/admin/servers/:id/whitelist-self", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [server] = await db.select().from(serversTable).where(eq(serversTable.id, req.params.id)).limit(1);
+    if (!server) return res.status(404).json({ error: "Server not found" });
+    if (!server.apiToken) return res.status(400).json({ error: "Server has no API token configured" });
+    if (server.type !== "cpanel" && server.type !== "whm") {
+      return res.status(400).json({ error: "Firewall whitelist only supported for cPanel/WHM servers" });
+    }
+
+    const authUser = server.username || "root";
+    const port = server.port || 2087;
+    const authHeader = `whm ${authUser}:${server.apiToken}`;
+
+    // Step 1: Detect our outbound IP by asking an external IP service
+    let myIp: string | null = null;
+    try {
+      const ipResp = await fetch("https://api.ipify.org?format=json", { signal: AbortSignal.timeout(5000) });
+      const ipData: any = await ipResp.json();
+      myIp = ipData?.ip || null;
+    } catch {
+      // Try alternative
+      try {
+        const ipResp2 = await fetch("https://api4.my-ip.io/ip.json", { signal: AbortSignal.timeout(5000) });
+        const ipData2: any = await ipResp2.json();
+        myIp = ipData2?.ip || null;
+      } catch { /* ignore */ }
+    }
+
+    if (!myIp) {
+      return res.json({
+        success: false,
+        message: "Could not detect API server IP automatically. Please add manually.",
+        manualInstructions: "In WHM → Plugins → ConfigServer Security & Firewall → Quick Allow, add the API server's outbound IP.",
+      });
+    }
+
+    // Step 2: Try WHM's CSF plugin whitelist API
+    let whitelisted = false;
+    let csfMethod = "";
+    try {
+      const csfUrl = `https://${server.hostname}:${port}/cgi-bin/addon_csf.cgi?action=whitelist&ip=${encodeURIComponent(myIp)}&dir=in&comment=Nexgohost+API+Server&submit=Quick+Allow`;
+      const data = await whmGet(csfUrl, authHeader, 10_000);
+      // CSF CGI returns HTML, check for success indicators
+      const body = JSON.stringify(data);
+      if (!body.includes("Error") && !body.includes("error")) {
+        whitelisted = true;
+        csfMethod = "csf_cgi";
+      }
+    } catch { /* CSF not available */ }
+
+    // Step 3: Try WHM IP Allow API as fallback
+    if (!whitelisted) {
+      try {
+        const allowUrl = `https://${server.hostname}:${port}/json-api/set_enforced_host_access?api.version=1&host=${encodeURIComponent(myIp)}&access=allow`;
+        await whmGet(allowUrl, authHeader, 10_000);
+        whitelisted = true;
+        csfMethod = "whm_host_access";
+      } catch { /* not available */ }
+    }
+
+    console.log(`[WHITELIST] Server ${server.hostname}: IP=${myIp}, whitelisted=${whitelisted}, method=${csfMethod}`);
+
+    res.json({
+      success: whitelisted,
+      ip: myIp,
+      method: whitelisted ? csfMethod : "none",
+      message: whitelisted
+        ? `API server IP ${myIp} has been added to the firewall allowlist on ${server.hostname}.`
+        : `Detected API server IP: ${myIp}. Please add it manually to the CSF whitelist on ${server.hostname}.`,
+      manualInstructions: whitelisted ? null
+        : `In WHM → Plugins → ConfigServer Security & Firewall → Quick Allow, add: ${myIp}`,
+    });
+  } catch (err: any) {
+    console.error("[WHITELIST] error:", err.message);
+    res.status(500).json({ error: "Server error", message: err.message });
+  }
+});
+
+// ─── GET /admin/servers/:id/api-server-ip — Detect the outbound IP of the API server ───
+router.get("/admin/servers/:id/api-server-ip", authenticate, requireAdmin, async (req, res) => {
+  try {
+    let myIp: string | null = null;
+    try {
+      const ipResp = await fetch("https://api.ipify.org?format=json", { signal: AbortSignal.timeout(5000) });
+      const ipData: any = await ipResp.json();
+      myIp = ipData?.ip || null;
+    } catch { /* ignore */ }
+
+    res.json({ ip: myIp });
+  } catch (err: any) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 export default router;

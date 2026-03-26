@@ -1,8 +1,43 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { hostingServicesTable, dnsRecordsTable } from "@workspace/db/schema";
+import { hostingServicesTable, dnsRecordsTable, serversTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
+import {
+  cpanelGetAllDnsRecords, cpanelAddDnsRecord, cpanelEditDnsRecord, cpanelDeleteDnsRecord,
+  type DnsRecord as CpDnsRecord,
+} from "../lib/cpanel.js";
+
+// ── Resolve cPanel server for a hosting service ───────────────────────────────
+async function getCpanelServerForService(service: { serverId: string | null; username: string | null }) {
+  if (!service.serverId || !service.username) return null;
+  const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+  if (!server || (server.type !== "cpanel" && server.type !== "whm") || !server.apiToken) return null;
+  return {
+    cfg: {
+      hostname: server.hostname,
+      port: server.port ?? 2087,
+      username: server.username ?? "root",
+      apiToken: server.apiToken,
+    },
+    username: service.username,
+  };
+}
+
+// ── Map cPanel DnsRecord → internal format ────────────────────────────────────
+function normalizeCpRecord(r: CpDnsRecord, idx: number) {
+  const address = r.address ?? (r as any).txtdata ?? (r as any).cname ?? (r as any).exchange ?? "";
+  return {
+    line: r.Line ?? idx,
+    id: String(r.Line ?? idx),
+    type: (r.type ?? "A").toUpperCase(),
+    name: r.name ?? "",
+    address,
+    ttl: Number(r.ttl) || 14400,
+    priority: r.preference !== undefined ? Number(r.preference) : undefined,
+    source: "cpanel",
+  };
+}
 
 const router = Router();
 
@@ -99,7 +134,7 @@ router.get("/hosting/:id/dns", authenticate, async (req: AuthRequest, res) => {
 
     const domain = service.domain;
 
-    // Try Cloudflare first if token is configured
+    // ── 1) Try Cloudflare if token is configured ───────────────────────────
     if (CF_TOKEN) {
       const zoneId = await getCfZoneId(domain);
       if (zoneId) {
@@ -110,7 +145,22 @@ router.get("/hosting/:id/dns", authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    // Fallback: local DB records
+    // ── 2) Try cPanel/WHM dumpzone (returns ALL records incl. SOA/NS) ─────
+    const cp = await getCpanelServerForService(service);
+    if (cp) {
+      try {
+        const cpRecords = await cpanelGetAllDnsRecords(cp.cfg, domain, cp.username);
+        if (cpRecords.length > 0) {
+          const records = cpRecords.map(normalizeCpRecord);
+          res.json({ records, domain, source: "cpanel" });
+          return;
+        }
+      } catch (cpErr: any) {
+        console.warn(`[DNS] cPanel lookup failed for ${domain}: ${cpErr.message} — using local DB`);
+      }
+    }
+
+    // ── 3) Fallback: local DB records ─────────────────────────────────────
     const dbRecords = await db.select().from(dnsRecordsTable)
       .where(and(eq(dnsRecordsTable.serviceId, service.id), eq(dnsRecordsTable.domain, domain)));
     const records = dbRecords.map(normalizeDbRecord);
@@ -157,7 +207,7 @@ router.post("/hosting/:id/dns", authenticate, async (req: AuthRequest, res) => {
 
     const domain = service.domain;
 
-    // Try Cloudflare if configured
+    // ── 1) Try Cloudflare ──────────────────────────────────────────────────
     if (CF_TOKEN) {
       const zoneId = await getCfZoneId(domain);
       if (zoneId) {
@@ -167,7 +217,23 @@ router.post("/hosting/:id/dns", authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    // Local DB
+    // ── 2) Try cPanel ──────────────────────────────────────────────────────
+    const cp = await getCpanelServerForService(service);
+    if (cp) {
+      try {
+        await cpanelAddDnsRecord(cp.cfg, cp.username, domain, {
+          type: type.toUpperCase(), name: name.trim(), address: address.trim(),
+          ttl: Number(ttl) || 14400,
+          ...(priority !== undefined ? { preference: Number(priority) } : {}),
+        });
+        res.json({ success: true, record: { type: type.toUpperCase(), name, address, ttl, priority }, source: "cpanel" });
+        return;
+      } catch (cpErr: any) {
+        console.warn(`[DNS] cPanel add failed: ${cpErr.message} — using local DB`);
+      }
+    }
+
+    // ── 3) Fallback: Local DB ──────────────────────────────────────────────
     const [record] = await db.insert(dnsRecordsTable).values({
       serviceId: service.id,
       domain,
@@ -201,7 +267,7 @@ router.put("/hosting/:id/dns/:line", authenticate, async (req: AuthRequest, res)
     const recordId = req.params.line;
     const domain = service.domain;
 
-    // Try Cloudflare if configured
+    // ── 1) Try Cloudflare ──────────────────────────────────────────────────
     if (CF_TOKEN) {
       const zoneId = await getCfZoneId(domain);
       if (zoneId) {
@@ -211,7 +277,26 @@ router.put("/hosting/:id/dns/:line", authenticate, async (req: AuthRequest, res)
       }
     }
 
-    // Local DB
+    // ── 2) Try cPanel if line is numeric ──────────────────────────────────
+    const lineNum = parseInt(recordId, 10);
+    if (!isNaN(lineNum)) {
+      const cp = await getCpanelServerForService(service);
+      if (cp) {
+        try {
+          await cpanelEditDnsRecord(cp.cfg, cp.username, domain, lineNum, {
+            type: type.toUpperCase(), name: name.trim(), address: address.trim(),
+            ttl: Number(ttl) || 14400,
+            ...(priority !== undefined ? { preference: Number(priority) } : {}),
+          });
+          res.json({ success: true, record: { id: recordId, type: type.toUpperCase(), name, address, ttl, priority }, source: "cpanel" });
+          return;
+        } catch (cpErr: any) {
+          console.warn(`[DNS] cPanel edit failed: ${cpErr.message} — using local DB`);
+        }
+      }
+    }
+
+    // ── 3) Fallback: Local DB ──────────────────────────────────────────────
     const [updated] = await db.update(dnsRecordsTable)
       .set({ type: type.toUpperCase(), name: name.trim(), value: address.trim(), ttl: Number(ttl) || 3600, priority: priority ? Number(priority) : null, updatedAt: new Date() })
       .where(and(eq(dnsRecordsTable.id, recordId), eq(dnsRecordsTable.serviceId, service.id)))
@@ -236,7 +321,7 @@ router.delete("/hosting/:id/dns/:line", authenticate, async (req: AuthRequest, r
     const recordId = req.params.line;
     const domain = service.domain;
 
-    // Try Cloudflare if configured
+    // ── 1) Try Cloudflare ──────────────────────────────────────────────────
     if (CF_TOKEN) {
       const zoneId = await getCfZoneId(domain);
       if (zoneId) {
@@ -246,7 +331,22 @@ router.delete("/hosting/:id/dns/:line", authenticate, async (req: AuthRequest, r
       }
     }
 
-    // Local DB
+    // ── 2) Try cPanel if line is numeric ──────────────────────────────────
+    const lineNum = parseInt(recordId, 10);
+    if (!isNaN(lineNum)) {
+      const cp = await getCpanelServerForService(service);
+      if (cp) {
+        try {
+          await cpanelDeleteDnsRecord(cp.cfg, cp.username, domain, lineNum);
+          res.json({ success: true, source: "cpanel" });
+          return;
+        } catch (cpErr: any) {
+          console.warn(`[DNS] cPanel delete failed: ${cpErr.message} — using local DB`);
+        }
+      }
+    }
+
+    // ── 3) Fallback: Local DB ──────────────────────────────────────────────
     const deleted = await db.delete(dnsRecordsTable)
       .where(and(eq(dnsRecordsTable.id, recordId), eq(dnsRecordsTable.serviceId, service.id)))
       .returning();

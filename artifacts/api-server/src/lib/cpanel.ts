@@ -1189,46 +1189,198 @@ export async function cpanelCreateUserSession(
 // ─── cPanel Backup API ────────────────────────────────────────────────────────
 
 /**
- * Trigger a full cPanel backup to the user's home directory.
- * Uses UAPI Backup::fullbackup_to_homedir — backup appears in ~/backup-*.tar.gz
+ * Trigger a full cPanel backup using cPanel API2 via WHM root proxy.
+ *
+ * Uses API2 (cpanel_jsonapi_version=2) instead of UAPI because the UAPI
+ * Backup::fullbackup_to_homedir call frequently returns "No data returned from
+ * cPanel Service" (HTTP 500) when proxied through WHM — a known cPanel issue.
+ * API2 is older but more reliable for proxied WHM calls.
+ *
+ * Fallback: WHM-native /json-api/backup endpoint (runs WHM backup for user).
+ * Backup appears in the user's home directory as backup-USERNAME-DATE.tar.gz.
  */
 export async function cpanelFullBackup(
   server: ServerConfig,
   username: string,
 ): Promise<{ status: string; message: string }> {
-  const result = await cpanelUapi(server, username, "Backup", "fullbackup_to_homedir", {
-    notification_target: "disabled",
-  });
-  const ok = result?.status === 0 || result?.result === 1 || result?.data?.result === 1;
-  return {
-    status: ok ? "initiated" : "failed",
-    message: ok
-      ? "Full cPanel backup initiated. The file will appear in your home directory."
-      : (result?.errors?.[0] || result?.messages?.[0] || "Backup initiation failed"),
-  };
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+
+  // ── Primary: cPanel API2 Backup::fullbackup via WHM proxy ─────────────────
+  try {
+    const params = new URLSearchParams({
+      "api.version": "1",
+      user: username,
+      cpanel_jsonapi_version: "2",
+      cpanel_jsonapi_module: "Backup",
+      cpanel_jsonapi_func: "fullbackup",
+      dest: "homedir",
+      email: "",
+      server: "",
+      port: "21",
+      rdir: "",
+      phd: "",
+    });
+    const url = `https://${server.hostname}:${port}/json-api/cpanel?${params}`;
+    const raw = await httpsGet(url, authHeader, 120_000);
+    const data = JSON.parse(raw);
+    // API2 response shape via WHM proxy
+    const cpResult = data?.cpanelresult ?? data?.result?.[0] ?? {};
+    const errMsg: string | undefined = cpResult?.error || data?.metadata?.reason;
+    if (errMsg && !/no data returned/i.test(errMsg)) throw new Error(errMsg);
+    if (!errMsg) {
+      console.log(`[BACKUP] API2 fullbackup initiated for ${username}`);
+      return { status: "initiated", message: `Full backup initiated. File: ~/backup-${username}-*.tar.gz` };
+    }
+    throw new Error(errMsg || "API2 returned no result");
+  } catch (api2Err: any) {
+    console.warn(`[BACKUP] API2 fullbackup failed for ${username}: ${api2Err.message} — trying WHM backup`);
+  }
+
+  // ── Fallback: WHM-native backup endpoint ──────────────────────────────────
+  try {
+    const params = new URLSearchParams({ "api.version": "1", user: username, disabled: "0" });
+    const url = `https://${server.hostname}:${port}/json-api/backup?${params}`;
+    const raw = await httpsGet(url, authHeader, 120_000);
+    const data = JSON.parse(raw);
+    if (data?.metadata?.result === 0) throw new Error(data.metadata?.reason || "WHM backup failed");
+    console.log(`[BACKUP] WHM backup endpoint initiated for ${username}`);
+    return { status: "initiated", message: `Full backup started via WHM for ${username}. File: ~/backup-${username}-*.tar.gz` };
+  } catch (whmErr: any) {
+    console.error(`[BACKUP] WHM backup fallback also failed for ${username}: ${whmErr.message}`);
+    throw new Error(`All backup methods failed for ${username}: ${whmErr.message}`);
+  }
 }
 
 /**
- * Dump a single MySQL database from cPanel to a .sql.gz file in ~/cpanel_backups/.
- * Uses UAPI Mysql::dump — file ends up in the user's home directory.
+ * Dump a single MySQL database from cPanel using cPanel API2 via WHM root proxy.
+ *
+ * Uses API2 (cpanel_jsonapi_version=2) instead of UAPI for the same reason as
+ * cpanelFullBackup — UAPI Mysql::dump via WHM proxy hits cPanel service issues.
+ * The dump file is stored in ~/cpanel_backups/FILENAME.
  */
 export async function cpanelDbDump(
   server: ServerConfig,
   username: string,
   database: string,
 ): Promise<{ status: string; filename: string; message: string }> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
   const ts = Date.now();
   const filename = `db_${database}_${ts}.sql.gz`;
-  const result = await cpanelUapi(server, username, "Mysql", "dump", {
-    dbname: database,
-    filename,
-  });
-  const ok = result?.status === 0 || result?.result === 1 || result?.data?.result === 1;
-  return {
-    status: ok ? "initiated" : "failed",
-    filename,
-    message: ok
-      ? `Database dump initiated → ~/cpanel_backups/${filename}`
-      : (result?.errors?.[0] || "DB dump initiation failed"),
-  };
+
+  // ── Primary: cPanel API2 Mysql::dump via WHM proxy ────────────────────────
+  try {
+    const params = new URLSearchParams({
+      "api.version": "1",
+      user: username,
+      cpanel_jsonapi_version: "2",
+      cpanel_jsonapi_module: "Mysql",
+      cpanel_jsonapi_func: "dump",
+      dbname: database,
+      filename,
+    });
+    const url = `https://${server.hostname}:${port}/json-api/cpanel?${params}`;
+    const raw = await httpsGet(url, authHeader, 120_000);
+    const data = JSON.parse(raw);
+    const cpResult = data?.cpanelresult ?? data?.result?.[0] ?? {};
+    const errMsg: string | undefined = cpResult?.error || data?.metadata?.reason;
+    if (errMsg && !/no data returned/i.test(errMsg)) throw new Error(errMsg);
+    if (!errMsg) {
+      console.log(`[BACKUP] API2 DB dump initiated for ${username}/${database} → ${filename}`);
+      return { status: "initiated", filename, message: `DB dump initiated → ~/cpanel_backups/${filename}` };
+    }
+    throw new Error(errMsg || "API2 returned no result");
+  } catch (api2Err: any) {
+    console.warn(`[BACKUP] API2 DB dump failed for ${username}: ${api2Err.message}`);
+    // No further fallback for DB dump — WHM has no direct equivalent
+    throw new Error(`DB dump failed for ${database}: ${api2Err.message}`);
+  }
+}
+
+/**
+ * Fetch live disk and bandwidth usage for a cPanel account.
+ *
+ * Strategy:
+ *  1. WHM accountsummary (diskused/disklimit in MB) — handles "unlimited" limits
+ *  2. Falls back gracefully if the account doesn't exist
+ *
+ * Returns { diskUsedMB, diskLimitMB, diskUnlimited, bwUsedMB, bwLimitMB, bwUnlimited }
+ * all as numbers. "unlimited" limits → limitMB = 0 with unlimited = true.
+ */
+export async function cpanelGetLiveUsage(
+  server: ServerConfig,
+  username: string,
+): Promise<{
+  diskUsedMB: number; diskLimitMB: number; diskUnlimited: boolean;
+  bwUsedMB: number; bwLimitMB: number; bwUnlimited: boolean;
+}> {
+  const data = await cpanelGetAccountInfo(server, username);
+  const acct = data?.data?.acct?.[0] ?? data?.acct?.[0] ?? {};
+
+  const diskUsedMB  = parseFloat(acct.diskused  ?? "0") || 0;
+  const diskLimitRaw = String(acct.disklimit ?? "0").toLowerCase();
+  const diskUnlimited = diskLimitRaw === "unlimited" || diskLimitRaw === "0" || !diskLimitRaw;
+  const diskLimitMB  = diskUnlimited ? 0 : (parseFloat(diskLimitRaw) || 0);
+
+  const bwUsedMB   = parseFloat(acct.bwused   ?? "0") || 0;
+  const bwLimitRaw = String(acct.bwlimit  ?? "0").toLowerCase();
+  const bwUnlimited = bwLimitRaw === "unlimited" || bwLimitRaw === "0" || !bwLimitRaw;
+  const bwLimitMB   = bwUnlimited ? 0 : (parseFloat(bwLimitRaw) || 0);
+
+  return { diskUsedMB, diskLimitMB, diskUnlimited, bwUsedMB, bwLimitMB, bwUnlimited };
+}
+
+/**
+ * Fetch ALL DNS zone records for a domain using WHM's native dumpzone API.
+ * Unlike cpanelGetDnsZone (API2), this uses the WHM-level DNS endpoint which
+ * returns every record including SOA, NS, and system-generated entries.
+ * Falls back to API2 fetchzone_records if dumpzone is unavailable.
+ */
+export async function cpanelGetAllDnsRecords(
+  server: ServerConfig,
+  domain: string,
+  username: string,
+): Promise<DnsRecord[]> {
+  const port = server.port || 2087;
+  const authUser = server.username || "root";
+  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+
+  // ── Primary: WHM dumpzone (returns full raw zone) ─────────────────────────
+  try {
+    const params = new URLSearchParams({ "api.version": "1", domain });
+    const url = `https://${server.hostname}:${port}/json-api/dumpzone?${params}`;
+    const raw = await httpsGet(url, authHeader, 30_000);
+    const data = JSON.parse(raw);
+
+    if (data?.metadata?.result === 0) throw new Error(data.metadata?.reason || "dumpzone failed");
+
+    // WHM dumpzone response: data.data.zone[0].record[] or data.result[0].data.zone[0].record[]
+    const zone: any[] =
+      data?.data?.zone?.[0]?.record ??
+      data?.result?.[0]?.data?.zone?.[0]?.record ??
+      [];
+
+    if (zone.length > 0) {
+      console.log(`[DNS] WHM dumpzone returned ${zone.length} records for ${domain}`);
+      return zone.map((r: any) => ({
+        Line: r.Line ?? r.line,
+        type: (r.type ?? "A").toUpperCase(),
+        name: r.name ?? "",
+        address: r.address ?? r.txtdata ?? r.cname ?? r.exchange ?? "",
+        cname: r.cname,
+        exchange: r.exchange,
+        txtdata: r.txtdata,
+        ttl: Number(r.ttl) || 14400,
+        preference: r.preference ? Number(r.preference) : undefined,
+      }));
+    }
+  } catch (e: any) {
+    console.warn(`[DNS] dumpzone failed for ${domain}: ${e.message} — trying API2 fetchzone_records`);
+  }
+
+  // ── Fallback: API2 fetchzone_records via WHM proxy ────────────────────────
+  return cpanelGetDnsZone(server, domain, username);
 }

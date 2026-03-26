@@ -6,7 +6,7 @@ import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetLiveUsage, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -1309,6 +1309,11 @@ router.post("/client/hosting/:id/change-password", authenticate, async (req: Aut
 
 // ─── GET /client/hosting/:id/usage — real cPanel disk & bandwidth via WHM accountsummary ───
 router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, res) => {
+  function fmtMB(mb: number): string {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+    return `${Math.round(mb)} MB`;
+  }
+
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -1317,43 +1322,55 @@ router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, r
     if (!service) return res.status(404).json({ error: "Service not found" });
 
     if (!service.serverId || !service.username) {
-      return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0 });
+      return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
     }
 
     const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
     if (!server || (server.type !== "cpanel" && server.type !== "whm")) {
-      return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0 });
+      return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
     }
 
     const serverCfg = toServerCfg(server);
-    const data = await cpanelGetAccountInfo(serverCfg, service.username);
+    const {
+      diskUsedMB, diskLimitMB, diskUnlimited,
+      bwUsedMB, bwLimitMB, bwUnlimited,
+    } = await cpanelGetLiveUsage(serverCfg, service.username);
 
-    // accountsummary returns data.acct[0] with diskused/disklimit/bwused/bwlimit in MB
-    const acct = data?.data?.acct?.[0] ?? data?.acct?.[0] ?? {};
+    // Percentage: 0 if limit is unlimited OR limit is 0
+    const diskPct = (!diskUnlimited && diskLimitMB > 0) ? Math.min(100, Math.round((diskUsedMB / diskLimitMB) * 100)) : 0;
+    const bwPct   = (!bwUnlimited   && bwLimitMB   > 0) ? Math.min(100, Math.round((bwUsedMB   / bwLimitMB)   * 100)) : 0;
 
-    const diskUsedMB = parseFloat(acct.diskused ?? "0") || 0;
-    const diskLimitMB = parseFloat(acct.disklimit ?? "0") || 0;
-    const bwUsedMB = parseFloat(acct.bwused ?? "0") || 0;
-    const bwLimitMB = parseFloat(acct.bwlimit ?? "0") || 0;
-
-    function fmtMB(mb: number): string {
-      if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
-      return `${Math.round(mb)} MB`;
-    }
-
-    const diskPct = diskLimitMB > 0 ? Math.min(100, Math.round((diskUsedMB / diskLimitMB) * 100)) : 0;
-    const bwPct   = bwLimitMB   > 0 ? Math.min(100, Math.round((bwUsedMB   / bwLimitMB)   * 100)) : 0;
+    // Also persist snapshot to the service record for offline display
+    const diskUsedFmt = fmtMB(diskUsedMB);
+    const bwUsedFmt   = fmtMB(bwUsedMB);
+    db.update(hostingServicesTable).set({
+      diskUsed: diskUsedFmt,
+      bandwidthUsed: bwUsedFmt,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id)).catch(() => {});
 
     res.json({
       source: "cpanel",
-      diskUsed: fmtMB(diskUsedMB),
+      diskUsed: diskUsedFmt,
+      diskLimit: diskUnlimited ? "Unlimited" : fmtMB(diskLimitMB),
       diskPct,
-      bwUsed: fmtMB(bwUsedMB),
+      diskUnlimited,
+      bwUsed: bwUsedFmt,
+      bwLimit: bwUnlimited ? "Unlimited" : fmtMB(bwLimitMB),
       bwPct,
+      bwUnlimited,
     });
   } catch (err: any) {
     console.warn("[CLIENT] usage fetch error (non-fatal):", err.message);
-    res.json({ source: "error", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0 });
+    // Try to return last-known values from DB on error
+    try {
+      const [service] = await db.select({ diskUsed: hostingServicesTable.diskUsed, bandwidthUsed: hostingServicesTable.bandwidthUsed })
+        .from(hostingServicesTable).where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+      if (service?.diskUsed) {
+        return res.json({ source: "cached", diskUsed: service.diskUsed, diskPct: 0, bwUsed: service.bandwidthUsed, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
+      }
+    } catch { /* ignore */ }
+    res.json({ source: "error", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
   }
 });
 
@@ -2341,6 +2358,61 @@ router.delete("/admin/hosting/:id", authenticate, requireAdmin, async (req: Auth
     if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ success: true, id: req.params.id });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// ─── POST /admin/hosting/:id/sync-usage — Force-refresh disk/bandwidth from cPanel ─
+// Admin-only. Pulls live stats from WHM accountsummary and persists to the service record
+// so both admin and client views show up-to-date data immediately.
+router.post("/admin/hosting/:id/sync-usage", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  function fmtMB(mb: number): string {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+    return `${Math.round(mb)} MB`;
+  }
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    if (!service.serverId || !service.username) {
+      return res.json({ success: false, message: "No cPanel server configured for this service" });
+    }
+    const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
+    if (!server || (server.type !== "cpanel" && server.type !== "whm") || !server.apiToken) {
+      return res.json({ success: false, message: "Service is not on a cPanel/WHM server" });
+    }
+
+    const serverCfg = toServerCfg(server);
+    const { diskUsedMB, diskLimitMB, diskUnlimited, bwUsedMB, bwLimitMB, bwUnlimited } =
+      await cpanelGetLiveUsage(serverCfg, service.username);
+
+    const diskUsedFmt = fmtMB(diskUsedMB);
+    const bwUsedFmt = fmtMB(bwUsedMB);
+
+    await db.update(hostingServicesTable).set({
+      diskUsed: diskUsedFmt,
+      bandwidthUsed: bwUsedFmt,
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id));
+
+    const diskPct = (!diskUnlimited && diskLimitMB > 0) ? Math.min(100, Math.round((diskUsedMB / diskLimitMB) * 100)) : 0;
+    const bwPct   = (!bwUnlimited && bwLimitMB > 0)   ? Math.min(100, Math.round((bwUsedMB   / bwLimitMB)   * 100)) : 0;
+
+    console.log(`[ADMIN] sync-usage for ${service.username} (${id}): disk=${diskUsedFmt}, bw=${bwUsedFmt}`);
+    res.json({
+      success: true,
+      diskUsed: diskUsedFmt,
+      diskLimit: diskUnlimited ? "Unlimited" : fmtMB(diskLimitMB),
+      diskPct,
+      diskUnlimited,
+      bwUsed: bwUsedFmt,
+      bwLimit: bwUnlimited ? "Unlimited" : fmtMB(bwLimitMB),
+      bwPct,
+      bwUnlimited,
+    });
+  } catch (err: any) {
+    console.error("[ADMIN] sync-usage error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 export default router;
