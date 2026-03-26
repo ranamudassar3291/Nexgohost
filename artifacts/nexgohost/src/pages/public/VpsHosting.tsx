@@ -105,7 +105,7 @@ export default function VpsHosting() {
       {/* ── Navbar ── */}
       <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link href="/">
+          <Link href="/client/login">
             <span className="flex items-center gap-2 cursor-pointer">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: P }}>
                 <Server size={16} className="text-white"/>
@@ -114,7 +114,7 @@ export default function VpsHosting() {
             </span>
           </Link>
           <div className="hidden md:flex items-center gap-6 text-[13px] font-medium text-gray-600">
-            <Link href="/" className="hover:text-gray-900 transition-colors">Home</Link>
+            <Link href="/client/dashboard" className="hover:text-gray-900 transition-colors">Dashboard</Link>
             <Link href="/vps" className="font-bold transition-colors" style={{ color: P }}>VPS Hosting</Link>
             <Link href="/order" className="hover:text-gray-900 transition-colors">Order</Link>
           </div>
@@ -139,7 +139,7 @@ export default function VpsHosting() {
           {mobileMenuOpen && (
             <motion.div key="mobile-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3">
-              <Link href="/" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-medium text-gray-700">Home</Link>
+              <Link href="/client/dashboard" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-medium text-gray-700">Dashboard</Link>
               <Link href="/vps" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-bold" style={{ color: P }}>VPS Hosting</Link>
               <Link href="/order" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-medium text-gray-700">Order</Link>
               <div className="flex gap-2 pt-2">

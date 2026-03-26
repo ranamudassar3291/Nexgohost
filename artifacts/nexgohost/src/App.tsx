@@ -93,7 +93,6 @@ import DomainDns from "@/pages/client/DomainDns";
 import VpsManage from "@/pages/client/VpsManage";
 import HelpCenter from "@/pages/client/HelpCenter";
 import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
-import Homepage from "@/pages/public/Homepage";
 import VpsHosting from "@/pages/public/VpsHosting";
 import OrderFlow from "@/pages/public/OrderFlow";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
@@ -132,7 +131,7 @@ function HelpPage({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
+          <a href="/client/login" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
           <div className="flex gap-3">
             <a href="/client/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
             <a href="/order" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
@@ -480,7 +479,7 @@ function RouterRoot() {
       {/* ── OAuth callback — public ── */}
       <Route path="/google-callback" component={GoogleCallback} />
 
-      {/* Root: Homepage for guests, dashboard for logged-in users */}
+      {/* Root: redirect guests to client login, logged-in users to their dashboard */}
       <Route path="/">
         {isLoading ? (
           <div className="min-h-screen bg-background flex items-center justify-center">
@@ -489,7 +488,7 @@ function RouterRoot() {
         ) : user ? (
           <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
         ) : (
-          <Homepage />
+          <Redirect to="/client/login" />
         )}
       </Route>
 

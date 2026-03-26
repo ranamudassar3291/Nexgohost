@@ -10,7 +10,7 @@ export default function NotFound() {
         <p className="text-muted-foreground">The page you're looking for doesn't exist or has been moved.</p>
         <div className="pt-4">
           <Button asChild className="bg-primary hover:bg-primary/90 text-white rounded-xl h-12 px-8">
-            <Link href="/">Return to Dashboard</Link>
+            <Link href="/client/dashboard">Return to Dashboard</Link>
           </Button>
         </div>
       </div>
