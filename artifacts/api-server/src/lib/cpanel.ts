@@ -373,7 +373,18 @@ export async function cpanelGetDnsZone(server: ServerConfig, domain: string, use
   const whmUrl = `https://${server.hostname}:${port}/json-api/cpanel?cpanel_jsonapi_version=2&cpanel_jsonapi_module=ZoneEdit&cpanel_jsonapi_func=fetchzone_records&domain=${encodeURIComponent(domain)}&customonly=0&api.version=1&user=${encodeURIComponent(username)}`;
   const body = await httpsGet(whmUrl, { "Authorization": `whm ${authUser}:${server.apiToken}` });
   const data = JSON.parse(body);
-  const records: any[] = data?.cpanelresult?.data?.[0]?.record || data?.data?.record || data?.result?.[0]?.data?.record || [];
+
+  // API2 fetchzone_records returns records as a flat array in cpanelresult.data
+  // (not nested inside data[0].record) — also handle legacy/proxy wrappers
+  const records: any[] =
+    (Array.isArray(data?.cpanelresult?.data) && data.cpanelresult.data.length > 0 && data.cpanelresult.data[0]?.Line !== undefined
+      ? data.cpanelresult.data           // flat array (each element IS a record)
+      : data?.cpanelresult?.data?.[0]?.record) // wrapped format
+    ?? data?.data?.record
+    ?? data?.result?.[0]?.data?.record
+    ?? [];
+
+  console.log(`[DNS] cpanelGetDnsZone returned ${records.length} records for ${domain}`);
   return records.map((r: any) => ({
     Line: r.Line,
     type: r.type,
@@ -1341,7 +1352,7 @@ export async function cpanelGetLiveUsage(
   const data = await cpanelGetAccountInfo(server, username);
   const acct = data?.data?.acct?.[0] ?? data?.acct?.[0] ?? {};
 
-  const diskUsedMB  = parseFloat(acct.diskused  ?? "0") || 0;
+  let diskUsedMB  = parseFloat(acct.diskused  ?? "0") || 0;
   const diskLimitRaw = String(acct.disklimit ?? "0").toLowerCase();
   const diskUnlimited = diskLimitRaw === "unlimited" || diskLimitRaw === "0" || !diskLimitRaw;
   const diskLimitMB  = diskUnlimited ? 0 : (parseFloat(diskLimitRaw) || 0);
@@ -1350,6 +1361,35 @@ export async function cpanelGetLiveUsage(
   const bwLimitRaw = String(acct.bwlimit  ?? "0").toLowerCase();
   const bwUnlimited = bwLimitRaw === "unlimited" || bwLimitRaw === "0" || !bwLimitRaw;
   const bwLimitMB   = bwUnlimited ? 0 : (parseFloat(bwLimitRaw) || 0);
+
+  // ── Fallback: if accountsummary returned 0 disk, try UAPI DiskUsage::list ─
+  // DiskUsage::list returns total disk usage more accurately for accounts with
+  // files spread across mailboxes, logs, and databases.
+  if (diskUsedMB === 0) {
+    try {
+      const port = server.port || 2087;
+      const authUser = server.username || "root";
+      const u = encodeURIComponent(username);
+      const diskUrl = `https://${server.hostname}:${port}/json-api/cpanel?api.version=1&cpanel_jsonapi_version=2&cpanel_jsonapi_module=DiskUsage&cpanel_jsonapi_func=list&cpanel_apiuser=${u}`;
+      const raw = await httpsGet(diskUrl, { "Authorization": `whm ${authUser}:${server.apiToken}` }, 15_000);
+      const diskData = JSON.parse(raw);
+      const diskItems: any[] = diskData?.cpanelresult?.data ?? diskData?.result?.[0]?.data ?? [];
+      if (Array.isArray(diskItems) && diskItems.length > 0) {
+        // Sum all top-level directories (or look for 'total' or '/' entry)
+        const totalEntry = diskItems.find((d: any) => d.dir === "/" || d.dir === "total" || d.dir === ".");
+        if (totalEntry && totalEntry.kb != null) {
+          diskUsedMB = (parseFloat(totalEntry.kb) || 0) / 1024;
+        } else {
+          // Sum all entries
+          const sumKb = diskItems.reduce((acc: number, d: any) => acc + (parseFloat(d.kb) || 0), 0);
+          diskUsedMB = sumKb / 1024;
+        }
+        console.log(`[USAGE] DiskUsage fallback for ${username}: ${diskUsedMB.toFixed(2)} MB`);
+      }
+    } catch (e: any) {
+      console.warn(`[USAGE] DiskUsage fallback failed for ${username}: ${e.message}`);
+    }
+  }
 
   return { diskUsedMB, diskLimitMB, diskUnlimited, bwUsedMB, bwLimitMB, bwUnlimited };
 }
@@ -1450,6 +1490,44 @@ export async function cpanelTestPermissions(
   }
 
   const u = encodeURIComponent(testUsername || authUser);
+
+  // ── Backup probe: use UAPI Backup::query_backup_config via WHM proxy ───────
+  // This is a read-only UAPI call that doesn't require root-level listacls ACL.
+  const backupProbeUrl = `https://${h}:${port}/json-api/cpanel?api.version=1&cpanel_jsonapi_version=2&cpanel_jsonapi_module=Backup&cpanel_jsonapi_func=query_backup_config&cpanel_apiuser=${u}`;
+  const backupCheck = await (async (): Promise<PermissionResult> => {
+    try {
+      const raw = await httpsGet(backupProbeUrl, authHeader, 12_000);
+      let data: any = {};
+      try { data = JSON.parse(raw); } catch { return { name: "Backup API", api: "backup_query_config", ok: true, reason: "OK" }; }
+      // Check for explicit failure
+      const cpResult = data?.cpanelresult;
+      if (cpResult?.error) return { name: "Backup API", api: "backup_query_config", ok: false, reason: cpResult.error };
+      if (data?.metadata?.result === 0) return { name: "Backup API", api: "backup_query_config", ok: false, reason: data.metadata?.reason || "Failed" };
+      return { name: "Backup API", api: "backup_query_config", ok: true, reason: "OK (backup config accessible)" };
+    } catch (e: any) {
+      return { name: "Backup API", api: "backup_query_config", ok: false, reason: e.message || "Failed" };
+    }
+  })();
+
+  // ── CSF probe: use the CSF CGI endpoint that actually works ───────────────
+  // csf_whitelist as a WHM JSON-API app doesn't exist — CSF uses its own CGI.
+  // We just detect if CSF is installed by checking the plugin CGI URL.
+  const csfCheck = await (async (): Promise<PermissionResult> => {
+    try {
+      const csfUrl = `https://${h}:${port}/cgi-bin/addon_csf.cgi`;
+      const raw = await httpsGet(csfUrl, authHeader, 8_000);
+      const lower = raw.toLowerCase();
+      // CSF CGI returns HTML — if it includes csf content it's installed
+      if (lower.includes("csf") || lower.includes("firewall") || lower.includes("configserver")) {
+        return { name: "CSF Firewall", api: "csf_cgi", ok: true, reason: "OK (CSF installed — IP whitelisting available)" };
+      }
+      return { name: "CSF Firewall", api: "csf_cgi", ok: true, reason: "OK (CSF not installed — IP whitelisting is manual)" };
+    } catch (e: any) {
+      // 404 or connection error means CSF not installed — this is fine, it's optional
+      return { name: "CSF Firewall", api: "csf_cgi", ok: true, reason: "OK (CSF not detected — manual IP whitelisting required)" };
+    }
+  })();
+
   const checks = await Promise.all([
     probe("WHM Connection & Packages", "listpkgs",
       `https://${h}:${port}/json-api/listpkgs?api.version=1`),
@@ -1457,27 +1535,19 @@ export async function cpanelTestPermissions(
       `https://${h}:${port}/json-api/accountsummary?api.version=1&user=${u}`),
     probe("DNS Zone Editor", "dumpzone",
       `https://${h}:${port}/json-api/dumpzone?api.version=1&domain=test.invalid`),
-    probe("Backup API (ACL list)", "listacls",
-      `https://${h}:${port}/json-api/listacls?api.version=1`),
-    probe("CSF Firewall", "csf_whitelist",
-      `https://${h}:${port}/json-api/csf_whitelist?api.version=1&action=show`),
+    Promise.resolve(backupCheck),
+    Promise.resolve(csfCheck),
   ]);
 
   // dumpzone returning "no zone file" or "could not open" for test.invalid = has permission, domain just doesn't exist
   const dns = checks[2];
   if (!dns.ok) {
     const r = dns.reason.toLowerCase();
-    if (r.includes("no zone") || r.includes("could not open") || r.includes("zone file") || r.includes("test.invalid")) {
+    if (r.includes("no zone") || r.includes("could not open") || r.includes("zone file") || r.includes("test.invalid") || r.includes("could not find") || r.includes("invalid")) {
       checks[2] = { ...dns, ok: true, reason: "OK (DNS zone editor accessible)" };
     }
   }
 
-  // CSF not installed is not a hard failure
-  const csf = checks[4];
-  if (!csf.ok && (csf.reason.includes("404") || csf.reason.toLowerCase().includes("not found") || csf.reason.toLowerCase().includes("unknown api"))) {
-    checks[4] = { ...csf, ok: true, reason: "OK (CSF plugin not installed — IP whitelisting is manual)" };
-  }
-
-  const overall = checks.filter(r => r.api !== "csf_whitelist" && r.api !== "listacls").every(r => r.ok);
+  const overall = checks.filter(r => r.api !== "csf_cgi").every(r => r.ok);
   return { overall, results: checks };
 }

@@ -723,6 +723,35 @@ router.post("/auth/reset-password", async (req, res) => {
   return res.json({ message: "Password updated successfully. You can now sign in." });
 });
 
+// ── Emergency: Reset admin password via secret token ─────────────────────────
+// POST /auth/reset-admin  { email, newPassword, resetToken }
+// Only works when ADMIN_RESET_TOKEN env var is set (remove it after use for security).
+router.post("/auth/reset-admin", async (req, res) => {
+  try {
+    const resetToken = process.env["ADMIN_RESET_TOKEN"];
+    if (!resetToken) {
+      return res.status(403).json({ error: "Admin reset is not enabled. Set ADMIN_RESET_TOKEN env var to enable." });
+    }
+    const { email, newPassword, resetToken: provided } = req.body;
+    if (!email || !newPassword || !provided) {
+      return res.status(400).json({ error: "email, newPassword, and resetToken are required" });
+    }
+    if (provided !== resetToken) {
+      return res.status(403).json({ error: "Invalid reset token" });
+    }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (!user) return res.status(404).json({ error: `No user found with email: ${email}` });
+
+    const passwordHash = await hashPassword(newPassword);
+    await db.update(usersTable).set({ passwordHash, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    console.log(`[AUTH] Emergency admin password reset for ${email} (role=${user.role})`);
+    res.json({ success: true, message: `Password updated for ${email}. Remove ADMIN_RESET_TOKEN env var for security.`, role: user.role });
+  } catch (err: any) {
+    console.error("[AUTH] reset-admin error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ── Admin: Impersonate a client (Login as Client) ────────────────────────────
 router.post("/auth/impersonate/:userId", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
