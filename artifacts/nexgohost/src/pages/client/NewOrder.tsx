@@ -527,9 +527,11 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [domResults,  setDomResults]  = useState<TldResult[] | null>(null);
   const [domError,    setDomError]    = useState("");
   const [existingDom, setExistingDom] = useState("");
-  const [txDomain,    setTxDomain]    = useState("");
-  const [eppCode,     setEppCode]     = useState("");
-  const [domainNs,    setDomainNs]    = useState(["ns1.noehost.com", "ns2.noehost.com"]);
+  const [txDomain,        setTxDomain]        = useState("");
+  const [eppCode,         setEppCode]         = useState("");
+  const [txValidating,    setTxValidating]    = useState(false);
+  const [txValidationErr, setTxValidationErr] = useState("");
+  const [domainNs,        setDomainNs]        = useState(["ns1.noehost.com", "ns2.noehost.com"]);
   const [cartDomain,  setCartDomainRaw] = useState<CartDomain | null>(loadDomain);
 
   // Force-free domain: if plan has freeDomainEnabled AND cycle is yearly AND mode is register
@@ -1308,16 +1310,30 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // ─────────────────────────────────────────────────────────────────────────────
 
   function renderStep1Transfer() {
-    function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
       e.preventDefault();
       if (!txDomain.includes(".") || !eppCode.trim()) return;
-      sessionStorage.setItem("transfer_epp", eppCode);
-      // Look up the authoritative transfer price from TLD pricing table
-      const tld = txDomain.slice(txDomain.indexOf(".")).toLowerCase();
-      const tldRow = tldPricing.find(t => t.tld === tld);
-      const transferPrice = tldRow?.transferPrice ?? tldRow?.registrationPrice ?? 0;
-      selectDomain(txDomain, transferPrice, "transfer");
-      setDomainPendingUpsell(true);
+      setTxValidationErr("");
+      setTxValidating(true);
+      try {
+        const r = await apiFetch("/api/domains/transfer/validate", {
+          method: "POST",
+          body: JSON.stringify({ domainName: txDomain.trim().toLowerCase(), epp: eppCode.trim() }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.valid) {
+          setTxValidationErr(d.error || "Domain validation failed. Please check the domain name and EPP code.");
+          return;
+        }
+        // Validation passed — use server-confirmed price
+        const transferPrice = d.transferPrice ?? 0;
+        selectDomain(txDomain.trim().toLowerCase(), transferPrice, "transfer");
+        setDomainPendingUpsell(true);
+      } catch {
+        setTxValidationErr("Network error during validation. Please try again.");
+      } finally {
+        setTxValidating(false);
+      }
     }
     return (
       <motion.div key="s1-tx" {...fade}>
@@ -1334,7 +1350,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">Domain Name</label>
             <div className="relative">
               <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input value={txDomain} onChange={e => setTxDomain(e.target.value)} placeholder="example.com" autoFocus
+              <input value={txDomain} onChange={e => { setTxDomain(e.target.value); setTxValidationErr(""); }} placeholder="example.com" autoFocus
                 className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none"
                 onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
                 onBlur={e  => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}/>
@@ -1344,13 +1360,21 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">EPP / Authorization Code</label>
             <div className="relative">
               <Key size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
-              <input value={eppCode} onChange={e => setEppCode(e.target.value)} placeholder="Paste EPP code here"
+              <input value={eppCode} onChange={e => { setEppCode(e.target.value); setTxValidationErr(""); }} placeholder="Paste EPP code here"
                 className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] font-mono focus:outline-none"
                 onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
                 onBlur={e  => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}/>
             </div>
             <p className="text-[12px] text-gray-400 mt-1">Available from your current registrar's control panel.</p>
           </div>
+
+          {txValidationErr && (
+            <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-700">
+              <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-500"/>
+              <span>{txValidationErr}</span>
+            </div>
+          )}
+
           <div className="p-4 rounded-xl text-[12.5px] text-gray-600" style={{ background: "#FAF8FF", border: "1px solid #EDE9FF" }}>
             <p className="font-bold mb-2" style={{ color: P }}>What happens next?</p>
             <ol className="list-decimal list-inside space-y-1 text-gray-500">
@@ -1360,10 +1384,11 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               <li>Domain gets a free 1-year extension</li>
             </ol>
           </div>
-          <button type="submit" disabled={!txDomain.includes(".") || !eppCode.trim()}
+          <button type="submit" disabled={!txDomain.includes(".") || !eppCode.trim() || txValidating}
             className="w-full py-3.5 text-white rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
             style={{ background: P, boxShadow: PSHADOW }}>
-            <ArrowRightLeft size={15}/> Continue with Transfer
+            {txValidating ? <Loader2 size={15} className="animate-spin"/> : <ArrowRightLeft size={15}/>}
+            {txValidating ? "Verifying Domain…" : "Continue with Transfer"}
           </button>
         </form>
 
@@ -1975,33 +2000,64 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
           {/* Transfer */}
           {domainMode === "transfer" && (
             <motion.div key="tx2" {...fade} className="max-w-md">
-              <button onClick={() => setDomainMode(null)} className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-gray-700 mb-4 font-medium transition-colors"><ArrowLeft size={13}/> Change option</button>
+              <button onClick={() => { setDomainMode(null); setTxValidationErr(""); }} className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-gray-700 mb-4 font-medium transition-colors"><ArrowLeft size={13}/> Change option</button>
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">Domain to Transfer</label>
                   <div className="relative">
                     <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
-                    <input value={txDomain} onChange={e => setTxDomain(e.target.value)} placeholder="example.com" autoFocus
+                    <input value={txDomain} onChange={e => { setTxDomain(e.target.value); setTxValidationErr(""); }} placeholder="example.com" autoFocus
                       className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none"
                       onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
                       onBlur={e  => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}/>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">EPP / Auth Code</label>
+                  <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">EPP / Auth Code <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <Key size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
-                    <input value={eppCode} onChange={e => setEppCode(e.target.value)} placeholder="Paste EPP code"
+                    <input value={eppCode} onChange={e => { setEppCode(e.target.value); setTxValidationErr(""); }} placeholder="Paste EPP code (required)"
                       className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] font-mono focus:outline-none"
                       onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
                       onBlur={e  => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = ""; }}/>
                   </div>
+                  <p className="text-[12px] text-gray-400 mt-1">Available from your current registrar's control panel.</p>
                 </div>
-                <button onClick={() => { if (!txDomain.includes(".")) return; const _tld = txDomain.slice(txDomain.indexOf(".")).toLowerCase(); const _row = tldPricing.find(t => t.tld === _tld); const _txPrice = _row?.transferPrice ?? _row?.registrationPrice ?? 0; setCartDomain({ fullName: txDomain, price: _txPrice, mode: "transfer" }); setDomainMode("transfer"); setStep(3); }}
-                  disabled={!txDomain.includes(".")}
+                {txValidationErr && (
+                  <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-700">
+                    <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-500"/>
+                    <span>{txValidationErr}</span>
+                  </div>
+                )}
+                <button
+                  disabled={!txDomain.includes(".") || !eppCode.trim() || txValidating}
+                  onClick={async () => {
+                    if (!txDomain.includes(".") || !eppCode.trim()) return;
+                    setTxValidationErr("");
+                    setTxValidating(true);
+                    try {
+                      const r = await apiFetch("/api/domains/transfer/validate", {
+                        method: "POST",
+                        body: JSON.stringify({ domainName: txDomain.trim().toLowerCase(), epp: eppCode.trim() }),
+                      });
+                      const d = await r.json();
+                      if (!r.ok || !d.valid) {
+                        setTxValidationErr(d.error || "Validation failed. Please check the domain and EPP code.");
+                        return;
+                      }
+                      const transferPrice = d.transferPrice ?? 0;
+                      setCartDomain({ fullName: txDomain.trim().toLowerCase(), price: transferPrice, mode: "transfer" });
+                      setStep(3);
+                    } catch {
+                      setTxValidationErr("Network error during validation. Please try again.");
+                    } finally {
+                      setTxValidating(false);
+                    }
+                  }}
                   className="w-full py-3 text-white rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ background: P }}>
-                  <ArrowRightLeft size={14}/> Continue with Transfer
+                  {txValidating ? <Loader2 size={14} className="animate-spin"/> : <ArrowRightLeft size={14}/>}
+                  {txValidating ? "Verifying Domain…" : "Continue with Transfer"}
                 </button>
               </div>
             </motion.div>

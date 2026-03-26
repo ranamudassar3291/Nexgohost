@@ -5,10 +5,11 @@ import {
   promoCodesTable, paymentMethodsTable, usersTable, fraudLogsTable, domainsTable,
   domainExtensionsTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable,
   creditTransactionsTable, affiliateGroupCommissionsTable, vpsPlansTable,
+  domainTransfersTable,
 } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
-import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered } from "../lib/email.js";
+import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated } from "../lib/email.js";
 import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
@@ -112,6 +113,49 @@ async function handleCheckout(req: AuthRequest, res: any) {
             nameservers: resolvedNs,
           });
         } catch { /* non-fatal */ }
+      }
+
+      // Create domain transfer record when transferring a domain
+      if (transferDomain && domain.includes(".") && eppCode) {
+        try {
+          const dotIdx = domain.indexOf(".");
+          const domainName = domain.slice(0, dotIdx).toLowerCase();
+          const domainTld = domain.slice(dotIdx).toLowerCase();
+          const [domainEntry] = await db.insert(domainsTable).values({
+            clientId: req.user!.userId,
+            name: domainName,
+            tld: domainTld,
+            registrar: "Transfer Pending",
+            status: "pending_transfer" as any,
+            autoRenew: true,
+            nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+          }).onConflictDoNothing().returning();
+
+          const [transfer] = await db.insert(domainTransfersTable).values({
+            clientId: req.user!.userId,
+            domainName: domain.toLowerCase(),
+            epp: eppCode.trim(),
+            status: "validating",
+            validationMessage: "Domain transfer request submitted via order checkout.",
+            price: String(finalAmount.toFixed(2)),
+            orderId: order.id,
+            invoiceId: invoice.id,
+          }).returning();
+
+          if (domainEntry && transfer) {
+            await db.update(domainsTable)
+              .set({ transferId: transfer.id, updatedAt: new Date() })
+              .where(eq(domainsTable.id, domainEntry.id));
+          }
+
+          const invoiceNumber = invoice.invoiceNumber;
+          emailDomainTransferInitiated(user.email, {
+            clientName: `${user.firstName} ${user.lastName}`,
+            domain: domain.toLowerCase(),
+            transferPrice: finalAmount.toFixed(2),
+            invoiceNumber,
+          }).catch(console.warn);
+        } catch (err) { console.warn("[CHECKOUT TRANSFER RECORD]", err); }
       }
 
       // Auto-pay with credits
@@ -439,7 +483,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     // Link invoice back to order so admin approve does not create a duplicate
     await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
 
-    // 4. Insert domain record when registering a domain
+    // 4. Insert domain record when registering or transferring a domain
     if ((registerDomain || transferDomain) && domain && domain.includes(".")) {
       try {
         const dotIdx = domain.indexOf(".");
@@ -448,17 +492,55 @@ async function handleCheckout(req: AuthRequest, res: any) {
         const regDate = new Date();
         const expiryDate = new Date();
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-        await db.insert(domainsTable).values({
-          clientId: req.user!.userId,
-          name: domainName.toLowerCase(),
-          tld: domainTld.toLowerCase(),
-          registrationDate: regDate,
-          expiryDate,
-          status: transferDomain ? "transferring" : "pending",
-          autoRenew: true,
-          nameservers: resolvedNs,
-        });
-      } catch { /* non-fatal — domain may already exist */ }
+
+        if (transferDomain && eppCode) {
+          // Create domain with pending_transfer status and create a transfer record
+          const [domainEntry] = await db.insert(domainsTable).values({
+            clientId: req.user!.userId,
+            name: domainName.toLowerCase(),
+            tld: domainTld.toLowerCase(),
+            registrar: "Transfer Pending",
+            status: "pending_transfer" as any,
+            autoRenew: true,
+            nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+          }).onConflictDoNothing().returning();
+
+          const [transfer] = await db.insert(domainTransfersTable).values({
+            clientId: req.user!.userId,
+            domainName: domain.toLowerCase(),
+            epp: eppCode.trim(),
+            status: "validating",
+            validationMessage: "Domain transfer request submitted via hosting order checkout.",
+            price: String(domainAddon.toFixed(2)),
+            orderId: order.id,
+            invoiceId: invoice.id,
+          }).returning();
+
+          if (domainEntry && transfer) {
+            await db.update(domainsTable)
+              .set({ transferId: transfer.id, updatedAt: new Date() })
+              .where(eq(domainsTable.id, domainEntry.id));
+          }
+
+          emailDomainTransferInitiated(user.email, {
+            clientName: `${user.firstName} ${user.lastName}`,
+            domain: domain.toLowerCase(),
+            transferPrice: domainAddon.toFixed(2),
+            invoiceNumber: invoice.invoiceNumber,
+          }).catch(console.warn);
+        } else if (registerDomain) {
+          await db.insert(domainsTable).values({
+            clientId: req.user!.userId,
+            name: domainName.toLowerCase(),
+            tld: domainTld.toLowerCase(),
+            registrationDate: regDate,
+            expiryDate,
+            status: "pending",
+            autoRenew: true,
+            nameservers: resolvedNs,
+          });
+        }
+      } catch (err) { console.warn("[CHECKOUT DOMAIN RECORD]", err); }
     }
 
     // 5b. Auto-pay with credits if selected
