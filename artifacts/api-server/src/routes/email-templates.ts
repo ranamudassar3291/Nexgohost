@@ -288,20 +288,21 @@ ${btn("Go to My Dashboard", "{{dashboard_url}}")}
   {
     name: "Invoice Generated",
     slug: "invoice-created",
-    subject: "Invoice #{{invoice_id}} — Payment Due {{due_date}}",
+    subject: "Invoice #{{invoice_number}} — Rs. {{amount}} Due on {{due_date}}",
     body: layout(`
-<h2 style="margin:0 0 6px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">New Invoice Generated</h2>
-<p style="margin:0 0 14px;color:#555555">Hi {{client_name}},</p>
-<p style="margin:0 0 4px;color:#333333">A new invoice has been created for your account. Please complete your payment before the due date to avoid any service interruption.</p>
+<h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#222222;font-family:Inter,Arial,sans-serif">Invoice Ready for Payment</h2>
+<p style="margin:0 0 16px;color:#555555;font-size:14px">Dear <strong>{{client_name}}</strong>,</p>
+<p style="margin:0 0 16px;color:#444444;font-size:14px;line-height:1.6">A new invoice has been generated for your Noehost account. Please review the details below and complete your payment before the due date to avoid any service interruption.</p>
 ${infoTable("Invoice Summary", [
-  { label: "Invoice Number", value: "#{{invoice_id}}" },
-  { label: "Amount Due", value: `<span style="color:#701AFE;font-size:15px;font-weight:700">Rs. {{amount}}</span>` },
+  { label: "Invoice Number", value: `<strong style="color:#701AFE">#{{invoice_number}}</strong>` },
+  { label: "Amount Due", value: `<span style="color:#701AFE;font-size:16px;font-weight:700">Rs. {{amount}}</span>` },
   { label: "Due Date", value: `<span style="color:#d97706;font-weight:600">{{due_date}}</span>` },
+  { label: "Status", value: `<span style="background:#fee2e2;color:#dc2626;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:700">UNPAID</span>` },
 ])}
-${btn("Pay Invoice Now", "{{client_area_url}}")}
-<p style="color:#888888;font-size:12px;margin:16px 0 0;text-align:center">Payments are accepted in PKR via bank transfer, JazzCash, EasyPaisa, and card.</p>
+${btn("Pay Invoice Now →", "{{client_area_url}}")}
+<p style="color:#888888;font-size:12px;margin:16px 0 0;text-align:center">The PDF invoice is attached to this email for your records.<br>Accepted: Bank Transfer · JazzCash · EasyPaisa · Card</p>
 `),
-    variables: ["{{client_name}}", "{{invoice_id}}", "{{amount}}", "{{due_date}}", "{{client_area_url}}"],
+    variables: ["{{client_name}}", "{{invoice_id}}", "{{invoice_number}}", "{{amount}}", "{{due_date}}", "{{client_area_url}}"],
   },
 
   // ── 4. Invoice Paid ───────────────────────────────────────────────────────
