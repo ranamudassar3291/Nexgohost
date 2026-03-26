@@ -1,5 +1,44 @@
 # Noehost - Hosting & Client Management Platform
 
+## Recent Changes (Session 32 — VPS Professional Overhaul)
+
+### VPS Plan Store (3 clean Hostinger-style plans in DB)
+- VPS Basic: 1 vCPU, 2GB RAM, 20GB NVMe — Rs.750/mo, Rs.4,500/yr
+- VPS Standard (Most Popular): 2 vCPU, 8GB RAM, 100GB NVMe — Rs.3,500/mo, Rs.21,000/yr
+- VPS Premium: 4 vCPU, 16GB RAM, 200GB NVMe — Rs.7,500/mo, Rs.45,000/yr
+
+### VPS Step 2 Config UI (Hostinger-style)
+- 8 OS cards: Ubuntu 24/22, Debian 12, AlmaLinux 9, CentOS 7, Rocky 9, Windows 2019/2022 (with +License badge)
+- 5 Data Center flag-cards: US, DE, GB, SG, IN
+- Hostname field, Root Username, Root Password (show/hide + Generate button)
+- ON/OFF toggle cards: Auto-Renewal (default ON), Weekly Backups (default OFF)
+- Real-time validation banner listing missing requirements
+
+### Order Summary Sidebar — VPS details
+- After step 2: shows OS, location (with flag), hostname, auto-renewal, weekly backup status
+- "Fill in server details" hint when VPS config is incomplete
+
+### DB Schema Updates (hosting_services)
+- New columns: `vps_auto_renew`, `vps_weekly_backups`, `vps_provision_status`, `vps_provisioned_at`, `vps_provision_notes`
+- All new fields pushed to PostgreSQL schema
+
+### VPS Provisioning Module (Activation Logic)
+- `POST /admin/invoices/:id/mark-paid` — now auto-activates VPS services (sets status=active, records provision timestamp) instead of calling cPanel provisioner
+- `POST /admin/vps-services/:id/provision` — admin manual provisioning endpoint (Reseller Ready)
+- `GET /admin/vps-services/:id/provision-details` — full credential/config dump for hypervisor
+- `POST /admin/vps-plans/import` — bulk import VPS plans from JSON (Virtualizor/Proxmox ready)
+
+### Promo Code Fix
+- SAVE20 updated to 20% discount (was 0% in DB)
+- VPS promo code validation endpoint remains public (no auth required)
+
+### Wallet Balance (already working)
+- VPS orders support partial wallet payment with secondary method fallback
+- Full wallet payment path (credits = "credits") also supported
+
+### DB Backup
+- `noehost_latests_backup.sql` — 3.5MB full dump at workspace root
+
 ## Recent Changes (Session 30 — Free WhatsApp Alert System)
 
 ### WhatsApp Gateway Service (`artifacts/api-server/src/lib/whatsapp.ts`)

@@ -286,9 +286,25 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
       else if (order?.type === "hosting") {
         const [svc] = await db.select().from(hostingServicesTable)
           .where(eq(hostingServicesTable.orderId, order.id)).limit(1);
-        if (svc) await provisionHostingService(svc.id);
+        if (svc) {
+          if (svc.serviceType === "vps") {
+            // VPS Provisioning Module: mark service as active + record provision timestamp
+            await db.update(hostingServicesTable).set({
+              status: "active",
+              vpsProvisionStatus: "provisioned",
+              vpsProvisionedAt: new Date(),
+              vpsProvisionNotes: `Activated on invoice ${updated.invoiceNumber} — awaiting hypervisor sync`,
+              updatedAt: new Date(),
+            } as any).where(eq(hostingServicesTable.id, svc.id));
+            await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+              .where(eq(ordersTable.id, order.id));
+            console.log(`[VPS] Service ${svc.id} activated for invoice ${updated.invoiceNumber}`);
+          } else {
+            await provisionHostingService(svc.id);
+          }
+        }
       }
-    } catch { /* non-blocking */ }
+    } catch (e) { console.error("[PROVISION] mark-paid downstream error:", e); /* non-blocking */ }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
   } catch (err) {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { vpsPlansTable, vpsOsTemplatesTable, vpsLocationsTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
+import { vpsPlansTable, vpsOsTemplatesTable, vpsLocationsTable, hostingServicesTable, usersTable, ordersTable } from "@workspace/db/schema";
 import { eq, and, ilike, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
@@ -590,6 +590,104 @@ router.put("/admin/vps-services/:id", authenticate, requireAdmin, async (req: Au
 
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ success: true, id: updated.id });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: manually trigger VPS provisioning (Provisioning Module)
+// Sets the service status to "active" and records the provisioning timestamp.
+// In production, this endpoint can call the hypervisor API (e.g. Virtualizor / Proxmox).
+router.post("/admin/vps-services/:id/provision", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [svc] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, req.params.id), eq(hostingServicesTable.serviceType, "vps")))
+      .limit(1);
+    if (!svc) { res.status(404).json({ error: "VPS service not found" }); return; }
+    if (svc.status === "active") {
+      res.status(400).json({ error: "VPS service is already active" }); return;
+    }
+
+    const { dedicatedIp, notes } = req.body;
+    const provisionedAt = new Date();
+
+    await db.update(hostingServicesTable).set({
+      status: "active",
+      serverIp: dedicatedIp || svc.serverIp || null,
+      vpsProvisionStatus: "provisioned",
+      vpsProvisionedAt: provisionedAt,
+      vpsProvisionNotes: notes || `Manually provisioned by admin on ${provisionedAt.toISOString()}`,
+      updatedAt: new Date(),
+    } as any).where(eq(hostingServicesTable.id, svc.id));
+
+    // Also mark linked order as approved
+    if (svc.orderId) {
+      await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+        .where(eq(ordersTable.id, svc.orderId));
+    }
+
+    console.log(`[VPS-MODULE] Service ${svc.id} manually provisioned by admin ${req.user!.userId}. IP: ${dedicatedIp || "not assigned"}`);
+
+    res.json({
+      success: true,
+      serviceId: svc.id,
+      status: "active",
+      provisionedAt: provisionedAt.toISOString(),
+      message: `VPS ${svc.vpsHostname || svc.id} activated. Configure your hypervisor with imageId=${svc.vpsImageId || "n/a"}, hostname=${svc.vpsHostname || "n/a"}.`,
+    });
+  } catch (err) { console.error("[VPS-MODULE] provision error:", err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: get full VPS provision details (for reseller module)
+router.get("/admin/vps-services/:id/provision-details", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const [svc] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, _req.params.id)).limit(1);
+    if (!svc) { res.status(404).json({ error: "Not found" }); return; }
+
+    res.json({
+      serviceId: svc.id,
+      hostname: svc.vpsHostname,
+      rootUser: svc.vpsRootUser,
+      rootPassword: svc.vpsRootPassword,
+      imageId: svc.vpsImageId,
+      osTemplate: svc.vpsOsTemplate,
+      location: svc.vpsLocation,
+      autoRenew: (svc as any).vpsAutoRenew ?? true,
+      weeklyBackups: (svc as any).vpsWeeklyBackups ?? false,
+      provisionStatus: (svc as any).vpsProvisionStatus ?? "not_started",
+      provisionedAt: (svc as any).vpsProvisionedAt ?? null,
+      provisionNotes: (svc as any).vpsProvisionNotes ?? null,
+      status: svc.status,
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: import VPS plans from Virtualizor/Proxmox-style JSON (Reseller Module)
+router.post("/admin/vps-plans/import", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { plans } = req.body;
+    if (!Array.isArray(plans) || plans.length === 0) {
+      res.status(400).json({ error: "plans array is required" }); return;
+    }
+    const inserted = [];
+    for (const p of plans) {
+      if (!p.name || !p.price) continue;
+      const [row] = await db.insert(vpsPlansTable).values({
+        name: p.name,
+        description: p.description || null,
+        price: String(p.price),
+        yearlyPrice: p.yearlyPrice ? String(p.yearlyPrice) : null,
+        cpuCores: p.cpuCores || 1,
+        ramGb: p.ramGb || 1,
+        storageGb: p.storageGb || 20,
+        bandwidthTb: p.bandwidthTb ? String(p.bandwidthTb) : "1",
+        virtualization: p.virtualization || "KVM",
+        features: p.features || [],
+        isActive: true,
+        sortOrder: p.sortOrder || 0,
+      }).returning();
+      inserted.push(formatPlan(row));
+    }
+    res.status(201).json({ imported: inserted.length, plans: inserted });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

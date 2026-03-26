@@ -234,10 +234,15 @@ export default function VpsServices() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const { data: services = [], isLoading } = useQuery<VpsService[]>({
+  const { data: rawServices, isLoading } = useQuery<VpsService[]>({
     queryKey: ["admin-vps-services"],
-    queryFn: () => apiFetch("/api/admin/vps-services").then(r => r.json()),
+    queryFn: async () => {
+      const r = await apiFetch("/api/admin/vps-services");
+      const d = await r.json();
+      return Array.isArray(d) ? d : [];
+    },
   });
+  const services: VpsService[] = Array.isArray(rawServices) ? rawServices : [];
 
   const filtered = services.filter(svc => {
     const matchStatus = statusFilter === "all" || svc.status === statusFilter;

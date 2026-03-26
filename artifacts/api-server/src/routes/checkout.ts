@@ -205,6 +205,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
     const vpsRootUser     = req.body.vpsRootUser ?? "root";
     const vpsRootPassword = req.body.vpsRootPassword ?? null;
     const vpsImageId      = req.body.vpsImageId ?? null;
+    const vpsAutoRenew    = req.body.vpsAutoRenew !== false;
+    const vpsWeeklyBackups = req.body.vpsWeeklyBackups === true;
 
     if (vpsPlanId) {
       const [vpsPlan] = await db.select().from(vpsPlansTable)
@@ -288,6 +290,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
         vpsRootUser: vpsRootUser,
         vpsRootPassword: vpsRootPassword,
         vpsImageId: vpsImageId,
+        vpsAutoRenew: vpsAutoRenew,
+        vpsWeeklyBackups: vpsWeeklyBackups,
+        vpsProvisionStatus: "not_started",
         startDate: new Date(),
         expiryDate: (() => { const d = new Date(); if (cycle === "yearly") d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); return d; })(),
       }).returning();

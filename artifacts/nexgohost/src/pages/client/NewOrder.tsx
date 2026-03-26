@@ -341,9 +341,12 @@ interface SidebarProps {
   // VPS
   vpsPlan?: VpsPlan | null; vpsCycle?: "monthly" | "yearly"; vpsPrice?: number;
   onRmVps?: () => void;
+  vpsOsName?: string; vpsLocationName?: string;
+  vpsAutoRenew?: boolean; vpsWeeklyBackups?: boolean;
+  vpsHostnameVal?: string;
 }
 
-function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, step, fmt, onRmPlan, onRmDom, ctaLabel, canContinue, onContinue, loading, vpsPlan, vpsCycle, vpsPrice, onRmVps }: SidebarProps) {
+function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, step, fmt, onRmPlan, onRmDom, ctaLabel, canContinue, onContinue, loading, vpsPlan, vpsCycle, vpsPrice, onRmVps, vpsOsName, vpsLocationName, vpsAutoRenew, vpsWeeklyBackups, vpsHostnameVal }: SidebarProps) {
   const activePlan  = plan ?? pendingPlan;
   const activeCycle = plan ? cycle : pendingCycle;
   const planAmt     = activePlan ? planPrice(activePlan, activeCycle) : 0;
@@ -371,22 +374,54 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
 
           {/* VPS plan row */}
           {vpsPlan && (
-            <div className="flex items-start justify-between gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-bold text-black truncate">
-                  <Cpu size={10} className="inline mr-1" style={{ color: P }}/>{vpsPlan.name}
-                </p>
-                <p className="text-[11px] text-gray-400">{vpsCycle === "yearly" ? "Yearly" : "Monthly"} billing · VPS</p>
-                <p className="text-[10.5px] text-gray-400">{vpsPlan.cpuCores} vCPU · {vpsPlan.ramGb}GB RAM · {vpsPlan.storageGb}GB NVMe</p>
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold text-black truncate">
+                    <Cpu size={10} className="inline mr-1" style={{ color: P }}/>{vpsPlan.name}
+                  </p>
+                  <p className="text-[11px] text-gray-400">{vpsCycle === "yearly" ? "Yearly" : "Monthly"} · KVM VPS</p>
+                  <p className="text-[10.5px] text-gray-400">{vpsPlan.cpuCores} vCPU · {vpsPlan.ramGb}GB RAM · {vpsPlan.storageGb}GB NVMe</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[13px] font-extrabold">{fmt(vpsPrice ?? 0)}</span>
+                  {onRmVps && (
+                    <button onClick={onRmVps} className="w-4 h-4 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors">
+                      <X size={9}/>
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[13px] font-extrabold">{fmt(vpsPrice ?? 0)}</span>
-                {onRmVps && (
-                  <button onClick={onRmVps} className="w-4 h-4 rounded-full bg-gray-200 hover:bg-red-100 hover:text-red-500 flex items-center justify-center text-gray-400 transition-colors">
-                    <X size={9}/>
-                  </button>
-                )}
-              </div>
+              {/* VPS config details — shown after step 2 */}
+              {(vpsOsName || vpsLocationName || vpsHostnameVal) && (
+                <div className="border-t border-gray-200 pt-2 space-y-1">
+                  {vpsOsName && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-gray-500">
+                      <MonitorCog size={9} style={{ color: P }}/> {vpsOsName}
+                    </div>
+                  )}
+                  {vpsLocationName && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-gray-500">
+                      <Globe size={9} style={{ color: P }}/> {vpsLocationName}
+                    </div>
+                  )}
+                  {vpsHostnameVal && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-gray-500 font-mono">
+                      <Terminal size={9} style={{ color: P }}/> {vpsHostnameVal}
+                    </div>
+                  )}
+                  {vpsAutoRenew !== undefined && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-gray-500">
+                      <RefreshCw size={9} style={{ color: P }}/> Auto-Renewal: {vpsAutoRenew ? "ON" : "OFF"}
+                    </div>
+                  )}
+                  {vpsWeeklyBackups !== undefined && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-gray-500">
+                      <Shield size={9} style={{ color: P }}/> Weekly Backups: {vpsWeeklyBackups ? "ON" : "OFF"}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -463,7 +498,7 @@ function Sidebar({ plan, pendingPlan, cycle, pendingCycle, domain, freeDomain, s
               className="w-full py-3 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 transition-all"
               style={canContinue && !loading ? { background: P, color: "#fff", boxShadow: PSHADOW } : { background: "#F3F4F6", color: "#9CA3AF", cursor: "not-allowed" }}>
               {loading ? <Loader2 size={14} className="animate-spin"/> : <ShoppingCart size={13}/>}
-              {canContinue ? ctaLabel : step === 2 ? "Choose a domain option" : step === 3 ? "Select a payment method" : "Select a plan to continue"}
+              {canContinue ? ctaLabel : step === 2 && !vpsPlan ? "Choose a domain option" : step === 2 && vpsPlan ? "Fill in server details" : step === 3 ? "Select a payment method" : "Select a plan to continue"}
             </button>
             {canContinue && (
               <p className="text-[10px] text-gray-400 text-center mt-2.5 flex items-center justify-center gap-1">
@@ -690,6 +725,8 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [vpsRootPassword,   setVpsRootPassword]   = useState("");
   const [showRootPassword,  setShowRootPassword]  = useState(false);
   const [vpsConfigFocus,    setVpsConfigFocus]    = useState("");
+  const [vpsAutoRenew,      setVpsAutoRenew]      = useState(true);
+  const [vpsWeeklyBackups,  setVpsWeeklyBackups]  = useState(false);
 
   function setCartDomain(d: CartDomain | null) { setCartDomainRaw(d); saveDomain(d); }
 
@@ -966,10 +1003,12 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         body.billingCycle  = vpsSelectedCycle;
         body.vpsOsTemplate = selectedOsTemplate ? `${selectedOsTemplate.name} ${selectedOsTemplate.version}` : null;
         body.vpsLocation   = selectedLocation?.countryName ?? null;
-        body.vpsHostname   = vpsHostname.trim() || null;
-        body.vpsRootUser   = vpsRootUser.trim() || "root";
-        body.vpsRootPassword = vpsRootPassword.trim() || null;
-        body.vpsImageId    = selectedOsTemplate?.imageId ?? null;
+        body.vpsHostname      = vpsHostname.trim() || null;
+        body.vpsRootUser      = vpsRootUser.trim() || "root";
+        body.vpsRootPassword  = vpsRootPassword.trim() || null;
+        body.vpsImageId       = selectedOsTemplate?.imageId ?? null;
+        body.vpsAutoRenew     = vpsAutoRenew;
+        body.vpsWeeklyBackups = vpsWeeklyBackups;
         if (promoCode.trim()) body.promoCode = promoCode.trim();
         const r = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
         const d = await r.json();
@@ -2048,6 +2087,56 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             </div>
           </div>
 
+          {/* ── Add-ons / Options ── */}
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+              <RefreshCw size={13} style={{ color: P }}/>
+              <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Service Options</span>
+            </div>
+            <div className="p-5 space-y-3">
+              {[
+                {
+                  label: "Auto-Renewal",
+                  desc: "Automatically renew your VPS before expiry to avoid interruptions.",
+                  icon: RefreshCw,
+                  value: vpsAutoRenew,
+                  set: setVpsAutoRenew,
+                },
+                {
+                  label: "Weekly Backups",
+                  desc: "Automated weekly snapshots stored for 4 weeks. Restore anytime.",
+                  icon: Shield,
+                  value: vpsWeeklyBackups,
+                  set: setVpsWeeklyBackups,
+                },
+              ].map(({ label, desc, icon: Icon, value, set }) => (
+                <div key={label}
+                  onClick={() => set(!value)}
+                  className="flex items-center justify-between gap-4 p-3.5 rounded-xl border cursor-pointer select-none transition-all"
+                  style={value
+                    ? { borderColor: P, background: `${P}06` }
+                    : { borderColor: "#E5E7EB", background: "#fff" }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: value ? `${P}15` : "#F3F4F6" }}>
+                      <Icon size={14} style={{ color: value ? P : "#9CA3AF" }}/>
+                    </div>
+                    <div>
+                      <p className="text-[12.5px] font-bold text-gray-800">{label}</p>
+                      <p className="text-[11px] text-gray-400">{desc}</p>
+                    </div>
+                  </div>
+                  {/* ON/OFF pill toggle */}
+                  <div className="shrink-0 w-11 h-6 rounded-full relative transition-all duration-200"
+                    style={{ background: value ? P : "#D1D5DB" }}>
+                    <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200"
+                      style={{ left: value ? "calc(100% - 22px)" : "2px" }}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Validation banner */}
           {!allValid && (
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-[12.5px] text-amber-700 flex items-start gap-2.5">
@@ -2791,6 +2880,11 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             vpsCycle={vpsSelectedCycle}
             vpsPrice={_vpsPrice}
             onRmVps={() => setSelectedVpsPlan(null)}
+            vpsOsName={step >= 2 && selectedOsTemplate ? `${selectedOsTemplate.name} ${selectedOsTemplate.version}` : undefined}
+            vpsLocationName={step >= 2 && selectedLocation ? `${selectedLocation.flagIcon ?? ""} ${selectedLocation.countryName}` : undefined}
+            vpsHostnameVal={step >= 2 && vpsHostname.trim() ? vpsHostname.trim() : undefined}
+            vpsAutoRenew={step >= 2 ? vpsAutoRenew : undefined}
+            vpsWeeklyBackups={step >= 2 ? vpsWeeklyBackups : undefined}
           />
         )}
       </div>
