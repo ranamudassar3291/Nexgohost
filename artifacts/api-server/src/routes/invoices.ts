@@ -14,6 +14,50 @@ function isUnpaidStatus(status: string | null | undefined): boolean {
   return ["unpaid", "overdue"].includes(status ?? "");
 }
 
+// Shared domain activation logic — used by mark-paid, approve, and zero-amount checkout
+async function activateDomainOrder(order: any, invoiceNumber?: string): Promise<void> {
+  const fullDomain = (order.domain || order.itemName || "").toLowerCase().trim();
+  const dotIdx = fullDomain.indexOf(".");
+  const domainName = dotIdx > 0 ? fullDomain.substring(0, dotIdx) : fullDomain;
+  const tld = dotIdx > 0 ? fullDomain.substring(dotIdx) : ".com";
+  if (!domainName) return;
+
+  const expiryDate = new Date();
+  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
+  // Exact match — no LIKE/partial matching
+  const [existing] = await db.select().from(domainsTable)
+    .where(and(eq(domainsTable.name, domainName), eq(domainsTable.tld, tld))).limit(1);
+
+  if (existing) {
+    await db.update(domainsTable).set({
+      status: "active",
+      expiryDate,
+      nextDueDate: expiryDate,
+      registrationDate: existing.registrationDate ?? new Date(),
+      updatedAt: new Date(),
+    }).where(eq(domainsTable.id, existing.id));
+  } else {
+    await db.insert(domainsTable).values({
+      clientId: order.clientId,
+      name: domainName,
+      tld,
+      status: "active",
+      expiryDate,
+      nextDueDate: expiryDate,
+      registrationDate: new Date(),
+      autoRenew: true,
+      nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+    });
+  }
+
+  // Approve the order
+  await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+    .where(eq(ordersTable.id, order.id));
+
+  console.log(`[DOMAIN] Activated ${domainName}${tld} for order ${order.id}${invoiceNumber ? ` (invoice ${invoiceNumber})` : ""}`);
+}
+
 async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
   if (order.type !== "renewal" || !order.itemId) return;
   const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, order.itemId)).limit(1);
@@ -277,7 +321,7 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
       }
     } catch (e) { console.error("[WALLET] deposit credit error:", e); }
 
-    // Handle downstream: renewal order → extend domain expiry, hosting → provision
+    // Handle downstream: renewal order → extend domain expiry, hosting → provision, domain → activate
     try {
       const [order] = updated.orderId
         ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
@@ -303,6 +347,9 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
             await provisionHostingService(svc.id);
           }
         }
+      } else if (order?.type === "domain") {
+        // Domain Activation Module: auto-activate domain when invoice is paid
+        await activateDomainOrder(order, updated.invoiceNumber);
       }
     } catch (e) { console.error("[PROVISION] mark-paid downstream error:", e); /* non-blocking */ }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);

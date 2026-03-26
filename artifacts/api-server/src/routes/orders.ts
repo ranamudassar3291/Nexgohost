@@ -315,6 +315,45 @@ router.post("/admin/orders/:id/generate-invoice", authenticate, requireAdmin, as
   }
 });
 
+// Shared domain activation logic (orders context)
+async function activateDomainOrderLocal(order: any): Promise<void> {
+  const fullDomain = (order.domain || order.itemName || "").toLowerCase().trim();
+  const dotIdx = fullDomain.indexOf(".");
+  const domainName = dotIdx > 0 ? fullDomain.substring(0, dotIdx) : fullDomain;
+  const tld = dotIdx > 0 ? fullDomain.substring(dotIdx) : ".com";
+  if (!domainName) return;
+
+  const expiryDate = new Date();
+  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
+  // Exact match — no LIKE/partial matching
+  const [existing] = await db.select().from(domainsTable)
+    .where(and(eq(domainsTable.name, domainName), eq(domainsTable.tld, tld))).limit(1);
+
+  if (existing) {
+    await db.update(domainsTable).set({
+      status: "active",
+      expiryDate,
+      nextDueDate: expiryDate,
+      registrationDate: existing.registrationDate ?? new Date(),
+      updatedAt: new Date(),
+    }).where(eq(domainsTable.id, existing.id));
+  } else {
+    await db.insert(domainsTable).values({
+      clientId: order.clientId,
+      name: domainName,
+      tld,
+      status: "active",
+      expiryDate,
+      nextDueDate: expiryDate,
+      registrationDate: new Date(),
+      autoRenew: true,
+      nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+    });
+  }
+  console.log(`[DOMAIN] Activated ${domainName}${tld} on approve for order ${order.id}`);
+}
+
 // Admin: approve order → create service + invoice if needed
 router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
@@ -325,6 +364,27 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     const clientName = user ? `${user.firstName} ${user.lastName}` : "";
+
+    // Domain order: auto-activate the domain immediately on approve
+    if (updated.type === "domain") {
+      try {
+        await activateDomainOrderLocal(updated);
+        // If invoice is zero-amount or doesn't exist, also mark it paid now
+        if (updated.invoiceId) {
+          const [inv] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, updated.invoiceId)).limit(1);
+          if (inv && (Number(inv.total) === 0 || inv.status !== "paid")) {
+            await db.update(invoicesTable)
+              .set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+              .where(eq(invoicesTable.id, inv.id));
+          }
+        }
+      } catch (domErr: any) {
+        console.warn("[ORDER APPROVE] Domain activation error:", domErr.message);
+      }
+      const [fresh] = await db.select().from(ordersTable).where(eq(ordersTable.id, updated.id)).limit(1);
+      res.json({ order: formatOrder(fresh ?? updated, clientName), invoice: null });
+      return;
+    }
 
     // Auto-create hosting service if it's a hosting order with a package
     if (updated.type === "hosting" && updated.itemId && !updated.invoiceId) {
@@ -553,15 +613,16 @@ router.post("/admin/orders/:id/activate-domain", authenticate, requireAdmin, asy
         eq(domainsTable.tld, tld),
       )).limit(1);
 
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
     let domain;
     if (alreadyExists) {
       [domain] = await db.update(domainsTable)
-        .set({ status: "active", updatedAt: new Date() })
+        .set({ status: "active", expiryDate, nextDueDate: expiryDate, updatedAt: new Date() })
         .where(eq(domainsTable.id, alreadyExists.id))
         .returning();
     } else {
-      const expiryDate = new Date();
-      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
       [domain] = await db.insert(domainsTable).values({
         clientId: order.clientId,
         name: domainName,
@@ -570,19 +631,21 @@ router.post("/admin/orders/:id/activate-domain", authenticate, requireAdmin, asy
         expiryDate,
         nextDueDate: expiryDate,
         registrationDate: new Date(),
+        autoRenew: true,
+        nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
       }).returning();
     }
 
-    // Mark order as approved (active)
+    // Mark order as approved
     const [updated] = await db.update(ordersTable)
       .set({ status: "approved", updatedAt: new Date() })
       .where(eq(ordersTable.id, req.params.id))
       .returning();
 
-    // Mark invoice as paid if exists
+    // Mark invoice as paid if exists (use correct column: paidDate)
     if (order.invoiceId) {
       await db.update(invoicesTable)
-        .set({ status: "paid", paidAt: new Date() } as any)
+        .set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
         .where(eq(invoicesTable.id, order.invoiceId));
     }
 

@@ -111,22 +111,43 @@ async function handleCheckout(req: AuthRequest, res: any) {
           const dotIdx = domain.indexOf(".");
           const dName = domain.slice(0, dotIdx).toLowerCase();
           const dTld  = domain.slice(dotIdx).toLowerCase();
+          const expiryDate = new Date(); expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+          // Free/zero-amount domain → activate immediately; paid domain → pending until invoice paid
+          const domainStatus = finalAmount === 0 ? "active" : "pending";
+
           // Exact match guard — never use LIKE/partial matching for domain uniqueness
           const [domainAlreadyExists] = await db
-            .select({ id: domainsTable.id })
+            .select({ id: domainsTable.id, status: domainsTable.status })
             .from(domainsTable)
             .where(and(eq(domainsTable.name, dName), eq(domainsTable.tld, dTld)))
             .limit(1);
-          if (!domainAlreadyExists) {
+
+          if (domainAlreadyExists) {
+            // Update existing record to active if this is a free domain
+            if (finalAmount === 0) {
+              await db.update(domainsTable).set({
+                status: "active", expiryDate, nextDueDate: expiryDate, updatedAt: new Date(),
+              }).where(eq(domainsTable.id, domainAlreadyExists.id));
+            }
+          } else {
             await db.insert(domainsTable).values({
               clientId: req.user!.userId,
               name: dName,
               tld: dTld,
               registrationDate: new Date(),
-              expiryDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
-              status: "pending", autoRenew: true,
+              expiryDate,
+              nextDueDate: expiryDate,
+              status: domainStatus, autoRenew: true,
               nameservers: resolvedNs,
             });
+          }
+
+          // Zero-amount free domain: auto-pay invoice and approve order immediately
+          if (finalAmount === 0) {
+            await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+              .where(eq(invoicesTable.id, invoice.id));
+            await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+              .where(eq(ordersTable.id, order.id));
           }
         } catch { /* non-fatal */ }
       }
