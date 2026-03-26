@@ -1,3 +1,4 @@
+import { getAppUrl } from "./app-url.js";
 /**
  * Noehost — Professional Single-Page Invoice PDF
  *
@@ -124,7 +125,7 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
     doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.58)");
     doc.text("Professional Hosting Solutions", L, 46, { lineBreak: false });
-    doc.text("billing@noehost.com  ·  noehost.com", L, 57, { lineBreak: false });
+    doc.text(`billing@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}`, L, 57, { lineBreak: false });
 
     // Invoice number (right-aligned)
     doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.52)");
@@ -168,8 +169,8 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.font("Helvetica-Bold").fontSize(10.5).fillColor(DARK);
     doc.text("Noehost", L, y + 9, { lineBreak: false });
     doc.font("Helvetica").fontSize(7.5).fillColor(DARK_G);
-    doc.text("billing@noehost.com", L, y + 22, { lineBreak: false });
-    doc.text("support@noehost.com", L, y + 31, { lineBreak: false });
+    doc.text(`billing@${new URL(getAppUrl()).hostname}`, L, y + 22, { lineBreak: false });
+    doc.text(`support@${new URL(getAppUrl()).hostname}`, L, y + 31, { lineBreak: false });
 
     // BILL TO
     doc.font("Helvetica-Bold").fontSize(6).fillColor(BRAND);
@@ -314,9 +315,9 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
     doc.font("Helvetica").fontSize(6.5).fillColor(GREY);
     doc.text(
-      "All services are governed by Noehost Terms of Service (noehost.com/tos). "
+      `All services are governed by Terms of Service (${new URL(getAppUrl()).hostname}/tos). `
       + "Invoices must be paid by the due date to avoid service interruption. "
-      + "For billing queries, contact billing@noehost.com.",
+      + `For billing queries, contact billing@${new URL(getAppUrl()).hostname}.`,
       L, y + 16,
       { width: termsW, lineBreak: false, ellipsis: true }
     );
@@ -328,7 +329,7 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.text("Thank you for choosing Noehost!",
       0, FY + 10, { width: PW, align: "center", lineBreak: false });
     doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.58)");
-    doc.text("support@noehost.com  ·  noehost.com  ·  billing@noehost.com",
+    doc.text(`support@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}  ·  billing@${new URL(getAppUrl()).hostname}`,
       0, FY + 24, { width: PW, align: "center", lineBreak: false });
     doc.font("Helvetica").fontSize(6.5).fillColor("rgba(255,255,255,0.35)");
     doc.text(

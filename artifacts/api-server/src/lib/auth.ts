@@ -39,16 +39,23 @@ export async function comparePassword(password: string, hash: string): Promise<b
   }
 }
 
-export function signToken(payload: { userId: string; role: string; email: string }): string {
+export interface TokenPayload {
+  userId: string;
+  role: string;
+  email: string;
+  adminPermission?: string;
+}
+
+export function signToken(payload: TokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-export function verifyToken(token: string): { userId: string; role: string; email: string } {
-  return jwt.verify(token, JWT_SECRET) as { userId: string; role: string; email: string };
+export function verifyToken(token: string): TokenPayload {
+  return jwt.verify(token, JWT_SECRET) as TokenPayload;
 }
 
 export interface AuthRequest extends Request {
-  user?: { userId: string; role: string; email: string };
+  user?: TokenPayload;
 }
 
 // ─── Route Logger ─────────────────────────────────────────────────────────────
@@ -99,6 +106,11 @@ export function requireRole(role: string) {
   return function roleGuard(req: AuthRequest, res: Response, next: NextFunction): void {
     if (!req.user) {
       res.status(401).json({ error: "Unauthorized", message: "Authentication required" });
+      return;
+    }
+    // Super-admin bypass: full access regardless of required role
+    if (req.user.adminPermission === "super_admin") {
+      next();
       return;
     }
     if (req.user.role !== role) {

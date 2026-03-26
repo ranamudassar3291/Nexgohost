@@ -1,3 +1,4 @@
+import { getAppUrl } from "../lib/app-url.js";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
@@ -32,7 +33,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     const applyCredits = applyCreditsRaw === true || applyCreditsRaw === "true";
     const resolvedNs: string[] = (Array.isArray(clientNameservers) && clientNameservers.length >= 2)
       ? clientNameservers.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
-      : ["ns1.noehost.com", "ns2.noehost.com"];
+      : [`ns1.${new URL(getAppUrl()).hostname}`, `ns2.${new URL(getAppUrl()).hostname}`];
 
     // ── Validation ───────────────────────────────────────────────────────────
     if (!packageId && !domain) {
@@ -167,7 +168,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
             registrar: "Transfer Pending",
             status: "pending_transfer" as any,
             autoRenew: true,
-            nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+            nameservers: [`ns1.${new URL(getAppUrl()).hostname}`, `ns2.${new URL(getAppUrl()).hostname}`],
           }).onConflictDoNothing().returning();
 
           const [transfer] = await db.insert(domainTransfersTable).values({
@@ -585,7 +586,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
             registrar: "Transfer Pending",
             status: "pending_transfer" as any,
             autoRenew: true,
-            nameservers: ["ns1.noehost.com", "ns2.noehost.com"],
+            nameservers: [`ns1.${new URL(getAppUrl()).hostname}`, `ns2.${new URL(getAppUrl()).hostname}`],
           }).onConflictDoNothing().returning();
 
           const [transfer] = await db.insert(domainTransfersTable).values({
@@ -787,7 +788,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     createNotification(user.id, "invoice", "Invoice Created", `Invoice ${invoiceNumber} for Rs. ${finalAmount.toFixed(2)} has been generated`, `/client/invoices`).catch(() => {});
 
     // WhatsApp alert — non-blocking
-    const adminPanelUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
+    const adminPanelUrl = process.env.ADMIN_PANEL_URL ?? getAppUrl();
     sendWhatsAppAlert("new_order",
       `📦 *New Order Received — Noehost*\n\n` +
       `👤 Client: ${user.firstName} ${user.lastName}\n` +
@@ -829,7 +830,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
     const { domain, tld, period = 1, nameservers: _ns, promoCode, paymentMethodId } = req.body;
     const resolvedNs: string[] = (Array.isArray(_ns) && _ns.length >= 2)
       ? _ns.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
-      : ["ns1.noehost.com", "ns2.noehost.com"];
+      : [`ns1.${new URL(getAppUrl()).hostname}`, `ns2.${new URL(getAppUrl()).hostname}`];
     if (!domain || !tld) {
       res.status(400).json({ error: "domain and tld are required" });
       return;
@@ -975,8 +976,8 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       domain: fullDomain,
       expiryDate: expiryFormatted,
       nextDueDate: expiryFormatted,
-      ns1: (resolvedNs && resolvedNs[0]) || "ns1.noehost.com",
-      ns2: (resolvedNs && resolvedNs[1]) || "ns2.noehost.com",
+      ns1: (resolvedNs && resolvedNs[0]) || `ns1.${new URL(getAppUrl()).hostname}`,
+      ns2: (resolvedNs && resolvedNs[1]) || `ns2.${new URL(getAppUrl()).hostname}`,
     }, { clientId: user.id, referenceId: order.id }).catch(console.warn);
 
     res.status(201).json({

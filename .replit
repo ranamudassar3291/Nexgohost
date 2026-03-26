@@ -31,3 +31,6 @@ channel = "stable-25_05"
 
 [userenv.development]
 WP_SIMULATE = "true"
+
+[userenv.shared]
+JWT_SECRET = "a60458e711f9836765cc99ba0479a441150183291f3073be620ee4322b6b3d320707a7ea13eeed4547b939c678875e08"

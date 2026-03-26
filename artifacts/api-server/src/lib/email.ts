@@ -1,3 +1,5 @@
+import { getAppUrl, getClientUrl } from "./app-url.js";
+
 /**
  * Email Service — renders templates and sends via SMTP (nodemailer)
  * Falls back to console logging if SMTP is not configured.
@@ -78,7 +80,7 @@ async function getSmtpConfig(): Promise<SmtpConfig> {
     port:        Number(map["smtp_port"] || process.env.SMTP_PORT || "587"),
     user:        map["smtp_user"]      || process.env.SMTP_USER || "",
     pass:        map["smtp_pass"]      || process.env.SMTP_PASS || "",
-    from:        map["smtp_from"]      || process.env.SMTP_FROM || "noreply@noehost.com",
+    from:        map["smtp_from"]      || process.env.SMTP_FROM || `noreply@${new URL(getAppUrl()).hostname}`,
     fromName:    map["smtp_from_name"] || process.env.SMTP_FROM_NAME || "Noehost",
     encryption:  (map["smtp_encryption"] || "tls") as SmtpConfig["encryption"],
     mailerType:  (map["mailer_type"]     || "smtp") as SmtpConfig["mailerType"],
@@ -127,7 +129,7 @@ function createTransport(cfg: SmtpConfig): nodemailer.Transporter | null {
 
 function buildFromAddress(cfg: SmtpConfig): string {
   const name = cfg.fromName || "Noehost";
-  const addr = cfg.from || "noreply@noehost.com";
+  const addr = cfg.from || (process.env.SMTP_FROM ?? `noreply@${new URL(getAppUrl()).hostname}`);
   return `${name} <${addr}>`;
 }
 
@@ -310,13 +312,13 @@ export async function emailInvoiceCreated(to: string, vars: {
   }
   return sendTemplatedEmail("invoice-created", to, {
     company_name: COMPANY,
-    client_area_url: vars.clientAreaUrl || "https://noehost.com/client",
+    client_area_url: vars.clientAreaUrl || getClientUrl(),
     client_name: vars.clientName,
     invoice_id: vars.invoiceId,
     invoice_number: vars.invoiceNumber ?? vars.invoiceId,
     amount: vars.amount,
     due_date: vars.dueDate,
-    view_invoice_url: `${vars.clientAreaUrl || "https://noehost.com/client"}/invoices/${vars.invoiceId}`,
+    view_invoice_url: `${vars.clientAreaUrl || getClientUrl()}/invoices/${vars.invoiceId}`,
   }, meta, attachments.length > 0 ? attachments : undefined);
 }
 
@@ -339,7 +341,7 @@ export async function emailInvoicePaid(to: string, vars: {
     invoice_number: vars.invoiceNumber ?? vars.invoiceId,
     amount: vars.amount,
     payment_date: vars.paymentDate,
-    view_invoice_url: `https://noehost.com/client/invoices/${vars.invoiceId}`,
+    view_invoice_url: `${getClientUrl()}/invoices/${vars.invoiceId}`,
   }, undefined, attachments.length > 0 ? attachments : undefined);
 }
 
@@ -384,7 +386,7 @@ export async function emailServiceSuspended(to: string, vars: {
     client_name: vars.clientName,
     domain: vars.domain,
     reason: vars.reason,
-    client_area_url: vars.clientAreaUrl || "https://noehost.com/client",
+    client_area_url: vars.clientAreaUrl || getClientUrl(),
   });
 }
 
@@ -415,7 +417,7 @@ export async function emailWelcome(
   return sendTemplatedEmail("welcome", to, {
     company_name: COMPANY,
     client_name: vars.clientName,
-    dashboard_url: vars.dashboardUrl || "https://noehost.com/client/dashboard",
+    dashboard_url: vars.dashboardUrl || `${getClientUrl()}/dashboard`,
   }, meta);
 }
 
@@ -431,9 +433,9 @@ export async function emailDomainRegistered(
     registration_date: vars.registrationDate || new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
     next_due_date: vars.nextDueDate || vars.expiryDate,
     expiry_date: vars.expiryDate,
-    ns1: vars.ns1 || "ns1.noehost.com",
-    ns2: vars.ns2 || "ns2.noehost.com",
-    dns_url: vars.dnsUrl || "https://noehost.com/client/domains",
+    ns1: vars.ns1 || `ns1.${new URL(getAppUrl()).hostname}`,
+    ns2: vars.ns2 || `ns2.${new URL(getAppUrl()).hostname}`,
+    dns_url: vars.dnsUrl || `${getClientUrl()}/domains`,
   }, meta);
 }
 
@@ -449,7 +451,7 @@ export async function emailDomainExpiryWarning(
     expiry_date: vars.expiryDate,
     days_remaining: String(vars.daysRemaining),
     renewal_price: vars.renewalPrice,
-    renew_url: vars.renewUrl || "https://noehost.com/client/domains",
+    renew_url: vars.renewUrl || `${getClientUrl()}/domains`,
   }, meta);
 }
 
@@ -571,7 +573,7 @@ export async function emailVpsCreated(
     ram: vars.ram,
     disk_space: vars.diskSpace,
     bandwidth: vars.bandwidth,
-    vps_panel_url: vars.vpsPanelUrl || "https://noehost.com/client/vps",
+    vps_panel_url: vars.vpsPanelUrl || `${getClientUrl()}/vps`,
   }, meta);
 }
 
@@ -598,7 +600,7 @@ export async function emailHostingRenewalReminder(
     invoice_id: vars.invoiceId,
     invoice_number: vars.invoiceNumber,
     amount: vars.amount,
-    payment_url: vars.paymentUrl || "https://noehost.com/client/invoices",
+    payment_url: vars.paymentUrl || `${getClientUrl()}/invoices`,
   }, meta);
 }
 
@@ -619,7 +621,7 @@ export async function emailDomainRenewalReminder(
     domain_name: vars.domainName,
     expiry_date: vars.expiryDate,
     renewal_price: vars.renewalPrice,
-    renew_url: vars.renewUrl || "https://noehost.com/client/domains",
+    renew_url: vars.renewUrl || `${getClientUrl()}/domains`,
   }, meta);
 }
 
@@ -667,7 +669,7 @@ export async function emailDomainTransferInitiated(
     `2. Once approved, the transfer process begins (5–7 business days).<br/>` +
     `3. You will receive a confirmation email when the transfer is approved.<br/><br/>` +
     `Please ensure your domain remains <strong>unlocked</strong> at your current registrar and your <strong>WHOIS email is accessible</strong> to accept the transfer authorization request.<br/><br/>` +
-    `You can track your transfer status in the <a href="https://noehost.com/client/domains">Client Portal</a>.`,
+    `You can track your transfer status in the <a href="${getClientUrl()}/domains">Client Portal</a>.`,
   );
 }
 
@@ -689,7 +691,7 @@ export async function emailDomainTransferApproved(
     `• Keep your domain <strong>unlocked</strong> throughout the process.<br/>` +
     `• The transfer typically completes within <strong>5–7 business days</strong> once the authorization is confirmed.<br/><br/>` +
     `You will receive another email when the transfer is complete.<br/><br/>` +
-    `Track your domain in the <a href="https://noehost.com/client/domains">Client Portal</a>.`,
+    `Track your domain in the <a href="${getClientUrl()}/domains">Client Portal</a>.`,
   );
 }
 
@@ -706,7 +708,7 @@ export async function emailDomainTransferCompleted(
     `<strong>Domain:</strong> ${vars.domain}<br/>` +
     `<strong>Status:</strong> Active<br/>` +
     (vars.expiryDate ? `<strong>Expiry Date:</strong> ${vars.expiryDate}<br/>` : ``) +
-    `<br/>You can now manage your domain — update nameservers, configure DNS, enable privacy protection — all from your <a href="https://noehost.com/client/domains">Client Portal</a>.<br/><br/>` +
+    `<br/>You can now manage your domain — update nameservers, configure DNS, enable privacy protection — all from your <a href="${getClientUrl()}/domains">Client Portal</a>.<br/><br/>` +
     `Thank you for choosing Noehost!`,
   );
 }
@@ -728,7 +730,7 @@ export async function emailDomainTransferRejected(
     `• Invalid or expired EPP/Auth code<br/>` +
     `• Domain is less than 60 days old<br/>` +
     `• WHOIS privacy blocking verification<br/><br/>` +
-    `To retry, please resolve the issue and submit a new transfer request from your <a href="https://noehost.com/client/domains/transfer">Client Portal</a>.<br/><br/>` +
+    `To retry, please resolve the issue and submit a new transfer request from your <a href="${getClientUrl()}/domains/transfer">Client Portal</a>.<br/><br/>` +
     `If you have questions, please contact our support team.`,
   );
 }

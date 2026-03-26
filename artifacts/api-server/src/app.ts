@@ -1,3 +1,4 @@
+import { getAppUrl } from "./lib/app-url.js";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import router from "./routes";
@@ -21,7 +22,7 @@ app.use("/api", router);
 // ── Sitemap.xml — Help Center KB articles for Google Search Console ────────────
 app.get("/sitemap.xml", async (_req: Request, res: Response) => {
   try {
-    const BASE_URL = "https://noehost.com";
+    const BASE_URL = getAppUrl();
     const articles = await db.select({
       slug: kbArticlesTable.slug,
       updatedAt: kbArticlesTable.updatedAt,

@@ -1,3 +1,4 @@
+import { getAppUrl } from "./app-url.js";
 import { db } from "@workspace/db";
 import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
@@ -601,7 +602,7 @@ export async function runAutoTerminateCron(): Promise<void> {
   fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
+  const adminUrl = process.env.ADMIN_PANEL_URL ?? getAppUrl();
 
   try {
     const overdueInvoices = await db.select().from(invoicesTable)

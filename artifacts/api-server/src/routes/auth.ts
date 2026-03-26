@@ -1,3 +1,4 @@
+import { getAppUrl, getClientUrl } from "../lib/app-url.js";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
@@ -84,7 +85,7 @@ router.post("/auth/register", async (req, res) => {
     // Welcome email — always sent on new account signup
     emailWelcome(email, {
       clientName: `${firstName} ${lastName}`,
-      dashboardUrl: "https://noehost.com/client/dashboard",
+      dashboardUrl: `${getClientUrl()}/dashboard`,
     }, { clientId: user.id }).catch(() => {});
 
     // ── Track affiliate referral ────────────────────────────────────────────
@@ -108,7 +109,7 @@ router.post("/auth/register", async (req, res) => {
       }
     }
 
-    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.status(201).json({ token, requiresVerification: verificationRequired, user: formatUser(user) });
   } catch (err) {
     console.error(err);
@@ -194,7 +195,7 @@ router.post("/auth/login", async (req, res) => {
     // 2FA check
     if (user.twoFactorEnabled && user.twoFactorSecret) {
       if (!totp) {
-        const tempToken = signToken({ userId: user.id, role: user.role, email: user.email });
+        const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
         res.json({ requires2FA: true, tempToken }); return;
       }
       const valid2FA = await _otpVerify(totp, user.twoFactorSecret!);
@@ -207,7 +208,7 @@ router.post("/auth/login", async (req, res) => {
     // Block client login until email is verified (only when verification is enabled)
     const verificationEnabled = await isEmailVerificationEnabled();
     if (verificationEnabled && !user.emailVerified && user.role === "client") {
-      const tempToken = signToken({ userId: user.id, role: user.role, email: user.email });
+      const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
       res.status(403).json({
         error: "Email not verified",
         requiresVerification: true,
@@ -218,7 +219,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     logActivity(user.id, "login_success", req, "success").catch(() => {});
-    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.json({ token, requiresVerification: false, user: formatUser(user) });
   } catch (err) {
     console.error(err);
@@ -289,7 +290,7 @@ router.post("/auth/2fa/verify", authenticate, async (req: AuthRequest, res) => {
     if (!user || !user.twoFactorSecret) { res.status(400).json({ error: "2FA not configured" }); return; }
     const valid = await _otpVerify(totp, user.twoFactorSecret!);
     if (!valid) { res.status(401).json({ error: "Invalid authenticator code" }); return; }
-    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.json({ token, user: formatUser(user) });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
@@ -541,7 +542,7 @@ router.get("/auth/google/callback", async (req, res) => {
       return;
     }
 
-    const jwt = signToken({ userId: user.id, role: user.role });
+    const jwt = signToken({ userId: user.id, role: user.role, email: user.email ?? "", adminPermission: user.adminPermission ?? undefined });
     await logAuthEvent({ userId: user.id, email: user.email, action: "google_callback", method: "google", status: "success", ipAddress: ip, userAgent: ua });
     res.redirect(`${frontendBase}/google-callback?token=${encodeURIComponent(jwt)}&firstName=${encodeURIComponent(user.firstName || "")}`);
   } catch (err: any) {
@@ -628,7 +629,7 @@ router.post("/auth/google", async (req, res) => {
       return;
     }
 
-    const token = signToken({ userId: user.id, role: user.role });
+    const token = signToken({ userId: user.id, role: user.role, email: user.email ?? "", adminPermission: user.adminPermission ?? undefined });
     await logAuthEvent({ userId: user.id, email: user.email, action: "google_login", method: "google", status: "success", ipAddress: ip, userAgent: ua });
 
     res.json({
@@ -665,7 +666,7 @@ router.post("/auth/forgot-password", async (req, res) => {
   await db.insert(passwordResetsTable).values({ token, userId: user.id, expiresAt });
 
   // Build the reset link
-  const baseUrl = process.env["APP_URL"] || "https://noehost.com";
+  const baseUrl = getAppUrl();
   const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
   // Send the email via the password-reset template
@@ -729,7 +730,7 @@ router.post("/auth/impersonate/:userId", authenticate, requireAdmin, async (req:
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
     if (user.role !== "client") { res.status(400).json({ error: "Can only impersonate client accounts" }); return; }
-    const token = signToken({ userId: user.id, role: user.role, email: user.email });
+    const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     console.log(`[IMPERSONATE] Admin ${req.user!.email} impersonating client ${user.email}`);
     res.json({ token, user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role } });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }

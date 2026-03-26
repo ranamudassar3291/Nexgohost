@@ -1,3 +1,4 @@
+import { getAppUrl } from "./app-url.js";
 import { db as _db } from "@workspace/db";
 import { serversTable as _serversTable } from "@workspace/db/schema";
 import { eq as _eq } from "drizzle-orm";
@@ -448,19 +449,19 @@ export async function provisionHostingService(
 
     if (isReseller) {
       // Reseller plans get WHM welcome email with WHM URL and account limits
-      const whmHost = server?.hostname ? `https://${server.hostname}:2087` : "https://whmserver.noehost.com:2087";
+      const whmHost = server?.hostname ? `https://${server.hostname}:2087` : `https://whmserver.${new URL(getAppUrl()).hostname}:2087`;
       await emailResellerHostingCreated(user.email, {
         clientName: `${user.firstName} ${user.lastName}`.trim() || user.email,
         username,
         password,
         whmUrl: whmHost,
-        cpanelUrl: cpanelUrl || `https://${server?.hostname || "noehost.com"}:2083`,
+        cpanelUrl: cpanelUrl || `https://${server?.hostname || new URL(getAppUrl()).hostname}:2083`,
         maxAccounts: "As per your plan",
         diskSpace: plan?.diskSpace || "Unlimited",
         bandwidth: plan?.bandwidth || "Unlimited",
-        serverIp: finalServerIp || server?.hostname || "noehost.com",
-        ns1: server?.ns1 || "ns1.noehost.com",
-        ns2: server?.ns2 || "ns2.noehost.com",
+        serverIp: finalServerIp || server?.hostname || new URL(getAppUrl()).hostname,
+        ns1: server?.ns1 || `ns1.${new URL(getAppUrl()).hostname}`,
+        ns2: server?.ns2 || `ns2.${new URL(getAppUrl()).hostname}`,
       }, { clientId: user.id, referenceId: serviceId });
     } else {
       // Shared / WordPress hosting — standard cPanel welcome email
@@ -471,8 +472,8 @@ export async function provisionHostingService(
         username,
         password,
         cpanelUrl,
-        ns1: server?.ns1 || "ns1.noehost.com",
-        ns2: server?.ns2 || "ns2.noehost.com",
+        ns1: server?.ns1 || `ns1.${new URL(getAppUrl()).hostname}`,
+        ns2: server?.ns2 || `ns2.${new URL(getAppUrl()).hostname}`,
         webmailUrl,
       }, { clientId: user.id, referenceId: serviceId });
     }

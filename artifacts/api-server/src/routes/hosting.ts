@@ -1,3 +1,4 @@
+import path from "path";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable, promoCodesTable } from "@workspace/db/schema";
@@ -2017,7 +2018,7 @@ router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: Aut
 
 // ── BACKUP SYSTEM ─────────────────────────────────────────────────────────────
 
-const BACKUP_DIR = process.env.WP_BACKUP_DIR || "/backups";
+const BACKUP_DIR = process.env.WP_BACKUP_DIR || path.join(process.cwd(), "uploads/backups");
 const WP_BASE_DIR = process.env.WP_BASE_DIR || "/var/www";
 const MYSQL_ROOT_USER_FOR_DUMP = process.env.WP_MYSQL_ROOT_USER || "root";
 const MYSQL_ROOT_PASS_FOR_DUMP = process.env.WP_MYSQL_ROOT_PASS || "";

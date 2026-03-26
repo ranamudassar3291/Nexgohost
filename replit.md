@@ -1,4 +1,30 @@
-# Noehost - Hosting & Client Management Platform
+# Nexgohost - Hosting & Client Management Platform
+
+## Recent Changes (Session 33 — Plug & Play Restoration)
+
+### Dynamic URL System (`artifacts/api-server/src/lib/app-url.ts`)
+- New `getAppUrl()` / `getClientUrl()` / `getAdminUrl()` utility
+- Priority order: `APP_URL` env var → `REPLIT_DEV_DOMAIN` → `REPLIT_DOMAINS` → noehost.com
+- All hardcoded `noehost.com` URLs replaced in: `email.ts`, `auth.ts`, `provision.ts`, `app.ts`, `cron.ts`, `checkout.ts`, `invoicePdf.ts`
+
+### JWT Auth Hardening
+- `JWT_SECRET` set as a shared environment variable (96-char random hex, persistent across restarts)
+- `TokenPayload` interface updated to include optional `adminPermission` field
+- All `signToken()` calls now embed `adminPermission` for admin users
+- `requireRole()` middleware updated: `super_admin` permission bypasses ALL role checks
+
+### Master Admin Account (`admin@nexgohost.com`)
+- Password reset to `NexgoAdmin2025!` (bcrypt $2b$12 hash)
+- Role: `admin`, adminPermission: `super_admin`, status: `active`, emailVerified: `true`
+- JWT token for this user includes `adminPermission: "super_admin"` for full bypass
+
+### Backup System
+- Backup directory: `uploads/backups/` (project-relative, writable)
+- `WP_BACKUP_DIR` env var override supported
+
+### Environment Variables Set
+- `JWT_SECRET`: 96-char random hex (shared env var)
+- `WP_SIMULATE`: `true` (development env var — remove for production)
 
 ## Recent Changes (Session 32 — VPS Professional Overhaul)
 
