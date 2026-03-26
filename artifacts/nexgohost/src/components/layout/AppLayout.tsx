@@ -63,9 +63,10 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Infrastructure",
     items: [
-      { name: "Servers",          href: "/admin/servers",          icon: (() => null) as any },
-      { name: "Modules",          href: "/admin/modules",          icon: (() => null) as any },
-      { name: "VPS Plans",        href: "/admin/vps",              icon: (() => null) as any },
+      { name: "Servers",            href: "/admin/servers",            icon: (() => null) as any },
+      { name: "Modules",            href: "/admin/modules",            icon: (() => null) as any },
+      { name: "VPS Plans",          href: "/admin/vps",                icon: (() => null) as any },
+      { name: "Domain Registrars",  href: "/admin/domain-registrars",  icon: (() => null) as any },
     ],
   },
   {
@@ -90,6 +91,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "Admin Users",      href: "/admin/admin-users",      icon: (() => null) as any },
       { name: "Email Templates",  href: "/admin/email-templates",  icon: (() => null) as any },
+      { name: "WhatsApp Alerts",  href: "/admin/whatsapp",         icon: (() => null) as any },
       { name: "Settings",         href: "/admin/settings",         icon: (() => null) as any },
     ],
   },
