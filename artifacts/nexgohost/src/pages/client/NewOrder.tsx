@@ -972,7 +972,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     onSuccess: (data) => {
       if (selectedPlan) removeItem(selectedPlan.id);
       setCartDomain(null);
-      setLocation(`/client/invoices/${data.invoiceId}`);
+      setLocation(`/client/invoices/${data.invoiceId ?? data.invoice?.id}`);
     },
     onError: (err: Error) => {
       if (err.message === "Unauthorized" || err.message.toLowerCase().includes("unauthorized") || err.message.includes("401")) {

@@ -12,6 +12,7 @@ import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated } from "../lib/email.js";
 import { generateInvoicePdf } from "../lib/invoicePdf.js";
 import { createNotification } from "../lib/notifications.js";
+import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 
 const router = Router();
 
@@ -696,6 +697,19 @@ async function handleCheckout(req: AuthRequest, res: any) {
     }).catch(console.warn);
     createNotification(user.id, "order", "Order Placed", `Your order for ${plan.name} has been placed${paidWithCredits ? " and is now active" : " — awaiting payment"}`, `/client/orders`).catch(() => {});
     createNotification(user.id, "invoice", "Invoice Created", `Invoice ${invoiceNumber} for Rs. ${finalAmount.toFixed(2)} has been generated`, `/client/invoices`).catch(() => {});
+
+    // WhatsApp alert — non-blocking
+    const adminPanelUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
+    sendWhatsAppAlert("new_order",
+      `📦 *New Order Received — Noehost*\n\n` +
+      `👤 Client: ${user.firstName} ${user.lastName}\n` +
+      `📧 Email: ${user.email}\n` +
+      `🛒 Service: ${plan.name}${domain ? ` (${domain})` : ""}\n` +
+      `💰 Amount: PKR ${finalAmount.toLocaleString()}\n` +
+      `🏷️ Type: hosting\n\n` +
+      `🔗 View Order:\n${adminPanelUrl}/admin/orders/${order.id}\n\n` +
+      `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
+    ).catch(() => {});
 
     res.status(201).json({
       success: true,
