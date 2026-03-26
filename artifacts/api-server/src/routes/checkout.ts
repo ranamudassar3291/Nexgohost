@@ -10,6 +10,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
+import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
 import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated } from "../lib/email.js";
 import { generateInvoicePdf } from "../lib/invoicePdf.js";
 import { createNotification } from "../lib/notifications.js";
@@ -27,7 +28,22 @@ async function handleCheckout(req: AuthRequest, res: any) {
       domainAmount: clientDomainAmount, eppCode,
       nameservers: clientNameservers,
       applyCredits: applyCreditsRaw,
+      captchaToken,
     } = req.body;
+
+    // Captcha verification (if enabled for checkout)
+    const secConfig = await getSecurityConfig();
+    if (secConfig.enabledPages.checkout && secConfig.secretKey) {
+      if (!captchaToken) {
+        res.status(400).json({ error: "Security check required. Please complete the captcha." });
+        return;
+      }
+      const captchaOk = await verifyCaptcha(captchaToken, secConfig.secretKey, secConfig.provider);
+      if (!captchaOk) {
+        res.status(400).json({ error: "Security check failed. Please try again." });
+        return;
+      }
+    }
     // applyCredits: true = deduct whatever wallet balance is available (partial or full)
     // paymentMethodId === "credits" = full wallet payment (error if insufficient)
     const applyCredits = applyCreditsRaw === true || applyCreditsRaw === "true";

@@ -7,6 +7,8 @@ import {
   Loader2, Eye, EyeOff, ShieldCheck, RefreshCw,
   Gift, AlertCircle, CheckCircle2,
 } from "lucide-react";
+import CaptchaWidget from "@/components/CaptchaWidget";
+import { useQuery } from "@tanstack/react-query";
 
 async function apiFetch(url: string, token: string | null, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -37,6 +39,14 @@ export default function Register() {
   const [refCode,      setRefCode]      = useState<string | null>(null);
   const [fieldErrors,  setFieldErrors]  = useState<FieldErrors>({});
   const [formError,    setFormError]    = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config"],
+    queryFn: () => fetch("/api/security/captcha-config").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const captchaRequired = captchaConfig?.enabledPages?.register && !!captchaConfig?.siteKey;
 
   useEffect(() => {
     fetch("/api/auth/google/config")
@@ -107,10 +117,14 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    if (captchaRequired && !captchaToken) {
+      setFormError("Please complete the security check before registering.");
+      return;
+    }
     setFormError(null);
     setLoading(true);
     try {
-      const payload = { ...formData, ...(refCode ? { refCode } : {}) };
+      const payload = { ...formData, ...(refCode ? { refCode } : {}), ...(captchaToken ? { captchaToken } : {}) };
       const data = await apiFetch("/api/auth/register", null, { method: "POST", body: JSON.stringify(payload) });
       setTempToken(data.token);
       if (refCode) {
@@ -274,7 +288,18 @@ export default function Register() {
                   </div>
                 </div>
 
-                <button type="submit" disabled={loading}
+                {captchaRequired && captchaConfig?.siteKey && (
+                  <div className="pt-1">
+                    <CaptchaWidget
+                      siteKey={captchaConfig.siteKey}
+                      provider={captchaConfig.provider ?? "turnstile"}
+                      onVerify={token => setCaptchaToken(token)}
+                      onExpire={() => setCaptchaToken(null)}
+                    />
+                  </div>
+                )}
+
+                <button type="submit" disabled={loading || (captchaRequired && !captchaToken)}
                   className="w-full h-11 mt-2 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#701AFE]/25">
                   {loading ? <Loader2 size={18} className="animate-spin" /> : "Create account"}
                 </button>

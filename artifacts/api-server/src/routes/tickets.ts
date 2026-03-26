@@ -4,6 +4,7 @@ import { ticketsTable, ticketMessagesTable, usersTable } from "@workspace/db/sch
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
 import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
@@ -64,7 +65,21 @@ router.get("/tickets", authenticate, async (req: AuthRequest, res) => {
 // Client: create ticket
 router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { subject, message, priority, department } = req.body;
+    const { subject, message, priority, department, captchaToken } = req.body;
+
+    // Captcha verification (if enabled for support tickets)
+    const secConfig = await getSecurityConfig();
+    if (secConfig.enabledPages.supportTicket && secConfig.secretKey) {
+      if (!captchaToken) {
+        res.status(400).json({ error: "Security check required. Please complete the captcha." });
+        return;
+      }
+      const captchaOk = await verifyCaptcha(captchaToken, secConfig.secretKey, secConfig.provider);
+      if (!captchaOk) {
+        res.status(400).json({ error: "Security check failed. Please try again." });
+        return;
+      }
+    }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 

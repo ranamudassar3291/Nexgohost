@@ -13,7 +13,7 @@ import {
   Shield, ShieldAlert, ShieldCheck, Key, Globe, Eye, EyeOff,
   LogIn, UserPlus, Search, HelpCircle, MessageSquare,
   Ban, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Clock,
-  Trash2, Wifi, Bot, Zap, Lock, Unlock,
+  Trash2, Wifi, Bot, Zap, Lock, Unlock, CreditCard, Ticket,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,8 @@ interface SecurityConfig {
     domainSearch: boolean;
     forgotPassword: boolean;
     contactForm: boolean;
+    checkout: boolean;
+    supportTicket: boolean;
   };
 }
 
@@ -62,11 +64,13 @@ interface BlockedIp {
 }
 
 const PAGE_META = [
-  { key: "login",         label: "Login Page",          icon: LogIn,       desc: "Require captcha before login" },
-  { key: "register",      label: "Register Page",        icon: UserPlus,    desc: "Block bot registrations" },
-  { key: "domainSearch",  label: "Domain Search",        icon: Search,      desc: "Prevent domain enumeration" },
-  { key: "forgotPassword",label: "Forgot Password",      icon: HelpCircle,  desc: "Prevent email flood attacks" },
+  { key: "login",         label: "Login Page",           icon: LogIn,         desc: "Require captcha before login" },
+  { key: "register",      label: "Register Page",         icon: UserPlus,      desc: "Block bot registrations" },
+  { key: "domainSearch",  label: "Domain Search",         icon: Search,        desc: "Prevent domain enumeration" },
+  { key: "forgotPassword",label: "Forgot Password",       icon: HelpCircle,    desc: "Prevent email flood attacks" },
   { key: "contactForm",   label: "Contact / Support Form",icon: MessageSquare, desc: "Block spam submissions" },
+  { key: "checkout",      label: "Checkout / Order Flow", icon: CreditCard,    desc: "Prevent automated purchases" },
+  { key: "supportTicket", label: "Support Ticket Form",   icon: Ticket,        desc: "Block spam ticket submissions" },
 ];
 
 const EVENT_LABELS: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -116,7 +120,7 @@ export default function SecuritySettings() {
     provider: "turnstile",
     siteKey: "",
     secretKey: "",
-    enabledPages: { login: false, register: false, domainSearch: false, forgotPassword: false, contactForm: false },
+    enabledPages: { login: false, register: false, domainSearch: false, forgotPassword: false, contactForm: false, checkout: false, supportTicket: false },
   };
 
   const saveMutation = useMutation({

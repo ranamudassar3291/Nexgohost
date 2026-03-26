@@ -85,6 +85,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "Server Logs",      href: "/admin/server-logs",      icon: (() => null) as any },
       { name: "WhatsApp Alerts",  href: "/admin/whatsapp",         icon: (() => null) as any },
       { name: "Security",         href: "/admin/security",         icon: (() => null) as any },
+      { name: "Firewall",         href: "/admin/firewall",         icon: (() => null) as any },
     ],
   },
   {

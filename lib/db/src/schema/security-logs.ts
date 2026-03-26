@@ -32,5 +32,23 @@ export const blockedIpsTable = pgTable("blocked_ips", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const ipWhitelistTable = pgTable("ip_whitelist", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ipAddress: text("ip_address").notNull().unique(),
+  label: text("label"),
+  addedBy: text("added_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const migrationWhitelistTable = pgTable("migration_whitelist", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ipAddress: text("ip_address").notNull().unique(),
+  label: text("label"),
+  addedBy: text("added_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type SecurityLog = typeof securityLogsTable.$inferSelect;
 export type BlockedIp = typeof blockedIpsTable.$inferSelect;
+export type IpWhitelist = typeof ipWhitelistTable.$inferSelect;
+export type MigrationWhitelist = typeof migrationWhitelistTable.$inferSelect;

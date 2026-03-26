@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
+import CaptchaWidget from "@/components/CaptchaWidget";
 
 interface PaymentMethod { id: string; name: string; type: string; description: string | null; isSandbox: boolean; }
 interface PromoResult {
@@ -93,6 +94,14 @@ export default function Checkout() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("none");
   const [placing, setPlacing] = useState(false);
   const [success, setSuccess] = useState<any>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config"],
+    queryFn: () => fetch("/api/security/captcha-config").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const captchaRequired = captchaConfig?.enabledPages?.checkout && !!captchaConfig?.siteKey;
 
   const isYearly = billingCycle === "yearly";
 
@@ -188,6 +197,10 @@ export default function Checkout() {
 
   const handlePlaceOrder = async () => {
     if (!packageId) { toast({ title: "Missing package", variant: "destructive" }); return; }
+    if (captchaRequired && !captchaToken) {
+      toast({ title: "Security check required", description: "Please complete the captcha before placing your order.", variant: "destructive" });
+      return;
+    }
     setPlacing(true);
     try {
       const domainForOrder = domainChoice === "register" && domainName ? domainName :
@@ -206,6 +219,7 @@ export default function Checkout() {
           domainAmount: isDomainFree ? 0 : domainAmount,
           promoCode: promoResult ? promoCode : undefined,
           paymentMethodId: selectedPaymentMethod !== "none" ? selectedPaymentMethod : undefined,
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       });
       setSuccess(data);
@@ -698,9 +712,20 @@ export default function Checkout() {
                 </div>
               )}
 
+              {captchaRequired && captchaConfig?.siteKey && (
+                <div className="pt-2">
+                  <CaptchaWidget
+                    siteKey={captchaConfig.siteKey}
+                    provider={captchaConfig.provider ?? "turnstile"}
+                    onVerify={token => setCaptchaToken(token)}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
+                </div>
+              )}
+
               <div className="flex justify-between pt-2">
                 <Button variant="outline" onClick={() => setStep(4)}><ArrowLeft size={16} className="mr-2" /> Back</Button>
-                <Button onClick={handlePlaceOrder} disabled={placing} className="bg-primary hover:bg-primary/90 min-w-32">
+                <Button onClick={handlePlaceOrder} disabled={placing || (captchaRequired && !captchaToken)} className="bg-primary hover:bg-primary/90 min-w-32">
                   {placing ? <Loader2 size={16} className="animate-spin mr-2" /> : <ShoppingCart size={16} className="mr-2" />}
                   {placing ? "Placing..." : "Place Order"}
                 </Button>

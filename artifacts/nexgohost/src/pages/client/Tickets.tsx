@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import CaptchaWidget from "@/components/CaptchaWidget";
 import { extractKeywords, getTagsForSlug } from "@/lib/kbTags";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf", "application/zip"];
@@ -179,6 +180,14 @@ export default function ClientTickets() {
   const [formData, setFormData] = useState({ message: "", priority: "medium", department: "Technical Support" });
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [detectedLinks, setDetectedLinks] = useState<Array<{ slug: string; label: string }>>([]);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
+  const { data: captchaConfig } = useQuery({
+    queryKey: ["captcha-config"],
+    queryFn: () => fetch("/api/security/captcha-config").then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const captchaRequired = captchaConfig?.enabledPages?.supportTicket && !!captchaConfig?.siteKey;
 
   const { data: tickets = [], isLoading } = useQuery<any[]>({
     queryKey: ["client-tickets"],
@@ -292,6 +301,7 @@ export default function ClientTickets() {
     setFormData({ message: "", priority: "medium", department: "Technical Support" });
     setAttachments([]);
     setDeflectedArticle(null);
+    setCaptchaToken(null);
   }
 
   function handleDeflected(article: KbArticle) {
@@ -324,7 +334,11 @@ export default function ClientTickets() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ subject, ...formData, attachments });
+    if (captchaRequired && !captchaToken) {
+      toast({ title: "Security check required", description: "Please complete the captcha before submitting.", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate({ subject, ...formData, attachments, ...(captchaToken ? { captchaToken } : {}) });
   };
 
   const openCount = tickets.filter(t => t.status === "open" || t.status === "customer_reply").length;
@@ -634,13 +648,24 @@ export default function ClientTickets() {
               <input ref={fileRef} type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf,.zip" multiple onChange={handleFileChange} />
             </div>
 
+            {captchaRequired && captchaConfig?.siteKey && (
+              <div className="pt-1">
+                <CaptchaWidget
+                  siteKey={captchaConfig.siteKey}
+                  provider={captchaConfig.provider ?? "turnstile"}
+                  onVerify={token => setCaptchaToken(token)}
+                  onExpire={() => setCaptchaToken(null)}
+                />
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3 justify-between pt-2 border-t border-border/40">
               <Button type="button" variant="ghost" onClick={() => setStage("subject")} className="text-muted-foreground gap-2">
                 ← Back to Suggestions
               </Button>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={resetAll}>Cancel</Button>
-                <Button type="submit" disabled={createMutation.isPending} className="bg-primary gap-2">
+                <Button type="submit" disabled={createMutation.isPending || (captchaRequired && !captchaToken)} className="bg-primary gap-2">
                   {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <TicketIcon size={16} />}
                   Submit Ticket
                 </Button>

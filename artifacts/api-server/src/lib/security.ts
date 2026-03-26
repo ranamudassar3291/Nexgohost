@@ -1,14 +1,19 @@
 /**
- * Noehost Iron-Clad Security Engine
+ * Nexgohost Iron-Clad Security Engine
  * - In-memory IP rate limiter (20 attempts/min → 30-min DB block)
  * - Bad-bot blocker (403 on scanner UAs)
  * - Cloudflare Turnstile / Google reCAPTCHA v2 server-side verification
  * - DB-persisted blocked IPs (survives restarts)
+ * - IP Whitelist (bypass auto-block for whitelisted IPs)
+ * - Migration Whitelist (allow full API/DB access from migration IPs)
  */
 
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
-import { securityLogsTable, blockedIpsTable, settingsTable } from "@workspace/db/schema";
+import {
+  securityLogsTable, blockedIpsTable, settingsTable,
+  ipWhitelistTable, migrationWhitelistTable,
+} from "@workspace/db/schema";
 import { eq, gt } from "drizzle-orm";
 
 // ── In-memory attempt tracker ─────────────────────────────────────────────────
@@ -44,6 +49,23 @@ export async function isIpBlockedInDb(ip: string): Promise<boolean> {
   return true;
 }
 
+// ── Whitelist checks ──────────────────────────────────────────────────────────
+export async function isIpWhitelisted(ip: string): Promise<boolean> {
+  try {
+    const [row] = await db.select().from(ipWhitelistTable)
+      .where(eq(ipWhitelistTable.ipAddress, ip)).limit(1);
+    return !!row;
+  } catch { return false; }
+}
+
+export async function isIpInMigrationWhitelist(ip: string): Promise<boolean> {
+  try {
+    const [row] = await db.select().from(migrationWhitelistTable)
+      .where(eq(migrationWhitelistTable.ipAddress, ip)).limit(1);
+    return !!row;
+  } catch { return false; }
+}
+
 // ── Record a failed attempt and auto-block if threshold exceeded ──────────────
 export async function recordFailedAttempt(
   ip: string,
@@ -51,6 +73,10 @@ export async function recordFailedAttempt(
   email?: string,
 ): Promise<{ blocked: boolean }> {
   const now = Date.now();
+
+  // Never auto-block whitelisted IPs
+  const whitelisted = await isIpWhitelisted(ip);
+  if (whitelisted) return { blocked: false };
 
   let bucket = ipAttempts.get(ip);
   if (!bucket || now - bucket.windowStart > WINDOW_MS) {
@@ -151,7 +177,7 @@ export function badBotMiddleware(req: Request, res: Response, next: NextFunction
   next();
 }
 
-// ── IP block middleware (DB-backed) ────────────────────────────────────────────
+// ── IP block middleware (DB-backed, whitelist bypasses) ────────────────────────
 export async function ipBlockMiddleware(req: Request, res: Response, next: NextFunction) {
   // Only guard sensitive auth routes
   const sensitiveRoutes = ["/api/auth/login", "/api/auth/register", "/api/auth/forgot-password"];
@@ -160,6 +186,11 @@ export async function ipBlockMiddleware(req: Request, res: Response, next: NextF
   }
 
   const ip = getClientIp(req);
+
+  // Whitelisted IPs always get through
+  const whitelisted = await isIpWhitelisted(ip).catch(() => false);
+  if (whitelisted) return next();
+
   const blocked = await isIpBlockedInDb(ip);
   if (blocked) {
     await db.insert(securityLogsTable).values({
@@ -227,6 +258,8 @@ export interface SecurityConfig {
     domainSearch: boolean;
     forgotPassword: boolean;
     contactForm: boolean;
+    checkout: boolean;
+    supportTicket: boolean;
   };
 }
 
@@ -238,8 +271,11 @@ export async function getSecurityConfig(): Promise<SecurityConfig> {
     getSecuritySetting("security.captcha.enabled_pages"),
   ]);
 
-  let enabledPages = { login: false, register: false, domainSearch: false, forgotPassword: false, contactForm: false };
-  try { if (enabledPagesRaw) enabledPages = JSON.parse(enabledPagesRaw); } catch { /* ok */ }
+  let enabledPages = {
+    login: false, register: false, domainSearch: false,
+    forgotPassword: false, contactForm: false, checkout: false, supportTicket: false,
+  };
+  try { if (enabledPagesRaw) enabledPages = { ...enabledPages, ...JSON.parse(enabledPagesRaw) }; } catch { /* ok */ }
 
   return {
     provider: (provider as "turnstile" | "recaptcha") ?? "turnstile",
