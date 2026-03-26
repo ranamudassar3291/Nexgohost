@@ -91,6 +91,10 @@ export const affiliatePlanCommissionsTable = pgTable("affiliate_plan_commissions
   commissionType: commissionTypeEnum("commission_type_pc").notNull().default("fixed"),
   commissionValue: numeric("commission_value_pc", { precision: 10, scale: 2 }).notNull().default("0"),
   isActive: boolean("is_active").notNull().default(true),
+  // Yearly-only: commission is only awarded on yearly billing cycle purchases
+  yearlyOnly: boolean("yearly_only").notNull().default(true),
+  // Yearly price displayed on client offer cards (Rs. X/yr)
+  yearlyPrice: numeric("yearly_price", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

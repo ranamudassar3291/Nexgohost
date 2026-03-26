@@ -63,10 +63,16 @@ interface GroupCommission {
 interface Settings {
   payoutThreshold: number;
   cookieDays: number;
+  payoutDays: number;
 }
 interface PlanOffer {
-  planId: string; planName: string; planType: string; price: string;
-  commissionType: string; commissionValue: string;
+  planId: string;
+  planName: string;
+  planType: string;
+  commissionType: string;
+  commissionValue: string;
+  yearlyOnly: boolean;
+  yearlyPrice: string | null;
 }
 
 const statusBadge = (s: string) => {

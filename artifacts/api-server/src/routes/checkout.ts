@@ -740,6 +740,11 @@ async function handleCheckout(req: AuthRequest, res: any) {
               const [planComm] = await db.select().from(affiliatePlanCommissionsTable)
                 .where(eq(affiliatePlanCommissionsTable.planId, plan.id)).limit(1);
               if (planComm && planComm.isActive) {
+                // Yearly-only enforcement: skip commission if plan requires yearly but order is not yearly
+                if (planComm.yearlyOnly && order.billingCycle !== "yearly") {
+                  console.log(`[AFFILIATE] Skipping commission for ${plan.name} — yearly-only plan but order is ${order.billingCycle}`);
+                  return;
+                }
                 commType = planComm.commissionType as typeof commType;
                 commValue = parseFloat(planComm.commissionValue);
               } else if (plan?.groupId) {
@@ -770,7 +775,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
                 orderId: order.id,
                 amount: String(commAmt.toFixed(2)),
                 status: "pending",
-                description: `Commission for ${plan.name} order by referred client`,
+                description: `Commission for ${plan.name} (${order.billingCycle ?? "monthly"}) order by referred client`,
               });
               await db.update(affiliatesTable).set({
                 totalEarnings: sql`${affiliatesTable.totalEarnings} + ${String(commAmt.toFixed(2))}`,

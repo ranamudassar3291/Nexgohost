@@ -1,0 +1,36 @@
+Final Master Prompt: Complete System Fix & Affiliate Logic
+"I need to perform a final, comprehensive fix to sync the backend data with the UI and align the Affiliate system with my business rules. Execute these tasks strictly:
+
+1. Force Real-Time Resource & DNS Data:
+
+DNS Manager: Remove any hardcoded limits or .slice(0, 5) from the DNS fetching logic. Ensure EVERY record from the cPanel zone file is displayed and editable.
+
+Disk/Bandwidth Usage: Usage is stuck at 0 MB. Force the system to use uapi.stats.get_stats and map the returned bytes to the 'Resource Usage' progress bars correctly.
+
+2. Fix Backup API (UAPI Migration):
+
+The 'Unknown app (backup)' error is due to using API v1. Switch immediately to UAPI (Fileman::fullbackup).
+
+Ensure the 'Create Backup' button triggers a real server-side process and provides a download link once finished.
+
+3. Professional Affiliate System (Yearly & Payout Fix):
+
+Yearly Only: Modify the commission logic to trigger ONLY for Yearly billing cycles. Ignore Monthly plans.
+
+Fixed Commission: Map the 'Starter' plan (Price: Rs. 3,035/yr) to a fixed Rs. 300 commission for the affiliate.
+
+Hostinger Style UI: Display these as 'Offer Cards' in the Client Affiliate Dashboard: 'Plan Name | Price: Rs. 3,035/yr | Commission: Rs. 300'.
+
+Payout Sync: Fix the discrepancy. The Client Dashboard MUST show '30 Days Payout' (matching the Admin setting), not '3-5 days'.
+
+4. Security & Access Fix:
+
+Resolve the 'Invalid credentials' login error for the Admin panel by re-hashing the password in the database to match the current system's encryption.
+
+Whitelist the server's own IP to ensure the 'CSF Firewall' and 'Backup API' remain Green/OK.
+
+5. Professional Announcement Bar:
+
+Add a scrolling marquee at the top of the Client Dashboard: '🚀 Welcome to Noehost! Enjoy 99.9% Uptime on our new VPS Nodes. Managed by Experts.'.
+
+Final Goal: All system tests must pass, real usage must show, and the affiliate program must be profitable and clearly communicated to the client.

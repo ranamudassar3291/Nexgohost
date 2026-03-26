@@ -56,12 +56,14 @@ async function getOrCreateAffiliate(userId: string) {
 
 async function getAffiliateSettings() {
   const rows = await db.select().from(settingsTable)
-    .where(sql`${settingsTable.key} IN ('affiliate_payout_threshold', 'affiliate_cookie_days')`);
+    .where(sql`${settingsTable.key} IN ('affiliate_payout_threshold', 'affiliate_cookie_days', 'affiliate_payout_days')`);
   const map: Record<string, string> = {};
   for (const r of rows) { if (r.key && r.value) map[r.key] = r.value; }
   return {
     payoutThreshold: parseFloat(map["affiliate_payout_threshold"] ?? "2000"),
     cookieDays: parseInt(map["affiliate_cookie_days"] ?? "30"),
+    // Number of days a commission stays in 'pending' before it becomes available for withdrawal
+    payoutDays: parseInt(map["affiliate_payout_days"] ?? "30"),
   };
 }
 
@@ -436,21 +438,32 @@ router.get("/admin/affiliates/plan-commissions", authenticate, requireRole("admi
 router.put("/admin/affiliates/plan-commissions/:planId", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { planId } = req.params;
-    const { planName, planType = "hosting", commissionType = "fixed", commissionValue, isActive = true } = req.body;
+    const {
+      planName, planType = "hosting", commissionType = "fixed", commissionValue,
+      isActive = true,
+      yearlyOnly = true,            // commission only awarded on yearly billing cycle
+      yearlyPrice,                  // yearly plan price shown on client offer cards
+    } = req.body;
     if (!planName || commissionValue === undefined) {
       res.status(400).json({ error: "planName and commissionValue are required" }); return;
     }
     const [existing] = await db.select().from(affiliatePlanCommissionsTable)
       .where(eq(affiliatePlanCommissionsTable.planId, planId!)).limit(1);
     let result;
+    const fields = {
+      planName, planType, commissionType, commissionValue: String(commissionValue),
+      isActive, yearlyOnly: Boolean(yearlyOnly),
+      yearlyPrice: yearlyPrice != null ? String(yearlyPrice) : null,
+      updatedAt: new Date(),
+    };
     if (existing) {
       [result] = await db.update(affiliatePlanCommissionsTable)
-        .set({ planName, planType, commissionType, commissionValue: String(commissionValue), isActive, updatedAt: new Date() })
+        .set(fields)
         .where(eq(affiliatePlanCommissionsTable.planId, planId!))
         .returning();
     } else {
       [result] = await db.insert(affiliatePlanCommissionsTable)
-        .values({ planId: planId!, planName, planType, commissionType, commissionValue: String(commissionValue), isActive })
+        .values({ planId: planId!, ...fields })
         .returning();
     }
     res.json({ planCommission: result });
