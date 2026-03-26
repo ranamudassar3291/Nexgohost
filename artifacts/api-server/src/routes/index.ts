@@ -34,6 +34,7 @@ import whmcsImportRouter from "./whmcsImport.js";
 import adminUsersRouter from "./admin-users.js";
 import kbRouter from "./kb.js";
 import securityRouter from "./security.js";
+import modulesRouter from "./modules.js";
 
 const router: IRouter = Router();
 
@@ -76,5 +77,6 @@ router.use(whmcsImportRouter);
 router.use(adminUsersRouter);
 router.use(kbRouter);
 router.use(securityRouter);
+router.use(modulesRouter);
 
 export default router;

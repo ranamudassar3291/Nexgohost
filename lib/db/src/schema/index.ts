@@ -29,3 +29,4 @@ export * from "./password-resets";
 export * from "./vps";
 export * from "./kb";
 export * from "./security-logs";
+export * from "./uploaded-modules";
