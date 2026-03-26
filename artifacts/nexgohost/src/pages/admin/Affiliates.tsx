@@ -134,7 +134,7 @@ export default function AdminAffiliates() {
   const saveSettings = async () => {
     setSettingsSaving(true);
     try {
-      await apiFetch("/api/admin/affiliates/settings", null, {
+      await apiFetch("/api/admin/affiliates/settings", {
         method: "PUT",
         body: JSON.stringify({ payoutThreshold: parseFloat(payoutThreshold), cookieDays: parseInt(cookieDays) }),
       });
@@ -149,7 +149,7 @@ export default function AdminAffiliates() {
     const edit = groupEdits[groupId];
     if (!edit) return;
     try {
-      await apiFetch(`/api/admin/affiliates/group-commissions/${groupId}`, null, {
+      await apiFetch(`/api/admin/affiliates/group-commissions/${groupId}`, {
         method: "PUT",
         body: JSON.stringify({ commissionType: edit.commissionType, commissionValue: edit.commissionValue, groupName }),
       });
@@ -173,7 +173,7 @@ export default function AdminAffiliates() {
     if (!editAff) return;
     setEditSaving(true);
     try {
-      await apiFetch(`/api/admin/affiliates/${editAff.id}`, null, {
+      await apiFetch(`/api/admin/affiliates/${editAff.id}`, {
         method: "PUT",
         body: JSON.stringify({ status: editStatus, commissionType: editCommType, commissionValue: editCommValue, notes: editNotes }),
       });
@@ -189,7 +189,7 @@ export default function AdminAffiliates() {
   const handleCommissionAction = async (id: string, action: "approve" | "reject" | "pay") => {
     setCommLoading(id + action);
     try {
-      await apiFetch(`/api/admin/affiliates/commissions/${id}/${action}`, null, { method: "PUT" });
+      await apiFetch(`/api/admin/affiliates/commissions/${id}/${action}`, { method: "PUT" });
       toast({ title: action === "approve" ? "Commission approved" : action === "reject" ? "Commission rejected" : "Commission marked as paid" });
       fetchAll();
     } catch (e: any) {
@@ -203,7 +203,7 @@ export default function AdminAffiliates() {
     const { w, action } = withdrawDialog;
     setWithdrawLoading(true);
     try {
-      await apiFetch(`/api/admin/affiliates/withdrawals/${w.id}/${action}`, null, {
+      await apiFetch(`/api/admin/affiliates/withdrawals/${w.id}/${action}`, {
         method: "PUT",
         body: JSON.stringify({ adminNotes: withdrawNote || undefined }),
       });

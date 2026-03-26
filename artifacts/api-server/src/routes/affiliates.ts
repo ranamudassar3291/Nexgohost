@@ -403,6 +403,63 @@ router.get("/admin/affiliates/commissions/all", authenticate, requireRole("admin
   }
 });
 
+// ── Admin: List plan commissions ──────────────────────────────────────────────
+// NOTE: Must be declared BEFORE the /admin/affiliates/:id wildcard to avoid
+// Express matching "plan-commissions" as a literal :id value.
+router.get("/admin/affiliates/plan-commissions", authenticate, requireRole("admin"), async (_req, res) => {
+  try {
+    const [hostingPlans, vpsPlans, planComms] = await Promise.all([
+      db.select({ id: hostingPlansTable.id, name: hostingPlansTable.name, price: hostingPlansTable.price }).from(hostingPlansTable).where(eq(hostingPlansTable.isActive, true)),
+      db.select({ id: vpsPlansTable.id, name: vpsPlansTable.name, price: vpsPlansTable.price }).from(vpsPlansTable).where(eq(vpsPlansTable.isActive, true)),
+      db.select().from(affiliatePlanCommissionsTable),
+    ]);
+    const commMap: Record<string, typeof planComms[0]> = {};
+    planComms.forEach(c => { commMap[c.planId] = c; });
+    const allPlans = [
+      ...hostingPlans.map(p => ({ ...p, planType: "hosting" as const })),
+      ...vpsPlans.map(p => ({ ...p, planType: "vps" as const })),
+    ].map(p => ({
+      planId: p.id,
+      planName: p.name,
+      planType: p.planType,
+      price: p.price,
+      commission: commMap[p.id] ?? null,
+    }));
+    res.json({ plans: allPlans });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Upsert plan commission ─────────────────────────────────────────────
+router.put("/admin/affiliates/plan-commissions/:planId", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const { planId } = req.params;
+    const { planName, planType = "hosting", commissionType = "fixed", commissionValue, isActive = true } = req.body;
+    if (!planName || commissionValue === undefined) {
+      res.status(400).json({ error: "planName and commissionValue are required" }); return;
+    }
+    const [existing] = await db.select().from(affiliatePlanCommissionsTable)
+      .where(eq(affiliatePlanCommissionsTable.planId, planId!)).limit(1);
+    let result;
+    if (existing) {
+      [result] = await db.update(affiliatePlanCommissionsTable)
+        .set({ planName, planType, commissionType, commissionValue: String(commissionValue), isActive, updatedAt: new Date() })
+        .where(eq(affiliatePlanCommissionsTable.planId, planId!))
+        .returning();
+    } else {
+      [result] = await db.insert(affiliatePlanCommissionsTable)
+        .values({ planId: planId!, planName, planType, commissionType, commissionValue: String(commissionValue), isActive })
+        .returning();
+    }
+    res.json({ planCommission: result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ── Admin: List all affiliates ─────────────────────────────────────────────────
 router.get("/admin/affiliates", authenticate, requireRole("admin"), async (_req, res) => {
   try {
@@ -671,61 +728,6 @@ router.put("/admin/affiliates/withdrawals/:id/reject", authenticate, requireRole
 
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ withdrawal: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// ── Admin: List plan commissions ──────────────────────────────────────────────
-router.get("/admin/affiliates/plan-commissions", authenticate, requireRole("admin"), async (_req, res) => {
-  try {
-    const [hostingPlans, vpsPlans, planComms] = await Promise.all([
-      db.select({ id: hostingPlansTable.id, name: hostingPlansTable.name, price: hostingPlansTable.price }).from(hostingPlansTable).where(eq(hostingPlansTable.isActive, true)),
-      db.select({ id: vpsPlansTable.id, name: vpsPlansTable.name, price: vpsPlansTable.price }).from(vpsPlansTable).where(eq(vpsPlansTable.isActive, true)),
-      db.select().from(affiliatePlanCommissionsTable),
-    ]);
-    const commMap: Record<string, typeof planComms[0]> = {};
-    planComms.forEach(c => { commMap[c.planId] = c; });
-    const allPlans = [
-      ...hostingPlans.map(p => ({ ...p, planType: "hosting" as const })),
-      ...vpsPlans.map(p => ({ ...p, planType: "vps" as const })),
-    ].map(p => ({
-      planId: p.id,
-      planName: p.name,
-      planType: p.planType,
-      price: p.price,
-      commission: commMap[p.id] ?? null,
-    }));
-    res.json({ plans: allPlans });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// ── Admin: Upsert plan commission ─────────────────────────────────────────────
-router.put("/admin/affiliates/plan-commissions/:planId", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
-  try {
-    const { planId } = req.params;
-    const { planName, planType = "hosting", commissionType = "fixed", commissionValue, isActive = true } = req.body;
-    if (!planName || commissionValue === undefined) {
-      res.status(400).json({ error: "planName and commissionValue are required" }); return;
-    }
-    const [existing] = await db.select().from(affiliatePlanCommissionsTable)
-      .where(eq(affiliatePlanCommissionsTable.planId, planId!)).limit(1);
-    let result;
-    if (existing) {
-      [result] = await db.update(affiliatePlanCommissionsTable)
-        .set({ planName, planType, commissionType, commissionValue: String(commissionValue), isActive, updatedAt: new Date() })
-        .where(eq(affiliatePlanCommissionsTable.planId, planId!))
-        .returning();
-    } else {
-      [result] = await db.insert(affiliatePlanCommissionsTable)
-        .values({ planId: planId!, planName, planType, commissionType, commissionValue: String(commissionValue), isActive })
-        .returning();
-    }
-    res.json({ planCommission: result });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
