@@ -8,6 +8,7 @@ import {
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
+import { emailDomainRegistered } from "../lib/email.js";
 
 const router = Router();
 
@@ -389,6 +390,23 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
           }
         }
         await activateDomainOrderLocal(updated, invDueDate);
+
+        // Send domain registration confirmation email (non-blocking)
+        if (user) {
+          const fullDomain = (updated.domain || updated.itemName || "").toLowerCase().trim();
+          const expiryDate = (invDueDate && !isNaN(new Date(invDueDate).getTime()))
+            ? new Date(invDueDate)
+            : (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })();
+          const expiryStr = expiryDate.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+          emailDomainRegistered(user.email, {
+            clientName: `${user.firstName} ${user.lastName ?? ""}`.trim(),
+            domain: fullDomain,
+            expiryDate: expiryStr,
+            nextDueDate: expiryStr,
+            ns1: "ns1.noehost.com",
+            ns2: "ns2.noehost.com",
+          }, { clientId: user.id, referenceId: updated.id }).catch(console.warn);
+        }
       } catch (domErr: any) {
         console.warn("[ORDER APPROVE] Domain activation error:", domErr.message);
       }

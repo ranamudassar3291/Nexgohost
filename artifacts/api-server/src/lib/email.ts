@@ -421,7 +421,7 @@ export async function emailWelcome(
 
 export async function emailDomainRegistered(
   to: string,
-  vars: { clientName: string; domain: string; registrationDate?: string; expiryDate: string; dnsUrl?: string },
+  vars: { clientName: string; domain: string; registrationDate?: string; nextDueDate?: string; expiryDate: string; ns1?: string; ns2?: string; dnsUrl?: string },
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("domain-registered", to, {
@@ -429,8 +429,27 @@ export async function emailDomainRegistered(
     client_name: vars.clientName,
     domain: vars.domain,
     registration_date: vars.registrationDate || new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
+    next_due_date: vars.nextDueDate || vars.expiryDate,
     expiry_date: vars.expiryDate,
+    ns1: vars.ns1 || "ns1.noehost.com",
+    ns2: vars.ns2 || "ns2.noehost.com",
     dns_url: vars.dnsUrl || "https://noehost.com/client/domains",
+  }, meta);
+}
+
+export async function emailDomainExpiryWarning(
+  to: string,
+  vars: { clientName: string; domainName: string; expiryDate: string; daysRemaining: number; renewalPrice: string; renewUrl?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("domain-expiry-warning", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    domain_name: vars.domainName,
+    expiry_date: vars.expiryDate,
+    days_remaining: String(vars.daysRemaining),
+    renewal_price: vars.renewalPrice,
+    renew_url: vars.renewUrl || "https://noehost.com/client/domains",
   }, meta);
 }
 

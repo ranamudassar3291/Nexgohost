@@ -381,7 +381,7 @@ ${btnOutline("Manage Hosting", "https://noehost.com/client/hosting")}
   {
     name: "Domain Registration Successful",
     slug: "domain-registered",
-    subject: "🎉 Congratulations! {{domain}} is now yours",
+    subject: "🎉 Your domain {{domain}} is now registered!",
     body: layout(`
 ${successBanner("🌐", "Domain Registered Successfully!", "Your domain is now active and under your control")}
 <p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
@@ -390,15 +390,21 @@ ${successBanner("🌐", "Domain Registered Successfully!", "Your domain is now a
 ${infoTable("Domain Details", [
   { label: "Domain Name", value: `<strong style="color:#701AFE">{{domain}}</strong>` },
   { label: "Registration Date", value: "{{registration_date}}" },
+  { label: "Next Due Date", value: "{{next_due_date}}" },
   { label: "Expiry Date", value: "{{expiry_date}}" },
   { label: "Status", value: `<span style="color:#38a169;font-weight:700">&#10003; Active</span>` },
   { label: "Auto-Renew", value: "Enabled" },
 ])}
 
-${infoBox("<strong style='color:#701AFE'>&#128161; Next Steps</strong><br>Point your domain to your hosting by updating the nameservers in your DNS settings, or use our DNS editor to add A, CNAME, or MX records directly.")}
+${infoTable("Nameservers", [
+  cred("Primary NS", "{{ns1}}"),
+  cred("Secondary NS", "{{ns2}}"),
+])}
+
+${infoBox("<strong style='color:#701AFE'>&#128161; Next Steps</strong><br>Point your domain to your hosting by setting the nameservers above, or use our DNS Zone Editor to manage A, CNAME, and MX records directly from your client area.")}
 ${btn("Manage DNS Settings", "{{dns_url}}")}
 `),
-    variables: ["{{client_name}}", "{{domain}}", "{{registration_date}}", "{{expiry_date}}", "{{dns_url}}"],
+    variables: ["{{client_name}}", "{{domain}}", "{{registration_date}}", "{{next_due_date}}", "{{expiry_date}}", "{{ns1}}", "{{ns2}}", "{{dns_url}}"],
   },
 
   // ── 8. Password Reset ─────────────────────────────────────────────────────
@@ -601,7 +607,31 @@ ${btn("Manage VPS", "{{vps_panel_url}}")}
     variables: ["{{client_name}}", "{{server_ip}}", "{{ssh_port}}", "{{root_password}}", "{{server_hostname}}", "{{os}}", "{{cpu_cores}}", "{{ram}}", "{{disk_space}}", "{{bandwidth}}", "{{vps_panel_url}}"],
   },
 
-  // ── 16. WordPress Installation Success (NEW) ─────────────────────────────
+  // ── 16. Domain Expiry Warning (30 / 7 / 1 day) ───────────────────────────
+  {
+    name: "Domain Expiry Warning",
+    slug: "domain-expiry-warning",
+    subject: "⚠️ Your domain {{domain_name}} expires in {{days_remaining}} day(s) — Renew Now",
+    body: layout(`
+${urgentBanner("⏳", "Domain Expiring Soon — Action Required", "Renew now to keep your domain and avoid losing it", "#d97706")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">This is a reminder that your domain <strong style="color:#701AFE">{{domain_name}}</strong> is scheduled to expire on <strong>{{expiry_date}}</strong> — that's in just <strong style="color:#d97706">{{days_remaining}} day(s)</strong>.</p>
+<p style="margin:12px 0 4px;color:#555555">If you do not renew before the expiry date, your domain will become unavailable and may be released for public registration.</p>
+
+${infoTable("Domain Details", [
+  { label: "Domain Name", value: `<strong style="color:#701AFE">{{domain_name}}</strong>` },
+  { label: "Expiry Date", value: `<span style="color:#d97706;font-weight:700">{{expiry_date}}</span>` },
+  { label: "Days Remaining", value: `<span style="color:#d97706;font-weight:700">{{days_remaining}} day(s)</span>` },
+  { label: "Renewal Price", value: "{{renewal_price}}" },
+])}
+
+${btn("Renew My Domain Now", "{{renew_url}}")}
+${infoBox(`<strong style='color:#d97706'>&#9888; Don't wait!</strong> Domain expiry is irreversible. Once expired, the domain enters a grace/redemption period which costs significantly more to recover. Renew now to avoid any interruption.`)}
+`),
+    variables: ["{{client_name}}", "{{domain_name}}", "{{expiry_date}}", "{{days_remaining}}", "{{renewal_price}}", "{{renew_url}}"],
+  },
+
+  // ── 17. WordPress Installation Success ───────────────────────────────────
   {
     name: "WordPress Installation Successful",
     slug: "wordpress-installed",

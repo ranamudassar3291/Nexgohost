@@ -974,6 +974,9 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       clientName: `${user.firstName} ${user.lastName}`,
       domain: fullDomain,
       expiryDate: expiryFormatted,
+      nextDueDate: expiryFormatted,
+      ns1: (resolvedNs && resolvedNs[0]) || "ns1.noehost.com",
+      ns2: (resolvedNs && resolvedNs[1]) || "ns2.noehost.com",
     }, { clientId: user.id, referenceId: order.id }).catch(console.warn);
 
     res.status(201).json({
