@@ -1,17 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Ticket as TicketIcon, Plus, MessageSquare, Loader2, Paperclip, X,
   Upload, BookOpen, CheckCircle2, ChevronRight, Lightbulb, ExternalLink,
-  AlertCircle, Bot, ArrowRight, Search,
+  AlertCircle, Bot, ArrowRight, Search, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
+import Fuse from "fuse.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import { extractKeywords, getTagsForSlug } from "@/lib/kbTags";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf", "application/zip"];
 const MAX_SIZE_MB = 5;
@@ -169,6 +171,10 @@ export default function ClientTickets() {
   const [suggestions, setSuggestions] = useState<KbArticle[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [deflectedArticle, setDeflectedArticle] = useState<KbArticle | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isFallbackSuggestions, setIsFallbackSuggestions] = useState(false);
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [formData, setFormData] = useState({ message: "", priority: "medium", department: "Technical Support" });
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -178,6 +184,47 @@ export default function ClientTickets() {
     queryKey: ["client-tickets"],
     queryFn: () => apiFetch("/api/tickets"),
   });
+
+  // Fetch all KB articles once when the bot is open — used for client-side fuzzy search
+  const { data: allArticles = [] } = useQuery<KbArticle[]>({
+    queryKey: ["kb-articles-all"],
+    queryFn: () => apiFetch("/api/kb/articles"),
+    enabled: stage === "subject",
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Augment articles with keyword tags for richer matching
+  const articlesWithTags = useMemo(
+    () => allArticles.map(a => ({ ...a, _tags: getTagsForSlug(a.slug) })),
+    [allArticles]
+  );
+
+  // Fuse.js instance — recreated only when article list changes
+  const fuse = useMemo(
+    () =>
+      new Fuse(articlesWithTags, {
+        keys: [
+          { name: "title",   weight: 0.55 },
+          { name: "excerpt", weight: 0.30 },
+          { name: "_tags",   weight: 0.15 },
+        ],
+        threshold: 0.42,
+        includeScore: true,
+        distance: 150,
+        minMatchCharLength: 2,
+        ignoreLocation: true,
+      }),
+    [articlesWithTags]
+  );
+
+  // Live dropdown suggestions — instant, no debounce (Fuse is synchronous)
+  const dropdownSuggestions = useMemo(() => {
+    const q = subject.trim();
+    if (q.length < 2) return [];
+    const keywords = extractKeywords(q);
+    const query = keywords.length > 0 ? keywords.join(" ") : q;
+    return fuse.search(query, { limit: 3 }).map(r => r.item);
+  }, [subject, fuse]);
 
   // Deflection tracking mutation
   const deflectMutation = useMutation({
@@ -194,49 +241,43 @@ export default function ClientTickets() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  // Debounced KB search — instant clear, 250ms debounce, abort on stale requests
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  // Fuzzy KB search — 200ms debounce, runs Fuse.js locally (no network roundtrip)
+  const fuzzyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // 1. Immediately wipe stale suggestions so old results never linger
     setSuggestions([]);
 
-    // 2. Clear any pending timer and cancel any in-flight request
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    abortRef.current?.abort();
+    if (fuzzyTimeout.current) clearTimeout(fuzzyTimeout.current);
 
-    // 3. Nothing to search if query is too short
-    if (subject.trim().length < 3) {
+    const q = subject.trim();
+    if (q.length < 3) {
       setIsSearching(false);
       return;
     }
 
-    // 4. Show searching state right away, then fire after 250ms
+    // Show loading state briefly while Fuse runs (keeps UX consistent)
     setIsSearching(true);
-    searchTimeout.current = setTimeout(async () => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      try {
-        const data = await apiFetch(
-          `/api/kb/articles?q=${encodeURIComponent(subject.trim())}`,
-          { signal: controller.signal }
-        );
-        if (!controller.signal.aborted) {
-          setSuggestions(Array.isArray(data) ? data.slice(0, 3) : []);
-        }
-      } catch {
-        if (!controller.signal.aborted) setSuggestions([]);
-      } finally {
-        if (!controller.signal.aborted) setIsSearching(false);
+
+    fuzzyTimeout.current = setTimeout(() => {
+      const keywords = extractKeywords(q);
+      const query = keywords.length > 0 ? keywords.join(" ") : q;
+      const results = fuse.search(query, { limit: 3 });
+
+      if (results.length > 0) {
+        setSuggestions(results.map(r => r.item));
+        setIsFallbackSuggestions(false);
+      } else {
+        // Fallback: top 3 articles from index as related articles
+        setSuggestions(articlesWithTags.slice(0, 3));
+        setIsFallbackSuggestions(true);
       }
-    }, 250);
+      setIsSearching(false);
+    }, 200);
 
     return () => {
-      if (searchTimeout.current) clearTimeout(searchTimeout.current);
-      abortRef.current?.abort();
+      if (fuzzyTimeout.current) clearTimeout(fuzzyTimeout.current);
     };
-  }, [subject]);
+  }, [subject, fuse, articlesWithTags]);
 
   // Detect error codes in message
   useEffect(() => {
@@ -247,6 +288,7 @@ export default function ClientTickets() {
     setStage(null);
     setSubject("");
     setSuggestions([]);
+    setShowDropdown(false);
     setFormData({ message: "", priority: "medium", department: "Technical Support" });
     setAttachments([]);
     setDeflectedArticle(null);
@@ -322,17 +364,56 @@ export default function ClientTickets() {
               <label className="text-sm font-semibold text-foreground block mb-2">
                 What's your issue about?
               </label>
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <div className="relative" ref={inputWrapperRef}>
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
                 <Input
                   autoFocus
-                  className="pl-9 bg-background"
+                  className="pl-9 bg-background pr-9"
                   placeholder="e.g. 404 error, WordPress slow, email not working..."
                   value={subject}
                   onChange={e => setSubject(e.target.value)}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => {
+                    blurTimeoutRef.current = setTimeout(() => setShowDropdown(false), 150);
+                  }}
                 />
                 {isSearching && (
                   <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground" />
+                )}
+
+                {/* Live fuzzy suggestions dropdown */}
+                {showDropdown && dropdownSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border/70 rounded-xl shadow-2xl shadow-black/20 z-50 overflow-hidden">
+                    <div className="px-3.5 py-2 border-b border-border/50 bg-secondary/40 flex items-center gap-2">
+                      <Sparkles size={12} className="text-primary" />
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Suggested Articles
+                      </span>
+                    </div>
+                    {dropdownSuggestions.map(article => (
+                      <button
+                        key={article.id}
+                        type="button"
+                        onMouseDown={() => {
+                          if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+                          setShowDropdown(false);
+                        }}
+                        onClick={() => {
+                          setSubject(article.title);
+                          setShowDropdown(false);
+                        }}
+                        className="w-full flex items-start gap-3 px-3.5 py-2.5 hover:bg-secondary/60 transition-colors text-left border-b border-border/30 last:border-0"
+                      >
+                        <BookOpen size={14} className="text-primary shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground line-clamp-1">{article.title}</p>
+                          {article.excerpt && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{article.excerpt}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
@@ -357,14 +438,24 @@ export default function ClientTickets() {
             {/* Suggestions — only shown when not searching and results exist */}
             {!isSearching && suggestions.length > 0 && (
               <div className="space-y-3">
-                {/* Interception banner */}
-                <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5">
-                  <Lightbulb size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Wait! These articles might solve your problem instantly.</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Check these guides before opening a ticket — most issues are solved in minutes.</p>
+                {/* Interception banner — adapts based on whether results are fuzzy or fallback */}
+                {isFallbackSuggestions ? (
+                  <div className="flex items-start gap-2.5 bg-secondary/60 border border-border/60 rounded-xl p-3.5">
+                    <BookOpen size={16} className="text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">No exact match — here are our top guides.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">These articles cover the most common issues. Browse them before submitting a ticket.</p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5">
+                    <Lightbulb size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Wait! These articles might solve your problem instantly.</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Check these guides before opening a ticket — most issues are solved in minutes.</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   {suggestions.map(article => (
@@ -378,13 +469,6 @@ export default function ClientTickets() {
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* No results message — only when search finished and found nothing */}
-            {!isSearching && subject.trim().length >= 3 && suggestions.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-1">
-                No articles found for this topic — fill in the ticket form below.
-              </p>
             )}
 
             {/* Action buttons */}
