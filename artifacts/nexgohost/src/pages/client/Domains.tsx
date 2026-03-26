@@ -116,6 +116,7 @@ export default function ClientDomains() {
   const [showCart, setShowCart] = useState(false);
   const [success, setSuccess] = useState<OrderSuccess | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [orderNameservers, setOrderNameservers] = useState<string[]>(["ns1.noehost.com", "ns2.noehost.com"]);
   const [dnsModal, setDnsModal] = useState<MyDomain | null>(null);
   const [eppModal, setEppModal] = useState<MyDomain | null>(null);
   const [eppCode, setEppCode] = useState<string | null>(null);
@@ -271,10 +272,12 @@ export default function ClientDomains() {
     for (const item of cart) {
       try {
         const token = localStorage.getItem("token");
+        const cleanedNs = orderNameservers.map(n => n.trim()).filter(Boolean);
+        const nameserversToSend = cleanedNs.length >= 2 ? cleanedNs : ["ns1.noehost.com", "ns2.noehost.com"];
         const res = await fetch("/api/checkout/domain", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ domain: item.name, tld: item.tld, period: item.period }),
+          body: JSON.stringify({ domain: item.name, tld: item.tld, period: item.period, nameservers: nameserversToSend }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed to place order");
@@ -305,6 +308,7 @@ export default function ClientDomains() {
       setCart([]);
       setSearchQuery(null);
       setSearchInput("");
+      setOrderNameservers(["ns1.noehost.com", "ns2.noehost.com"]);
     }
   };
 
@@ -371,6 +375,8 @@ export default function ClientDomains() {
               onRemove={removeFromCart}
               onPlaceOrder={handlePlaceOrder}
               isLoading={checkingOut}
+              nameservers={orderNameservers}
+              onNameserversChange={setOrderNameservers}
             />
           ) : (
             <>
@@ -1013,13 +1019,15 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onReview, total }
   );
 }
 
-function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLoading }: {
+function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLoading, nameservers, onNameserversChange }: {
   cart: CartItem[];
   onBack: () => void;
   onUpdatePeriod: (idx: number, period: 1 | 2 | 3) => void;
   onRemove: (idx: number) => void;
   onPlaceOrder: () => void;
   isLoading: boolean;
+  nameservers: string[];
+  onNameserversChange: (ns: string[]) => void;
 }) {
   const { formatPrice } = useCurrency();
   const total = getCartTotal(cart);
@@ -1104,6 +1112,39 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
             <div className="flex justify-between font-bold text-xl border-t border-border pt-3 mt-2">
               <span>Total Due</span>
               <span className="text-primary">{formatPrice(total)}</span>
+            </div>
+          </div>
+
+          {/* Nameservers */}
+          <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Network size={15} className="text-primary" />
+              <p className="text-sm font-semibold text-foreground">Nameservers</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Default Noehost nameservers are pre-filled. You can enter custom nameservers if needed.</p>
+            <div className="space-y-2">
+              {nameservers.map((ns, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-semibold text-muted-foreground w-8 shrink-0">NS{i + 1}</span>
+                  <input
+                    value={ns}
+                    onChange={e => onNameserversChange(nameservers.map((v, idx) => idx === i ? e.target.value : v))}
+                    placeholder={`ns${i + 1}.example.com`}
+                    className="flex-1 px-3 py-2 bg-card border border-border rounded-lg text-sm font-mono focus:outline-none focus:border-primary transition-colors"
+                  />
+                  {nameservers.length > 2 && (
+                    <button type="button" onClick={() => onNameserversChange(nameservers.filter((_, idx) => idx !== i))}
+                      className="text-muted-foreground hover:text-red-400 transition-colors text-lg leading-none p-1">×</button>
+                  )}
+                </div>
+              ))}
+              {nameservers.length < 4 && (
+                <button type="button"
+                  onClick={() => onNameserversChange([...nameservers, ""])}
+                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 transition-colors mt-1">
+                  <Plus size={12} /> Add nameserver
+                </button>
+              )}
             </div>
           </div>
 
