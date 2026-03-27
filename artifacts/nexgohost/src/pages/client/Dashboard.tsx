@@ -61,11 +61,11 @@ function ServiceUsageWidget({ serviceId }: { serviceId: string }) {
     retry: false,
   });
 
-  if (!usage) return null;
+  if (!usage || !usage.disk || !usage.bandwidth) return null;
   return (
     <div className="space-y-2 pt-1 border-t border-border/40 mt-1">
-      <UsageBar label="Disk" pct={usage.disk.pct} used={usage.disk.usedFmt} limit={usage.disk.limitFmt} icon={HardDrive} color="text-blue-400" />
-      <UsageBar label="Bandwidth" pct={usage.bandwidth.pct} used={usage.bandwidth.usedFmt} limit={usage.bandwidth.limitFmt} icon={Wifi} color="text-violet-400" />
+      <UsageBar label="Disk" pct={usage.disk.pct ?? 0} used={usage.disk.usedFmt ?? "0 MB"} limit={usage.disk.limitFmt ?? "∞"} icon={HardDrive} color="text-blue-400" />
+      <UsageBar label="Bandwidth" pct={usage.bandwidth.pct ?? 0} used={usage.bandwidth.usedFmt ?? "0 MB"} limit={usage.bandwidth.limitFmt ?? "∞"} icon={Wifi} color="text-violet-400" />
     </div>
   );
 }
