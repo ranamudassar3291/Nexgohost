@@ -281,6 +281,18 @@ export async function sendTemplatedEmail(
 // ─── Convenience helpers ──────────────────────────────────────────────────────
 const COMPANY = "Noehost";
 
+/** WhatsApp support footer — appended to all inline client-facing HTML emails */
+const WA_FOOTER = `
+<div style="background:#f0fff4;border-top:2px solid #25D366;padding:20px 32px;text-align:center;margin-top:32px;border-radius:0 0 10px 10px">
+  <p style="margin:0 0 10px;color:#166534;font-size:13px;font-weight:600;font-family:Arial,sans-serif">
+    &#128640; Need help? We reply within minutes!
+  </p>
+  <a href="https://wa.me/923151711821?text=Hello%20Noehost%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
+     style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Arial,sans-serif">
+    &#128222; Contact Support on WhatsApp
+  </a>
+</div>`;
+
 /**
  * Send email verification code.
  * Uses the "email-verification" template from the DB so admins can customise it.
@@ -714,7 +726,8 @@ export async function emailServiceActivated(
         Thank you for choosing <strong>${COMPANY}</strong>! 🎉
       </p>
     </div>
-    <div style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center">
+    ${WA_FOOTER}
+    <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center">
       <p style="margin:0;color:#9ca3af;font-size:13px">
         © ${new Date().getFullYear()} ${COMPANY}. All rights reserved.
       </p>
@@ -727,6 +740,93 @@ export async function emailServiceActivated(
     subject: `🚀 Your Service is Now Active! - ${COMPANY}`,
     html,
     emailType: "service-activated",
+    clientId: meta?.clientId,
+    referenceId: meta?.referenceId,
+  });
+}
+
+/**
+ * Send "Payment Under Review" email for manual payment methods (JazzCash, EasyPaisa, bank transfer, etc.).
+ * Tries the "payment-under-review" DB template first; falls back to rich inline HTML.
+ * NEVER sends the service-active email — service is activated only after admin approves.
+ */
+export async function emailPaymentUnderReview(
+  to: string,
+  vars: {
+    clientName: string;
+    invoiceNumber: string;
+    invoiceId: string;
+    serviceName: string;
+    domain: string;
+    amount: string;
+    paymentMethod: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+): Promise<{ sent: boolean; message: string }> {
+  const viewUrl = `${getClientUrl()}/invoices/${vars.invoiceId}`;
+
+  const dbResult = await sendTemplatedEmail("payment-under-review", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    invoice_number: vars.invoiceNumber,
+    service_name: vars.serviceName,
+    domain: vars.domain,
+    amount: vars.amount,
+    payment_method: vars.paymentMethod,
+    view_invoice_url: viewUrl,
+  }, meta);
+  if (dbResult.sent) return dbResult;
+
+  // Inline HTML fallback
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:32px 40px;text-align:center">
+      <div style="font-size:40px;margin-bottom:8px">🔍</div>
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">Payment Under Review</h1>
+      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:14px">${COMPANY}</p>
+    </div>
+    <div style="padding:36px 40px">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px">Dear <strong>${vars.clientName}</strong>,</p>
+      <p style="margin:0 0 20px;color:#374151;font-size:15px">
+        Thank you for your order! We have received your payment details for Invoice
+        <strong>#${vars.invoiceNumber}</strong> via <strong>${vars.paymentMethod}</strong>.
+        Your order is currently <span style="color:#d97706;font-weight:700">Under Review</span>.
+      </p>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #d97706;border-radius:8px;padding:16px 20px;margin:20px 0">
+        <p style="margin:0 0 10px;color:#92400e;font-weight:700;font-size:14px">📋 Order Details</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Invoice #:</strong> ${vars.invoiceNumber}</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Service:</strong> ${vars.serviceName}</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Domain:</strong> ${vars.domain}</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Amount:</strong> Rs. ${vars.amount}</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Payment via:</strong> ${vars.paymentMethod}</p>
+        <p style="margin:0;color:#d97706;font-size:13px;font-weight:700"><strong>Status:</strong> ⏳ Pending Review</p>
+      </div>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px 18px;margin:20px 0;font-size:13px;color:#0369a1">
+        <strong>⏰ What happens next?</strong><br>
+        1. Our team will verify your payment within 2–24 hours.<br>
+        2. Once verified, your service will be activated automatically.<br>
+        3. You'll receive a separate email when your service goes live.
+      </div>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${viewUrl}" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block">
+          View Invoice →
+        </a>
+      </div>
+    </div>
+    ${WA_FOOTER}
+    <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center">
+      <p style="margin:0;color:#9ca3af;font-size:12px">© ${new Date().getFullYear()} ${COMPANY}. All rights reserved.</p>
+    </div>
+  </div>
+</body></html>`;
+
+  return sendEmail({
+    to,
+    subject: `🔍 Payment Under Review — Invoice #${vars.invoiceNumber} — ${COMPANY}`,
+    html,
+    emailType: "payment-under-review",
     clientId: meta?.clientId,
     referenceId: meta?.referenceId,
   });

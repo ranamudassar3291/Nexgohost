@@ -42,31 +42,25 @@ function layout(content: string): string {
           </td>
         </tr>
 
-        <!-- ───── QUICK SUPPORT ───── -->
+        <!-- ───── WHATSAPP SUPPORT ───── -->
         <tr>
-          <td style="background:#faf8ff;border-top:1px solid #ede9ff;padding:20px 40px">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <td style="background:#f0fff4;border-top:2px solid #25D366;padding:22px 40px;text-align:center">
+            <p style="margin:0 0 12px;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#166534">
+              &#128640; Need help? We reply within minutes!
+            </p>
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto">
               <tr>
-                <td style="font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#555555;padding-bottom:10px">
-                  &#128587; Quick Support
+                <td style="padding-right:10px">
+                  <a href="https://wa.me/923151711821?text=Hello%20Noehost%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
+                     style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
+                    &#128222; Contact Support on WhatsApp
+                  </a>
                 </td>
-              </tr>
-              <tr>
                 <td>
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="padding-right:12px">
-                        <a href="https://wa.me/923001234567" style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:600;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
-                          &#128222; WhatsApp
-                        </a>
-                      </td>
-                      <td>
-                        <a href="https://noehost.com/client/tickets/new" style="display:inline-block;background:#701AFE;color:#ffffff;text-decoration:none;padding:8px 18px;border-radius:5px;font-size:13px;font-weight:600;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
-                          &#127915; Open a Ticket
-                        </a>
-                      </td>
-                    </tr>
-                  </table>
+                  <a href="https://noehost.com/client/tickets/new"
+                     style="display:inline-block;background:#701AFE;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+                    &#127915; Open a Ticket
+                  </a>
                 </td>
               </tr>
             </table>
@@ -345,6 +339,40 @@ ${infoBox("<strong style='color:#701AFE'>&#9889; What happens next?</strong><br>
 ${btn("Track Order Status", "https://noehost.com/client/orders")}
 `),
     variables: ["{{client_name}}", "{{service_name}}", "{{domain}}", "{{order_id}}"],
+  },
+
+  // ── 5a. Payment Under Review (Manual Gateways) ───────────────────────────
+  {
+    name: "Payment Under Review",
+    slug: "payment-under-review",
+    subject: "🔍 Payment Received — Your Order is Under Review — {{company_name}}",
+    body: layout(`
+${urgentBanner("🔍", "Payment Under Review", "Our team will verify and activate your service within 24 hours", "#d97706")}
+<p style="margin:0 0 14px;color:#333333">Dear <strong>{{client_name}}</strong>,</p>
+<p style="margin:0 0 16px;color:#333333">
+  Thank you for your order! We have received your payment details for Invoice
+  <strong>#{{invoice_number}}</strong> via <strong>{{payment_method}}</strong>.
+  Your order is currently <span style="color:#d97706;font-weight:700">Under Review</span> —
+  our team is verifying your payment and will activate your service shortly.
+</p>
+
+${infoTable("Order Details", [
+  { label: "Invoice #", value: `<strong>#{{invoice_number}}</strong>` },
+  { label: "Service", value: "{{service_name}}" },
+  { label: "Domain", value: `<span style="color:#701AFE">{{domain}}</span>` },
+  { label: "Amount", value: `<span style="color:#701AFE;font-weight:700">Rs. {{amount}}</span>` },
+  { label: "Payment Method", value: "{{payment_method}}" },
+  { label: "Status", value: `<span style="color:#d97706;font-weight:600">&#8987; Pending Review</span>` },
+])}
+
+${infoBox(`<strong>&#128336; What happens next?</strong><br>
+1. Our team will verify your payment within <strong>2–24 hours</strong>.<br>
+2. Once verified, your service will be activated and you'll receive a separate confirmation email.<br>
+3. If payment cannot be confirmed, we will contact you at this email address.`)}
+
+${btn("View Invoice →", "{{view_invoice_url}}")}
+`),
+    variables: ["{{client_name}}", "{{invoice_number}}", "{{service_name}}", "{{domain}}", "{{amount}}", "{{payment_method}}", "{{view_invoice_url}}", "{{company_name}}"],
   },
 
   // ── 6. Shared Hosting Activated ───────────────────────────────────────────

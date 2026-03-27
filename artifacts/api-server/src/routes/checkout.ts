@@ -11,7 +11,7 @@ import {
 import { eq, sql, and } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
-import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated } from "../lib/email.js";
+import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated, emailPaymentUnderReview } from "../lib/email.js";
 import { generateInvoicePdf } from "../lib/invoicePdf.js";
 import { createNotification } from "../lib/notifications.js";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
@@ -61,6 +61,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       .where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
+    let selectedPaymentMethod: typeof import("@workspace/db/schema").paymentMethodsTable.$inferSelect | null = null;
     if (paymentMethodId && paymentMethodId !== "credits") {
       const [pm] = await db.select().from(paymentMethodsTable)
         .where(eq(paymentMethodsTable.id, paymentMethodId)).limit(1);
@@ -68,6 +69,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
         res.status(400).json({ error: "Selected payment method is not available" });
         return;
       }
+      selectedPaymentMethod = pm;
     }
 
     // ── Domain-only order (no hosting plan) ─────────────────────────────────
@@ -829,6 +831,21 @@ async function handleCheckout(req: AuthRequest, res: any) {
       domain: domain || "To be configured",
       orderId: order.id.slice(0, 8).toUpperCase(),
     }).catch(console.warn);
+
+    // "Payment Under Review" email — only for manual payment gateways
+    const MANUAL_TYPES = ["bank_transfer", "jazzcash", "easypaisa", "manual", "paypal", "crypto"];
+    if (selectedPaymentMethod && MANUAL_TYPES.includes(selectedPaymentMethod.type)) {
+      emailPaymentUnderReview(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        invoiceNumber,
+        invoiceId: invoice.id,
+        serviceName: plan.name,
+        domain: domain || "To be configured",
+        amount: finalAmount.toFixed(2),
+        paymentMethod: selectedPaymentMethod.name,
+      }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
+    }
+
     createNotification(user.id, "order", "Order Placed", `Your order for ${plan.name} has been placed${paidWithCredits ? " and is now active" : " — awaiting payment"}`, `/client/orders`).catch(() => {});
     createNotification(user.id, "invoice", "Invoice Created", `Invoice ${invoiceNumber} for Rs. ${finalAmount.toFixed(2)} has been generated`, `/client/invoices`).catch(() => {});
 
@@ -887,6 +904,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       .where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
+    let selectedDomainPm: typeof import("@workspace/db/schema").paymentMethodsTable.$inferSelect | null = null;
     if (paymentMethodId && paymentMethodId !== "credits") {
       const [pm] = await db.select().from(paymentMethodsTable)
         .where(eq(paymentMethodsTable.id, paymentMethodId)).limit(1);
@@ -894,6 +912,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
         res.status(400).json({ error: "Selected payment method is not available" });
         return;
       }
+      selectedDomainPm = pm;
     }
 
     const cleanTld = tld.startsWith(".") ? tld : `.${tld}`;
@@ -1024,6 +1043,20 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       ns1: (resolvedNs && resolvedNs[0]) || `ns1.${new URL(getAppUrl()).hostname}`,
       ns2: (resolvedNs && resolvedNs[1]) || `ns2.${new URL(getAppUrl()).hostname}`,
     }, { clientId: user.id, referenceId: order.id }).catch(console.warn);
+
+    // "Payment Under Review" — only for manual payment methods
+    const DOMAIN_MANUAL_TYPES = ["bank_transfer", "jazzcash", "easypaisa", "manual", "paypal", "crypto"];
+    if (selectedDomainPm && DOMAIN_MANUAL_TYPES.includes(selectedDomainPm.type)) {
+      emailPaymentUnderReview(user.email, {
+        clientName: `${user.firstName} ${user.lastName}`,
+        invoiceNumber,
+        invoiceId: invoice.id,
+        serviceName: `Domain Registration — ${fullDomain}`,
+        domain: fullDomain,
+        amount: finalAmount.toFixed(2),
+        paymentMethod: selectedDomainPm.name,
+      }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
+    }
 
     res.status(201).json({
       success: true,
