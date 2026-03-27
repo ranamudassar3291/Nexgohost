@@ -21,6 +21,7 @@ const router = Router();
 // ─── Helper: fetch active Safepay gateway config ───────────────────────────────
 async function getSafepayConfig(): Promise<{
   secretKey: string;
+  publicKey: string;
   webhookSecret: string;
   isSandbox: boolean;
 } | null> {
@@ -29,10 +30,16 @@ async function getSafepayConfig(): Promise<{
     .limit(1);
   if (!method || !method.isActive) return null;
   const settings = JSON.parse(method.settings ?? "{}");
-  const secretKey = method.isSandbox ? settings.sandboxSecretKey : settings.liveSecretKey;
+  const isSandbox = !!method.isSandbox;
+  const secretKey = isSandbox ? (settings.sandboxSecretKey ?? "") : (settings.liveSecretKey ?? "");
+  const publicKey = isSandbox ? (settings.sandboxApiKey ?? settings.sandboxPublicKey ?? "") : (settings.livePublicKey ?? "");
   const webhookSecret = settings.webhookSecret ?? "";
-  if (!secretKey) return null;
-  return { secretKey, webhookSecret, isSandbox: !!method.isSandbox };
+  if (!secretKey) {
+    console.error("[SAFEPAY] No secret key configured for mode:", isSandbox ? "sandbox" : "live");
+    return null;
+  }
+  console.log(`[SAFEPAY] Config loaded — mode: ${isSandbox ? "sandbox" : "live"}, publicKey: ${publicKey ? "✓" : "MISSING"}, secretKey: ✓`);
+  return { secretKey, publicKey, webhookSecret, isSandbox };
 }
 
 // ─── Safepay base URLs ─────────────────────────────────────────────────────────
@@ -75,7 +82,19 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     }
 
     const base = getBaseUrl(config.isSandbox);
-    const amount = Math.round(parseFloat(invoice.total) * 100); // Safepay uses paisa (smallest unit)
+    const env = config.isSandbox ? "sandbox" : "production";
+    // Safepay amounts are in paisa (PKR smallest unit = 1/100 of a rupee)
+    const amount = Math.round(parseFloat(invoice.total) * 100);
+
+    const trackerPayload = {
+      environment: env,     // Required: "sandbox" | "production"
+      client: config.publicKey, // Required: merchant public/API key
+      amount,               // Required: in paisa
+      currency: "PKR",
+      order_id: invoice.invoiceNumber,
+    };
+
+    console.log(`[SAFEPAY] Initiating tracker — env: ${env}, amount: ${amount} paisa, invoice: ${invoice.invoiceNumber}`);
 
     // Create payment tracker
     const trackerRes = await fetch(`${base}/order/v1/init`, {
@@ -84,24 +103,27 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
         "Content-Type": "application/json",
         "X-SFPY-SECRET-KEY": config.secretKey,
       },
-      body: JSON.stringify({
-        amount,         // in paisa
-        currency: "PKR",
-      }),
+      body: JSON.stringify(trackerPayload),
     });
 
+    const trackerBody = await trackerRes.text();
     if (!trackerRes.ok) {
-      const errText = await trackerRes.text();
-      console.error("[SAFEPAY] Tracker creation failed:", errText);
-      res.status(502).json({ error: "Failed to create Safepay payment — please try again" });
+      console.error("[SAFEPAY] Tracker creation failed:", trackerBody);
+      res.status(502).json({ error: "Failed to create Safepay payment — please try again", detail: trackerBody });
       return;
     }
 
-    const trackerData = await trackerRes.json() as any;
-    const tracker = trackerData?.token?.tracker;
+    let trackerData: any;
+    try { trackerData = JSON.parse(trackerBody); } catch {
+      console.error("[SAFEPAY] Non-JSON response from Safepay:", trackerBody);
+      res.status(502).json({ error: "Unexpected response from Safepay" });
+      return;
+    }
+
+    const tracker = trackerData?.token?.tracker ?? trackerData?.data?.token?.tracker;
 
     if (!tracker) {
-      console.error("[SAFEPAY] No tracker in response:", JSON.stringify(trackerData));
+      console.error("[SAFEPAY] No tracker token in response:", JSON.stringify(trackerData));
       res.status(502).json({ error: "Invalid response from Safepay" });
       return;
     }
@@ -125,8 +147,7 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     const redirectUrl = `${appDomain}/client/payment/return?tracker=${tracker}&invoice=${invoice.id}`;
     const cancelUrl = `${appDomain}/client/invoices`;
 
-    // Checkout URL
-    const env = config.isSandbox ? "sandbox" : "production";
+    // Checkout URL — env and base already declared above
     const checkoutUrl = `${base}/checkout/pay?env=${env}&tracker=${tracker}&source=custom&order_id=${invoice.invoiceNumber}&redirect_url=${encodeURIComponent(redirectUrl)}&cancel_url=${encodeURIComponent(cancelUrl)}`;
 
     res.json({ checkoutUrl, tracker, invoiceId: invoice.id });

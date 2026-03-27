@@ -121,6 +121,7 @@ export default function InvoiceDetail() {
   const [payingWithCredits, setPayingWithCredits] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [safepayInitiating, setSafepayInitiating] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -522,18 +523,42 @@ export default function InvoiceDetail() {
                           {formatPrice(Number(invoice.total))}
                         </span>
                       </div>
+
+                      {/* ToS checkbox — must be accepted before Pay Now is enabled */}
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={tosAccepted}
+                          onChange={e => setTosAccepted(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#701AFE] cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs text-slate-600 leading-relaxed">
+                          I agree to Noehost's{" "}
+                          <a href="/tos" target="_blank" className="underline font-medium" style={{ color: BRAND }}>
+                            Terms of Service
+                          </a>{" "}
+                          and authorise this payment of{" "}
+                          <strong>{formatPrice(Number(invoice.total))}</strong>.
+                        </span>
+                      </label>
+
                       <Button
                         type="button"
-                        disabled={safepayInitiating}
+                        disabled={safepayInitiating || !tosAccepted}
                         onClick={handleSafepayPay}
-                        className="w-full gap-2 text-white"
+                        className="w-full gap-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: BRAND }}
                       >
                         {safepayInitiating
-                          ? <><Loader2 size={15} className="animate-spin" /> Redirecting…</>
+                          ? <><Loader2 size={15} className="animate-spin" /> Redirecting to Safepay…</>
                           : <><CreditCard size={15} /> Pay Now with Safepay</>
                         }
                       </Button>
+                      {!tosAccepted && (
+                        <p className="text-[11px] text-slate-400 text-center">
+                          Please accept the Terms of Service to proceed
+                        </p>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
