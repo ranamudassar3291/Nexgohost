@@ -730,6 +730,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // Promo validation state
   const [promoApplied,   setPromoApplied]   = useState(false);
   const [promoDiscount,  setPromoDiscount]  = useState(0);
+  const [promoLabel,     setPromoLabel]     = useState(""); // e.g. "20% OFF" or "Rs. 400 OFF"
   const [promoLoading,   setPromoLoading]   = useState(false);
   const [promoError,     setPromoError]     = useState("");
 
@@ -1013,7 +1014,15 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       const res = await apiFetch(`/api/promo-codes/validate?${params.toString()}`);
       const data = await res.json();
       if (!res.ok || data.error) { setPromoError(data.error || "Invalid promo code"); return; }
-      setPromoDiscount(data.discountAmount ?? 0);
+      const discAmt = data.discountAmount ?? 0;
+      setPromoDiscount(discAmt);
+      // Build a human-readable label
+      const lbl = data.discountType === "fixed"
+        ? `Rs. ${Number(discAmt).toFixed(0)} OFF`
+        : data.discountPercent > 0
+          ? `${data.discountPercent}% OFF`
+          : `Rs. ${Number(discAmt).toFixed(0)} OFF`;
+      setPromoLabel(lbl);
       setPromoApplied(true);
     } catch {
       setPromoError("Failed to validate promo code");
@@ -2691,7 +2700,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                 <div className="flex items-center justify-between px-5 py-3 bg-green-50/50">
                   <div className="flex items-center gap-2">
                     <Tag size={13} className="text-green-600"/>
-                    <span className="text-[13px] font-semibold text-green-700">Promo: {promoCode}</span>
+                    <span className="text-[13px] font-semibold text-green-700">
+                      {promoCode}{promoLabel ? ` — ${promoLabel}` : ""}
+                    </span>
                   </div>
                   <span className="text-[14px] font-bold text-green-600">-{formatPrice(promoDiscount)}</span>
                 </div>
@@ -2758,7 +2769,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Tag size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"/>
-                <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                <input value={promoCode} onChange={e => {
+                  setPromoCode(e.target.value.toUpperCase());
+                  if (promoApplied) { setPromoApplied(false); setPromoDiscount(0); setPromoLabel(""); setPromoError(""); }
+                }}
                   placeholder="Enter promo code"
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[13px] font-mono uppercase focus:outline-none"
                   onFocus={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.boxShadow = `0 0 0 3px ${P}20`; }}
@@ -2780,7 +2794,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             )}
             {promoApplied && promoDiscount > 0 && (
               <p className="mt-2 text-[12px] text-green-600 flex items-center gap-1 font-semibold">
-                <CheckCircle2 size={11}/> Promo applied! You save {formatPrice(promoDiscount)}.
+                <CheckCircle2 size={11}/> Code applied! You save {formatPrice(promoDiscount)}{promoLabel ? ` (${promoLabel})` : ""}.
               </p>
             )}
           </div>

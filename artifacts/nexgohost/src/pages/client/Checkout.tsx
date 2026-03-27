@@ -17,6 +17,7 @@ interface PaymentMethod { id: string; name: string; type: string; description: s
 interface PromoResult {
   valid: boolean; code: string; discountPercent: number;
   discountAmount: number; originalAmount: number; finalAmount: number;
+  discountType?: string; fixedAmount?: number | null;
 }
 
 const METHOD_ICONS: Record<string, string> = {
@@ -159,6 +160,13 @@ export default function Checkout() {
   const discount = promoResult ? promoResult.discountAmount : 0;
   const finalAmount = Math.max(0, basePrice + domainAmount - discount);
 
+  /** Human-readable discount label, e.g. "20% OFF" or "Rs. 400 OFF" */
+  function promoLabel(pr: PromoResult): string {
+    if (pr.discountType === "fixed") return `Rs. ${pr.discountAmount.toFixed(0)} OFF`;
+    if (pr.discountPercent > 0) return `${pr.discountPercent}% OFF`;
+    return `Rs. ${pr.discountAmount.toFixed(0)} OFF`;
+  }
+
   const checkDomainAvailability = async (domain: string) => {
     const trimmed = domain.trim().toLowerCase();
     if (!trimmed || !trimmed.includes(".")) { setDomainAvailability(null); return; }
@@ -184,11 +192,26 @@ export default function Checkout() {
     finally { setCheckingDomain(false); }
   };
 
+  // Clear applied promo when the billing cycle changes (price changes = old discount is stale)
+  const prevCycleRef = useRef(billingCycle);
+  if (prevCycleRef.current !== billingCycle) {
+    prevCycleRef.current = billingCycle;
+    if (promoResult) { setPromoResult(null); setPromoError(""); }
+  }
+
   const handlePromo = async () => {
     if (!promoCode.trim()) return;
     setCheckingPromo(true); setPromoError(""); setPromoResult(null);
     try {
-      const data = await apiFetch(`/api/promo-codes/validate?code=${encodeURIComponent(promoCode)}&amount=${basePrice}&serviceType=hosting`);
+      // Pass full cart amount (plan + domain) so the discount is computed on the full order
+      const fullAmount = basePrice + domainAmount;
+      const params = new URLSearchParams({
+        code: promoCode.trim(),
+        amount: String(fullAmount),
+        serviceType: "hosting",
+        billingCycle,
+      });
+      const data = await apiFetch(`/api/promo-codes/validate?${params.toString()}`);
       setPromoResult(data);
     } catch (err: any) {
       setPromoError(err.message || "Invalid code");
@@ -580,10 +603,12 @@ export default function Checkout() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium">{formatPrice(basePrice + domainAmount)}</span>
                 </div>
-                {promoResult && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-green-500">Discount ({promoResult.discountPercent}%)</span>
-                    <span className="font-medium text-green-500">-{formatPrice(discount)}</span>
+                {promoResult && discount > 0 && (
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="text-green-600 flex items-center gap-1.5">
+                      <Tag size={12} /> {promoResult.code} — {promoLabel(promoResult)}
+                    </span>
+                    <span className="font-semibold text-green-600">-{formatPrice(discount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold text-base border-t border-border/50 pt-3">
@@ -608,7 +633,11 @@ export default function Checkout() {
                   </Button>
                 </div>
                 {promoError && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle size={12} /> {promoError}</p>}
-                {promoResult && <p className="text-xs text-green-500 flex items-center gap-1"><CheckCircle size={12} /> Code applied! Saving {promoResult.discountPercent}%</p>}
+                {promoResult && discount > 0 && (
+                  <p className="text-xs text-green-600 flex items-center gap-1 font-semibold">
+                    <CheckCircle size={12} /> Code applied! You save {formatPrice(discount)} ({promoLabel(promoResult)})
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-between pt-2">
@@ -752,7 +781,7 @@ export default function Checkout() {
                   ...(domainChoice === "existing" && existingDomainId ? [{ label: "Domain", value: myDomains.find((d: any) => d.id === existingDomainId)?.name || "Existing" }] : []),
                   ...(domainChoice === "manual" && domainName ? [{ label: "Domain", value: domainName }] : []),
                   { label: "Subtotal", value: formatPrice(basePrice + domainAmount) },
-                  ...(promoResult ? [{ label: `Discount (${promoResult.discountPercent}%)`, value: `-${formatPrice(discount)}` }] : []),
+                  ...(promoResult && discount > 0 ? [{ label: `Discount (${promoLabel(promoResult)})`, value: `-${formatPrice(discount)}` }] : []),
                   { label: "Payment", value: paymentMethods.find(p => p.id === selectedPaymentMethod)?.name || "Pay Later" },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-sm">
