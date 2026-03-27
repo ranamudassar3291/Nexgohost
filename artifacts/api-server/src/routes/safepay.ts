@@ -178,59 +178,64 @@ router.get("/payments/safepay/test", authenticate, async (req: AuthRequest, res:
       testSandbox = config.isSandbox;
     }
 
-    // Try the requested environment first
-    const primary = await trySafepayEnv(testPublic, testSecret, testSandbox);
+    const base = getApiBase(testSandbox);
+    const env  = testSandbox ? "sandbox" : "production";
 
-    if (primary.ok) {
-      console.log(`[SAFEPAY TEST] ✓ Verified in ${testSandbox ? "sandbox" : "live"} | tracker: ${primary.tracker}`);
-      return res.json({ ok: true, message: "API Keys Verified Successfully ✓" });
+    // ── Full diagnostic log ──────────────────────────────────────────────────
+    console.log(
+      `[SAFEPAY TEST] ▶ Calling: POST ${base}/order/v1/init\n` +
+      `  Mode      : ${env}\n` +
+      `  Client Key: ${testPublic.substring(0, 20)}…\n` +
+      `  Secret Key: ${testSecret.substring(0, 10)}… (${testSecret.length} chars)\n` +
+      `  Payload   : { client, environment:"${env}", amount:100, currency:"PKR" }`
+    );
+
+    const result = await trySafepayEnv(testPublic, testSecret, testSandbox);
+
+    if (result.ok) {
+      console.log(`[SAFEPAY TEST] ✓ SUCCESS | tracker: ${result.tracker}`);
+      return res.json({ ok: true, message: `API Keys Verified Successfully ✓ (${env} mode)` });
     }
 
-    // If primary failed with "client not found", auto-try the opposite environment
-    const clientNotFound =
-      primary.body.toLowerCase().includes("client") &&
-      (primary.body.toLowerCase().includes("not found") || primary.body.toLowerCase().includes("invalid"));
+    // ── Failure — log everything and return specific guidance ────────────────
+    console.warn(
+      `[SAFEPAY TEST] ✗ FAILED\n` +
+      `  URL     : POST ${base}/order/v1/init\n` +
+      `  Status  : ${result.status}\n` +
+      `  Response: ${result.body}`
+    );
 
-    if (clientNotFound) {
-      console.log(`[SAFEPAY TEST] Client not found in ${testSandbox ? "sandbox" : "live"} — retrying in ${testSandbox ? "live" : "sandbox"}…`);
-      const fallback = await trySafepayEnv(testPublic, testSecret, !testSandbox);
+    const isClientMissing =
+      result.body.toLowerCase().includes("client") &&
+      (result.body.toLowerCase().includes("not found") || result.body.toLowerCase().includes("invalid"));
 
-      if (fallback.ok) {
-        const correctMode = testSandbox ? "Live" : "Sandbox";
-        const keyField    = testSandbox ? "Live Client Key / Live Secret Key" : "Sandbox Client Key / Sandbox Secret Key";
-        console.log(`[SAFEPAY TEST] ✓ Keys work in ${correctMode} mode`);
-        return res.json({
-          ok: true,
-          message:
-            `Keys verified ✓ — but your keys belong to the ${correctMode} environment. ` +
-            `In Admin → Safepay settings, put these keys in the "${keyField}" fields and ` +
-            `${testSandbox ? "disable" : "enable"} Sandbox Mode, then save.`,
-        });
-      }
+    const isAuthFail = result.status === 401 || result.status === 403;
+
+    let errorMsg: string;
+
+    if (isClientMissing && testSandbox) {
+      errorMsg =
+        `Safepay Sandbox returned "Client not found" for your key (${testPublic.substring(0, 20)}…). ` +
+        `The code is correctly hitting ${base} — this is a Safepay account issue. ` +
+        `Action required: Log in to your Safepay dashboard → Contact support@getsafepay.com and say ` +
+        `"Please activate sandbox API access for my account. My client ID is ${testPublic.substring(0, 20)}…". ` +
+        `New Safepay accounts require manual sandbox activation. Your keys are saved correctly in the system.`;
+    } else if (isClientMissing) {
+      errorMsg =
+        `Safepay Live API returned "Client not found". ` +
+        `Contact support@getsafepay.com to activate your live merchant account. ` +
+        `Your client key: ${testPublic.substring(0, 20)}…`;
+    } else if (isAuthFail) {
+      errorMsg = `Authentication failed (${result.status}) — your Secret Key may be incorrect. Double-check the hex key from your Safepay dashboard.`;
+    } else {
+      errorMsg = `Safepay ${env} error (${result.status}): ${result.body.substring(0, 300)}`;
     }
 
-    // Both environments failed
-    const raw = primary.body.substring(0, 300);
-    console.warn(`[SAFEPAY TEST] ✗ Both environments failed. Primary (${primary.status}): ${raw}`);
-
-    const accountNotActive =
-      primary.body.toLowerCase().includes("not found") ||
-      primary.body.toLowerCase().includes("setup") ||
-      primary.body.toLowerCase().includes("onboard");
-
-    const helpMsg = accountNotActive
-      ? "Safepay returned \"Client not found\" for both Sandbox and Live environments. " +
-        "This means your Safepay merchant account is not yet activated for API access. " +
-        "Please: (1) Log in to your Safepay dashboard, (2) Complete any pending KYC/verification steps, " +
-        "(3) Contact Safepay support at support@getsafepay.com to activate your merchant API access. " +
-        "Your keys are saved correctly — payments will work once Safepay activates your account."
-      : `Safepay error (${primary.status}): ${raw}`;
-
-    res.status(200).json({ ok: false, error: helpMsg });
+    res.status(200).json({ ok: false, error: errorMsg });
 
   } catch (err: any) {
     console.error("[SAFEPAY TEST] Network error:", err.message);
-    res.status(200).json({ ok: false, error: `Network error: ${err.message}` });
+    res.status(200).json({ ok: false, error: `Network error reaching Safepay: ${err.message}` });
   }
 });
 
