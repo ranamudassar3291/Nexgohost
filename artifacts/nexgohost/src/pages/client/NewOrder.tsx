@@ -52,6 +52,7 @@ interface TldResult {
   register2YearPrice: number | null; register3YearPrice: number | null;
   isFreeWithHosting?: boolean;
   showInSuggestions?: boolean;
+  sortOrder?: number;
 }
 
 interface TldPricing {
@@ -1500,7 +1501,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
         {domResults && !domChecking && (
           <motion.div {...slideUp} className="max-w-2xl mx-auto space-y-2">
-            {domResults.filter(r => r.registrationPrice > 0 && (r.showInSuggestions !== false || r.tld === domTypedTld)).slice(0, 10).map(r => (
+            {[...domResults].filter(r => r.registrationPrice > 0 && (r.showInSuggestions === true || r.tld === domTypedTld)).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)).slice(0, 10).map(r => (
               <div key={r.tld}
                 className={`flex items-center gap-3 justify-between px-4 py-3.5 bg-white rounded-xl border transition-all ${
                   r.available ? "border-gray-200 hover:border-[#701AFE]/30" : "border-gray-100 opacity-50"
@@ -2417,7 +2418,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               {domResults && !domChecking && (() => {
                 const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
                 const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
-                const allResults = domResults.filter(r => r.registrationPrice > 0 && (r.showInSuggestions !== false || r.tld === domTypedTld));
+                const allResults = [...domResults]
+                  .filter(r => r.registrationPrice > 0 && (r.showInSuggestions === true || r.tld === domTypedTld))
+                  .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
                 const visibleResults = allResults.slice(0, 8);
                 const eligibleTldLabels = planFreeTlds.length > 0
                   ? planFreeTlds

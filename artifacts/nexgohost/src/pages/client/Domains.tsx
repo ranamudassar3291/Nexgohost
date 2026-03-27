@@ -31,6 +31,7 @@ interface TldResult {
   tld: string;
   available: boolean;
   rdapStatus?: string;
+  sortOrder?: number;
   registrationPrice: number;
   register2YearPrice: number | null;
   register3YearPrice: number | null;
@@ -510,11 +511,12 @@ export default function ClientDomains() {
               {searchData && !searching && (
                 <div className="space-y-3">
                   {(() => {
-                    // Filter: show TLDs where showInSuggestions=true,
-                    // OR the TLD the user explicitly typed (bypass for manual searches)
-                    const visibleResults = searchData.results.filter(r =>
-                      r.showInSuggestions !== false || r.tld === typedTld
-                    );
+                    // Filter: ONLY show TLDs where showInSuggestions is explicitly true,
+                    // OR the TLD the user explicitly typed (bypass for manual searches).
+                    // Sort ascending by sortOrder so priority TLDs (.com, .pk, etc.) come first.
+                    const visibleResults = searchData.results
+                      .filter(r => r.showInSuggestions === true || r.tld === typedTld)
+                      .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
                     const availableCount = visibleResults.filter(r => r.available).length;
                     return (
                       <>

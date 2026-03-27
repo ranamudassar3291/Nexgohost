@@ -138,6 +138,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
         if (takenTldsInDb.has(p.extension)) {
           return {
             tld: p.extension, available: false,
+            sortOrder: p.sortOrder ?? 999,
             registrationPrice: Number(p.registerPrice),
             register2YearPrice: p.register2YearPrice ? Number(p.register2YearPrice) : null,
             register3YearPrice: p.register3YearPrice ? Number(p.register3YearPrice) : null,
@@ -145,7 +146,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
             renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
             renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
             isFreeWithHosting: p.isFreeWithHosting ?? false,
-            showInSuggestions: p.showInSuggestions ?? true,
+            showInSuggestions: p.showInSuggestions === true,
           };
         }
         const status = await checkRdapAvailability(rawName, p.extension);
@@ -153,6 +154,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
           tld: p.extension,
           available: status === "available" || status === "unknown",
           rdapStatus: status,
+          sortOrder: p.sortOrder ?? 999,
           registrationPrice: Number(p.registerPrice),
           register2YearPrice: p.register2YearPrice ? Number(p.register2YearPrice) : null,
           register3YearPrice: p.register3YearPrice ? Number(p.register3YearPrice) : null,
@@ -160,7 +162,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
           renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
           renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
           isFreeWithHosting: p.isFreeWithHosting ?? false,
-          showInSuggestions: p.showInSuggestions ?? true,
+          showInSuggestions: p.showInSuggestions === true,
         };
       })
     );

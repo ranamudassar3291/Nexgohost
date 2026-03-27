@@ -1,5 +1,21 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 35 — TLD Sort/Filter + showInSuggestions Strict Enforcement)
+
+### TLD Sort Orders (live in DB, NOT in backup — backup file `noehost_latests_backup.sql` is truncated/incomplete)
+- Priority TLDs: `.com=1, .pk=2, .net=3, .org=4, .shop=5, .info=6, .online=7`
+- All other 25 TLDs: `sort_order=999`
+- `.ae`: `show_in_suggestions=false` (hidden from search suggestions)
+
+### API (`domains.ts` — `/api/domains/availability`)
+- Now includes `sortOrder` and `showInSuggestions` as strict boolean (`=== true`) in every availability result object
+
+### Frontend Filter + Sort (Domains.tsx + NewOrder.tsx)
+- Filter changed from `r.showInSuggestions !== false` → `r.showInSuggestions === true` (strict opt-in)
+- Client-side sort added: `.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))` as safety net
+- `sortOrder?: number` field added to `TldResult` interface in both files
+- Three filter/sort sites patched: Domains.tsx results block, NewOrder.tsx step-1 list, NewOrder.tsx step-3 list
+
 ## Recent Changes (Session 34 — Admin Lock Override UI Complete)
 
 ### Admin Domains Page — Transfer Lock Column & Override Button
