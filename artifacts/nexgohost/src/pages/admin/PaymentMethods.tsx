@@ -26,13 +26,13 @@ const TYPES = [
 
 const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.value, t]));
 
-const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean }[]> = {
+const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean; hint?: string }[]> = {
   safepay: [
-    { key: "sandboxPublicKey", label: "Sandbox Public Key",  placeholder: "pub_xxxxxxxxxxxxxxxx" },
-    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true },
-    { key: "livePublicKey",    label: "Live Public Key",     placeholder: "pub_xxxxxxxxxxxxxxxx" },
-    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true },
-    { key: "webhookSecret",    label: "Webhook Secret",      placeholder: "whsec_xxxxxxxxxxxxxxxx", secret: true },
+    { key: "sandboxPublicKey", label: "Sandbox Public Key",  placeholder: "pub_xxxxxxxxxxxxxxxx", hint: "From Safepay Sandbox Dashboard → Developers → API Keys (starts with pub_)" },
+    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true, hint: "From Safepay Sandbox Dashboard → Developers → API Keys (starts with sec_)" },
+    { key: "livePublicKey",    label: "Live Public Key",     placeholder: "pub_xxxxxxxxxxxxxxxx", hint: "From Safepay Live Dashboard → Developers → API Keys → Public Key (starts with pub_)" },
+    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true, hint: "From Safepay Live Dashboard → Developers → API Keys → Secret Key (starts with sec_)" },
+    { key: "webhookSecret",    label: "Webhook Shared Secret", placeholder: "Enter your webhook secret", secret: true, hint: "From Safepay Dashboard → Developers → Webhooks → Shared Secret" },
   ],
   jazzcash: [
     { key: "mobileNumber",  label: "JazzCash Mobile Number",  placeholder: "03XX-XXXXXXX" },
@@ -202,6 +202,7 @@ export default function PaymentMethods() {
                           placeholder={f.placeholder}
                           className="bg-background"
                         />
+                        {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
                       </div>
                     ))}
                   </div>
@@ -299,13 +300,16 @@ export default function PaymentMethods() {
                             <div key={f.key} className="space-y-1">
                               <label className="text-sm font-medium text-foreground/70">{f.label}</label>
                               {isEditing ? (
-                                <Input
-                                  type={f.secret ? "password" : "text"}
-                                  value={editSettings[f.key] ?? ""}
-                                  onChange={e => setEditSettings(s => ({ ...s, [f.key]: e.target.value }))}
-                                  placeholder={f.placeholder}
-                                  className="bg-background"
-                                />
+                                <>
+                                  <Input
+                                    type={f.secret ? "password" : "text"}
+                                    value={editSettings[f.key] ?? ""}
+                                    onChange={e => setEditSettings(s => ({ ...s, [f.key]: e.target.value }))}
+                                    placeholder={f.placeholder}
+                                    className="bg-background"
+                                  />
+                                  {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
+                                </>
                               ) : (
                                 <div className="text-sm text-foreground/80 bg-background border border-border rounded-lg px-3 py-2">
                                   {f.secret
