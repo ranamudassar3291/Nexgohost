@@ -168,7 +168,7 @@ export default function Credits() {
               type="number"
               value={amount}
               onChange={e => { setAmount(e.target.value); setAmountError(""); }}
-              placeholder={`Min Rs. ${minDeposit.toLocaleString()}`}
+              placeholder={`Min ${minDeposit.toLocaleString()}`}
               min={minDeposit}
               max={maxDeposit}
               className={`w-full pl-12 pr-4 py-3 rounded-xl border bg-background text-[14px] font-semibold focus:outline-none transition-all ${amountError ? "border-red-400 ring-2 ring-red-200" : "border-input"}`}

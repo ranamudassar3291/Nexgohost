@@ -28,10 +28,10 @@ const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.value, t]));
 
 const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean; hint?: string }[]> = {
   safepay: [
-    { key: "sandboxPublicKey", label: "Sandbox Client Key",  placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Sandbox Dashboard → Developers → API Keys → Client/Merchant Key" },
-    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Sandbox Dashboard → Developers → API Keys → Secret Key" },
-    { key: "livePublicKey",    label: "Live Client Key",     placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Live Dashboard → Developers → API Keys → Client/Merchant Key (sent as 'client' in the API body)" },
-    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Live Dashboard → Developers → API Keys → Secret Key (sent as X-SFPY-SECRET-KEY header)" },
+    { key: "sandboxPublicKey", label: "Sandbox Client Key",  placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Dashboard → Developers → API Keys → Client/Merchant Key (starts with sec_ or pub_)" },
+    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Dashboard → Developers → API Keys → Secret Key (sent as X-SFPY-SECRET-KEY header)" },
+    { key: "livePublicKey",    label: "Live Client Key",     placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Dashboard → Developers → API Keys → Client/Merchant Key (starts with sec_ or pub_)" },
+    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Dashboard → Developers → API Keys → Secret Key (sent as X-SFPY-SECRET-KEY header)" },
     { key: "webhookSecret",    label: "Webhook Shared Secret", placeholder: "Enter your webhook secret", secret: true, hint: "From Safepay Dashboard → Developers → Webhooks → Shared Secret" },
   ],
   jazzcash: [
