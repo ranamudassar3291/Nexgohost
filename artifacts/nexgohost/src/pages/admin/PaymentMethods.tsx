@@ -28,7 +28,9 @@ const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.value, t]));
 
 const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean }[]> = {
   safepay: [
+    { key: "sandboxPublicKey", label: "Sandbox Public Key",  placeholder: "pub_xxxxxxxxxxxxxxxx" },
     { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true },
+    { key: "livePublicKey",    label: "Live Public Key",     placeholder: "pub_xxxxxxxxxxxxxxxx" },
     { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true },
     { key: "webhookSecret",    label: "Webhook Secret",      placeholder: "whsec_xxxxxxxxxxxxxxxx", secret: true },
   ],

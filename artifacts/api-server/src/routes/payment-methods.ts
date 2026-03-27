@@ -53,7 +53,11 @@ function publicSettings(type: string, settings: Record<string, unknown>) {
     case "stripe":
       return { publishableKey: settings.publishableKey };
     case "safepay":
-      return { isSandbox: settings.isSandbox };
+      return {
+        isSandbox: settings.isSandbox,
+        sandboxPublicKey: settings.sandboxPublicKey,
+        livePublicKey: settings.livePublicKey,
+      };
     default:
       return {};
   }

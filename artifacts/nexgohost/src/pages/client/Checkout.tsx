@@ -657,18 +657,65 @@ export default function Checkout() {
                     <p className="text-xs mt-1">The admin will be notified of your order.</p>
                   </div>
                 )}
-                {paymentMethods.map(pm => (
-                  <button key={pm.id} onClick={() => setSelectedPaymentMethod(pm.id)}
-                    className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${selectedPaymentMethod === pm.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                    <span className="text-2xl">{METHOD_ICONS[pm.type] || "💰"}</span>
-                    <div className="flex-1">
-                      <div className="font-medium text-foreground text-sm">{pm.name}</div>
-                      {pm.description && <div className="text-xs text-muted-foreground mt-0.5">{pm.description}</div>}
-                      {pm.isSandbox && <span className="inline-block mt-1 px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 text-xs rounded">Sandbox</span>}
+                {paymentMethods.map(pm => {
+                  const isManual = ["bank_transfer", "jazzcash", "easypaisa", "manual", "crypto", "paypal"].includes(pm.type);
+                  const isAutoGateway = pm.type === "safepay" || pm.type === "stripe";
+                  return (
+                    <button key={pm.id} onClick={() => setSelectedPaymentMethod(pm.id)}
+                      className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${selectedPaymentMethod === pm.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                      <span className="text-2xl">{METHOD_ICONS[pm.type] || "💰"}</span>
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground text-sm flex items-center gap-2 flex-wrap">
+                          {pm.name}
+                          {isAutoGateway && (
+                            <span className="px-1.5 py-0.5 bg-green-500/15 text-green-400 text-[10px] rounded font-semibold border border-green-500/20">⚡ Auto-Activation</span>
+                          )}
+                          {isManual && (
+                            <span className="px-1.5 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded font-semibold border border-orange-500/20">🔍 Manual Review</span>
+                          )}
+                        </div>
+                        {pm.description && <div className="text-xs text-muted-foreground mt-0.5">{pm.description}</div>}
+                        {pm.isSandbox && <span className="inline-block mt-1 px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 text-xs rounded">Sandbox</span>}
+                      </div>
+                      {selectedPaymentMethod === pm.id && <Check size={16} className="text-primary" />}
+                    </button>
+                  );
+                })}
+
+                {/* Warning banner for manually-reviewed gateways */}
+                {(() => {
+                  const selPm = paymentMethods.find(p => p.id === selectedPaymentMethod);
+                  const isManualMethod = selPm && ["bank_transfer", "jazzcash", "easypaisa", "manual", "crypto", "paypal"].includes(selPm.type);
+                  if (!isManualMethod) return null;
+                  return (
+                    <div className="flex gap-2.5 p-3 rounded-lg bg-orange-500/8 border border-orange-500/20 text-sm">
+                      <AlertCircle size={16} className="text-orange-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-orange-300 font-semibold text-xs">Manual Review Required</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                          After placing your order, send payment using the details above. Your service will be activated within 24 hours once the admin verifies your payment.
+                        </p>
+                      </div>
                     </div>
-                    {selectedPaymentMethod === pm.id && <Check size={16} className="text-primary" />}
-                  </button>
-                ))}
+                  );
+                })()}
+
+                {/* Info banner for Safepay auto-activation */}
+                {(() => {
+                  const selPm = paymentMethods.find(p => p.id === selectedPaymentMethod);
+                  if (selPm?.type !== "safepay") return null;
+                  return (
+                    <div className="flex gap-2.5 p-3 rounded-lg bg-green-500/8 border border-green-500/20 text-sm">
+                      <CheckCircle size={16} className="text-green-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-green-400 font-semibold text-xs">⚡ Instant Automatic Activation</p>
+                        <p className="text-muted-foreground text-xs mt-0.5">
+                          Your hosting will be activated automatically the moment your Safepay payment is confirmed — no waiting for manual approval.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <button onClick={() => setSelectedPaymentMethod("none")}
                   className={`w-full p-4 rounded-xl border-2 text-left flex items-center gap-3 transition-all ${selectedPaymentMethod === "none" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
                   <span className="text-2xl">📋</span>

@@ -2872,9 +2872,15 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                                   <PayIcon type={pm.type}/>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <p className="text-[13px] font-bold text-gray-900">{pm.name}</p>
                                     {pm.isSandbox && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Test</span>}
+                                    {(pm.type === "safepay" || pm.type === "stripe") && (
+                                      <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">⚡ Auto</span>
+                                    )}
+                                    {["bank_transfer","jazzcash","easypaisa","manual","crypto","paypal"].includes(pm.type) && (
+                                      <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full">🔍 Manual</span>
+                                    )}
                                   </div>
                                   {pm.description && <p className="text-[11px] text-gray-400 truncate mt-0.5">{pm.description}</p>}
                                   {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings.mobileNumber && (
@@ -2893,6 +2899,37 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                           })}
                         </div>
                       )}
+
+                      {/* Warning: manual review required */}
+                      {(() => {
+                        const selPm = (paymentMethods as any[]).find((p: any) => p.id === paymentMethodId);
+                        if (!selPm) return null;
+                        const isManualPm = ["bank_transfer","jazzcash","easypaisa","manual","crypto","paypal"].includes(selPm.type);
+                        const isAutoPm = selPm.type === "safepay" || selPm.type === "stripe";
+                        if (isManualPm) return (
+                          <div className="flex gap-2.5 p-3.5 rounded-xl border border-orange-200 bg-orange-50 text-sm mt-1">
+                            <AlertCircle size={15} className="text-orange-500 shrink-0 mt-0.5"/>
+                            <div>
+                              <p className="text-[12px] font-bold text-orange-700">Manual Review Required</p>
+                              <p className="text-[11px] text-orange-600 mt-0.5">
+                                After placing your order, send payment using the details above. Your service activates within 24 hours once our team verifies payment.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                        if (isAutoPm) return (
+                          <div className="flex gap-2.5 p-3.5 rounded-xl border border-green-200 bg-green-50 text-sm mt-1">
+                            <Zap size={15} className="text-green-600 shrink-0 mt-0.5"/>
+                            <div>
+                              <p className="text-[12px] font-bold text-green-700">⚡ Instant Automatic Activation</p>
+                              <p className="text-[11px] text-green-600 mt-0.5">
+                                Your hosting activates automatically the moment your payment is confirmed — no manual approval required.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                        return null;
+                      })()}
                     </>
                   )}
                 </>
