@@ -26,7 +26,7 @@ const SAMPLES: Record<string, string> = {
   client_name: "John Smith",
   verification_code: "847291",
   invoice_id: "INV-2024-001",
-  amount: "$9.99",
+  amount: "1,500.00",
   due_date: "Jan 31, 2025",
   payment_date: "Jan 15, 2025",
   company_name: "Noehost",

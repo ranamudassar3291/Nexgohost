@@ -823,7 +823,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
           clientName: `${user.firstName} ${user.lastName}`,
           invoiceId: invoice.id,
           invoiceNumber,
-          amount: `Rs. ${finalAmount.toFixed(2)}`,
+          amount: finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           dueDate: dueFormatted,
           invoicePdf: pdfBuf,
         }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
@@ -845,7 +845,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
         invoiceId: invoice.id,
         serviceName: plan.name,
         domain: domain || "To be configured",
-        amount: finalAmount.toFixed(2),
+        amount: finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         paymentMethod: selectedPaymentMethod.name,
       }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
     }
@@ -1057,7 +1057,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
         invoiceId: invoice.id,
         serviceName: `Domain Registration — ${fullDomain}`,
         domain: fullDomain,
-        amount: finalAmount.toFixed(2),
+        amount: finalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         paymentMethod: selectedDomainPm.name,
       }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
     }

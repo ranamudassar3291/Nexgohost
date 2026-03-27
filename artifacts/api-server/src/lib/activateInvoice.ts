@@ -11,7 +11,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { provisionHostingService } from "./provision.js";
-import { emailInvoicePaid, emailServiceActivated, emailAdminSaleAlert } from "./email.js";
+import { emailInvoicePaid, emailServiceActivated, emailAdminSaleAlert, emailAffiliateCommission } from "./email.js";
 import { generateInvoicePdf } from "./invoicePdf.js";
 import { createNotification } from "./notifications.js";
 
@@ -219,6 +219,19 @@ export async function processInvoicePaid(
               type: "affiliate_payout",
               description: `Affiliate commission — invoice ${updated.invoiceNumber}`,
             });
+            // Send commission earned email to affiliate
+            const [affUser] = await db.select().from(usersTable)
+              .where(eq(usersTable.id, affiliate.userId)).limit(1);
+            if (affUser) {
+              const [newBalRow] = await db.select({ bal: usersTable.creditBalance })
+                .from(usersTable).where(eq(usersTable.id, affiliate.userId)).limit(1);
+              emailAffiliateCommission(affUser.email, {
+                clientName: `${affUser.firstName} ${affUser.lastName}`.trim() || affUser.email,
+                commissionAmount: Number(pendingComm.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                orderId: updated.orderId ?? updated.invoiceNumber,
+                creditBalance: Number(newBalRow?.bal ?? pendingComm.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              }, { clientId: affUser.id }).catch(e => console.warn("[ACTIVATE] affiliate email error:", e));
+            }
           }
         }
       }
@@ -252,7 +265,7 @@ export async function processInvoicePaid(
           clientName: `${u.firstName} ${u.lastName}`,
           invoiceId: updated.id,
           invoiceNumber: inv.invoiceNumber,
-          amount: `Rs. ${Number(updated.total).toFixed(2)}`,
+          amount: Number(updated.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           paymentDate: new Date().toLocaleDateString("en-PK", {
             day: "numeric", month: "long", year: "numeric",
           }),

@@ -524,7 +524,7 @@ export default function InvoiceDetail() {
                         </span>
                       </div>
 
-                      {/* ToS checkbox — must be accepted before Pay Now is enabled */}
+                      {/* Legal checkbox — must be accepted before Pay Now is enabled */}
                       <label className="flex items-start gap-3 cursor-pointer group">
                         <input
                           type="checkbox"
@@ -534,10 +534,18 @@ export default function InvoiceDetail() {
                         />
                         <span className="text-xs text-slate-600 leading-relaxed">
                           I agree to Noehost's{" "}
-                          <a href="/tos" target="_blank" className="underline font-medium" style={{ color: BRAND }}>
+                          <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
                             Terms of Service
-                          </a>{" "}
-                          and authorise this payment of{" "}
+                          </a>
+                          ,{" "}
+                          <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
+                            Privacy Policy
+                          </a>
+                          {" "}and{" "}
+                          <a href="/legal/refund" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
+                            Refund Policy
+                          </a>
+                          , and authorise this payment of{" "}
                           <strong>{formatPrice(Number(invoice.total))}</strong>.
                         </span>
                       </label>
@@ -556,7 +564,7 @@ export default function InvoiceDetail() {
                       </Button>
                       {!tosAccepted && (
                         <p className="text-[11px] text-slate-400 text-center">
-                          Please accept the Terms of Service to proceed
+                          Please accept the Terms, Privacy &amp; Refund policies to proceed
                         </p>
                       )}
                     </motion.div>
@@ -663,7 +671,7 @@ export default function InvoiceDetail() {
         <div className="border-t border-slate-100 px-8 py-5 bg-slate-50/70">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Terms & Conditions</p>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            All services are governed by Noehost Terms of Service (noehost.com/tos). Invoices must be paid by the due date to avoid service interruption. For any billing queries, contact <span className="text-slate-600 font-medium">billing@noehost.com</span>. Thank you for choosing Noehost!
+            All services are governed by the Noehost <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline text-violet-600">Terms of Service</a>. Invoices must be paid by the due date to avoid service interruption. For any billing queries, contact <span className="text-slate-600 font-medium">billing@noehost.com</span>. Thank you for choosing Noehost!
           </p>
         </div>
 

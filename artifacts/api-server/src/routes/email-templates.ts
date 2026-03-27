@@ -721,6 +721,26 @@ ${btnOutline("Go to WP Admin", "{{wp_admin_url}}")}
     variables: ["{{client_name}}", "{{domain}}", "{{site_url}}", "{{wp_admin_url}}", "{{wp_username}}", "{{wp_password}}", "{{wp_version}}"],
   },
 
+  // ── 18. Affiliate Commission Earned ──────────────────────────────────────
+  {
+    name: "Affiliate Commission Earned",
+    slug: "affiliate-commission",
+    subject: "🎉 You earned a commission — Rs. {{commission_amount}}",
+    body: layout(`
+${successBanner("💸", "Commission Earned!", "Your referral reward has been credited")}
+<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
+<p style="margin:0 0 4px;color:#333333">Great news! A client you referred just made a payment, and your commission has been credited to your account.</p>
+${infoTable("Commission Details", [
+  { label: "Commission Earned", value: `<span style="color:#38a169;font-size:16px;font-weight:700">Rs. {{commission_amount}}</span>` },
+  { label: "Related Order", value: "#{{order_id}}" },
+  { label: "New Credit Balance", value: `<span style="color:#701AFE;font-weight:700">Rs. {{credit_balance}}</span>` },
+])}
+${infoBox("Your commission has been added as account credit. You can use it on your next invoice or request a withdrawal from your affiliate dashboard.")}
+${btn("View Affiliate Dashboard", "{{client_area_url}}/affiliate")}
+`),
+    variables: ["{{client_name}}", "{{commission_amount}}", "{{order_id}}", "{{credit_balance}}", "{{client_area_url}}"],
+  },
+
 ];
 
 // ─── Seeder ───────────────────────────────────────────────────────────────────

@@ -100,6 +100,9 @@ import HelpCenter from "@/pages/client/HelpCenter";
 import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
 import VpsHosting from "@/pages/public/VpsHosting";
 import OrderFlow from "@/pages/public/OrderFlow";
+import TermsOfService from "@/pages/public/TermsOfService";
+import PrivacyPolicy from "@/pages/public/PrivacyPolicy";
+import RefundPolicy from "@/pages/public/RefundPolicy";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
 import { queryClient } from "@/lib/query-client";
@@ -486,6 +489,11 @@ function RouterRoot() {
       <Route path="/admin/server-nodes">
         <AdminPage><ServerNodes /></AdminPage>
       </Route>
+      {/* ── Legal pages — public ── */}
+      <Route path="/legal/terms"   component={TermsOfService} />
+      <Route path="/legal/privacy" component={PrivacyPolicy}  />
+      <Route path="/legal/refund"  component={RefundPolicy}   />
+
       <Route path="/status" component={Status} />
       <Route path="/help/:slug">
         <HelpPage><HelpCenterArticle /></HelpPage>

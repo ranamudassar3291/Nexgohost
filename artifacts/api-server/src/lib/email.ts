@@ -979,6 +979,23 @@ export async function emailDomainTransferCompleted(
   );
 }
 
+/**
+ * Notify an affiliate when a commission has been credited to their account.
+ */
+export async function emailAffiliateCommission(
+  to: string,
+  vars: { clientName: string; commissionAmount: string; orderId: string; creditBalance: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  return sendTemplatedEmail("affiliate-commission", to, {
+    client_name: vars.clientName,
+    commission_amount: vars.commissionAmount,
+    order_id: vars.orderId,
+    credit_balance: vars.creditBalance,
+    client_area_url: getClientUrl(),
+  }, meta);
+}
+
 export async function emailDomainTransferRejected(
   to: string,
   vars: { clientName: string; domain: string; reason?: string },
