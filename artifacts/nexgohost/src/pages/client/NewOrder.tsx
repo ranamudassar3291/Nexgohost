@@ -676,7 +676,7 @@ interface NewOrderProps {
 export default function NewOrder({ initialGroupId, initialPackageId, initialVpsPlanId }: NewOrderProps = {}) {
   const [, setLocation] = useLocation();
   const { addItem, removeItem } = useCart();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, currency } = useCurrency();
 
   // Direct-link modes: skip step 0 (service selection) when params are present
   const isDirectLink   = !!(initialGroupId || initialPackageId);
@@ -1053,6 +1053,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       const body: Record<string, unknown> = {
         paymentMethodId: effectivePaymentMethodId,
         applyCredits: effectiveApplyCredits,
+        currencyCode:   currency.code,
+        currencySymbol: currency.symbol,
+        currencyRate:   currency.rate,
       };
 
       // VPS order

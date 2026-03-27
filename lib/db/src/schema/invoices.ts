@@ -23,6 +23,10 @@ export const invoicesTable = pgTable("invoices", {
   paymentRef: text("payment_ref"),
   paymentGatewayId: text("payment_gateway_id"),
   paymentNotes: text("payment_notes"),
+  // Multi-currency support: stores the client's display currency at the time of invoice creation
+  currencyCode: text("currency_code").default("PKR"),
+  currencySymbol: text("currency_symbol").default("Rs."),
+  currencyRate: numeric("currency_rate", { precision: 12, scale: 6 }).default("1"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

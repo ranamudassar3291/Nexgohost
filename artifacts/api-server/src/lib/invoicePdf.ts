@@ -42,6 +42,10 @@ export interface InvoiceData {
   items: InvoiceItem[];
   paymentRef?: string | null;
   paymentNotes?: string | null;
+  // Multi-currency display
+  currencyCode?: string;
+  currencySymbol?: string;
+  currencyRate?: number;
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -58,9 +62,21 @@ const WHITE    = "#FFFFFF";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 function pkr(n: number): string {
-  return "Rs. " + Number(n).toLocaleString("en-PK", {
+  return "Rs. " + Number(n).toLocaleString("en-US", {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   });
+}
+
+function makeFmt(currencyCode?: string, currencySymbol?: string, currencyRate?: number) {
+  const code   = currencyCode   || "PKR";
+  const symbol = currencySymbol || "Rs.";
+  const rate   = currencyRate   ?? 1;
+  return function fmt(pkrAmount: number): string {
+    const converted = Number(pkrAmount) * rate;
+    const formatted = converted.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (code === "PKR") return `Rs. ${formatted}`;
+    return `${symbol}${formatted}`;
+  };
 }
 
 function dt(iso: string | null | undefined): string {
@@ -96,6 +112,12 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.on("data", (c: Buffer) => chunks.push(c));
     doc.on("end",  () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
+
+    // Multi-currency formatter — converts PKR amounts to display currency
+    const fmt = makeFmt(data.currencyCode, data.currencySymbol, data.currencyRate);
+    const currencyLabel = (data.currencyCode && data.currencyCode !== "PKR")
+      ? ` (${data.currencyCode})`
+      : "";
 
     // Page geometry
     const PW  = doc.page.width;     // 595.28
@@ -197,8 +219,8 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.font("Helvetica-Bold").fontSize(7).fillColor(WHITE);
     doc.text("DESCRIPTION",  L + 8,        y + 7, { width: W * 0.50, lineBreak: false });
     doc.text("QTY",          L + W * 0.52, y + 7, { width: W * 0.08, align: "center", lineBreak: false });
-    doc.text("UNIT PRICE",   L + W * 0.61, y + 7, { width: W * 0.20, align: "right",  lineBreak: false });
-    doc.text("AMOUNT",       L + W * 0.83, y + 7, { width: W * 0.16, align: "right",  lineBreak: false });
+    doc.text(`UNIT PRICE${currencyLabel}`, L + W * 0.61, y + 7, { width: W * 0.20, align: "right",  lineBreak: false });
+    doc.text(`AMOUNT${currencyLabel}`,     L + W * 0.83, y + 7, { width: W * 0.16, align: "right",  lineBreak: false });
     y += 22;
 
     const items = (data.items?.length ? data.items : [{
@@ -222,11 +244,11 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
         { width: W * 0.08, align: "center", lineBreak: false });
 
       doc.fillColor(DARK);
-      doc.text(pkr(Number(item.unitPrice)), L + W * 0.61, y + 5,
+      doc.text(fmt(Number(item.unitPrice)), L + W * 0.61, y + 5,
         { width: W * 0.20, align: "right", lineBreak: false });
 
       doc.font("Helvetica-Bold").fillColor(DARK);
-      doc.text(pkr(Number(item.total)), L + W * 0.83, y + 5,
+      doc.text(fmt(Number(item.total)), L + W * 0.83, y + 5,
         { width: W * 0.16, align: "right", lineBreak: false });
 
       y += ROW;
@@ -243,11 +265,11 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     const vW  = tW * 0.44;
 
     const totals: { label: string; value: string; green?: boolean; bold?: boolean }[] = [
-      { label: "Subtotal",       value: pkr(Number(data.amount)) },
-      { label: "Tax / VAT (0%)", value: pkr(Number(data.tax || 0)) },
+      { label: "Subtotal",       value: fmt(Number(data.amount)) },
+      { label: "Tax / VAT (0%)", value: fmt(Number(data.tax || 0)) },
     ];
     if (credit > 0) {
-      totals.push({ label: "Account Credit Applied", value: `− ${pkr(credit)}`, green: true, bold: true });
+      totals.push({ label: "Account Credit Applied", value: `− ${fmt(credit)}`, green: true, bold: true });
     }
 
     totals.forEach(row => {
@@ -264,7 +286,7 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.rect(tX - 6, y - 2, tW + 12, 26).fill(BRAND);
     doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE);
     doc.text("TOTAL DUE", tX, y + 6, { width: lW, lineBreak: false });
-    doc.text(pkr(credit > 0 ? totalAfterCred : Number(data.total)),
+    doc.text(fmt(credit > 0 ? totalAfterCred : Number(data.total)),
       tX + lW, y + 6, { width: vW, align: "right", lineBreak: false });
     y += 32;
 

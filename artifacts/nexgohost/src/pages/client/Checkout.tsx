@@ -56,7 +56,7 @@ export default function Checkout() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const { toast } = useToast();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, currency } = useCurrency();
 
   const params = new URLSearchParams(search);
   const packageId = params.get("packageId") ?? "";
@@ -243,6 +243,9 @@ export default function Checkout() {
           promoCode: promoResult ? promoCode : undefined,
           paymentMethodId: selectedPaymentMethod !== "none" ? selectedPaymentMethod : undefined,
           ...(captchaToken ? { captchaToken } : {}),
+          currencyCode:   currency.code,
+          currencySymbol: currency.symbol,
+          currencyRate:   currency.rate,
         }),
       });
 

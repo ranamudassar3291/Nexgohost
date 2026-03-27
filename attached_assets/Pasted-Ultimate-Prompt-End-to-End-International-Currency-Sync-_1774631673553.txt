@@ -1,0 +1,38 @@
+Ultimate Prompt: End-to-End International Currency & Sync System
+"I need to implement a foolproof, internationalized currency synchronization system between my website and custom panel (Noehost). The goal is to ensure that a client sees the same currency, price, and format from the first visit until the final email. Execute these modules with 100% precision:
+
+1. Global Currency Engine (Google Rates):
+
+Automatic Detection: Use an IP Geolocation API to detect the user's country. Map this country to its official currency (e.g., UK = GBP, USA = USD, PK = PKR).
+
+Daily Caching: Fetch real-time exchange rates from a Google-linked API (like ExchangeRate-API) and cache them in the database for 24 hours to maintain high performance.
+
+Format Localization: Apply correct formatting for each currency (e.g., $1,245.00 for USD vs 1.245,00 € for EUR).
+
+2. Session-Locked Synchronization (The 'No-Mismatch' Rule):
+
+Consistency: Once a currency is detected or selected on the website, it must be locked into the user's session and passed to the panel via a Secure API Key (The 'Parda' System).
+
+Unified Price: If a plan is 1,000 PKR, and the rate is 280, the API must return exactly 3.57 USD to the website, the cart, and the invoice. No manual price entry.
+
+3. Checkout & Payment Integrity (Safepay Sync):
+
+Payload Alignment: When a user clicks 'Pay Now', the Safepay payload must contain the Converted Amount and the ISO Currency Code (e.g., USD).
+
+Auto-Conversion: Ensure Safepay processes the payment in the client's currency and settles it in my account in PKR based on their internal conversion.
+
+4. Invoice & Communication Branding:
+
+PDF Invoices: The generated invoice must strictly use the client's local currency symbol and price format.
+
+Email Templates: All automated emails (Order Confirmation, Invoice Reminders) must use the exact price and currency stored in the transaction record. No mismatch with the website price is allowed.
+
+5. Subdomain Routing & Security:
+
+Correctly route all traffic through client.noehost.com, cart.noehost.com, and admin.noehost.com.
+
+Secure all cross-domain communication with a Custom API Header Key.
+
+6. Safety & Health Check:
+
+Implement error handling: If the Currency API fails, fall back to the last cached rates. Never show an empty price or an error to the client."

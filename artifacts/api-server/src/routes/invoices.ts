@@ -583,6 +583,9 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
             clientName: `${u.firstName} ${u.lastName}`, clientEmail: u.email,
             amount: inv.amount, tax: inv.tax, total: inv.total, items: inv.items,
             paymentRef: inv.paymentRef, paymentNotes: inv.paymentNotes,
+            currencyCode: (updated as any).currencyCode ?? "PKR",
+            currencySymbol: (updated as any).currencySymbol ?? "Rs.",
+            currencyRate: Number((updated as any).currencyRate ?? 1),
           });
         } catch { /* PDF generation failure is non-fatal */ }
         await emailInvoicePaid(u.email, {
@@ -687,6 +690,9 @@ router.get("/my/invoices/:id/pdf", authenticate, async (req: AuthRequest, res) =
       items,
       paymentRef: invoice.paymentRef ?? null,
       paymentNotes: invoice.paymentNotes ?? null,
+      currencyCode: (invoice as any).currencyCode ?? "PKR",
+      currencySymbol: (invoice as any).currencySymbol ?? "Rs.",
+      currencyRate: Number((invoice as any).currencyRate ?? 1),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Noehost-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
@@ -724,6 +730,9 @@ router.get("/admin/invoices/:id/pdf", authenticate, requireAdmin, async (req: Au
       items,
       paymentRef: invoice.paymentRef ?? null,
       paymentNotes: invoice.paymentNotes ?? null,
+      currencyCode: (invoice as any).currencyCode ?? "PKR",
+      currencySymbol: (invoice as any).currencySymbol ?? "Rs.",
+      currencyRate: Number((invoice as any).currencyRate ?? 1),
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="Noehost-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);

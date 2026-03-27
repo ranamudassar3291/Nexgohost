@@ -41,6 +41,7 @@ import serverStatusRouter from "./server-status.js";
 import announcementsRouter from "./announcements.js";
 import safepayRouter from "./safepay.js";
 import contactRouter from "./contact.js";
+import configRouter from "./config.js";
 
 const router: IRouter = Router();
 
@@ -90,5 +91,6 @@ router.use(serverStatusRouter);
 router.use(announcementsRouter);
 router.use(safepayRouter);
 router.use(contactRouter);
+router.use(configRouter);
 
 export default router;

@@ -29,7 +29,16 @@ async function handleCheckout(req: AuthRequest, res: any) {
       nameservers: clientNameservers,
       applyCredits: applyCreditsRaw,
       captchaToken,
+      // Multi-currency: client sends their display currency
+      currencyCode: clientCurrencyCode,
+      currencySymbol: clientCurrencySymbol,
+      currencyRate: clientCurrencyRate,
     } = req.body;
+
+    // Resolve currency — default to PKR
+    const invoiceCurrencyCode   = (typeof clientCurrencyCode === "string" && clientCurrencyCode.length <= 10)   ? clientCurrencyCode   : "PKR";
+    const invoiceCurrencySymbol = (typeof clientCurrencySymbol === "string" && clientCurrencySymbol.length <= 10) ? clientCurrencySymbol : "Rs.";
+    const invoiceCurrencyRate   = (typeof clientCurrencyRate === "number" && clientCurrencyRate > 0)              ? clientCurrencyRate   : 1;
 
     // Captcha verification (if enabled for checkout)
     const secConfig = await getSecurityConfig();
@@ -121,6 +130,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
         status: "unpaid",
         dueDate,
         items: invoiceItems,
+        currencyCode: invoiceCurrencyCode,
+        currencySymbol: invoiceCurrencySymbol,
+        currencyRate: String(invoiceCurrencyRate),
       }).returning();
 
       await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
@@ -329,6 +341,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
         status: "unpaid",
         dueDate,
         items: [{ description: `VPS Hosting: ${vpsPlan.name} (${cycle})`, quantity: 1, unitPrice: vpsAmount, total: finalVpsAmount }],
+        currencyCode: invoiceCurrencyCode,
+        currencySymbol: invoiceCurrencySymbol,
+        currencyRate: String(invoiceCurrencyRate),
       }).returning();
 
       await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
@@ -584,6 +599,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
       status: "unpaid",
       dueDate,
       items: invoiceItems,
+      currencyCode: invoiceCurrencyCode,
+      currencySymbol: invoiceCurrencySymbol,
+      currencyRate: String(invoiceCurrencyRate),
     }).returning();
 
     // Link invoice back to order so admin approve does not create a duplicate

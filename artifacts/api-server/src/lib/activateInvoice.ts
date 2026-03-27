@@ -259,6 +259,9 @@ export async function processInvoicePaid(
             items: inv.items,
             paymentRef: inv.paymentRef ?? transactionRef,
             paymentNotes: paymentNotes ?? "Paid via Safepay",
+            currencyCode:   (updated as any).currencyCode   ?? "PKR",
+            currencySymbol: (updated as any).currencySymbol ?? "Rs.",
+            currencyRate:   Number((updated as any).currencyRate ?? 1),
           });
         } catch { /* PDF failure is non-fatal */ }
         await emailInvoicePaid(u.email, {
