@@ -30,6 +30,7 @@ import {
   BookOpen,
   HelpCircle,
   MessageCircle,
+  KeyRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -88,6 +89,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/knowledge-base",         label: "Knowledge Base",      icon: BookOpen,     inNav: true  },
   { path: "/admin/knowledge-base/new",     label: "New Article",         icon: BookOpen,     inNav: false },
   { path: "/admin/knowledge-base/:id/edit", label: "Edit Article",       icon: BookOpen,     inNav: false },
+  { path: "/admin/api-settings",           label: "API Settings",        icon: KeyRound,     inNav: true  },
 ];
 
 // ─── Client Routes ────────────────────────────────────────────────────────────

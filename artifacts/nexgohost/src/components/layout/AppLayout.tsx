@@ -96,6 +96,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "Admin Users",      href: "/admin/admin-users",      icon: (() => null) as any },
       { name: "Email Templates",  href: "/admin/email-templates",  icon: (() => null) as any },
       { name: "Settings",         href: "/admin/settings",         icon: (() => null) as any },
+      { name: "API Settings",     href: "/admin/api-settings",     icon: (() => null) as any },
     ],
   },
 ];

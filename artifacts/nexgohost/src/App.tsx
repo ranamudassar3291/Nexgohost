@@ -70,6 +70,7 @@ import VpsLocations from "@/pages/admin/VpsLocations";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import KnowledgeBase from "@/pages/admin/KnowledgeBase";
 import KbArticleEditor from "@/pages/admin/KbArticleEditor";
+import ApiSettings from "@/pages/admin/ApiSettings";
 import Announcements from "@/pages/admin/Announcements";
 import ServerNodes from "@/pages/admin/ServerNodes";
 import Status from "@/pages/public/Status";
@@ -364,6 +365,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/settings/google">
         <AdminPage><GoogleOAuth /></AdminPage>
+      </Route>
+      <Route path="/admin/api-settings">
+        <AdminPage><ApiSettings /></AdminPage>
       </Route>
       <Route path="/admin/settings">
         <AdminPage><AdminSettings /></AdminPage>

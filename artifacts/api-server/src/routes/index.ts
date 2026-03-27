@@ -43,6 +43,7 @@ import safepayRouter from "./safepay.js";
 import contactRouter from "./contact.js";
 import configRouter from "./config.js";
 import syncRouter from "./sync.js";
+import globalRouter from "./global.js";
 
 const router: IRouter = Router();
 
@@ -94,5 +95,6 @@ router.use(safepayRouter);
 router.use(contactRouter);
 router.use(configRouter);
 router.use(syncRouter);
+router.use(globalRouter);
 
 export default router;
