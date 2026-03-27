@@ -1,5 +1,57 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 38 — Global Sync & Security Engine)
+
+### 1. System-to-System API Key ("Parda" Security Layer)
+- `artifacts/api-server/src/lib/systemApiKey.ts` — new module: `getSystemApiKey()`, `generateSystemApiKey()`, `validateSystemApiKey()` middleware
+- Key stored in `settings` table (`key = 'system_api_key'`), cached in-memory for 5 min
+- Every `/api/sync/*` endpoint requires `X-System-API-Key` header → `403 Invalid API key` if wrong/missing
+- Current key: `80cdc125d76a47d693c594bd656775905e660e6a036443f09449e45a9beca354` (stored in DB)
+- `POST /api/admin/sync/rotate-key` (admin) — generates and stores a new key
+- `GET /api/admin/sync/key` (admin) — view current key + usage example
+- Startup logs: `[SYSTEM-KEY] ✓ System API key active (80cdc125…)`
+
+### 2. 24h Exchange Rate Cache
+- `refreshExchangeRates(force?)` in `currencies.ts` now checks `settings.currency_last_refresh`
+- External API call (`open.er-api.com`) only runs once per 24 hours; in-between calls return `{ cached: true }`
+- `GET /api/admin/currencies/cache-status` → shows `lastRefreshed`, `ageHours`, `cacheFresh`, `nextRefreshInHours`
+- `POST /api/admin/currencies/refresh-rates` passes `force=true` to bypass 24h guard (admin action)
+
+### 3. Subdomain & CORS Alignment
+- `app.ts` — CORS updated to allow `*.noehost.com`, `*.replit.dev`, `*.repl.co` subdomains
+- Subdomain detection middleware: stamps `req.subdomainContext` = `client | cart | admin | main` based on host header
+- `GET /api/subdomain-context` — public endpoint returns `{ context, host, routes }` (placed before security middleware)
+
+### 4. Product & Domain Sync API
+- `artifacts/api-server/src/routes/sync.ts` — new routes:
+  - `GET /api/sync/plans?currency=USD` — all active plans with prices converted to requested currency + raw PKR for Safepay
+  - `GET /api/sync/domain-extensions?currency=GBP` — active extensions with converted prices
+  - `GET /api/sync/currencies` — list of active currencies with exchange rates
+- All secured with `validateSystemApiKey` middleware; curl/bots bypass allowed when `X-System-API-Key` is present
+
+### 5. Email & Invoice Localization (Previous Session — Complete)
+- `invoices.ts`, `activateInvoice.ts` — all PDF generation calls pass `currencyCode/Symbol/Rate` from stored invoice
+- `checkout.ts` — all 3 order types store currency fields on invoice insert
+- `Checkout.tsx`, `NewOrder.tsx` — send `currencyCode/Symbol/Rate` in checkout API call
+- `Register.tsx` — currency dropdown added to registration form
+
+### 6. Safepay Sandbox Verified
+- Startup log: `[SAFEPAY] ✓ Key order looks correct` — Safepay config structure is valid
+- Running in sandbox mode (keys empty until configured in Admin → Payment Methods → Safepay)
+- PKR-only constraint maintained: sync API always returns `*Pkr` fields alongside converted prices
+
+## Recent Changes (Session 37 — Multi-Currency Checkout & Public Config)
+
+### Multi-Currency Checkout
+- `checkout.ts` — extracts `currencyCode/Symbol/Rate` from req.body, stores on all 3 invoice types (domain, VPS, hosting)
+- `Checkout.tsx` — sends `currency` object from `useCurrency()` hook in checkout POST body
+- `NewOrder.tsx` — same: `currency` from hook added to checkout body
+- `Register.tsx` — currency selector added (auto-detected, persistent)
+
+### Public Config API
+- `artifacts/api-server/src/routes/config.ts` — `GET /api/config` returns panel/cart/admin/login/register URLs from DB settings
+- `PUT /api/admin/config` — admin updates panel URL configuration
+
 ## Recent Changes (Session 36 — Safepay Redirect Fix, Domain-Only Promo Scope, Invoice Correction)
 
 ### Safepay Redirect on InvoiceDetail (Fixes 1 + 5)

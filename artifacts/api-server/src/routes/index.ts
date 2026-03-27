@@ -42,6 +42,7 @@ import announcementsRouter from "./announcements.js";
 import safepayRouter from "./safepay.js";
 import contactRouter from "./contact.js";
 import configRouter from "./config.js";
+import syncRouter from "./sync.js";
 
 const router: IRouter = Router();
 
@@ -92,5 +93,6 @@ router.use(announcementsRouter);
 router.use(safepayRouter);
 router.use(contactRouter);
 router.use(configRouter);
+router.use(syncRouter);
 
 export default router;

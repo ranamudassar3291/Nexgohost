@@ -6,6 +6,7 @@ import { seedVpsData } from "./lib/seedVps.js";
 import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
 import { autoFixSafepayKeys } from "./routes/safepay.js";
+import { getSystemApiKey } from "./lib/systemApiKey.js";
 
 const rawPort = process.env["PORT"];
 
@@ -77,4 +78,13 @@ app.listen(port, async () => {
 
   // Auto-detect and fix swapped Safepay keys in DB (non-fatal, self-healing)
   autoFixSafepayKeys().catch(() => {});
+
+  // Bootstrap system API key — log it so admin can see it on first run
+  getSystemApiKey().then(key => {
+    if (key) {
+      console.log(`[SYSTEM-KEY] ✓ System API key active (${key.substring(0, 8)}…) — use X-System-API-Key header`);
+    } else {
+      console.warn("[SYSTEM-KEY] ⚠ No system API key found in DB — POST /api/admin/sync/rotate-key to generate one");
+    }
+  }).catch(() => {});
 });

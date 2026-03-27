@@ -148,6 +148,10 @@ export function badBotMiddleware(req: Request, res: Response, next: NextFunction
   const ua = req.headers["user-agent"] ?? "";
   const path = req.path;
 
+  // Trusted system API requests (website-to-panel sync) bypass the bot filter.
+  // The key is validated by validateSystemApiKey() on the route itself.
+  if (req.headers["x-system-api-key"]) return next();
+
   // Block bad bots by UA
   if (BAD_BOT_UA_PATTERNS.some(p => p.test(ua))) {
     db.insert(securityLogsTable).values({

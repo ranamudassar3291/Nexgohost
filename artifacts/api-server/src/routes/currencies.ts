@@ -1,15 +1,49 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { currenciesTable } from "@workspace/db/schema";
+import { currenciesTable, settingsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq, ne } from "drizzle-orm";
 
 const router = Router();
 
+const RATE_CACHE_HOURS = 24;
+
+/** Returns true if the last exchange-rate refresh was less than 24 hours ago */
+async function isRateCacheFresh(): Promise<boolean> {
+  try {
+    const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, "currency_last_refresh")).limit(1);
+    if (!row?.value) return false;
+    const last = new Date(row.value).getTime();
+    const ageHours = (Date.now() - last) / (1000 * 60 * 60);
+    return ageHours < RATE_CACHE_HOURS;
+  } catch {
+    return false;
+  }
+}
+
+async function markRateRefresh(): Promise<void> {
+  try {
+    const [existing] = await db.select().from(settingsTable).where(eq(settingsTable.key, "currency_last_refresh")).limit(1);
+    const now = new Date().toISOString();
+    if (existing) {
+      await db.update(settingsTable).set({ value: now, updatedAt: new Date() }).where(eq(settingsTable.key, "currency_last_refresh"));
+    } else {
+      await db.insert(settingsTable).values({ key: "currency_last_refresh", value: now, updatedAt: new Date() }).onConflictDoNothing();
+    }
+  } catch { /* non-fatal */ }
+}
+
 // Fetch live exchange rates from open.er-api.com (free, no API key required)
-export async function refreshExchangeRates(): Promise<{ updated: number; errors: string[] }> {
+// Only hits the external API once every 24 hours — uses cached DB rates in between.
+export async function refreshExchangeRates(force = false): Promise<{ updated: number; errors: string[]; cached?: boolean }> {
   const errors: string[] = [];
   let updated = 0;
+
+  // 24h cache guard — skip external call if rates are still fresh
+  if (!force && await isRateCacheFresh()) {
+    return { updated: 0, errors: [], cached: true };
+  }
+
   try {
     // Find base currency (USD or first default)
     const currencies = await db.select().from(currenciesTable).where(eq(currenciesTable.isActive, true));
@@ -40,6 +74,8 @@ export async function refreshExchangeRates(): Promise<{ updated: number; errors:
       await db.update(currenciesTable).set({ exchangeRate: String(rate), updatedAt: new Date() }).where(eq(currenciesTable.id, currency.id));
       updated++;
     }
+    // Stamp the successful refresh time so 24h guard works
+    if (updated > 0) await markRateRefresh();
   } catch (err: any) {
     errors.push(err.message || "Unknown error fetching exchange rates");
   }
@@ -108,15 +144,36 @@ router.delete("/admin/currencies/:id", authenticate, requireAdmin, async (req, r
   res.json({ success: true });
 });
 
-// POST /api/admin/currencies/refresh-rates — fetch live rates from open.er-api.com
+// POST /api/admin/currencies/refresh-rates — force-fetch live rates (bypasses 24h cache)
 router.post("/admin/currencies/refresh-rates", authenticate, requireAdmin, async (_req, res) => {
   try {
-    const result = await refreshExchangeRates();
+    const result = await refreshExchangeRates(true); // force = true, bypasses 24h cache
     const currencies = await db.select().from(currenciesTable).where(eq(currenciesTable.isActive, true));
-    res.json({ ...result, currencies });
+
+    // Return last-refresh timestamp
+    const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, "currency_last_refresh")).limit(1);
+    res.json({ ...result, currencies, lastRefreshed: row?.value ?? null });
   } catch (err: any) {
     console.error("[CURRENCIES] refresh-rates error:", err.message);
     res.status(500).json({ error: "Failed to refresh exchange rates", details: err.message });
+  }
+});
+
+// GET /api/admin/currencies/cache-status — show 24h cache status
+router.get("/admin/currencies/cache-status", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, "currency_last_refresh")).limit(1);
+    const last = row?.value ? new Date(row.value) : null;
+    const ageHours = last ? (Date.now() - last.getTime()) / (1000 * 60 * 60) : null;
+    const nextRefreshIn = ageHours !== null ? Math.max(0, 24 - ageHours) : 0;
+    res.json({
+      lastRefreshed: last?.toISOString() ?? null,
+      ageHours: ageHours !== null ? Math.round(ageHours * 10) / 10 : null,
+      cacheFresh: ageHours !== null && ageHours < 24,
+      nextRefreshInHours: Math.round(nextRefreshIn * 10) / 10,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -10,7 +10,36 @@ import { safepayWebhookHandler } from "./routes/safepay.js";
 
 const app: Express = express();
 
-app.use(cors());
+// ── CORS: allow noehost.com subdomains + Replit dev domains ───────────────────
+const ALLOWED_ORIGINS = [
+  /^https?:\/\/(client|cart|admin|www)\.noehost\.com$/,
+  /^https?:\/\/noehost\.com$/,
+  /\.replit\.dev$/,
+  /\.repl\.co$/,
+  /\.sisko\.replit\.dev$/,
+];
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // non-browser requests (curl, mobile, etc.)
+    const allowed = ALLOWED_ORIGINS.some(pattern => pattern.test(origin));
+    cb(null, allowed ? origin : false);
+  },
+  credentials: true,
+}));
+
+// ── Subdomain context middleware ───────────────────────────────────────────────
+// Detects the requesting subdomain and stamps req.subdomainContext so routes
+// can tailor their response. Also handles X-Forwarded-Host from proxies.
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const host = (req.headers["x-forwarded-host"] as string) || req.hostname || "";
+  let context: "client" | "cart" | "admin" | "main" = "main";
+  if (host.startsWith("client.")) context = "client";
+  else if (host.startsWith("cart.")) context = "cart";
+  else if (host.startsWith("admin.")) context = "admin";
+  (req as any).subdomainContext = context;
+  next();
+});
 
 // ── Safepay webhook — MUST come before express.json() to receive raw Buffer body ──
 // Safepay sends a HMAC-SHA256 signature over the raw request body;
@@ -23,6 +52,22 @@ app.post(
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── Subdomain context endpoint — public, lightweight, no auth needed ──────────
+// Must be BEFORE the security middleware so it's not blocked by the bot filter.
+app.get("/api/subdomain-context", (req: Request, res: Response) => {
+  const context = (req as any).subdomainContext ?? "main";
+  const host = (req.headers["x-forwarded-host"] as string) || req.hostname || "";
+  res.json({
+    context,
+    host,
+    routes: {
+      client: "client.noehost.com",
+      cart:   "cart.noehost.com",
+      admin:  "admin.noehost.com",
+    },
+  });
+});
 
 // ── Security middleware (bad bot blocker + IP block on auth routes) ────────────
 app.use(badBotMiddleware);
