@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi, CheckCircle2, Rocket, Lock } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -268,6 +268,67 @@ export default function ClientDashboard() {
           </Link>
         ))}
       </div>
+
+      {/* ── Launch Progress Wizard (shown when user has domains but no hosting) ── */}
+      {allDomains.length > 0 && activeServices.length === 0 && (
+        <div className="rounded-2xl border border-violet-500/25 overflow-hidden shadow-lg"
+          style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.04) 100%)" }}>
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-violet-500/15"
+            style={{ background: "rgba(112,26,254,0.09)" }}>
+            <Rocket size={16} className="text-primary shrink-0" />
+            <p className="text-sm font-bold text-primary">Launch your website — 3 steps to go live</p>
+            <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              Step 2 of 3
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-violet-500/10">
+            {/* Step 1: Domain registered ✅ */}
+            <div className="px-5 py-4 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/15 border-2 border-emerald-500/50 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={18} className="text-emerald-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground text-sm">Register Domain</p>
+                <p className="text-xs text-emerald-500 font-medium mt-0.5">Completed ✓</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {allDomains[0] ? `${allDomains[0].name}${allDomains[0].tld}` : "Your domain is ready"}
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2: Setup Hosting ⏳ */}
+            <div className="px-5 py-4 flex items-start gap-3 relative">
+              <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center shrink-0 animate-pulse">
+                <Server size={16} className="text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground text-sm">Setup Hosting</p>
+                <p className="text-xs text-orange-400 font-medium mt-0.5">Pending ⏳</p>
+                <p className="text-xs text-muted-foreground mt-1 mb-2.5">Your domain needs a server to go live.</p>
+                <Link href="/client/orders/new">
+                  <button className="h-8 px-3 rounded-lg text-xs font-bold text-white shadow-md"
+                    style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}>
+                    Get Hosting →
+                  </button>
+                </Link>
+              </div>
+            </div>
+
+            {/* Step 3: Website 🔒 */}
+            <div className="px-5 py-4 flex items-start gap-3 opacity-50">
+              <div className="w-10 h-10 rounded-full bg-secondary border-2 border-border flex items-center justify-center shrink-0">
+                <Lock size={16} className="text-muted-foreground" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Create Website</p>
+                <p className="text-xs text-muted-foreground font-medium mt-0.5">Locked 🔒</p>
+                <p className="text-xs text-muted-foreground mt-1">Complete Step 2 to unlock.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Client Lifecycle Widget ─────────────────────────────────────── */}
 

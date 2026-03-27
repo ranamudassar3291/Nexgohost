@@ -3,7 +3,7 @@ import { useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingCart, Tag, CreditCard, CheckCircle, Loader2, AlertCircle,
-  ArrowLeft, ArrowRight, Package, Globe, Receipt, Check,
+  ArrowLeft, ArrowRight, Package, Globe, Receipt, Check, ShieldCheck,
   Search as SearchIcon, XCircle, Gift, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -816,12 +816,25 @@ export default function Checkout() {
                 </div>
               )}
 
-              <div className="flex justify-between pt-2">
-                <Button variant="outline" onClick={() => setStep(4)}><ArrowLeft size={16} className="mr-2" /> Back</Button>
-                <Button onClick={handlePlaceOrder} disabled={placing || (captchaRequired && !captchaToken)} className="bg-primary hover:bg-primary/90 min-w-32">
-                  {placing ? <Loader2 size={16} className="animate-spin mr-2" /> : <ShoppingCart size={16} className="mr-2" />}
-                  {placing ? "Placing..." : "Place Order"}
+              <div className="space-y-3 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setStep(4)} className="gap-1.5">
+                  <ArrowLeft size={14} /> Back
                 </Button>
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={placing || (captchaRequired && !captchaToken)}
+                  className="w-full h-14 rounded-xl text-white text-base font-bold flex items-center justify-center gap-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-xl hover:shadow-2xl hover:brightness-110 active:scale-[0.99]"
+                  style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)", boxShadow: "0 8px 32px rgba(112,26,254,0.3)" }}
+                >
+                  {placing
+                    ? <><Loader2 size={18} className="animate-spin" /> Placing your order…</>
+                    : <><ShoppingCart size={18} /> Complete Purchase</>
+                  }
+                </button>
+                <p className="text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
+                  <ShieldCheck size={12} className="text-green-500" />
+                  Secure checkout · 30-day money-back guarantee
+                </p>
               </div>
             </div>
           )}

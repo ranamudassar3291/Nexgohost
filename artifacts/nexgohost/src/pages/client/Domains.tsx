@@ -182,6 +182,19 @@ export default function ClientDomains() {
     queryFn: () => apiFetch("/api/domains"),
   });
 
+  const { data: hostingServices = [] } = useQuery<Array<{ id: string; domain: string | null; status: string }>>({
+    queryKey: ["client-services-domains"],
+    queryFn: () => apiFetch("/api/client/hosting"),
+    retry: false,
+  });
+
+  function domainHasHosting(domain: MyDomain): boolean {
+    const fullName = `${domain.name}${domain.tld}`.toLowerCase();
+    return hostingServices.some(s =>
+      s.status === "active" && s.domain?.toLowerCase() === fullName
+    );
+  }
+
   const { data: transfersData, isLoading: transfersLoading, refetch: refetchTransfers } = useQuery<{ transfers: DomainTransfer[] }>({
     queryKey: ["my-domain-transfers"],
     queryFn: () => apiFetch("/api/domains/transfers"),
@@ -622,6 +635,7 @@ export default function ClientDomains() {
               const isLocked = lockStatus === "locked";
               const isActive = domain.status === "active";
               const isPending = domain.status === "pending";
+              const hasHosting = isActive ? domainHasHosting(domain) : true;
               return (
                 <div key={domain.id} className={`bg-card border rounded-2xl overflow-hidden transition-all ${isExpiringSoon || isExpired ? "border-orange-500/30" : "border-border hover:border-primary/20"}`}>
                   {/* Expiry warning bar */}
@@ -651,6 +665,14 @@ export default function ClientDomains() {
                               <Lock className="w-3 h-3" /> 60-Day Lock · {domain.daysRemainingInLock}d
                             </span>
                           )}
+                          {!hasHosting && (
+                            <button
+                              onClick={() => navigate("/client/orders/new")}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                            >
+                              <Globe className="w-3 h-3" /> Website not live · Buy Hosting
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                           {expiryDate ? `Expires ${format(expiryDate, "MMM d, yyyy")}` : ""}
@@ -668,7 +690,7 @@ export default function ClientDomains() {
 
                   {/* Quick Action Buttons — inline, visible without opening modal */}
                   {(isActive || isPending || isExpired) && (
-                    <div className="flex items-center gap-2 px-5 pb-4">
+                    <div className="flex items-center gap-2 px-5 pb-3 flex-wrap">
                       {isActive && (
                         <button
                           onClick={() => navigate(`/client/dns/${domain.id}`)}
@@ -709,6 +731,31 @@ export default function ClientDomains() {
                           <CreditCard size={12} /> Pay Now
                         </button>
                       )}
+                    </div>
+                  )}
+
+                  {/* Nameservers section — always visible for active domains */}
+                  {isActive && (
+                    <div className="mx-5 mb-4 p-3 bg-secondary/30 border border-border/50 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                          <Server size={10} /> Nameservers
+                        </span>
+                        <button
+                          onClick={() => navigate(`/client/dns/${domain.id}`)}
+                          className="text-[10px] text-primary hover:underline"
+                        >
+                          Edit →
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        {(domain.nameservers && domain.nameservers.length > 0 ? domain.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).map((ns, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground w-3">{i + 1}.</span>
+                            <span className="font-mono text-xs text-foreground">{ns}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
