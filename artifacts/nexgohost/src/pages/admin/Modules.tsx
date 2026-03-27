@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   Server, ExternalLink, CheckCircle, Upload, Package, CreditCard,
   Zap, Trash2, Settings, ChevronDown, ChevronUp, AlertCircle,
-  Eye, EyeOff, ToggleLeft, ToggleRight, RefreshCw, X,
+  Eye, EyeOff, ToggleLeft, ToggleRight, RefreshCw, X, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ interface UploadedModule {
   id: string;
   name: string;
   slug: string;
-  type: "server" | "gateway";
+  type: "server" | "gateway" | "registrar";
   version: string;
   description: string;
   configFields: ConfigField[];
@@ -193,7 +193,7 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
     }
   };
 
-  const typeIcon = mod.type === "server" ? <Server size={15} /> : <CreditCard size={15} />;
+  const typeIcon = mod.type === "server" ? <Server size={15} /> : mod.type === "registrar" ? <Globe size={15} /> : <CreditCard size={15} />;
   const isActive = mod.isActive;
 
   return (

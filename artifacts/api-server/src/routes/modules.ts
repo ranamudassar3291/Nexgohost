@@ -21,8 +21,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MODULES_DIR = path.resolve(__dirname, "../../modules");
 
 // Ensure module dirs exist
-fs.mkdirSync(path.join(MODULES_DIR, "servers"),   { recursive: true });
-fs.mkdirSync(path.join(MODULES_DIR, "gateways"),  { recursive: true });
+fs.mkdirSync(path.join(MODULES_DIR, "servers"),    { recursive: true });
+fs.mkdirSync(path.join(MODULES_DIR, "gateways"),   { recursive: true });
+fs.mkdirSync(path.join(MODULES_DIR, "registrars"), { recursive: true });
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -50,7 +51,7 @@ interface ConfigField {
 
 interface ModuleManifest {
   name: string;
-  type: "server" | "gateway";
+  type: "server" | "gateway" | "registrar";
   version?: string;
   description?: string;
   configFields?: ConfigField[];
@@ -106,15 +107,16 @@ function detectModuleFromZip(zipBuffer: Buffer): {
     } catch { continue; }
   }
 
-  // 3. Auto-detect from file structure — scan for JS/TS entry files
-  const jsFiles = entries.filter(e => !e.isDirectory && (e.entryName.endsWith(".js") || e.entryName.endsWith(".ts")));
-  const isGateway = jsFiles.some(e => /pay|gateway|checkout|merchant/i.test(e.entryName));
-  const isServer  = jsFiles.some(e => /server|hosting|cpanel|provision/i.test(e.entryName));
+  // 3. Auto-detect from file structure — scan for JS/TS/PHP entry files
+  const codeFiles = entries.filter(e => !e.isDirectory && (e.entryName.endsWith(".js") || e.entryName.endsWith(".ts") || e.entryName.endsWith(".php")));
+  const isGateway   = codeFiles.some(e => /pay|gateway|checkout|merchant/i.test(e.entryName));
+  const isRegistrar = codeFiles.some(e => /registrar|domain|whois|epp|register/i.test(e.entryName));
+  const isServer    = codeFiles.some(e => /server|hosting|cpanel|provision/i.test(e.entryName));
 
   return {
     manifest: {
       name: "Custom Module",
-      type: isServer ? "server" : "gateway",
+      type: isRegistrar ? "registrar" : isServer ? "server" : "gateway",
       version: "1.0.0",
       description: "Auto-detected module — no module.json found. Configure manually.",
       configFields: [
@@ -132,6 +134,24 @@ function detectModuleFromZip(zipBuffer: Buffer): {
 function extractZipToDir(zipBuffer: Buffer, targetDir: string): void {
   const zip = new AdmZip(zipBuffer);
   zip.extractAllTo(targetDir, true);
+  // Apply 755 permissions recursively so module files are immediately executable
+  setPermissionsRecursive(targetDir);
+}
+
+function setPermissionsRecursive(dirPath: string): void {
+  try {
+    fs.chmodSync(dirPath, 0o755);
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      fs.chmodSync(fullPath, 0o755);
+      if (entry.isDirectory()) {
+        setPermissionsRecursive(fullPath);
+      }
+    }
+  } catch {
+    // Non-fatal — permissions may already be correct or filesystem may not support chmod
+  }
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -166,7 +186,7 @@ router.post("/admin/modules/upload",
       // Detect module from zip
       const { manifest, detected } = detectModuleFromZip(req.file.buffer);
       const slug = slugify(manifest.name) + "-" + Date.now().toString(36);
-      const typeDir = manifest.type === "server" ? "servers" : "gateways";
+      const typeDir = manifest.type === "server" ? "servers" : manifest.type === "registrar" ? "registrars" : "gateways";
       const targetDir = path.join(MODULES_DIR, typeDir, slug);
 
       // Extract to modules folder

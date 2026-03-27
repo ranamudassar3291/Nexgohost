@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, boolean, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const moduleTypeEnum = pgEnum("module_type", ["server", "gateway"]);
+export const moduleTypeEnum = pgEnum("module_type", ["server", "gateway", "registrar"]);
 export const moduleStatusEnum = pgEnum("module_status", ["active", "inactive", "error"]);
 
 export const uploadedModulesTable = pgTable("uploaded_modules", {
