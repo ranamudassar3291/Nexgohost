@@ -87,6 +87,7 @@ export default function PaymentMethods() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editSettings, setEditSettings] = useState<Record<string, string>>({});
+  const [editIsSandbox, setEditIsSandbox] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [testingConfig, setTestingConfig] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -131,7 +132,7 @@ export default function PaymentMethods() {
     try {
       await apiFetch(`/api/admin/payment-methods/${method.id}`, {
         method: "PUT",
-        body: JSON.stringify({ settings: editSettings }),
+        body: JSON.stringify({ settings: editSettings, isSandbox: editIsSandbox }),
       });
       qc.invalidateQueries({ queryKey: ["admin-payment-methods"] });
       toast({ title: "Settings saved", description: method.name });
@@ -147,17 +148,30 @@ export default function PaymentMethods() {
   const handleTestConfig = async (method: PaymentMethod) => {
     setTestResult(null);
 
-    const isSandbox = method.isSandbox;
-    const publicKey = isSandbox ? (editSettings["sandboxPublicKey"] ?? "") : (editSettings["livePublicKey"] ?? "");
-    const secretKey = isSandbox ? (editSettings["sandboxSecretKey"] ?? "") : (editSettings["liveSecretKey"] ?? "");
+    // Use the CURRENT local sandbox toggle state, not the stale DB value
+    const isSandbox = editIsSandbox;
 
-    // ── Require both keys to be present ────────────────────────────────────
+    // Try sandbox keys first if sandbox mode is on, else try live keys
+    // Fall back to the other set if the primary set is empty
+    const sandboxPub = (editSettings["sandboxPublicKey"] ?? "").trim();
+    const sandboxSec = (editSettings["sandboxSecretKey"] ?? "").trim();
+    const livePub    = (editSettings["livePublicKey"]    ?? "").trim();
+    const liveSec    = (editSettings["liveSecretKey"]    ?? "").trim();
+
+    let publicKey = isSandbox ? sandboxPub : livePub;
+    let secretKey = isSandbox ? sandboxSec : liveSec;
+
+    // Fallback: if the preferred set is empty, try the other set
+    if (!publicKey && !secretKey) {
+      publicKey = isSandbox ? livePub : sandboxPub;
+      secretKey = isSandbox ? liveSec : sandboxSec;
+    }
+
     if (!publicKey || !secretKey) {
       setTestResult({ ok: false, message: "Please enter both Client Key and Secret Key before testing." });
       return;
     }
 
-    // ── Live API call to Safepay ─────────────────────────────────────────────
     setTestingConfig(true);
     try {
       const params = new URLSearchParams({ publicKey, secretKey, isSandbox: String(isSandbox) });
@@ -173,7 +187,9 @@ export default function PaymentMethods() {
   const startEdit = (method: PaymentMethod) => {
     setEditId(method.id);
     setEditSettings({ ...(method.settings ?? {}) });
+    setEditIsSandbox(method.isSandbox);
     setExpandedId(method.id);
+    setTestResult(null);
   };
 
   return (
@@ -350,6 +366,23 @@ export default function PaymentMethods() {
                             </div>
                           ))}
                         </div>
+                        {/* Sandbox toggle inside edit panel */}
+                        {isEditing && (
+                          <div className="flex items-center gap-3 pt-1">
+                            <input
+                              type="checkbox"
+                              id={`sandbox-edit-${m.id}`}
+                              checked={editIsSandbox}
+                              onChange={e => { setEditIsSandbox(e.target.checked); setTestResult(null); }}
+                              className="w-4 h-4 accent-primary"
+                            />
+                            <label htmlFor={`sandbox-edit-${m.id}`} className="text-sm text-muted-foreground cursor-pointer select-none">
+                              <span className="font-medium text-foreground">Test / Sandbox Mode</span>
+                              {" — "}when enabled, uses Sandbox keys and hits <code className="text-xs bg-secondary px-1 rounded">sandbox.api.getsafepay.com</code>
+                            </label>
+                          </div>
+                        )}
+
                         {/* Test result banner (Safepay only) */}
                         {m.type === "safepay" && isEditing && testResult && (
                           <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm border ${testResult.ok ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>

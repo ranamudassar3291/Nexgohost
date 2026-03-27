@@ -141,7 +141,7 @@ async function trySafepayEnv(
   const payload = {
     client:      pub,
     environment: env,
-    amount:      10,
+    amount:      100,
     currency:    "PKR",
     order_id:    `TEST-${Date.now()}`,
   };
