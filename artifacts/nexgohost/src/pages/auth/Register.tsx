@@ -10,6 +10,7 @@ import {
 import CaptchaWidget from "@/components/CaptchaWidget";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { COUNTRIES, countryToCurrency, type CountryOption } from "@/lib/countries";
 
 async function apiFetch(url: string, token: string | null, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -28,6 +29,10 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast }      = useToast();
   const { currency, setCurrency, allCurrencies } = useCurrency();
+
+  // Country selection — defaults to Pakistan, overrides currency on change
+  const defaultCountry = COUNTRIES.find(c => c.code === "PK") ?? COUNTRIES[0];
+  const [selectedCountry, setSelectedCountry] = useState<CountryOption>(defaultCountry);
 
   const [formData,     setFormData]     = useState({ firstName: "", lastName: "", email: "", password: "", company: "", phone: "" });
   const [loading,      setLoading]      = useState(false);
@@ -126,7 +131,14 @@ export default function Register() {
     setFormError(null);
     setLoading(true);
     try {
-      const payload = { ...formData, ...(refCode ? { refCode } : {}), ...(captchaToken ? { captchaToken } : {}) };
+      const billingCurrency = allCurrencies.find(c => c.code === currency.code)?.code ?? selectedCountry.currency;
+      const payload = {
+        ...formData,
+        country: selectedCountry.code,
+        billingCurrency,
+        ...(refCode ? { refCode } : {}),
+        ...(captchaToken ? { captchaToken } : {}),
+      };
       const data = await apiFetch("/api/auth/register", null, { method: "POST", body: JSON.stringify(payload) });
       setTempToken(data.token);
       if (refCode) {
@@ -290,31 +302,33 @@ export default function Register() {
                   </div>
                 </div>
 
-                {/* Currency selector */}
-                {allCurrencies.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Billing currency <span className="text-gray-400 font-normal">(auto-detected)</span>
-                    </label>
-                    <select
-                      value={currency.code}
-                      onChange={e => {
-                        const selected = allCurrencies.find(c => c.code === e.target.value);
-                        if (selected) setCurrency(selected);
-                      }}
-                      className="w-full h-11 px-4 rounded-xl border border-gray-200 text-sm text-black bg-white outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] transition-all"
-                    >
-                      {allCurrencies.map(c => (
-                        <option key={c.code} value={c.code}>
-                          {c.symbol} {c.code} — {c.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1.5 text-xs text-gray-400">
-                      Prices are shown in your selected currency. Payments are processed in PKR.
-                    </p>
-                  </div>
-                )}
+                {/* Country selector — determines billing currency */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Country <span className="text-gray-400 font-normal">(sets your billing currency)</span>
+                  </label>
+                  <select
+                    value={selectedCountry.code}
+                    onChange={e => {
+                      const country = COUNTRIES.find(c => c.code === e.target.value);
+                      if (!country) return;
+                      setSelectedCountry(country);
+                      // Auto-switch pricing currency to match country
+                      const matchedCurrency = allCurrencies.find(c => c.code === countryToCurrency(country.code));
+                      if (matchedCurrency) setCurrency(matchedCurrency);
+                    }}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 text-sm text-black bg-white outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] transition-all"
+                  >
+                    {COUNTRIES.map(c => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.name} — {c.currency}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-xs text-gray-400">
+                    Prices are shown in your country's currency. Payments are settled in PKR via Safepay.
+                  </p>
+                </div>
 
                 {captchaRequired && captchaConfig?.siteKey && (
                   <div className="pt-1">

@@ -1,0 +1,36 @@
+Master Prompt: Professional Registration, Global Detection & API Docs
+"I need to upgrade the Create Account page (client.noehost.com/register) and the entire user onboarding flow to be Hostinger-level professional and automated. Execute these technical modules immediately:
+
+1. Professional User Interface (Frontend):
+
+Simplify & Clean: Rearrange the fields for better readability. Keep 'Continue with Google' at the top, then 'or register with email'. Group Name, Email, Password. Move 'Company' and 'Phone' into an optional expandable section or remove them from the primary view.
+
+Currency dropdown Fix: Replace the current 'Billing currency (auto-detected)' dropdown with a smart, streamlined dropdown.
+
+Country-Based Detection: This dropdown should show a list of Countries with Flags, not just currencies.
+
+2. Auto-Detection and Streamlined Global Flow:
+
+Backend Geolocation Logic: The system must use an IP Geolocation API to auto-detect the user's country on page load.
+
+Smart dropdown Default: The smart dropdown must pre-select the user's detected country and display its official currency next to the flag (e.g., 🇺🇸 USA — USD). If the user changes the country, the system must update the mapped currency immediately.
+
+Currency Mismatch Prevention: Once a country is selected, the entire session must lock to that country's currency. If a USA user is on a $ checkout page, they should not see PKR pricing.
+
+3. Safe Billing & Data Integrity:
+
+Protect Existing Plans: Ensure that these changes do NOT modify or update any existing Hosting Plan prices, TLD pricing, or old client invoices. This is a safeguard.
+
+Invoice Locking: When a new user in the UK registers and detects GBP, their final generated invoice must strictly show £ formatting. Payments must still settle in PKR on Safepay, but the user must see GBP.
+
+4. Safety & Cloudflare:
+
+Keep the Cloudflare validation success message, but ensure it integrates cleanly with the new simplified design.
+
+Use standard currency formatting (e.g., $1,845.00 not Rs. 1,845) based on the localized format.
+
+5. Generating Full API Documentation:
+
+Complete Endpoints: Create a detailed API Documentation Page in the Admin Panel or a dedicated route (e.g., /docs/api).
+
+Documentation Content: This page must document all endpoints, including authentication, /create-checkout-session, webhook handling, and user management. Specify required headers (Secret Key), request parameters, and example JSON responses. This must be the One Source of Truth for the system's integration."

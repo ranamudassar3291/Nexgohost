@@ -34,13 +34,15 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     role: user.role, status: user.status,
     emailVerified: user.emailVerified,
     twoFactorEnabled: user.twoFactorEnabled,
+    country: (user as any).country ?? null,
+    billingCurrency: (user as any).billingCurrency ?? null,
     createdAt: user.createdAt.toISOString(),
   };
 }
 
 router.post("/auth/register", async (req, res) => {
   try {
-    const { firstName, lastName, email, password, company, phone, captchaToken } = req.body;
+    const { firstName, lastName, email, password, company, phone, captchaToken, country, billingCurrency } = req.body;
     if (!firstName || !lastName || !email || !password) {
       res.status(400).json({ error: "Validation error", message: "Required fields missing" }); return;
     }
@@ -76,7 +78,9 @@ router.post("/auth/register", async (req, res) => {
       emailVerified: !verificationRequired,
       verificationCode: code,
       verificationExpiresAt: expiresAt,
-    }).returning();
+      ...(country         ? { country }         : {}),
+      ...(billingCurrency ? { billingCurrency }  : {}),
+    } as any).returning();
 
     if (verificationRequired && code) {
       await emailVerificationCode(email, firstName, code).catch(() => {});

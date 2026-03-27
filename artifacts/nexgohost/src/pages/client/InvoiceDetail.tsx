@@ -115,6 +115,35 @@ export default function InvoiceDetail() {
   const paymentRef = useRef<HTMLDivElement>(null);
   const { formatPrice } = useCurrency();
   const { toast } = useToast();
+
+  // ── Legacy protection: always format using the invoice's OWN stored currency.
+  // This prevents old PKR invoices from being re-converted to the session currency.
+  // invFmt is defined after invoice loads; before that it falls back to PKR.
+  function makeInvFmt(inv: Invoice | undefined) {
+    if (!inv) return formatPrice;
+    const code   = inv.currencyCode   || "PKR";
+    const symbol = inv.currencySymbol || "Rs.";
+    const rate   = Number(inv.currencyRate ?? 1) || 1;
+    return (pkrAmount: number) => {
+      const converted = pkrAmount * rate;
+      // Locale map (mirrors currency-format.ts)
+      const localeMap: Record<string, { locale: string; pos: "before" | "after"; sep?: string }> = {
+        PKR: { locale: "en-US", pos: "before", sep: " " },
+        USD: { locale: "en-US", pos: "before" },
+        GBP: { locale: "en-GB", pos: "before" },
+        EUR: { locale: "de-DE", pos: "after", sep: "\u00A0" },
+        AED: { locale: "en-AE", pos: "before", sep: " " },
+        AUD: { locale: "en-AU", pos: "before" },
+        CAD: { locale: "en-CA", pos: "before" },
+        INR: { locale: "en-IN", pos: "before" },
+      };
+      const cfg = localeMap[code] ?? { locale: "en-US", pos: "before" };
+      const fmt = converted.toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (code === "PKR") return `Rs. ${fmt}`;
+      if (cfg.pos === "after") return `${fmt}${cfg.sep ?? "\u00A0"}${symbol}`;
+      return `${symbol}${cfg.sep ?? ""}${fmt}`;
+    };
+  }
   const qc = useQueryClient();
 
   const [selectedGateway, setSelectedGateway] = useState<string>("");
@@ -142,6 +171,10 @@ export default function InvoiceDetail() {
   });
 
   const creditBalance = parseFloat(credits?.creditBalance ?? "0");
+
+  // Invoice-locked formatter — uses the stored currency from this invoice record.
+  // Old PKR invoices show in PKR regardless of the user's current session currency.
+  const invFmt = makeInvFmt(invoice);
 
   const handleDownloadPdf = async () => {
     if (!invoice) return;
@@ -380,8 +413,8 @@ export default function InvoiceDetail() {
                 <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/80"}>
                   <td className="py-3 px-3 text-slate-800">{item.description}</td>
                   <td className="py-3 px-3 text-center text-slate-500">{item.quantity}</td>
-                  <td className="py-3 px-3 text-right text-slate-600">{formatPrice(Number(item.unitPrice))}</td>
-                  <td className="py-3 px-3 text-right font-semibold text-slate-800">{formatPrice(Number(item.total))}</td>
+                  <td className="py-3 px-3 text-right text-slate-600">{invFmt(Number(item.unitPrice))}</td>
+                  <td className="py-3 px-3 text-right font-semibold text-slate-800">{invFmt(Number(item.total))}</td>
                 </tr>
               )) : (
                 <tr>
@@ -398,16 +431,16 @@ export default function InvoiceDetail() {
             <div className="space-y-2 pt-4">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Subtotal</span>
-                <span className="text-slate-700 font-medium">{formatPrice(Number(invoice.amount))}</span>
+                <span className="text-slate-700 font-medium">{invFmt(Number(invoice.amount))}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Tax / VAT (0%)</span>
-                <span className="text-slate-700 font-medium">{formatPrice(Number(invoice.tax || 0))}</span>
+                <span className="text-slate-700 font-medium">{invFmt(Number(invoice.tax || 0))}</span>
               </div>
               {creditApplicable && (
                 <div className="flex justify-between text-sm text-emerald-600">
                   <span className="font-medium">Account Credit Applied</span>
-                  <span className="font-medium">− {formatPrice(creditApplied)}</span>
+                  <span className="font-medium">− {invFmt(creditApplied)}</span>
                 </div>
               )}
             </div>
@@ -417,12 +450,12 @@ export default function InvoiceDetail() {
             >
               <span className="text-sm font-bold uppercase tracking-wide">Total Due</span>
               <span className="text-lg font-black">
-                {creditApplicable ? formatPrice(amountAfterCredit) : formatPrice(Number(invoice.total))}
+                {creditApplicable ? invFmt(amountAfterCredit) : invFmt(Number(invoice.total))}
               </span>
             </div>
             {creditApplicable && (
               <p className="text-[10px] text-emerald-600 text-right mt-1.5">
-                * {formatPrice(creditApplied)} account credit will be applied at checkout
+                * {invFmt(creditApplied)} account credit will be applied at checkout
               </p>
             )}
           </div>
@@ -540,7 +573,7 @@ export default function InvoiceDetail() {
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-slate-500">Amount to Pay</span>
                           <span className="text-base font-black" style={{ color: BRAND }}>
-                            {formatPrice(Number(invoice.total))}
+                            {invFmt(Number(invoice.total))}
                           </span>
                         </div>
                         {invoice.currencyCode && invoice.currencyCode !== "PKR" && (

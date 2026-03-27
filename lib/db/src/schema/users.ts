@@ -24,6 +24,8 @@ export const usersTable = pgTable("users", {
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   googleId: text("google_id"),
   creditBalance: numeric("credit_balance", { precision: 12, scale: 2 }).notNull().default("0"),
+  country: text("country"),
+  billingCurrency: text("billing_currency"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -68,18 +68,36 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     // 2. Fetch live rates from server
     fetch("/api/currencies")
       .then(r => r.ok ? r.json() : null)
-      .then((data: any[] | null) => {
+      .then(async (data: any[] | null) => {
         if (!data?.length) return;
         const mapped: CurrencyInfo[] = data.map(c => ({
           code: c.code, symbol: c.symbol, rate: Number(c.exchangeRate), name: c.name,
         }));
         setAllCurrencies(mapped);
 
+        // 3. If user is logged in, use their server-saved billingCurrency (session lock)
+        const token = localStorage.getItem("token");
+        if (token) {
+          try {
+            const me = await fetch("/api/auth/me", {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then(r => r.ok ? r.json() : null);
+            if (me?.billingCurrency) {
+              const serverSaved = mapped.find(c => c.code === me.billingCurrency);
+              if (serverSaved) {
+                setCurrencyState(serverSaved);
+                localStorage.setItem("currency", JSON.stringify(serverSaved));
+                return;
+              }
+            }
+          } catch { /* non-fatal — fall through to stored/IP */ }
+        }
+
         if (!stored) {
-          // 3. No stored preference — detect via IP
+          // 4. No stored preference — detect via IP
           detectCountryCurrency(mapped);
         } else {
-          // 4. Refresh rate for the stored currency (keeps rate in sync after daily cache refresh)
+          // 5. Refresh rate for the stored currency (keeps rate in sync after daily cache refresh)
           try {
             const storedObj: CurrencyInfo = JSON.parse(stored);
             const serverVersion = mapped.find(c => c.code === storedObj.code);
