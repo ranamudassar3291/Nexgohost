@@ -136,26 +136,71 @@ async function trySafepayEnv(
   secret: string,
   sandbox: boolean,
 ): Promise<{ ok: boolean; tracker?: string; status: number; body: string }> {
-  const base    = getApiBase(sandbox);
-  const env     = sandbox ? "sandbox" : "production";
-  const payload = {
-    client:      pub,
-    environment: env,
-    amount:      100,
-    currency:    "PKR",
-    order_id:    `TEST-${Date.now()}`,
-  };
-  console.log(`[SAFEPAY TEST] Trying ${env} (${base}) | client: ${pub.substring(0, 16)}…`);
-  const r        = await fetch(`${base}/order/v1/init`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json", "X-SFPY-SECRET-KEY": secret },
-    body:    JSON.stringify(payload),
-  });
-  const body = await r.text();
+  const base = getApiBase(sandbox);
+  const env  = sandbox ? "sandbox" : "production";
+
+  // Strip any sec_/pub_ prefix — some Safepay API versions want just the UUID
+  const pubRaw = pub.replace(/^(sec_|pub_)/, "");
+
+  // All client ID variants to try
+  const clientVariants = [
+    pub,     // full key as-is: sec_5486a972-...
+    pubRaw,  // UUID only:      5486a972-...
+  ];
+
+  // All payload structures to try
+  const makePayloads = (client: string) => [
+    { client, amount: 100, currency: "PKR", order_id: `TEST-${Date.now()}` },
+    { client, amount: 100, currency: "PKR", order_id: `TEST-${Date.now()}`, environment: env },
+    { client, amount: 100, currency: "PKR", order_id: `TEST-${Date.now()}`, environment: "sandbox" },
+  ];
+
+  // Auth header variants to try
+  const headerVariants = [
+    { "Content-Type": "application/json", "X-SFPY-SECRET-KEY": secret },
+    { "Content-Type": "application/json", "Authorization": `Bearer ${secret}` },
+  ];
+
+  console.log(
+    `[SAFEPAY TEST] ▶ Starting exhaustive test | base: ${base}\n` +
+    `  Client variants : [1] ${pub.substring(0, 20)}… (full)  [2] ${pubRaw.substring(0, 16)}… (UUID-only)\n` +
+    `  Payload variants: [A] no-env  [B] env="${env}"  [C] env="sandbox"\n` +
+    `  Header variants : [I] X-SFPY-SECRET-KEY  [II] Authorization:Bearer`
+  );
+
+  let lastStatus = 0;
+  let lastBody   = "";
+  let attempt    = 0;
+
+  for (const client of clientVariants) {
+    for (const headers of headerVariants) {
+      for (const payload of makePayloads(client)) {
+        attempt++;
+        const r    = await fetch(`${base}/order/v1/init`, { method: "POST", headers, body: JSON.stringify(payload) });
+        const body = await r.text();
+        const headerKey = Object.keys(headers).find(k => k !== "Content-Type") ?? "";
+        console.log(
+          `[SAFEPAY TEST] Attempt ${attempt}: client="${client.substring(0, 16)}…" | ` +
+          `env=${(payload as any).environment ?? "omitted"} | ` +
+          `header=${headerKey} → ${r.status}: ${body.substring(0, 150)}`
+        );
+        lastStatus = r.status;
+        lastBody   = body;
+        if (r.ok) {
+          let json: any;
+          try { json = JSON.parse(body); } catch { json = null; }
+          const tracker = json?.data?.token?.tracker ?? json?.token?.tracker ?? "";
+          console.log(`[SAFEPAY TEST] ✓ SUCCESS on attempt ${attempt} | tracker: ${tracker}`);
+          return { ok: true, tracker, status: r.status, body };
+        }
+      }
+    }
+  }
+
+  console.warn(`[SAFEPAY TEST] ✗ All ${attempt} attempts failed. Last: ${lastStatus}: ${lastBody.substring(0, 200)}`);
   let json: any;
-  try { json = JSON.parse(body); } catch { json = null; }
-  const tracker = json?.data?.token?.tracker ?? json?.token?.tracker ?? "";
-  return { ok: r.ok, tracker, status: r.status, body };
+  try { json = JSON.parse(lastBody); } catch { json = null; }
+  return { ok: false, tracker: "", status: lastStatus, body: lastBody };
 }
 
 // ─── GET /api/payments/safepay/test — verify API keys ────────────────────────
