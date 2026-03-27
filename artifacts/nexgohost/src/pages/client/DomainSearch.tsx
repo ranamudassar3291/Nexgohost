@@ -33,11 +33,12 @@ export default function DomainSearch() {
   const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
 
-  const { data: tlds = [] } = useQuery<TldInfo[]>({
+  const { data: rawTlds } = useQuery({
     queryKey: ["domain-tlds"],
-    queryFn: () => apiFetch("/api/domain-search/tlds"),
+    queryFn: () => apiFetch("/api/domain-search/tlds").catch(() => []),
     staleTime: 300_000,
   });
+  const tlds: TldInfo[] = Array.isArray(rawTlds) ? rawTlds : [];
 
   const enabledTlds = tlds.filter(t => t.enabled).map(t => t.tld);
   const displayTlds = enabledTlds.length > 0 ? enabledTlds : popularExtensions;
