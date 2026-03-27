@@ -197,14 +197,19 @@ export default function InvoiceDetail() {
         throw new Error("No checkout URL returned. Please try again.");
       }
     } catch (err: any) {
-      const isNetwork = err.message?.toLowerCase().includes("fetch") ||
-        err.message?.toLowerCase().includes("network") ||
-        err.message?.toLowerCase().includes("timeout");
+      const msg: string = err.message ?? "";
+      const isNetwork  = /fetch|network|timeout/i.test(msg);
+      const isOnboard  = /setup mode|onboarding|not live|not active|pending/i.test(msg);
+
       toast({
-        title: isNetwork ? "Connection Error" : "Payment Gateway Error",
+        title: isNetwork ? "Connection Error"
+             : isOnboard ? "Safepay Not Available"
+             : "Payment Gateway Error",
         description: isNetwork
           ? "Could not reach the payment server. Please check your connection and try again."
-          : (err.message ?? "Failed to initiate Safepay payment. Please try again or use another payment method."),
+          : isOnboard
+          ? "Safepay is currently in setup mode. Please use your Wallet balance or select another payment method."
+          : (msg || "Failed to initiate Safepay payment. Please try again or use another payment method."),
         variant: "destructive",
       });
       setSafepayInitiating(false);

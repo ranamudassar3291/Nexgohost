@@ -76,30 +76,46 @@ function getCheckoutBase(isSandbox: boolean) {
 }
 
 // ─── Friendly error parser ─────────────────────────────────────────────────────
-function parseSafepayError(body: any): { userMsg: string; techDetail: string } {
+function parseSafepayError(body: any): { userMsg: string; techDetail: string; isOnboarding?: boolean } {
   try {
     const parsed = typeof body === "string" ? JSON.parse(body) : body;
     const errors: string[] = parsed?.status?.errors ?? [];
     const msg = errors[0] ?? parsed?.status?.message ?? parsed?.message ?? "Unknown error";
+    const msgLc = msg.toLowerCase();
 
-    if (msg.toLowerCase().includes("client") && msg.toLowerCase().includes("not found")) {
+    // ── Onboarding / account not live ────────────────────────────────────────
+    const onboardingPhrases = [
+      "onboarding", "not live", "not active", "account not", "pending approval",
+      "pending verification", "under review", "not yet", "not approved",
+      "setup mode", "incomplete", "not enabled", "disabled",
+    ];
+    if (onboardingPhrases.some(p => msgLc.includes(p))) {
+      return {
+        isOnboarding: true,
+        userMsg: "Safepay is currently in setup mode. Please use Wallet or another payment method.",
+        techDetail: `[ONBOARDING] Safepay account not yet live: "${msg}"`,
+      };
+    }
+
+    // ── Key errors ───────────────────────────────────────────────────────────
+    if (msgLc.includes("client") && msgLc.includes("not found")) {
       return {
         userMsg: "Payment gateway configuration error — please contact support.",
         techDetail:
           `[KEY ERROR] Safepay rejected the pub_ key as client identifier.\n` +
-          `Verify in Admin → Payment Methods → Safepay:\n` +
-          `  • Live Public Key  = pub_xxx (from Safepay Dashboard → API Keys)\n` +
-          `  • Live Secret Key  = sec_xxx (from Safepay Dashboard → API Keys)\n` +
+          `Verify Admin → Payment Methods → Safepay:\n` +
+          `  • Live Public Key  = pub_xxx\n` +
+          `  • Live Secret Key  = sec_xxx\n` +
           `Error: "${msg}"`,
       };
     }
-    if (msg.toLowerCase().includes("environment")) {
+    if (msgLc.includes("environment")) {
       return {
         userMsg: "Payment gateway environment mismatch — please contact support.",
         techDetail: `[ENV ERROR] ${msg}`,
       };
     }
-    if (msg.toLowerCase().includes("amount")) {
+    if (msgLc.includes("amount")) {
       return {
         userMsg: "Invalid payment amount — please contact support.",
         techDetail: `[AMOUNT ERROR] ${msg}`,
@@ -238,9 +254,9 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     }
 
     if (!trackerRes.ok) {
-      const { userMsg, techDetail } = parseSafepayError(trackerData);
+      const { userMsg, techDetail, isOnboarding } = parseSafepayError(trackerData);
       console.error(`[SAFEPAY] ✗ Tracker creation failed (${trackerRes.status}): ${techDetail}`);
-      res.status(502).json({ error: userMsg });
+      res.status(502).json({ error: userMsg, isOnboarding: isOnboarding ?? false });
       return;
     }
 
