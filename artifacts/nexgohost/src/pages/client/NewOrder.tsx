@@ -221,6 +221,7 @@ function PayIcon({ type }: { type: string }) {
     case "stripe":       return <CreditCard size={20} style={{ color: "#635bff" }}/>;
     case "paypal":       return <Wallet     size={20} style={{ color: "#003087" }}/>;
     case "crypto":       return <Bitcoin    size={20} style={{ color: "#f7931a" }}/>;
+    case "safepay":      return <Shield     size={20} style={{ color: "#0f766e" }}/>;
     default:             return <CreditCard size={20} className="text-gray-400"/>;
   }
 }
@@ -1081,10 +1082,28 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       if (!r.ok) throw new Error(d.error || "Checkout failed");
       return d;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (selectedPlan) removeItem(selectedPlan.id);
       setCartDomain(null);
-      setLocation(`/client/invoices/${data.invoiceId ?? data.invoice?.id}`);
+
+      // If Safepay was selected, initiate payment and redirect to Safepay hosted checkout
+      const invoiceId = data.invoiceId ?? data.invoice?.id;
+      const selectedPm = (paymentMethods as any[]).find((p: any) => p.id === paymentMethodId);
+      if (selectedPm?.type === "safepay" && invoiceId) {
+        try {
+          const spRes = await apiFetch("/api/payments/safepay/initiate", {
+            method: "POST",
+            body: JSON.stringify({ invoiceId }),
+          });
+          const sp = await spRes.json();
+          if (sp.checkoutUrl) {
+            window.location.href = sp.checkoutUrl;
+            return;
+          }
+        } catch { /* fall through to invoice page if initiate fails */ }
+      }
+
+      setLocation(`/client/invoices/${invoiceId}`);
     },
     onError: (err: Error) => {
       if (err.message === "Unauthorized" || err.message.toLowerCase().includes("unauthorized") || err.message.includes("401")) {

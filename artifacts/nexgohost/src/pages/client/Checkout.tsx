@@ -20,7 +20,7 @@ interface PromoResult {
 }
 
 const METHOD_ICONS: Record<string, string> = {
-  stripe: "💳", paypal: "🅿️", bank_transfer: "🏦", crypto: "₿", manual: "✍️",
+  stripe: "💳", paypal: "🅿️", bank_transfer: "🏦", crypto: "₿", manual: "✍️", safepay: "🔐",
 };
 
 type BillingCycle = "monthly" | "quarterly" | "semiannual" | "yearly";
@@ -222,6 +222,20 @@ export default function Checkout() {
           ...(captchaToken ? { captchaToken } : {}),
         }),
       });
+
+      // If Safepay is selected, initiate payment and redirect to Safepay hosted checkout
+      const selectedPm = paymentMethods.find((p: any) => p.id === selectedPaymentMethod);
+      if (selectedPm?.type === "safepay" && data.invoice?.id) {
+        const spData = await apiFetch("/api/payments/safepay/initiate", {
+          method: "POST",
+          body: JSON.stringify({ invoiceId: data.invoice.id }),
+        });
+        if (spData.checkoutUrl) {
+          window.location.href = spData.checkoutUrl;
+          return;
+        }
+      }
+
       setSuccess(data);
       setStep(6);
     } catch (err: any) {

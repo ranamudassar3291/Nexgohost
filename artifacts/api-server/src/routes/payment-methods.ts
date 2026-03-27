@@ -52,6 +52,8 @@ function publicSettings(type: string, settings: Record<string, unknown>) {
       };
     case "stripe":
       return { publishableKey: settings.publishableKey };
+    case "safepay":
+      return { isSandbox: settings.isSandbox };
     default:
       return {};
   }
@@ -93,7 +95,7 @@ router.post("/admin/payment-methods", authenticate, requireAdmin, async (req: Au
       return;
     }
 
-    const validTypes = ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual"];
+    const validTypes = ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual", "safepay"];
     if (!validTypes.includes(type)) {
       res.status(400).json({ error: `type must be one of: ${validTypes.join(", ")}` });
       return;

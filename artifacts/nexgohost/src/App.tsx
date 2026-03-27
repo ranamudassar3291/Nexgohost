@@ -88,6 +88,7 @@ import NewOrder from "@/pages/client/NewOrder";
 import Checkout from "@/pages/client/Checkout";
 import Cart from "@/pages/client/Cart";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
+import SafepayReturn from "@/pages/client/SafepayReturn";
 import ClientOrders from "@/pages/client/Orders";
 import Affiliate from "@/pages/client/Affiliate";
 import Credits from "@/pages/client/Credits";
@@ -385,6 +386,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/invoices">
         <ClientPage><ClientInvoices /></ClientPage>
+      </Route>
+      <Route path="/client/payment/return">
+        <ClientPage><SafepayReturn /></ClientPage>
       </Route>
       <Route path="/client/tickets/:id">
         <ClientPage><ClientTicketDetail /></ClientPage>

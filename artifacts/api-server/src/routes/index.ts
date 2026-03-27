@@ -39,6 +39,7 @@ import domainRegistrarsRouter from "./domain-registrars.js";
 import whatsappRouter from "./whatsapp.js";
 import serverStatusRouter from "./server-status.js";
 import announcementsRouter from "./announcements.js";
+import safepayRouter from "./safepay.js";
 
 const router: IRouter = Router();
 
@@ -86,5 +87,6 @@ router.use(domainRegistrarsRouter);
 router.use(whatsappRouter);
 router.use(serverStatusRouter);
 router.use(announcementsRouter);
+router.use(safepayRouter);
 
 export default router;

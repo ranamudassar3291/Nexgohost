@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const invoiceStatusEnum = pgEnum("invoice_status", ["unpaid", "payment_pending", "paid", "cancelled", "overdue", "refunded", "collections"]);
-export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual", "safepay"]);
 export const transactionStatusEnum = pgEnum("transaction_status", ["success", "failed", "pending", "refunded"]);
 
 export const invoicesTable = pgTable("invoices", {

@@ -14,6 +14,7 @@ interface PaymentMethod {
 }
 
 const TYPES = [
+  { value: "safepay",       label: "Safepay",         icon: "🔐" },
   { value: "jazzcash",      label: "JazzCash",        icon: "📱" },
   { value: "easypaisa",     label: "EasyPaisa",       icon: "💚" },
   { value: "bank_transfer", label: "Bank Transfer",   icon: "🏦" },
@@ -26,6 +27,11 @@ const TYPES = [
 const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.value, t]));
 
 const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean }[]> = {
+  safepay: [
+    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true },
+    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true },
+    { key: "webhookSecret",    label: "Webhook Secret",      placeholder: "whsec_xxxxxxxxxxxxxxxx", secret: true },
+  ],
   jazzcash: [
     { key: "mobileNumber",  label: "JazzCash Mobile Number",  placeholder: "03XX-XXXXXXX" },
     { key: "accountTitle",  label: "Account Title",            placeholder: "Your Name" },

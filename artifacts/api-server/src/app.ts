@@ -6,10 +6,21 @@ import { db } from "@workspace/db";
 import { kbArticlesTable, kbCategoriesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { badBotMiddleware, ipBlockMiddleware } from "./lib/security.js";
+import { safepayWebhookHandler } from "./routes/safepay.js";
 
 const app: Express = express();
 
 app.use(cors());
+
+// ── Safepay webhook — MUST come before express.json() to receive raw Buffer body ──
+// Safepay sends a HMAC-SHA256 signature over the raw request body;
+// we need the unmodified bytes to verify it.
+app.post(
+  "/api/webhooks/safepay",
+  express.raw({ type: "*/*" }),
+  (req: Request, res: Response) => { safepayWebhookHandler(req, res); },
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
