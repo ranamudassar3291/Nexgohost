@@ -21,6 +21,7 @@ interface ServerRecord {
   ns1: string | null; ns2: string | null; maxAccounts: number | null;
   status: "active" | "inactive" | "maintenance"; groupId: string | null; isDefault: boolean;
   hasApiToken?: boolean;
+  accountCount?: number;
 }
 interface TwentyIPkg { id: string; name: string; }
 
@@ -459,9 +460,29 @@ export default function Servers() {
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                           <span className="text-xs text-muted-foreground font-medium">{TYPE_LABELS[s.type]}</span>
                           {s.type !== "20i" && s.ns1 && <span className="text-xs text-muted-foreground">NS: {s.ns1}</span>}
-                          {s.type !== "20i" && s.maxAccounts && <span className="text-xs text-muted-foreground">Max: {s.maxAccounts} accts</span>}
                           {s.hasApiToken && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> API key set</span>}
                         </div>
+                        {s.type !== "20i" && s.maxAccounts != null && (
+                          <div className="mt-2 w-48">
+                            {(() => {
+                              const used = s.accountCount ?? 0;
+                              const limit = s.maxAccounts!;
+                              const pct = Math.min(100, Math.round((used / limit) * 100));
+                              const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500";
+                              return (
+                                <>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-xs text-muted-foreground">Accounts</span>
+                                    <span className={`text-xs font-medium ${pct >= 90 ? "text-red-400" : pct >= 70 ? "text-amber-400" : "text-emerald-400"}`}>{used} / {limit}</span>
+                                  </div>
+                                  <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                                    <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
                         {whitelistResults[s.id] && (
                           <div className={`mt-2 flex items-center gap-1.5 text-xs ${whitelistResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
                             {whitelistResults[s.id].ok ? <ShieldCheck size={11} /> : <XCircle size={11} />}

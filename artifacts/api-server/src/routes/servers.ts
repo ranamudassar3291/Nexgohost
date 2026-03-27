@@ -1,9 +1,9 @@
 import { Router } from "express";
 import https from "node:https";
 import { db } from "@workspace/db";
-import { serversTable, serverGroupsTable } from "@workspace/db/schema";
+import { serversTable, serverGroupsTable, hostingServicesTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
-import { eq } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
 import { twentyiTestConnection, twentyiGetPackages } from "../lib/twenty-i.js";
 
@@ -86,8 +86,33 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
   }).from(serversTable).orderBy(serversTable.name).$dynamic();
   if (type) query = query.where(eq(serversTable.type, type as any));
   const servers = await query;
-  // Return hasApiToken flag without exposing the actual token value
-  const safeServers = servers.map(({ apiToken, ...s }) => ({ ...s, hasApiToken: !!apiToken }));
+
+  // Count active accounts per server for capacity monitoring
+  const countRows = await db
+    .select({
+      serverId: hostingServicesTable.serverId,
+      cnt: sql<number>`cast(count(*) as int)`,
+    })
+    .from(hostingServicesTable)
+    .where(
+      and(
+        sql`${hostingServicesTable.serverId} IS NOT NULL`,
+        sql`${hostingServicesTable.status} NOT IN ('terminated', 'cancelled')`,
+      )
+    )
+    .groupBy(hostingServicesTable.serverId);
+
+  const accountCounts: Record<string, number> = {};
+  for (const row of countRows) {
+    if (row.serverId) accountCounts[row.serverId] = Number(row.cnt);
+  }
+
+  // Return hasApiToken flag without exposing the actual token value; include live account count
+  const safeServers = servers.map(({ apiToken, ...s }) => ({
+    ...s,
+    hasApiToken: !!apiToken,
+    accountCount: accountCounts[s.id] ?? 0,
+  }));
   res.json(safeServers);
 });
 

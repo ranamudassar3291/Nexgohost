@@ -33,7 +33,7 @@ export async function unsuspendHostingAccount(username: string, serverId: string
  */
 import { db } from "@workspace/db";
 import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serverLogsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
 import { twentyiCreateHosting } from "./twenty-i.js";
 import type { TwentyICreateResult } from "./twenty-i.js";
@@ -252,14 +252,55 @@ export async function provisionHostingService(
       .where(eq(serversTable.id, service.serverId)).limit(1);
     if (svcServer?.status === "active") server = svcServer;
   }
-  // 5. Auto-select: match module type → default flag → first active
+  // 5. Auto-select: capacity-aware — pick the server with most room under maxAccounts limit
   if (!server) {
     const allServers = await db.select().from(serversTable)
       .where(eq(serversTable.status, "active"));
-    server = allServers.find(s => module === "none" || s.type === module)
-      || allServers.find(s => s.isDefault)
-      || allServers[0]
-      || null;
+
+    // Count active accounts per server to enforce the per-node account limit
+    const countRows = await db
+      .select({
+        serverId: hostingServicesTable.serverId,
+        cnt: sql<number>`cast(count(*) as int)`,
+      })
+      .from(hostingServicesTable)
+      .where(
+        and(
+          sql`${hostingServicesTable.serverId} IS NOT NULL`,
+          sql`${hostingServicesTable.status} NOT IN ('terminated', 'cancelled')`,
+        )
+      )
+      .groupBy(hostingServicesTable.serverId);
+
+    const accountCounts: Record<string, number> = {};
+    for (const row of countRows) {
+      if (row.serverId) accountCounts[row.serverId] = Number(row.cnt);
+    }
+
+    // Filter servers that match the module type and are under their account limit
+    const candidates = allServers.filter(s => {
+      if (module !== "none" && s.type !== module) return false;
+      const used = accountCounts[s.id] ?? 0;
+      const limit = s.maxAccounts ?? 500;
+      return used < limit;   // only include if space available
+    });
+
+    // Prefer the server with the most available capacity (load balancing), then default flag, then first
+    const rankByCapacity = (s: typeof allServers[0]) => {
+      const used = accountCounts[s.id] ?? 0;
+      const limit = s.maxAccounts ?? 500;
+      return limit - used;   // higher = more room
+    };
+
+    server = candidates.sort((a, b) => rankByCapacity(b) - rankByCapacity(a))[0]
+      ?? allServers.find(s => s.isDefault)   // fallback: ignore limit on default server
+      ?? allServers[0]
+      ?? null;
+
+    if (server) {
+      const used = accountCounts[server.id] ?? 0;
+      console.log(`[PROVISION] Auto-selected server "${server.name}" (${used}/${server.maxAccounts ?? 500} accounts used)`);
+    }
   }
 
   // ── Server configuration validation ───────────────────────────────────────
