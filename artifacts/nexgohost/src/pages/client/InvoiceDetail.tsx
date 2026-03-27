@@ -433,10 +433,15 @@ export default function InvoiceDetail() {
                 <span className="text-slate-500">Subtotal</span>
                 <span className="text-slate-700 font-medium">{invFmt(Number(invoice.amount))}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Tax / VAT (0%)</span>
-                <span className="text-slate-700 font-medium">{invFmt(Number(invoice.tax || 0))}</span>
-              </div>
+              {Number(invoice.tax || 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">
+                    {invoice.items?.find((it: any) =>
+                      /vat|gst|tax/i.test(it.description))?.description?.replace(/\s*\(.*?\)/, "") || "Tax / VAT"}
+                  </span>
+                  <span className="text-slate-700 font-medium">{invFmt(Number(invoice.tax))}</span>
+                </div>
+              )}
               {creditApplicable && (
                 <div className="flex justify-between text-sm text-emerald-600">
                   <span className="font-medium">Account Credit Applied</span>

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { ticketsTable, ticketMessagesTable, usersTable } from "@workspace/db/schema";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
+import { generateAiSupportReply } from "../lib/ai-support.js";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
@@ -107,6 +108,31 @@ router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
     });
 
     res.status(201).json(formatTicket(ticket, `${user.firstName} ${user.lastName}`));
+
+    // AI auto-reply (non-blocking — runs after response is sent)
+    generateAiSupportReply(subject, message, department || "General").then(async (aiReply) => {
+      if (!aiReply) return;
+      try {
+        await db.insert(ticketMessagesTable).values({
+          ticketId: ticket.id,
+          senderId: "ai-support",
+          senderName: "AI Support",
+          senderRole: "admin",
+          message: aiReply,
+          attachments: [],
+        });
+        await db.update(ticketsTable)
+          .set({ messagesCount: 2, lastReply: new Date(), status: "answered", updatedAt: new Date() })
+          .where(eq(ticketsTable.id, ticket.id));
+        await createNotification({
+          userId: req.user!.userId,
+          type: "ticket",
+          title: "Support Reply",
+          message: `Your ticket "${subject}" has received an initial response.`,
+        });
+        console.log(`[AI SUPPORT] Auto-reply posted to ticket ${ticket.ticketNumber}`);
+      } catch (e) { console.error("[AI SUPPORT] Failed to save auto-reply:", e); }
+    }).catch(() => {});
 
     // WhatsApp alert (non-blocking)
     const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;

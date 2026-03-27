@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,12 @@ interface HostingService {
   id: string; planName: string; domain: string | null; status: string;
   cpanelUrl: string | null; webmailUrl: string | null; username: string | null;
   nextDueDate: string | null; billingCycle: string; freeDomainAvailable: boolean;
+  diskUsed?: string | null; bandwidthUsed?: string | null;
+}
+
+interface UsageData {
+  disk: { usedFmt: string; limitFmt: string; pct: number };
+  bandwidth: { usedFmt: string; limitFmt: string; pct: number };
 }
 
 interface DomainItem {
@@ -24,6 +30,43 @@ interface DomainItem {
 }
 interface Announcement {
   id: string; title: string; message: string; type: string; isActive: boolean;
+}
+
+function UsageBar({ label, pct, used, limit, icon: Icon, color }: { label: string; pct: number; used: string; limit: string; icon: any; color: string }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span className={`flex items-center gap-1 ${color}`}><Icon size={9} />{label}</span>
+        <span>{used} / {limit}</span>
+      </div>
+      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-yellow-500" : "bg-green-500"}`}
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ServiceUsageWidget({ serviceId }: { serviceId: string }) {
+  const token = localStorage.getItem("token");
+  const { data: usage } = useQuery<UsageData>({
+    queryKey: ["hosting-usage", serviceId],
+    queryFn: () => fetch(`/api/client/hosting/${serviceId}/usage`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => r.ok ? r.json() : null).catch(() => null),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  if (!usage) return null;
+  return (
+    <div className="space-y-2 pt-1 border-t border-border/40 mt-1">
+      <UsageBar label="Disk" pct={usage.disk.pct} used={usage.disk.usedFmt} limit={usage.disk.limitFmt} icon={HardDrive} color="text-blue-400" />
+      <UsageBar label="Bandwidth" pct={usage.bandwidth.pct} used={usage.bandwidth.usedFmt} limit={usage.bandwidth.limitFmt} icon={Wifi} color="text-violet-400" />
+    </div>
+  );
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -396,6 +439,7 @@ export default function ClientDashboard() {
                       </p>
                     )}
                   </div>
+                  {svc.status === "active" && <ServiceUsageWidget serviceId={svc.id} />}
                   <div className="flex gap-2">
                     {isActive && (
                       <Button size="sm" variant="outline" onClick={() => handleSsoLogin(svc.id, "cpanel")}

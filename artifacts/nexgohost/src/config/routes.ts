@@ -31,6 +31,7 @@ import {
   HelpCircle,
   MessageCircle,
   KeyRound,
+  Search,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -97,7 +98,8 @@ export const adminRoutes: RouteDefinition[] = [
 export const clientRoutes: RouteDefinition[] = [
   { path: "/client/dashboard",   label: "Dashboard",   icon: LayoutDashboard, inNav: true  },
   { path: "/client/hosting",     label: "My Hosting",  icon: Server,          inNav: true  },
-  { path: "/client/domains",     label: "My Domains",  icon: Globe,           inNav: true  },
+  { path: "/client/domains",       label: "My Domains",    icon: Globe,    inNav: true  },
+  { path: "/client/domain-search", label: "Domain Search", icon: Search,   inNav: true  },
   { path: "/client/invoices",    label: "Invoices",    icon: FileText,        inNav: true  },
   { path: "/client/invoices/:id", label: "Invoice",   icon: FileText,        inNav: false },
   { path: "/client/orders",      label: "Orders",      icon: ShoppingCart,    inNav: true  },

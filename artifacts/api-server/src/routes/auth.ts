@@ -5,6 +5,7 @@ import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateRe
 import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail } from "../lib/email.js";
+import { sendToClientPhone } from "../lib/whatsapp.js";
 import { getSecurityConfig, verifyCaptcha, recordFailedAttempt, isIpBlockedInDb, getClientIp } from "../lib/security.js";
 import crypto from "node:crypto";
 import { createRequire } from "module";
@@ -115,6 +116,20 @@ router.post("/auth/register", async (req, res) => {
 
     const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.status(201).json({ token, requiresVerification: verificationRequired, user: formatUser(user) });
+
+    // WhatsApp welcome message to client (non-blocking)
+    if (user.phone) {
+      sendToClientPhone(
+        user.phone,
+        `👋 *Welcome to Noehost, ${firstName}!*\n\n` +
+        `Your account has been created successfully.\n\n` +
+        `📧 Email: ${email}\n` +
+        `🌐 Dashboard: ${getClientUrl()}/dashboard\n\n` +
+        `If you have any questions, just reply to this message or open a support ticket.\n\n` +
+        `_Noehost Team_ 🚀`,
+        "welcome"
+      ).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", message: "Registration failed" });

@@ -198,6 +198,34 @@ export async function sendWhatsAppAlert(eventType: string, message: string): Pro
   }
 }
 
+// ── Send to a specific client phone number ────────────────────────────────────
+export async function sendToClientPhone(rawPhone: string, message: string, eventType = "client_notification"): Promise<boolean> {
+  if (state.status !== "connected" || !sock) {
+    console.log("[WA] Not connected — skipping client notification:", eventType);
+    await logAlert(eventType, message, "failed", "WhatsApp not connected");
+    return false;
+  }
+
+  // Normalize phone: strip everything except digits, ensure no leading zeros or +
+  const digits = rawPhone.replace(/\D/g, "");
+  if (digits.length < 7) {
+    console.log("[WA] Client phone too short — skipping:", rawPhone);
+    return false;
+  }
+
+  const jid = `${digits}@s.whatsapp.net`;
+  try {
+    await sock.sendMessage(jid, { text: message });
+    console.log(`[WA] Client notification sent (${eventType}) → ${rawPhone}`);
+    await logAlert(eventType, message, "sent");
+    return true;
+  } catch (err: any) {
+    console.error("[WA] Client send failed:", err.message);
+    await logAlert(eventType, message, "failed", err.message);
+    return false;
+  }
+}
+
 // ── Auto-reconnect on server start (if session exists) ───────────────────────
 export async function initWhatsApp() {
   ensureSessionDir();

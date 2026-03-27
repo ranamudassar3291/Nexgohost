@@ -1,5 +1,32 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 40 — Hostinger-Grade Feature Suite)
+
+### Feature 1: Live Domain Search (RDAP + DNS)
+- `artifacts/api-server/src/routes/domain-search.ts` — POST `/api/domain-search` checks domain availability via RDAP; falls back to Cloudflare DNS-over-HTTPS
+- `artifacts/api-server/src/routes/domain-search.ts` — GET `/api/domain-search/tlds` returns enabled TLD list with pricing
+- `artifacts/nexgohost/src/pages/client/DomainSearch.tsx` — NEW full-page domain search UI; checks 8 TLD variants simultaneously; shows availability badges and "Add to Order" CTAs
+- Added to client nav as "Domain Search" (Search icon); route at `/client/domain-search`
+
+### Feature 2: WhatsApp Client Notifications
+- `artifacts/api-server/src/lib/whatsapp.ts` — `sendToClientPhone()` sends WhatsApp messages directly to client phone numbers
+- `artifacts/api-server/src/routes/auth.ts` — Sends WhatsApp welcome message on registration (non-blocking, if phone on file)
+- `artifacts/api-server/src/routes/invoices.ts` — Sends WhatsApp invoice-paid alert to client when admin marks invoice paid (non-blocking)
+
+### Feature 3: AI Support Auto-Reply
+- `artifacts/api-server/src/lib/ai-support.ts` — `generateAiSupportReply()` using OpenAI GPT model via Replit AI integration
+- `artifacts/api-server/src/routes/tickets.ts` — After new ticket creation, AI auto-reply is generated and saved as second message with `senderName: "AI Support"`, `senderRole: "admin"`; ticket status set to "answered"
+- `artifacts/nexgohost/src/pages/client/TicketDetail.tsx` — AI messages rendered with purple badge + Sparkles icon; purple bubble styling to distinguish from human staff replies
+
+### Feature 4: Live Disk & Bandwidth Usage Tracker
+- `artifacts/api-server/src/routes/hosting.ts` — New GET `/api/client/hosting/:id/usage` endpoint; returns disk/bandwidth used/limit/pct computed from stored `diskUsed`/`bandwidthUsed` fields vs plan limits
+- `artifacts/nexgohost/src/pages/client/Dashboard.tsx` — `ServiceUsageWidget` lazily fetches usage per active service; color-coded progress bars (green/yellow/red at 70%/90%)
+
+### Feature 5: VAT/GST Tax Engine at Checkout
+- `artifacts/api-server/src/lib/tax.ts` — `calculateTax(baseAmount, countryCode)` supports 40+ countries (UK 20% VAT, Germany 19%, Pakistan 17% GST, India 18% GST, etc.)
+- `artifacts/api-server/src/routes/checkout.ts` — Tax calculated from user's country at hosting checkout; tax line item added to invoice, `tax` field stored on invoice
+- `artifacts/nexgohost/src/pages/client/InvoiceDetail.tsx` — Tax row only shown when `invoice.tax > 0`; label auto-detected from invoice items
+
 ## Recent Changes (Session 39 — Internationalized Currency End-to-End)
 
 ### Module 1: Locale-Aware Price Formatting

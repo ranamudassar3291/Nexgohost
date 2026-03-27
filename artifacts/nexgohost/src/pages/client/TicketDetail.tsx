@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, User, ShieldAlert, Send, Loader2, Paperclip, Upload, X,
-  CheckCircle, Clock, MessageSquare,
+  CheckCircle, Clock, MessageSquare, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf", "applicatio
 const MAX_SIZE_MB = 5;
 
 interface Attachment { name: string; type: string; size: number; data: string; }
-interface Message { id: string; senderName: string; senderRole: string; message: string; createdAt: string; attachments?: Attachment[]; }
+interface Message { id: string; senderId?: string; senderName: string; senderRole: string; message: string; createdAt: string; attachments?: Attachment[]; }
 interface Ticket {
   id: string; ticketNumber: string; subject: string; department: string;
   priority: string; status: string; createdAt: string; updatedAt: string;
@@ -155,19 +155,25 @@ export default function ClientTicketDetail() {
       {/* Messages */}
       <div className="space-y-4">
         {ticket.messages?.map((msg, idx) => {
-          const isStaff = msg.senderRole === "admin" || msg.senderRole === "staff";
+          const isAI = msg.senderName === "AI Support" || msg.senderId === "ai-support";
+          const isStaff = isAI || msg.senderRole === "admin" || msg.senderRole === "staff";
           return (
             <div key={msg.id || idx} className={`flex gap-3 ${isStaff ? "" : "flex-row-reverse"}`}>
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isStaff ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>
-                {isStaff ? <ShieldAlert size={16} /> : <User size={16} />}
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isAI ? "bg-violet-600 text-white" : isStaff ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}>
+                {isAI ? <Sparkles size={16} /> : isStaff ? <ShieldAlert size={16} /> : <User size={16} />}
               </div>
               <div className={`flex-1 max-w-2xl ${isStaff ? "" : "flex flex-col items-end"}`}>
-                <div className={`rounded-2xl p-4 ${isStaff ? "bg-card border border-border rounded-tl-sm" : "bg-primary/10 border border-primary/20 rounded-tr-sm"}`}>
+                <div className={`rounded-2xl p-4 ${isAI ? "bg-violet-500/10 border border-violet-500/30 rounded-tl-sm" : isStaff ? "bg-card border border-border rounded-tl-sm" : "bg-primary/10 border border-primary/20 rounded-tr-sm"}`}>
                   <div className="flex items-center justify-between gap-4 mb-2">
-                    <span className={`text-xs font-semibold ${isStaff ? "text-primary" : "text-foreground"}`}>
+                    <span className={`text-xs font-semibold flex items-center gap-1.5 ${isAI ? "text-violet-400" : isStaff ? "text-primary" : "text-foreground"}`}>
                       {isStaff
                         ? (msg.senderName ? msg.senderName.replace(/nexgohost/gi, "Noehost") : "Noehost Support")
                         : (msg.senderName || "Client")}
+                      {isAI && (
+                        <span className="inline-flex items-center gap-0.5 bg-violet-500/20 text-violet-300 text-[9px] px-1.5 py-0.5 rounded-full font-medium">
+                          <Sparkles size={8} /> AI
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <Clock size={10} /> {format(new Date(msg.createdAt), "MMM d, h:mm a")}

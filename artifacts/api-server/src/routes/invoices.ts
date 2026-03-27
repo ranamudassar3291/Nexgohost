@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { sendWhatsAppAlert } from "../lib/whatsapp.js";
+import { sendWhatsAppAlert, sendToClientPhone } from "../lib/whatsapp.js";
 import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable, affiliateCommissionsTable, affiliatesTable } from "@workspace/db/schema";
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -398,6 +398,23 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+
+    // WhatsApp invoice-paid notification to client (non-blocking)
+    if (user?.phone) {
+      const currencySymbol = (updated as any).currencySymbol || "Rs.";
+      const totalDisplay = `${currencySymbol}${parseFloat(updated.total).toLocaleString("en-PK")}`;
+      sendToClientPhone(
+        user.phone,
+        `✅ *Invoice Paid — Noehost*\n\n` +
+        `Hi ${user.firstName},\n\n` +
+        `Your invoice *${updated.invoiceNumber}* has been marked as paid.\n\n` +
+        `💰 Amount: ${totalDisplay}\n` +
+        `📅 Paid on: ${new Date().toLocaleDateString("en-PK")}\n\n` +
+        `Thank you for your payment! Your service will be activated shortly.\n\n` +
+        `_Noehost Team_ 🚀`,
+        "invoice_paid"
+      ).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

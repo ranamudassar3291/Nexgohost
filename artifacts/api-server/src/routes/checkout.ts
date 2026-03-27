@@ -1,4 +1,5 @@
 import { getAppUrl } from "../lib/app-url.js";
+import { calculateTax } from "../lib/tax.js";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
@@ -589,13 +590,26 @@ async function handleCheckout(req: AuthRequest, res: any) {
       });
     }
 
+    // Apply tax based on user's country (Zero-overwrite safe: only for new invoices)
+    const { taxAmount, totalWithTax, info: taxInfo } = calculateTax(finalAmount, user.country ?? "");
+    if (taxInfo.applicable && taxAmount > 0) {
+      invoiceItems.push({
+        description: `${taxInfo.label} (${user.country})`,
+        quantity: 1,
+        unitPrice: taxAmount,
+        total: taxAmount,
+      });
+    }
+    const invoiceTotal = totalWithTax;
+
     const [invoice] = await db.insert(invoicesTable).values({
       invoiceNumber,
       clientId: req.user!.userId,
       orderId: order.id,
       serviceId: service.id,
       amount: String(finalAmount.toFixed(2)),
-      total: String(finalAmount.toFixed(2)),
+      tax: String(taxAmount.toFixed(2)),
+      total: String(invoiceTotal.toFixed(2)),
       status: "unpaid",
       dueDate,
       items: invoiceItems,

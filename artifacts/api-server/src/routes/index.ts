@@ -44,6 +44,7 @@ import contactRouter from "./contact.js";
 import configRouter from "./config.js";
 import syncRouter from "./sync.js";
 import globalRouter from "./global.js";
+import domainSearchRouter from "./domain-search.js";
 
 const router: IRouter = Router();
 
@@ -96,5 +97,6 @@ router.use(contactRouter);
 router.use(configRouter);
 router.use(syncRouter);
 router.use(globalRouter);
+router.use(domainSearchRouter);
 
 export default router;
