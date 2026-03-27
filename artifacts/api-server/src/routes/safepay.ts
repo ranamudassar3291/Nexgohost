@@ -43,24 +43,85 @@ async function getSafepayConfig(): Promise<SafepayConfig | null> {
   const s = JSON.parse(method.settings ?? "{}");
   const isSandbox = !!method.isSandbox;
 
-  const publicKey    = isSandbox ? (s.sandboxPublicKey ?? "") : (s.livePublicKey ?? "");
-  const secretKey    = isSandbox ? (s.sandboxSecretKey ?? "") : (s.liveSecretKey ?? "");
+  let rawPublic  = isSandbox ? (s.sandboxPublicKey ?? "") : (s.livePublicKey ?? "");
+  let rawSecret  = isSandbox ? (s.sandboxSecretKey ?? "") : (s.liveSecretKey ?? "");
   const webhookSecret = s.webhookSecret ?? "";
 
-  const pubPreview  = publicKey    ? `${publicKey.substring(0, 12)}…`    : "MISSING";
-  const secPreview  = secretKey    ? `${secretKey.substring(0, 12)}…`    : "MISSING";
+  // ── Auto-detect and auto-fix swapped keys in the DB ──────────────────────
+  const publicIsSwapped = rawPublic.startsWith("sec_");
+  const secretIsSwapped = rawSecret.startsWith("pub_");
+
+  if (publicIsSwapped || secretIsSwapped) {
+    console.warn(
+      `[SAFEPAY] ⚠ SWAPPED KEYS DETECTED in DB!\n` +
+      `  livePublicKey starts with: ${rawPublic.substring(0, 6)}  (expected: pub_)\n` +
+      `  liveSecretKey starts with: ${rawSecret.substring(0, 6)}  (expected: sec_)\n` +
+      `  Auto-swapping at runtime and permanently correcting the DB…`
+    );
+
+    // Determine the correct swap strategy
+    if (publicIsSwapped && secretIsSwapped) {
+      // Both fields contain the wrong key — full swap
+      const tmp  = rawPublic;
+      rawPublic  = rawSecret;
+      rawSecret  = tmp;
+    } else if (publicIsSwapped) {
+      // sec_ is in the public field, pub_ is in the secret field — swap
+      const tmp  = rawPublic;
+      rawPublic  = rawSecret;
+      rawSecret  = tmp;
+    } else if (secretIsSwapped) {
+      // pub_ is in the secret field, sec_ is in the public field — swap
+      const tmp  = rawPublic;
+      rawPublic  = rawSecret;
+      rawSecret  = tmp;
+    }
+
+    // Permanently fix the DB so the admin panel shows correct values
+    try {
+      const fixedSettings = { ...s };
+      if (isSandbox) {
+        fixedSettings.sandboxPublicKey = rawPublic;
+        fixedSettings.sandboxSecretKey = rawSecret;
+      } else {
+        fixedSettings.livePublicKey = rawPublic;
+        fixedSettings.liveSecretKey = rawSecret;
+      }
+      await db.update(paymentMethodsTable)
+        .set({ settings: JSON.stringify(fixedSettings), updatedAt: new Date() })
+        .where(eq(paymentMethodsTable.id, method.id));
+      console.log(
+        `[SAFEPAY] ✓ DB auto-corrected! Keys are now stored correctly:\n` +
+        `  livePublicKey: ${rawPublic.substring(0, 14)}…\n` +
+        `  liveSecretKey: ${rawSecret.substring(0, 14)}…`
+      );
+    } catch (dbErr) {
+      console.error("[SAFEPAY] Failed to auto-correct keys in DB:", dbErr);
+      // Still continue with runtime-swapped values
+    }
+  }
+
+  const publicKey  = rawPublic;
+  const secretKey  = rawSecret;
+
+  const pubPreview = publicKey  ? `${publicKey.substring(0, 14)}…`  : "MISSING";
+  const secPreview = secretKey  ? `${secretKey.substring(0, 14)}…`  : "MISSING";
 
   console.log(
     `[SAFEPAY] Mode: ${isSandbox ? "sandbox ☑" : "LIVE"} | ` +
     `publicKey: ${pubPreview} | secretKey: ${secPreview}`
   );
 
-  if (publicKey.startsWith("sec_")) {
-    console.warn("[SAFEPAY] ⚠ publicKey starts with sec_ — it should start with pub_. Keys may be swapped in admin settings.");
-  }
-
   if (!publicKey || !secretKey) {
     console.error("[SAFEPAY] Missing keys — check Admin → Payment Methods → Safepay");
+    return null;
+  }
+  if (!publicKey.startsWith("pub_")) {
+    console.error(`[SAFEPAY] ✗ publicKey does not start with pub_ (got: ${publicKey.substring(0, 10)}…) — cannot proceed`);
+    return null;
+  }
+  if (!secretKey.startsWith("sec_")) {
+    console.error(`[SAFEPAY] ✗ secretKey does not start with sec_ (got: ${secretKey.substring(0, 10)}…) — cannot proceed`);
     return null;
   }
 
@@ -420,6 +481,15 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
   } catch (err) {
     console.error("[SAFEPAY WEBHOOK] Unhandled error:", err);
     res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// ─── Startup key fixer (call once at server init) ─────────────────────────────
+export async function autoFixSafepayKeys(): Promise<void> {
+  try {
+    await getSafepayConfig(); // auto-fix runs inside if keys are swapped
+  } catch (err: any) {
+    console.warn("[SAFEPAY] Startup key-check failed (non-fatal):", err.message);
   }
 }
 

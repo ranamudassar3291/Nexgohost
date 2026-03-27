@@ -5,6 +5,7 @@ import { seedMissingTemplates } from "./routes/email-templates.js";
 import { seedVpsData } from "./lib/seedVps.js";
 import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
+import { autoFixSafepayKeys } from "./routes/safepay.js";
 
 const rawPort = process.env["PORT"];
 
@@ -73,4 +74,7 @@ app.listen(port, async () => {
   initWhatsApp().catch((err: any) => {
     console.warn("[WA] Init failed (non-fatal):", err.message);
   });
+
+  // Auto-detect and fix swapped Safepay keys in DB (non-fatal, self-healing)
+  autoFixSafepayKeys().catch(() => {});
 });
