@@ -1,0 +1,32 @@
+Master Prompt: The "Ultra-Pro" Global Hosting System
+"I want to build a world-class hosting registration and management system that surpasses local Pakistani competitors. Implement these high-end modules now:
+
+1. Smart 'Flag & Country' Registration Page:
+
+Redesign UI: Clean the current registration layout. Keep 'Continue with Google' prominent.
+
+Intelligent Phone Input: Replace the standard phone field with a International Phone Input (with Flags). It must automatically detect the user's country from their IP and show the correct country flag and area code (e.g., +92 for Pakistan).
+
+Dynamic Currency Dropdown: Remove the cluttered 'Billing currency (auto-detected)' text. Replace it with a professional 'Select Region' dropdown that shows Country Flags. When a user selects a country, the system must automatically map it to the correct currency (USD, PKR, GBP) and lock it for the entire session.
+
+2. Real-Time API Pricing Engine (The 'Hostinger' Logic):
+
+Live Sync: Connect the Frontend Website to the Admin Panel via a Secure API.
+
+Auto-Update: If I change a Hosting Plan price or a Domain TLD price in the Admin Panel, it must update on the live website immediately without manual code changes.
+
+IP Detection: On the home page, the system must detect the user's IP. If the user is from outside Pakistan, show all prices in USD ($) by default using the latest Google conversion rates.
+
+3. Professional API Documentation Page:
+
+Create a dedicated route /admin/api-docs or a tab in the Admin Panel.
+
+Content: This page must automatically list all available API endpoints (e.g., GET /api/v1/products, POST /api/v1/checkout). Include 'Try it out' buttons, required Headers (Secret Keys), and example JSON responses.
+
+4. Safepay Multi-Currency Guard:
+
+Ensure that even if a user sees prices in USD or GBP, the final checkout through Safepay handles the conversion correctly back to the merchant's base currency while keeping the user's invoice in their selected currency.
+
+5. Zero-Overwrite Protection:
+
+Critical: This new logic must ONLY apply to new registrations. Do NOT touch any existing client invoices, plan prices, or TLD data in the Production Database."
