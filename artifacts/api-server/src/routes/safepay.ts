@@ -180,15 +180,19 @@ router.get("/payments/safepay/test", authenticate, async (req: AuthRequest, res:
       console.log(`[SAFEPAY TEST] ✓ Keys verified | tracker: ${tracker}`);
       res.json({ ok: true, message: "API Keys Verified Successfully", tracker });
     } else {
-      const { techDetail } = parseSafepayError(bodyJson ?? bodyText);
-      console.warn(`[SAFEPAY TEST] ✗ Key verification failed (${r.status}): ${techDetail}`);
-      const isKeyError = bodyText.toLowerCase().includes("client") && bodyText.toLowerCase().includes("not found");
-      res.status(200).json({
-        ok: false,
-        error: isKeyError
-          ? "Invalid API Keys. Please check pub_/sec_ prefix."
-          : `Safepay error (${r.status}): ${techDetail.substring(0, 200)}`,
-      });
+      const rawDetail = bodyText.substring(0, 400);
+      console.warn(`[SAFEPAY TEST] ✗ Verification failed (HTTP ${r.status}): ${rawDetail}`);
+      const isAuthErr = r.status === 401 || r.status === 403;
+      const isClientErr =
+        bodyText.toLowerCase().includes("client") &&
+        (bodyText.toLowerCase().includes("not found") || bodyText.toLowerCase().includes("invalid"));
+      let errorMsg: string;
+      if (isAuthErr || isClientErr) {
+        errorMsg = "Safepay rejected these credentials — verify the Client Key (sec_/pub_…) and Secret Key in your Safepay dashboard.";
+      } else {
+        errorMsg = `Safepay error (${r.status}): ${rawDetail}`;
+      }
+      res.status(200).json({ ok: false, error: errorMsg });
     }
   } catch (err: any) {
     console.error("[SAFEPAY TEST] Network error:", err.message);
