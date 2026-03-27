@@ -155,11 +155,11 @@ router.get("/payments/safepay/test", authenticate, async (req: AuthRequest, res:
     const base = getApiBase(testSandbox);
     const env  = testSandbox ? "sandbox" : "production";
 
-    // Make a minimal test call — create a Rs. 10 (1000 paisa) test tracker
+    // Make a minimal test call — create a Rs. 10 test tracker (10 PKR whole units)
     const payload = {
       client:      testPublic,
       environment: env,
-      amount:      1000,
+      amount:      10,
       currency:    "PKR",
       order_id:    `TEST-${Date.now()}`,
     };
@@ -219,20 +219,21 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     const base = getApiBase(config.isSandbox);
     const env  = config.isSandbox ? "sandbox" : "production";
 
-    // Amount: whole integer in paisa (1 PKR = 100 paisa) — no decimals
-    const amount = Math.round(parseFloat(invoice.total) * 100);
+    // Amount: whole integer in PKR — no decimals, no paisa conversion
+    // Safepay /order/v1/init expects full PKR units (e.g. Rs. 1,845.00 → 1845)
+    const amount = Math.round(parseFloat(invoice.total));
 
     const trackerPayload = {
       client:      config.publicKey,    // pub_xxx — merchant identifier
       environment: env,
-      amount,                           // integer paisa — e.g. Rs.1,845 → 184500
+      amount,                           // integer PKR — e.g. Rs.1,845.00 → 1845
       currency:    "PKR",
       order_id:    invoice.invoiceNumber,
     };
 
     console.log(
       `[SAFEPAY] → POST ${base}/order/v1/init\n` +
-      `[SAFEPAY] Invoice: ${invoice.invoiceNumber} | Total: Rs.${invoice.total} → ${amount} paisa\n` +
+      `[SAFEPAY] Invoice: ${invoice.invoiceNumber} | Total: Rs.${invoice.total} → amount: ${amount} PKR\n` +
       `[SAFEPAY] Payload: ${JSON.stringify({ ...trackerPayload, _sec: config.secretKey.substring(0, 12) + "…" })}`
     );
 
