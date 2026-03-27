@@ -1,0 +1,38 @@
+Master Prompt: Hostinger-Style API Sync & Live Currency Engine
+"I am building a high-end, internationalized hosting system. I need to implement a Master API Synchronization between my frontend and backend that functions like Hostinger. Execute these technical modules immediately:
+
+1. Secure API Data Hub (The Sync):
+
+API Endpoint: Create a secure JSON API that exposes:
+
+Hosting Plans: Name, monthly/yearly base price (in PKR), and features.
+
+Domain Extensions: All TLDs (e.g., .com, .net, .org) with their respective registration and renewal prices.
+
+Live Update: The website must fetch this data in real-time. If I change a price in the Admin Panel, it must reflect on the website immediately without manual editing.
+
+Security: Secure this API with the 'System-to-System Secret Key'. Only my official website IP/Domain should be able to fetch this data.
+
+2. Smart IP Detection & Country Selector:
+
+Frontend Logic: On first visit, use an IP Geolocation API to detect the user's country and automatically switch the website to their local currency (USD for US, GBP for UK, etc.).
+
+Registration Page: Add a 'Select Country' dropdown on the register page (client.noehost.com/register). If a user manually selects a country, the system must override the IP detection and lock their account/invoices to that country's currency.
+
+3. Real-Time Google Rates (24h Caching):
+
+Conversion Engine: Use a Currency API to fetch current Google rates.
+
+Cache Strategy: Store these rates in the database. Update them only once every 24 hours to ensure the website loads instantly and doesn't hit API limits.
+
+Zero-Error Fallback: If the external API is down, the system must use the last saved rates.
+
+4. Consistent Session Flow:
+
+Lock Currency: Once a currency is set for a user session, it must remain the same in the Shopping Cart (cart.noehost.com), the Invoice, and the Safepay Gateway.
+
+Format: Ensure numbers are formatted correctly (e.g., $1,200.00 or Rs. 1,200).
+
+5. Safeguard Legacy Data:
+
+Protect Old Clients: Do NOT apply this new conversion logic to invoices or records created before this update. Old clients must remain on their original PKR pricing unless they choose otherwise."

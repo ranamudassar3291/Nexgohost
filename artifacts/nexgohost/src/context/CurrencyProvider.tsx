@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { formatCurrency } from "../lib/currency-format";
 
 export interface CurrencyInfo {
   code: string;
@@ -14,37 +15,57 @@ const COUNTRY_TO_CURRENCY: Record<string, string> = {
   IE: "EUR", LU: "EUR", MT: "EUR", CY: "EUR", SK: "EUR",
   SI: "EUR", LT: "EUR", LV: "EUR", EE: "EUR",
   AU: "AUD", CA: "CAD", IN: "INR", AE: "AED",
+  SA: "AED", QA: "AED", KW: "AED", BH: "AED", OM: "AED",
 };
 
 const FALLBACK_CURRENCIES: Record<string, CurrencyInfo> = {
-  PKR: { code: "PKR", symbol: "Rs.", rate: 1, name: "Pakistani Rupee" },
-  USD: { code: "USD", symbol: "$", rate: 1, name: "US Dollar" },
-  GBP: { code: "GBP", symbol: "£", rate: 1, name: "British Pound" },
-  EUR: { code: "EUR", symbol: "€", rate: 1, name: "Euro" },
+  PKR: { code: "PKR", symbol: "Rs.", rate: 1,    name: "Pakistani Rupee" },
+  USD: { code: "USD", symbol: "$",   rate: 0.0036, name: "US Dollar" },
+  GBP: { code: "GBP", symbol: "£",   rate: 0.0028, name: "British Pound" },
+  EUR: { code: "EUR", symbol: "€",   rate: 0.0033, name: "Euro" },
+  AED: { code: "AED", symbol: "AED", rate: 0.013,  name: "UAE Dirham" },
+  AUD: { code: "AUD", symbol: "A$",  rate: 0.0055, name: "Australian Dollar" },
+  CAD: { code: "CAD", symbol: "C$",  rate: 0.0049, name: "Canadian Dollar" },
+  INR: { code: "INR", symbol: "₹",   rate: 0.30,   name: "Indian Rupee" },
 };
 
 const CurrencyContext = createContext<{
   currency: CurrencyInfo;
   setCurrency: (c: CurrencyInfo) => void;
   allCurrencies: CurrencyInfo[];
-  formatPrice: (amount: number) => string;
+  formatPrice: (pkrAmount: number) => string;
 }>({
   currency: FALLBACK_CURRENCIES.PKR,
   setCurrency: () => {},
   allCurrencies: Object.values(FALLBACK_CURRENCIES),
-  formatPrice: (a) => { const n = isNaN(a) || a == null ? 0 : a; return `Rs. ${n.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; },
+  formatPrice: (a) => {
+    const n = isNaN(a) || a == null ? 0 : a;
+    return formatCurrency(n, "PKR", "Rs.");
+  },
 });
+
+// IP geolocation providers tried in order until one returns a country code
+const GEO_PROVIDERS = [
+  () => fetch("https://ipapi.co/json/").then(r => r.ok ? r.json() : null)
+    .then((d: any) => d?.country_code ?? null),
+  () => fetch("https://ipinfo.io/json").then(r => r.ok ? r.json() : null)
+    .then((d: any) => d?.country ?? null),
+  () => fetch("https://freeipapi.com/api/json").then(r => r.ok ? r.json() : null)
+    .then((d: any) => d?.countryCode ?? null),
+];
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [allCurrencies, setAllCurrencies] = useState<CurrencyInfo[]>(Object.values(FALLBACK_CURRENCIES));
   const [currency, setCurrencyState] = useState<CurrencyInfo>(FALLBACK_CURRENCIES.PKR);
 
   useEffect(() => {
+    // 1. Apply stored currency immediately so the UI doesn't flash
     const stored = localStorage.getItem("currency");
     if (stored) {
       try { setCurrencyState(JSON.parse(stored)); } catch {}
     }
 
+    // 2. Fetch live rates from server
     fetch("/api/currencies")
       .then(r => r.ok ? r.json() : null)
       .then((data: any[] | null) => {
@@ -55,31 +76,45 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         setAllCurrencies(mapped);
 
         if (!stored) {
+          // 3. No stored preference — detect via IP
           detectCountryCurrency(mapped);
         } else {
-          const storedCode = JSON.parse(stored).code;
-          const serverCurrency = mapped.find(c => c.code === storedCode);
-          if (serverCurrency) setCurrencyState(serverCurrency);
+          // 4. Refresh rate for the stored currency (keeps rate in sync after daily cache refresh)
+          try {
+            const storedObj: CurrencyInfo = JSON.parse(stored);
+            const serverVersion = mapped.find(c => c.code === storedObj.code);
+            if (serverVersion) {
+              setCurrencyState(serverVersion);
+              localStorage.setItem("currency", JSON.stringify(serverVersion));
+            }
+          } catch {}
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Currency API unreachable — stay on stored / fallback rates
+        if (!stored) {
+          detectCountryCurrency(Object.values(FALLBACK_CURRENCIES));
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function detectCountryCurrency(currencies: CurrencyInfo[]) {
-    fetch("https://ipapi.co/json/")
-      .then(r => r.ok ? r.json() : null)
-      .then((data: any) => {
-        if (!data?.country_code) return;
-        const targetCode = COUNTRY_TO_CURRENCY[data.country_code];
-        const found = currencies.find(c => c.code === targetCode);
-        if (found) { setCurrencyAndStore(found); return; }
-        const pkr = currencies.find(c => c.code === "PKR");
-        if (pkr) setCurrencyAndStore(pkr);
-      })
-      .catch(() => {
-        const pkr = currencies.find(c => c.code === "PKR");
-        if (pkr) setCurrencyAndStore(pkr);
-      });
+  async function detectCountryCurrency(currencies: CurrencyInfo[]) {
+    let countryCode: string | null = null;
+
+    // Try each geolocation provider in sequence until one succeeds
+    for (const provider of GEO_PROVIDERS) {
+      try {
+        countryCode = await provider();
+        if (countryCode) break;
+      } catch { /* try next */ }
+    }
+
+    const targetCode = countryCode ? (COUNTRY_TO_CURRENCY[countryCode] ?? "PKR") : "PKR";
+    const found = currencies.find(c => c.code === targetCode)
+      ?? currencies.find(c => c.code === "PKR")
+      ?? currencies[0];
+    if (found) setCurrencyAndStore(found);
   }
 
   function setCurrencyAndStore(c: CurrencyInfo) {
@@ -91,17 +126,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     setCurrencyAndStore(c);
   }
 
-  function formatPrice(amount: number) {
-    const safe = isNaN(amount) || amount === null || amount === undefined ? 0 : amount;
+  function formatPrice(pkrAmount: number): string {
+    const safe      = isNaN(pkrAmount) || pkrAmount == null ? 0 : pkrAmount;
     const converted = safe * currency.rate;
-    const formatted = converted.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    if (currency.code === "PKR") {
-      return `Rs. ${formatted}`;
-    }
-    return `${currency.symbol}${formatted}`;
+    return formatCurrency(converted, currency.code, currency.symbol);
   }
 
   return (

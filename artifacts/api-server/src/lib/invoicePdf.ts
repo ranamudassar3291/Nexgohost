@@ -61,21 +61,38 @@ const SLATE200 = "#E2E8F0";
 const WHITE    = "#FFFFFF";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
+// Locale map: each currency uses its native locale for correct thousands/decimal separators
+const PDF_LOCALE_MAP: Record<string, { locale: string; position: "before" | "after"; separator?: string }> = {
+  PKR: { locale: "en-US",  position: "before", separator: " " },
+  USD: { locale: "en-US",  position: "before" },
+  GBP: { locale: "en-GB",  position: "before" },
+  EUR: { locale: "de-DE",  position: "after",  separator: "\u00A0" },
+  AED: { locale: "en-AE",  position: "before", separator: " " },
+  AUD: { locale: "en-AU",  position: "before" },
+  CAD: { locale: "en-CA",  position: "before" },
+  INR: { locale: "en-IN",  position: "before" },
+};
+
+function formatInCurrency(amount: number, code: string, symbol: string): string {
+  const safe = isNaN(amount) || amount == null ? 0 : amount;
+  const cfg  = PDF_LOCALE_MAP[code] ?? { locale: "en-US", position: "before" };
+  const formatted = safe.toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (code === "PKR") return `Rs. ${formatted}`;
+  if (cfg.position === "after") return `${formatted}${cfg.separator ?? "\u00A0"}${symbol}`;
+  return `${symbol}${cfg.separator ?? ""}${formatted}`;
+}
+
 function pkr(n: number): string {
-  return "Rs. " + Number(n).toLocaleString("en-US", {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  });
+  return formatInCurrency(Number(n), "PKR", "Rs.");
 }
 
 function makeFmt(currencyCode?: string, currencySymbol?: string, currencyRate?: number) {
   const code   = currencyCode   || "PKR";
   const symbol = currencySymbol || "Rs.";
-  const rate   = currencyRate   ?? 1;
+  const rate   = Number(currencyRate ?? 1) || 1;
   return function fmt(pkrAmount: number): string {
     const converted = Number(pkrAmount) * rate;
-    const formatted = converted.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    if (code === "PKR") return `Rs. ${formatted}`;
-    return `${symbol}${formatted}`;
+    return formatInCurrency(converted, code, symbol);
   };
 }
 

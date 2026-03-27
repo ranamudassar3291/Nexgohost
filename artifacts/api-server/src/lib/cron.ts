@@ -5,7 +5,8 @@ import {
   cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
   hostingBackupsTable, domainPricingTable,
 } from "@workspace/db/schema";
-import { eq, lte, sql, and, gte, lt } from "drizzle-orm";
+import { eq, lte, sql, and, gte, lt, desc } from "drizzle-orm";
+import { convertAndFormat } from "./currency-format.js";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 import { execAsync } from "./shell.js";
 import { isMysqlReachable } from "./wordpress-provisioner.js";
@@ -239,7 +240,12 @@ export async function runHostingRenewalReminderCron(): Promise<void> {
       const amount = service.billingCycle === "yearly"
         ? (plan?.yearlyPrice ?? plan?.price ?? "0")
         : (plan?.price ?? "0");
-      const amountStr = `Rs. ${Number(amount).toLocaleString()}`;
+      const amountStr = convertAndFormat(
+        Number(amount),
+        invoice?.currencyCode,
+        invoice?.currencySymbol,
+        invoice?.currencyRate,
+      );
 
       try {
         await emailHostingRenewalReminder(user.email, {
@@ -337,7 +343,21 @@ export async function runDomainRenewalCron(): Promise<void> {
           .where(sql`LOWER(tld) = LOWER(${tldClean})`)
           .limit(1);
         if (pricing?.renewalPrice) {
-          renewalPriceStr = `Rs. ${Number(pricing.renewalPrice).toLocaleString()}`;
+          // Use client's currency from their most recent invoice if available
+          const [clientInv] = await db.select({
+            currencyCode: invoicesTable.currencyCode,
+            currencySymbol: invoicesTable.currencySymbol,
+            currencyRate: invoicesTable.currencyRate,
+          }).from(invoicesTable)
+            .where(eq(invoicesTable.clientId, domain.clientId))
+            .orderBy(desc(invoicesTable.createdAt))
+            .limit(1);
+          renewalPriceStr = convertAndFormat(
+            Number(pricing.renewalPrice),
+            clientInv?.currencyCode,
+            clientInv?.currencySymbol,
+            clientInv?.currencyRate,
+          );
         }
       } catch { /* non-fatal */ }
 
@@ -676,7 +696,12 @@ export async function runAutoTerminateCron(): Promise<void> {
               serviceName: service.planName,
               terminationDate,
               invoiceId: invoice.id,
-              amount: `Rs. ${Number(amount).toLocaleString()}`,
+              amount: convertAndFormat(
+                Number(amount),
+                invoice.currencyCode,
+                invoice.currencySymbol,
+                invoice.currencyRate,
+              ),
             }, { clientId: service.clientId, referenceId: invoice.id });
           } catch { /* non-fatal */ }
           await logEmail(service.clientId, user.email, "service_termination_warning",

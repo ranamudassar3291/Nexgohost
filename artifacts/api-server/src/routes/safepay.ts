@@ -306,21 +306,30 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     const base = getApiBase(config.isSandbox);
     const env  = config.isSandbox ? "sandbox" : "production";
 
-    // Amount: whole integer in PKR — no decimals, no paisa conversion
-    // Safepay /order/v1/init expects full PKR units (e.g. Rs. 1,845.00 → 1845)
+    // Amount: whole integer in PKR — Safepay Pakistan only accepts PKR settlement
+    // /order/v1/init expects full PKR integer units (e.g. Rs. 1,845.00 → 1845)
     const amount = Math.round(parseFloat(invoice.total));
+
+    // Client's display currency (may differ from PKR if they ordered in USD/GBP/etc.)
+    const displayCurrencyCode   = (invoice as any).currencyCode   || "PKR";
+    const displayCurrencySymbol = (invoice as any).currencySymbol || "Rs.";
+    const displayCurrencyRate   = Number((invoice as any).currencyRate ?? 1) || 1;
+    const displayAmount         = Number(invoice.total) * displayCurrencyRate;
 
     const trackerPayload = {
       client:      config.publicKey,    // pub_xxx — merchant identifier
       environment: env,
-      amount,                           // integer PKR — e.g. Rs.1,845.00 → 1845
+      amount,                           // integer PKR — settled in PKR by Safepay
       currency:    "PKR",
       order_id:    invoice.invoiceNumber,
     };
 
     console.log(
       `[SAFEPAY] → POST ${base}/order/v1/init\n` +
-      `[SAFEPAY] Invoice: ${invoice.invoiceNumber} | Total: Rs.${invoice.total} → amount: ${amount} PKR\n` +
+      `[SAFEPAY] Invoice: ${invoice.invoiceNumber} | Total: Rs.${invoice.total} PKR` +
+      (displayCurrencyCode !== "PKR"
+        ? ` (~${displayCurrencySymbol}${displayAmount.toFixed(2)} ${displayCurrencyCode})`
+        : "") + ` → amount: ${amount} PKR\n` +
       `[SAFEPAY] Payload: ${JSON.stringify({ ...trackerPayload, _sec: config.secretKey.substring(0, 12) + "…" })}`
     );
 
@@ -364,11 +373,15 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     console.log(`[SAFEPAY] ✓ Tracker created: ${tracker}`);
 
     // Persist tracker so webhook can link back to this invoice
+    const paymentNoteDisplay = displayCurrencyCode !== "PKR"
+      ? `Safepay — ${env} | Rs.${invoice.total} PKR (~${displayCurrencySymbol}${displayAmount.toFixed(2)} ${displayCurrencyCode})`
+      : `Safepay — ${env}`;
+
     await db.update(invoicesTable)
       .set({
         status:       "payment_pending",
         paymentRef:   tracker,
-        paymentNotes: `Safepay — ${env}`,
+        paymentNotes: paymentNoteDisplay,
         updatedAt:    new Date(),
       })
       .where(eq(invoicesTable.id, invoice.id));
@@ -393,7 +406,16 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
 
     console.log(`[SAFEPAY] ✓ Checkout URL ready → ${checkoutUrl.substring(0, 120)}…`);
 
-    res.json({ checkoutUrl, tracker, invoiceId: invoice.id });
+    res.json({
+      checkoutUrl,
+      tracker,
+      invoiceId: invoice.id,
+      // Display currency info for the UI to show a localized "You're paying" line
+      pkrAmount:    amount,
+      displayAmount: parseFloat(displayAmount.toFixed(2)),
+      displayCurrencyCode,
+      displayCurrencySymbol,
+    });
   } catch (err) {
     console.error("[SAFEPAY] Unhandled initiate error:", err);
     res.status(500).json({ error: "Server error — please try again." });

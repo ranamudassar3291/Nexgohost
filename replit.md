@@ -1,5 +1,44 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 39 — Internationalized Currency End-to-End)
+
+### Module 1: Locale-Aware Price Formatting
+- `artifacts/nexgohost/src/lib/currency-format.ts` — NEW frontend utility
+  - `formatCurrency(amount, code, symbol)` uses correct BCP-47 locale per currency:
+    - USD `$1,245.00` (en-US), GBP `£1,245.50` (en-GB), EUR `1.245,00 €` (de-DE), PKR `Rs. 1,245.00` (en-US), INR `₹1,245.00` (en-IN)
+  - EUR uses `position: "after"` with non-breaking space — e.g. `1.245,00 €`
+- `artifacts/nexgohost/src/context/CurrencyProvider.tsx` — `formatPrice()` now calls `formatCurrency()` from the shared utility
+- `artifacts/api-server/src/lib/currency-format.ts` — NEW backend utility (mirrors frontend)
+  - `convertAndFormat(pkrAmount, code, symbol, rate)` — converts from PKR base and formats in target locale
+- `artifacts/api-server/src/lib/invoicePdf.ts` — `makeFmt()` and `formatInCurrency()` now use locale-aware formatting per PDF_LOCALE_MAP
+
+### Module 2: Session-Locked Synchronization
+- `CurrencyProvider.tsx` — On app load, if a stored currency exists, the live rate is refreshed from the server and localStorage is updated → prevents stale rates
+- Stored currency JSON is immediately applied on mount (no flash) → then refreshed silently from `/api/currencies`
+
+### Module 3: IP Geolocation Fallback Chain
+- `CurrencyProvider.tsx` — Three IP providers tried in sequence: `ipapi.co` → `ipinfo.io` → `freeipapi.com`
+- If ALL providers fail → falls back to PKR (default)
+- FALLBACK_CURRENCIES now includes real approximate rates so the UI is never empty even if `/api/currencies` is down
+
+### Module 4: Cron Email Currency Localization
+- `artifacts/api-server/src/lib/cron.ts` — All 3 hardcoded `Rs.` email amounts replaced with `convertAndFormat()`:
+  1. **Hosting renewal reminder** (7-day): uses the unpaid invoice's stored `currencyCode/Symbol/Rate`
+  2. **Domain expiry warning**: looks up client's most recent invoice for preferred currency; falls back to PKR if none
+  3. **Termination warning**: uses the invoice in the loop's stored currency fields
+- Imported `desc` from drizzle-orm for `orderBy(desc(invoicesTable.createdAt))`
+
+### Module 5: Safepay Payload & Display Integrity
+- `artifacts/api-server/src/routes/safepay.ts` — Safepay ALWAYS sends PKR to Safepay API (required by Safepay Pakistan)
+- `paymentNotes` now records: `"Safepay — sandbox | Rs.1,845 PKR (~$6.63 USD)"` when currency is non-PKR
+- API response includes: `{ checkoutUrl, tracker, invoiceId, pkrAmount, displayAmount, displayCurrencyCode, displayCurrencySymbol }`
+- `artifacts/nexgohost/src/pages/client/InvoiceDetail.tsx` — Safepay panel shows "Settled as Rs. X PKR by Safepay" note when client's currency ≠ PKR
+
+### Module 6: Error Fallback
+- Fallback currencies (PKR, USD, GBP, EUR, AED, AUD, CAD, INR) now have realistic approximate rates so no price is ever empty
+- Server `/api/currencies` down: uses fallback rates + still tries IP geolocation
+- IP geolocation down: falls back to PKR (but continues showing prices from fallback rates)
+
 ## Recent Changes (Session 38 — Global Sync & Security Engine)
 
 ### 1. System-to-System API Key ("Parda" Security Layer)

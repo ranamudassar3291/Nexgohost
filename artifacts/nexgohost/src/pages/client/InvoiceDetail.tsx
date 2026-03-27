@@ -23,6 +23,9 @@ interface Invoice {
   dueDate: string; paidDate?: string;
   paymentRef?: string | null; paymentGatewayId?: string | null; paymentNotes?: string | null;
   items: InvoiceItem[]; createdAt: string;
+  currencyCode?: string | null;
+  currencySymbol?: string | null;
+  currencyRate?: number | null;
 }
 interface PaymentMethod {
   id: string; name: string; type: string; description: string | null;
@@ -533,11 +536,18 @@ export default function InvoiceDetail() {
                           You'll be redirected to Safepay's secure checkout to complete your payment.
                         </p>
                       </div>
-                      <div className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
-                        <span className="text-xs text-slate-500">Amount to Pay</span>
-                        <span className="text-base font-black" style={{ color: BRAND }}>
-                          {formatPrice(Number(invoice.total))}
-                        </span>
+                      <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-slate-500">Amount to Pay</span>
+                          <span className="text-base font-black" style={{ color: BRAND }}>
+                            {formatPrice(Number(invoice.total))}
+                          </span>
+                        </div>
+                        {invoice.currencyCode && invoice.currencyCode !== "PKR" && (
+                          <p className="text-[11px] text-slate-400 text-right">
+                            Settled as Rs. {Number(invoice.total).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR by Safepay
+                          </p>
+                        )}
                       </div>
 
                       <Button
