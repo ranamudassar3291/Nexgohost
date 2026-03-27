@@ -97,6 +97,8 @@ function formatInvoice(i: any, clientName?: string) {
     unitPrice: item.unitPrice ?? item.amount ?? Number(i.amount ?? 0),
     total: item.total ?? item.amount ?? Number(i.amount ?? 0),
   }));
+  const paymentNotes = i.paymentNotes ?? i.payment_notes;
+  const isRefundPending = typeof paymentNotes === "string" && paymentNotes.startsWith("REFUND_REQUEST:");
   return {
     id: i.id,
     invoiceNumber: i.invoiceNumber ?? i.invoice_number,
@@ -106,12 +108,16 @@ function formatInvoice(i: any, clientName?: string) {
     tax: Number(i.tax ?? 0),
     total: Number(i.total ?? 0),
     status: i.status,
+    displayStatus: isRefundPending && i.status === "paid" ? "refund_pending" : i.status,
     dueDate: toISO(i.dueDate ?? i.due_date) ?? new Date().toISOString(),
     paidDate: toISO(i.paidDate ?? i.paid_date),
     paymentRef: i.paymentRef ?? i.payment_ref,
     paymentGatewayId: i.paymentGatewayId ?? i.payment_gateway_id,
-    paymentNotes: i.paymentNotes ?? i.payment_notes,
+    paymentNotes,
     invoiceType: i.invoiceType ?? i.invoice_type,
+    currencyCode: i.currencyCode ?? i.currency_code ?? "PKR",
+    currencySymbol: i.currencySymbol ?? i.currency_symbol ?? "Rs.",
+    currencyRate: Number(i.currencyRate ?? i.currency_rate ?? 1),
     items,
     createdAt: toISO(i.createdAt ?? i.created_at) ?? new Date().toISOString(),
   };
@@ -180,6 +186,59 @@ router.get("/invoices", authenticate, async (req: AuthRequest, res) => {
     const invoices = await db.select().from(invoicesTable).where(eq(invoicesTable.clientId, req.user!.userId)).orderBy(sql`created_at DESC`);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     res.json(invoices.map(i => formatInvoice(i, user ? `${user.firstName} ${user.lastName}` : "")));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: request a refund (within 30 days of payment)
+router.post("/invoices/:id/refund-request", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { reason } = req.body || {};
+    if (!reason || !String(reason).trim()) {
+      res.status(400).json({ error: "A reason is required for the refund request." }); return;
+    }
+
+    const [invoice] = await db.select().from(invoicesTable)
+      .where(eq(invoicesTable.id, req.params.id)).limit(1);
+    if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
+    if (invoice.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (invoice.status !== "paid") {
+      res.status(400).json({ error: "Only paid invoices can be refunded." }); return;
+    }
+
+    // Check 30-day refund window
+    const paidAt = invoice.paidDate ?? invoice.createdAt;
+    const daysSincePaid = Math.floor((Date.now() - new Date(paidAt).getTime()) / (1000 * 60 * 60 * 24));
+    if (daysSincePaid > 30) {
+      res.status(400).json({ error: "Refund window has expired. Refunds are only available within 30 days of payment." }); return;
+    }
+
+    // Check if refund already requested
+    if (typeof invoice.paymentNotes === "string" && invoice.paymentNotes.startsWith("REFUND_REQUEST:")) {
+      res.status(400).json({ error: "A refund request has already been submitted for this invoice." }); return;
+    }
+
+    const refundNote = `REFUND_REQUEST: ${String(reason).trim()}`;
+    const [updated] = await db.update(invoicesTable)
+      .set({ paymentNotes: refundNote, updatedAt: new Date() })
+      .where(eq(invoicesTable.id, req.params.id))
+      .returning();
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+
+    // WhatsApp admin alert (non-blocking)
+    sendWhatsAppAlert("refund_request",
+      `🔄 *Refund Request — Noehost*\n\n` +
+      `👤 Client: ${user ? `${user.firstName} ${user.lastName}` : "Unknown"}\n` +
+      `📧 Email: ${user?.email ?? "—"}\n` +
+      `🧾 Invoice: ${invoice.invoiceNumber}\n` +
+      `💵 Amount: ${invoice.currencySymbol ?? "Rs."}${Number(invoice.total).toLocaleString()}\n` +
+      `📝 Reason: ${reason}\n\n` +
+      `_Please review and process the refund._`
+    ).catch(() => {});
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
