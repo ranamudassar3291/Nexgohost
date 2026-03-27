@@ -38,7 +38,12 @@ async function getSafepayConfig(): Promise<{
     console.error("[SAFEPAY] No secret key configured for mode:", isSandbox ? "sandbox" : "live");
     return null;
   }
-  console.log(`[SAFEPAY] Config loaded — mode: ${isSandbox ? "sandbox" : "live"}, publicKey: ${publicKey ? "✓" : "MISSING"}, secretKey: ✓`);
+  // Log first 8 chars of each key so admin can verify they match the dashboard
+  console.log(
+    `[SAFEPAY] Config loaded — mode: ${isSandbox ? "sandbox" : "live"}` +
+    ` | client(publicKey): ${publicKey ? publicKey.substring(0, 12) + "…" : "MISSING"}` +
+    ` | secretKey: ${secretKey ? secretKey.substring(0, 8) + "…" : "MISSING"}`
+  );
   return { secretKey, publicKey, webhookSecret, isSandbox };
 }
 
@@ -47,6 +52,33 @@ function getBaseUrl(isSandbox: boolean) {
   return isSandbox
     ? "https://sandbox.api.getsafepay.com"
     : "https://api.getsafepay.com";
+}
+
+// ─── Friendly error parser ─────────────────────────────────────────────────────
+function parseSafepayError(body: string): { userMsg: string; techDetail: string } {
+  try {
+    const parsed = JSON.parse(body);
+    const errors: string[] = parsed?.status?.errors ?? [];
+    const msg = errors[0] ?? parsed?.status?.message ?? "Unknown error";
+
+    if (msg.toLowerCase().includes("client") && msg.toLowerCase().includes("not found")) {
+      return {
+        userMsg: "Safepay gateway configuration error — please contact support.",
+        techDetail: `[KEY ERROR] Safepay rejected the client identifier. ` +
+          `Verify your Live API Key in: Admin → Payment Methods → Safepay → Live Public Key. ` +
+          `Safepay error: "${msg}"`,
+      };
+    }
+    if (msg.toLowerCase().includes("environment")) {
+      return {
+        userMsg: "Safepay environment mismatch — please contact support.",
+        techDetail: `[ENV ERROR] ${msg} — ensure sandbox mode checkbox matches your key type.`,
+      };
+    }
+    return { userMsg: "Safepay payment creation failed — please try again.", techDetail: msg };
+  } catch {
+    return { userMsg: "Unexpected response from Safepay.", techDetail: body.substring(0, 200) };
+  }
 }
 
 // ─── POST /api/payments/safepay/initiate ──────────────────────────────────────
@@ -83,18 +115,25 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
 
     const base = getBaseUrl(config.isSandbox);
     const env = config.isSandbox ? "sandbox" : "production";
-    // Safepay amounts are in paisa (PKR smallest unit = 1/100 of a rupee)
+
+    // Amount in paisa (PKR smallest unit — 1 PKR = 100 paisa)
+    // Must be a whole integer — no decimals
     const amount = Math.round(parseFloat(invoice.total) * 100);
 
     const trackerPayload = {
-      environment: env,     // Required: "sandbox" | "production"
-      client: config.publicKey, // Required: merchant public/API key
-      amount,               // Required: in paisa
+      client: config.publicKey,  // Merchant API Key from Safepay dashboard → Developers → API Keys
+      environment: env,          // "production" for live, "sandbox" for test
+      amount,                    // Integer paisa — e.g. Rs. 1845 → 184500
       currency: "PKR",
       order_id: invoice.invoiceNumber,
     };
 
-    console.log(`[SAFEPAY] Initiating tracker — env: ${env}, amount: ${amount} paisa, invoice: ${invoice.invoiceNumber}`);
+    // ── DIAGNOSTIC LOG — exact payload being sent to Safepay ──────────────────
+    console.log(
+      `[SAFEPAY] → POST ${base}/order/v1/init\n` +
+      `[SAFEPAY] → Payload: ${JSON.stringify({ ...trackerPayload, _secret: config.secretKey.substring(0, 8) + "…" }, null, 2)}\n` +
+      `[SAFEPAY] Invoice: ${invoice.invoiceNumber} | Rs. ${invoice.total} → ${amount} paisa`
+    );
 
     // Create payment tracker
     const trackerRes = await fetch(`${base}/order/v1/init`, {
@@ -107,30 +146,37 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
     });
 
     const trackerBody = await trackerRes.text();
+
     if (!trackerRes.ok) {
-      console.error("[SAFEPAY] Tracker creation failed:", trackerBody);
-      res.status(502).json({ error: "Failed to create Safepay payment — please try again", detail: trackerBody });
+      const { userMsg, techDetail } = parseSafepayError(trackerBody);
+      console.error(`[SAFEPAY] ✗ Tracker failed (${trackerRes.status}): ${techDetail}`);
+      console.error(`[SAFEPAY] Raw response: ${trackerBody}`);
+      res.status(502).json({ error: userMsg, detail: techDetail });
       return;
     }
 
     let trackerData: any;
     try { trackerData = JSON.parse(trackerBody); } catch {
-      console.error("[SAFEPAY] Non-JSON response from Safepay:", trackerBody);
-      res.status(502).json({ error: "Unexpected response from Safepay" });
+      console.error("[SAFEPAY] Non-JSON response:", trackerBody);
+      res.status(502).json({ error: "Unexpected response from Safepay — please try again." });
       return;
     }
 
-    const tracker = trackerData?.token?.tracker ?? trackerData?.data?.token?.tracker;
+    // Support both response shapes from Safepay
+    const tracker: string =
+      trackerData?.token?.tracker ??
+      trackerData?.data?.token?.tracker ??
+      "";
 
     if (!tracker) {
       console.error("[SAFEPAY] No tracker token in response:", JSON.stringify(trackerData));
-      res.status(502).json({ error: "Invalid response from Safepay" });
+      res.status(502).json({ error: "Invalid response from Safepay — no payment token received." });
       return;
     }
 
-    console.log(`[SAFEPAY] Tracker created: ${tracker} for invoice ${invoice.invoiceNumber}`);
+    console.log(`[SAFEPAY] ✓ Tracker created: ${tracker} for invoice ${invoice.invoiceNumber}`);
 
-    // Store tracker token in invoice paymentRef
+    // Persist tracker token so webhook can match it back to this invoice
     await db.update(invoicesTable)
       .set({
         status: "payment_pending",
@@ -145,15 +191,23 @@ router.post("/payments/safepay/initiate", authenticate, async (req: AuthRequest,
       ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
       : process.env["APP_URL"] ?? "https://noehost.com";
     const redirectUrl = `${appDomain}/client/payment/return?tracker=${tracker}&invoice=${invoice.id}`;
-    const cancelUrl = `${appDomain}/client/invoices`;
+    const cancelUrl   = `${appDomain}/client/invoices`;
 
-    // Checkout URL — env and base already declared above
-    const checkoutUrl = `${base}/checkout/pay?env=${env}&tracker=${tracker}&source=custom&order_id=${invoice.invoiceNumber}&redirect_url=${encodeURIComponent(redirectUrl)}&cancel_url=${encodeURIComponent(cancelUrl)}`;
+    const checkoutUrl =
+      `${base}/checkout/pay` +
+      `?env=${env}` +
+      `&tracker=${tracker}` +
+      `&source=custom` +
+      `&order_id=${encodeURIComponent(invoice.invoiceNumber)}` +
+      `&redirect_url=${encodeURIComponent(redirectUrl)}` +
+      `&cancel_url=${encodeURIComponent(cancelUrl)}`;
+
+    console.log(`[SAFEPAY] ✓ Checkout URL: ${checkoutUrl.substring(0, 120)}…`);
 
     res.json({ checkoutUrl, tracker, invoiceId: invoice.id });
   } catch (err) {
-    console.error("[SAFEPAY] initiate error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error("[SAFEPAY] Unhandled initiate error:", err);
+    res.status(500).json({ error: "Server error — please try again." });
   }
 });
 
@@ -173,14 +227,17 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
       hmac.update(rawBody);
       const expected = hmac.digest("hex");
       if (expected !== signature) {
-        console.warn("[SAFEPAY WEBHOOK] Invalid signature — rejecting");
+        console.warn("[SAFEPAY WEBHOOK] ✗ Invalid signature — rejecting");
         res.status(401).json({ error: "Invalid signature" });
         return;
       }
+      console.log("[SAFEPAY WEBHOOK] ✓ Signature verified");
     } else if (config?.webhookSecret && !signature) {
       console.warn("[SAFEPAY WEBHOOK] Missing X-SFPY-SIGNATURE header — rejecting");
       res.status(401).json({ error: "Missing signature" });
       return;
+    } else {
+      console.warn("[SAFEPAY WEBHOOK] No webhook secret configured — skipping signature check");
     }
 
     // Parse body
@@ -192,7 +249,7 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
       return;
     }
 
-    console.log("[SAFEPAY WEBHOOK] Received:", JSON.stringify(payload).substring(0, 400));
+    console.log("[SAFEPAY WEBHOOK] Received:", JSON.stringify(payload).substring(0, 500));
 
     const notificationType: string = payload?.notification_type ?? "";
     const tracker: string =
@@ -204,8 +261,8 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
       payload?.payload?.order_id ??
       "";
 
-    // Only process successful payment notifications
-    if (!notificationType.includes("payment")) {
+    // Only process payment notifications
+    if (!notificationType.toLowerCase().includes("payment")) {
       console.log(`[SAFEPAY WEBHOOK] Ignoring notification type: ${notificationType}`);
       res.json({ received: true });
       return;
@@ -216,13 +273,13 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
       payload?.payload?.status ??
       "";
 
-    if (paymentStatus && !["paid", "PAID", "success", "SUCCESS"].includes(paymentStatus)) {
-      console.log(`[SAFEPAY WEBHOOK] Payment status is not success: ${paymentStatus}`);
+    if (paymentStatus && !["paid", "PAID", "success", "SUCCESS", "captured", "CAPTURED"].includes(paymentStatus)) {
+      console.log(`[SAFEPAY WEBHOOK] Payment status not successful: ${paymentStatus}`);
       res.json({ received: true });
       return;
     }
 
-    // Find invoice by tracker (stored as paymentRef) or by invoice number (orderId)
+    // Find invoice by tracker token (stored as paymentRef) or by invoice number (orderId)
     let invoice = null;
     if (tracker) {
       const [inv] = await db.select().from(invoicesTable)
@@ -236,14 +293,20 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
     }
 
     if (!invoice) {
-      console.error(`[SAFEPAY WEBHOOK] Invoice not found — tracker: ${tracker}, orderId: ${orderId}`);
+      console.error(`[SAFEPAY WEBHOOK] ✗ Invoice not found — tracker: ${tracker}, orderId: ${orderId}`);
       res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    if (invoice.status === "paid") {
+      console.log(`[SAFEPAY WEBHOOK] Invoice ${invoice.invoiceNumber} already paid — ignoring duplicate webhook`);
+      res.json({ received: true, alreadyPaid: true });
       return;
     }
 
     console.log(`[SAFEPAY WEBHOOK] Processing payment for invoice ${invoice.invoiceNumber}`);
 
-    // Activate invoice — this does: mark paid, provision service, affiliate credit, send email
+    // Activate invoice — marks paid, provisions service, credits affiliate, sends emails
     const result = await processInvoicePaid(
       invoice.id,
       tracker || `SFPY-${Date.now()}`,
@@ -251,10 +314,10 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
     );
 
     if (result.success) {
-      console.log(`[SAFEPAY WEBHOOK] Successfully activated invoice ${invoice.invoiceNumber}`);
+      console.log(`[SAFEPAY WEBHOOK] ✓ Invoice ${invoice.invoiceNumber} activated`);
       res.json({ received: true, activated: true });
     } else {
-      console.error(`[SAFEPAY WEBHOOK] Activation failed for invoice ${invoice.invoiceNumber}:`, result.error);
+      console.error(`[SAFEPAY WEBHOOK] ✗ Activation failed for ${invoice.invoiceNumber}:`, result.error);
       res.status(500).json({ error: result.error ?? "Activation failed" });
     }
   } catch (err) {

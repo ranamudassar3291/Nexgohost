@@ -182,7 +182,7 @@ export default function InvoiceDetail() {
   };
 
   const handleSafepayPay = async () => {
-    if (!invoice) return;
+    if (!invoice || !tosAccepted) return;
     setSafepayInitiating(true);
     try {
       const data = await apiFetch(`/api/payments/safepay/initiate`, {
@@ -190,12 +190,24 @@ export default function InvoiceDetail() {
         body: JSON.stringify({ invoiceId: invoice.id }),
       });
       if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+        // Clean redirect — replaces current history entry so back button returns to invoices
+        window.location.assign(data.checkoutUrl);
+        // Keep spinner active during navigation
+        return;
       } else {
-        throw new Error("No checkout URL returned from Safepay");
+        throw new Error("No checkout URL returned. Please try again.");
       }
     } catch (err: any) {
-      toast({ title: "Safepay Error", description: err.message ?? "Failed to initiate Safepay payment.", variant: "destructive" });
+      const isNetwork = err.message?.toLowerCase().includes("fetch") ||
+        err.message?.toLowerCase().includes("network") ||
+        err.message?.toLowerCase().includes("timeout");
+      toast({
+        title: isNetwork ? "Connection Error" : "Payment Gateway Error",
+        description: isNetwork
+          ? "Could not reach the payment server. Please check your connection and try again."
+          : (err.message ?? "Failed to initiate Safepay payment. Please try again or use another payment method."),
+        variant: "destructive",
+      });
       setSafepayInitiating(false);
     }
   };
@@ -533,6 +545,7 @@ export default function InvoiceDetail() {
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#701AFE] cursor-pointer shrink-0"
                         />
                         <span className="text-xs text-slate-600 leading-relaxed">
+                          <span className="text-red-500 font-bold mr-0.5" title="Required">*</span>
                           I agree to Noehost's{" "}
                           <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
                             Terms of Service
