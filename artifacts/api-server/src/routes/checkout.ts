@@ -462,11 +462,15 @@ async function handleCheckout(req: AuthRequest, res: any) {
         // Group scope check
         const applicableGroupId = (promo as any).applicableGroupId;
         const groupOk = !applicableGroupId || applicableGroupId === plan.groupId;
+        // applicableTo scope: "all" | "hosting" | "domain"
+        const applicableTo = (promo as any).applicableTo ?? "all";
+        // Domain-only promos NEVER discount the hosting base price
+        const scopeOk = applicableTo === "all" || applicableTo === "hosting";
         // Domain TLD scope check (only if code is domain-scoped and there's a domain)
         const applicableDomainTld = (promo as any).applicableDomainTld;
         const domainTld = domain && domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : null;
         const tldOk = !applicableDomainTld || !domainTld || applicableDomainTld.toLowerCase() === domainTld;
-        if (limitOk && notExpired && groupOk && tldOk) {
+        if (limitOk && notExpired && groupOk && scopeOk && tldOk) {
           const discountType = (promo as any).discountType ?? "percent";
           if (discountType === "fixed") {
             discountAmount = Math.min(Number((promo as any).fixedAmount ?? 0), baseAmount);

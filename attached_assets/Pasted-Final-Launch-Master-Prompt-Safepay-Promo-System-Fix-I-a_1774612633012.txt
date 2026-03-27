@@ -1,0 +1,42 @@
+Final Launch Master Prompt: Safepay & Promo System Fix
+"I am ready to launch Noehost and need the Safepay Payment System and Promo Logic to be 100% functional. Execute these final fixes immediately:
+
+1. Fix Safepay Redirect (The 'Pay Now' Action):
+
+Backend: Ensure the create-checkout-session for Safepay is fully implemented using my Live Keys.
+
+Frontend: When a client clicks the Safepay button on an invoice, it MUST immediately redirect the user to the Safepay hosted payment page. Use window.location.href for the redirect.
+
+Automatic Provisioning: Upon a successful payment signal from the Webhook, the system MUST:
+
+Mark Invoice as 'Paid'.
+
+Trigger WHM API to Activate the Hosting/Domain automatically.
+
+Send the 'Service Active' Welcome Email with my WhatsApp link (03151711821).
+
+2. Fix Domain-Only Promo Logic:
+
+The Bug: Promo codes meant for domains are currently discounting the entire invoice.
+
+The Fix: Modify the calculateDiscount logic. If a promo code is applied, it must ONLY apply to the line item where type === 'domain'.
+
+Example: If Hosting is Rs. 2,345 and Domain is Rs. 2,000 with a 20% discount, ONLY the Rs. 2,000 should be discounted.
+
+3. UI Cleanup & Manual Gateway Protection:
+
+Conditional UI: Hide the 'Submit Payment Confirmation' manual form when a user selects 'Safepay'. Only show it for 'JazzCash/EasyPaisa Manual'.
+
+Manual Gatekeeping: Ensure JazzCash manual payments NEVER auto-activate. They must remain 'Pending' until I manually approve them in the Admin Panel.
+
+4. TLD Priority & Ranking:
+
+Set the top 7 TLDs (.com, .pk, .net, .org, .shop, .info, .online) as the only 'Suggested' domains.
+
+Ensure they appear in the exact sort_order (1 to 7) on the search page.
+
+5. Final Verification:
+
+Check the /api/webhooks/safepay route. Ensure it uses the 'Webhook Secret' for signature verification to prevent fake payments.
+
+Final Goal: I want a seamless flow where a client pays via Safepay, gets an instant email, and their hosting is active before they even close the browser."

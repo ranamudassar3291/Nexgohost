@@ -1,5 +1,24 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 36 — Safepay Redirect Fix, Domain-Only Promo Scope, Invoice Correction)
+
+### Safepay Redirect on InvoiceDetail (Fixes 1 + 5)
+- `InvoiceDetail.tsx`: Added `safepayInitiating` state + `handleSafepayPay()` — calls `POST /api/payments/safepay/initiate` and does `window.location.href = data.checkoutUrl` for redirect
+- Safepay added to `TYPE_ICONS` (`🔐`)
+- `PaymentInstructions` component now has a Safepay early-return showing redirect description
+- Split payment form into TWO AnimatePresence blocks: Safepay → shows "Pay Now with Safepay" button + amount; non-Safepay → shows manual Transaction ID / WhatsApp form
+- `selectedMethodType` derived from `paymentMethods.find(pm => pm.id === selectedGateway)?.type`
+
+### Domain-Only Promo Scope Enforcement (Fix 2)
+- `checkout.ts` `handleCheckout`: Added `applicableTo` check alongside existing `groupOk`/`tldOk`
+- `scopeOk = applicableTo === "all" || applicableTo === "hosting"` — promos with `applicableTo === "domain"` will NOT discount the hosting base price
+
+### Invoice Correction (Fix 3 — INV-20260327-GG8YYJ)
+- Items corrected to: Starter Hosting Rs. 2,345 + Domain FREE Rs. 0 + Account Credit Rs. -500
+- `amount` and `total` updated to `1845.00`
+
+### Webhook & Auto-Activation (Fix 4) — Already complete from previous session
+
 ## Recent Changes (Session 35 — TLD Sort/Filter + showInSuggestions Strict Enforcement)
 
 ### TLD Sort Orders (live in DB, NOT in backup — backup file `noehost_latests_backup.sql` is truncated/incomplete)

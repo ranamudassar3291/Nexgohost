@@ -43,7 +43,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; bg
 
 const TYPE_ICONS: Record<string, string> = {
   jazzcash: "📱", easypaisa: "💚", bank_transfer: "🏦",
-  paypal: "🅿️", stripe: "💳", crypto: "₿", manual: "✍️",
+  paypal: "🅿️", stripe: "💳", crypto: "₿", manual: "✍️", safepay: "🔐",
 };
 
 // ─── Payment Instructions sub-component ───────────────────────────────────────
@@ -51,6 +51,15 @@ const TYPE_ICONS: Record<string, string> = {
 function PaymentInstructions({ method }: { method: PaymentMethod }) {
   const s = method.publicSettings ?? {};
   const isWallet = ["jazzcash", "easypaisa"].includes(method.type);
+
+  // Safepay: hosted checkout — no manual details needed
+  if (method.type === "safepay") {
+    return (
+      <p className="text-xs text-slate-500">
+        You'll be redirected to Safepay's secure hosted checkout page to complete your payment.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -111,6 +120,7 @@ export default function InvoiceDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [payingWithCredits, setPayingWithCredits] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [safepayInitiating, setSafepayInitiating] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -170,6 +180,25 @@ export default function InvoiceDetail() {
     }
   };
 
+  const handleSafepayPay = async () => {
+    if (!invoice) return;
+    setSafepayInitiating(true);
+    try {
+      const data = await apiFetch(`/api/payments/safepay/initiate`, {
+        method: "POST",
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("No checkout URL returned from Safepay");
+      }
+    } catch (err: any) {
+      toast({ title: "Safepay Error", description: err.message ?? "Failed to initiate Safepay payment.", variant: "destructive" });
+      setSafepayInitiating(false);
+    }
+  };
+
   const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGateway || !txRef.trim()) return;
@@ -217,6 +246,10 @@ export default function InvoiceDetail() {
   // JazzCash / EasyPaisa methods
   const mobileWalletMethods = paymentMethods.filter(pm => ["jazzcash", "easypaisa"].includes(pm.type));
   const otherMethods = paymentMethods.filter(pm => !["jazzcash", "easypaisa"].includes(pm.type));
+
+  // Detect the type of the currently selected gateway
+  const selectedMethodObj = paymentMethods.find(pm => pm.id === selectedGateway);
+  const selectedMethodType = selectedMethodObj?.type ?? "";
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl mx-auto space-y-4">
@@ -467,9 +500,47 @@ export default function InvoiceDetail() {
                   ))}
                 </div>
 
-                {/* Submit payment form */}
+                {/* Safepay: direct Pay Now button — no manual form */}
                 <AnimatePresence>
-                  {selectedGateway && (
+                  {selectedGateway && selectedMethodType === "safepay" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="bg-white border-2 rounded-xl p-5 space-y-4"
+                      style={{ borderColor: BRAND + "33" }}
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">Pay Securely via Safepay</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          You'll be redirected to Safepay's secure checkout to complete your payment.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
+                        <span className="text-xs text-slate-500">Amount to Pay</span>
+                        <span className="text-base font-black" style={{ color: BRAND }}>
+                          {formatPrice(Number(invoice.total))}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        disabled={safepayInitiating}
+                        onClick={handleSafepayPay}
+                        className="w-full gap-2 text-white"
+                        style={{ background: BRAND }}
+                      >
+                        {safepayInitiating
+                          ? <><Loader2 size={15} className="animate-spin" /> Redirecting…</>
+                          : <><CreditCard size={15} /> Pay Now with Safepay</>
+                        }
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Manual payment form — only for non-Safepay methods */}
+                <AnimatePresence>
+                  {selectedGateway && selectedMethodType !== "safepay" && (
                     <motion.form
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
