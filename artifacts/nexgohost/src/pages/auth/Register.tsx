@@ -8,6 +8,7 @@ import {
   Gift, AlertCircle, CheckCircle2, ChevronDown, MapPin,
 } from "lucide-react";
 import CaptchaWidget from "@/components/CaptchaWidget";
+import { PhoneInput } from "@/components/PhoneInput";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { COUNTRIES, countryToCurrency, type CountryOption } from "@/lib/countries";
@@ -379,16 +380,20 @@ export default function Register() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div className="space-y-3 mt-3">
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 mb-1.5">Company</label>
                             <input name="company" value={formData.company} onChange={handleChange}
                               placeholder="Acme Inc." className={inputCls()} autoComplete="organization" />
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone</label>
-                            <input name="phone" value={formData.phone} onChange={handleChange}
-                              placeholder="+1 555 000 0000" className={inputCls()} autoComplete="tel" />
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone number</label>
+                            <PhoneInput
+                              value={formData.phone}
+                              onChange={val => setFormData(prev => ({ ...prev, phone: val }))}
+                              countryCode={selectedCountry.code}
+                              placeholder="300 1234567"
+                            />
                           </div>
                         </div>
                       </motion.div>

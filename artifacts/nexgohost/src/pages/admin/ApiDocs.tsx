@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   BookOpen, Key, Lock, Globe, Webhook, Users, FileText,
   ShoppingCart, RefreshCw, Copy, CheckCircle2, ChevronDown, ChevronRight,
-  Shield, CreditCard, Bell, Settings,
+  Shield, CreditCard, Bell, Settings, Play, Loader2, AlertCircle,
 } from "lucide-react";
 
 const BRAND = "#701AFE";
@@ -76,6 +76,165 @@ function JsonBlock({ obj, id }: { obj: object; id: string }) {
       >
         {copied === id ? <><CheckCircle2 size={10} /> Copied</> : <><Copy size={10} /> Copy</>}
       </button>
+    </div>
+  );
+}
+
+// ─── Try It Out panel ─────────────────────────────────────────────────────────
+interface TryResult {
+  status: number;
+  ok: boolean;
+  body: unknown;
+  ms: number;
+}
+
+function TryItOut({ ep }: { ep: Endpoint }) {
+  const [open,    setOpen]    = useState(false);
+  const [token,   setToken]   = useState(() => localStorage.getItem("auth_token") ?? "");
+  const [apiKey,  setApiKey]  = useState("");
+  const [body,    setBody]    = useState(ep.bodyExample ? JSON.stringify(ep.bodyExample, null, 2) : "");
+  const [pathVars, setPathVars] = useState<Record<string, string>>({});
+  const [running, setRunning] = useState(false);
+  const [result,  setResult]  = useState<TryResult | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // Collect path params from ep.path e.g. :id :planId
+  const pathParamNames = (ep.path.match(/:[a-zA-Z]+/g) ?? []).map(s => s.slice(1));
+
+  function buildUrl() {
+    let url = ep.path;
+    for (const [k, v] of Object.entries(pathVars)) {
+      url = url.replace(`:${k}`, encodeURIComponent(v || `<${k}>`));
+    }
+    return url;
+  }
+
+  async function send() {
+    setRunning(true);
+    setResult(null);
+    setError(null);
+    const t0 = performance.now();
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (ep.auth === "bearer" && token) headers["Authorization"] = `Bearer ${token}`;
+      if (ep.auth === "api-key" && apiKey)  headers["X-System-API-Key"] = apiKey;
+      const opts: RequestInit = { method: ep.method, headers };
+      if (ep.method !== "GET" && ep.method !== "DELETE" && body.trim()) {
+        try { opts.body = JSON.stringify(JSON.parse(body)); }
+        catch { opts.body = body; }
+      }
+      const res = await fetch(buildUrl(), opts);
+      const ms = Math.round(performance.now() - t0);
+      let resBody: unknown;
+      try { resBody = await res.json(); } catch { resBody = await res.text(); }
+      setResult({ status: res.status, ok: res.ok, body: resBody, ms });
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+    } catch (e: any) {
+      setError(e.message ?? "Request failed");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors hover:bg-violet-50 hover:border-violet-300 border-gray-200 text-gray-500 hover:text-violet-700"
+      >
+        <Play size={11} /> Try it out
+      </button>
+    );
+  }
+
+  const statusColor = result
+    ? result.status < 300 ? "text-emerald-600" : result.status < 500 ? "text-amber-600" : "text-red-600"
+    : "";
+
+  return (
+    <div className="border border-violet-200 bg-violet-50/40 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-violet-700 flex items-center gap-1.5"><Play size={11} /> Try it out</span>
+        <button onClick={() => { setOpen(false); setResult(null); setError(null); }}
+          className="text-[10px] text-gray-400 hover:text-gray-600">✕ Close</button>
+      </div>
+
+      {/* Auth input */}
+      {ep.auth === "bearer" && (
+        <div>
+          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Bearer Token (JWT)</label>
+          <input value={token} onChange={e => setToken(e.target.value)}
+            placeholder="Paste your JWT token…"
+            className="w-full h-8 px-2.5 text-xs font-mono border border-gray-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400" />
+        </div>
+      )}
+      {ep.auth === "api-key" && (
+        <div>
+          <label className="block text-[10px] font-semibold text-gray-500 mb-1">X-System-API-Key</label>
+          <input value={apiKey} onChange={e => setApiKey(e.target.value)}
+            placeholder="Paste your Parda API key…"
+            className="w-full h-8 px-2.5 text-xs font-mono border border-gray-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400" />
+        </div>
+      )}
+
+      {/* Path params */}
+      {pathParamNames.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {pathParamNames.map(name => (
+            <div key={name}>
+              <label className="block text-[10px] font-semibold text-gray-500 mb-1">:{name}</label>
+              <input value={pathVars[name] ?? ""} onChange={e => setPathVars(prev => ({ ...prev, [name]: e.target.value }))}
+                placeholder={name}
+                className="w-full h-8 px-2.5 text-xs font-mono border border-gray-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Request body */}
+      {ep.method !== "GET" && ep.method !== "DELETE" && (
+        <div>
+          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Request Body (JSON)</label>
+          <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
+            placeholder='{ "key": "value" }'
+            className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-violet-300 focus:border-violet-400 resize-y" />
+        </div>
+      )}
+
+      {/* URL preview */}
+      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+        <span className="font-mono bg-gray-100 px-2 py-1 rounded text-gray-600">{ep.method} {buildUrl()}</span>
+      </div>
+
+      {/* Send button */}
+      <button onClick={send} disabled={running}
+        className="flex items-center gap-2 h-8 px-4 rounded-lg text-xs font-semibold text-white disabled:opacity-60 transition-all"
+        style={{ background: BRAND }}>
+        {running ? <><Loader2 size={12} className="animate-spin" /> Sending…</> : <><Play size={12} /> Send Request</>}
+      </button>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <AlertCircle size={12} className="mt-0.5 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Result */}
+      {result && (
+        <div ref={resultRef} className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`font-bold ${statusColor}`}>{result.status}</span>
+            <span className="text-gray-400">·</span>
+            <span className="text-gray-400">{result.ms}ms</span>
+          </div>
+          <pre className={`text-xs rounded-lg px-4 py-3 overflow-x-auto leading-relaxed font-mono whitespace-pre ${result.ok ? "bg-gray-900 text-emerald-400" : "bg-red-950 text-red-300"}`}>
+            {typeof result.body === "string" ? result.body : JSON.stringify(result.body, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
@@ -185,6 +344,9 @@ function EndpointCard({ ep, sectionId, idx }: { ep: Endpoint; sectionId: string;
               </pre>
             </div>
           </div>
+
+          {/* Try it out */}
+          <TryItOut ep={ep} />
         </div>
       )}
     </div>
