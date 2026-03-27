@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff, ArrowLeftRight } from "lucide-react";
+import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff, ArrowLeftRight, ListOrdered, Eye, EyeOff } from "lucide-react";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ interface DomainExtension {
   privacyEnabled: boolean;
   isFreeWithHosting: boolean;
   transferAllowed: boolean;
+  sortOrder: number;
+  showInSuggestions: boolean;
   status: "active" | "inactive";
 }
 
@@ -35,6 +37,7 @@ const EMPTY = {
   registerPrice: "", register2YearPrice: "", register3YearPrice: "",
   renewalPrice: "", renew2YearPrice: "", renew3YearPrice: "",
   transferPrice: "", privacyEnabled: true, isFreeWithHosting: false, transferAllowed: true,
+  sortOrder: "999", showInSuggestions: true,
 };
 
 export default function DomainExtensions() {
@@ -73,6 +76,8 @@ export default function DomainExtensions() {
         privacyEnabled: form.privacyEnabled,
         isFreeWithHosting: form.isFreeWithHosting,
         transferAllowed: form.transferAllowed,
+        sortOrder: Number(form.sortOrder) || 999,
+        showInSuggestions: form.showInSuggestions,
       };
       if (editId) {
         await apiFetch(`/api/admin/domain-extensions/${editId}`, { method: "PUT", body: JSON.stringify(body) });
@@ -102,6 +107,8 @@ export default function DomainExtensions() {
       privacyEnabled: ext.privacyEnabled,
       isFreeWithHosting: ext.isFreeWithHosting ?? false,
       transferAllowed: ext.transferAllowed ?? true,
+      sortOrder: String(ext.sortOrder ?? 999),
+      showInSuggestions: ext.showInSuggestions ?? true,
     });
     setShowForm(true);
   };
@@ -117,13 +124,14 @@ export default function DomainExtensions() {
     }
   };
 
-  const handleToggle = async (ext: DomainExtension, field: "status" | "privacyEnabled" | "isFreeWithHosting" | "transferAllowed") => {
+  const handleToggle = async (ext: DomainExtension, field: "status" | "privacyEnabled" | "isFreeWithHosting" | "transferAllowed" | "showInSuggestions") => {
     try {
       const body =
-        field === "status"         ? { status: ext.status === "active" ? "inactive" : "active" } :
-        field === "privacyEnabled" ? { privacyEnabled: !ext.privacyEnabled } :
+        field === "status"            ? { status: ext.status === "active" ? "inactive" : "active" } :
+        field === "privacyEnabled"    ? { privacyEnabled: !ext.privacyEnabled } :
         field === "isFreeWithHosting" ? { isFreeWithHosting: !ext.isFreeWithHosting } :
-                                    { transferAllowed: !ext.transferAllowed };
+        field === "transferAllowed"   ? { transferAllowed: !ext.transferAllowed } :
+                                        { showInSuggestions: !ext.showInSuggestions };
       await apiFetch(`/api/admin/domain-extensions/${ext.id}`, { method: "PUT", body: JSON.stringify(body) });
       queryClient.invalidateQueries({ queryKey: ["admin-domain-extensions"] });
     } catch (err: any) {
@@ -138,7 +146,7 @@ export default function DomainExtensions() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">Domain Extensions</h1>
-          <p className="text-muted-foreground text-sm">Manage TLD pricing (.com, .net, .org, .pk…)</p>
+          <p className="text-muted-foreground text-sm">Manage TLD pricing (.com, .net, .org, .pk…) and search display order</p>
         </div>
         <Button onClick={() => { setEditId(null); setForm(EMPTY); setShowForm(true); }} className="bg-primary hover:bg-primary/90">
           <Plus size={16} className="mr-2" /> Add Extension
@@ -154,9 +162,23 @@ export default function DomainExtensions() {
             <h2 className="font-semibold">{editId ? "Edit Extension" : "Add Domain Extension"}</h2>
           </div>
           <form onSubmit={handleSave} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Extension (e.g. .com)</label>
-              <Input value={form.extension} onChange={set("extension")} placeholder=".com" disabled={!!editId} className="max-w-xs" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground/80">Extension (e.g. .com)</label>
+                <Input value={form.extension} onChange={set("extension")} placeholder=".com" disabled={!!editId} className="max-w-xs" />
+              </div>
+              <div className="space-y-1.5 max-w-[140px]">
+                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
+                  <ListOrdered size={14} className="text-primary" /> Sort Order
+                </label>
+                <Input
+                  type="number" min="1" max="9999" step="1"
+                  value={form.sortOrder}
+                  onChange={set("sortOrder")}
+                  placeholder="999"
+                />
+                <p className="text-xs text-muted-foreground">Lower = shown first to clients</p>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -194,6 +216,19 @@ export default function DomainExtensions() {
             <div className="space-y-1.5 max-w-xs">
               <label className="text-sm font-medium text-foreground/80">Transfer Price (PKR) *</label>
               <Input type="number" step="0.01" min="0" value={form.transferPrice} onChange={set("transferPrice")} placeholder="0.00" />
+            </div>
+
+            {/* Show in Suggestions */}
+            <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl max-w-md">
+              <Eye size={16} className="text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Show in Suggestions</p>
+                <p className="text-xs text-muted-foreground">Display this TLD in client domain search results. If off, only appears when client explicitly types this extension.</p>
+              </div>
+              <button type="button" onClick={() => setForm(f => ({ ...f, showInSuggestions: !f.showInSuggestions }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.showInSuggestions ? "bg-primary" : "bg-muted"}`}>
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.showInSuggestions ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
             </div>
 
             <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl max-w-md">
@@ -245,9 +280,10 @@ export default function DomainExtensions() {
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
+          <table className="w-full text-left border-collapse min-w-[1050px]">
             <thead>
               <tr className="bg-secondary/50 border-b border-border">
+                <th className="p-4 text-sm font-medium text-muted-foreground w-12 text-center">#</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Extension</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Reg 1yr</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Reg 2yr</th>
@@ -255,9 +291,10 @@ export default function DomainExtensions() {
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 1yr</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 2yr</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Ren 3yr</th>
-                <th className="p-4 text-sm font-medium text-muted-foreground">Transfer Price</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Transfer</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Suggest</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Privacy</th>
-                <th className="p-4 text-sm font-medium text-muted-foreground">Free w/ Hosting</th>
+                <th className="p-4 text-sm font-medium text-muted-foreground">Free w/ Host</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Transfers</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground">Status</th>
                 <th className="p-4 text-sm font-medium text-muted-foreground text-right">Actions</th>
@@ -265,11 +302,16 @@ export default function DomainExtensions() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={13} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
+                <tr><td colSpan={15} className="p-8 text-center"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></td></tr>
               ) : extensions.length === 0 ? (
-                <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
+                <tr><td colSpan={15} className="p-8 text-center text-muted-foreground">No extensions added yet.</td></tr>
               ) : extensions.map(ext => (
                 <tr key={ext.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                  <td className="p-4 text-center">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 text-primary text-xs font-bold">
+                      {ext.sortOrder}
+                    </span>
+                  </td>
                   <td className="p-4 font-mono font-semibold text-primary">{ext.extension}</td>
                   <td className="p-4 text-sm">{formatPrice(Number(ext.registerPrice))}</td>
                   <td className="p-4 text-sm">{priceOrDash(ext.register2YearPrice)}</td>
@@ -278,6 +320,13 @@ export default function DomainExtensions() {
                   <td className="p-4 text-sm">{priceOrDash(ext.renew2YearPrice)}</td>
                   <td className="p-4 text-sm">{priceOrDash(ext.renew3YearPrice)}</td>
                   <td className="p-4 text-sm">{formatPrice(Number(ext.transferPrice))}</td>
+                  <td className="p-4">
+                    <button onClick={() => handleToggle(ext, "showInSuggestions")}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.showInSuggestions ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>
+                      {ext.showInSuggestions ? <Eye size={11} /> : <EyeOff size={11} />}
+                      {ext.showInSuggestions ? "Shown" : "Hidden"}
+                    </button>
+                  </td>
                   <td className="p-4">
                     <button onClick={() => handleToggle(ext, "privacyEnabled")}
                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${ext.privacyEnabled ? "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20" : "bg-secondary text-muted-foreground border-border hover:bg-secondary/80"}`}>

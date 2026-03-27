@@ -51,6 +51,7 @@ interface TldResult {
   registrationPrice: number; renewalPrice: number;
   register2YearPrice: number | null; register3YearPrice: number | null;
   isFreeWithHosting?: boolean;
+  showInSuggestions?: boolean;
 }
 
 interface TldPricing {
@@ -706,6 +707,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [domainQ,     setDomainQ]     = useState("");
   const [domChecking, setDomChecking] = useState(false);
   const [domResults,  setDomResults]  = useState<TldResult[] | null>(null);
+  const [domTypedTld, setDomTypedTld] = useState<string | null>(null);
   const [domError,    setDomError]    = useState("");
   const [existingDom, setExistingDom] = useState("");
   const [txDomain,        setTxDomain]        = useState("");
@@ -938,6 +940,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   async function checkDomain() {
     const clean = cleanName(domainQ);
     if (!clean || clean.length < 2) { setDomError("Enter a valid domain name (letters & numbers only)."); return; }
+    // Extract explicitly typed TLD (e.g. "mysite.online" → ".online")
+    const rawParts = domainQ.trim().toLowerCase().split(".");
+    const explicitTld = rawParts.length > 1 ? "." + rawParts.slice(1).join(".") : null;
+    setDomTypedTld(explicitTld);
     setDomError(""); setDomChecking(true); setDomResults(null);
     try {
       const r = await apiFetch(`/api/domains/availability?domain=${encodeURIComponent(clean)}`);
@@ -1466,7 +1472,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
         {domResults && !domChecking && (
           <motion.div {...slideUp} className="max-w-2xl mx-auto space-y-2">
-            {domResults.filter(r => r.registrationPrice > 0).slice(0, 10).map(r => (
+            {domResults.filter(r => r.registrationPrice > 0 && (r.showInSuggestions !== false || r.tld === domTypedTld)).slice(0, 10).map(r => (
               <div key={r.tld}
                 className={`flex items-center gap-3 justify-between px-4 py-3.5 bg-white rounded-xl border transition-all ${
                   r.available ? "border-gray-200 hover:border-[#701AFE]/30" : "border-gray-100 opacity-50"
@@ -2383,7 +2389,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               {domResults && !domChecking && (() => {
                 const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
                 const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
-                const allResults = domResults.filter(r => r.registrationPrice > 0);
+                const allResults = domResults.filter(r => r.registrationPrice > 0 && (r.showInSuggestions !== false || r.tld === domTypedTld));
                 const visibleResults = allResults.slice(0, 8);
                 const eligibleTldLabels = planFreeTlds.length > 0
                   ? planFreeTlds

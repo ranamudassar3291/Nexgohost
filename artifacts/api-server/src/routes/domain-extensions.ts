@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { domainExtensionsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -20,6 +20,8 @@ function formatExt(row: typeof domainExtensionsTable.$inferSelect) {
     privacyEnabled: row.privacyEnabled,
     isFreeWithHosting: row.isFreeWithHosting ?? false,
     transferAllowed: row.transferAllowed ?? true,
+    sortOrder: row.sortOrder ?? 999,
+    showInSuggestions: row.showInSuggestions ?? true,
     status: row.status,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -28,7 +30,8 @@ function formatExt(row: typeof domainExtensionsTable.$inferSelect) {
 
 // GET /api/admin/domain-extensions
 router.get("/admin/domain-extensions", authenticate, requireAdmin, async (_req, res) => {
-  const extensions = await db.select().from(domainExtensionsTable).orderBy(domainExtensionsTable.extension);
+  const extensions = await db.select().from(domainExtensionsTable)
+    .orderBy(asc(domainExtensionsTable.sortOrder), asc(domainExtensionsTable.extension));
   res.json(extensions.map(formatExt));
 });
 
@@ -36,7 +39,7 @@ router.get("/admin/domain-extensions", authenticate, requireAdmin, async (_req, 
 router.get("/domain-extensions", async (_req, res) => {
   const extensions = await db.select().from(domainExtensionsTable)
     .where(eq(domainExtensionsTable.status, "active"))
-    .orderBy(domainExtensionsTable.extension);
+    .orderBy(asc(domainExtensionsTable.sortOrder), asc(domainExtensionsTable.extension));
   res.json(extensions.map(formatExt));
 });
 
@@ -44,7 +47,8 @@ router.get("/domain-extensions", async (_req, res) => {
 router.post("/admin/domain-extensions", authenticate, requireAdmin, async (req, res) => {
   const { extension, registerPrice, register2YearPrice, register3YearPrice,
           renewalPrice, renew2YearPrice, renew3YearPrice, transferPrice,
-          privacyEnabled, isFreeWithHosting, transferAllowed, status } = req.body;
+          privacyEnabled, isFreeWithHosting, transferAllowed, status,
+          sortOrder, showInSuggestions } = req.body;
   if (!extension || !registerPrice || !renewalPrice || !transferPrice) {
     return res.status(400).json({ error: "extension, registerPrice, renewalPrice, transferPrice are required" });
   }
@@ -62,6 +66,8 @@ router.post("/admin/domain-extensions", authenticate, requireAdmin, async (req, 
       privacyEnabled: privacyEnabled !== undefined ? Boolean(privacyEnabled) : true,
       isFreeWithHosting: isFreeWithHosting !== undefined ? Boolean(isFreeWithHosting) : false,
       transferAllowed: transferAllowed !== undefined ? Boolean(transferAllowed) : true,
+      sortOrder: sortOrder !== undefined ? Number(sortOrder) : 999,
+      showInSuggestions: showInSuggestions !== undefined ? Boolean(showInSuggestions) : true,
       status: status || "active",
     }).returning();
     res.status(201).json(formatExt(record));
@@ -76,7 +82,8 @@ router.put("/admin/domain-extensions/:id", authenticate, requireAdmin, async (re
   const { id } = req.params;
   const { extension, registerPrice, register2YearPrice, register3YearPrice,
           renewalPrice, renew2YearPrice, renew3YearPrice, transferPrice,
-          status, privacyEnabled, isFreeWithHosting, transferAllowed } = req.body;
+          status, privacyEnabled, isFreeWithHosting, transferAllowed,
+          sortOrder, showInSuggestions } = req.body;
   const updates: Record<string, unknown> = {};
   if (extension !== undefined) updates.extension = extension.startsWith(".") ? extension.toLowerCase() : `.${extension}`.toLowerCase();
   if (registerPrice !== undefined) updates.registerPrice = String(registerPrice);
@@ -90,6 +97,8 @@ router.put("/admin/domain-extensions/:id", authenticate, requireAdmin, async (re
   if (privacyEnabled !== undefined) updates.privacyEnabled = Boolean(privacyEnabled);
   if (isFreeWithHosting !== undefined) updates.isFreeWithHosting = Boolean(isFreeWithHosting);
   if (transferAllowed !== undefined) updates.transferAllowed = Boolean(transferAllowed);
+  if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder);
+  if (showInSuggestions !== undefined) updates.showInSuggestions = Boolean(showInSuggestions);
   updates.updatedAt = new Date();
   const [record] = await db.update(domainExtensionsTable).set(updates).where(eq(domainExtensionsTable.id, id)).returning();
   if (!record) return res.status(404).json({ error: "Not found" });

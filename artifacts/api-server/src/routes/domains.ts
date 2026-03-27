@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, asc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
@@ -124,7 +124,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
 
     const pricing = await db.select().from(domainExtensionsTable)
       .where(eq(domainExtensionsTable.status, "active"))
-      .orderBy(domainExtensionsTable.extension);
+      .orderBy(asc(domainExtensionsTable.sortOrder), asc(domainExtensionsTable.extension));
 
     const existingInDb = await db
       .select({ name: domainsTable.name, tld: domainsTable.tld })
@@ -145,6 +145,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
             renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
             renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
             isFreeWithHosting: p.isFreeWithHosting ?? false,
+            showInSuggestions: p.showInSuggestions ?? true,
           };
         }
         const status = await checkRdapAvailability(rawName, p.extension);
@@ -159,6 +160,7 @@ router.get("/domains/availability", authenticate, async (req: AuthRequest, res) 
           renew2YearPrice: p.renew2YearPrice ? Number(p.renew2YearPrice) : null,
           renew3YearPrice: p.renew3YearPrice ? Number(p.renew3YearPrice) : null,
           isFreeWithHosting: p.isFreeWithHosting ?? false,
+          showInSuggestions: p.showInSuggestions ?? true,
         };
       })
     );

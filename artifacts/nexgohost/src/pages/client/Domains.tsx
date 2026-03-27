@@ -37,6 +37,7 @@ interface TldResult {
   renewalPrice: number;
   renew2YearPrice: number | null;
   renew3YearPrice: number | null;
+  showInSuggestions?: boolean;
 }
 
 interface SearchResult {
@@ -150,6 +151,7 @@ export default function ClientDomains() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const [typedTld, setTypedTld] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [success, setSuccess] = useState<OrderSuccess | null>(null);
@@ -304,9 +306,14 @@ export default function ClientDomains() {
   };
 
   const handleSearch = () => {
-    const val = searchInput.trim().toLowerCase().split(".")[0];
-    if (!val) return;
-    setSearchQuery(val);
+    const raw = searchInput.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const parts = raw.split(".");
+    const name = parts[0];
+    if (!name) return;
+    // If user typed e.g. "example.online" extract ".online" for bypass logic
+    const explicitTld = parts.length > 1 ? "." + parts.slice(1).join(".") : null;
+    setTypedTld(explicitTld);
+    setSearchQuery(name);
     setSuccess(null);
   };
 
@@ -502,33 +509,45 @@ export default function ClientDomains() {
 
               {searchData && !searching && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-display font-bold text-lg">
-                      Results for <span className="text-primary font-mono">{searchData.name}</span>
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {searchData.results.filter(r => r.available).length} of {searchData.results.length} TLDs available
-                    </p>
-                  </div>
-                  {searchData.results.length === 0 ? (
-                    <div className="bg-card border border-border/50 border-dashed rounded-3xl p-12 text-center">
-                      <Globe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
-                      <h3 className="text-xl font-bold text-foreground">No TLDs configured</h3>
-                      <p className="text-muted-foreground mt-2">Admin has not added any active domain extensions yet.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {searchData.results.map(result => (
-                        <TldCard
-                          key={result.tld}
-                          name={searchData.name}
-                          result={result}
-                          inCart={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
-                          onAddToCart={() => addToCart(result)}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  {(() => {
+                    // Filter: show TLDs where showInSuggestions=true,
+                    // OR the TLD the user explicitly typed (bypass for manual searches)
+                    const visibleResults = searchData.results.filter(r =>
+                      r.showInSuggestions !== false || r.tld === typedTld
+                    );
+                    const availableCount = visibleResults.filter(r => r.available).length;
+                    return (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-display font-bold text-lg">
+                            Results for <span className="text-primary font-mono">{searchData.name}</span>
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {availableCount} of {visibleResults.length} TLDs available
+                          </p>
+                        </div>
+                        {visibleResults.length === 0 ? (
+                          <div className="bg-card border border-border/50 border-dashed rounded-3xl p-12 text-center">
+                            <Globe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
+                            <h3 className="text-xl font-bold text-foreground">No TLDs configured</h3>
+                            <p className="text-muted-foreground mt-2">Admin has not added any active domain extensions yet.</p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {visibleResults.map(result => (
+                              <TldCard
+                                key={result.tld}
+                                name={searchData.name}
+                                result={result}
+                                inCart={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
+                                onAddToCart={() => addToCart(result)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
