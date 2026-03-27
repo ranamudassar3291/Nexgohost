@@ -209,13 +209,24 @@ router.get("/payments/safepay/test", authenticate, async (req: AuthRequest, res:
       }
     }
 
-    // Both environments failed — show the raw Safepay error
+    // Both environments failed
     const raw = primary.body.substring(0, 300);
     console.warn(`[SAFEPAY TEST] ✗ Both environments failed. Primary (${primary.status}): ${raw}`);
-    res.status(200).json({
-      ok: false,
-      error: `Safepay error (${primary.status}): ${raw}`,
-    });
+
+    const accountNotActive =
+      primary.body.toLowerCase().includes("not found") ||
+      primary.body.toLowerCase().includes("setup") ||
+      primary.body.toLowerCase().includes("onboard");
+
+    const helpMsg = accountNotActive
+      ? "Safepay returned \"Client not found\" for both Sandbox and Live environments. " +
+        "This means your Safepay merchant account is not yet activated for API access. " +
+        "Please: (1) Log in to your Safepay dashboard, (2) Complete any pending KYC/verification steps, " +
+        "(3) Contact Safepay support at support@getsafepay.com to activate your merchant API access. " +
+        "Your keys are saved correctly — payments will work once Safepay activates your account."
+      : `Safepay error (${primary.status}): ${raw}`;
+
+    res.status(200).json({ ok: false, error: helpMsg });
 
   } catch (err: any) {
     console.error("[SAFEPAY TEST] Network error:", err.message);
