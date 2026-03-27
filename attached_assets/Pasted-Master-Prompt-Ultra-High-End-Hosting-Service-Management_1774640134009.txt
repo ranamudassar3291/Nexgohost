@@ -1,0 +1,44 @@
+Master Prompt: Ultra-High-End Hosting & Service Management Redesign
+"I want to completely redesign the 'My Services' and 'Manage Hosting' pages to provide a world-class, premium experience for my clients. The goal is to surpass Hostinger's UI while keeping a unique 'Noehost' identity. Execute these specific modules:
+
+1. Premium 'My Services' Dashboard:
+
+Service Cards: Replace the old list with modern, glassmorphism-style cards. Each card must show:
+
+Plan Name: (e.g., Premium Web Hosting) with a high-end icon.
+
+Primary Domain: Clearly linked to the service.
+
+Status Indicator: A pulsing 'Active' (Green) or 'Pending' (Yellow) badge.
+
+Renewal Date: Clearly visible with a 'Renew' shortcut button.
+
+Empty State: If no hosting is active, show a 'Start Your Journey' section with 2-3 top hosting plans that can be added in 1-click.
+
+2. The 'Command Center' (Manage Hosting Page):
+
+Resource Visualizer: At the top, show 3 circular progress bars (SVG animated) for Disk Usage, Bandwidth, and RAM. This gives the client a high-end 'Tech' feel.
+
+Control Grid: Use a 4-column icon grid for management tasks:
+
+File Manager, MySQL Databases, PHP Version, SSL Status, Cron Jobs, DNS Editor.
+
+Modern Icons: Use thin, professional line icons (Lucide or FontAwesome Pro style) in purple and silver.
+
+3. One-Click 'Launch Your Site' Flow:
+
+If a client has a domain and hosting but no files, show a prominent 'Launch Wizard' button.
+
+Logic: Clicking this should offer: 'Install WordPress', 'File Manager', or 'Website Builder'. This makes the process feel automated and professional.
+
+4. International Billing & Currency Sync:
+
+Live Price Conversion: All upgrade/renewal prices shown in the management area must fetch from our 24-hour Google Rate cache.
+
+Format: If a UK client is managing their hosting, all add-on prices (e.g., Extra IP) must show in GBP (£) with professional formatting.
+
+5. Speed & UI Performance:
+
+Ensure all transitions between management tabs are 'Instant' (using React/Node.js state management) with subtle loading animations to give a 'High-Speed' feel.
+
+Safety: Ensure this UI redesign does not touch existing hosting accounts in the Production Database."

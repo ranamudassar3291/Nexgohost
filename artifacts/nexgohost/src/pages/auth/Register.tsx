@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, Eye, EyeOff, ShieldCheck, RefreshCw,
-  Gift, AlertCircle, CheckCircle2, ChevronDown, MapPin,
+  Gift, AlertCircle, ChevronDown, MapPin, Search, Building2,
 } from "lucide-react";
 import CaptchaWidget from "@/components/CaptchaWidget";
 import { PhoneInput } from "@/components/PhoneInput";
@@ -28,6 +28,108 @@ type FieldErrors = Partial<Record<"firstName" | "lastName" | "email" | "password
 const BRAND = "#701AFE";
 const defaultCountry = COUNTRIES.find(c => c.code === "PK") ?? COUNTRIES[0]!;
 
+function CountryDropdown({
+  value,
+  onChange,
+  detecting,
+}: {
+  value: CountryOption;
+  onChange: (c: CountryOption) => void;
+  detecting: boolean;
+}) {
+  const [open, setOpen]     = useState(false);
+  const [search, setSearch] = useState("");
+  const ref                 = useRef<HTMLDivElement>(null);
+  const searchRef           = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) setTimeout(() => searchRef.current?.focus(), 50);
+  }, [open]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const filtered = search.trim()
+    ? COUNTRIES.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.code.toLowerCase().includes(search.toLowerCase()) ||
+        c.currency.toLowerCase().includes(search.toLowerCase())
+      )
+    : COUNTRIES;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="w-full h-11 flex items-center gap-2.5 px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm text-gray-800 transition-all focus:outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE]"
+      >
+        <span className="text-xl leading-none shrink-0">{value.flag}</span>
+        <span className="flex-1 text-left truncate">
+          {value.name}
+          {detecting && <span className="ml-2 text-[10px] text-violet-500 font-normal animate-pulse">detecting…</span>}
+        </span>
+        <span className="text-xs font-mono text-gray-400 shrink-0">{value.currency}</span>
+        <ChevronDown size={13} className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.12 }}
+            className="absolute top-full left-0 right-0 z-50 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-2xl shadow-black/10 overflow-hidden"
+          >
+            <div className="p-2 border-b border-gray-100">
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search country…"
+                  className="w-full h-8 pl-7 pr-3 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-gray-50"
+                />
+              </div>
+            </div>
+            <ul className="max-h-52 overflow-y-auto" role="listbox">
+              {filtered.length === 0 ? (
+                <li className="px-4 py-3 text-xs text-gray-400 text-center">No results</li>
+              ) : filtered.map(c => (
+                <li
+                  key={c.code}
+                  role="option"
+                  aria-selected={c.code === value.code}
+                  onClick={() => { onChange(c); setOpen(false); setSearch(""); }}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer text-sm transition-colors ${
+                    c.code === value.code ? "bg-violet-50 text-violet-700" : "hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  <span className="text-base leading-none shrink-0">{c.flag}</span>
+                  <span className="flex-1 min-w-0 truncate">{c.name}</span>
+                  <span className="text-xs font-mono text-gray-400 shrink-0">{c.currency}</span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Register() {
   const { login }       = useAuth();
   const [, setLocation] = useLocation();
@@ -38,7 +140,6 @@ export default function Register() {
   const [detectingIp,     setDetectingIp]     = useState(true);
 
   const [formData,     setFormData]     = useState({ firstName: "", lastName: "", email: "", password: "", company: "", phone: "" });
-  const [showExtras,   setShowExtras]   = useState(false);
   const [loading,      setLoading]      = useState(false);
   const [showPwd,      setShowPwd]      = useState(false);
   const [step,         setStep]         = useState<"form" | "verify">("form");
@@ -58,7 +159,12 @@ export default function Register() {
   });
   const captchaRequired = captchaConfig?.enabledPages?.register && !!captchaConfig?.siteKey;
 
-  // ── IP Geolocation: auto-detect country on mount ──────────────────────────
+  function applyCountry(country: CountryOption) {
+    setSelectedCountry(country);
+    const matched = allCurrencies.find(c => c.code === countryToCurrency(country.code));
+    if (matched) setCurrency(matched);
+  }
+
   useEffect(() => {
     (async () => {
       try {
@@ -71,31 +177,19 @@ export default function Register() {
           const countryCode = d?.detectedCountry as string | null;
           if (countryCode) {
             const match = COUNTRIES.find(c => c.code === countryCode);
-            if (match) {
-              applyCountry(match);
-            }
+            if (match) applyCountry(match);
           }
         }
-      } catch { /* non-fatal — stay on PK */ }
+      } catch { /* non-fatal */ }
       setDetectingIp(false);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function applyCountry(country: CountryOption) {
-    setSelectedCountry(country);
-    const matched = allCurrencies.find(c => c.code === countryToCurrency(country.code));
-    if (matched) setCurrency(matched);
-  }
-
   useEffect(() => {
-    fetch("/api/auth/google/config")
-      .then(r => r.json())
-      .catch(() => null);
-
+    fetch("/api/auth/google/config").then(r => r.json()).catch(() => null);
     const params = new URLSearchParams(window.location.search);
     const ref = params.get("ref");
-
     const getCookie = (name: string): string | null => {
       const match = document.cookie.match(new RegExp("(?:^|;\\s*)" + name + "=([^;]*)"));
       return match ? decodeURIComponent(match[1]) : null;
@@ -105,7 +199,6 @@ export default function Register() {
       exp.setDate(exp.getDate() + days);
       document.cookie = `${name}=${encodeURIComponent(value)};expires=${exp.toUTCString()};path=/;SameSite=Lax`;
     };
-
     if (ref) {
       setRefCode(ref);
       localStorage.setItem("referralCode", ref);
@@ -139,8 +232,8 @@ export default function Register() {
     const errs: FieldErrors = {};
     if (!formData.firstName.trim())                  errs.firstName = "First name is required.";
     if (!formData.lastName.trim())                   errs.lastName  = "Last name is required.";
-    if (!formData.email.trim())                      errs.email     = "Email address is required.";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))  errs.email     = "Enter a valid email address.";
+    if (!formData.email.trim())                      errs.email     = "Email is required.";
+    else if (!/\S+@\S+\.\S+/.test(formData.email))  errs.email     = "Enter a valid email.";
     if (!formData.password)                          errs.password  = "Password is required.";
     else if (formData.password.length < 8)           errs.password  = "Must be at least 8 characters.";
     setFieldErrors(errs);
@@ -209,26 +302,28 @@ export default function Register() {
   };
 
   const inputCls = (field?: string) =>
-    `w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-white ${
+    `w-full h-11 px-4 rounded-xl border text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-white ${
       field && fieldErrors[field as keyof FieldErrors] ? "border-red-400 bg-red-50" : "border-gray-200"
     }`;
 
-  // Password strength meter
   const pwdLen = formData.password.length;
   const pwdStrength = pwdLen === 0 ? 0 : pwdLen < 8 ? 1 : pwdLen < 12 ? 2 : 3;
   const pwdColors = ["", "bg-red-400", "bg-yellow-400", "bg-emerald-500"];
   const pwdLabels = ["", "Weak", "Good", "Strong"];
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-white via-violet-50/30 to-white flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-[440px]">
+    <div className="min-h-screen w-full flex items-center justify-center px-4 py-10"
+      style={{ background: "linear-gradient(135deg, #faf8ff 0%, #f3eeff 40%, #ffffff 100%)" }}>
+      <div className="w-full max-w-[480px]">
 
-        {/* Logo */}
+        {/* Logo & heading */}
         <div className="flex flex-col items-center mb-7">
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-violet-500/25" style={{ background: BRAND }}>
-            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-6 h-6" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-violet-500/30"
+            style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}>
+            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost"
+              className="w-7 h-7" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
-          <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Create your account</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Create your account</h1>
           <p className="text-gray-500 text-sm mt-1">Professional hosting, globally priced</p>
         </div>
 
@@ -236,8 +331,8 @@ export default function Register() {
 
           {/* ── Registration form ── */}
           {step === "form" && (
-            <motion.div key="form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="bg-white border border-gray-100 rounded-2xl shadow-xl shadow-black/[0.06] p-7">
+            <motion.div key="form" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="bg-white rounded-2xl shadow-2xl shadow-violet-500/10 border border-gray-100/80 p-7">
 
               {/* Referral banner */}
               {refCode && (
@@ -247,11 +342,11 @@ export default function Register() {
                 </div>
               )}
 
-              {/* ── Google sign up ── */}
+              {/* Google sign up */}
               <button
                 type="button"
                 onClick={() => { window.location.href = "/api/auth/google/start"; }}
-                className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors shadow-sm"
+                className="w-full h-11 flex items-center justify-center gap-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-all shadow-sm hover:shadow-md hover:border-gray-300"
               >
                 <svg width="17" height="17" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
                   <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
@@ -263,12 +358,12 @@ export default function Register() {
               </button>
 
               <div className="flex items-center gap-3 my-5">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-[11px] text-gray-400 font-medium">or register with email</span>
-                <div className="flex-1 h-px bg-gray-200" />
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">or register with email</span>
+                <div className="flex-1 h-px bg-gray-100" />
               </div>
 
-              {/* General form error */}
+              {/* Global form error */}
               {formError && (
                 <div className="flex items-start gap-2.5 px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 mb-4">
                   <AlertCircle size={15} className="mt-0.5 shrink-0" />
@@ -276,9 +371,9 @@ export default function Register() {
                 </div>
               )}
 
-              <form onSubmit={handleRegister} className="space-y-3.5" noValidate>
+              <form onSubmit={handleRegister} className="space-y-4" noValidate>
 
-                {/* ── Name row ── */}
+                {/* ── Row 1: First + Last name ── */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">First name <span className="text-red-400">*</span></label>
@@ -294,7 +389,7 @@ export default function Register() {
                   </div>
                 </div>
 
-                {/* ── Email ── */}
+                {/* ── Row 2: Email ── */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Email address <span className="text-red-400">*</span></label>
                   <input type="email" name="email" value={formData.email} onChange={handleChange}
@@ -302,23 +397,22 @@ export default function Register() {
                   {fieldErrors.email && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.email}</p>}
                 </div>
 
-                {/* ── Password ── */}
+                {/* ── Row 3: Password ── */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1.5">Password <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <input type={showPwd ? "text" : "password"} name="password" value={formData.password} onChange={handleChange}
                       placeholder="Min. 8 characters" className={`${inputCls("password")} pr-11`} autoComplete="new-password" />
                     <button type="button" onClick={() => setShowPwd(p => !p)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                       {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  {/* Password strength */}
                   {formData.password.length > 0 && (
                     <div className="mt-2 flex items-center gap-2">
                       <div className="flex-1 flex gap-1">
                         {[1, 2, 3].map(n => (
-                          <div key={n} className={`h-1 flex-1 rounded-full transition-colors ${n <= pwdStrength ? pwdColors[pwdStrength] : "bg-gray-100"}`} />
+                          <div key={n} className={`h-1 flex-1 rounded-full transition-colors duration-300 ${n <= pwdStrength ? pwdColors[pwdStrength] : "bg-gray-100"}`} />
                         ))}
                       </div>
                       <span className={`text-[11px] font-medium ${pwdStrength === 1 ? "text-red-400" : pwdStrength === 2 ? "text-yellow-500" : "text-emerald-600"}`}>
@@ -329,79 +423,46 @@ export default function Register() {
                   {fieldErrors.password && <p className="mt-1 text-[11px] text-red-500">{fieldErrors.password}</p>}
                 </div>
 
-                {/* ── Country selector (IP-detected) ── */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin size={11} className="text-gray-400" />
-                      Country &amp; Billing Currency
-                      {detectingIp && <span className="text-[10px] text-violet-500 font-normal animate-pulse">detecting…</span>}
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedCountry.code}
-                      onChange={e => {
-                        const country = COUNTRIES.find(c => c.code === e.target.value);
-                        if (country) applyCountry(country);
-                      }}
-                      className="w-full h-11 pl-4 pr-9 rounded-xl border border-gray-200 text-sm text-black bg-white outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] appearance-none transition-all"
-                    >
-                      {COUNTRIES.map(c => (
-                        <option key={c.code} value={c.code}>
-                          {c.flag}  {c.name} — {c.currency}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                {/* ── Row 4: Company + Country (2-col) ── */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                      <span className="flex items-center gap-1">
+                        <Building2 size={11} className="text-gray-400" /> Company
+                      </span>
+                    </label>
+                    <input name="company" value={formData.company} onChange={handleChange}
+                      placeholder="Acme Inc." className={inputCls()} autoComplete="organization" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                      <span className="flex items-center gap-1">
+                        <MapPin size={11} className="text-gray-400" /> Country of Residence
+                      </span>
+                    </label>
+                    <CountryDropdown
+                      value={selectedCountry}
+                      onChange={applyCountry}
+                      detecting={detectingIp}
+                    />
+                  </div>
+                </div>
+
+                {/* ── Row 5: Phone ── */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone number</label>
+                  <PhoneInput
+                    value={formData.phone}
+                    onChange={val => setFormData(prev => ({ ...prev, phone: val }))}
+                    countryCode={selectedCountry.code}
+                    placeholder="300 1234567"
+                  />
                   <p className="mt-1.5 text-[11px] text-gray-400">
-                    Prices show in <strong className="text-gray-600">{selectedCountry.currency}</strong>. Payments settle in PKR via Safepay.
+                    Prices display in <strong className="text-gray-600">{selectedCountry.currency}</strong> based on your country. Payments settle in PKR.
                   </p>
                 </div>
 
-                {/* ── Optional extras (Company / Phone) — collapsible ── */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowExtras(v => !v)}
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <ChevronDown size={13} className={`transition-transform ${showExtras ? "rotate-180" : ""}`} />
-                    {showExtras ? "Hide" : "Add"} optional info (company & phone)
-                  </button>
-
-                  <AnimatePresence>
-                    {showExtras && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="space-y-3 mt-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Company</label>
-                            <input name="company" value={formData.company} onChange={handleChange}
-                              placeholder="Acme Inc." className={inputCls()} autoComplete="organization" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone number</label>
-                            <PhoneInput
-                              value={formData.phone}
-                              onChange={val => setFormData(prev => ({ ...prev, phone: val }))}
-                              countryCode={selectedCountry.code}
-                              placeholder="300 1234567"
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* ── Captcha ── */}
+                {/* ── CAPTCHA — just above submit ── */}
                 {captchaRequired && captchaConfig?.siteKey && (
                   <div className="pt-1">
                     <CaptchaWidget
@@ -413,19 +474,22 @@ export default function Register() {
                   </div>
                 )}
 
-                {/* ── Submit ── */}
-                <button type="submit" disabled={loading || (captchaRequired && !captchaToken)}
-                  className="w-full h-11 mt-1 rounded-xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:brightness-110"
-                  style={{ background: BRAND }}
+                {/* ── Submit button — full-width purple gradient ── */}
+                <button
+                  type="submit"
+                  disabled={loading || (captchaRequired && !captchaToken)}
+                  className="w-full h-12 mt-1 rounded-xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:brightness-110 active:scale-[0.99]"
+                  style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)" }}
                 >
                   {loading
                     ? <><Loader2 size={16} className="animate-spin" /> Creating account…</>
-                    : "Create account →"
+                    : "Create Account →"
                   }
                 </button>
+
               </form>
 
-              <p className="mt-4 text-center text-sm text-gray-500">
+              <p className="mt-5 text-center text-sm text-gray-500">
                 Already have an account?{" "}
                 <a href="/client/login" className="font-semibold hover:underline" style={{ color: BRAND }}>Sign in</a>
               </p>
@@ -435,8 +499,9 @@ export default function Register() {
           {/* ── Email verification ── */}
           {step === "verify" && (
             <motion.div key="verify" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-              className="bg-white border border-gray-100 rounded-2xl shadow-xl shadow-black/[0.06] p-8 text-center">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: `${BRAND}18` }}>
+              className="bg-white border border-gray-100 rounded-2xl shadow-2xl shadow-violet-500/10 p-8 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                style={{ background: `${BRAND}18` }}>
                 <ShieldCheck size={28} style={{ color: BRAND }} />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Check your email</h2>
@@ -449,38 +514,44 @@ export default function Register() {
                 <input
                   value={code}
                   onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000 000"
+                  placeholder="000000"
                   maxLength={6}
                   inputMode="numeric"
-                  className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.4em] text-gray-900 outline-none focus:ring-2 focus:border-[#701AFE] transition-all"
-                  style={{ "--tw-ring-color": `${BRAND}40` } as any}
+                  className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.5em] text-gray-900 outline-none focus:ring-2 focus:border-[#701AFE] transition-all"
                 />
                 <button type="submit" disabled={loading || code.length !== 6}
-                  className="w-full h-11 rounded-xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg shadow-violet-500/25"
-                  style={{ background: BRAND }}
+                  className="w-full h-11 rounded-xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg"
+                  style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
                 >
                   {loading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : "Verify & activate account"}
                 </button>
               </form>
 
-              <div className="mt-5 flex items-center justify-center gap-2 text-sm">
-                <span className="text-gray-400">Didn't receive it?</span>
-                <button onClick={handleResend} disabled={resending || countdown > 0}
-                  className="flex items-center gap-1.5 font-medium hover:underline disabled:opacity-50" style={{ color: BRAND }}>
-                  {resending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                  {countdown > 0 ? `Resend in ${countdown}s` : "Resend code"}
-                </button>
+              <div className="mt-6 flex justify-center">
+                {countdown > 0 ? (
+                  <p className="text-sm text-gray-400">Resend in <span className="font-mono font-semibold text-gray-600">{countdown}s</span></p>
+                ) : (
+                  <button onClick={handleResend} disabled={resending}
+                    className="text-sm font-semibold flex items-center gap-1.5 hover:underline disabled:opacity-50"
+                    style={{ color: BRAND }}>
+                    {resending ? <><RefreshCw size={13} className="animate-spin" /> Sending…</> : "Resend code"}
+                  </button>
+                )}
               </div>
+
+              <button onClick={() => setStep("form")} className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                ← Back to form
+              </button>
             </motion.div>
           )}
 
         </AnimatePresence>
 
-        <p className="mt-5 text-center text-[11px] text-gray-400">
+        <p className="mt-6 text-center text-xs text-gray-400">
           By creating an account you agree to our{" "}
-          <a href="/terms" className="underline hover:text-gray-600">Terms</a>
-          {" "}and{" "}
-          <a href="/privacy" className="underline hover:text-gray-600">Privacy Policy</a>.
+          <a href="/terms" className="hover:underline">Terms of Service</a>{" "}
+          and{" "}
+          <a href="/privacy" className="hover:underline">Privacy Policy</a>.
         </p>
       </div>
     </div>
