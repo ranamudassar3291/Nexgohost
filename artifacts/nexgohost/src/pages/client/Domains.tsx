@@ -511,11 +511,11 @@ export default function ClientDomains() {
               {searchData && !searching && (
                 <div className="space-y-3">
                   {(() => {
-                    // Filter: ONLY show TLDs where showInSuggestions is explicitly true,
-                    // OR the TLD the user explicitly typed (bypass for manual searches).
-                    // Sort ascending by sortOrder so priority TLDs (.com, .pk, etc.) come first.
+                    // Strict: ONLY show these 7 TLDs as suggestions — regardless of admin settings.
+                    // The TLD the user explicitly typed is always included (bypass filter).
+                    const ALLOWED_SUGGESTION_TLDS = [".com", ".pk", ".net", ".org", ".shop", ".info", ".online"];
                     const visibleResults = searchData.results
-                      .filter(r => r.showInSuggestions === true || r.tld === typedTld)
+                      .filter(r => ALLOWED_SUGGESTION_TLDS.includes(r.tld) || r.tld === typedTld)
                       .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
                     const availableCount = visibleResults.filter(r => r.available).length;
                     return (
@@ -1265,10 +1265,10 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
       fetch("/api/payment-methods", { headers }).then(r => r.ok ? r.json() : []),
-      fetch("/api/client/profile", { headers }).then(r => r.ok ? r.json() : {}),
-    ]).then(([pms, profile]) => {
+      fetch("/api/client/credits", { headers }).then(r => r.ok ? r.json() : {}),
+    ]).then(([pms, credits]) => {
       setPaymentMethods(Array.isArray(pms) ? pms.filter((p: DomainPaymentMethod & { isActive?: boolean }) => p.isActive !== false) : []);
-      setCreditBalance(parseFloat(profile?.creditBalance ?? "0") || 0);
+      setCreditBalance(parseFloat(credits?.creditBalance ?? "0") || 0);
     }).catch(() => {}).finally(() => setPmLoading(false));
   }, []);
 

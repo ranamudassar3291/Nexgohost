@@ -737,6 +737,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
   // Wallet: toggle to apply available credit balance (partial or full)
   const [applyCredits,   setApplyCredits]   = useState(false);
+  const [tosAccepted,    setTosAccepted]    = useState(false);
 
   // Domain-first upsell: after user picks a domain in the domain/transfer flow,
   // show "Want to add hosting?" before moving to checkout
@@ -882,9 +883,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // Wallet deduction: how much credit will be applied
   const _walletDeducted = applyCredits && creditBalance > 0 ? Math.min(creditBalance, _step3Total) : 0;
   const _remainingAfterWallet = Math.max(0, parseFloat((_step3Total - _walletDeducted).toFixed(2)));
-  // step3 is complete when: wallet fully covers it OR a secondary payment method is selected
+  // step3 is complete when: wallet fully covers it OR a secondary payment method is selected, AND ToS accepted
   const step3Complete = (!!selectedPlan || !!cartDomain || (service === "vps" && !!selectedVpsPlan)) &&
-    (_remainingAfterWallet === 0 || !!paymentMethodId);
+    (_remainingAfterWallet === 0 || !!paymentMethodId) &&
+    tosAccepted;
   const activeCycle   = step >= 2 ? selectedCycle : pendingCycle;
   const showSidebar   = (step >= 1 && (service === "hosting" || service === "vps")) || step === 3;
 
@@ -2961,8 +2963,34 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             </div>
           )}
 
+          {/* ── Terms of Service Acceptance ── */}
+          <label className="flex items-start gap-3 cursor-pointer select-none group p-4 rounded-xl border border-gray-200 bg-gray-50 hover:border-violet-300 transition-colors">
+            <input
+              type="checkbox"
+              checked={tosAccepted}
+              onChange={e => setTosAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600 cursor-pointer shrink-0"
+            />
+            <span className="text-[13px] text-gray-600 leading-relaxed">
+              <span className="text-red-500 font-bold mr-0.5">*</span>
+              I have read and agree to Noehost's{" "}
+              <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
+                Terms of Service
+              </a>
+              ,{" "}
+              <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
+                Privacy Policy
+              </a>
+              {" "}and{" "}
+              <a href="/legal/refund" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
+                Refund Policy
+              </a>
+              .
+            </span>
+          </label>
+
           {/* ── Place order ── */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
+          <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
             <PrimaryBtn
               label="Place Order"
               onClick={() => { setOrderError(""); orderMutation.mutate(); }}

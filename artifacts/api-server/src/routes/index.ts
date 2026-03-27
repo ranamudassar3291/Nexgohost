@@ -40,6 +40,7 @@ import whatsappRouter from "./whatsapp.js";
 import serverStatusRouter from "./server-status.js";
 import announcementsRouter from "./announcements.js";
 import safepayRouter from "./safepay.js";
+import contactRouter from "./contact.js";
 
 const router: IRouter = Router();
 
@@ -88,5 +89,6 @@ router.use(whatsappRouter);
 router.use(serverStatusRouter);
 router.use(announcementsRouter);
 router.use(safepayRouter);
+router.use(contactRouter);
 
 export default router;

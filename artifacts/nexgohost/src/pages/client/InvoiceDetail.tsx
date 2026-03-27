@@ -121,7 +121,6 @@ export default function InvoiceDetail() {
   const [payingWithCredits, setPayingWithCredits] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [safepayInitiating, setSafepayInitiating] = useState(false);
-  const [tosAccepted, setTosAccepted] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -182,7 +181,7 @@ export default function InvoiceDetail() {
   };
 
   const handleSafepayPay = async () => {
-    if (!invoice || !tosAccepted) return;
+    if (!invoice) return;
     setSafepayInitiating(true);
     try {
       const data = await apiFetch(`/api/payments/safepay/initiate`, {
@@ -536,36 +535,9 @@ export default function InvoiceDetail() {
                         </span>
                       </div>
 
-                      {/* Legal checkbox — must be accepted before Pay Now is enabled */}
-                      <label className="flex items-start gap-3 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={tosAccepted}
-                          onChange={e => setTosAccepted(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-[#701AFE] cursor-pointer shrink-0"
-                        />
-                        <span className="text-xs text-slate-600 leading-relaxed">
-                          <span className="text-red-500 font-bold mr-0.5" title="Required">*</span>
-                          I agree to Noehost's{" "}
-                          <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
-                            Terms of Service
-                          </a>
-                          ,{" "}
-                          <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
-                            Privacy Policy
-                          </a>
-                          {" "}and{" "}
-                          <a href="/legal/refund" target="_blank" rel="noopener noreferrer" className="underline font-medium" style={{ color: BRAND }}>
-                            Refund Policy
-                          </a>
-                          , and authorise this payment of{" "}
-                          <strong>{formatPrice(Number(invoice.total))}</strong>.
-                        </span>
-                      </label>
-
                       <Button
                         type="button"
-                        disabled={safepayInitiating || !tosAccepted}
+                        disabled={safepayInitiating}
                         onClick={handleSafepayPay}
                         className="w-full gap-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: BRAND }}
@@ -575,11 +547,6 @@ export default function InvoiceDetail() {
                           : <><CreditCard size={15} /> Pay Now with Safepay</>
                         }
                       </Button>
-                      {!tosAccepted && (
-                        <p className="text-[11px] text-slate-400 text-center">
-                          Please accept the Terms, Privacy &amp; Refund policies to proceed
-                        </p>
-                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

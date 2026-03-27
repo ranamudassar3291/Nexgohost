@@ -103,6 +103,7 @@ import OrderFlow from "@/pages/public/OrderFlow";
 import TermsOfService from "@/pages/public/TermsOfService";
 import PrivacyPolicy from "@/pages/public/PrivacyPolicy";
 import RefundPolicy from "@/pages/public/RefundPolicy";
+import Contact from "@/pages/public/Contact";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
 import { queryClient } from "@/lib/query-client";
@@ -489,10 +490,15 @@ function RouterRoot() {
       <Route path="/admin/server-nodes">
         <AdminPage><ServerNodes /></AdminPage>
       </Route>
-      {/* ── Legal pages — public ── */}
-      <Route path="/legal/terms"   component={TermsOfService} />
-      <Route path="/legal/privacy" component={PrivacyPolicy}  />
-      <Route path="/legal/refund"  component={RefundPolicy}   />
+      {/* ── Legal pages — public (canonical + short aliases) ── */}
+      <Route path="/legal/terms"       component={TermsOfService} />
+      <Route path="/legal/privacy"     component={PrivacyPolicy}  />
+      <Route path="/legal/refund"      component={RefundPolicy}   />
+      <Route path="/terms-of-service"  component={TermsOfService} />
+      <Route path="/tos"               component={TermsOfService} />
+      <Route path="/privacy-policy"    component={PrivacyPolicy}  />
+      <Route path="/refund-policy"     component={RefundPolicy}   />
+      <Route path="/contact"           component={Contact}        />
 
       <Route path="/status" component={Status} />
       <Route path="/help/:slug">
