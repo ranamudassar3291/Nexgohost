@@ -7,7 +7,7 @@ import {
   Loader2, Trash2, RefreshCw, ChevronRight, X, BadgeCheck, RotateCcw,
   Server, Plus, Minus, Save, Key, Copy, CheckCheck, ArrowLeft, ClipboardList,
   ArrowRightLeft, ShieldCheck, Lock, Network, Settings, Receipt,
-  Tag, Wallet, CreditCard, Smartphone, Landmark,
+  Tag, Wallet, CreditCard, Smartphone, Landmark, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -548,6 +548,7 @@ export default function ClientDomains() {
                             <p className="text-muted-foreground mt-2">Admin has not added any active domain extensions yet.</p>
                           </div>
                         ) : (
+                          <>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {visibleResults.map(result => (
                               <TldCard
@@ -559,6 +560,49 @@ export default function ClientDomains() {
                               />
                             ))}
                           </div>
+
+                          {/* ── Cross-Sell: You might also like ── */}
+                          {(() => {
+                            const crossSellTlds = [".net", ".org"].filter(t =>
+                              t !== typedTld &&
+                              !visibleResults.some(r => r.tld === t)
+                            );
+                            const crossSellResults = searchData.results.filter(r => crossSellTlds.includes(r.tld));
+                            if (crossSellResults.length === 0) return null;
+                            return (
+                              <div className="mt-2 rounded-2xl border border-primary/15 overflow-hidden"
+                                style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 100%)" }}>
+                                <div className="px-4 py-2.5 border-b border-primary/10 flex items-center gap-2">
+                                  <Sparkles size={13} className="text-primary" />
+                                  <p className="text-xs font-bold text-primary uppercase tracking-wide">You might also like</p>
+                                </div>
+                                <div className="p-3 flex flex-wrap gap-3">
+                                  {crossSellResults.map(result => (
+                                    <div key={result.tld} className="flex items-center gap-3 px-4 py-2.5 bg-card border border-border rounded-xl">
+                                      <TldIcon tld={result.tld} />
+                                      <div>
+                                        <p className="text-sm font-bold text-foreground font-mono">{searchData.name}{result.tld}</p>
+                                        <p className={`text-xs ${result.available ? "text-green-400" : "text-red-400"}`}>
+                                          {result.available ? "Available" : "Taken"}
+                                        </p>
+                                      </div>
+                                      {result.available && (
+                                        <button
+                                          onClick={() => addToCart(result)}
+                                          disabled={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
+                                          className="ml-auto h-7 px-3 rounded-lg text-xs font-bold text-white disabled:opacity-50"
+                                          style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
+                                        >
+                                          {cart.some(c => c.name === searchData.name && c.tld === result.tld) ? "Added ✓" : "+ Add"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          </>
                         )}
                       </>
                     );

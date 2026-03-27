@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   FileText, CreditCard, CheckCircle, AlertCircle, Eye, Loader2,
   RefreshCcw, Banknote, Download, Clock, ChevronRight, X, RotateCcw,
-  Receipt, ArrowDownCircle, Info,
+  Receipt, ArrowDownCircle, Info, Search,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -168,6 +168,16 @@ export default function ClientInvoices() {
     enabled: activeTab === "transactions",
   });
 
+  const [txSearch, setTxSearch] = useState("");
+  const filteredTx = txSearch.trim()
+    ? transactions.filter(tx =>
+        (tx.transactionRef || "").toLowerCase().includes(txSearch.toLowerCase()) ||
+        (tx.method || "").toLowerCase().includes(txSearch.toLowerCase()) ||
+        String(tx.amount).includes(txSearch) ||
+        (tx.status || "").toLowerCase().includes(txSearch.toLowerCase())
+      )
+    : transactions;
+
   const handlePay = async (id: string) => {
     try {
       await apiFetch(`/api/invoices/${id}/pay`, { method: "POST" });
@@ -322,6 +332,21 @@ export default function ClientInvoices() {
       {/* ── Transactions Tab ── */}
       {activeTab === "transactions" && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          {/* Search bar */}
+          <div className="px-4 py-3 border-b border-border/50 flex items-center gap-2">
+            <Search size={15} className="text-muted-foreground shrink-0" />
+            <input
+              value={txSearch}
+              onChange={e => setTxSearch(e.target.value)}
+              placeholder="Search by ID, method, or status…"
+              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+            {txSearch && (
+              <button onClick={() => setTxSearch("")} className="text-xs text-muted-foreground hover:text-foreground">
+                Clear
+              </button>
+            )}
+          </div>
           {txLoading ? (
             <div className="p-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>
           ) : (
@@ -335,12 +360,12 @@ export default function ClientInvoices() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {transactions.length === 0 ? (
+                  {filteredTx.length === 0 ? (
                     <tr><td colSpan={5} className="p-12 text-center text-muted-foreground">
                       <Banknote className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                      No transactions yet.
+                      {txSearch ? `No transactions match "${txSearch}".` : "No transactions yet."}
                     </td></tr>
-                  ) : transactions.map(tx => {
+                  ) : filteredTx.map(tx => {
                     const txCfg = TX_STATUS_CONFIG[tx.status] ?? TX_STATUS_CONFIG.pending;
                     return (
                       <tr key={tx.id} className="hover:bg-secondary/20 transition-colors">

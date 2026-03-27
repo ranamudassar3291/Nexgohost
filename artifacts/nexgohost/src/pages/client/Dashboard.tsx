@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
 import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi, CheckCircle2, Rocket, Lock } from "lucide-react";
+import { WelcomeTour, useWelcomeTour } from "@/components/WelcomeTour";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -84,6 +85,7 @@ const orderStatusColors: Record<string, string> = {
 };
 
 export default function ClientDashboard() {
+  const { show: showTour, dismiss: dismissTour } = useWelcomeTour();
   const { data: stats, isLoading } = useGetClientDashboard();
   const { data: user } = useGetMe();
   const [, navigate] = useLocation();
@@ -199,6 +201,7 @@ export default function ClientDashboard() {
     : `${Math.max(1, Math.floor(daysSinceJoining / 30))} Month${Math.max(1, Math.floor(daysSinceJoining / 30)) === 1 ? "" : "s"}`;
 
   return (
+    <>
     <div className="space-y-8">
       {/* Announcements Marquee — Hostinger-style slim bar at the very top */}
       {announcements.length > 0 && (
@@ -278,8 +281,12 @@ export default function ClientDashboard() {
             <Rocket size={16} className="text-primary shrink-0" />
             <p className="text-sm font-bold text-primary">Launch your website — 3 steps to go live</p>
             <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-              Step 2 of 3
+              33% Complete
             </span>
+          </div>
+          {/* Progress bar */}
+          <div className="h-1.5 w-full bg-primary/10">
+            <div className="h-full bg-primary/60 transition-all" style={{ width: "33%" }} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-violet-500/10">
@@ -653,5 +660,7 @@ export default function ClientDashboard() {
         </div>
       </div>
     </div>
+    {showTour && <WelcomeTour onClose={dismissTour} />}
+    </>
   );
 }
