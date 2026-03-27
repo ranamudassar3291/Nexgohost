@@ -28,10 +28,10 @@ const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.value, t]));
 
 const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean; hint?: string }[]> = {
   safepay: [
-    { key: "sandboxPublicKey", label: "Sandbox Public Key",  placeholder: "pub_xxxxxxxxxxxxxxxx", hint: "From Safepay Sandbox Dashboard → Developers → API Keys (starts with pub_)" },
-    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true, hint: "From Safepay Sandbox Dashboard → Developers → API Keys (starts with sec_)" },
-    { key: "livePublicKey",    label: "Live Public Key",     placeholder: "pub_xxxxxxxxxxxxxxxx", hint: "From Safepay Live Dashboard → Developers → API Keys → Public Key (starts with pub_)" },
-    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "sec_xxxxxxxxxxxxxxxx", secret: true, hint: "From Safepay Live Dashboard → Developers → API Keys → Secret Key (starts with sec_)" },
+    { key: "sandboxPublicKey", label: "Sandbox Client Key",  placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Sandbox Dashboard → Developers → API Keys → Client/Merchant Key" },
+    { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Sandbox Dashboard → Developers → API Keys → Secret Key" },
+    { key: "livePublicKey",    label: "Live Client Key",     placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Live Dashboard → Developers → API Keys → Client/Merchant Key (sent as 'client' in the API body)" },
+    { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Live Dashboard → Developers → API Keys → Secret Key (sent as X-SFPY-SECRET-KEY header)" },
     { key: "webhookSecret",    label: "Webhook Shared Secret", placeholder: "Enter your webhook secret", secret: true, hint: "From Safepay Dashboard → Developers → Webhooks → Shared Secret" },
   ],
   jazzcash: [
@@ -127,19 +127,6 @@ export default function PaymentMethods() {
   };
 
   const handleSaveSettings = async (method: PaymentMethod) => {
-    // Safepay key prefix validation — prevent swapped keys from being saved
-    if (method.type === "safepay") {
-      const lp = editSettings["livePublicKey"] ?? "";
-      const ls = editSettings["liveSecretKey"] ?? "";
-      if (lp && lp.startsWith("sec_")) {
-        toast({ title: "Invalid Key Order", description: "Live Public Key must start with pub_ — it looks like your keys are swapped. Please correct them before saving.", variant: "destructive" });
-        return;
-      }
-      if (ls && ls.startsWith("pub_")) {
-        toast({ title: "Invalid Key Order", description: "Live Secret Key must start with sec_ — it looks like your keys are swapped. Please correct them before saving.", variant: "destructive" });
-        return;
-      }
-    }
     setSavingSettings(true);
     try {
       await apiFetch(`/api/admin/payment-methods/${method.id}`, {
@@ -164,31 +151,13 @@ export default function PaymentMethods() {
     const publicKey = isSandbox ? (editSettings["sandboxPublicKey"] ?? "") : (editSettings["livePublicKey"] ?? "");
     const secretKey = isSandbox ? (editSettings["sandboxSecretKey"] ?? "") : (editSettings["liveSecretKey"] ?? "");
 
-    // ── Step 1: prefix validation (before any network call) ─────────────────
+    // ── Require both keys to be present ────────────────────────────────────
     if (!publicKey || !secretKey) {
-      setTestResult({ ok: false, message: "Please enter both Public Key and Secret Key before testing." });
-      return;
-    }
-    if (!publicKey.startsWith("pub_")) {
-      setTestResult({
-        ok: false,
-        message: publicKey.startsWith("sec_")
-          ? "Invalid Public Key — this looks like a Secret Key (starts with sec_). Swap your keys."
-          : "Invalid Public Key format. Must start with pub_.",
-      });
-      return;
-    }
-    if (!secretKey.startsWith("sec_")) {
-      setTestResult({
-        ok: false,
-        message: secretKey.startsWith("pub_")
-          ? "Invalid Secret Key — this looks like a Public Key (starts with pub_). Swap your keys."
-          : "Invalid Secret Key format. Must start with sec_.",
-      });
+      setTestResult({ ok: false, message: "Please enter both Client Key and Secret Key before testing." });
       return;
     }
 
-    // ── Step 2: live API call to Safepay ────────────────────────────────────
+    // ── Live API call to Safepay ─────────────────────────────────────────────
     setTestingConfig(true);
     try {
       const params = new URLSearchParams({ publicKey, secretKey, isSandbox: String(isSandbox) });

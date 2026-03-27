@@ -43,85 +43,23 @@ async function getSafepayConfig(): Promise<SafepayConfig | null> {
   const s = JSON.parse(method.settings ?? "{}");
   const isSandbox = !!method.isSandbox;
 
-  let rawPublic  = isSandbox ? (s.sandboxPublicKey ?? "") : (s.livePublicKey ?? "");
-  let rawSecret  = isSandbox ? (s.sandboxSecretKey ?? "") : (s.liveSecretKey ?? "");
+  // Keys are stored exactly as the admin entered them — no prefix enforcement.
+  // livePublicKey  = Merchant Client ID  → sent as `client` in the API body
+  // liveSecretKey  = API Secret Key      → sent as X-SFPY-SECRET-KEY header
+  const publicKey     = isSandbox ? (s.sandboxPublicKey ?? "") : (s.livePublicKey ?? "");
+  const secretKey     = isSandbox ? (s.sandboxSecretKey ?? "") : (s.liveSecretKey ?? "");
   const webhookSecret = s.webhookSecret ?? "";
 
-  // ── Auto-detect and auto-fix swapped keys in the DB ──────────────────────
-  const publicIsSwapped = rawPublic.startsWith("sec_");
-  const secretIsSwapped = rawSecret.startsWith("pub_");
-
-  if (publicIsSwapped || secretIsSwapped) {
-    console.warn(
-      `[SAFEPAY] ⚠ SWAPPED KEYS DETECTED in DB!\n` +
-      `  livePublicKey starts with: ${rawPublic.substring(0, 6)}  (expected: pub_)\n` +
-      `  liveSecretKey starts with: ${rawSecret.substring(0, 6)}  (expected: sec_)\n` +
-      `  Auto-swapping at runtime and permanently correcting the DB…`
-    );
-
-    // Determine the correct swap strategy
-    if (publicIsSwapped && secretIsSwapped) {
-      // Both fields contain the wrong key — full swap
-      const tmp  = rawPublic;
-      rawPublic  = rawSecret;
-      rawSecret  = tmp;
-    } else if (publicIsSwapped) {
-      // sec_ is in the public field, pub_ is in the secret field — swap
-      const tmp  = rawPublic;
-      rawPublic  = rawSecret;
-      rawSecret  = tmp;
-    } else if (secretIsSwapped) {
-      // pub_ is in the secret field, sec_ is in the public field — swap
-      const tmp  = rawPublic;
-      rawPublic  = rawSecret;
-      rawSecret  = tmp;
-    }
-
-    // Permanently fix the DB so the admin panel shows correct values
-    try {
-      const fixedSettings = { ...s };
-      if (isSandbox) {
-        fixedSettings.sandboxPublicKey = rawPublic;
-        fixedSettings.sandboxSecretKey = rawSecret;
-      } else {
-        fixedSettings.livePublicKey = rawPublic;
-        fixedSettings.liveSecretKey = rawSecret;
-      }
-      await db.update(paymentMethodsTable)
-        .set({ settings: JSON.stringify(fixedSettings), updatedAt: new Date() })
-        .where(eq(paymentMethodsTable.id, method.id));
-      console.log(
-        `[SAFEPAY] ✓ DB auto-corrected! Keys are now stored correctly:\n` +
-        `  livePublicKey: ${rawPublic.substring(0, 14)}…\n` +
-        `  liveSecretKey: ${rawSecret.substring(0, 14)}…`
-      );
-    } catch (dbErr) {
-      console.error("[SAFEPAY] Failed to auto-correct keys in DB:", dbErr);
-      // Still continue with runtime-swapped values
-    }
-  }
-
-  const publicKey  = rawPublic;
-  const secretKey  = rawSecret;
-
-  const pubPreview = publicKey  ? `${publicKey.substring(0, 14)}…`  : "MISSING";
-  const secPreview = secretKey  ? `${secretKey.substring(0, 14)}…`  : "MISSING";
+  const pubPreview = publicKey  ? `${publicKey.substring(0, 16)}…`  : "MISSING";
+  const secPreview = secretKey  ? `${secretKey.substring(0, 10)}…`  : "MISSING";
 
   console.log(
     `[SAFEPAY] Mode: ${isSandbox ? "sandbox ☑" : "LIVE"} | ` +
-    `publicKey: ${pubPreview} | secretKey: ${secPreview}`
+    `clientKey: ${pubPreview} | secretKey: ${secPreview}`
   );
 
   if (!publicKey || !secretKey) {
-    console.error("[SAFEPAY] Missing keys — check Admin → Payment Methods → Safepay");
-    return null;
-  }
-  if (!publicKey.startsWith("pub_")) {
-    console.error(`[SAFEPAY] ✗ publicKey does not start with pub_ (got: ${publicKey.substring(0, 10)}…) — cannot proceed`);
-    return null;
-  }
-  if (!secretKey.startsWith("sec_")) {
-    console.error(`[SAFEPAY] ✗ secretKey does not start with sec_ (got: ${secretKey.substring(0, 10)}…) — cannot proceed`);
+    console.error("[SAFEPAY] Missing keys — set both keys in Admin → Payment Methods → Safepay");
     return null;
   }
 
@@ -484,10 +422,51 @@ export async function safepayWebhookHandler(req: Request, res: Response): Promis
   }
 }
 
-// ─── Startup key fixer (call once at server init) ─────────────────────────────
+// ─── Startup key restorer ──────────────────────────────────────────────────────
+// A previous auto-swap incorrectly moved keys. This detects that specific wrong
+// state and restores them to the admin's intended configuration:
+//   livePublicKey  = Merchant Client ID (sec_5486a972… or any client identifier)
+//   liveSecretKey  = API Secret Key     (raw hex string)
 export async function autoFixSafepayKeys(): Promise<void> {
   try {
-    await getSafepayConfig(); // auto-fix runs inside if keys are swapped
+    const [method] = await db.select().from(paymentMethodsTable)
+      .where(eq(paymentMethodsTable.type, "safepay"))
+      .limit(1);
+    if (!method) return;
+
+    const s = JSON.parse(method.settings ?? "{}");
+    const livePublic = s.livePublicKey ?? "";
+    const liveSecret = s.liveSecretKey ?? "";
+
+    // Detect the wrongly-swapped state: secret field has sec_ key, public field has the hex key
+    // This is the result of the previous incorrect auto-swap
+    const wronglySwapped =
+      liveSecret.startsWith("sec_") &&
+      !livePublic.startsWith("sec_") &&
+      livePublic.length > 10;
+
+    if (wronglySwapped) {
+      console.log(
+        `[SAFEPAY] ↩ Restoring keys to admin's intended order…\n` +
+        `  livePublicKey (Client ID): ${liveSecret.substring(0, 16)}…\n` +
+        `  liveSecretKey (API Secret): ${livePublic.substring(0, 10)}…`
+      );
+      const fixedSettings = {
+        ...s,
+        livePublicKey: liveSecret,  // sec_5486a972… → public/client field
+        liveSecretKey: livePublic,  // 9d43f88dff… → secret/header field
+      };
+      await db.update(paymentMethodsTable)
+        .set({ settings: JSON.stringify(fixedSettings), updatedAt: new Date() })
+        .where(eq(paymentMethodsTable.id, method.id));
+      console.log("[SAFEPAY] ✓ Keys restored successfully.");
+    } else {
+      console.log(
+        `[SAFEPAY] ✓ Key order looks correct:\n` +
+        `  livePublicKey (Client ID): ${livePublic.substring(0, 16) || "EMPTY"}…\n` +
+        `  liveSecretKey (API Secret): ${liveSecret.substring(0, 10) || "EMPTY"}…`
+      );
+    }
   } catch (err: any) {
     console.warn("[SAFEPAY] Startup key-check failed (non-fatal):", err.message);
   }
