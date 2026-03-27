@@ -158,18 +158,39 @@ export default function PaymentMethods() {
   };
 
   const handleTestConfig = async (method: PaymentMethod) => {
-    setTestingConfig(true);
     setTestResult(null);
+
+    const isSandbox = method.isSandbox;
+    const publicKey = isSandbox ? (editSettings["sandboxPublicKey"] ?? "") : (editSettings["livePublicKey"] ?? "");
+    const secretKey = isSandbox ? (editSettings["sandboxSecretKey"] ?? "") : (editSettings["liveSecretKey"] ?? "");
+
+    // ── Step 1: prefix validation (before any network call) ─────────────────
+    if (!publicKey || !secretKey) {
+      setTestResult({ ok: false, message: "Please enter both Public Key and Secret Key before testing." });
+      return;
+    }
+    if (!publicKey.startsWith("pub_")) {
+      setTestResult({
+        ok: false,
+        message: publicKey.startsWith("sec_")
+          ? "Invalid Public Key — this looks like a Secret Key (starts with sec_). Swap your keys."
+          : "Invalid Public Key format. Must start with pub_.",
+      });
+      return;
+    }
+    if (!secretKey.startsWith("sec_")) {
+      setTestResult({
+        ok: false,
+        message: secretKey.startsWith("pub_")
+          ? "Invalid Secret Key — this looks like a Public Key (starts with pub_). Swap your keys."
+          : "Invalid Secret Key format. Must start with sec_.",
+      });
+      return;
+    }
+
+    // ── Step 2: live API call to Safepay ────────────────────────────────────
+    setTestingConfig(true);
     try {
-      const isSandbox = method.isSandbox;
-      const publicKey  = isSandbox ? (editSettings["sandboxPublicKey"] ?? "") : (editSettings["livePublicKey"] ?? "");
-      const secretKey  = isSandbox ? (editSettings["sandboxSecretKey"] ?? "") : (editSettings["liveSecretKey"] ?? "");
-
-      if (!publicKey || !secretKey) {
-        setTestResult({ ok: false, message: "Please enter both Public Key and Secret Key before testing." });
-        return;
-      }
-
       const params = new URLSearchParams({ publicKey, secretKey, isSandbox: String(isSandbox) });
       const res = await apiFetch(`/api/payments/safepay/test?${params}`);
       setTestResult({ ok: !!res?.ok, message: res?.message ?? res?.error ?? "Unknown result" });

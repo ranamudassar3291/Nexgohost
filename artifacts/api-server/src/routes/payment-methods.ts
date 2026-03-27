@@ -123,6 +123,59 @@ router.put("/admin/payment-methods/:id", authenticate, requireAdmin, async (req:
     const { id } = req.params;
     const { name, type, description, isSandbox, settings } = req.body;
 
+    // ── Safepay key prefix enforcement ────────────────────────────────────────
+    if (settings && type === "safepay") {
+      const lp = (settings.livePublicKey ?? "") as string;
+      const ls = (settings.liveSecretKey ?? "") as string;
+      const sp = (settings.sandboxPublicKey ?? "") as string;
+      const ss = (settings.sandboxSecretKey ?? "") as string;
+
+      if (lp && !lp.startsWith("pub_")) {
+        const hint = lp.startsWith("sec_")
+          ? " It looks like you entered the Secret Key in this field."
+          : "";
+        res.status(400).json({ error: `Invalid Live Public Key format. Must start with pub_.${hint}` });
+        return;
+      }
+      if (ls && !ls.startsWith("sec_")) {
+        const hint = ls.startsWith("pub_")
+          ? " It looks like you entered the Public Key in this field."
+          : "";
+        res.status(400).json({ error: `Invalid Live Secret Key format. Must start with sec_.${hint}` });
+        return;
+      }
+      if (sp && !sp.startsWith("pub_")) {
+        res.status(400).json({ error: "Invalid Sandbox Public Key format. Must start with pub_." });
+        return;
+      }
+      if (ss && !ss.startsWith("sec_")) {
+        res.status(400).json({ error: "Invalid Sandbox Secret Key format. Must start with sec_." });
+        return;
+      }
+      console.log(`[PAYMENT-METHODS] Safepay keys validated ✓ | pub: ${lp.substring(0, 10)}… sec: ${ls.substring(0, 10)}…`);
+    }
+
+    // ── Detect type from existing record if not provided ─────────────────────
+    let effectiveType = type;
+    if (!effectiveType && settings) {
+      const [existing] = await db.select({ type: paymentMethodsTable.type })
+        .from(paymentMethodsTable).where(eq(paymentMethodsTable.id, id)).limit(1);
+      effectiveType = existing?.type;
+    }
+    // Re-run Safepay check with inferred type
+    if (!type && effectiveType === "safepay" && settings) {
+      const lp = (settings.livePublicKey ?? "") as string;
+      const ls = (settings.liveSecretKey ?? "") as string;
+      if (lp && !lp.startsWith("pub_")) {
+        res.status(400).json({ error: "Invalid Live Public Key format. Must start with pub_. It looks like your keys are swapped." });
+        return;
+      }
+      if (ls && !ls.startsWith("sec_")) {
+        res.status(400).json({ error: "Invalid Live Secret Key format. Must start with sec_. It looks like your keys are swapped." });
+        return;
+      }
+    }
+
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name;
     if (type !== undefined) updates.type = type;
