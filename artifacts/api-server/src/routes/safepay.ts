@@ -130,14 +130,41 @@ function parseSafepayError(body: any): { userMsg: string; techDetail: string; is
   }
 }
 
+// ─── Helper: try one Safepay environment ─────────────────────────────────────
+async function trySafepayEnv(
+  pub: string,
+  secret: string,
+  sandbox: boolean,
+): Promise<{ ok: boolean; tracker?: string; status: number; body: string }> {
+  const base    = getApiBase(sandbox);
+  const env     = sandbox ? "sandbox" : "production";
+  const payload = {
+    client:      pub,
+    environment: env,
+    amount:      10,
+    currency:    "PKR",
+    order_id:    `TEST-${Date.now()}`,
+  };
+  console.log(`[SAFEPAY TEST] Trying ${env} (${base}) | client: ${pub.substring(0, 16)}…`);
+  const r        = await fetch(`${base}/order/v1/init`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json", "X-SFPY-SECRET-KEY": secret },
+    body:    JSON.stringify(payload),
+  });
+  const body = await r.text();
+  let json: any;
+  try { json = JSON.parse(body); } catch { json = null; }
+  const tracker = json?.data?.token?.tracker ?? json?.token?.tracker ?? "";
+  return { ok: r.ok, tracker, status: r.status, body };
+}
+
 // ─── GET /api/payments/safepay/test — verify API keys ────────────────────────
 router.get("/payments/safepay/test", authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { publicKey, secretKey, isSandbox } = (req.query as any) ?? {};
 
-    // If params passed, test those keys; otherwise test the saved config
-    let testPublic  = publicKey  as string ?? "";
-    let testSecret  = secretKey  as string ?? "";
+    let testPublic  = (publicKey  as string) ?? "";
+    let testSecret  = (secretKey  as string) ?? "";
     let testSandbox = isSandbox === "true";
 
     if (!testPublic || !testSecret) {
@@ -151,49 +178,45 @@ router.get("/payments/safepay/test", authenticate, async (req: AuthRequest, res:
       testSandbox = config.isSandbox;
     }
 
-    const base = getApiBase(testSandbox);
-    const env  = testSandbox ? "sandbox" : "production";
+    // Try the requested environment first
+    const primary = await trySafepayEnv(testPublic, testSecret, testSandbox);
 
-    // Make a minimal test call — create a Rs. 10 test tracker (10 PKR whole units)
-    const payload = {
-      client:      testPublic,
-      environment: env,
-      amount:      10,
-      currency:    "PKR",
-      order_id:    `TEST-${Date.now()}`,
-    };
+    if (primary.ok) {
+      console.log(`[SAFEPAY TEST] ✓ Verified in ${testSandbox ? "sandbox" : "live"} | tracker: ${primary.tracker}`);
+      return res.json({ ok: true, message: "API Keys Verified Successfully ✓" });
+    }
 
-    console.log(`[SAFEPAY TEST] Testing keys against ${base} | env: ${env} | pub: ${testPublic.substring(0, 12)}…`);
+    // If primary failed with "client not found", auto-try the opposite environment
+    const clientNotFound =
+      primary.body.toLowerCase().includes("client") &&
+      (primary.body.toLowerCase().includes("not found") || primary.body.toLowerCase().includes("invalid"));
 
-    const r = await fetch(`${base}/order/v1/init`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json", "X-SFPY-SECRET-KEY": testSecret },
-      body:    JSON.stringify(payload),
+    if (clientNotFound) {
+      console.log(`[SAFEPAY TEST] Client not found in ${testSandbox ? "sandbox" : "live"} — retrying in ${testSandbox ? "live" : "sandbox"}…`);
+      const fallback = await trySafepayEnv(testPublic, testSecret, !testSandbox);
+
+      if (fallback.ok) {
+        const correctMode = testSandbox ? "Live" : "Sandbox";
+        const keyField    = testSandbox ? "Live Client Key / Live Secret Key" : "Sandbox Client Key / Sandbox Secret Key";
+        console.log(`[SAFEPAY TEST] ✓ Keys work in ${correctMode} mode`);
+        return res.json({
+          ok: true,
+          message:
+            `Keys verified ✓ — but your keys belong to the ${correctMode} environment. ` +
+            `In Admin → Safepay settings, put these keys in the "${keyField}" fields and ` +
+            `${testSandbox ? "disable" : "enable"} Sandbox Mode, then save.`,
+        });
+      }
+    }
+
+    // Both environments failed — show the raw Safepay error
+    const raw = primary.body.substring(0, 300);
+    console.warn(`[SAFEPAY TEST] ✗ Both environments failed. Primary (${primary.status}): ${raw}`);
+    res.status(200).json({
+      ok: false,
+      error: `Safepay error (${primary.status}): ${raw}`,
     });
 
-    const bodyText = await r.text();
-    let bodyJson: any;
-    try { bodyJson = JSON.parse(bodyText); } catch { bodyJson = null; }
-
-    if (r.ok) {
-      const tracker = bodyJson?.data?.token?.tracker ?? bodyJson?.token?.tracker ?? "";
-      console.log(`[SAFEPAY TEST] ✓ Keys verified | tracker: ${tracker}`);
-      res.json({ ok: true, message: "API Keys Verified Successfully", tracker });
-    } else {
-      const rawDetail = bodyText.substring(0, 400);
-      console.warn(`[SAFEPAY TEST] ✗ Verification failed (HTTP ${r.status}): ${rawDetail}`);
-      const isAuthErr = r.status === 401 || r.status === 403;
-      const isClientErr =
-        bodyText.toLowerCase().includes("client") &&
-        (bodyText.toLowerCase().includes("not found") || bodyText.toLowerCase().includes("invalid"));
-      let errorMsg: string;
-      if (isAuthErr || isClientErr) {
-        errorMsg = "Safepay rejected these credentials — verify the Client Key (sec_/pub_…) and Secret Key in your Safepay dashboard.";
-      } else {
-        errorMsg = `Safepay error (${r.status}): ${rawDetail}`;
-      }
-      res.status(200).json({ ok: false, error: errorMsg });
-    }
   } catch (err: any) {
     console.error("[SAFEPAY TEST] Network error:", err.message);
     res.status(200).json({ ok: false, error: `Network error: ${err.message}` });
