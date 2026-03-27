@@ -88,6 +88,8 @@ export default function PaymentMethods() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editSettings, setEditSettings] = useState<Record<string, string>>({});
   const [savingSettings, setSavingSettings] = useState(false);
+  const [testingConfig, setTestingConfig] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const toggleMutation = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/admin/payment-methods/${id}/toggle`, { method: "POST" }),
@@ -125,6 +127,19 @@ export default function PaymentMethods() {
   };
 
   const handleSaveSettings = async (method: PaymentMethod) => {
+    // Safepay key prefix validation — prevent swapped keys from being saved
+    if (method.type === "safepay") {
+      const lp = editSettings["livePublicKey"] ?? "";
+      const ls = editSettings["liveSecretKey"] ?? "";
+      if (lp && lp.startsWith("sec_")) {
+        toast({ title: "Invalid Key Order", description: "Live Public Key must start with pub_ — it looks like your keys are swapped. Please correct them before saving.", variant: "destructive" });
+        return;
+      }
+      if (ls && ls.startsWith("pub_")) {
+        toast({ title: "Invalid Key Order", description: "Live Secret Key must start with sec_ — it looks like your keys are swapped. Please correct them before saving.", variant: "destructive" });
+        return;
+      }
+    }
     setSavingSettings(true);
     try {
       await apiFetch(`/api/admin/payment-methods/${method.id}`, {
@@ -134,10 +149,34 @@ export default function PaymentMethods() {
       qc.invalidateQueries({ queryKey: ["admin-payment-methods"] });
       toast({ title: "Settings saved", description: method.name });
       setEditId(null);
+      setTestResult(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleTestConfig = async (method: PaymentMethod) => {
+    setTestingConfig(true);
+    setTestResult(null);
+    try {
+      const isSandbox = method.isSandbox;
+      const publicKey  = isSandbox ? (editSettings["sandboxPublicKey"] ?? "") : (editSettings["livePublicKey"] ?? "");
+      const secretKey  = isSandbox ? (editSettings["sandboxSecretKey"] ?? "") : (editSettings["liveSecretKey"] ?? "");
+
+      if (!publicKey || !secretKey) {
+        setTestResult({ ok: false, message: "Please enter both Public Key and Secret Key before testing." });
+        return;
+      }
+
+      const params = new URLSearchParams({ publicKey, secretKey, isSandbox: String(isSandbox) });
+      const res = await apiFetch(`/api/payments/safepay/test?${params}`);
+      setTestResult({ ok: !!res?.ok, message: res?.message ?? res?.error ?? "Unknown result" });
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err?.message ?? "Network error — could not reach server." });
+    } finally {
+      setTestingConfig(false);
     }
   };
 
@@ -321,13 +360,32 @@ export default function PaymentMethods() {
                             </div>
                           ))}
                         </div>
-                        <div className="flex gap-3 pt-1">
+                        {/* Test result banner (Safepay only) */}
+                        {m.type === "safepay" && isEditing && testResult && (
+                          <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm border ${testResult.ok ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>
+                            {testResult.ok ? <CheckCircle size={15} className="mt-0.5 shrink-0" /> : <XCircle size={15} className="mt-0.5 shrink-0" />}
+                            <span>{testResult.message}</span>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-3 pt-1">
                           {isEditing ? (
                             <>
                               <Button onClick={() => handleSaveSettings(m)} disabled={savingSettings} className="bg-primary hover:bg-primary/90 gap-2">
                                 {savingSettings ? <Loader2 size={14} className="animate-spin" /> : null} Save Settings
                               </Button>
-                              <Button variant="outline" onClick={() => { setEditId(null); setExpandedId(null); }}>Cancel</Button>
+                              {m.type === "safepay" && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => handleTestConfig(m)}
+                                  disabled={testingConfig}
+                                  className="gap-2"
+                                >
+                                  {testingConfig ? <Loader2 size={14} className="animate-spin" /> : <TestTube size={14} />}
+                                  Test Configuration
+                                </Button>
+                              )}
+                              <Button variant="outline" onClick={() => { setEditId(null); setExpandedId(null); setTestResult(null); }}>Cancel</Button>
                             </>
                           ) : (
                             <Button variant="outline" onClick={() => startEdit(m)} className="gap-2">

@@ -1265,7 +1265,7 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
       fetch("/api/payment-methods", { headers }).then(r => r.ok ? r.json() : []),
-      fetch("/api/client/credits", { headers }).then(r => r.ok ? r.json() : {}),
+      fetch("/api/my/credits", { headers }).then(r => r.ok ? r.json() : {}),
     ]).then(([pms, credits]) => {
       setPaymentMethods(Array.isArray(pms) ? pms.filter((p: DomainPaymentMethod & { isActive?: boolean }) => p.isActive !== false) : []);
       setCreditBalance(parseFloat(credits?.creditBalance ?? "0") || 0);
