@@ -11,8 +11,9 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { provisionHostingService } from "./provision.js";
-import { emailInvoicePaid } from "./email.js";
+import { emailInvoicePaid, emailServiceActivated, emailAdminSaleAlert } from "./email.js";
 import { generateInvoicePdf } from "./invoicePdf.js";
+import { createNotification } from "./notifications.js";
 
 // ─── Domain renewal helper ─────────────────────────────────────────────────────
 async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
@@ -142,18 +143,26 @@ export async function processInvoicePaid(
       });
     } catch (e) { console.error("[ACTIVATE] transaction record error:", e); }
 
-    // 5. Provision / activate services
+    // 5. Provision / activate services — capture details for notification emails
+    let activatedDomain = "";
+    let activatedServiceType = "Hosting";
+    let activatedCpanelUrl: string | undefined;
+
     try {
       const [order] = updated.orderId
         ? await db.select().from(ordersTable).where(eq(ordersTable.id, updated.orderId!)).limit(1)
         : [];
       if (order?.type === "renewal") {
         await processRenewalOrder(order);
+        activatedServiceType = "Domain Renewal";
+        activatedDomain = order.domain ?? order.itemName ?? "";
       } else if (order?.type === "hosting") {
         const [svc] = await db.select().from(hostingServicesTable)
           .where(eq(hostingServicesTable.orderId, order.id)).limit(1);
         if (svc) {
+          activatedDomain = svc.domain ?? "";
           if ((svc as any).serviceType === "vps") {
+            activatedServiceType = "VPS Server";
             await db.update(hostingServicesTable).set({
               status: "active",
               vpsProvisionStatus: "provisioned",
@@ -165,10 +174,20 @@ export async function processInvoicePaid(
               .where(eq(ordersTable.id, order.id));
             console.log(`[ACTIVATE] VPS service ${svc.id} activated`);
           } else {
+            activatedServiceType = "Web Hosting";
             await provisionHostingService(svc.id);
+            // Re-fetch to get cPanel URL after provisioning wrote it to DB
+            const [provisioned] = await db.select({ cpanelUrl: hostingServicesTable.cpanelUrl, domain: hostingServicesTable.domain })
+              .from(hostingServicesTable).where(eq(hostingServicesTable.id, svc.id)).limit(1);
+            if (provisioned) {
+              activatedCpanelUrl = provisioned.cpanelUrl ?? undefined;
+              activatedDomain = provisioned.domain ?? activatedDomain;
+            }
           }
         }
       } else if (order?.type === "domain") {
+        activatedServiceType = "Domain Registration";
+        activatedDomain = order.domain ?? order.itemName ?? "";
         await activateDomainOrder(order, updated.invoiceNumber, updated.dueDate ?? null);
       }
     } catch (e) { console.error("[ACTIVATE] provision error (non-fatal):", e); }
@@ -241,6 +260,62 @@ export async function processInvoicePaid(
         });
       }
     } catch (e) { console.error("[ACTIVATE] email error (non-fatal):", e); }
+
+    // 8. Send "Service is Now Active!" email to client (Safepay auto-activation only)
+    if (activatedDomain) {
+      try {
+        const [u] = await db.select().from(usersTable)
+          .where(eq(usersTable.id, updated.clientId)).limit(1);
+        if (u) {
+          await emailServiceActivated(u.email, {
+            clientName: `${u.firstName} ${u.lastName}`.trim() || u.email,
+            invoiceNumber: updated.invoiceNumber,
+            domain: activatedDomain,
+            cpanelUrl: activatedCpanelUrl,
+          }, { clientId: u.id, referenceId: updated.id });
+          console.log(`[ACTIVATE] Service-active email sent to ${u.email}`);
+        }
+      } catch (e) { console.error("[ACTIVATE] service-active email error (non-fatal):", e); }
+    }
+
+    // 9. Admin alert: in-app notification + email to every admin account
+    try {
+      const [u] = await db.select().from(usersTable)
+        .where(eq(usersTable.id, updated.clientId)).limit(1);
+      const clientName = u ? `${u.firstName} ${u.lastName}`.trim() || u.email : updated.clientId;
+      const clientEmail = u?.email ?? "";
+      const amountStr = `Rs. ${Number(updated.total).toFixed(2)}`;
+      const serviceLabel = activatedDomain
+        ? `${activatedServiceType}: ${activatedDomain}`
+        : activatedServiceType;
+
+      // In-app notifications for all admin users
+      const admins = await db.select({ id: usersTable.id, email: usersTable.email })
+        .from(usersTable)
+        .where(sql`${usersTable}.role = 'admin'`);
+
+      for (const admin of admins) {
+        await createNotification(
+          admin.id,
+          "payment",
+          `⚡ New Sale — ${amountStr}`,
+          `${clientName} paid Invoice #${updated.invoiceNumber} via Safepay. ${serviceLabel} auto-activated.`,
+          `/admin/invoices/${updated.id}`,
+        );
+        // Admin alert email
+        await emailAdminSaleAlert(admin.email, {
+          clientName,
+          clientEmail,
+          invoiceNumber: updated.invoiceNumber,
+          amount: amountStr,
+          domain: activatedDomain || "N/A",
+          serviceType: activatedServiceType,
+          paymentRef: transactionRef,
+        });
+      }
+
+      console.log(`[ACTIVATE] Admin notifications sent to ${admins.length} admin(s)`);
+    } catch (e) { console.error("[ACTIVATE] admin notification error (non-fatal):", e); }
 
     return { success: true };
   } catch (err) {

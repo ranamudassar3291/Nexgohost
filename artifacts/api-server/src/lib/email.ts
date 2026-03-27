@@ -650,6 +650,172 @@ export async function emailWordPressInstalled(
   }, meta);
 }
 
+/**
+ * Send "Your Service is Now Active!" email to the client after Safepay auto-activation.
+ * Tries the "service-activated" DB template first; falls back to rich inline HTML.
+ * ONLY called for auto-payment gateways (Safepay/Stripe) — never for manual methods.
+ */
+export async function emailServiceActivated(
+  to: string,
+  vars: {
+    clientName: string;
+    invoiceNumber: string;
+    domain: string;
+    cpanelUrl?: string;
+    dashboardUrl?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+): Promise<{ sent: boolean; message: string }> {
+  // 1. Try the customisable DB template
+  const dbResult = await sendTemplatedEmail("service-activated", to, {
+    company_name: COMPANY,
+    client_name: vars.clientName,
+    invoice_number: vars.invoiceNumber,
+    domain: vars.domain,
+    cpanel_url: vars.cpanelUrl || "",
+    dashboard_url: vars.dashboardUrl || `${getClientUrl()}/dashboard`,
+  }, meta);
+  if (dbResult.sent) return dbResult;
+
+  // 2. Inline HTML fallback (works even if the DB template hasn't been created yet)
+  const dashUrl = vars.dashboardUrl || `${getClientUrl()}/dashboard`;
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:40px;text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🚀</div>
+      <h1 style="color:#fff;margin:0;font-size:26px;font-weight:700">Your Service is Now Active!</h1>
+      <p style="color:rgba(255,255,255,.85);margin:8px 0 0;font-size:15px">${COMPANY}</p>
+    </div>
+    <div style="padding:40px">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px">Dear <strong>${vars.clientName}</strong>,</p>
+      <p style="margin:0 0 20px;color:#374151;font-size:15px">
+        We have successfully received your payment via Safepay for Invoice
+        <strong>#${vars.invoiceNumber}</strong>. Your hosting/domain service is now
+        <span style="color:#16a34a;font-weight:700">Active</span>.
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px 24px;margin:24px 0">
+        <p style="margin:0 0 10px;color:#166534;font-weight:700;font-size:14px">✅ Service Details</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:14px"><strong>Domain / Service:</strong> ${vars.domain}</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:14px"><strong>Invoice #:</strong> ${vars.invoiceNumber}</p>
+        <p style="margin:0;color:#374151;font-size:14px"><strong>Status:</strong> <span style="color:#16a34a;font-weight:700">Active ✓</span></p>
+      </div>
+      <p style="margin:0 0 24px;color:#374151;font-size:15px">
+        You can login to your dashboard to manage your services, view DNS records,
+        access cPanel, and more.
+      </p>
+      <div style="text-align:center;margin:32px 0">
+        <a href="${dashUrl}" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block">
+          Manage My Services →
+        </a>
+      </div>
+      <p style="margin:32px 0 0;color:#6b7280;font-size:14px;text-align:center">
+        Thank you for choosing <strong>${COMPANY}</strong>! 🎉
+      </p>
+    </div>
+    <div style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center">
+      <p style="margin:0;color:#9ca3af;font-size:13px">
+        © ${new Date().getFullYear()} ${COMPANY}. All rights reserved.
+      </p>
+    </div>
+  </div>
+</body></html>`;
+
+  return sendEmail({
+    to,
+    subject: `🚀 Your Service is Now Active! - ${COMPANY}`,
+    html,
+    emailType: "service-activated",
+    clientId: meta?.clientId,
+    referenceId: meta?.referenceId,
+  });
+}
+
+/**
+ * Send an alert email to the admin when a Safepay auto-activation fires.
+ * Gives the admin a full summary of the sale so they can track new business.
+ */
+export async function emailAdminSaleAlert(
+  to: string,
+  vars: {
+    clientName: string;
+    clientEmail: string;
+    invoiceNumber: string;
+    amount: string;
+    domain: string;
+    serviceType: string;
+    paymentRef: string;
+    adminPanelUrl?: string;
+  },
+): Promise<{ sent: boolean; message: string }> {
+  const adminUrl = vars.adminPanelUrl || `${getAppUrl()}/admin/invoices`;
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+    <div style="background:linear-gradient(135deg,#059669,#047857);padding:32px 40px;text-align:center">
+      <div style="font-size:40px;margin-bottom:8px">⚡</div>
+      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700">New Auto-Activation via Safepay</h1>
+      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:13px">${COMPANY} — Admin Alert</p>
+    </div>
+    <div style="padding:36px 40px">
+      <p style="margin:0 0 20px;color:#374151;font-size:14px">
+        A new order has been <strong>automatically activated</strong> via Safepay.
+        No manual action is required — the service is live.
+      </p>
+      <table style="width:100%;border-collapse:collapse">
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:10px 0;color:#6b7280;font-size:13px;width:38%">Client</td>
+          <td style="padding:10px 0;color:#111827;font-size:14px;font-weight:600">${vars.clientName}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:10px 0;color:#6b7280;font-size:13px">Email</td>
+          <td style="padding:10px 0;color:#111827;font-size:13px">${vars.clientEmail}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:10px 0;color:#6b7280;font-size:13px">Invoice #</td>
+          <td style="padding:10px 0;color:#111827;font-size:14px;font-weight:600">${vars.invoiceNumber}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:10px 0;color:#6b7280;font-size:13px">Amount Received</td>
+          <td style="padding:10px 0;color:#059669;font-size:16px;font-weight:700">${vars.amount}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:10px 0;color:#6b7280;font-size:13px">Domain / Service</td>
+          <td style="padding:10px 0;color:#111827;font-size:13px">${vars.domain}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f3f4f6">
+          <td style="padding:10px 0;color:#6b7280;font-size:13px">Service Type</td>
+          <td style="padding:10px 0;color:#111827;font-size:13px">${vars.serviceType}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 0;color:#6b7280;font-size:13px">Safepay Ref</td>
+          <td style="padding:10px 0;color:#111827;font-size:12px;font-family:monospace;word-break:break-all">${vars.paymentRef}</td>
+        </tr>
+      </table>
+      <div style="text-align:center;margin:28px 0 0">
+        <a href="${adminUrl}" style="background:linear-gradient(135deg,#059669,#047857);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:14px;display:inline-block">
+          View in Admin Panel →
+        </a>
+      </div>
+    </div>
+    <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center">
+      <p style="margin:0;color:#9ca3af;font-size:12px">
+        This is an automated alert from ${COMPANY} — no reply needed.
+      </p>
+    </div>
+  </div>
+</body></html>`;
+
+  return sendEmail({
+    to,
+    subject: `⚡ New Sale: ${vars.clientName} — Invoice #${vars.invoiceNumber} (${vars.amount})`,
+    html,
+    emailType: "admin-sale-alert",
+  });
+}
+
 export async function emailDomainTransferInitiated(
   to: string,
   vars: { clientName: string; domain: string; transferPrice: string; invoiceNumber: string },

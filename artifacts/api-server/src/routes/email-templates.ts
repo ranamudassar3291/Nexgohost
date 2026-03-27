@@ -377,7 +377,40 @@ ${btnOutline("Manage Hosting", "https://noehost.com/client/hosting")}
     variables: ["{{client_name}}", "{{domain}}", "{{username}}", "{{password}}", "{{cpanel_url}}", "{{ns1}}", "{{ns2}}", "{{webmail_url}}"],
   },
 
-  // ── 7. Domain Registered ─────────────────────────────────────────────────
+  // ── 7a. Service Activated (Safepay auto-activation) ───────────────────────
+  {
+    name: "Service Activated — Auto-Activation",
+    slug: "service-activated",
+    subject: "🚀 Your Service is Now Active! - {{company_name}}",
+    body: layout(`
+${successBanner("🚀", "Your Service is Now Active!", "Your service has been automatically activated — no action needed")}
+<p style="margin:0 0 14px;color:#333333">Dear <strong>{{client_name}}</strong>,</p>
+<p style="margin:0 0 16px;color:#333333">
+  We have successfully received your payment via Safepay for Invoice
+  <strong>#{{invoice_number}}</strong>. Your hosting/domain service is now
+  <span style="color:#16a34a;font-weight:700">Active</span>.
+</p>
+
+${infoTable("Service Details", [
+  { label: "Domain / Service", value: `<strong style="color:#701AFE">{{domain}}</strong>` },
+  { label: "Invoice #", value: `<strong>#{{invoice_number}}</strong>` },
+  { label: "Status", value: `<span style="color:#16a34a;font-weight:700">&#10003; Active</span>` },
+  { label: "Payment Method", value: "Safepay ⚡" },
+])}
+
+<p style="margin:0 0 16px;color:#333333">
+  You can login to your dashboard to manage your services, view DNS records,
+  access cPanel, and more.
+</p>
+${btn("Manage My Services →", "{{dashboard_url}}")}
+<p style="margin:16px 0 0;color:#888888;font-size:13px;text-align:center">
+  Thank you for choosing <strong>{{company_name}}</strong>! 🎉
+</p>
+`),
+    variables: ["{{client_name}}", "{{invoice_number}}", "{{domain}}", "{{cpanel_url}}", "{{dashboard_url}}", "{{company_name}}"],
+  },
+
+  // ── 7b. Domain Registered ─────────────────────────────────────────────────
   {
     name: "Domain Registration Successful",
     slug: "domain-registered",
