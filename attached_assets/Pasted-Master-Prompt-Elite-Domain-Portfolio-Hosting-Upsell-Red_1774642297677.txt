@@ -1,0 +1,46 @@
+Master Prompt: Elite Domain Portfolio & Hosting Upsell Redesign
+"I need to completely overhaul the Domains Page (/client/domains) to match Hostinger's premium, high-converting layout. Execute these specific UI and Logic changes immediately:
+
+1. The 'Setup Progress' Header (Hostinger Style):
+
+Visual Checklist: At the very top of the page, add a professional, wide progress bar section:
+
+Step 1: Domain Registered (Green Check ✅)
+
+Step 2: Get Hosting (Pulsing Arrow ➡️ - 'Buy Now' button)
+
+Step 3: Launch Website (Locked 🔒)
+
+Purpose: This must tell the client exactly what is missing to make their website live.
+
+2. Domain Portfolio Cards (Professional Overhaul):
+
+Left Side: Show the Domain Name with its TLD Icon (e.g., .com) in a modern blue/purple circle.
+
+Center Status: Show 'Active' or 'Expired' badges. Next to it, add the 'Website Not Live' alert with a direct link to the Hosting plans.
+
+Right Side (Expiry Tracker): Instead of just text, show a Circular Progress Ring that visually represents the time left until expiry (e.g., Green for >6 months, Red for <1 month).
+
+3. Management Section (Hostinger-Type Tabs):
+
+Replace the scattered buttons with a clean, tabbed interface inside each domain card:
+
+Overview: Nameservers (ns1.noehost.com), Auto-renew toggle.
+
+DNS Management: Professional table for A, CNAME, MX records.
+
+Security: Transfer Lock status and WHOIS Privacy toggle.
+
+4. Upsell Strategy & Extensions:
+
+'Available for You' Section: Below the portfolio, show a 'Recommended Extensions' grid based on the user's current domains (e.g., 'Secure your brand with .net or .org').
+
+Dynamic Pricing: All prices in this section must fetch from the 24-hour Google Rate cache.
+
+5. UI & Safety:
+
+Use the Noehost Purple/Dark theme with high-end glassmorphism effects.
+
+No Overwrite: Ensure NO changes are made to the actual domain records in the Production Database. Only the UI and the 'Launch Wizard' logic should be added.
+
+Make the 'All Settings' button more professional and align everything in a single, clean row."
