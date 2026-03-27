@@ -1,0 +1,47 @@
+I am setting up a high-end international hosting system (Noehost). I have imported the database noehost_latests_backup.sql. Now, I need to build a Full Synchronization & Global Currency Engine that connects my website to the panel via API. Execute these steps with 100% accuracy:
+
+1. API-Driven Synchronization (Website ↔ Panel):
+
+Plan & Domain Sync: Build an API that fetches hosting plans (names, monthly/yearly prices) and domain extensions directly from the Admin Panel.
+
+Automatic Linking: All 'Order Now' buttons and 'Login/Register' buttons on the website must automatically generate links to the panel (e.g., client.noehost.com/auth, cart.noehost.com/product-slug) based on the API data. No manual linking allowed.
+
+2. Real-Time Google Currency Engine:
+
+Base Price Logic: All prices are managed in the Admin Panel in PKR.
+
+Google Rate Integration: Integrate a real-time currency API (like ExchangeRate-API) to fetch current Google rates.
+
+Geo-Detection: Use IP-based detection + a 'Country Selector' on the registration page.
+
+Dynamic Conversion: If a client is in the USA, the website and panel must automatically convert PKR to USD (e.g., 1$ = 279 PKR). If in the UK, show GBP.
+
+Consistency: The selected currency must persist in the Cart, Invoice, Safepay Gateway, and Email Templates.
+
+3. Hostinger-Style URL Routing:
+
+Configure the subdomains and routes exactly as follows:
+
+User Dashboard: client.noehost.com/dashboard
+
+Auth Pages: client.noehost.com/auth and /register
+
+Checkout: cart.noehost.com/checkout
+
+Admin Access: admin.noehost.com/login
+
+4. Localization & Communication:
+
+Invoices: Invoices must display the symbol and format of the client's country (e.g., £ for UK, $ for US).
+
+Emails: Email templates must dynamically use the client’s local currency and price.
+
+Safepay Sync: Ensure Safepay receives the converted amount and correct currency code during checkout.
+
+5. Security & Safety:
+
+Ensure all API calls are secured with a Secret API Key.
+
+Implement session handling so the currency doesn't reset when the client moves between the website and the dashboard.
+
+Final Step: Run the project, verify all routes, and perform a health check to ensure 0% errors for international clients."
