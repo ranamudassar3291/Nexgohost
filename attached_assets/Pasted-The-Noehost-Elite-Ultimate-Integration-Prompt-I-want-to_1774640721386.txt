@@ -1,0 +1,52 @@
+The "Noehost Elite" Ultimate Integration Prompt
+"I want to finalize the Noehost International Ecosystem. Combine all premium hosting features, AI automation, and high-end UI/UX into one seamless experience. Execute these final modules immediately:
+
+1. 'Elite Services' & Hosting Management (Hostinger-Style but Better):
+
+Dashboard Overhaul: Redesign /services and /manage-hosting with a Glassmorphism Purple & Dark Theme.
+
+Resource Visualizer: Add animated SVG progress circles for Disk Usage, Bandwidth, and RAM. Fetch this data live via server API.
+
+Advanced Control Grid: Create a professional icon-based grid for: File Manager, Databases, SSL Setup, PHP Selector, and DNS Editor.
+
+2. The 'Launch Wizard' & Welcome Tour (User Guidance):
+
+Interactive Tour: Implement a 'Welcome Tour' (using a library like Intro.js) for new users that highlights: 'Here is your domain', 'Manage your hosting here', and 'Launch your site'.
+
+Step-by-Step Progress: Show a 'Website Launch' bar (33% Complete: Domain ✅, Hosting ⏳, SSL 🔒).
+
+3. Professional Upsell & Cart Intelligence:
+
+Domain-to-Hosting Bridge: If a user only has a domain in their cart, show a premium 'Recommended for your Domain' hosting card with a 1-click 'Add to Cart' button.
+
+Cross-Sell TLDs: Show 'You might also like' for .net and .org versions of their searched domain.
+
+4. Global Currency & Google Rate Engine (End-to-End):
+
+IP-Locking Sync: Lock the currency based on the user's detected IP or chosen Country on the Register page.
+
+Everywhere Integration: Ensure the 24-hour cached Google rates apply to:
+
+Dashboard Upsells
+
+Invoices & PDF Receipts
+
+Renewal Reminders
+
+Safepay Gateway Payload
+
+5. Professional Billing & Refund Portal:
+
+Transactions: A clean, searchable table of all past payments with 'View Invoice' (PDF) and 'Receipt' buttons.
+
+Refund Flow: Add a 'Request Refund' button for eligible services (within 30 days) with a professional request modal.
+
+6. Advanced Domain Management:
+
+Cards-based UI for domains with flags. Add 'Auto-Renew' toggles and 'Manage Nameservers' (ns1.nexgohost.com) sections.
+
+7. Safety & Performance Safeguard:
+
+Database Protection: Ensure NO existing client data, old invoices, or production plans are overwritten. Use the Production Database with surgical updates.
+
+Speed: Optimize all API calls to ensure the dashboard loads in under 1.5 seconds."

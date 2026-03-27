@@ -11,8 +11,60 @@ import {
   KeyRound, Loader2, LayoutGrid, Eye, EyeOff, CheckCircle2,
   AlertTriangle, AlertCircle, X, XCircle, ArrowUpCircle, CheckCircle,
   Lock, ChevronDown, ChevronUp, Network, Plus, Trash2, Pencil,
-  Database, Download, ArchiveRestore, Clock,
+  Database, Download, ArchiveRestore, Clock, Rocket, Mail,
+  Cpu, FileText, Code2, Cog, Wifi, MousePointerClick,
 } from "lucide-react";
+
+const BRAND_GRADIENT = "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)";
+
+function SvgRing({
+  pct, size = 100, stroke = 8, color, label, used, limit, unlimited, loading,
+}: {
+  pct: number; size?: number; stroke?: number;
+  color: string; label: string; used: string; limit: string; unlimited?: boolean; loading?: boolean;
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - Math.min(pct, 100) / 100);
+  const cx = size / 2;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={cx} cy={cx} r={r} fill="none" stroke="rgba(var(--border))" strokeWidth={stroke} />
+          {!unlimited && (
+            <circle
+              cx={cx} cy={cx} r={r} fill="none"
+              stroke={color} strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={circ}
+              strokeDashoffset={loading ? circ : offset}
+              style={{ transition: "stroke-dashoffset 1s ease" }}
+            />
+          )}
+          {unlimited && (
+            <circle cx={cx} cy={cx} r={r} fill="none" stroke={color} strokeWidth={stroke}
+              strokeLinecap="round" strokeDasharray="6 4" strokeDashoffset={0} opacity={0.4} />
+          )}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {loading
+            ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
+            : <span className="text-base font-bold text-foreground leading-none">
+                {unlimited ? "∞" : `${Math.round(pct)}%`}
+              </span>
+          }
+        </div>
+      </div>
+      <div className="text-center">
+        <p className="text-xs font-semibold text-foreground">{label}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          {unlimited ? "Unlimited" : `${used} / ${limit}`}
+        </p>
+      </div>
+    </div>
+  );
+}
 import { format } from "date-fns";
 
 interface Service {
@@ -1040,98 +1092,242 @@ export default function ServiceDetail() {
         </div>
       </div>
 
-      {/* Usage */}
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-foreground">Resource Usage</h3>
+      {/* ── Resource Visualizer: SVG Circular Progress Rings ── */}
+      <div className="rounded-2xl border border-border overflow-hidden"
+        style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 100%)" }}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Activity size={15} className="text-primary" /> Resource Usage
+          </h3>
           <div className="flex items-center gap-2">
             {usageLoading ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 size={11} className="animate-spin" /> Fetching live data…</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Loader2 size={10} className="animate-spin" /> Fetching live data…
+              </span>
             ) : hasRealUsage ? (
-              <span className="flex items-center gap-1.5 text-xs text-green-400"><div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live from cPanel</span>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-2 gap-1 text-xs"
+              <span className="flex items-center gap-1.5 text-[11px] text-green-400">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live · cPanel
+              </span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground/60">Estimated</span>
+            )}
+            <button
+              className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs border border-border bg-card hover:bg-secondary transition-colors text-muted-foreground disabled:opacity-50"
               disabled={usageLoading}
               onClick={() => { setUsageData(null); fetchUsage(); }}
-              title="Force refresh usage from cPanel"
             >
-              <RefreshCw size={11} className={usageLoading ? "animate-spin" : ""} />
-              Refresh
-            </Button>
+              <RefreshCw size={10} className={usageLoading ? "animate-spin" : ""} /> Refresh
+            </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {[
-            { label: "Disk Usage", used: diskUsedDisplay, limit: diskLimit, pct: diskPct, unlimited: usageData?.diskUnlimited, icon: HardDrive },
-            { label: "Bandwidth", used: bwUsedDisplay, limit: bwLimit, pct: bwPct, unlimited: usageData?.bwUnlimited, icon: Activity },
-          ].map(({ label, used, limit, pct, unlimited, icon: Icon }) => (
-            <div key={label}>
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Icon size={14} /> {label}
-                </div>
-                <span className="text-sm font-medium text-foreground">{used} / {unlimited ? "Unlimited" : limit}</span>
-              </div>
-              {unlimited ? (
-                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full w-full rounded-full bg-primary opacity-20" />
-                </div>
-              ) : (
-                <div className="h-2.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${pct > 80 ? "bg-red-400" : pct > 60 ? "bg-yellow-400" : "bg-primary"}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              )}
-              <div className="text-xs text-muted-foreground mt-1">
-                {unlimited ? "Unlimited — no quota" : `${pct}% used`}
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center justify-around flex-wrap gap-6 px-6 py-7">
+          <SvgRing
+            pct={diskPct}
+            size={110} stroke={9}
+            color={diskPct > 80 ? "#f87171" : diskPct > 60 ? "#fb923c" : "#701AFE"}
+            label="Disk Usage"
+            used={diskUsedDisplay}
+            limit={diskLimit}
+            unlimited={usageData?.diskUnlimited}
+            loading={usageLoading}
+          />
+          <SvgRing
+            pct={bwPct}
+            size={110} stroke={9}
+            color={bwPct > 80 ? "#f87171" : bwPct > 60 ? "#fb923c" : "#9B51E0"}
+            label="Bandwidth"
+            used={bwUsedDisplay}
+            limit={bwLimit}
+            unlimited={usageData?.bwUnlimited}
+            loading={usageLoading}
+          />
+          <SvgRing
+            pct={0}
+            size={110} stroke={9}
+            color="#C084FC"
+            label="Email Accounts"
+            used="—"
+            limit="Unlimited"
+            unlimited={true}
+            loading={false}
+          />
         </div>
       </div>
 
-      {/* Quick Access */}
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="font-semibold text-foreground mb-4">Quick Access</h3>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={handleCpanelLogin}
-            className="gap-2 bg-primary hover:bg-primary/90"
-            disabled={service.status !== "active" || ssoLoading !== null}
-          >
-            {ssoLoading === "cpanel" ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />}
-            {ssoLoading === "cpanel" ? "Logging in..." : "Open Control Panel"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleWebmailLogin}
-            className="gap-2"
-            disabled={service.status !== "active" || ssoLoading !== null}
-          >
-            {ssoLoading === "webmail" ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />}
-            {ssoLoading === "webmail" ? "Logging in..." : "Login to Webmail"}
-          </Button>
-          {service.wpInstalled && service.wpUrl && (
-            <a href={service.wpUrl} target="_blank" rel="noreferrer">
-              <Button variant="outline" className="gap-2">
-                <LayoutGrid size={15} /> Open WordPress Admin
-              </Button>
-            </a>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => handleReinstallSSL()}
-            className="gap-2"
-            disabled={service.status !== "active" || reinstallingSSL}
-          >
-            {reinstallingSSL ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />}
-            {reinstallingSSL ? "Reinstalling..." : "Reinstall SSL"}
-          </Button>
+      {/* ── Launch Your Site Wizard ── shown when active + domain + no WordPress ── */}
+      {service.status === "active" && service.domain && !service.wpInstalled && (
+        <div className="rounded-2xl overflow-hidden border border-primary/25 shadow-lg shadow-primary/5">
+          <div className="flex items-center gap-3 px-5 py-3.5"
+            style={{ background: BRAND_GRADIENT }}>
+            <Rocket size={16} className="text-white shrink-0" />
+            <p className="text-sm font-bold text-white">Launch Your Site — your hosting is ready!</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-primary/10"
+            style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.05) 0%, rgba(155,81,224,0.03) 100%)" }}>
+            {/* Option 1: Install WordPress */}
+            <div className="px-5 py-4 flex flex-col items-start gap-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "rgba(112,26,254,0.12)" }}>
+                <LayoutGrid size={16} className="text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Install WordPress</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Launch the world's most popular CMS via Softaculous.</p>
+              </div>
+              <button
+                onClick={handleOpenSoftaculous}
+                disabled={wpInstallerLoading || service.status !== "active"}
+                className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold text-white shadow disabled:opacity-50"
+                style={{ background: BRAND_GRADIENT }}
+              >
+                {wpInstallerLoading ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                {wpInstallerLoading ? "Opening…" : "Install Now →"}
+              </button>
+            </div>
+
+            {/* Option 2: File Manager */}
+            <div className="px-5 py-4 flex flex-col items-start gap-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "rgba(112,26,254,0.12)" }}>
+                <FileText size={16} className="text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Upload Files</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Use cPanel File Manager to upload your website files.</p>
+              </div>
+              <button
+                onClick={handleCpanelLogin}
+                disabled={!!ssoLoading || service.status !== "active"}
+                className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+              >
+                {ssoLoading === "cpanel" ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                Open cPanel →
+              </button>
+            </div>
+
+            {/* Option 3: Website Builder (Sitejet) */}
+            <div className="px-5 py-4 flex flex-col items-start gap-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "rgba(112,26,254,0.12)" }}>
+                <MousePointerClick size={16} className="text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Website Builder</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Drag-and-drop site builder included with your plan.</p>
+              </div>
+              <button
+                onClick={handleCpanelLogin}
+                disabled={!!ssoLoading || service.status !== "active"}
+                className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-secondary/50 transition-colors text-foreground disabled:opacity-50"
+              >
+                <MousePointerClick size={12} /> Open Builder →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Control Grid: 4-column Management Tiles ── */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-border/50">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Cog size={15} className="text-primary" /> Control Center
+          </h3>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-border/50">
+          {[
+            {
+              label: "File Manager",
+              desc: "Upload & manage files",
+              icon: FileText,
+              onClick: handleCpanelLogin,
+              loading: ssoLoading === "cpanel",
+              disabled: service.status !== "active",
+              color: "#701AFE",
+            },
+            {
+              label: "Databases",
+              desc: "MySQL & phpMyAdmin",
+              icon: Database,
+              onClick: handleCpanelLogin,
+              loading: ssoLoading === "cpanel",
+              disabled: service.status !== "active",
+              color: "#2563eb",
+            },
+            {
+              label: "PHP Version",
+              desc: "Select PHP runtime",
+              icon: Code2,
+              onClick: handleCpanelLogin,
+              loading: ssoLoading === "cpanel",
+              disabled: service.status !== "active",
+              color: "#7c3aed",
+            },
+            {
+              label: "SSL Status",
+              desc: service.sslStatus === "active" || service.sslStatus === "installed" ? "Certificate active" : "Reinstall SSL cert",
+              icon: service.sslStatus === "active" || service.sslStatus === "installed" ? ShieldCheck : ShieldX,
+              onClick: handleReinstallSSL,
+              loading: reinstallingSSL,
+              disabled: service.status !== "active",
+              color: service.sslStatus === "active" || service.sslStatus === "installed" ? "#10b981" : "#ef4444",
+            },
+            {
+              label: "Cron Jobs",
+              desc: "Schedule automated tasks",
+              icon: Clock,
+              onClick: handleCpanelLogin,
+              loading: ssoLoading === "cpanel",
+              disabled: service.status !== "active",
+              color: "#0891b2",
+            },
+            {
+              label: "DNS Editor",
+              desc: "Manage DNS records",
+              icon: Network,
+              onClick: () => { setActiveTab("dns"); if (dnsRecords.length === 0 && !dnsLoading) fetchDns(); },
+              loading: false,
+              disabled: false,
+              color: "#f59e0b",
+            },
+            {
+              label: "Webmail",
+              desc: "Access email accounts",
+              icon: Mail,
+              onClick: handleWebmailLogin,
+              loading: ssoLoading === "webmail",
+              disabled: service.status !== "active",
+              color: "#ec4899",
+            },
+            {
+              label: "cPanel Login",
+              desc: "Full control panel",
+              icon: ExternalLink,
+              onClick: handleCpanelLogin,
+              loading: ssoLoading === "cpanel",
+              disabled: service.status !== "active",
+              color: "#701AFE",
+            },
+          ].map(({ label, desc, icon: Icon, onClick, loading, disabled, color }) => (
+            <button
+              key={label}
+              onClick={onClick}
+              disabled={disabled || loading}
+              className="group flex flex-col items-center gap-2.5 p-5 text-center hover:bg-secondary/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 group-disabled:scale-100"
+                style={{ background: `${color}18`, border: `1px solid ${color}25` }}>
+                {loading
+                  ? <Loader2 size={18} className="animate-spin" style={{ color }} />
+                  : <Icon size={18} style={{ color }} />
+                }
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-foreground">{label}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{desc}</p>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
