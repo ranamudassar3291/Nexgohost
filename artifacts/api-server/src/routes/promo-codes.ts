@@ -52,8 +52,15 @@ router.get("/promo-codes/validate", async (req: AuthRequest, res) => {
     }
 
     const applicableTo = (promo as any).applicableTo ?? "all";
-    if (serviceType && applicableTo !== "all" && applicableTo !== serviceType) {
-      res.status(400).json({ error: `This promo code is only valid for ${applicableTo} services` }); return;
+    // Normalize service type aliases so domain promo codes work on both the Domains
+    // page (serviceType="domain") and the Order New page (serviceType="registration"
+    // or "domain_registration") — all treated as "domain".
+    const normalizedServiceType = (serviceType === "registration" || serviceType === "domain_registration")
+      ? "domain"
+      : serviceType;
+    if (normalizedServiceType && applicableTo !== "all" && applicableTo !== normalizedServiceType) {
+      const applicableLabel = applicableTo === "domain" ? "domain registration" : applicableTo;
+      res.status(400).json({ error: `This promo code is only valid for ${applicableLabel} services` }); return;
     }
 
     // Billing cycle lock check

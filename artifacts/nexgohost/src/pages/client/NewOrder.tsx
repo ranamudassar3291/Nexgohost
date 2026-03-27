@@ -786,8 +786,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const { data: creditData } = useQuery<{ creditBalance: string }>({
     queryKey: ["my-credits"],
     queryFn: async () => (await apiFetch("/api/my/credits")).json(),
-    enabled: step === 3,
+    enabled: step >= 2,   // pre-fetch from step 2 so wallet balance is ready by step 3
     staleTime: 0,
+    retry: false,         // don't retry if unauthenticated (guest checkout)
   });
   const creditBalance = parseFloat(creditData?.creditBalance ?? "0");
 
@@ -980,7 +981,23 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       const planAmt = selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0;
       const domAmt = isDomForceFree ? 0 : (cartDomain?.price ?? 0);
       const amount = planAmt + domAmt;
-      const params = new URLSearchParams({ code: promoCode.trim(), amount: String(amount), serviceType: "hosting", billingCycle: selectedCycle });
+
+      // Derive the correct service type to send to the promo validator.
+      // Domain-only orders (no hosting plan in cart) must send "domain" so that
+      // domain-scoped promo codes are accepted on this page too.
+      let promoServiceType: string;
+      if (service === "vps") {
+        promoServiceType = "vps";
+      } else if (service === "domain" || service === "transfer") {
+        promoServiceType = "domain";
+      } else if (service === "hosting" && !selectedPlan && cartDomain) {
+        // Hosting wizard but only a domain in cart (no plan chosen) = domain registration
+        promoServiceType = "domain";
+      } else {
+        promoServiceType = "hosting";
+      }
+
+      const params = new URLSearchParams({ code: promoCode.trim(), amount: String(amount), serviceType: promoServiceType, billingCycle: selectedCycle });
       if (selectedPlan?.groupId) params.set("groupId", selectedPlan.groupId);
       if (cartDomain?.fullName) {
         const tld = cartDomain.fullName.includes(".") ? cartDomain.fullName.slice(cartDomain.fullName.indexOf(".")) : "";
@@ -1005,12 +1022,14 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       if (!selectedPlan && !cartDomain && !(service === "vps" && selectedVpsPlan)) throw new Error("Nothing in cart");
 
       // Determine effective payment fields
-      // If wallet fully covers: paymentMethodId = "credits"; applyCredits not needed
-      // If wallet partially covers: applyCredits = true; paymentMethodId = secondary method
-      // If no wallet: paymentMethodId = secondary method
-      const effectivePaymentMethodId = _remainingAfterWallet === 0 && applyCredits ? "credits"
-        : paymentMethodId ?? null;
-      const effectiveApplyCredits = applyCredits && _remainingAfterWallet > 0 && creditBalance > 0;
+      // If promo makes total Rs. 0 → no payment needed (free checkout)
+      // If wallet fully covers → paymentMethodId = "credits"
+      // If wallet partially covers → applyCredits = true + secondary payment method
+      // If no wallet → secondary payment method only
+      const isFreeOrder = _step3Total === 0;
+      const effectivePaymentMethodId = isFreeOrder ? null
+        : (_remainingAfterWallet === 0 && applyCredits ? "credits" : paymentMethodId ?? null);
+      const effectiveApplyCredits = !isFreeOrder && applyCredits && _remainingAfterWallet > 0 && creditBalance > 0;
 
       const body: Record<string, unknown> = {
         paymentMethodId: effectivePaymentMethodId,
@@ -2747,92 +2766,109 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Payment Method</span>
             </div>
             <div className="p-4 space-y-3">
-              {/* ── Wallet Balance Toggle (always shown if creditBalance > 0) ── */}
-              {creditBalance > 0 && (
-                <button
-                  onClick={() => {
-                    const next = !applyCredits;
-                    setApplyCredits(next);
-                    // If disabling wallet and was "credits"-only, clear secondary selection
-                    if (!next) setPaymentMethodId(null);
-                  }}
-                  className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
-                  style={applyCredits
-                    ? { borderColor: P, background: `${P}07` }
-                    : { borderColor: "#E5E7EB", background: "#fff" }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: applyCredits ? `${P}15` : "#F3F4F6" }}>
-                    <Wallet size={18} style={{ color: applyCredits ? P : "#6B7280" }}/>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[13px] font-bold text-gray-900">Apply Wallet Balance</p>
-                      {_remainingAfterWallet === 0 && applyCredits && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: P }}>INSTANT</span>
-                      )}
-                    </div>
-                    <p className="text-[11px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
-                      {formatPrice(creditBalance)} available
-                      {applyCredits && _remainingAfterWallet > 0 && (
-                        <span className="text-amber-600"> · {formatPrice(_walletDeducted)} will be applied — {formatPrice(_remainingAfterWallet)} remaining</span>
-                      )}
-                      {applyCredits && _remainingAfterWallet === 0 && (
-                        <span className="text-green-600"> · Full payment covered!</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all`}
-                    style={applyCredits ? { background: P, borderColor: P } : { borderColor: "#D1D5DB" }}>
-                    {applyCredits && <Check size={10} strokeWidth={3} className="text-white"/>}
-                  </div>
-                </button>
-              )}
 
-              {/* ── Secondary payment method (required when remaining > 0 or no wallet) ── */}
-              {(_remainingAfterWallet > 0 || !applyCredits) && (
+              {/* ── Free order: promo covers 100% ── */}
+              {total === 0 ? (
+                <div className="flex items-center gap-3 p-4 rounded-2xl border-2 border-green-200 bg-green-50">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-green-100">
+                    <Gift size={18} className="text-green-600"/>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[13px] font-bold text-green-800">Free — No payment required</p>
+                    <p className="text-[11px] text-green-600 mt-0.5">Your promo code covers the full amount. Just click Place Order below.</p>
+                  </div>
+                  <CheckCircle2 size={18} className="text-green-500 shrink-0"/>
+                </div>
+              ) : (
                 <>
-                  {applyCredits && _remainingAfterWallet > 0 && (
-                    <p className="text-[12px] font-semibold text-amber-700 px-1">
-                      Choose a payment method for the remaining {formatPrice(_remainingAfterWallet)}:
-                    </p>
+                  {/* ── Wallet Balance Toggle (always shown if creditBalance > 0) ── */}
+                  {creditBalance > 0 && (
+                    <button
+                      onClick={() => {
+                        const next = !applyCredits;
+                        setApplyCredits(next);
+                        // If disabling wallet and was "credits"-only, clear secondary selection
+                        if (!next) setPaymentMethodId(null);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
+                      style={applyCredits
+                        ? { borderColor: P, background: `${P}07` }
+                        : { borderColor: "#E5E7EB", background: "#fff" }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: applyCredits ? `${P}15` : "#F3F4F6" }}>
+                        <Wallet size={18} style={{ color: applyCredits ? P : "#6B7280" }}/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-bold text-gray-900">Apply Wallet Balance</p>
+                          {_remainingAfterWallet === 0 && applyCredits && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: P }}>INSTANT</span>
+                          )}
+                        </div>
+                        <p className="text-[11px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
+                          {formatPrice(creditBalance)} available
+                          {applyCredits && _remainingAfterWallet > 0 && (
+                            <span className="text-amber-600"> · {formatPrice(_walletDeducted)} will be applied — {formatPrice(_remainingAfterWallet)} remaining</span>
+                          )}
+                          {applyCredits && _remainingAfterWallet === 0 && (
+                            <span className="text-green-600"> · Full payment covered!</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all`}
+                        style={applyCredits ? { background: P, borderColor: P } : { borderColor: "#D1D5DB" }}>
+                        {applyCredits && <Check size={10} strokeWidth={3} className="text-white"/>}
+                      </div>
+                    </button>
                   )}
-                  {paymentMethods.length === 0 && creditBalance === 0 ? (
-                    <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-700">
-                      <AlertCircle size={14}/> No payment methods configured. Please contact support.
-                    </div>
-                  ) : paymentMethods.length === 0 ? null : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {paymentMethods.map(pm => {
-                        const isSel = paymentMethodId === pm.id;
-                        return (
-                          <button key={pm.id} onClick={() => setPaymentMethodId(isSel ? null : pm.id)}
-                            className="flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
-                            style={isSel ? { borderColor: P, background: `${P}07` } : { borderColor: "#E5E7EB", background: "#fff" }}>
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                              style={{ background: isSel ? `${P}15` : "#F3F4F6" }}>
-                              <PayIcon type={pm.type}/>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-[13px] font-bold text-gray-900">{pm.name}</p>
-                                {pm.isSandbox && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Test</span>}
-                              </div>
-                              {pm.description && <p className="text-[11px] text-gray-400 truncate mt-0.5">{pm.description}</p>}
-                              {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings.mobileNumber && (
-                                <p className="text-[11px] text-gray-500 mt-0.5 font-medium">Send to: {pm.publicSettings.mobileNumber}</p>
-                              )}
-                              {pm.type === "bank_transfer" && pm.publicSettings.bankName && (
-                                <p className="text-[11px] text-gray-500 mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
-                              )}
-                            </div>
-                            <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSel ? "" : "border-gray-300"}`}
-                              style={isSel ? { background: P, borderColor: P } : {}}>
-                              {isSel && <Check size={10} strokeWidth={3} className="text-white"/>}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+
+                  {/* ── Secondary payment method (required when remaining > 0 or no wallet) ── */}
+                  {(_remainingAfterWallet > 0 || !applyCredits) && (
+                    <>
+                      {applyCredits && _remainingAfterWallet > 0 && (
+                        <p className="text-[12px] font-semibold text-amber-700 px-1">
+                          Choose a payment method for the remaining {formatPrice(_remainingAfterWallet)}:
+                        </p>
+                      )}
+                      {paymentMethods.length === 0 && creditBalance === 0 ? (
+                        <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-xl text-[13px] text-amber-700">
+                          <AlertCircle size={14}/> No payment methods configured. Please contact support.
+                        </div>
+                      ) : paymentMethods.length === 0 ? null : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {paymentMethods.map(pm => {
+                            const isSel = paymentMethodId === pm.id;
+                            return (
+                              <button key={pm.id} onClick={() => setPaymentMethodId(isSel ? null : pm.id)}
+                                className="flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all focus:outline-none"
+                                style={isSel ? { borderColor: P, background: `${P}07` } : { borderColor: "#E5E7EB", background: "#fff" }}>
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                  style={{ background: isSel ? `${P}15` : "#F3F4F6" }}>
+                                  <PayIcon type={pm.type}/>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[13px] font-bold text-gray-900">{pm.name}</p>
+                                    {pm.isSandbox && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Test</span>}
+                                  </div>
+                                  {pm.description && <p className="text-[11px] text-gray-400 truncate mt-0.5">{pm.description}</p>}
+                                  {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings.mobileNumber && (
+                                    <p className="text-[11px] text-gray-500 mt-0.5 font-medium">Send to: {pm.publicSettings.mobileNumber}</p>
+                                  )}
+                                  {pm.type === "bank_transfer" && pm.publicSettings.bankName && (
+                                    <p className="text-[11px] text-gray-500 mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
+                                  )}
+                                </div>
+                                <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSel ? "" : "border-gray-300"}`}
+                                  style={isSel ? { background: P, borderColor: P } : {}}>
+                                  {isSel && <Check size={10} strokeWidth={3} className="text-white"/>}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}

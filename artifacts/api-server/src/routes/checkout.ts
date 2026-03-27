@@ -643,6 +643,16 @@ async function handleCheckout(req: AuthRequest, res: any) {
       } catch (err) { console.warn("[CHECKOUT DOMAIN RECORD]", err); }
     }
 
+    // 5a. Promo covers 100%: auto-approve immediately (same as domain-only checkout)
+    if (finalAmount === 0) {
+      await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+        .where(eq(invoicesTable.id, invoice.id));
+      await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+        .where(eq(ordersTable.id, order.id));
+      await db.update(hostingServicesTable).set({ status: "active", updatedAt: new Date() })
+        .where(eq(hostingServicesTable.id, service.id));
+    }
+
     // 5b. Auto-pay with credits (full or partial wallet)
     let paidWithCredits = false;
     if ((paymentMethodId === "credits" || applyCredits) && finalAmount > 0) {
