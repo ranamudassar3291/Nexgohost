@@ -6,7 +6,7 @@ import {
   hostingBackupsTable, domainPricingTable,
   cartSessionsTable, promoCodesTable, cartItemsTable,
 } from "@workspace/db/schema";
-import { eq, lte, sql, and, gte, lt, desc, isNull } from "drizzle-orm";
+import { eq, lte, sql, and, gte, lt, desc, isNull, ne, notInArray } from "drizzle-orm";
 import { convertAndFormat } from "./currency-format.js";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 import { execAsync } from "./shell.js";
@@ -15,6 +15,7 @@ import {
   emailServiceSuspended, emailHostingRenewalReminder,
   emailDomainRenewalReminder, emailDomainExpiryWarning,
   emailServiceTerminated, emailTerminationWarning,
+  emailDomainStatusAlert,
   sendEmail,
 } from "./email.js";
 import { sendWhatsAppAlert } from "./whatsapp.js";
@@ -1041,6 +1042,166 @@ export async function runCartAbandonmentCron(): Promise<void> {
   }
 }
 
+// ─── Task N+1: Domain Lifecycle Automation (ICANN Standards) ─────────────────
+// Grace Period:     Day 0-30  after expiry — domain still renewable at normal price
+// Redemption Period: Day 31-60 after expiry — locked, restore fee applies
+// Pending Delete:   Day 61-65 after expiry — cannot be renewed, awaiting release
+export async function runDomainLifecycleCron(): Promise<void> {
+  try {
+    const now = new Date();
+
+    // Find all expired domains (by expiry_date) that are not already in terminal states
+    const expiredDomains = await db.select({
+      id: domainsTable.id,
+      clientId: domainsTable.clientId,
+      name: domainsTable.name,
+      tld: domainsTable.tld,
+      status: domainsTable.status,
+      expiryDate: domainsTable.expiryDate,
+    }).from(domainsTable)
+      .where(and(
+        lte(domainsTable.expiryDate, now),
+        notInArray(domainsTable.status as any, ["cancelled", "transferred", "pending_transfer", "pending_delete"] as any),
+      ));
+
+    if (expiredDomains.length === 0) {
+      await logCron("domain_lifecycle", "skipped", "No expired domains to process");
+      return;
+    }
+
+    let updated = 0;
+    let emailsSent = 0;
+
+    for (const domain of expiredDomains) {
+      if (!domain.expiryDate) continue;
+      const daysSinceExpiry = Math.floor((now.getTime() - new Date(domain.expiryDate).getTime()) / 86400000);
+
+      // Determine target lifecycle status
+      let targetStatus: "grace_period" | "redemption_period" | "pending_delete" | null = null;
+      if (daysSinceExpiry >= 0 && daysSinceExpiry <= 30) {
+        targetStatus = "grace_period";
+      } else if (daysSinceExpiry > 30 && daysSinceExpiry <= 60) {
+        targetStatus = "redemption_period";
+      } else if (daysSinceExpiry > 60 && daysSinceExpiry <= 65) {
+        targetStatus = "pending_delete";
+      } else {
+        // > 65 days: domain would be released — leave as-is (admin must manage)
+        continue;
+      }
+
+      // Only update if status is actually changing
+      if (domain.status === targetStatus) continue;
+
+      const previousStatus = domain.status;
+
+      // Update domain status in DB
+      await db.update(domainsTable)
+        .set({ status: targetStatus as any, updatedAt: new Date() })
+        .where(eq(domainsTable.id, domain.id));
+
+      updated++;
+
+      // Fetch user for email/notification
+      const [user] = await db.select().from(usersTable)
+        .where(eq(usersTable.id, domain.clientId)).limit(1);
+
+      if (!user) continue;
+
+      const domainFull = `${domain.name}${domain.tld}`;
+      const clientName = `${user.firstName} ${user.lastName}`.trim() || user.email;
+      const expiryStr = domain.expiryDate
+        ? new Date(domain.expiryDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+        : undefined;
+
+      // Notify on Redemption Period entry (major lifecycle change requiring action)
+      if (targetStatus === "redemption_period" && previousStatus !== "redemption_period") {
+        // ─── Create restore fee invoice ───────────────────────────────────────
+        // Look up TLD renewal price to estimate restore fee (3x standard renewal)
+        try {
+          const [tldPricing] = await db.select().from(domainPricingTable)
+            .where(eq(domainPricingTable.tld, domain.tld)).limit(1);
+          const renewalPrice = tldPricing ? parseFloat(tldPricing.renewalPrice) : 0;
+          const restoreMultiplier = 3; // ICANN redemption restore fee = ~3x renewal
+          const restoreFee = renewalPrice > 0 ? renewalPrice * restoreMultiplier : 50;
+
+          const invoiceNumber = await generateInvoiceNumber();
+          const dueDate = new Date(now);
+          dueDate.setDate(dueDate.getDate() + 5); // 5 days to pay restore fee
+
+          await db.insert(invoicesTable).values({
+            invoiceNumber,
+            clientId: domain.clientId,
+            invoiceType: "domain",
+            amount: String(restoreFee.toFixed(2)),
+            total: String(restoreFee.toFixed(2)),
+            dueDate,
+            items: [
+              {
+                name: `Domain Restoration Fee — ${domainFull}`,
+                description: `Redemption Period restore fee (ICANN-compliant). Domain ${domainFull} must be restored within 30 days or it will enter Pending Delete.`,
+                quantity: 1,
+                price: restoreFee,
+                total: restoreFee,
+              },
+            ],
+            status: "unpaid",
+          });
+        } catch (invErr: any) {
+          console.warn(`[LIFECYCLE CRON] Failed to create restore fee invoice for ${domainFull}: ${invErr.message}`);
+        }
+
+        // ─── Send domain status alert email ────────────────────────────────────
+        try {
+          await emailDomainStatusAlert(user.email, {
+            clientName,
+            domainName: domainFull,
+            lifecycleStatus: "redemption_period",
+            reason: "expiry",
+            expiryDate: expiryStr,
+          }, { clientId: user.id, referenceId: domain.id });
+          emailsSent++;
+        } catch { /* non-fatal */ }
+
+        // ─── In-app notification ────────────────────────────────────────────────
+        await notify(user.id, "domain", "Domain Entered Redemption Period",
+          `${domainFull} has entered the Redemption Period. A restore fee invoice has been created. Contact support immediately.`,
+          "/client/domains");
+
+      } else if (targetStatus === "pending_delete" && previousStatus !== "pending_delete") {
+        // Alert for pending delete
+        try {
+          await emailDomainStatusAlert(user.email, {
+            clientName,
+            domainName: domainFull,
+            lifecycleStatus: "pending_delete",
+            reason: "expiry",
+            expiryDate: expiryStr,
+          }, { clientId: user.id, referenceId: domain.id });
+          emailsSent++;
+        } catch { /* non-fatal */ }
+
+        await notify(user.id, "domain", "Domain Pending Deletion",
+          `${domainFull} has entered Pending Delete stage. Contact support immediately — this is the final stage before permanent deletion.`,
+          "/client/domains");
+
+      } else if (targetStatus === "grace_period" && previousStatus !== "grace_period"
+        && previousStatus !== "redemption_period" && previousStatus !== "pending_delete") {
+        // First entry into grace period — in-app only (less urgent)
+        await notify(user.id, "domain", "Domain in Grace Period",
+          `${domainFull} has expired and entered the Grace Period. Renew now at the standard price to restore it.`,
+          "/client/domains");
+      }
+    }
+
+    await logCron("domain_lifecycle", "success",
+      `Processed ${expiredDomains.length} expired domains — ${updated} status updates, ${emailsSent} alert emails sent`);
+
+  } catch (err: any) {
+    await logCron("domain_lifecycle", "failed", err.message);
+    console.error("[CRON] domain_lifecycle error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
@@ -1057,6 +1218,7 @@ export async function runAllCronTasks(): Promise<void> {
     runDailyBackupCron(),
     runGoogleDriveBackupCron(),
     runCartAbandonmentCron(),
+    runDomainLifecycleCron(),
   ]);
   console.log("[CRON] All tasks completed.");
 }

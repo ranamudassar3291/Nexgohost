@@ -1,0 +1,44 @@
+Master Prompt: Domain Lifecycle Automation & IONOS-Style Alerts
+"I need to implement a full Domain Lifecycle Management and Service Suspension System that strictly follows ICANN standards and professional registrar aesthetics. Execute these technical modules immediately:
+
+1. Automated Domain Lifecycle Logic (ICANN Rules):
+
+Status Auto-Switcher: Create a background cron job that checks the expiry_date in the database and updates statuses automatically:
+
+Day 1 to +30: Status = 'Grace Period' (Normal renewal price, domain still active).
+
+Day +31 to +60: Status = 'Redemption Period' (Domain locked, requires 'Restore Fee' in invoice).
+
+Day +61 to +65: Status = 'Pending Delete' (Cannot be renewed, waiting for release).
+
+Admin Manual Control: In the Admin Panel, add a dropdown to manually set a domain to 'Client Hold' or 'Redemption' regardless of the date.
+
+2. IONOS-Style Professional Alert Emails:
+
+Template: 'Noehost Domain Status Alert':
+
+Design a high-end HTML email (Purple/White branding).
+
+Content: Include the specific Reason for the status change (e.g., Expiry, Policy Violation), the Domain Name, and the Client’s Name.
+
+Transparency: Must include a link to the ICANN FAQ so the client knows this is a standard global procedure.
+
+Call to Action: A clear button to 'Pay Invoice' or 'Contact Support' to resolve the status.
+
+3. Feature Locking Logic:
+
+Restricted Access: If a domain is in 'Redemption' or 'Client Hold', automatically Disable the 'Manage DNS', 'Nameservers', and 'Transfer' buttons in the client portal.
+
+Visual Warning: Show a Red Alert box on the domain manage page explaining why the features are locked.
+
+4. Professional Hosting Suspension System:
+
+Suspension Workflow: When suspending hosting from Admin, allow me to select a reason: 'Overdue Payment', 'TOS Violation', or 'High Resource Usage'.
+
+Automated Notice: Send a professional HTML suspension email mentioning the exact reason and steps for unsuspension.
+
+5. Database & Safety Guard:
+
+Ensure all status changes and suspension logs are saved in the Production Database without corrupting existing client data.
+
+Verify that the Invoice Status updates automatically when a domain enters the Redemption phase."

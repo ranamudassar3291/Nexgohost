@@ -1,5 +1,49 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 43 — Domain Lifecycle Automation)
+
+### Feature: ICANN-Compliant Domain Lifecycle Automation
+**DB:**
+- `lib/db/src/schema/domains.ts` — `domainStatusEnum` extended with 4 new lifecycle values: `grace_period`, `redemption_period`, `pending_delete`, `client_hold`; migrated via `pnpm run push`
+
+**Backend Email:**
+- `artifacts/api-server/src/lib/email.ts` — Added `emailDomainStatusAlert()`: inline dark-theme IONOS-style HTML email with urgency banner (color shifts by status), domain status card (domain name, status, reason, expiry), redemption fee warning block, pending delete critical block, ICANN disclaimer and FAQ link, CTA buttons; no DB template dependency
+
+**Backend Cron:**
+- `artifacts/api-server/src/lib/cron.ts` — Added `runDomainLifecycleCron()`:
+  - Queries all expired domains (by `expiryDate <= now`) not in terminal states
+  - Calculates `daysSinceExpiry`; applies: grace_period (0-30d), redemption_period (31-60d), pending_delete (61-65d)
+  - On transition to `redemption_period`: creates restore fee invoice (`invoiceType: "domain"`, 3× renewal price from TLD pricing table), sends `emailDomainStatusAlert()`, adds in-app notification
+  - On transition to `pending_delete`: sends critical alert email, adds in-app notification
+  - On transition to `grace_period`: in-app notification only
+  - Registered in `runAllCronTasks()` via `Promise.allSettled`
+
+**Backend API:**
+- `artifacts/api-server/src/routes/domains.ts` — Added `PATCH /admin/domains/:id/lifecycle-override`:
+  - Accepts `status` body (one of: client_hold, redemption_period, grace_period, active, suspended)
+  - Updates domain status; auto-sends `emailDomainStatusAlert()` (fire-and-forget) for client_hold/redemption_period overrides
+
+**Admin Domains UI (`artifacts/nexgohost/src/pages/admin/Domains.tsx`):**
+- Extended `statusColors` with all 4 new lifecycle statuses (purple = grace_period, amber = redemption_period, red-700 = pending_delete, slate = client_hold)
+- Extended `STATUS_OPTIONS` filter tabs to include all 4 new lifecycle statuses
+- Added `LIFECYCLE_OVERRIDE_OPTIONS` constant
+- New `lifecycleOverrideId` and `lifecycleDropdown` state
+- New `handleLifecycleOverride()` async function calling `PATCH /api/admin/domains/:id/lifecycle-override`
+- New "Lifecycle" dropdown button per domain row (opens options: Active, Grace Period, Redemption Period, Client Hold, Pending Delete)
+
+**Client DomainManage UI (`artifacts/nexgohost/src/pages/client/DomainManage.tsx`):**
+- Extended `statusMap` with all 4 lifecycle statuses (correct labels and badge colors)
+- Added `isLifecycleLocked` computed boolean (true when status is redemption_period, pending_delete, or client_hold)
+- Added lifecycle warning banner (amber for redemption, red for pending_delete, slate for client_hold) with contextual descriptions
+- Manage DNS and Nameservers buttons: show as dimmed/disabled when `isLifecycleLocked`, show toast explaining restriction on click
+
+**Admin Hosting UI (`artifacts/nexgohost/src/pages/admin/Hosting.tsx`):**
+- Added `suspendModal` and `suspendReason` state
+- Added Suspension Reason Modal with 3 radio options: Overdue Payment, High Resource Usage, TOS Violation
+- Suspend button now opens modal (instead of immediately calling action)
+- On confirm: calls `action(id, "suspend", "suspended", { reason: suspendReason })` with reason in body
+- Updated `action()` function signature to accept optional `body` parameter
+
 ## Recent Changes (Session 42 — Persistent Cart & Email Tracking)
 
 ### Feature: Persistent Cart (DB-synced)

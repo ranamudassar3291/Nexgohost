@@ -830,6 +830,48 @@ router.put("/admin/domains/:id/lock-override", authenticate, requireAdmin, async
   } catch (err) { console.error("[ADMIN LOCK]", err); res.status(500).json({ error: "Server error" }); }
 });
 
+// Admin: manual lifecycle status override (Client Hold / Redemption)
+router.patch("/admin/domains/:id/lifecycle-override", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
+    if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+
+    const { status: targetStatus } = req.body as { status: "client_hold" | "redemption_period" | "grace_period" | "active" | null };
+    const allowed = ["client_hold", "redemption_period", "grace_period", "active", "suspended"];
+    if (!targetStatus || !allowed.includes(targetStatus)) {
+      return res.status(400).json({ error: `Status must be one of: ${allowed.join(", ")}` });
+    }
+
+    await db.update(domainsTable)
+      .set({ status: targetStatus as any, updatedAt: new Date() })
+      .where(eq(domainsTable.id, domain.id));
+
+    // Optionally send domain status alert email for client_hold or redemption_period
+    if (targetStatus === "client_hold" || targetStatus === "redemption_period") {
+      db.select().from(usersTable).where(eq(usersTable.id, domain.clientId)).limit(1)
+        .then(async ([user]) => {
+          if (!user) return;
+          const { emailDomainStatusAlert } = await import("../lib/email.js");
+          await emailDomainStatusAlert(user.email, {
+            clientName: `${user.firstName} ${user.lastName}`.trim() || user.email,
+            domainName: `${domain.name}${domain.tld}`,
+            lifecycleStatus: targetStatus,
+            reason: "policy_violation",
+            expiryDate: domain.expiryDate
+              ? new Date(domain.expiryDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+              : undefined,
+          }, { clientId: user.id, referenceId: domain.id });
+        }).catch(() => {});
+    }
+
+    console.log(`[ADMIN LIFECYCLE] ${domain.name}${domain.tld} → ${targetStatus} (by ${req.user!.email})`);
+    return res.json({ ok: true, status: targetStatus, domain: `${domain.name}${domain.tld}` });
+  } catch (err: any) {
+    console.error("[ADMIN LIFECYCLE OVERRIDE]", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Client: get EPP / auth code for own domain
 router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
   try {

@@ -45,6 +45,8 @@ export default function AdminHosting() {
   const [changePwValue, setChangePwValue] = useState("");
   const [showChangePw, setShowChangePw] = useState(false);
   const [changePwLoading, setChangePwLoading] = useState(false);
+  const [suspendModal, setSuspendModal] = useState<{ id: string; domain: string | null } | null>(null);
+  const [suspendReason, setSuspendReason] = useState("Overdue Payment");
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
@@ -125,9 +127,9 @@ export default function AdminHosting() {
     }
   };
 
-  const action = async (id: string, endpoint: string, label: string) => {
+  const action = async (id: string, endpoint: string, label: string, body?: Record<string, unknown>) => {
     try {
-      const result = await apiFetch(`/api/admin/hosting/${id}/${endpoint}`, { method: "POST" });
+      const result = await apiFetch(`/api/admin/hosting/${id}/${endpoint}`, { method: "POST", body: body ? JSON.stringify(body) : undefined });
       queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
       toast({ title: `Service ${label}` });
       if (result.credentials) {
@@ -143,6 +145,53 @@ export default function AdminHosting() {
 
   return (
     <div className="space-y-6">
+      {/* Suspend Reason Modal */}
+      {suspendModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="font-semibold flex items-center gap-2"><PauseCircle size={18} className="text-orange-400" /> Suspend Service</h2>
+              <button onClick={() => setSuspendModal(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Suspending <strong className="text-foreground">{suspendModal.domain || "this service"}</strong>.
+                Select a reason — this will be logged and included in the client notification.
+              </p>
+              <div className="space-y-2">
+                {["Overdue Payment", "High Resource Usage", "TOS Violation"].map(reason => (
+                  <label key={reason} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-secondary/50 cursor-pointer transition-colors has-[:checked]:border-orange-500/50 has-[:checked]:bg-orange-500/5">
+                    <input
+                      type="radio"
+                      name="suspendReason"
+                      value={reason}
+                      checked={suspendReason === reason}
+                      onChange={() => setSuspendReason(reason)}
+                      className="accent-orange-500"
+                    />
+                    <span className="text-sm font-medium text-foreground">{reason}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    action(suspendModal.id, "suspend", "suspended", { reason: suspendReason });
+                    setSuspendModal(null);
+                  }}
+                  className="flex-1 gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  <PauseCircle size={16} /> Suspend Service
+                </Button>
+                <Button variant="outline" onClick={() => setSuspendModal(null)}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Change Password Modal */}
       {changePwModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
@@ -377,7 +426,7 @@ export default function AdminHosting() {
                       <div className="flex items-center gap-1.5 justify-end">
                         {s.status === "active" && (
                           <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-orange-400 border-orange-500/30 hover:bg-orange-500/10"
-                            onClick={() => action(s.id, "suspend", "suspended")}>
+                            onClick={() => { setSuspendReason("Overdue Payment"); setSuspendModal({ id: s.id, domain: s.domain }); }}>
                             <PauseCircle size={13} /> Suspend
                           </Button>
                         )}

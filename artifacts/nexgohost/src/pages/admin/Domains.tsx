@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -47,9 +47,21 @@ const statusColors: Record<string, string> = {
   transferred: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   suspended: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   cancelled: "bg-red-800/10 text-red-600 border-red-800/20",
+  grace_period: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  redemption_period: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  pending_delete: "bg-red-700/10 text-red-500 border-red-700/20",
+  client_hold: "bg-slate-500/10 text-slate-400 border-slate-500/20",
 };
 
-const STATUS_OPTIONS = ["active", "pending", "expired", "suspended", "transferred", "cancelled"];
+const STATUS_OPTIONS = ["active", "pending", "expired", "suspended", "transferred", "cancelled", "grace_period", "redemption_period", "pending_delete", "client_hold"];
+
+const LIFECYCLE_OVERRIDE_OPTIONS = [
+  { value: "active", label: "Active", color: "text-green-400" },
+  { value: "grace_period", label: "Grace Period", color: "text-purple-400" },
+  { value: "redemption_period", label: "Redemption Period", color: "text-amber-400" },
+  { value: "client_hold", label: "Client Hold", color: "text-slate-400" },
+  { value: "pending_delete", label: "Pending Delete", color: "text-red-500" },
+];
 
 async function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token");
@@ -72,6 +84,8 @@ export default function AdminDomains() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [lockOverrideId, setLockOverrideId] = useState<string | null>(null);
   const [lockResults, setLockResults] = useState<Record<string, { lockStatus: string; eppCode?: string | null; lockOverrideByAdmin?: boolean }>>({});
+  const [lifecycleOverrideId, setLifecycleOverrideId] = useState<string | null>(null);
+  const [lifecycleDropdown, setLifecycleDropdown] = useState<string | null>(null);
 
   const { data: domains = [], isLoading } = useQuery<Domain[]>({
     queryKey: ["admin-domains"],
@@ -177,6 +191,21 @@ export default function AdminDomains() {
     } catch (err: any) {
       toast({ title: "Lock override failed", description: err.message, variant: "destructive" });
     } finally { setLockOverrideId(null); }
+  };
+
+  const handleLifecycleOverride = async (domainId: string, targetStatus: string) => {
+    setLifecycleOverrideId(domainId);
+    setLifecycleDropdown(null);
+    try {
+      await apiFetch(`/api/admin/domains/${domainId}/lifecycle-override`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: targetStatus }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      toast({ title: `Lifecycle override applied`, description: `Status set to ${targetStatus.replace(/_/g, " ")}` });
+    } catch (err: any) {
+      toast({ title: "Override failed", description: err.message, variant: "destructive" });
+    } finally { setLifecycleOverrideId(null); }
   };
 
   const openEdit = (d: Domain) => {
@@ -438,6 +467,40 @@ export default function AdminDomains() {
                       }
                       {(lockResults[domain.id]?.lockStatus ?? domain.lockStatus ?? "locked") === "unlocked" ? "Lock" : "Unlock"}
                     </Button>
+                    <div className="relative">
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-7 px-2.5 text-xs gap-1 text-violet-400 border-violet-500/30 hover:bg-violet-500/10"
+                        disabled={lifecycleOverrideId === domain.id}
+                        onClick={() => setLifecycleDropdown(prev => prev === domain.id ? null : domain.id)}
+                        title="Set lifecycle status override"
+                      >
+                        {lifecycleOverrideId === domain.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <AlertTriangle className="w-3 h-3" />
+                        }
+                        Lifecycle <ChevronDown className="w-3 h-3" />
+                      </Button>
+                      {lifecycleDropdown === domain.id && (
+                        <div className="absolute right-0 top-8 z-50 bg-card border border-border rounded-xl shadow-xl py-1 min-w-[160px]">
+                          {LIFECYCLE_OVERRIDE_OPTIONS.map(opt => (
+                            <button
+                              key={opt.value}
+                              className={`w-full text-left px-3 py-2 text-xs hover:bg-secondary transition-colors ${opt.color}`}
+                              onClick={() => handleLifecycleOverride(domain.id, opt.value)}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                          <button
+                            className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-secondary transition-colors"
+                            onClick={() => setLifecycleDropdown(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(domain.id, domain.name + domain.tld)}>
                       <Trash2 className="w-3 h-3" />
                     </Button>

@@ -621,6 +621,216 @@ export async function emailHostingRenewalReminder(
   }, meta);
 }
 
+export async function emailDomainStatusAlert(
+  to: string,
+  vars: {
+    clientName: string;
+    domainName: string;
+    lifecycleStatus: string;
+    reason: "expiry" | "policy_violation";
+    expiryDate?: string;
+    invoiceUrl?: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  const year = new Date().getFullYear();
+  const appUrl = getAppUrl();
+  const invoiceLink = vars.invoiceUrl || `${appUrl.replace("/api", "")}/client/invoices`;
+  const icannFaqUrl = "https://www.icann.org/resources/pages/understanding-deletion-2012-02-25-en";
+
+  const statusLabel = vars.lifecycleStatus === "redemption_period" ? "Redemption Period"
+    : vars.lifecycleStatus === "pending_delete" ? "Pending Deletion"
+    : vars.lifecycleStatus === "client_hold" ? "Client Hold"
+    : vars.lifecycleStatus === "grace_period" ? "Grace Period"
+    : vars.lifecycleStatus;
+
+  const reasonLabel = vars.reason === "policy_violation" ? "Policy Violation" : "Non-Renewal / Expiry";
+  const urgencyColor = vars.lifecycleStatus === "pending_delete" ? "#ef4444" : vars.lifecycleStatus === "redemption_period" ? "#f59e0b" : "#701AFE";
+
+  const isRedemption = vars.lifecycleStatus === "redemption_period";
+  const isPendingDelete = vars.lifecycleStatus === "pending_delete";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d0d1a;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0d1a;padding:40px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid #2a2a3a">
+
+  <!-- ─── ALERT BANNER ─── -->
+  <tr>
+    <td style="background:${urgencyColor};padding:10px 40px;text-align:center">
+      <p style="margin:0;font-size:12px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:2px">
+        ⚠ IMPORTANT DOMAIN NOTICE — ACTION REQUIRED
+      </p>
+    </td>
+  </tr>
+
+  <!-- ─── HEADER ─── -->
+  <tr>
+    <td style="background:linear-gradient(135deg,#1a0533 0%,#0d0d1a 100%);padding:36px 40px 28px;border-bottom:1px solid #2a2a3a">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td>
+            <p style="margin:0 0 4px;font-size:28px;font-weight:900;color:#ffffff;letter-spacing:-0.5px">Noehost</p>
+            <p style="margin:0;font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px">Domain Registrar</p>
+          </td>
+          <td style="text-align:right;vertical-align:middle">
+            <span style="display:inline-block;padding:6px 14px;border-radius:50px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;background:${urgencyColor}20;border:1px solid ${urgencyColor}60;color:${urgencyColor}">
+              ${statusLabel}
+            </span>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- ─── BODY ─── -->
+  <tr>
+    <td style="background:#111128;padding:32px 40px;color:#d1d5db;font-size:15px;line-height:1.8">
+
+      <p style="margin:0 0 20px">Dear <strong style="color:#ffffff">${vars.clientName}</strong>,</p>
+
+      <p style="margin:0 0 20px">
+        We are writing to inform you that your domain <strong style="color:#c084fc">${vars.domainName}</strong>
+        has entered the <strong style="color:${urgencyColor}">${statusLabel}</strong> stage under ICANN domain lifecycle policy.
+      </p>
+
+      <!-- ─── DOMAIN STATUS CARD ─── -->
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 28px;border-radius:12px;overflow:hidden">
+        <tr>
+          <td style="background:#1a1a2e;border:1px solid #2a2a3a;border-radius:12px;padding:20px">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding:6px 0;border-bottom:1px solid #2a2a3a">
+                  <span style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px">Domain</span>
+                </td>
+                <td style="padding:6px 0;text-align:right;border-bottom:1px solid #2a2a3a">
+                  <strong style="color:#c084fc;font-size:14px">${vars.domainName}</strong>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;border-bottom:1px solid #2a2a3a">
+                  <span style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px">Current Status</span>
+                </td>
+                <td style="padding:6px 0;text-align:right;border-bottom:1px solid #2a2a3a">
+                  <span style="color:${urgencyColor};font-size:14px;font-weight:700">${statusLabel}</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;border-bottom:1px solid #2a2a3a">
+                  <span style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px">Reason</span>
+                </td>
+                <td style="padding:6px 0;text-align:right;border-bottom:1px solid #2a2a3a">
+                  <span style="color:#d1d5db;font-size:14px">${reasonLabel}</span>
+                </td>
+              </tr>
+              ${vars.expiryDate ? `<tr>
+                <td style="padding:6px 0">
+                  <span style="font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px">Expiry Date</span>
+                </td>
+                <td style="padding:6px 0;text-align:right">
+                  <span style="color:#f87171;font-size:14px;font-weight:600">${vars.expiryDate}</span>
+                </td>
+              </tr>` : ""}
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      ${isRedemption ? `
+      <!-- ─── REDEMPTION WARNING ─── -->
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 24px;border-radius:10px;overflow:hidden">
+        <tr>
+          <td style="background:#422006;border:1px solid #92400e;border-radius:10px;padding:16px 20px">
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#fbbf24">⚠ Redemption Period — Higher Restore Fee Applies</p>
+            <p style="margin:0;font-size:13px;color:#fcd34d;line-height:1.6">
+              Your domain is now in the ICANN Redemption Period. During this phase, a <strong>Domain Restoration Fee</strong> applies in addition to the standard renewal price. Please contact support or pay the updated invoice immediately to restore your domain.
+            </p>
+          </td>
+        </tr>
+      </table>` : ""}
+
+      ${isPendingDelete ? `
+      <!-- ─── PENDING DELETE WARNING ─── -->
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 24px;border-radius:10px;overflow:hidden">
+        <tr>
+          <td style="background:#3b0202;border:1px solid #7f1d1d;border-radius:10px;padding:16px 20px">
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#f87171">🚨 Critical: Domain Pending Deletion</p>
+            <p style="margin:0;font-size:13px;color:#fca5a5;line-height:1.6">
+              Your domain is in the final phase before permanent deletion and release. Once deleted, the domain becomes publicly available for registration by anyone. <strong>Contact us immediately</strong> if you wish to attempt recovery.
+            </p>
+          </td>
+        </tr>
+      </table>` : ""}
+
+      <p style="margin:0 0 24px;font-size:14px;color:#9ca3af">
+        For transparency, this lifecycle management follows the
+        <a href="${icannFaqUrl}" style="color:#701AFE;text-decoration:underline">ICANN Domain Deletion Policy</a>.
+        We recommend reviewing this policy to understand your options.
+      </p>
+
+      <!-- ─── CTA BUTTON ─── -->
+      ${!isPendingDelete ? `
+      <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;width:100%">
+        <tr>
+          <td style="text-align:center">
+            <a href="${invoiceLink}"
+               style="display:inline-block;background:linear-gradient(135deg,#701AFE 0%,#9B51E0 60%,#C084FC 100%);color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700;letter-spacing:0.3px">
+              🔒 Secure Your Domain Now
+            </a>
+          </td>
+        </tr>
+      </table>` : `
+      <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;width:100%">
+        <tr>
+          <td style="text-align:center">
+            <a href="mailto:support@noehost.com"
+               style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:50px;font-size:16px;font-weight:700">
+              🚨 Contact Support Immediately
+            </a>
+          </td>
+        </tr>
+      </table>`}
+
+      <hr style="border:none;border-top:1px solid #2a2a3a;margin:24px 0">
+      <p style="margin:0;font-size:12px;color:#6b7280;text-align:center">
+        Questions? Contact our support team at <a href="https://wa.me/923151711821" style="color:#701AFE">WhatsApp Support</a> for immediate assistance.
+      </p>
+    </td>
+  </tr>
+
+  <!-- ─── ICANN DISCLAIMER ─── -->
+  <tr>
+    <td style="background:#0d0d1a;border-top:1px solid #2a2a3a;padding:20px 40px;text-align:center">
+      <p style="margin:0 0 8px;font-size:12px;color:#4b5563">
+        This notice is issued in accordance with
+        <a href="${icannFaqUrl}" style="color:#701AFE">ICANN Domain Lifecycle Standards</a>.
+      </p>
+      <p style="margin:0;font-size:11px;color:#374151">
+        © ${year} Noehost (Registered Reseller). All rights reserved.
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+
+</body></html>`;
+
+  return sendEmail({
+    to,
+    subject: `⚠ Important: Your domain ${vars.domainName} has entered ${statusLabel}`,
+    html,
+    emailType: "domain-status-alert",
+    clientId: meta?.clientId,
+    referenceId: meta?.referenceId,
+  });
+}
+
 export async function emailDomainRenewalReminder(
   to: string,
   vars: {

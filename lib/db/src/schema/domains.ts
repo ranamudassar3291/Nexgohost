@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, numeric, boolean, integer, pgEnum } from "dri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const domainStatusEnum = pgEnum("domain_status", ["active", "expired", "pending", "transferred", "suspended", "cancelled", "pending_transfer"]);
+export const domainStatusEnum = pgEnum("domain_status", ["active", "expired", "pending", "transferred", "suspended", "cancelled", "pending_transfer", "grace_period", "redemption_period", "pending_delete", "client_hold"]);
 
 export const domainsTable = pgTable("domains", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

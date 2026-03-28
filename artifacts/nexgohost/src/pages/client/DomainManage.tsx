@@ -202,8 +202,15 @@ export default function DomainManage() {
     suspended: { label: "Suspended", cls: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
     transferred: { label: "Transferred", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
     cancelled: { label: "Cancelled", cls: "bg-secondary text-muted-foreground border-border" },
+    grace_period: { label: "Grace Period", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+    redemption_period: { label: "Redemption Period", cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+    pending_delete: { label: "Pending Delete", cls: "bg-red-700/10 text-red-500 border-red-700/20" },
+    client_hold: { label: "Client Hold", cls: "bg-slate-500/10 text-slate-400 border-slate-500/20" },
   };
   const statusInfo = statusMap[domain.status] ?? { label: domain.status, cls: "bg-secondary text-muted-foreground border-border" };
+
+  // Lifecycle lock: disable DNS/NS management for critical lifecycle states
+  const isLifecycleLocked = ["redemption_period", "pending_delete", "client_hold"].includes(domain.status);
 
   async function handleToggleLock() {
     if (isLocked && domain.isIn60DayLock && !domain.lockOverrideByAdmin) {
@@ -497,36 +504,77 @@ export default function DomainManage() {
         </div>
       )}
 
+      {/* ── Lifecycle Warning Banner ── */}
+      {isLifecycleLocked && (
+        <div className={`rounded-xl border px-4 py-4 flex items-start gap-3 ${
+          domain.status === "pending_delete"
+            ? "bg-red-500/5 border-red-500/30"
+            : domain.status === "redemption_period"
+            ? "bg-amber-500/5 border-amber-500/30"
+            : "bg-slate-500/5 border-slate-500/30"
+        }`}>
+          <AlertTriangle size={18} className={`shrink-0 mt-0.5 ${
+            domain.status === "pending_delete" ? "text-red-500"
+            : domain.status === "redemption_period" ? "text-amber-400"
+            : "text-slate-400"
+          }`} />
+          <div>
+            <p className={`text-sm font-bold ${
+              domain.status === "pending_delete" ? "text-red-400"
+              : domain.status === "redemption_period" ? "text-amber-400"
+              : "text-slate-400"
+            }`}>
+              {domain.status === "pending_delete" && "🚨 Critical: Domain Pending Deletion"}
+              {domain.status === "redemption_period" && "⚠ Domain in Redemption Period"}
+              {domain.status === "client_hold" && "Domain on Client Hold"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              {domain.status === "pending_delete" && "Your domain is in the final deletion stage. DNS and nameserver management are disabled. Contact support immediately."}
+              {domain.status === "redemption_period" && "Your domain is in the ICANN Redemption Period. A restore fee applies to recover it. DNS and nameserver management are disabled until the domain is restored."}
+              {domain.status === "client_hold" && "This domain has been placed on hold by an administrator. DNS and nameserver management are disabled. Contact support for assistance."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Modular Control Grid ── */}
       <div>
         <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Domain Controls</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
 
           {/* Manage DNS */}
-          <button onClick={() => setSection(s => s === "dns" ? null : "dns")}
+          <button
+            onClick={() => {
+              if (isLifecycleLocked) { toast({ title: "DNS Management Disabled", description: "DNS management is unavailable during lifecycle restriction. Contact support.", variant: "destructive" }); return; }
+              setSection(s => s === "dns" ? null : "dns");
+            }}
             className={`flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left group
-              ${section === "dns" ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
+              ${isLifecycleLocked ? "opacity-50 cursor-not-allowed border-border bg-card" : section === "dns" ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors
-              ${section === "dns" ? "bg-primary/20" : "bg-secondary group-hover:bg-primary/10"}`}>
-              <Network size={18} className={section === "dns" ? "text-primary" : "text-muted-foreground group-hover:text-primary"} />
+              ${section === "dns" && !isLifecycleLocked ? "bg-primary/20" : "bg-secondary"}`}>
+              <Network size={18} className={section === "dns" && !isLifecycleLocked ? "text-primary" : "text-muted-foreground"} />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground">Manage DNS</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">A, CNAME, MX, TXT records</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{isLifecycleLocked ? "Unavailable" : "A, CNAME, MX, TXT records"}</p>
             </div>
           </button>
 
           {/* Nameservers */}
-          <button onClick={() => setSection(s => s === "nameservers" ? null : "nameservers")}
+          <button
+            onClick={() => {
+              if (isLifecycleLocked) { toast({ title: "Nameserver Management Disabled", description: "Nameserver management is unavailable during lifecycle restriction. Contact support.", variant: "destructive" }); return; }
+              setSection(s => s === "nameservers" ? null : "nameservers");
+            }}
             className={`flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left group
-              ${section === "nameservers" ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
+              ${isLifecycleLocked ? "opacity-50 cursor-not-allowed border-border bg-card" : section === "nameservers" ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors
-              ${section === "nameservers" ? "bg-primary/20" : "bg-secondary group-hover:bg-primary/10"}`}>
-              <Server size={18} className={section === "nameservers" ? "text-primary" : "text-muted-foreground group-hover:text-primary"} />
+              ${section === "nameservers" && !isLifecycleLocked ? "bg-primary/20" : "bg-secondary"}`}>
+              <Server size={18} className={section === "nameservers" && !isLifecycleLocked ? "text-primary" : "text-muted-foreground"} />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground">Nameservers</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 font-mono truncate w-full">ns1.noehost.com</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 font-mono truncate w-full">{isLifecycleLocked ? "Unavailable" : "ns1.noehost.com"}</p>
             </div>
           </button>
 
