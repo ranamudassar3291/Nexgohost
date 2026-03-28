@@ -5,7 +5,7 @@
  */
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { domainExtensionsTable } from "@workspace/db/schema";
+import { domainExtensionsTable, settingsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
@@ -47,50 +47,69 @@ interface SearchResult {
 
 async function checkRdap(domain: string): Promise<{ available: boolean; via: string } | null> {
   const tld = domain.slice(domain.indexOf(".") + 1).toLowerCase();
-  const base = RDAP_OVERRIDES[tld] ?? `${RDAP_GATEWAY}`;
-  const url   = RDAP_OVERRIDES[tld]
-    ? `${base}domain/${domain}`
+  const url = RDAP_OVERRIDES[tld]
+    ? `${RDAP_OVERRIDES[tld]}domain/${domain}`
     : `${RDAP_GATEWAY}${domain}`;
 
   try {
     const res = await fetch(url, {
       headers: { Accept: "application/rdap+json, application/json" },
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(7000),
     });
 
-    if (res.status === 404) return { available: true,  via: "rdap" };
+    if (res.status === 404) return { available: true, via: "rdap" };
     if (res.status === 200) {
       const data = await res.json();
-      // "status" array: if it includes "inactive" or is empty, domain might be available
-      // If it returns a full registration record, the domain is taken
+      // If a full registration record comes back, domain is taken
+      if (data.ldhName || data.handle || data.events?.length > 0) return { available: false, via: "rdap" };
       const statuses: string[] = data.status ?? [];
-      const isActive = statuses.some((s: string) =>
-        ["active", "client transfer prohibited", "server transfer prohibited", "registered"].includes(s.toLowerCase())
+      const isRegistered = statuses.some((s: string) =>
+        ["active", "registered", "client transfer prohibited", "server transfer prohibited"].includes(s.toLowerCase())
       );
-      // If we got a valid record back, the domain is registered (taken)
-      if (data.ldhName || data.events?.length > 0) return { available: false, via: "rdap" };
-      return { available: !isActive, via: "rdap" };
+      return { available: !isRegistered, via: "rdap" };
     }
+    if (res.status === 400 || res.status === 422) return null; // bad request
     return null;
   } catch {
     return null;
   }
 }
 
-async function checkDns(domain: string): Promise<{ available: boolean; via: string } | null> {
-  // Use Cloudflare DNS-over-HTTPS to check if the domain resolves
+async function checkCloudflare(domain: string): Promise<{ available: boolean; via: string } | null> {
   try {
-    const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`;
-    const res = await fetch(url, {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, {
       headers: { Accept: "application/dns-json" },
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return null;
     const data = await res.json();
-    // Status 3 = NXDOMAIN (domain doesn't exist = likely available)
-    // Status 0 with answers = domain resolves (taken)
-    if (data.Status === 3) return { available: true,  via: "dns" };
-    if (data.Status === 0 && data.Answer?.length > 0) return { available: false, via: "dns" };
+    // NXDOMAIN (3) = likely available; resolved A records (0 + answers) = taken
+    if (data.Status === 3) return { available: true, via: "cloudflare-dns" };
+    if (data.Status === 0 && data.Answer?.length > 0) return { available: false, via: "cloudflare-dns" };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function checkGoogleDns(domain: string): Promise<{ available: boolean; via: string } | null> {
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.Status === 3) return { available: true, via: "google-dns" };
+    if (data.Status === 0 && data.Answer?.length > 0) return { available: false, via: "google-dns" };
+    // Also check SOA record as secondary signal
+    const soaRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=SOA`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (soaRes.ok) {
+      const soaData = await soaRes.json();
+      if (soaData.Status === 3) return { available: true, via: "google-dns-soa" };
+      if (soaData.Status === 0 && soaData.Answer?.length > 0) return { available: false, via: "google-dns-soa" };
+    }
     return null;
   } catch {
     return null;
@@ -135,9 +154,10 @@ router.post("/domain-search", authenticate, async (req: AuthRequest, res) => {
         const fullDomain = `${baseName}.${ext}`;
         const priceRow = priceMap.get(ext);
 
-        // Try RDAP first, then DNS fallback
+        // Try RDAP first, then Cloudflare DNS, then Google DNS
         let check = await checkRdap(fullDomain);
-        if (!check) check = await checkDns(fullDomain);
+        if (!check) check = await checkCloudflare(fullDomain);
+        if (!check) check = await checkGoogleDns(fullDomain);
 
         const available = check?.available ?? null;
         const fullRow = priceMap.get(ext) as any;
@@ -194,23 +214,22 @@ router.get("/domain-search/tlds", authenticate, async (_req, res) => {
 // GET /api/domain-search/promo — public promo banner config
 router.get("/domain-search/promo", async (_req, res) => {
   try {
-    const { settingsTable } = await import("@workspace/db/schema");
-    const { eq } = await import("drizzle-orm");
-    const keys = ["domain_promo_enabled", "domain_promo_tld", "domain_promo_price",
-                  "domain_promo_original_price", "domain_promo_text", "domain_promo_years"];
+    const PROMO_KEYS = ["domain_promo_enabled", "domain_promo_tld", "domain_promo_price",
+                        "domain_promo_original_price", "domain_promo_text", "domain_promo_years"];
     const rows = await db.select().from(settingsTable);
     const map: Record<string, string> = {};
-    for (const r of rows) { if (keys.includes(r.key)) map[r.key] = r.value ?? ""; }
+    for (const r of rows) { if (PROMO_KEYS.includes(r.key)) map[r.key] = r.value ?? ""; }
 
     res.json({
-      enabled: map.domain_promo_enabled !== "false",
-      tld: map.domain_promo_tld || ".com",
-      price: parseFloat(map.domain_promo_price || "99"),
-      originalPrice: parseFloat(map.domain_promo_original_price || "3000"),
-      text: map.domain_promo_text || "Special deal — Get a .com domain for Rs. 99/1st year when you buy for 3 years",
-      years: parseInt(map.domain_promo_years || "3"),
+      enabled: map["domain_promo_enabled"] !== "false",
+      tld: map["domain_promo_tld"] || ".com",
+      price: parseFloat(map["domain_promo_price"] || "99"),
+      originalPrice: parseFloat(map["domain_promo_original_price"] || "3000"),
+      text: map["domain_promo_text"] || "Special deal — Get a .com domain for Rs. 99/1st year when you buy for 3 years",
+      years: parseInt(map["domain_promo_years"] || "3"),
     });
   } catch (err) {
+    console.error("[PROMO-FETCH]", err);
     res.status(500).json({ error: "Failed to fetch promo" });
   }
 });
@@ -218,7 +237,6 @@ router.get("/domain-search/promo", async (_req, res) => {
 // PUT /api/admin/domain-search/promo — update promo banner config (admin only)
 router.put("/admin/domain-search/promo", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { settingsTable } = await import("@workspace/db/schema");
     const { enabled, tld, price, originalPrice, text, years } = req.body;
     const updates: Array<{ key: string; value: string }> = [
       { key: "domain_promo_enabled",        value: String(enabled ?? true) },

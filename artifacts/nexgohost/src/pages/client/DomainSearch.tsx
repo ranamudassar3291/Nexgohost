@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import {
   Search, Check, X, Loader2, Globe, ShoppingCart, AlertCircle,
   ExternalLink, Tag, Sparkles, ChevronRight, Trash2, Server, X as XIcon,
+  HelpCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,13 +10,23 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { useToast } from "@/hooks/use-toast";
 
-const apiFetch = (url: string, opts?: RequestInit) =>
-  fetch(url, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...((opts as any)?.headers) },
+function apiFetch(url: string, opts?: RequestInit) {
+  const token = localStorage.getItem("token") || "";
+  return fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...((opts as any)?.headers),
+    },
     ...opts,
-  }).then(r => r.json());
+  }).then(async r => {
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error || data?.message || `HTTP ${r.status}`);
+    return data;
+  });
+}
 
 interface TldInfo {
   extension: string;
@@ -75,6 +86,7 @@ export default function DomainSearch() {
   const [promoDismissed, setPromoDismissed] = useState(false);
   const [, setLocation] = useLocation();
   const { formatPrice } = useCurrency();
+  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: rawTlds } = useQuery({
@@ -134,8 +146,9 @@ export default function DomainSearch() {
   function addToCart(r: SearchResult) {
     const { price, original } = getPriceForPeriod(r);
     if (!price) return;
+    let alreadyIn = false;
     setCart(prev => {
-      if (prev.find(c => c.domain === r.domain)) return prev;
+      if (prev.find(c => c.domain === r.domain)) { alreadyIn = true; return prev; }
       return [...prev, {
         domain: r.domain,
         period,
@@ -144,6 +157,12 @@ export default function DomainSearch() {
         isFreeWithHosting: r.isFreeWithHosting ?? false,
       }];
     });
+    if (!alreadyIn) {
+      toast({
+        title: "Added to cart!",
+        description: `${r.domain} (${period} yr${period > 1 ? "s" : ""}) — ${formatPrice(price * period)}`,
+      });
+    }
     setCartOpen(true);
   }
 
@@ -167,21 +186,37 @@ export default function DomainSearch() {
 
       {/* Promo Banner */}
       {showPromo && promo && (
-        <div
-          className="relative rounded-2xl overflow-hidden text-white px-6 py-4"
-          style={{ background: BRAND }}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Sparkles size={18} className="shrink-0 opacity-90" />
-              <p className="text-sm font-medium leading-snug">{promo.text}</p>
+        <div className="relative rounded-2xl overflow-hidden text-white" style={{ background: BRAND }}>
+          <div className="absolute inset-0 opacity-10"
+            style={{ backgroundImage: "radial-gradient(circle at 80% 50%, #fff 0%, transparent 60%)" }} />
+          <div className="relative px-5 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                <Tag size={18} className="text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-bold leading-tight">{promo.text}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-white/60 text-xs line-through">{formatPrice(promo.originalPrice)}/yr</span>
+                  <span className="text-yellow-300 text-sm font-black">{formatPrice(promo.price)}</span>
+                  <span className="text-white/80 text-xs">for 1st year</span>
+                  <span className="bg-yellow-400/20 border border-yellow-400/30 text-yellow-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {promo.years}yr DEAL
+                  </span>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => setPromoDismissed(true)}
-              className="opacity-70 hover:opacity-100 shrink-0 transition-opacity"
-            >
-              <XIcon size={16} />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => { setPeriod(promo.years as Period); inputRef.current?.focus(); }}
+                className="hidden sm:block px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold transition-colors"
+              >
+                Select {promo.years}yr →
+              </button>
+              <button onClick={() => setPromoDismissed(true)} className="opacity-60 hover:opacity-100 transition-opacity">
+                <XIcon size={16} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -353,7 +388,11 @@ export default function DomainSearch() {
                       <p className="text-xs text-muted-foreground mt-0.5">This domain is already registered</p>
                     )}
                     {r.status === "unknown" && (
-                      <p className="text-xs text-muted-foreground mt-0.5">Availability unconfirmed</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Couldn't verify — <a href={`https://lookup.icann.org/en/lookup?name=${encodeURIComponent(r.domain)}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="text-primary underline hover:no-underline">check manually</a>
+                      </p>
                     )}
                   </div>
                 </div>
@@ -393,7 +432,15 @@ export default function DomainSearch() {
                       </a>
                     </>
                   ) : (
-                    <Badge variant="outline" className="text-xs text-muted-foreground">Checking…</Badge>
+                    <a
+                      href={`https://lookup.icann.org/en/lookup?name=${encodeURIComponent(r.domain)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8 text-muted-foreground">
+                        <HelpCircle size={12} /> Check Manually
+                      </Button>
+                    </a>
                   )}
                 </div>
               </div>
