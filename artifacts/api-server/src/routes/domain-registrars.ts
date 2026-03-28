@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { domainRegistrarsTable, domainsTable, ordersTable, invoicesTable, usersTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import OpenAI from "openai";
 import multer from "multer";
 import AdmZip from "adm-zip";
 import fs from "fs";
@@ -449,6 +450,318 @@ router.post("/admin/domain-registrars/upload-module",
       });
     } catch (err: any) {
       console.error("[REGISTRAR-UPLOAD]", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── AI Module Generator ───────────────────────────────────────────────────────
+// POST /admin/domain-registrars/ai-generate  (SSE streaming)
+// POST /admin/domain-registrars/ai-dry-run   (dry-run validation)
+
+function getOpenAI(): OpenAI {
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!baseURL || !apiKey) throw new Error("OpenAI AI integration not configured");
+  return new OpenAI({ baseURL, apiKey });
+}
+
+const PHP_MODULE_SYSTEM_PROMPT = `You are a PHP developer building WHMCS-compatible domain registrar modules.
+Generate a complete, production-quality registrar module based on the API documentation provided.
+The module must be self-contained and work without any external framework.
+
+REQUIRED OUTPUT FORMAT — return ONLY valid JSON (no markdown, no code fences):
+{
+  "registrarPhp": "<full PHP file content>",
+  "hooksPhp": "<full PHP hooks.php content or empty string>",
+  "configFields": [
+    { "key": "apiKey", "label": "API Key", "type": "password", "required": true, "description": "..." },
+    ...
+  ],
+  "detectedEndpoints": {
+    "register": "POST /domains/register",
+    "transfer": "POST /domains/transfer",
+    "renew": "POST /domains/renew",
+    "getEpp": "GET /domains/{domain}/epp",
+    "nameservers": "GET /domains/{domain}/nameservers"
+  },
+  "apiFormat": "JSON",
+  "description": "..."
+}
+
+REGISTRAR PHP REQUIREMENTS:
+1. File must start with: <?php
+2. Module prefix must match the {MODULE_NAME} placeholder
+3. Required functions (replace {MODULE_NAME} with the actual slug):
+   - {MODULE_NAME}_getConfigArray(): returns array of configurable fields
+   - {MODULE_NAME}_RegisterDomain($params): registers a domain
+   - {MODULE_NAME}_TransferDomain($params): initiates transfer
+   - {MODULE_NAME}_RenewDomain($params): renews domain
+   - {MODULE_NAME}_GetNameservers($params): returns ns1-ns4
+   - {MODULE_NAME}_SaveNameservers($params): updates nameservers
+   - {MODULE_NAME}_GetEPPCode($params): returns EPP/auth code
+   - {MODULE_NAME}_GetRegistrarLock($params): returns "locked"/"unlocked"
+   - {MODULE_NAME}_SaveRegistrarLock($params): sets lock status
+4. Each function must use the config fields via $params['ResellerUsername'], $params['Password'] etc.
+5. API calls must use PHP's curl, not file_get_contents
+6. Handle JSON/XML/SOAP responses correctly based on what the API uses
+7. Return array('error' => 'message') on failure, proper data array on success
+8. Include a helper _api_call() function for DRY requests
+9. Add PHPDoc comments to each function
+
+HOOKS PHP: Only generate if the API has webhooks, callbacks, or event triggers. Otherwise return empty string.
+
+CONFIG FIELDS: Map all required API credentials (key, secret, endpoint, username, etc.) plus a testMode checkbox.`;
+
+async function generateModuleWithAI(
+  docContent: string,
+  registrarName: string,
+  moduleSlug: string,
+): Promise<{
+  registrarPhp: string;
+  hooksPhp: string;
+  configFields: ZipConfigField[];
+  detectedEndpoints: Record<string, string>;
+  apiFormat: string;
+  description: string;
+}> {
+  const openai = getOpenAI();
+
+  const prompt = PHP_MODULE_SYSTEM_PROMPT.replace(/{MODULE_NAME}/g, moduleSlug);
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-5.2",
+    max_completion_tokens: 8192,
+    messages: [
+      { role: "system", content: prompt },
+      {
+        role: "user",
+        content: `Generate a registrar module for: ${registrarName}\n\nAPI Documentation:\n${docContent}`,
+      },
+    ],
+  });
+
+  const raw = response.choices[0]?.message?.content ?? "{}";
+  // Strip markdown code fences if the model wrapped output
+  const clean = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  try {
+    const parsed = JSON.parse(clean);
+    return {
+      registrarPhp: parsed.registrarPhp ?? "",
+      hooksPhp: parsed.hooksPhp ?? "",
+      configFields: Array.isArray(parsed.configFields) ? parsed.configFields : [],
+      detectedEndpoints: parsed.detectedEndpoints ?? {},
+      apiFormat: parsed.apiFormat ?? "JSON",
+      description: parsed.description ?? `${registrarName} registrar module`,
+    };
+  } catch {
+    // Fallback: try to extract just the PHP block if JSON parsing failed
+    const phpMatch = raw.match(/<\?php[\s\S]+/);
+    return {
+      registrarPhp: phpMatch?.[0] ?? `<?php\n// AI generation failed — check documentation format\n`,
+      hooksPhp: "",
+      configFields: [
+        { key: "apiKey",    label: "API Key",    type: "password", required: true  },
+        { key: "apiSecret", label: "API Secret", type: "password", required: false },
+        { key: "apiUrl",    label: "API URL",    type: "text",     required: false },
+        { key: "testMode",  label: "Test Mode",  type: "checkbox", required: false },
+      ],
+      detectedEndpoints: {},
+      apiFormat: "JSON",
+      description: `${registrarName} registrar module (partially generated)`,
+    };
+  }
+}
+
+function phpDryRun(phpSrc: string, moduleSlug: string): {
+  passed: boolean; warnings: string[]; info: string[];
+} {
+  const warnings: string[] = [];
+  const info: string[] = [];
+
+  // Check required functions exist
+  const required = [
+    "_getConfigArray", "_RegisterDomain", "_TransferDomain", "_RenewDomain",
+    "_GetNameservers", "_SaveNameservers", "_GetEPPCode",
+  ];
+  for (const fn of required) {
+    const fullFn = `${moduleSlug}${fn}`;
+    if (!phpSrc.includes(fullFn)) {
+      warnings.push(`Missing required function: ${fullFn}()`);
+    } else {
+      info.push(`✓ ${fullFn}() defined`);
+    }
+  }
+
+  // Check for dangerous patterns
+  const dangerous = [/\beval\s*\(/i, /\bshell_exec\s*\(/i, /\bexec\s*\(\s*\$/i, /\bsystem\s*\(\s*\$/i];
+  for (const re of dangerous) {
+    if (re.test(phpSrc)) warnings.push(`⚠ Dangerous pattern found: ${re.source.substring(0, 40)}`);
+  }
+
+  // Check curl usage
+  if (phpSrc.includes("curl_init")) info.push("✓ Uses curl for HTTP (good)");
+  if (phpSrc.includes("file_get_contents")) info.push("ℹ Uses file_get_contents (may be blocked on some hosts)");
+
+  // Check config array
+  if (phpSrc.includes("_getConfigArray")) {
+    info.push("✓ Config array function present");
+  }
+
+  // Check PHP opening tag
+  if (!phpSrc.trim().startsWith("<?php")) warnings.push("Missing <?php opening tag");
+  else info.push("✓ Valid PHP opening tag");
+
+  return { passed: warnings.length === 0, warnings, info };
+}
+
+// AI generate route (SSE streaming)
+router.post("/admin/domain-registrars/ai-generate",
+  authenticate, requireAdmin,
+  async (req: Request, res: Response) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    const send = (type: string, data: Record<string, any> = {}) => {
+      res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`);
+    };
+
+    try {
+      const { input, inputType, registrarName } = req.body as {
+        input: string; inputType: "url" | "text"; registrarName: string;
+      };
+
+      if (!input?.trim() || !registrarName?.trim()) {
+        send("error", { message: "Registrar name and documentation input are required" });
+        res.end(); return;
+      }
+
+      const moduleSlug = slugifyName(registrarName);
+      const targetDir  = path.join(REGISTRAR_MODULES_DIR, moduleSlug);
+
+      // 1. Fetch documentation if URL
+      let docContent = input.trim();
+      if (inputType === "url") {
+        send("status", { step: "fetch", message: `Fetching API documentation from ${input.substring(0, 60)}…` });
+        try {
+          const r = await fetch(input, {
+            headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html,text/plain,application/json" },
+            signal: AbortSignal.timeout(15_000),
+          });
+          let raw = await r.text();
+          // Strip heavy HTML tags
+          raw = raw.replace(/<script[\s\S]*?<\/script>/gi, "")
+                   .replace(/<style[\s\S]*?<\/style>/gi, "")
+                   .replace(/<[^>]+>/g, " ")
+                   .replace(/\s{2,}/g, " ")
+                   .trim();
+          docContent = raw.length > 28_000 ? raw.substring(0, 28_000) + "\n…[truncated]" : raw;
+        } catch (err: any) {
+          send("error", { message: `Failed to fetch URL: ${err.message}` });
+          res.end(); return;
+        }
+      }
+
+      if (docContent.length < 30) {
+        send("error", { message: "Documentation is too short. Provide more detailed API docs." });
+        res.end(); return;
+      }
+
+      // 2. Generate with AI
+      send("status", { step: "generate", message: "AI is analyzing documentation and generating module code…" });
+      const generated = await generateModuleWithAI(docContent, registrarName, moduleSlug);
+      send("status", { step: "generated", message: "Code generation complete — packaging files…" });
+
+      // 3. Bundle & install
+      send("status", { step: "install", message: "Bundling and extracting to modules/registrars/…" });
+
+      if (fs.existsSync(targetDir)) {
+        const backupDir = `${targetDir}_backup_${Date.now()}`;
+        fs.renameSync(targetDir, backupDir);
+        send("status", { step: "backup", message: `Previous version backed up.` });
+      }
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      // Write PHP files
+      const phpPath   = path.join(targetDir, `${moduleSlug}.php`);
+      const hooksPath = path.join(targetDir, "hooks.php");
+      fs.writeFileSync(phpPath, generated.registrarPhp, "utf8");
+      if (generated.hooksPhp?.trim()) {
+        fs.writeFileSync(hooksPath, generated.hooksPhp, "utf8");
+      }
+
+      // Write module manifest
+      fs.writeFileSync(path.join(targetDir, "module.json"), JSON.stringify({
+        name: registrarName,
+        type: "registrar",
+        version: "1.0.0",
+        description: generated.description,
+        configFields: generated.configFields,
+        generatedBy: "ai",
+        generatedAt: new Date().toISOString(),
+        apiFormat: generated.apiFormat,
+        detectedEndpoints: generated.detectedEndpoints,
+      }, null, 2), "utf8");
+
+      applyPermissions(targetDir);
+
+      // Also create a downloadable ZIP
+      const zip = new AdmZip();
+      zip.addLocalFolder(targetDir);
+      const zipPath = `${targetDir}.zip`;
+      zip.writeZip(zipPath);
+      send("status", { step: "packaged", message: "Module ZIP created for download." });
+
+      // 4. Dry run
+      send("status", { step: "dryrun", message: "Running dry-run validation…" });
+      const dryRun = phpDryRun(generated.registrarPhp, moduleSlug);
+      send("status", {
+        step: "dryrun_done",
+        message: dryRun.passed ? "Dry-run passed — module is safe to activate." : `Dry-run complete — ${dryRun.warnings.length} warning(s).`,
+      });
+
+      // 5. Complete
+      send("complete", {
+        message: `Module "${registrarName}" generated and installed successfully.`,
+        moduleSlug,
+        folderPath: targetDir,
+        folderName: moduleSlug,
+        phpFile: phpPath,
+        zipPath,
+        configFields: generated.configFields,
+        detectedEndpoints: generated.detectedEndpoints,
+        apiFormat: generated.apiFormat,
+        description: generated.description,
+        hooksGenerated: !!generated.hooksPhp?.trim(),
+        dryRun,
+        phpPreview: generated.registrarPhp.substring(0, 2000),
+      });
+      res.end();
+    } catch (err: any) {
+      console.error("[AI-MODULE-GEN]", err);
+      send("error", { message: err.message || "AI generation failed" });
+      res.end();
+    }
+  }
+);
+
+// Dry-run an existing installed module
+router.post("/admin/domain-registrars/ai-dry-run/:slug",
+  authenticate, requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const slug = req.params.slug.replace(/[^a-z0-9_]/g, "");
+      const phpPath = path.join(REGISTRAR_MODULES_DIR, slug, `${slug}.php`);
+      if (!fs.existsSync(phpPath)) {
+        res.status(404).json({ error: "Module file not found" }); return;
+      }
+      const src = fs.readFileSync(phpPath, "utf8");
+      const result = phpDryRun(src, slug);
+      res.json(result);
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   }

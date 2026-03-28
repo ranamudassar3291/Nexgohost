@@ -134,6 +134,324 @@ function FieldInput({ field, value, onChange }: {
     placeholder={`Enter ${field.label}`} className="rounded-xl text-sm" />;
 }
 
+// ── AI Module Creator Modal ───────────────────────────────────────────────────
+interface AiGenResult {
+  message: string; moduleSlug: string; folderPath: string; folderName: string;
+  phpFile: string; zipPath: string; configFields: ConfigField[];
+  detectedEndpoints: Record<string, string>; apiFormat: string;
+  description: string; hooksGenerated: boolean;
+  dryRun: { passed: boolean; warnings: string[]; info: string[] };
+  phpPreview: string;
+}
+
+type AiStep = { step: string; message: string };
+
+function AiModuleCreatorModal({
+  onClose, onRegistered,
+}: { onClose: () => void; onRegistered: (result: AiGenResult) => void }) {
+  const [inputType, setInputType]   = useState<"url" | "text">("url");
+  const [input, setInput]           = useState("");
+  const [regName, setRegName]       = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [steps, setSteps]           = useState<AiStep[]>([]);
+  const [result, setResult]         = useState<AiGenResult | null>(null);
+  const [error, setError]           = useState<string | null>(null);
+  const [showCode, setShowCode]     = useState(false);
+  const { toast } = useToast();
+  const stepsEndRef = useRef<HTMLDivElement>(null);
+
+  const handleGenerate = async () => {
+    if (!input.trim())   { toast({ title: "Provide API docs URL or text", variant: "destructive" }); return; }
+    if (!regName.trim()) { toast({ title: "Enter a registrar name", variant: "destructive" }); return; }
+
+    setGenerating(true);
+    setSteps([]);
+    setResult(null);
+    setError(null);
+
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("/api/admin/domain-registrars/ai-generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ input: input.trim(), inputType, registrarName: regName.trim() }),
+      });
+
+      if (!res.body) throw new Error("No SSE stream received");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === "status") {
+              setSteps(s => [...s, { step: evt.step, message: evt.message }]);
+              setTimeout(() => stepsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+            } else if (evt.type === "complete") {
+              setResult(evt as AiGenResult);
+            } else if (evt.type === "error") {
+              setError(evt.message);
+            }
+          } catch { /* malformed chunk */ }
+        }
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-border bg-card"
+          style={{ background: `linear-gradient(135deg, ${BRAND}10 0%, transparent 70%)` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: BRAND }}>
+              <Sparkles size={18} className="text-white" />
+            </div>
+            <div>
+              <h2 className="font-bold text-foreground text-[15px]">AI Module Creator</h2>
+              <p className="text-xs text-muted-foreground">Paste an API doc URL or text → get a full registrar module</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+
+          {!result ? (
+            <>
+              {/* Input type tabs */}
+              <div className="flex gap-1 p-1 bg-muted/40 rounded-xl border border-border">
+                {(["url", "text"] as const).map(t => (
+                  <button key={t} onClick={() => setInputType(t)}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+                      inputType === t
+                        ? "bg-card text-foreground shadow-sm border border-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}>
+                    {t === "url" ? "🔗 API Documentation URL" : "📄 Paste Documentation Text"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Registrar name */}
+              <div>
+                <Label className="text-xs font-semibold mb-1.5">Registrar Name <span className="text-red-500">*</span></Label>
+                <Input
+                  value={regName} onChange={e => setRegName(e.target.value)}
+                  placeholder="e.g. Spaceship, Ionos, Dynadot, TPP Wholesale…"
+                  className="rounded-xl" disabled={generating}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Used as the PHP module prefix (e.g. "spaceship" → <code className="font-mono">spaceship_RegisterDomain()</code>)
+                </p>
+              </div>
+
+              {/* Documentation input */}
+              <div>
+                <Label className="text-xs font-semibold mb-1.5">
+                  {inputType === "url" ? "API Documentation URL" : "API Documentation Text"}{" "}
+                  <span className="text-red-500">*</span>
+                </Label>
+                {inputType === "url" ? (
+                  <Input
+                    value={input} onChange={e => setInput(e.target.value)}
+                    placeholder="https://developer.spaceship.com/api-reference"
+                    className="rounded-xl font-mono text-sm" disabled={generating}
+                  />
+                ) : (
+                  <Textarea
+                    value={input} onChange={e => setInput(e.target.value)}
+                    placeholder={`Paste your registrar API documentation here…\n\nExample:\n  POST /v1/domains/register\n  Body: { "domain": "example.com", "apiKey": "...", "years": 1 }\n  …`}
+                    rows={8} className="rounded-xl text-sm font-mono resize-none" disabled={generating}
+                  />
+                )}
+              </div>
+
+              {/* Capability badges */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "JSON API", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+                  { label: "XML/SOAP", color: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+                  { label: "REST", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+                  { label: "Auto-detect fields", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+                  { label: "Hooks auto-register", color: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
+                  { label: "Dry-run validation", color: "bg-slate-500/10 text-slate-600 border-slate-500/20" },
+                ].map(b => (
+                  <span key={b.label} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${b.color}`}>{b.label}</span>
+                ))}
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 p-3">
+                  <ShieldAlert size={14} className="text-red-500 mt-0.5 shrink-0" />
+                  <p className="text-sm text-red-700 dark:text-red-400 whitespace-pre-line">{error}</p>
+                </div>
+              )}
+
+              {/* Progress steps */}
+              {steps.length > 0 && (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Generation Progress</p>
+                  {steps.map((s, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      {generating && i === steps.length - 1 ? (
+                        <RefreshCw size={12} className="text-primary animate-spin shrink-0" />
+                      ) : (
+                        <CheckCircle size={12} className="text-emerald-500 shrink-0" />
+                      )}
+                      <span className="text-xs text-foreground">{s.message}</span>
+                    </div>
+                  ))}
+                  <div ref={stepsEndRef} />
+                </div>
+              )}
+
+              {/* Generate button */}
+              <Button
+                onClick={handleGenerate}
+                disabled={generating || !input.trim() || !regName.trim()}
+                className="w-full rounded-xl text-white h-11 text-sm font-semibold gap-2"
+                style={{ background: generating ? undefined : BRAND }}
+              >
+                {generating
+                  ? <><RefreshCw size={14} className="animate-spin" /> Generating module…</>
+                  : <><Sparkles size={14} /> Generate Registrar Module</>
+                }
+              </Button>
+            </>
+          ) : (
+            /* ── Result ── */
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+
+              {/* Success */}
+              <div className="rounded-xl border border-emerald-300/40 bg-emerald-50 dark:bg-emerald-950/20 p-4 flex items-start gap-3">
+                <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{result.message}</p>
+                  <p className="text-xs text-emerald-600/80 dark:text-emerald-500/80 mt-0.5 font-mono">
+                    {result.folderPath.split("/").slice(-3).join("/")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Module info */}
+              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-foreground text-sm">{regName}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">AI Generated</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 border border-blue-500/20 font-bold">{result.apiFormat}</span>
+                  {result.hooksGenerated && <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/20 font-bold">hooks.php</span>}
+                </div>
+                <p className="text-xs text-muted-foreground">{result.description}</p>
+
+                {/* Detected endpoints */}
+                {Object.keys(result.detectedEndpoints).length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Detected Endpoints</p>
+                    <div className="space-y-1">
+                      {Object.entries(result.detectedEndpoints).map(([k, v]) => (
+                        <div key={k} className="flex items-center gap-2 text-xs">
+                          <span className="font-mono text-primary/70 w-24 shrink-0 capitalize">{k}</span>
+                          <code className="font-mono text-muted-foreground text-[10px] truncate">{v}</code>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Config fields */}
+                {result.configFields.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Generated Config Fields</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {result.configFields.map(f => (
+                        <div key={f.key} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: f.type === "password" ? "#ef4444" : f.type === "checkbox" ? "#10b981" : BRAND }} />
+                          <span className="font-medium truncate">{f.label}</span>
+                          {f.required && <span className="ml-auto text-red-500 text-[9px] shrink-0">req.</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Dry-run result */}
+              <div className={`rounded-xl border p-4 ${result.dryRun.passed ? "border-emerald-300/40 bg-emerald-50/50 dark:bg-emerald-950/10" : "border-amber-300/40 bg-amber-50/50 dark:bg-amber-950/10"}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {result.dryRun.passed ? <Shield size={14} className="text-emerald-500" /> : <AlertCircle size={14} className="text-amber-500" />}
+                  <span className="text-xs font-semibold text-foreground">
+                    Dry-Run: {result.dryRun.passed ? "All checks passed" : `${result.dryRun.warnings.length} warning(s)`}
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-[11px] font-mono">
+                  {result.dryRun.warnings.map((w, i) => <p key={i} className="text-amber-600 dark:text-amber-400">{w}</p>)}
+                  {result.dryRun.info.slice(0, 5).map((info, i) => <p key={i} className="text-muted-foreground">{info}</p>)}
+                </div>
+              </div>
+
+              {/* Code preview toggle */}
+              <div className="rounded-xl border border-border overflow-hidden">
+                <button onClick={() => setShowCode(c => !c)}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/30 transition-colors">
+                  <File size={13} className="text-primary" />
+                  {regName.toLowerCase().replace(/\s+/g, "_")}.php preview
+                  <span className="ml-auto text-muted-foreground">{showCode ? "▲ Hide" : "▼ Show"}</span>
+                </button>
+                <AnimatePresence>
+                  {showCode && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                      <div className="border-t border-border bg-slate-950 dark:bg-slate-900 p-4 overflow-x-auto max-h-72 overflow-y-auto">
+                        <pre className="text-[11px] text-slate-200 font-mono leading-relaxed whitespace-pre">
+                          {result.phpPreview}
+                          {result.phpPreview.length >= 2000 && "\n…[truncated — full file on server]"}
+                        </pre>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => { setResult(null); setSteps([]); setError(null); }} className="rounded-xl flex-1">
+                  ← Generate Another
+                </Button>
+                <Button onClick={() => onRegistered(result)} style={{ background: BRAND }}
+                  className="text-white rounded-xl flex-1 gap-2">
+                  <ChevronRight size={14} /> Configure & Register →
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── ZIP Upload Modal ──────────────────────────────────────────────────────────
 interface ZipUploadResult {
   name: string; description: string; phpModuleName: string | null;
@@ -855,6 +1173,7 @@ function RegistrarCard({ r, onRefresh }: { r: Registrar; onRefresh: () => void }
 export default function DomainRegistrars() {
   const [showAdd, setShowAdd]       = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [showAiCreator, setShowAiCreator] = useState(false);
   const [zipPrefill, setZipPrefill] = useState<ZipUploadResult | null>(null);
   const queryClient = useQueryClient();
 
@@ -871,6 +1190,24 @@ export default function DomainRegistrars() {
     setShowAdd(true);
   };
 
+  const handleAiRegistered = (result: AiGenResult) => {
+    setShowAiCreator(false);
+    // Convert AI result to the ZipUploadResult shape that AddModal accepts
+    setZipPrefill({
+      name: result.moduleSlug.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
+      description: result.description,
+      phpModuleName: result.moduleSlug,
+      folderName: result.folderName,
+      folderPath: result.folderPath,
+      configFields: result.configFields,
+      hooks: [],
+      detected: true,
+      securityWarnings: [],
+      message: result.message,
+    });
+    setShowAdd(true);
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
 
@@ -882,13 +1219,20 @@ export default function DomainRegistrars() {
             Connect domain providers to enable automatic registration, nameserver updates, and transfer management
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setShowAiCreator(true)}
+            className="rounded-xl gap-2 border-violet-400/40 text-violet-600 dark:text-violet-400 hover:bg-violet-500/5"
+          >
+            <Sparkles size={14} /> AI Generate
+          </Button>
           <Button
             variant="outline"
             onClick={() => setShowUpload(true)}
             className="rounded-xl gap-2 border-primary/30 text-primary hover:bg-primary/5"
           >
-            <Upload size={14} /> Upload Module (.zip)
+            <Upload size={14} /> Upload (.zip)
           </Button>
           <Button onClick={() => { setZipPrefill(null); setShowAdd(true); }} style={{ background: BRAND }} className="text-white rounded-xl">
             <Plus size={15} className="mr-2" /> Add Registrar
@@ -947,6 +1291,14 @@ export default function DomainRegistrars() {
             <RegistrarCard key={r.id} r={r} onRefresh={refresh} />
           ))}
         </div>
+      )}
+
+      {/* AI Module Creator modal */}
+      {showAiCreator && (
+        <AiModuleCreatorModal
+          onClose={() => setShowAiCreator(false)}
+          onRegistered={handleAiRegistered}
+        />
       )}
 
       {/* Upload ZIP modal */}
