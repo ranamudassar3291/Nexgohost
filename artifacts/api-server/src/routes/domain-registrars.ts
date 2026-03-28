@@ -1,12 +1,230 @@
 /**
  * Noehost Domain Registrar Management API
  * Supports: Namecheap, LogicBoxes, ResellerClub, Custom API, None (email-only)
+ * + Universal ZIP module installer for any WHMCS-compatible registrar module
  */
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { domainRegistrarsTable, domainsTable, ordersTable, invoicesTable, usersTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import multer from "multer";
+import AdmZip from "adm-zip";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const REGISTRAR_MODULES_DIR = path.resolve(__dirname, "../../modules/registrars");
+fs.mkdirSync(REGISTRAR_MODULES_DIR, { recursive: true });
+
+const zipUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+  fileFilter(_req, file, cb) {
+    if (file.mimetype === "application/zip" || file.mimetype === "application/x-zip-compressed" || file.originalname.endsWith(".zip")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .zip files are allowed"));
+    }
+  },
+});
+
+// ── PHP registrar module detection ────────────────────────────────────────────
+
+interface ZipConfigField {
+  key: string; label: string; type: string;
+  required?: boolean; description?: string; options?: string[];
+}
+
+function slugifyName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+/**
+ * Parse WHMCS-style PHP _getConfigArray() return value.
+ * Handles: 'Type' => 'text'|'password'|'yesno'|'textarea'|'dropdown'
+ */
+function parsePhpConfigArray(phpSrc: string): ZipConfigField[] {
+  const fields: ZipConfigField[] = [];
+  // Match top-level array entries: 'key' => array(...) or 'key' => [...]
+  const entryRe = /['"]([A-Za-z_][A-Za-z0-9_]*)['"] *=> *(?:array\s*\(|\[)([\s\S]*?)(?:\)|])\s*,/g;
+  let m: RegExpExecArray | null;
+  while ((m = entryRe.exec(phpSrc)) !== null) {
+    const key = m[1];
+    const body = m[2];
+    // Skip meta-only fields
+    if (key === "FriendlyName" || key === "APIVersion") continue;
+
+    const friendlyMatch = body.match(/['"]FriendlyName['"]\s*=>\s*['"]([^'"]+)['"]/i);
+    const typeMatch     = body.match(/['"]Type['"]\s*=>\s*['"]([^'"]+)['"]/i);
+    const descMatch     = body.match(/['"]Description['"]\s*=>\s*['"]([^'"]+)['"]/i);
+    const reqMatch      = body.match(/['"]Required['"]\s*=>\s*(true|false)/i);
+
+    const rawType = (typeMatch?.[1] ?? "text").toLowerCase();
+    const mappedType =
+      rawType === "password" ? "password" :
+      rawType === "yesno"    ? "checkbox"  :
+      rawType === "textarea" ? "textarea"  :
+      rawType === "dropdown" ? "text"      : "text";
+
+    fields.push({
+      key,
+      label: friendlyMatch?.[1] ?? key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").trim(),
+      type: mappedType,
+      description: descMatch?.[1],
+      required: reqMatch?.[1] === "true",
+    });
+  }
+  return fields;
+}
+
+/**
+ * Detect registrar name and config fields from a ZIP.
+ * Priority: module.json → PHP _getConfigArray → filename heuristics
+ */
+function detectRegistrarFromZip(zipBuffer: Buffer): {
+  name: string; description: string; configFields: ZipConfigField[];
+  hooks: string[]; phpModuleName: string | null; detected: boolean;
+} {
+  const zip = new AdmZip(zipBuffer);
+  const entries = zip.getEntries();
+
+  // 1. module.json
+  const manifestEntry = entries.find(e =>
+    e.entryName === "module.json" || /^[^/]+\/module\.json$/.test(e.entryName)
+  );
+  if (manifestEntry) {
+    try {
+      const m = JSON.parse(manifestEntry.getData().toString("utf8"));
+      if (m.name) return {
+        name: m.name, description: m.description ?? "",
+        configFields: m.configFields ?? [],
+        hooks: m.hooks ?? [], phpModuleName: null, detected: true,
+      };
+    } catch { /* fall through */ }
+  }
+
+  // 2. PHP files with getConfigArray
+  const phpFiles = entries.filter(e => !e.isDirectory && e.entryName.endsWith(".php"));
+  for (const entry of phpFiles) {
+    const src = entry.getData().toString("utf8");
+    if (!/_getConfigArray\s*\(/i.test(src)) continue;
+
+    // Extract PHP module function prefix (e.g. "spaceship" from spaceship_getConfigArray)
+    const fnMatch = src.match(/function\s+([A-Za-z_][A-Za-z0-9_]*)_getConfigArray\s*\(/i);
+    const phpModuleName = fnMatch?.[1] ?? null;
+
+    // Extract module FriendlyName
+    const friendlyMatch = src.match(/['"]FriendlyName['"]\s*=>\s*\[\s*['"]Type['"]\s*=>\s*['"]System['"]\s*,\s*['"]Value['"]\s*=>\s*['"]([^'"]+)['"]/i) ||
+                          src.match(/['"]FriendlyName['"]\s*=>\s*['"]([^'"]+)['"]/i);
+
+    // Find config block
+    const configMatch = src.match(/_getConfigArray\s*\(\s*\)[^{]*{([\s\S]*?)return\s*(\[[\s\S]*?\]|array\s*\([\s\S]*?\))\s*;/i);
+    const configBlock = configMatch?.[2] ?? "";
+    const fields = parsePhpConfigArray(configBlock);
+
+    // Extract hooks
+    const hookMatches = [...src.matchAll(/add_hook\s*\(\s*['"]([^'"]+)['"]/g)];
+    const hooks = hookMatches.map(h => h[1]);
+
+    return {
+      name: friendlyMatch?.[1] ?? phpModuleName ?? path.basename(entry.entryName, ".php"),
+      description: `Uploaded PHP registrar module${phpModuleName ? ` (${phpModuleName})` : ""}`,
+      configFields: fields.length > 0 ? fields : [
+        { key: "apiKey", label: "API Key", type: "password", required: true },
+        { key: "apiSecret", label: "API Secret", type: "password", required: false },
+        { key: "testMode", label: "Test Mode", type: "checkbox", required: false },
+      ],
+      hooks, phpModuleName, detected: true,
+    };
+  }
+
+  // 3. Fallback: name from ZIP filename pattern + default fields
+  const zipName = phpFiles[0]?.entryName ? path.basename(phpFiles[0].entryName, ".php") : "custom-registrar";
+  return {
+    name: zipName, description: "Auto-detected registrar module — configure manually.",
+    configFields: [
+      { key: "apiKey",    label: "API Key",    type: "password", required: true  },
+      { key: "username",  label: "Username",   type: "text",     required: false },
+      { key: "apiUrl",    label: "API Base URL",type: "text",    required: false },
+      { key: "testMode",  label: "Test Mode",  type: "checkbox", required: false },
+    ],
+    hooks: [], phpModuleName: null, detected: false,
+  };
+}
+
+// ── Security scanner ───────────────────────────────────────────────────────────
+
+const DANGEROUS_PATTERNS: Array<{ re: RegExp; label: string }> = [
+  { re: /\beval\s*\(\s*base64_decode/i,           label: "Obfuscated eval(base64_decode(...))" },
+  { re: /\bshell_exec\s*\(/i,                      label: "shell_exec() — command execution" },
+  { re: /\bexec\s*\(\s*\$/i,                       label: "exec() with variable input" },
+  { re: /\bsystem\s*\(\s*\$/i,                     label: "system() with variable input" },
+  { re: /\bpassthru\s*\(/i,                        label: "passthru() — raw command output" },
+  { re: /\bproc_open\s*\(/i,                       label: "proc_open() — process spawning" },
+  { re: /\$_(?:GET|POST|REQUEST|COOKIE)\s*\[['"]cmd['"]\]/i, label: "Remote command injection via $_GET/POST['cmd']" },
+  { re: /`[^`]*\$[^`]*`/,                          label: "Backtick command execution with variable" },
+  { re: /file_put_contents\s*\(\s*['"]\s*(?:\/etc|\/usr\/bin|\/bin)\//i, label: "Writing to system directories" },
+  { re: /\bfsockopen\s*\(\s*['"][^'"]+['"],\s*(?:4444|1337|31337)\b/i, label: "Suspicious reverse shell socket" },
+];
+
+function scanForMalware(zipBuffer: Buffer): { safe: boolean; warnings: string[] } {
+  const zip = new AdmZip(zipBuffer);
+  const warnings: string[] = [];
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    const ext = path.extname(entry.entryName).toLowerCase();
+    if (![".php", ".js", ".ts", ".sh", ".py"].includes(ext)) continue;
+    const src = entry.getData().toString("utf8");
+    for (const { re, label } of DANGEROUS_PATTERNS) {
+      if (re.test(src)) {
+        warnings.push(`${path.basename(entry.entryName)}: ${label}`);
+        break;
+      }
+    }
+  }
+  return { safe: warnings.length === 0, warnings };
+}
+
+// ── Extract ZIP with permissions ───────────────────────────────────────────────
+
+function extractZipToDir(zipBuffer: Buffer, targetDir: string): void {
+  const zip = new AdmZip(zipBuffer);
+  zip.extractAllTo(targetDir, true);
+  applyPermissions(targetDir);
+}
+
+function applyPermissions(dirPath: string): void {
+  try {
+    fs.chmodSync(dirPath, 0o755);
+    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+      const full = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        applyPermissions(full);
+      } else {
+        fs.chmodSync(full, 0o644);
+      }
+    }
+  } catch { /* non-fatal */ }
+}
+
+// ── hooks.php extractor ────────────────────────────────────────────────────────
+
+function extractHooksFromZip(zipBuffer: Buffer): string[] {
+  const zip = new AdmZip(zipBuffer);
+  const hooks: string[] = [];
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    const n = entry.entryName.toLowerCase();
+    if (!n.endsWith("hooks.php") && !n.endsWith("hooks.js")) continue;
+    const src = entry.getData().toString("utf8");
+    for (const m of src.matchAll(/add_hook\s*\(\s*['"]([^'"]+)['"]/g)) hooks.push(m[1]);
+    for (const m of src.matchAll(/exports\.([A-Za-z][A-Za-z0-9_]+)\s*=/g)) hooks.push(m[1]);
+  }
+  return [...new Set(hooks)];
+}
 
 const router = Router();
 
@@ -134,6 +352,107 @@ async function callRegistrarApi(
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+
+// ── Upload registrar ZIP module ───────────────────────────────────────────────
+// POST /admin/domain-registrars/upload-module
+//   ?action=overwrite|backup  — required when a conflict was already reported
+router.post("/admin/domain-registrars/upload-module",
+  authenticate, requireAdmin,
+  zipUpload.single("module"),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: "No .zip file provided" });
+        return;
+      }
+
+      // 1. Security scan — run before extraction
+      const { safe, warnings } = scanForMalware(req.file.buffer);
+      if (!safe) {
+        res.status(422).json({
+          error: "Security scan failed",
+          securityWarnings: warnings,
+          message: "The uploaded ZIP contains potentially dangerous code patterns. Upload blocked.",
+        });
+        return;
+      }
+
+      // 2. Detect module type
+      const detected = detectRegistrarFromZip(req.file.buffer);
+      const folderName = slugifyName(detected.name || detected.phpModuleName || "custom_registrar");
+      const targetDir = path.join(REGISTRAR_MODULES_DIR, folderName);
+
+      // 3. Conflict detection
+      const conflictAction = (req.query.action as string | undefined) ?? "";
+      if (fs.existsSync(targetDir) && !conflictAction) {
+        res.status(409).json({
+          conflict: true,
+          conflictName: folderName,
+          manifest: {
+            name: detected.name,
+            description: detected.description,
+            configFields: detected.configFields,
+            hooks: detected.hooks,
+          },
+          detectedAuto: detected.detected,
+          securityWarnings: warnings,
+          message: `A module folder "${folderName}" already exists. Choose an action to continue.`,
+        });
+        return;
+      }
+
+      // 4. Handle conflict resolution
+      if (fs.existsSync(targetDir)) {
+        if (conflictAction === "backup") {
+          const backupDir = `${targetDir}_backup_${Date.now()}`;
+          fs.renameSync(targetDir, backupDir);
+        } else {
+          // overwrite — remove existing
+          fs.rmSync(targetDir, { recursive: true, force: true });
+        }
+      }
+
+      // 5. Extract ZIP to modules/registrars/<folderName>/
+      extractZipToDir(req.file.buffer, targetDir);
+
+      // 6. Hook extraction
+      const autoHooks = extractHooksFromZip(req.file.buffer);
+      const allHooks = [...new Set([...detected.hooks, ...autoHooks])];
+
+      // 7. Build response — return detected fields so frontend can auto-populate a registrar config form
+      const responseFields = detected.configFields.length > 0
+        ? detected.configFields
+        : [
+            { key: "apiKey",   label: "API Key",   type: "password", required: true  },
+            { key: "username", label: "Username",  type: "text",     required: false },
+            { key: "testMode", label: "Test Mode", type: "checkbox", required: false },
+          ];
+
+      let message = detected.detected
+        ? `Module "${detected.name}" installed successfully.`
+        : `Module installed — config auto-detected. Verify fields before saving.`;
+      if (allHooks.length > 0) message += ` ${allHooks.length} hook(s) registered: ${allHooks.slice(0, 3).join(", ")}${allHooks.length > 3 ? "…" : ""}.`;
+      if (conflictAction === "backup") message += " Previous version backed up.";
+      if (conflictAction === "overwrite") message += " Previous version overwritten.";
+
+      res.json({
+        name: detected.name,
+        description: detected.description,
+        phpModuleName: detected.phpModuleName,
+        folderPath: targetDir,
+        folderName,
+        configFields: responseFields,
+        hooks: allHooks,
+        detected: detected.detected,
+        securityWarnings: warnings,
+        message,
+      });
+    } catch (err: any) {
+      console.error("[REGISTRAR-UPLOAD]", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 // List all registrars
 router.get("/admin/domain-registrars", authenticate, requireAdmin, async (_req: Request, res: Response) => {

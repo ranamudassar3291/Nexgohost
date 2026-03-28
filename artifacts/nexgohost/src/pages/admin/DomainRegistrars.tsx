@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Globe, Plus, Settings, Trash2, ToggleLeft, ToggleRight,
   CheckCircle, AlertCircle, RefreshCw, ChevronDown, ChevronUp,
   Eye, EyeOff, Star, X, Zap, Mail, Server, FolderOpen, File, BadgeCheck,
+  Upload, Shield, ShieldAlert, PackageOpen, Sparkles, RotateCcw,
+  FileArchive, CheckCircle2, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,15 +134,317 @@ function FieldInput({ field, value, onChange }: {
     placeholder={`Enter ${field.label}`} className="rounded-xl text-sm" />;
 }
 
+// ── ZIP Upload Modal ──────────────────────────────────────────────────────────
+interface ZipUploadResult {
+  name: string; description: string; phpModuleName: string | null;
+  folderName: string; folderPath: string;
+  configFields: ConfigField[]; hooks: string[];
+  detected: boolean; securityWarnings: string[]; message: string;
+}
+
+function ZipUploadModal({
+  onClose, onRegistered,
+}: { onClose: () => void; onRegistered: (result: ZipUploadResult) => void }) {
+  const [dragging, setDragging]     = useState(false);
+  const [file, setFile]             = useState<File | null>(null);
+  const [progress, setProgress]     = useState(0);
+  const [uploading, setUploading]   = useState(false);
+  const [result, setResult]         = useState<ZipUploadResult | null>(null);
+  const [conflict, setConflict]     = useState<{ name: string } | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [error, setError]           = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const uploadFile = useCallback((f: File, action?: "overwrite" | "backup") => {
+    setUploading(true);
+    setProgress(0);
+    setError(null);
+    setConflict(null);
+
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    formData.append("module", f);
+
+    const url = action
+      ? `/api/admin/domain-registrars/upload-module?action=${action}`
+      : "/api/admin/domain-registrars/upload-module";
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = () => {
+      setUploading(false);
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status === 409 && data.conflict) {
+          setPendingFile(f);
+          setConflict({ name: data.conflictName });
+          return;
+        }
+        if (xhr.status === 422 && data.securityWarnings) {
+          setError(`Security scan blocked upload:\n${data.securityWarnings.join("\n")}`);
+          return;
+        }
+        if (xhr.status >= 400 && data.error) {
+          setError(data.error);
+          return;
+        }
+        setResult(data);
+      } catch {
+        setError("Invalid server response");
+      }
+    };
+
+    xhr.onerror = () => {
+      setUploading(false);
+      setError("Upload failed — network error");
+    };
+
+    xhr.send(formData);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (!f?.name.endsWith(".zip")) { toast({ title: "Only .zip files are allowed", variant: "destructive" }); return; }
+    setFile(f);
+    uploadFile(f);
+  }, [uploadFile, toast]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.name.endsWith(".zip")) { toast({ title: "Only .zip files are allowed", variant: "destructive" }); return; }
+    setFile(f);
+    uploadFile(f);
+  };
+
+  const handleConflictAction = (action: "overwrite" | "backup") => {
+    if (pendingFile) uploadFile(pendingFile, action);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-border"
+          style={{ background: `linear-gradient(135deg, ${BRAND}12 0%, transparent 80%)` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${BRAND}18` }}>
+              <FileArchive size={17} style={{ color: BRAND }} />
+            </div>
+            <div>
+              <h2 className="font-bold text-foreground text-[15px]">Upload Registrar Module</h2>
+              <p className="text-xs text-muted-foreground">Supports WHMCS-compatible .zip modules</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+
+          {/* Conflict dialog */}
+          {conflict && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-amber-400/40 bg-amber-50 dark:bg-amber-950/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-amber-700 dark:text-amber-400 text-sm mb-1">
+                    Module already exists: <code className="font-mono">{conflict.name}</code>
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mb-3">
+                    A folder with this name already exists in <code className="font-mono">modules/registrars/</code>.
+                    How do you want to proceed?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline"
+                      className="rounded-lg border-amber-400/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                      onClick={() => handleConflictAction("backup")} disabled={uploading}>
+                      <RotateCcw size={12} className="mr-1.5" /> Backup & Replace
+                    </Button>
+                    <Button size="sm"
+                      className="rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                      onClick={() => handleConflictAction("overwrite")} disabled={uploading}>
+                      <Trash2 size={12} className="mr-1.5" /> Overwrite
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Error */}
+          {error && !conflict && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 p-4">
+              <div className="flex items-start gap-2.5">
+                <ShieldAlert size={15} className="text-red-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-400 whitespace-pre-line">{error}</p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Success result */}
+          {result ? (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+              {/* Success banner */}
+              <div className="rounded-xl border border-emerald-300/40 bg-emerald-50 dark:bg-emerald-950/20 p-4 flex items-start gap-3">
+                <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold text-emerald-700 dark:text-emerald-400 text-sm">{result.message}</p>
+                  <p className="text-xs text-emerald-600/80 dark:text-emerald-500/80 mt-0.5 font-mono">
+                    {result.folderPath.split("/").slice(-3).join("/")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Module info */}
+              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <PackageOpen size={14} style={{ color: BRAND }} />
+                  <span className="font-semibold text-foreground text-sm">{result.name}</span>
+                  {result.detected && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
+                      Auto-detected
+                    </span>
+                  )}
+                </div>
+                {result.description && <p className="text-xs text-muted-foreground">{result.description}</p>}
+
+                {result.hooks.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Hooks:</span>
+                    {result.hooks.map(h => (
+                      <span key={h} className="text-[10px] px-1.5 py-0.5 bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded font-mono border border-violet-400/20">{h}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Config fields preview */}
+                {result.configFields.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Auto-generated config fields:</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {result.configFields.map(f => (
+                        <div key={f.key} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-background border border-border text-xs">
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: f.type === "password" ? "#ef4444" : f.type === "checkbox" ? "#10b981" : BRAND }} />
+                          <span className="font-medium text-foreground">{f.label}</span>
+                          {f.required && <span className="ml-auto text-red-500 text-[9px]">req.</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Security badge */}
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
+                  <Shield size={11} />
+                  Security scan passed — no malicious patterns detected
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={onClose} className="rounded-xl flex-1">
+                  Close
+                </Button>
+                <Button onClick={() => onRegistered(result)} style={{ background: BRAND }}
+                  className="text-white rounded-xl flex-1 gap-2">
+                  <ChevronRight size={14} /> Register as Registrar →
+                </Button>
+              </div>
+            </motion.div>
+          ) : !conflict ? (
+            <>
+              {/* Drop zone */}
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                onClick={() => !uploading && fileRef.current?.click()}
+                className={`relative rounded-2xl border-2 border-dashed transition-all cursor-pointer
+                  ${dragging ? "border-primary bg-primary/8 scale-[1.01]" : "border-border hover:border-primary/50 hover:bg-primary/3"}
+                  ${uploading ? "pointer-events-none opacity-80" : ""}
+                `}
+              >
+                <input ref={fileRef} type="file" accept=".zip" className="hidden" onChange={handleFileChange} />
+                <div className="flex flex-col items-center justify-center py-10 px-4">
+                  {uploading ? (
+                    <>
+                      <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                        <RefreshCw size={24} className="animate-spin" style={{ color: BRAND }} />
+                      </div>
+                      <p className="font-semibold text-foreground text-sm mb-1">Installing module…</p>
+                      <p className="text-xs text-muted-foreground mb-4">{file?.name}</p>
+                      {/* Progress bar */}
+                      <div className="w-full max-w-xs h-2 bg-muted rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ background: BRAND }}
+                          animate={{ width: `${progress}%` }}
+                          transition={{ type: "tween", ease: "easeOut" }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">{progress}%</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${dragging ? "bg-primary/15" : "bg-muted"}`}>
+                        <Upload size={24} className={dragging ? "text-primary" : "text-muted-foreground"} />
+                      </div>
+                      <p className="font-semibold text-foreground text-sm mb-1">
+                        {dragging ? "Drop to install" : "Drop your .zip here or click to browse"}
+                      </p>
+                      <p className="text-xs text-muted-foreground text-center max-w-xs">
+                        Supports WHMCS-compatible registrar modules. The system auto-detects configuration fields from PHP source.
+                      </p>
+                      <div className="flex items-center gap-4 mt-5 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-1"><Shield size={10} className="text-emerald-500" /> Security scan</span>
+                        <span className="flex items-center gap-1"><Sparkles size={10} style={{ color: BRAND }} /> Auto-detect fields</span>
+                        <span className="flex items-center gap-1"><PackageOpen size={10} /> Hook registration</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Compatible registrars note */}
+              <div className="rounded-xl bg-muted/30 border border-border p-3 text-xs text-muted-foreground flex items-start gap-2">
+                <CheckCircle size={12} className="mt-0.5 shrink-0 text-primary" />
+                <span>
+                  Compatible with any <strong>WHMCS-style</strong> registrar module (Spaceship, Ionos, Namecheap, etc.) that includes a <code className="font-mono">_getConfigArray()</code> function.
+                  Custom modules with a <code className="font-mono">module.json</code> are also supported.
+                </span>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Add Registrar Modal ───────────────────────────────────────────────────────
-function AddModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [step, setStep] = useState<"pick" | "configure">("pick");
-  const [selectedType, setSelectedType] = useState("");
-  const [name, setName] = useState("");
+function AddModal({ onClose, onSaved, prefill }: { onClose: () => void; onSaved: () => void; prefill?: ZipUploadResult | null }) {
+  // If pre-filling from a ZIP upload, skip the picker step and go straight to configure
+  const [step, setStep] = useState<"pick" | "configure">(prefill ? "configure" : "pick");
+  const [selectedType, setSelectedType] = useState(prefill ? "custom" : "");
+  const [name, setName] = useState(prefill?.name ?? "");
   const [config, setConfig] = useState<Record<string, string>>({});
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [fields, setFields] = useState<ConfigField[]>([]);
+  const [fields, setFields] = useState<ConfigField[]>(prefill?.configFields ?? []);
   const [showFileBrowser, setShowFileBrowser] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const { toast } = useToast();
@@ -221,6 +525,17 @@ function AddModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
 
           {step === "configure" && (
             <div className="space-y-4">
+              {/* ZIP-upload banner */}
+              {prefill && (
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-300/40 bg-emerald-50/60 dark:bg-emerald-950/20 px-4 py-3">
+                  <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                    <strong>Module uploaded</strong> — Config fields auto-generated from PHP source.
+                    Installed at <code className="font-mono">{prefill.folderPath.split("/").slice(-3).join("/")}</code>.
+                    {prefill.hooks.length > 0 && <> Hooks: {prefill.hooks.slice(0, 4).join(", ")}.</>}
+                  </div>
+                </div>
+              )}
               <div>
                 <Label className="text-xs font-semibold mb-1.5">Registrar Name</Label>
                 <Input value={name} onChange={e => setName(e.target.value)}
@@ -538,7 +853,9 @@ function RegistrarCard({ r, onRefresh }: { r: Registrar; onRefresh: () => void }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DomainRegistrars() {
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd]       = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [zipPrefill, setZipPrefill] = useState<ZipUploadResult | null>(null);
   const queryClient = useQueryClient();
 
   const { data: registrars = [], isLoading } = useQuery<Registrar[]>({
@@ -547,6 +864,12 @@ export default function DomainRegistrars() {
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin-domain-registrars"] });
+
+  const handleZipRegistered = (result: ZipUploadResult) => {
+    setShowUpload(false);
+    setZipPrefill(result);
+    setShowAdd(true);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -559,9 +882,18 @@ export default function DomainRegistrars() {
             Connect domain providers to enable automatic registration, nameserver updates, and transfer management
           </p>
         </div>
-        <Button onClick={() => setShowAdd(true)} style={{ background: BRAND }} className="text-white rounded-xl">
-          <Plus size={15} className="mr-2" /> Add Registrar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowUpload(true)}
+            className="rounded-xl gap-2 border-primary/30 text-primary hover:bg-primary/5"
+          >
+            <Upload size={14} /> Upload Module (.zip)
+          </Button>
+          <Button onClick={() => { setZipPrefill(null); setShowAdd(true); }} style={{ background: BRAND }} className="text-white rounded-xl">
+            <Plus size={15} className="mr-2" /> Add Registrar
+          </Button>
+        </div>
       </div>
 
       {/* Info banner */}
@@ -617,8 +949,22 @@ export default function DomainRegistrars() {
         </div>
       )}
 
-      {/* Add modal */}
-      {showAdd && <AddModal onClose={() => setShowAdd(false)} onSaved={refresh} />}
+      {/* Upload ZIP modal */}
+      {showUpload && (
+        <ZipUploadModal
+          onClose={() => setShowUpload(false)}
+          onRegistered={handleZipRegistered}
+        />
+      )}
+
+      {/* Add / configure modal */}
+      {showAdd && (
+        <AddModal
+          onClose={() => { setShowAdd(false); setZipPrefill(null); }}
+          onSaved={refresh}
+          prefill={zipPrefill}
+        />
+      )}
     </motion.div>
   );
 }
