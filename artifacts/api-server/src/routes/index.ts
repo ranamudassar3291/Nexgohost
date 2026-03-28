@@ -47,6 +47,7 @@ import globalRouter from "./global.js";
 import domainSearchRouter from "./domain-search.js";
 import setupProgressRouter from "./setup-progress.js";
 import backupsRouter from "./backups.js";
+import emailMarketingRouter from "./email-marketing.js";
 
 const router: IRouter = Router();
 
@@ -102,5 +103,6 @@ router.use(globalRouter);
 router.use(domainSearchRouter);
 router.use(setupProgressRouter);
 router.use(backupsRouter);
+router.use(emailMarketingRouter);
 
 export default router;

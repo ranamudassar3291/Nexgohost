@@ -34,3 +34,6 @@ export * from "./domain-registrars";
 export * from "./whatsapp-logs";
 export * from "./announcements";
 export * from "./server-status";
+export * from "./cart-sessions";
+export * from "./email-campaigns";
+export * from "./email-unsubscribes";

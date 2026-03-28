@@ -95,6 +95,7 @@ export default function Checkout() {
   const [domainAvail,       setDomainAvail]       = useState<"available" | "taken" | null>(null);
   const [checkingDomain,    setCheckingDomain]    = useState(false);
   const domainTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cartSessionIdRef = useRef<string | null>(null);
 
   const [promoCode,    setPromoCode]    = useState("");
   const [promoResult,  setPromoResult]  = useState<PromoResult | null>(null);
@@ -154,6 +155,21 @@ export default function Checkout() {
       setTimeout(() => checkDomain(saved), 600);
     }
   }, []);
+
+  useEffect(() => {
+    if (!packageId) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    const domain = sessionStorage.getItem("domain_search") || localStorage.getItem("order_wizard_domain") || undefined;
+    fetch("/api/client/cart-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ packageId, packageName, domainName: domain }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d?.id) cartSessionIdRef.current = d.id; })
+      .catch(() => {});
+  }, [packageId]);
 
   const getDomainExt = (domain: string) => {
     if (!domain || !domain.includes(".")) return null;
@@ -253,6 +269,14 @@ export default function Checkout() {
 
       sessionStorage.removeItem("domain_search");
       localStorage.removeItem("order_wizard_domain");
+
+      if (cartSessionIdRef.current) {
+        const token = localStorage.getItem("token");
+        fetch(`/api/client/cart-session/${cartSessionIdRef.current}/complete`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
 
       setLocation(data.invoice?.id ? `/client/invoices/${data.invoice.id}` : "/client/invoices");
     } catch (err: any) {

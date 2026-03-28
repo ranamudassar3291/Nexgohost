@@ -62,6 +62,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Marketing",
+    items: [
+      { name: "Email Marketing",    href: "/admin/email-marketing",    icon: (() => null) as any },
+    ],
+  },
+  {
     label: "Infrastructure",
     items: [
       { name: "Servers",            href: "/admin/servers",            icon: (() => null) as any },

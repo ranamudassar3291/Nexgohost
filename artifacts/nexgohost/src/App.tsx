@@ -63,6 +63,7 @@ import ServerLogs from "@/pages/admin/ServerLogs";
 import AdminAffiliates from "@/pages/admin/Affiliates";
 import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
 import AdminCredits from "@/pages/admin/Credits";
+import EmailMarketing from "@/pages/admin/EmailMarketing";
 import VpsPlans from "@/pages/admin/VpsPlans";
 import VpsServices from "@/pages/admin/VpsServices";
 import AddVpsPlan from "@/pages/admin/AddVpsPlan";
@@ -509,6 +510,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/server-nodes">
         <AdminPage><ServerNodes /></AdminPage>
+      </Route>
+      <Route path="/admin/email-marketing">
+        <AdminPage><EmailMarketing /></AdminPage>
       </Route>
       {/* ── Legal pages — public (canonical + short aliases) ── */}
       <Route path="/legal/terms"       component={TermsOfService} />

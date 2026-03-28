@@ -1,5 +1,38 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 41 — Smart Email Engine & Bulk Marketing Dashboard)
+
+### Feature: Email Marketing Suite
+**Backend:**
+- `lib/db/src/schema/cart-sessions.ts` — NEW: `cartSessionsTable` — tracks checkout sessions for abandonment detection
+- `lib/db/src/schema/email-campaigns.ts` — NEW: `emailCampaignsTable` — records bulk campaign sends
+- `lib/db/src/schema/email-unsubscribes.ts` — NEW: `emailUnsubscribesTable` — unsubscribe token management
+- All three tables added to `lib/db/src/schema/index.ts` and migrated via `drizzle-kit push`
+- `artifacts/api-server/src/routes/email-marketing.ts` — NEW router with 8 endpoints:
+  - `GET /unsubscribe?token=xxx` — public unsubscribe landing page (HTML response)
+  - `POST /client/cart-session` — track checkout page visits (cart abandonment detection)
+  - `PATCH /client/cart-session/:id/complete` — mark cart session completed after successful order
+  - `GET /admin/email-marketing/clients` — list clients for campaign recipient selection
+  - `GET /admin/email-marketing/logs` — paginated email log viewer with type filter
+  - `GET /admin/email-marketing/campaigns` — campaign history list
+  - `GET /admin/email-marketing/abandonments` — cart abandonment sessions with recovery status
+  - `POST /admin/email-marketing/preview` — render personalized HTML email preview
+  - `POST /admin/email-marketing/send` — send bulk/targeted campaign (async, skips unsubscribers)
+- `artifacts/api-server/src/lib/cron.ts` — Added `runCartAbandonmentCron()`: finds sessions >2h old, generates unique `CART10XXXX` promo code (10% off, 1 use, 7 day expiry), sends personalized recovery email, marks session reminded
+- Registered `emailMarketingRouter` in `artifacts/api-server/src/routes/index.ts`
+
+**Frontend:**
+- `artifacts/nexgohost/src/pages/admin/EmailMarketing.tsx` — NEW admin page with 4 tabs:
+  - **Send Campaign**: 5 pre-built templates (Promotional, Maintenance, Welcome, Announcement, Security) + Custom HTML; recipient selector (all/individual with search + checkboxes); live email preview via iframe; personalization tags `{client_name}` `{company_name}` `{unsubscribe_url}`
+  - **Email Logs**: paginated table with type filter (campaign, cart-abandonment, invoice, etc.) + status badges
+  - **Campaign History**: list of all sent campaigns with sent/failed counts and status
+  - **Cart Recoveries**: table of abandoned checkout sessions with recovery email status and auto-generated promo codes
+- `artifacts/nexgohost/src/App.tsx` — Added `/admin/email-marketing` route
+- `artifacts/nexgohost/src/components/layout/AppLayout.tsx` — Added "Marketing" nav group with "Email Marketing" link
+- `artifacts/nexgohost/src/pages/client/Checkout.tsx` — Added cart session tracking on page mount (POST to track abandonment) + session completion on successful order (PATCH)
+
+**Unsubscribe System:** Auto-generated per-user tokens, stored in DB, bulk sends automatically skip unsubscribed emails
+
 ## Recent Changes (Session 40 — Hostinger-Grade Feature Suite)
 
 ### Feature 1: Live Domain Search (RDAP + DNS)

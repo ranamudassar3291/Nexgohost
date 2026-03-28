@@ -4,8 +4,9 @@ import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
   cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
   hostingBackupsTable, domainPricingTable,
+  cartSessionsTable, promoCodesTable,
 } from "@workspace/db/schema";
-import { eq, lte, sql, and, gte, lt, desc } from "drizzle-orm";
+import { eq, lte, sql, and, gte, lt, desc, isNull } from "drizzle-orm";
 import { convertAndFormat } from "./currency-format.js";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
 import { execAsync } from "./shell.js";
@@ -14,6 +15,7 @@ import {
   emailServiceSuspended, emailHostingRenewalReminder,
   emailDomainRenewalReminder, emailDomainExpiryWarning,
   emailServiceTerminated, emailTerminationWarning,
+  sendEmail,
 } from "./email.js";
 import { sendWhatsAppAlert } from "./whatsapp.js";
 
@@ -807,6 +809,113 @@ export async function runGoogleDriveBackupCron(): Promise<void> {
   }
 }
 
+// ─── Cart Abandonment Recovery ───────────────────────────────────────────────
+export async function runCartAbandonmentCron(): Promise<void> {
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+    const abandoned = await db.select({
+      id: cartSessionsTable.id,
+      userId: cartSessionsTable.userId,
+      packageName: cartSessionsTable.packageName,
+      domainName: cartSessionsTable.domainName,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+    }).from(cartSessionsTable)
+      .leftJoin(usersTable, eq(cartSessionsTable.userId, usersTable.id))
+      .where(and(
+        eq(cartSessionsTable.completed, false),
+        eq(cartSessionsTable.reminderSent, false),
+        lte(cartSessionsTable.abandonedAt, twoHoursAgo),
+      ));
+
+    if (abandoned.length === 0) {
+      await logCron("cart_abandonment", "skipped", "No abandoned carts found");
+      return;
+    }
+
+    let count = 0;
+    for (const session of abandoned) {
+      if (!session.email) continue;
+
+      // Generate unique promo code
+      const promoCode = `CART10${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      // Insert promo code
+      await db.insert(promoCodesTable).values({
+        code: promoCode,
+        description: `Cart abandonment recovery — auto-generated for ${session.email}`,
+        discountType: "percent",
+        discountPercent: 10,
+        isActive: true,
+        usageLimit: 1,
+        expiresAt,
+        applicableTo: "all",
+      }).onConflictDoNothing();
+
+      const clientName = session.firstName || "Valued Customer";
+      const domain = session.domainName || "your domain";
+      const pkg = session.packageName || "your hosting plan";
+      const checkoutUrl = `${getAppUrl()}/client/checkout`;
+
+      const html = `
+        <h2 style="color:#701AFE;margin:0 0 16px">You left something behind! 🛒</h2>
+        <p>Hi <strong>${clientName}</strong>,</p>
+        <p>We noticed you were checking out <strong>${pkg}</strong>${domain !== "your domain" ? ` with domain <strong>${domain}</strong>` : ""} but didn't complete your order.</p>
+        <p>No worries — we've saved your cart! And as a thank-you, here's an exclusive <strong>10% OFF</strong> just for you:</p>
+        <table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;width:100%">
+          <tr><td style="background:#f4f0ff;border:2px dashed #701AFE;border-radius:8px;padding:20px;text-align:center">
+            <p style="margin:0 0 4px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px">Your Promo Code</p>
+            <p style="margin:0;font-size:28px;font-weight:800;color:#701AFE;letter-spacing:4px">${promoCode}</p>
+            <p style="margin:8px 0 0;font-size:12px;color:#888">Valid for 7 days — one-time use</p>
+          </td></tr>
+        </table>
+        <p style="text-align:center;margin:24px 0">
+          <a href="${checkoutUrl}" style="display:inline-block;background:linear-gradient(135deg,#701AFE,#9B51E0);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">
+            Complete My Order →
+          </a>
+        </p>
+        <p style="font-size:13px;color:#666">This offer expires in 7 days. Don't miss out!</p>
+      `;
+
+      const result = await sendEmail({
+        to: session.email,
+        subject: `${clientName}, complete your order and save 10%! 🎯`,
+        html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f2f2f2;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f2f2;padding:36px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#fff;border-radius:4px;overflow:hidden;border:1px solid #e5e5e5">
+<tr><td style="background:#fff;padding:28px 40px 16px;text-align:center;border-bottom:3px solid #701AFE">
+<span style="font-size:26px;font-weight:800;color:#701AFE;letter-spacing:-0.5px">Noehost</span>
+</td></tr>
+<tr><td style="padding:32px 40px 28px;color:#333;font-size:15px;line-height:1.75">${html}</td></tr>
+<tr><td style="background:#f8f8f8;border-top:1px solid #e5e5e5;padding:16px 40px;text-align:center;font-size:12px;color:#999">
+&copy; ${new Date().getFullYear()} Noehost. All rights reserved.
+</td></tr>
+</table></td></tr></table>
+</body></html>`,
+        emailType: "cart-abandonment",
+        clientId: session.userId,
+        referenceId: session.id,
+      });
+
+      if (result.sent) {
+        await db.update(cartSessionsTable)
+          .set({ reminderSent: true, promoCode, reminderSentAt: new Date() })
+          .where(eq(cartSessionsTable.id, session.id));
+        count++;
+      }
+    }
+
+    await logCron("cart_abandonment", "success", `Sent ${count} cart abandonment emails`);
+  } catch (err: any) {
+    await logCron("cart_abandonment", "failed", err.message);
+    console.error("[CRON] cart_abandonment error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
@@ -822,6 +931,7 @@ export async function runAllCronTasks(): Promise<void> {
     runVpsPowerOffCron(),
     runDailyBackupCron(),
     runGoogleDriveBackupCron(),
+    runCartAbandonmentCron(),
   ]);
   console.log("[CRON] All tasks completed.");
 }
