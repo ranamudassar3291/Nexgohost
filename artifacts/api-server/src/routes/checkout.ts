@@ -437,8 +437,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
     // Free domain TLD enforcement — all 3 conditions must pass:
     // 1. Plan has freeDomainEnabled
     // 2. Billing cycle is yearly
-    // 3. TLD is in the plan's freeDomainTlds list OR in DEFAULT_FREE_TLDS (fallback) OR has isFreeWithHosting=true in DB
-    const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+    // 3. TLD is in the plan's freeDomainTlds list OR in CANONICAL_FREE_TLDS (fallback) OR has isFreeWithHosting=true in DB
+    // Only cheap TLDs are eligible for the Free Domain offer (loss-prevention)
+    const CANONICAL_FREE_TLDS = [".store", ".online", ".site", ".shop", ".fun", ".icu"];
     let effectiveFreeDomain = freeDomain;
     if (effectiveFreeDomain && !(plan as any).freeDomainEnabled) effectiveFreeDomain = false;
     if (effectiveFreeDomain && cycle !== "yearly") effectiveFreeDomain = false;
@@ -446,13 +447,25 @@ async function handleCheckout(req: AuthRequest, res: any) {
       const domTld = domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : "";
       const planFreeTlds: string[] = (plan as any).freeDomainTlds ?? [];
       if (planFreeTlds.length > 0) {
-        if (!planFreeTlds.includes(domTld)) effectiveFreeDomain = false;
+        if (!planFreeTlds.includes(domTld)) {
+          res.status(400).json({
+            error: `This TLD is not eligible for the Free Domain offer. Please choose a ${planFreeTlds.slice(0, 3).join(", ")} or similar extension included with your plan.`,
+            eligibleTlds: planFreeTlds,
+          });
+          return;
+        }
       } else {
-        if (!DEFAULT_FREE_TLDS.includes(domTld)) {
+        if (!CANONICAL_FREE_TLDS.includes(domTld)) {
           const [tldRow] = await db.select({ isFree: domainExtensionsTable.isFreeWithHosting })
             .from(domainExtensionsTable)
             .where(eq(domainExtensionsTable.extension, domTld)).limit(1);
-          if (!tldRow?.isFree) effectiveFreeDomain = false;
+          if (!tldRow?.isFree) {
+            res.status(400).json({
+              error: `This TLD is not eligible for the Free Domain offer. Please choose a .store, .online, or .site extension.`,
+              eligibleTlds: CANONICAL_FREE_TLDS,
+            });
+            return;
+          }
         }
       }
     }
@@ -677,6 +690,39 @@ async function handleCheckout(req: AuthRequest, res: any) {
             autoRenew: true,
             nameservers: resolvedNs,
           });
+          // If this domain is a free bundle, create a companion domain order (amount=0, paymentStatus=paid)
+          // so it appears in the admin Pending Activations queue with "Bundle: Free" label
+          if (effectiveFreeDomain) {
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+            const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const domInvNum = `INV-DOM-${dateStr}-${rand}`;
+            const [domOrder] = await db.insert(ordersTable).values({
+              clientId: req.user!.userId,
+              type: "domain",
+              itemId: null,
+              itemName: domain,
+              domain: domain,
+              amount: "0.00",
+              billingCycle: "yearly",
+              status: "pending",
+              paymentStatus: "paid",
+              notes: `Free domain bundle with hosting order #${order.id.slice(0, 8).toUpperCase()}`,
+            }).returning();
+            const [domInvoice] = await db.insert(invoicesTable).values({
+              invoiceNumber: domInvNum,
+              clientId: req.user!.userId,
+              orderId: domOrder.id,
+              serviceId: null,
+              amount: "0.00",
+              total: "0.00",
+              status: "paid",
+              paidDate: new Date(),
+              dueDate: new Date(),
+              items: [{ description: `Free Domain: ${domain} (bundle with ${plan.name})`, quantity: 1, unitPrice: 0, total: 0 }],
+            }).returning();
+            await db.update(ordersTable).set({ invoiceId: domInvoice.id, updatedAt: new Date() })
+              .where(eq(ordersTable.id, domOrder.id));
+          }
         }
       } catch (err) { console.warn("[CHECKOUT DOMAIN RECORD]", err); }
     }

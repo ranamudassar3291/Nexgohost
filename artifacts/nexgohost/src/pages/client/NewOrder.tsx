@@ -2324,7 +2324,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                       Your yearly plan includes one free domain registration.
                       {(() => {
                         const _planTlds = selectedPlan?.freeDomainTlds ?? [];
-                        const _effTlds = _planTlds.length > 0 ? _planTlds : [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+                        const _effTlds = _planTlds.length > 0 ? _planTlds : [".store", ".online", ".site", ".shop", ".fun", ".icu"];
                         return ` Eligible extensions: ${_effTlds.join(", ")}`;
                       })()}
                     </p>
@@ -2421,7 +2421,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
               {domError && <p className="text-[13px] text-red-500 mb-3 flex items-center gap-1.5"><AlertCircle size={13}/> {domError}</p>}
               {domChecking && <div className="text-center py-6"><Loader2 size={20} className="animate-spin" style={{ color: freeDomainClaimed ? "#16a34a" : P }}/></div>}
               {domResults && !domChecking && (() => {
-                const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
+                const CANONICAL_FREE_TLDS = [".store", ".online", ".site", ".shop", ".fun", ".icu"];
                 const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
                 const allResults = [...domResults]
                   .filter(r => r.registrationPrice > 0 && (r.showInSuggestions === true || r.tld === domTypedTld))
@@ -2431,7 +2431,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                   ? planFreeTlds
                   : visibleResults.filter(r => r.isFreeWithHosting).map(r => r.tld).length > 0
                     ? visibleResults.filter(r => r.isFreeWithHosting).map(r => r.tld)
-                    : DEFAULT_FREE_TLDS;
+                    : CANONICAL_FREE_TLDS;
                 return (
                   <div className="space-y-2">
                     {freeDomainClaimed && (
@@ -2446,9 +2446,8 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                       <p className="text-[13px] text-gray-400 text-center py-4">No results found. Try a different name.</p>
                     )}
                     {visibleResults.map(r => {
-                      const DEFAULT_FREE_TLDS = [".com", ".net", ".org", ".pk", ".net.pk", ".org.pk", ".co"];
                       const isFreeByPlan  = planFreeTlds.length > 0 && planFreeTlds.includes(r.tld);
-                      const isFreeByTld   = planFreeTlds.length === 0 && (DEFAULT_FREE_TLDS.includes(r.tld) || (r.isFreeWithHosting ?? false));
+                      const isFreeByTld   = planFreeTlds.length === 0 && (CANONICAL_FREE_TLDS.includes(r.tld) || (r.isFreeWithHosting ?? false));
                       const isFreeExt     = freeDomainClaimed && freeDomainEligible && (isFreeByPlan || isFreeByTld);
                       const domainPrice   = isFreeExt ? 0 : r.registrationPrice;
                       return (

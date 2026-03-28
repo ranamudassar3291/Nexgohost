@@ -20,6 +20,7 @@ import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import {
   fetchSpaceshipLivePrices,
   fetchSpaceshipTldCost,
+  fetchSpaceshipBalance,
   runLossPrevention,
   spaceshipRegister,
   getUsdToPkrWithBuffer,
@@ -129,6 +130,7 @@ router.get("/admin/domains/pending-activation", authenticate, requireAdmin,
         const domainStatus = domainRow?.status ?? "pending";
         const domainId = domainRow?.id ?? null;
 
+        const amt = Number(order.amount);
         return {
           orderId:    order.orderId,
           domainId,
@@ -136,7 +138,8 @@ router.get("/admin/domains/pending-activation", authenticate, requireAdmin,
           name,
           tld,
           domainStatus,
-          amount:     Number(order.amount),
+          amount:     amt,
+          isFreeDomain: amt === 0,
           billingCycle: order.billingCycle,
           paymentStatus: order.paymentStatus,
           orderStatus:   order.orderStatus,
@@ -534,6 +537,76 @@ router.get("/admin/domains/activation-logs", authenticate, requireAdmin,
       const logs = await db.select().from(domainActivationLogsTable)
         .orderBy(domainActivationLogsTable.activatedAt);
       res.json(logs.reverse());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── GET /admin/domains/tld-price-guard ───────────────────────────────────────
+// Fetches live Spaceship prices for all canonical free TLDs
+// Returns alert flags when price exceeds safe threshold ($1.50)
+const CANONICAL_FREE_TLDS = [".store", ".online", ".site", ".shop", ".fun", ".icu"];
+const PRICE_ALERT_THRESHOLD_USD = 1.50;
+
+router.get("/admin/domains/tld-price-guard", authenticate, requireAdmin,
+  async (_req: AuthRequest, res: Response) => {
+    try {
+      const [spaceship] = await db.select()
+        .from(domainRegistrarsTable)
+        .where(and(eq(domainRegistrarsTable.type, "spaceship"), eq(domainRegistrarsTable.isActive, true)))
+        .limit(1);
+
+      if (!spaceship) {
+        res.json({
+          hasRegistrar: false,
+          items: CANONICAL_FREE_TLDS.map(tld => ({ tld, priceUsd: null, alert: false, disabled: false, error: "No active Spaceship registrar configured" })),
+          balance: null,
+          usdToPkr: null,
+        });
+        return;
+      }
+
+      const config = JSON.parse(spaceship.config ?? "{}");
+      const usdToPkr = await getUsdToPkrWithBuffer();
+
+      // Fetch live prices for all free TLDs in parallel
+      const tldNames = CANONICAL_FREE_TLDS.map(t => t.replace(/^\./, ""));
+      let priceMap: Record<string, number | null> = {};
+      try {
+        const liveData = await fetchSpaceshipLivePrices(config.apiKey, config.apiSecret, tldNames);
+        for (const item of liveData) {
+          priceMap[item.tld.toLowerCase()] = item.registration ?? null;
+        }
+      } catch {
+        // If bulk fetch fails, try individual
+        for (const tld of CANONICAL_FREE_TLDS) {
+          const name = tld.replace(/^\./, "");
+          try {
+            const cost = await fetchSpaceshipTldCost(config.apiKey, config.apiSecret, tld);
+            priceMap[name] = cost;
+          } catch { priceMap[name] = null; }
+        }
+      }
+
+      // Fetch wallet balance
+      let balance: number | null = null;
+      try {
+        const balData = await fetchSpaceshipBalance(config.apiKey, config.apiSecret);
+        balance = balData.balance;
+      } catch { /* non-fatal */ }
+
+      const items = CANONICAL_FREE_TLDS.map(tld => {
+        const name = tld.replace(/^\./, "");
+        const priceUsd = priceMap[name] ?? null;
+        const alert = priceUsd !== null && priceUsd > PRICE_ALERT_THRESHOLD_USD;
+        const pricePkr = priceUsd !== null ? Math.round(priceUsd * usdToPkr) : null;
+        return { tld, priceUsd, pricePkr, alert, alertThreshold: PRICE_ALERT_THRESHOLD_USD, usdToPkr };
+      });
+
+      const lowBalance = balance !== null && balance < 5;
+
+      res.json({ hasRegistrar: true, registrarName: spaceship.name, items, balance, usdToPkr, lowBalance, balanceThreshold: 5 });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

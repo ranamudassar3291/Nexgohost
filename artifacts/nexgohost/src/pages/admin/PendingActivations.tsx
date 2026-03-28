@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Globe, CheckCircle, AlertTriangle, RefreshCw, ChevronDown,
   DollarSign, TrendingUp, Wallet, Activity, X, Zap,
-  CheckSquare, Square, Server, Eye, AlertCircle, ArrowRight,
+  CheckSquare, Square, Server, Eye, AlertCircle, ArrowRight, ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +38,7 @@ interface PendingItem {
   tld: string;
   domainStatus: string;
   amount: number;
+  isFreeDomain: boolean;
   billingCycle: string;
   clientId: string;
   clientName: string;
@@ -416,10 +417,23 @@ function DomainRow({
         <p className="text-[11px] text-muted-foreground truncate max-w-[140px]">{item.clientEmail}</p>
       </td>
 
-      {/* Amount */}
+      {/* Amount / Bundle label */}
       <td className="px-3 py-3 text-right">
-        <p className="font-bold text-foreground text-sm">Rs. {item.amount.toLocaleString()}</p>
-        <p className="text-[11px] text-emerald-600">Paid</p>
+        {item.isFreeDomain ? (
+          <>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-500 border border-sky-500/25">
+              🎁 Bundle: Free
+            </span>
+            <p className="text-[11px] text-emerald-600 mt-0.5">No charge</p>
+          </>
+        ) : (
+          <>
+            <p className="font-bold text-foreground text-sm">Rs. {item.amount.toLocaleString()}</p>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/25">
+              Paid
+            </span>
+          </>
+        )}
       </td>
 
       {/* Age */}
@@ -526,11 +540,197 @@ function ProfitLog() {
   );
 }
 
+// ── TLD Price Guard ───────────────────────────────────────────────────────────
+function TldPriceGuard() {
+  const [disabledTlds, setDisabledTlds] = useState<Set<string>>(new Set());
+
+  const { data, isLoading, refetch, isFetching } = useQuery<any>({
+    queryKey: ["tld-price-guard"],
+    queryFn: () => apiFetch("/api/admin/domains/tld-price-guard"),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const toggleDisable = (tld: string) => {
+    setDisabledTlds(prev => {
+      const next = new Set(prev);
+      if (next.has(tld)) next.delete(tld);
+      else next.add(tld);
+      return next;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <RefreshCw size={20} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!data?.hasRegistrar) {
+    return (
+      <div className="bg-card border border-border rounded-2xl p-10 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+          <ShieldAlert size={24} className="text-muted-foreground" />
+        </div>
+        <h3 className="font-semibold text-foreground mb-1">No Spaceship Registrar Configured</h3>
+        <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+          Add an active Spaceship registrar in Domain Registrars to enable live TLD price monitoring.
+        </p>
+      </div>
+    );
+  }
+
+  const alertCount = data.items?.filter((it: any) => it.alert).length ?? 0;
+  const usdToPkr: number = data.usdToPkr ?? 295;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1">
+          <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Spaceship Balance</p>
+          {data.balance !== null ? (
+            <p className={`text-xl font-extrabold ${data.lowBalance ? "text-red-500" : "text-emerald-500"}`}>
+              ${Number(data.balance).toFixed(2)}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">N/A</p>
+          )}
+          {data.lowBalance && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-400 bg-red-500/10 rounded-full px-2 py-0.5 w-fit">
+              <AlertTriangle size={9} /> Low Balance
+            </span>
+          )}
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1">
+          <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">USD→PKR Rate</p>
+          <p className="text-xl font-extrabold text-foreground">Rs. {usdToPkr}</p>
+          <p className="text-[11px] text-muted-foreground">Incl. Rs.15 buffer</p>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1">
+          <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Alert Threshold</p>
+          <p className="text-xl font-extrabold text-foreground">$1.50</p>
+          <p className="text-[11px] text-muted-foreground">Per TLD / year</p>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1">
+          <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Price Alerts</p>
+          <p className={`text-xl font-extrabold ${alertCount > 0 ? "text-red-500" : "text-emerald-500"}`}>
+            {alertCount}
+          </p>
+          <p className="text-[11px] text-muted-foreground">TLD{alertCount !== 1 ? "s" : ""} over threshold</p>
+        </div>
+      </div>
+
+      {/* Price table */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={16} style={{ color: BRAND }} />
+            <h3 className="font-semibold text-foreground text-sm">Free TLD Whitelist — Live Prices</h3>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}
+            className="h-7 rounded-lg text-xs gap-1.5">
+            <RefreshCw size={11} className={isFetching ? "animate-spin" : ""} /> Refresh
+          </Button>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/30 border-b border-border text-[11px] text-muted-foreground">
+              <th className="text-left px-5 py-3 font-semibold uppercase tracking-wide">Extension</th>
+              <th className="text-right px-5 py-3 font-semibold uppercase tracking-wide">Price (USD)</th>
+              <th className="text-right px-5 py-3 font-semibold uppercase tracking-wide">Price (PKR)</th>
+              <th className="text-center px-5 py-3 font-semibold uppercase tracking-wide">Status</th>
+              <th className="text-center px-5 py-3 font-semibold uppercase tracking-wide">Free Offer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data.items ?? []).map((it: any) => {
+              const isAlert = it.alert;
+              const isDisabled = disabledTlds.has(it.tld);
+              return (
+                <tr
+                  key={it.tld}
+                  className={`border-b border-border/40 transition-colors ${
+                    isAlert ? "bg-red-500/8 hover:bg-red-500/12" : "hover:bg-muted/20"
+                  } ${isDisabled ? "opacity-50" : ""}`}
+                >
+                  <td className="px-5 py-3.5">
+                    <span className={`inline-flex items-center gap-2`}>
+                      <span className="font-mono font-bold text-base text-foreground">{it.tld}</span>
+                      {isDisabled && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-bold border border-border">
+                          Disabled
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    {it.priceUsd !== null ? (
+                      <span className={`font-bold ${isAlert ? "text-red-500 text-base" : "text-foreground"}`}>
+                        ${Number(it.priceUsd).toFixed(2)}
+                        {isAlert && <AlertTriangle size={12} className="inline ml-1.5 mb-0.5" />}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">N/A</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-right text-muted-foreground">
+                    {it.pricePkr !== null ? `Rs. ${Number(it.pricePkr).toLocaleString()}` : "—"}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    {it.priceUsd === null ? (
+                      <span className="text-[11px] text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border">
+                        No Data
+                      </span>
+                    ) : isAlert ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 border border-red-500/25">
+                        <AlertTriangle size={10} /> PRICE SPIKE
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/25">
+                        <CheckCircle size={10} /> Safe
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    <button
+                      onClick={() => toggleDisable(it.tld)}
+                      className={`text-[11px] px-3 py-1 rounded-lg font-medium border transition-all ${
+                        isDisabled
+                          ? "bg-muted border-border text-muted-foreground hover:bg-background"
+                          : isAlert
+                          ? "bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20"
+                          : "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 hover:bg-emerald-500/20"
+                      }`}
+                    >
+                      {isDisabled ? "Re-enable" : isAlert ? "Disable" : "Active"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="px-5 py-3 border-t border-border bg-muted/20">
+          <p className="text-[11px] text-muted-foreground">
+            Prices fetched live from Spaceship API · Threshold: $1.50/TLD · Disable buttons are session-only (page refresh resets).
+            Exchange rate includes Rs.15 buffer over the 24h cached Google rate.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PendingActivations() {
   const [selected, setSelected]           = useState<Set<string>>(new Set());
   const [modalItems, setModalItems]       = useState<PendingItem[] | null>(null);
-  const [activeTab, setActiveTab]         = useState<"pending" | "history">("pending");
+  const [activeTab, setActiveTab]         = useState<"pending" | "history" | "price-guard">("pending");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -607,37 +807,48 @@ export default function PendingActivations() {
 
       {/* Tab bar */}
       <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border w-fit">
-        {(["pending", "history"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab === "pending" ? (
-              <span className="flex items-center gap-1.5">
-                <Globe size={13} />
-                Pending
-                {items.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full font-bold"
-                    style={{ background: BRAND_GRADIENT, color: "white" }}>
-                    {items.length}
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <Activity size={13} /> Profit Log
+        <button
+          onClick={() => setActiveTab("pending")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "pending" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <Globe size={13} />
+            Pending
+            {items.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full font-bold"
+                style={{ background: BRAND_GRADIENT, color: "white" }}>
+                {items.length}
               </span>
             )}
-          </button>
-        ))}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("price-guard")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "price-guard" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <AlertCircle size={13} /> TLD Price Guard
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "history" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <Activity size={13} /> Profit Log
+          </span>
+        </button>
       </div>
 
-      {activeTab === "pending" ? (
+      {activeTab === "price-guard" ? (
+        <TldPriceGuard />
+      ) : activeTab === "pending" ? (
         <div className="bg-card border border-border rounded-2xl overflow-hidden">
           {loadingPending ? (
             <div className="flex items-center justify-center py-16">

@@ -27,7 +27,7 @@ function spaceshipHeaders(apiKey: string, apiSecret: string): Record<string, str
   };
 }
 
-// ── Exchange rate helper (USD→PKR + Rs.10 buffer) ────────────────────────────
+// ── Exchange rate helper (USD→PKR + Rs.15 buffer) ────────────────────────────
 export async function getUsdToPkrWithBuffer(): Promise<number> {
   try {
     const [row] = await db.select({ exchangeRate: currenciesTable.exchangeRate })
@@ -35,9 +35,9 @@ export async function getUsdToPkrWithBuffer(): Promise<number> {
       .where(eq(currenciesTable.code, "PKR"))
       .limit(1);
     const base = Number(row?.exchangeRate ?? 280);
-    return base + 10; // +Rs.10 conversion buffer
+    return base + 15; // +Rs.15 conversion buffer
   } catch {
-    return 290; // safe fallback: 280 + 10 buffer
+    return 295; // safe fallback: 280 + 15 buffer
   }
 }
 
@@ -166,7 +166,7 @@ export async function runLossPrevention(
       `Live API Cost: $${liveCostUsd} (Rs. ${liveCostPkr.toLocaleString()})`,
       `Client Paid: Rs. ${clientPaidPkr.toLocaleString()}`,
       `Your Threshold: $${lossThresholdUsd}`,
-      `USD→PKR Rate Used: ${usdToPkr} (incl. Rs.10 buffer)`,
+      `USD→PKR Rate Used: ${usdToPkr} (incl. Rs.15 buffer)`,
       `Action: Registration PAUSED ⛔`,
       `Login to admin panel to review and process manually.`,
     ].join("\n");

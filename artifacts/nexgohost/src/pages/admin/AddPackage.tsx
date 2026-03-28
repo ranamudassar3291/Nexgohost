@@ -80,7 +80,7 @@ export default function AddPackage() {
   const [renewalEnabled, setRenewalEnabled] = useState(true);
   const [freeDomainEnabled, setFreeDomainEnabled] = useState(false);
   const [freeDomainTlds, setFreeDomainTlds] = useState<string[]>([]);
-  const COMMON_TLDS = [".com", ".net", ".org", ".pk", ".uk", ".info", ".biz"];
+  const COMMON_TLDS = [".store", ".online", ".site", ".shop", ".fun", ".icu"];
   const toggleFreeTld = (tld: string) => {
     setFreeDomainTlds(prev => prev.includes(tld) ? prev.filter(t => t !== tld) : [...prev, tld]);
   };

@@ -2,12 +2,13 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart } from "lucide-react";
+import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useQuery } from "@tanstack/react-query";
 
 interface LayoutProps {
   children: ReactNode;
@@ -115,6 +116,22 @@ export function AppLayout({ children, role }: LayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const { data: priceGuardData } = useQuery<any>({
+    queryKey: ["spaceship-balance-alert"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/domains/tld-price-guard", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: role === "admin" && !!token,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+  });
+  const showLowBalanceAlert = role === "admin" && priceGuardData?.hasRegistrar && priceGuardData?.lowBalance;
   const { count: cartCount } = useCart();
 
   const toggleGroup = (label: string) => {
@@ -360,6 +377,17 @@ export function AppLayout({ children, role }: LayoutProps) {
             </div>
           </div>
         </header>
+
+        {showLowBalanceAlert && (
+          <div className="mx-4 mt-3 md:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 text-[13px] font-medium">
+            <AlertTriangle size={16} className="shrink-0 text-red-400" />
+            <span>
+              <span className="font-bold text-red-300">Spaceship Balance Low:</span>{" "}
+              ${priceGuardData?.balance?.toFixed(2)} remaining — below the $5 safety threshold.{" "}
+              Top up your Spaceship wallet before activating domains.
+            </span>
+          </div>
+        )}
 
         <div className="flex-1 p-4 md:p-8 overflow-y-auto">
           <motion.div
