@@ -1,5 +1,26 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 45 — Spaceship Registrar Integration + Manual Activation with Price Guard)
+
+### Feature: Spaceship Registrar Full Integration
+- `lib/db/src/schema/domain-registrars.ts` — Added `spaceship` to `registrarTypeEnum`
+- `artifacts/api-server/src/lib/spaceship.ts` — Full Spaceship API library: register, renew, transfer, EPP, NS update, lock/unlock, live TLD prices, account balance, loss-prevention kill switch
+- `artifacts/api-server/src/lib/email.ts` — Added `emailSpaceshipPriceAlert()` dark-red alert email
+- `artifacts/api-server/src/routes/domain-registrars.ts` — Spaceship in REGISTRAR_FIELDS, callRegistrarApi, live-tld-prices endpoint, balance endpoint, loss-prevention in activate
+- `artifacts/nexgohost/src/pages/admin/DomainRegistrars.tsx` — Spaceship preset (SS, sky-teal), Live API Prices panel with TLD input/fetch/table, wallet balance badge, exchange rate badge
+
+### Feature: Manual Activation & Price Guard System
+- `lib/db/src/schema/domains.ts` — Added `pending_activation` status to `domainStatusEnum`
+- `lib/db/src/schema/domain-activation-logs.ts` — New table: tracks registrar, cost USD/PKR, client paid, profit, exchange rate per activation
+- `artifacts/api-server/src/routes/domain-activation.ts` — New routes:
+  - `GET /admin/domains/pending-activation` — paid domain orders awaiting activation
+  - `POST /admin/domains/prepare-activation` — live cost fetch + margin calculation (read-only)
+  - `POST /admin/domains/confirm-activation` — single domain registration + log + welcome email
+  - `POST /admin/domains/bulk-confirm-activation` — group activation
+  - `GET /admin/domains/activation-logs` — profit history
+- `artifacts/nexgohost/src/pages/admin/PendingActivations.tsx` — New admin page with: table of pending domains, group-select checkboxes, Prepare Activation modal (registrar selector, live price, margin calculator with color coding, Confirm & Register button), Profit Log tab with summary cards and per-domain history
+- Route `/admin/pending-activations` added to App.tsx; sidebar link under Infrastructure
+
 ## Recent Changes (Session 43 — Domain Lifecycle Automation)
 
 ### Feature: ICANN-Compliant Domain Lifecycle Automation

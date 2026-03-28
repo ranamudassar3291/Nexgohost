@@ -28,6 +28,7 @@ export * from "./backups";
 export * from "./password-resets";
 export * from "./vps";
 export * from "./kb";
+export * from "./domain-activation-logs";
 export * from "./security-logs";
 export * from "./uploaded-modules";
 export * from "./domain-registrars";

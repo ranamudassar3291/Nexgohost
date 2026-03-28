@@ -75,6 +75,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "Modules",            href: "/admin/modules",            icon: (() => null) as any },
       { name: "VPS Plans",          href: "/admin/vps",                icon: (() => null) as any },
       { name: "Domain Registrars",  href: "/admin/domain-registrars",  icon: (() => null) as any },
+      { name: "Pending Activations", href: "/admin/pending-activations", icon: (() => null) as any },
     ],
   },
   {
