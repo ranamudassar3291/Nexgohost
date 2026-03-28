@@ -982,6 +982,199 @@ function AddModal({ onClose, onSaved, prefill }: { onClose: () => void; onSaved:
   );
 }
 
+// ── Spaceship Domain Operations Panel ─────────────────────────────────────────
+type SpaceshipAction = "getInfo" | "getEpp" | "lock" | "unlock" | "updateNs" | "renew" | "transfer" | "register" | "getNameservers";
+
+interface SpaceshipResult {
+  success: boolean;
+  result?: any;
+  data?: any;
+  eppCode?: string;
+  nameservers?: string[];
+  locked?: boolean;
+  error?: string;
+}
+
+function SpaceshipOpsPanel({ registrarId }: { registrarId: string }) {
+  const [balance, setBalance]           = useState<{ balance: number; currency: string } | null>(null);
+  const [balLoading, setBalLoading]     = useState(false);
+  const [domainName, setDomainName]     = useState("");
+  const [activeTab, setActiveTab]       = useState<SpaceshipAction>("getInfo");
+  const [period, setPeriod]             = useState("1");
+  const [authCode, setAuthCode]         = useState("");
+  const [nsInput, setNsInput]           = useState("ns1.noehost.com,ns2.noehost.com");
+  const [running, setRunning]           = useState(false);
+  const [result, setResult]             = useState<SpaceshipResult | null>(null);
+  const { toast } = useToast();
+
+  const fetchBalance = async () => {
+    setBalLoading(true);
+    try {
+      const data = await apiFetch(`/api/admin/domain-registrars/${registrarId}/balance`);
+      setBalance({ balance: data.balance, currency: data.currency });
+    } catch (err: any) {
+      toast({ title: "Balance fetch failed", description: err.message, variant: "destructive" });
+    } finally { setBalLoading(false); }
+  };
+
+  const runAction = async () => {
+    if (!domainName.trim()) {
+      toast({ title: "Enter a domain name", variant: "destructive" }); return;
+    }
+    setRunning(true);
+    setResult(null);
+    try {
+      const body: Record<string, any> = {
+        action: activeTab,
+        domainName: domainName.trim() || undefined,
+        period: Number(period),
+      };
+      if (activeTab === "transfer") body.authCode = authCode;
+      if (activeTab === "updateNs" || activeTab === "register") body.nameservers = nsInput;
+      const data = await apiFetch(`/api/admin/domain-registrars/${registrarId}/spaceship-action`, {
+        method: "POST", body: JSON.stringify(body),
+      });
+      setResult(data);
+    } catch (err: any) {
+      setResult({ success: false, error: err.message });
+    } finally { setRunning(false); }
+  };
+
+  const TABS: { id: SpaceshipAction; label: string; icon: string; needsDomain: boolean }[] = [
+    { id: "getInfo",       label: "Domain Info",   icon: "🔍", needsDomain: true  },
+    { id: "getEpp",        label: "EPP Code",      icon: "🔑", needsDomain: true  },
+    { id: "lock",          label: "Lock",          icon: "🔒", needsDomain: true  },
+    { id: "unlock",        label: "Unlock",        icon: "🔓", needsDomain: true  },
+    { id: "getNameservers",label: "Get NS",        icon: "🌐", needsDomain: true  },
+    { id: "updateNs",      label: "Update NS",     icon: "✏️", needsDomain: true  },
+    { id: "renew",         label: "Renew",         icon: "🔄", needsDomain: true  },
+    { id: "transfer",      label: "Transfer",      icon: "📤", needsDomain: true  },
+    { id: "register",      label: "Register",      icon: "➕", needsDomain: true  },
+  ];
+
+  const curTab = TABS.find(t => t.id === activeTab)!;
+
+  function renderResult() {
+    if (!result) return null;
+    const isOk = result.success !== false && !result.error;
+    return (
+      <div className={`mt-3 rounded-xl border p-3 text-xs ${isOk ? "border-emerald-400/30 bg-emerald-50/60 dark:bg-emerald-950/20" : "border-red-400/30 bg-red-50/60 dark:bg-red-950/20"}`}>
+        <div className={`font-semibold mb-1 flex items-center gap-1.5 ${isOk ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+          {isOk ? "✅" : "❌"} {isOk ? "Success" : "Error"}
+        </div>
+        {result.error && <p className="text-red-600 dark:text-red-400">{result.error}</p>}
+        {result.eppCode && (
+          <div className="mt-1">
+            <span className="text-muted-foreground">EPP / Auth Code: </span>
+            <code className="font-mono font-bold text-foreground bg-muted px-2 py-0.5 rounded select-all">{result.eppCode}</code>
+          </div>
+        )}
+        {result.locked !== undefined && (
+          <p className="text-foreground">Lock Status: <strong>{result.locked ? "🔒 Locked" : "🔓 Unlocked"}</strong></p>
+        )}
+        {result.nameservers && (
+          <div className="mt-1">
+            <p className="text-muted-foreground font-medium">Nameservers:</p>
+            <ul className="mt-0.5 space-y-0.5">{result.nameservers.map((ns, i) => (
+              <li key={i} className="font-mono text-foreground">{ns}</li>
+            ))}</ul>
+          </div>
+        )}
+        {(result.data || result.result) && !result.eppCode && result.locked === undefined && !result.nameservers && (
+          <pre className="mt-1 font-mono text-foreground bg-muted/50 rounded-lg p-2 overflow-x-auto max-h-40 overflow-y-auto text-[10px] whitespace-pre-wrap break-all">
+            {JSON.stringify(result.data ?? result.result, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4 border border-violet-500/20 rounded-xl overflow-hidden">
+      {/* Header with Balance */}
+      <div className="flex items-center justify-between bg-violet-500/5 px-4 py-3 border-b border-violet-500/15">
+        <div className="flex items-center gap-2">
+          <Zap size={14} className="text-violet-500" />
+          <span className="text-sm font-semibold text-foreground">Domain Operations</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {balance && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-600 border border-teal-500/20 font-semibold flex items-center gap-1">
+              <Wallet size={9} /> ${balance.balance.toFixed(2)} {balance.currency}
+            </span>
+          )}
+          <Button size="sm" variant="outline" onClick={fetchBalance} disabled={balLoading}
+            className="h-6 rounded-lg text-[10px] px-2 gap-1 border-violet-500/30 text-violet-600 hover:bg-violet-500/10">
+            {balLoading ? <RefreshCw size={9} className="animate-spin" /> : <Wallet size={9} />}
+            {balance ? "Refresh Balance" : "Check Balance"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-3">
+        {/* Domain name input */}
+        <div className="flex gap-2 items-center">
+          <Globe size={14} className="text-muted-foreground shrink-0" />
+          <Input
+            value={domainName}
+            onChange={e => setDomainName(e.target.value)}
+            placeholder="example.com"
+            className="h-8 text-xs rounded-lg font-mono flex-1"
+          />
+        </div>
+
+        {/* Action tabs */}
+        <div className="flex flex-wrap gap-1.5">
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id); setResult(null); }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                activeTab === tab.id
+                  ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                  : "bg-card text-muted-foreground border-border hover:border-violet-400/40 hover:text-foreground"
+              }`}>
+              <span>{tab.icon}</span> {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Action-specific inputs */}
+        {(activeTab === "renew" || activeTab === "register") && (
+          <div className="flex items-center gap-2">
+            <Label className="text-[11px] text-muted-foreground shrink-0">Years:</Label>
+            <Input value={period} onChange={e => setPeriod(e.target.value)} type="number" min="1" max="10"
+              className="h-7 text-xs rounded-lg w-20" />
+          </div>
+        )}
+        {activeTab === "transfer" && (
+          <div className="flex items-center gap-2">
+            <Label className="text-[11px] text-muted-foreground shrink-0">Auth/EPP Code:</Label>
+            <Input value={authCode} onChange={e => setAuthCode(e.target.value)} placeholder="auth-code-here"
+              className="h-7 text-xs rounded-lg flex-1 font-mono" />
+          </div>
+        )}
+        {(activeTab === "updateNs" || activeTab === "register") && (
+          <div>
+            <Label className="text-[11px] text-muted-foreground block mb-1">Nameservers (comma-separated):</Label>
+            <Input value={nsInput} onChange={e => setNsInput(e.target.value)}
+              placeholder="ns1.noehost.com,ns2.noehost.com"
+              className="h-7 text-xs rounded-lg font-mono" />
+          </div>
+        )}
+
+        {/* Run button */}
+        <Button size="sm" onClick={runAction} disabled={running}
+          className="w-full h-8 rounded-lg text-xs font-semibold gap-2 bg-violet-600 hover:bg-violet-700 text-white">
+          {running ? <RefreshCw size={11} className="animate-spin" /> : <span>{curTab.icon}</span>}
+          {running ? "Running…" : `${curTab.label}${domainName ? ` — ${domainName}` : ""}`}
+        </Button>
+
+        {/* Result */}
+        {renderResult()}
+      </div>
+    </div>
+  );
+}
+
 // ── Registrar card ────────────────────────────────────────────────────────────
 interface TldPrice {
   tld: string;
@@ -1176,6 +1369,11 @@ function RegistrarCard({ r, onRefresh }: { r: Registrar; onRefresh: () => void }
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* Spaceship Domain Operations Panel */}
+              {r.type === "spaceship" && (
+                <SpaceshipOpsPanel registrarId={r.id} />
               )}
 
               {/* Spaceship Live Prices Panel */}

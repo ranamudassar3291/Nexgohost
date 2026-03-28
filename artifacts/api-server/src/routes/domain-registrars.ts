@@ -1181,4 +1181,131 @@ router.post("/admin/orders/:id/activate-domain-registrar", authenticate, require
   }
 );
 
+// ── Spaceship: Direct Domain Operations (free-form, no DB domain required) ─────
+// POST /admin/domain-registrars/:id/spaceship-action
+router.post("/admin/domain-registrars/:id/spaceship-action", authenticate, requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const [r] = await db.select().from(domainRegistrarsTable)
+        .where(eq(domainRegistrarsTable.id, req.params.id));
+      if (!r) { res.status(404).json({ error: "Registrar not found" }); return; }
+      if (r.type !== "spaceship") {
+        res.status(400).json({ error: "This endpoint is for Spaceship registrars only" });
+        return;
+      }
+
+      const config = JSON.parse(r.config ?? "{}");
+      const { apiKey, apiSecret } = config;
+      if (!apiKey || !apiSecret) {
+        res.status(400).json({ error: "Spaceship API Key and Secret are not configured" });
+        return;
+      }
+
+      const {
+        action,
+        domainName,
+        period = 1,
+        authCode,
+        nameservers,
+        useWallet,
+      } = req.body as {
+        action: string;
+        domainName?: string;
+        period?: number;
+        authCode?: string;
+        nameservers?: string;
+        useWallet?: boolean;
+      };
+
+      const useAccountBalance = useWallet ?? (config.useAccountBalance !== "false");
+
+      if (action === "balance") {
+        const bal = await fetchSpaceshipBalance(apiKey, apiSecret);
+        res.json({ success: true, result: bal });
+        return;
+      }
+
+      if (!domainName) {
+        res.status(400).json({ error: "domainName is required for this action" });
+        return;
+      }
+
+      const fqdn = domainName.includes(".") ? domainName : `${domainName}.com`;
+
+      if (action === "getInfo") {
+        const { spaceshipGetDomainInfo } = await import("../lib/spaceship.js");
+        const result = await spaceshipGetDomainInfo(apiKey, apiSecret, fqdn);
+        res.json(result);
+        return;
+      }
+
+      if (action === "register") {
+        const nsArr = nameservers
+          ? nameservers.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : ["ns1.noehost.com", "ns2.noehost.com"];
+        const result = await spaceshipRegister(apiKey, apiSecret, fqdn, Number(period), nsArr, useAccountBalance);
+        res.json(result);
+        return;
+      }
+
+      if (action === "renew") {
+        const result = await spaceshipRenew(apiKey, apiSecret, fqdn, Number(period), useAccountBalance);
+        res.json(result);
+        return;
+      }
+
+      if (action === "transfer") {
+        if (!authCode) { res.status(400).json({ error: "authCode is required for transfer" }); return; }
+        const result = await spaceshipTransfer(apiKey, apiSecret, fqdn, authCode, useAccountBalance);
+        res.json(result);
+        return;
+      }
+
+      if (action === "getEpp") {
+        const result = await spaceshipGetEpp(apiKey, apiSecret, fqdn);
+        res.json(result);
+        return;
+      }
+
+      if (action === "lock") {
+        const result = await spaceshipSetLock(apiKey, apiSecret, fqdn, true);
+        res.json(result);
+        return;
+      }
+
+      if (action === "unlock") {
+        const result = await spaceshipSetLock(apiKey, apiSecret, fqdn, false);
+        res.json(result);
+        return;
+      }
+
+      if (action === "getLock") {
+        const result = await spaceshipGetLock(apiKey, apiSecret, fqdn);
+        res.json(result);
+        return;
+      }
+
+      if (action === "updateNs") {
+        if (!nameservers) { res.status(400).json({ error: "nameservers is required for updateNs" }); return; }
+        const nsArr = nameservers.split(",").map((s: string) => s.trim()).filter(Boolean);
+        const result = await spaceshipUpdateNameservers(apiKey, apiSecret, fqdn, nsArr);
+        res.json(result);
+        return;
+      }
+
+      if (action === "getNameservers") {
+        const { spaceshipGetNameservers } = await import("../lib/spaceship.js");
+        const result = await spaceshipGetNameservers(apiKey, apiSecret, fqdn);
+        res.json(result);
+        return;
+      }
+
+      res.status(400).json({ error: `Unknown action: ${action}` });
+    } catch (err: any) {
+      console.error("[SPACESHIP-ACTION]", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 export default router;
