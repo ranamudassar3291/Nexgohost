@@ -141,9 +141,12 @@ async function writeLog(opts: {
   errorMessage?: string;
   clientId?: string;
   referenceId?: string;
-}): Promise<void> {
+  presetId?: string;
+}): Promise<string | null> {
   try {
+    const id = opts.presetId ?? crypto.randomUUID();
     await db.insert(emailLogsTable).values({
+      id,
       email: opts.email,
       emailType: opts.emailType,
       subject: opts.subject,
@@ -152,8 +155,9 @@ async function writeLog(opts: {
       clientId: opts.clientId ?? null,
       referenceId: opts.referenceId ?? null,
     });
+    return id;
   } catch {
-    // Log failures are non-fatal
+    return null;
   }
 }
 
@@ -183,7 +187,8 @@ export async function sendEmail(opts: {
   clientId?: string;
   referenceId?: string;
   attachments?: EmailAttachment[];
-}): Promise<{ sent: boolean; message: string }> {
+  logId?: string;
+}): Promise<{ sent: boolean; message: string; logId?: string | null }> {
   const cfg = await getSmtpConfig();
   const transport = createTransport(cfg);
   const emailType = opts.emailType || "system";
@@ -194,8 +199,8 @@ export async function sendEmail(opts: {
     console.log(`[EMAIL] Subject: ${opts.subject}`);
     console.log(`[EMAIL] (SMTP not configured — email not sent, logged only)`);
     console.log(`[EMAIL] ─────────────────────────────────────────────\n`);
-    await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "failed", errorMessage: "SMTP not configured" });
-    return { sent: false, message: "SMTP not configured — email logged to console" };
+    const logId = await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "failed", errorMessage: "SMTP not configured", presetId: opts.logId });
+    return { sent: false, message: "SMTP not configured — email logged to console", logId };
   }
 
   const text = stripHtml(opts.html);
@@ -216,8 +221,8 @@ export async function sendEmail(opts: {
     try {
       await trySend(transport, mail);
       console.log(`[EMAIL] Sent "${opts.subject}" to ${opts.to} (attempt ${attempt})`);
-      await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "success", clientId: opts.clientId, referenceId: opts.referenceId });
-      return { sent: true, message: "Email sent" };
+      const logId = await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "success", clientId: opts.clientId, referenceId: opts.referenceId, presetId: opts.logId });
+      return { sent: true, message: "Email sent", logId };
     } catch (err: any) {
       lastError = err.message || String(err);
       console.warn(`[EMAIL] Attempt ${attempt}/${MAX_ATTEMPTS} failed for "${opts.subject}" to ${opts.to}: ${lastError}`);
@@ -228,8 +233,8 @@ export async function sendEmail(opts: {
   }
 
   console.error(`[EMAIL] All attempts exhausted for "${opts.subject}" to ${opts.to}`);
-  await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "failed", errorMessage: lastError, clientId: opts.clientId, referenceId: opts.referenceId });
-  return { sent: false, message: lastError };
+  const failLogId = await writeLog({ email: opts.to, emailType, subject: opts.subject, status: "failed", errorMessage: lastError, clientId: opts.clientId, referenceId: opts.referenceId, presetId: opts.logId });
+  return { sent: false, message: lastError, logId: failLogId };
 }
 
 export async function sendTemplatedEmail(

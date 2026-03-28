@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 
 export type BillingCycle = "monthly" | "quarterly" | "semiannual" | "yearly";
 
@@ -21,9 +21,11 @@ interface CartContextType {
   updateCycle: (planId: string, cycle: BillingCycle) => void;
   clearCart: () => void;
   count: number;
+  synced: boolean;
 }
 
 const STORAGE_KEY = "noehost_cart";
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const CartContext = createContext<CartContextType>({
   items: [],
@@ -32,9 +34,10 @@ const CartContext = createContext<CartContextType>({
   updateCycle: () => {},
   clearCart: () => {},
   count: 0,
+  synced: false,
 });
 
-function loadCart(): CartItem[] {
+function loadLocalCart(): CartItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as CartItem[]) : [];
@@ -43,45 +46,156 @@ function loadCart(): CartItem[] {
   }
 }
 
-function saveCart(items: CartItem[]) {
+function saveLocalCart(items: CartItem[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {}
 }
 
-export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(loadCart);
+function getToken(): string | null {
+  return localStorage.getItem("token");
+}
 
+function isLoggedIn(): boolean {
+  return !!getToken();
+}
+
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${getToken() || ""}`,
+  };
+}
+
+// ─── DB row → CartItem ────────────────────────────────────────────────────────
+function rowToItem(row: any): CartItem {
+  return {
+    planId: row.planId,
+    planName: row.planName,
+    billingCycle: (row.billingCycle || "monthly") as BillingCycle,
+    monthlyPrice: parseFloat(row.monthlyPrice || "0"),
+    quarterlyPrice: row.quarterlyPrice != null ? parseFloat(row.quarterlyPrice) : null,
+    semiannualPrice: row.semiannualPrice != null ? parseFloat(row.semiannualPrice) : null,
+    yearlyPrice: row.yearlyPrice != null ? parseFloat(row.yearlyPrice) : null,
+    renewalPrice: row.renewalPrice != null ? parseFloat(row.renewalPrice) : null,
+    renewalEnabled: row.renewalEnabled === "true",
+  };
+}
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>(loadLocalCart);
+  const [synced, setSynced] = useState(false);
+  const syncInProgress = useRef(false);
+
+  // ─── On mount: if logged in, fetch DB cart and use it as source of truth ──
   useEffect(() => {
-    saveCart(items);
+    if (!isLoggedIn()) {
+      setSynced(true);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${BASE}/api/client/cart`, { headers: authHeaders() });
+        if (!res.ok) { setSynced(true); return; }
+        const rows = await res.json();
+        if (cancelled) return;
+
+        if (Array.isArray(rows) && rows.length > 0) {
+          const dbItems = rows.map(rowToItem);
+          setItems(dbItems);
+          saveLocalCart(dbItems);
+        } else {
+          // DB empty — push local cart to DB if any
+          const local = loadLocalCart();
+          if (local.length > 0) {
+            for (const item of local) {
+              await fetch(`${BASE}/api/client/cart`, {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify(item),
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch {
+        // Network error — keep local cart
+      } finally {
+        if (!cancelled) setSynced(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // ─── Keep localStorage in sync whenever items change ─────────────────────
+  useEffect(() => {
+    saveLocalCart(items);
   }, [items]);
 
+  // ─── addItem: update state, localStorage, and DB ─────────────────────────
   const addItem = useCallback((item: CartItem) => {
     setItems(prev => {
       const existing = prev.findIndex(i => i.planId === item.planId);
+      let next: CartItem[];
       if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = item;
-        return updated;
+        next = [...prev];
+        next[existing] = item;
+      } else {
+        next = [...prev, item];
       }
-      return [...prev, item];
+      return next;
     });
+
+    if (isLoggedIn()) {
+      fetch(`${BASE}/api/client/cart`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(item),
+      }).catch(() => {});
+    }
   }, []);
 
+  // ─── removeItem: update state, localStorage, and DB ──────────────────────
   const removeItem = useCallback((planId: string) => {
     setItems(prev => prev.filter(i => i.planId !== planId));
+
+    if (isLoggedIn()) {
+      fetch(`${BASE}/api/client/cart/${encodeURIComponent(planId)}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      }).catch(() => {});
+    }
   }, []);
 
+  // ─── updateCycle: update state, localStorage, and DB ─────────────────────
   const updateCycle = useCallback((planId: string, cycle: BillingCycle) => {
     setItems(prev => prev.map(i => i.planId === planId ? { ...i, billingCycle: cycle } : i));
+
+    if (isLoggedIn()) {
+      fetch(`${BASE}/api/client/cart/${encodeURIComponent(planId)}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ billingCycle: cycle }),
+      }).catch(() => {});
+    }
   }, []);
 
+  // ─── clearCart: wipe state, localStorage, and DB ─────────────────────────
   const clearCart = useCallback(() => {
     setItems([]);
+
+    if (isLoggedIn()) {
+      fetch(`${BASE}/api/client/cart`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      }).catch(() => {});
+    }
   }, []);
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateCycle, clearCart, count: items.length }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateCycle, clearCart, count: items.length, synced }}>
       {children}
     </CartContext.Provider>
   );

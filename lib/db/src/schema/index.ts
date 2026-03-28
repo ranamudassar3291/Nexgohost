@@ -37,3 +37,4 @@ export * from "./server-status";
 export * from "./cart-sessions";
 export * from "./email-campaigns";
 export * from "./email-unsubscribes";
+export * from "./cart-items";

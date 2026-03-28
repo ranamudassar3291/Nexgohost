@@ -311,7 +311,12 @@ router.post("/admin/email-marketing/send", authenticate, requireAdmin, async (re
         unsubscribe_url: unsubUrl,
       };
 
-      const personalizedHtml = personalizeHtml(layoutEmail(htmlBody, unsubUrl), vars);
+      // Pre-assign a logId so we can inject tracking pixel before sending
+      const preLogId = crypto.randomUUID();
+      const openPixelUrl = `${getAppUrl()}/api/t/open/${preLogId}`;
+      const bodyWithTracking = htmlBody + `<img src="${openPixelUrl}" width="1" height="1" alt="" style="display:none" />`;
+
+      const personalizedHtml = personalizeHtml(layoutEmail(bodyWithTracking, unsubUrl), vars);
       const personalizedSubject = personalizeHtml(subject, vars);
 
       const result = await sendEmail({
@@ -321,6 +326,7 @@ router.post("/admin/email-marketing/send", authenticate, requireAdmin, async (re
         emailType: "campaign",
         clientId: recipient.id,
         referenceId: campaign.id,
+        logId: preLogId,
       });
 
       if (result.sent) sent++; else failed++;
@@ -339,6 +345,47 @@ router.post("/admin/email-marketing/send", authenticate, requireAdmin, async (re
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ─── Tracking pixel — mark email as opened (public, no auth) ─────────────────
+// Tiny 1×1 transparent GIF served when an email client renders the email.
+const TRANSPARENT_GIF = Buffer.from(
+  "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+  "base64",
+);
+
+router.get("/t/open/:logId", async (req, res) => {
+  const { logId } = req.params;
+  // Update log status to "opened" (non-blocking, best effort)
+  db.update(emailLogsTable)
+    .set({ status: "opened" })
+    .where(and(eq(emailLogsTable.id, logId), eq(emailLogsTable.status, "success")))
+    .catch(() => {});
+
+  res.set({
+    "Content-Type": "image/gif",
+    "Content-Length": String(TRANSPARENT_GIF.length),
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  });
+  return res.send(TRANSPARENT_GIF);
+});
+
+// ─── Click tracking redirect (public, no auth) ────────────────────────────────
+// Wraps any outgoing link so we can mark the email as clicked before redirecting.
+router.get("/t/click/:logId", async (req, res) => {
+  const { logId } = req.params;
+  const { url } = req.query;
+
+  // Mark as clicked (best effort)
+  db.update(emailLogsTable)
+    .set({ status: "clicked" })
+    .where(eq(emailLogsTable.id, logId))
+    .catch(() => {});
+
+  const target = typeof url === "string" && url ? url : getAppUrl();
+  return res.redirect(302, target);
 });
 
 export default router;

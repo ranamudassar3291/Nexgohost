@@ -4,7 +4,7 @@ import {
   hostingServicesTable, invoicesTable, domainsTable, usersTable,
   cronLogsTable, emailLogsTable, hostingPlansTable, notificationsTable,
   hostingBackupsTable, domainPricingTable,
-  cartSessionsTable, promoCodesTable,
+  cartSessionsTable, promoCodesTable, cartItemsTable,
 } from "@workspace/db/schema";
 import { eq, lte, sql, and, gte, lt, desc, isNull } from "drizzle-orm";
 import { convertAndFormat } from "./currency-format.js";
@@ -817,8 +817,10 @@ export async function runCartAbandonmentCron(): Promise<void> {
     const abandoned = await db.select({
       id: cartSessionsTable.id,
       userId: cartSessionsTable.userId,
+      packageId: cartSessionsTable.packageId,
       packageName: cartSessionsTable.packageName,
       domainName: cartSessionsTable.domainName,
+      billingCycle: cartSessionsTable.billingCycle,
       email: usersTable.email,
       firstName: usersTable.firstName,
     }).from(cartSessionsTable)
@@ -855,47 +857,170 @@ export async function runCartAbandonmentCron(): Promise<void> {
       }).onConflictDoNothing();
 
       const clientName = session.firstName || "Valued Customer";
-      const domain = session.domainName || "your domain";
+      const domain = session.domainName;
       const pkg = session.packageName || "your hosting plan";
-      const checkoutUrl = `${getAppUrl()}/client/checkout`;
 
-      const html = `
-        <h2 style="color:#701AFE;margin:0 0 16px">You left something behind! 🛒</h2>
-        <p>Hi <strong>${clientName}</strong>,</p>
-        <p>We noticed you were checking out <strong>${pkg}</strong>${domain !== "your domain" ? ` with domain <strong>${domain}</strong>` : ""} but didn't complete your order.</p>
-        <p>No worries — we've saved your cart! And as a thank-you, here's an exclusive <strong>10% OFF</strong> just for you:</p>
-        <table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;width:100%">
-          <tr><td style="background:#f4f0ff;border:2px dashed #701AFE;border-radius:8px;padding:20px;text-align:center">
-            <p style="margin:0 0 4px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px">Your Promo Code</p>
-            <p style="margin:0;font-size:28px;font-weight:800;color:#701AFE;letter-spacing:4px">${promoCode}</p>
-            <p style="margin:8px 0 0;font-size:12px;color:#888">Valid for 7 days — one-time use</p>
-          </td></tr>
-        </table>
-        <p style="text-align:center;margin:24px 0">
-          <a href="${checkoutUrl}" style="display:inline-block;background:linear-gradient(135deg,#701AFE,#9B51E0);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">
-            Complete My Order →
-          </a>
-        </p>
-        <p style="font-size:13px;color:#666">This offer expires in 7 days. Don't miss out!</p>
-      `;
+      // Look up cart item to build complete dynamic checkout URL
+      let checkoutUrl = `${getAppUrl()}/client/cart`;
+      if (session.packageId) {
+        const cartItems = await db.select().from(cartItemsTable)
+          .where(and(
+            eq(cartItemsTable.userId, session.userId),
+            eq(cartItemsTable.planId, session.packageId),
+          )).limit(1);
+        const item = cartItems[0];
+        const params = new URLSearchParams({
+          packageId: session.packageId,
+          packageName: session.packageName || "",
+          billingCycle: item?.billingCycle || session.billingCycle || "monthly",
+          ...(item?.monthlyPrice ? { monthlyPrice: item.monthlyPrice } : {}),
+          ...(item?.quarterlyPrice ? { quarterlyPrice: item.quarterlyPrice } : {}),
+          ...(item?.semiannualPrice ? { semiannualPrice: item.semiannualPrice } : {}),
+          ...(item?.yearlyPrice ? { yearlyPrice: item.yearlyPrice } : {}),
+        });
+        if (domain) params.set("domainName", domain);
+        checkoutUrl = `${getAppUrl()}/client/checkout?${params.toString()}`;
+      }
+
+      // Premium HTML recovery email
+      const year = new Date().getFullYear();
+      const emailHtml = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f0eeff;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0eeff;padding:40px 16px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 8px 40px rgba(112,26,254,0.18)">
+
+  <!-- ─── HERO HEADER ─── -->
+  <tr>
+    <td style="background:linear-gradient(135deg,#701AFE 0%,#9B51E0 60%,#C084FC 100%);padding:40px 40px 36px;text-align:center">
+      <p style="margin:0 0 8px;font-size:32px;font-weight:900;color:#ffffff;letter-spacing:-1px">Noehost</p>
+      <p style="margin:0;font-size:15px;color:rgba(255,255,255,0.82);font-weight:500">Your Trusted Hosting Partner</p>
+    </td>
+  </tr>
+
+  <!-- ─── SHOPPING CART ICON BADGE ─── -->
+  <tr>
+    <td style="background:#ffffff;padding:0;text-align:center">
+      <div style="margin:-22px auto 0;width:52px;height:52px;background:#fff;border-radius:50%;border:3px solid #701AFE;display:inline-flex;align-items:center;justify-content:center;font-size:24px;line-height:52px">
+        🛒
+      </div>
+    </td>
+  </tr>
+
+  <!-- ─── BODY ─── -->
+  <tr>
+    <td style="background:#ffffff;padding:28px 44px 36px;color:#222222;font-size:15px;line-height:1.8">
+
+      <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:#1a1a2e;text-align:center">
+        ${domain ? `Your domain <span style="color:#701AFE">${domain}</span> is still waiting!` : "Your cart is still waiting for you!"}
+      </h1>
+      <p style="margin:0 0 24px;font-size:14px;color:#888;text-align:center">We've saved your spot. Don't let it expire.</p>
+
+      <p style="margin:0 0 16px">Hi <strong>${clientName}</strong>,</p>
+      <p style="margin:0 0 20px">
+        You were so close! You started setting up <strong>${pkg}</strong>${domain ? ` with domain <strong>${domain}</strong>` : ""} but didn't complete your order.
+      </p>
+      <p style="margin:0 0 28px">
+        The great news? <strong>We've saved everything for you</strong> — and we're sweetening the deal with an exclusive 10% discount, just for you.
+      </p>
+
+      <!-- ─── ORDER SUMMARY BOX ─── -->
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#f8f4ff;border-radius:10px;margin:0 0 28px;overflow:hidden">
+        <tr>
+          <td style="background:linear-gradient(135deg,#701AFE,#9B51E0);padding:12px 20px">
+            <p style="margin:0;font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:1px">Your Order Summary</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 20px">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="font-size:14px;color:#555;padding-bottom:8px">📦 Plan</td>
+                <td style="font-size:14px;font-weight:700;color:#222;text-align:right;padding-bottom:8px">${pkg}</td>
+              </tr>
+              ${domain ? `<tr>
+                <td style="font-size:14px;color:#555;padding-bottom:8px">🌐 Domain</td>
+                <td style="font-size:14px;font-weight:700;color:#701AFE;text-align:right;padding-bottom:8px">${domain}</td>
+              </tr>` : ""}
+              <tr>
+                <td style="font-size:14px;color:#555">🎁 Your Discount</td>
+                <td style="font-size:14px;font-weight:700;color:#16a34a;text-align:right">10% OFF</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- ─── PROMO CODE BOX ─── -->
+      <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 28px">
+        <tr>
+          <td style="background:#fffbeb;border:2px dashed #f59e0b;border-radius:10px;padding:20px;text-align:center">
+            <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:2px">🎫 Your Exclusive Promo Code</p>
+            <p style="margin:8px 0;font-size:34px;font-weight:900;color:#701AFE;letter-spacing:6px;font-family:'Courier New',monospace">${promoCode}</p>
+            <p style="margin:0;font-size:13px;color:#78350f">⏰ Expires in <strong>7 days</strong> — one-time use only</p>
+          </td>
+        </tr>
+      </table>
+
+      <!-- ─── CTA BUTTON ─── -->
+      <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 28px;width:100%">
+        <tr>
+          <td style="text-align:center">
+            <a href="${checkoutUrl}" style="display:inline-block;background:linear-gradient(135deg,#701AFE 0%,#9B51E0 60%,#C084FC 100%);color:#ffffff;text-decoration:none;padding:16px 48px;border-radius:50px;font-size:17px;font-weight:800;letter-spacing:0.3px;box-shadow:0 4px 20px rgba(112,26,254,0.4)">
+              🚀 Complete My Order Now
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 8px;font-size:13px;color:#888;text-align:center">
+        Or copy and paste this link in your browser:
+      </p>
+      <p style="margin:0 0 24px;font-size:12px;color:#701AFE;text-align:center;word-break:break-all">
+        <a href="${checkoutUrl}" style="color:#701AFE">${checkoutUrl}</a>
+      </p>
+
+      <hr style="border:none;border-top:1px solid #f0f0f0;margin:24px 0">
+      <p style="margin:0;font-size:13px;color:#999;text-align:center">
+        Questions? We're always here. <a href="https://wa.me/923151711821" style="color:#701AFE;font-weight:600">Chat with us on WhatsApp</a>
+      </p>
+    </td>
+  </tr>
+
+  <!-- ─── WHATSAPP SUPPORT ─── -->
+  <tr>
+    <td style="background:#f0fdf4;border-top:2px solid #25D366;padding:20px 44px;text-align:center">
+      <p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#166534">🚀 Need help? We reply within minutes!</p>
+      <a href="https://wa.me/923151711821?text=Hi%20Noehost!%20I%20need%20help%20completing%20my%20order."
+         style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700">
+        💬 WhatsApp Support
+      </a>
+    </td>
+  </tr>
+
+  <!-- ─── FOOTER ─── -->
+  <tr>
+    <td style="background:#1a1a2e;padding:24px 44px;text-align:center">
+      <p style="margin:0 0 8px;font-size:13px;color:rgba(255,255,255,0.6)">© ${year} Noehost. All rights reserved.</p>
+      <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35)">
+        You received this email because you started an order on Noehost.
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+
+</body></html>`;
 
       const result = await sendEmail({
         to: session.email,
-        subject: `${clientName}, complete your order and save 10%! 🎯`,
-        html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f2f2f2;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f2f2;padding:36px 16px">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#fff;border-radius:4px;overflow:hidden;border:1px solid #e5e5e5">
-<tr><td style="background:#fff;padding:28px 40px 16px;text-align:center;border-bottom:3px solid #701AFE">
-<span style="font-size:26px;font-weight:800;color:#701AFE;letter-spacing:-0.5px">Noehost</span>
-</td></tr>
-<tr><td style="padding:32px 40px 28px;color:#333;font-size:15px;line-height:1.75">${html}</td></tr>
-<tr><td style="background:#f8f8f8;border-top:1px solid #e5e5e5;padding:16px 40px;text-align:center;font-size:12px;color:#999">
-&copy; ${new Date().getFullYear()} Noehost. All rights reserved.
-</td></tr>
-</table></td></tr></table>
-</body></html>`,
+        subject: `${clientName}, your ${domain ? `domain ${domain}` : pkg} is still waiting! 🎯 Save 10% now`,
+        html: emailHtml,
         emailType: "cart-abandonment",
         clientId: session.userId,
         referenceId: session.id,

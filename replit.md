@@ -1,5 +1,40 @@
 # Nexgohost - Hosting & Client Management Platform
 
+## Recent Changes (Session 42 — Persistent Cart & Email Tracking)
+
+### Feature: Persistent Cart (DB-synced)
+**Backend:**
+- `lib/db/src/schema/cart-items.ts` — NEW: `cartItemsTable` — stores cart items per user (userId, planId, planName, billingCycle, monthlyPrice, quarterly/semiannual/yearlyPrice, renewalPrice, renewalEnabled)
+- `lib/db/src/schema/index.ts` — Added `cart-items` export; migrated via `pnpm run push`
+- `artifacts/api-server/src/routes/cart.ts` — NEW router with 5 endpoints:
+  - `GET /client/cart` — fetch user's DB cart items (auth required)
+  - `POST /client/cart` — add/upsert item (auth required)
+  - `PATCH /client/cart/:planId` — update billing cycle (auth required)
+  - `DELETE /client/cart/:planId` — remove one item (auth required)
+  - `DELETE /client/cart` — clear all cart items (auth required)
+- Registered `cartRouter` in `artifacts/api-server/src/routes/index.ts`
+
+**Frontend:**
+- `artifacts/nexgohost/src/context/CartContext.tsx` — Fully rewritten with DB sync:
+  - On mount: if logged in, fetches DB cart and uses as source of truth; pushes local cart to DB if DB is empty
+  - `addItem()` / `removeItem()` / `updateCycle()` / `clearCart()` — all sync to DB for logged-in users
+  - New `synced` boolean field indicates when initial DB fetch is complete
+  - localStorage remains as offline fallback for guests and persistence
+
+### Feature: Email Open/Click Tracking
+**Backend:**
+- `artifacts/api-server/src/lib/email.ts` — Updated `writeLog()` to return logId; updated `sendEmail()` to accept `logId` option and return `{ sent, message, logId }` — enables pre-assigned log IDs for tracking injection
+- `artifacts/api-server/src/routes/email-marketing.ts` — Added:
+  - `GET /t/open/:logId` — serves 1×1 transparent GIF pixel; marks email log status as "opened" (non-blocking, best-effort)
+  - `GET /t/click/:logId?url=xxx` — redirect to target URL; marks email log status as "clicked"
+  - Campaign send now injects tracking pixel `<img>` into every outbound campaign email with a pre-assigned logId
+
+### Feature: Premium Cart Abandonment Email
+- `artifacts/api-server/src/lib/cron.ts` — Cart abandonment cron now:
+  - Selects `packageId` and `billingCycle` from cart sessions
+  - Joins with `cart_items` to get price data → builds a full dynamic checkout URL (`/client/checkout?packageId=...&monthlyPrice=...&billingCycle=...&domainName=...`) for the CTA button; falls back to `/client/cart` if no cart item data
+  - Sends premium brand HTML email with gradient hero header, order summary box, amber promo code badge, WhatsApp support section, and dark footer
+
 ## Recent Changes (Session 41 — Smart Email Engine & Bulk Marketing Dashboard)
 
 ### Feature: Email Marketing Suite

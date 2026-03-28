@@ -1,0 +1,44 @@
+Master Prompt: Domain Lifecycle Automation & Professional Suspension System
+"I need to implement a complete Domain Lifecycle Management and Automated Suspension System that strictly follows ICANN standards. Execute these technical modules immediately:
+
+1. Automated Domain Lifecycle Logic (ICANN Standards):
+
+Auto-Status Switch: Based on the expiry_date in the Production Database, automatically update the domain status as follows:
+
+Day 0 to +30: Status = 'Grace Period' (Domain still renewable at normal price).
+
+Day +31 to +60: Status = 'Redemption Period' (Domain locked, requires higher restore fee).
+
+Day +61 to +65: Status = 'Pending Delete' (Cannot be renewed, waiting for release).
+
+Invoice Sync: If a domain enters 'Redemption', the system must automatically update the invoice with the 'Restore Fee' added.
+
+2. Admin 'Manual Overdrive' Controls:
+
+Manual Status Override: In the Admin Panel, add a dropdown to manually set a domain to 'Client Hold' or 'Redemption' regardless of the date.
+
+Feature Locking: If a domain is in 'Redemption' or 'Hold', the 'Manage DNS' and 'Nameserver' buttons on the client-side manage page must be Disabled.
+
+3. IONOS-Style Professional 'Phishing/Alert' Emails:
+
+Template Name: 'Domain Status Alert' (Registrar: Noehost):
+
+Create a high-end HTML email with Noehost/IONOS branding.
+
+Content: 'Important: Your domain {domain_name} has entered the Redemption Period.'
+
+Details: Include the specific Reason (Expiry or Policy Violation), Client Name, and a direct link to the ICANN FAQ for transparency.
+
+Action Button: A purple 'Secure Your Domain' button that leads to the invoice.
+
+4. Professional Hosting Suspension System:
+
+Reason-Based Suspension: When suspending hosting from Admin, allow me to select a reason: 'Overdue Payment', 'High Resource Usage', or 'TOS Violation'.
+
+Suspended Template: Send a professional email to the client with the specific reason mentioned, a link to the support ticket, and steps to unsuspend.
+
+5. Global Sync & Reliability:
+
+Daily Lifecycle Cron: Run a script every midnight to check all domain dates and update statuses/send emails automatically.
+
+Safety: Ensure these status changes do not corrupt any existing data in the Production Database."

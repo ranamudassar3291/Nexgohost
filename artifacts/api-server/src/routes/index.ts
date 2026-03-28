@@ -48,6 +48,7 @@ import domainSearchRouter from "./domain-search.js";
 import setupProgressRouter from "./setup-progress.js";
 import backupsRouter from "./backups.js";
 import emailMarketingRouter from "./email-marketing.js";
+import cartRouter from "./cart.js";
 
 const router: IRouter = Router();
 
@@ -104,5 +105,6 @@ router.use(domainSearchRouter);
 router.use(setupProgressRouter);
 router.use(backupsRouter);
 router.use(emailMarketingRouter);
+router.use(cartRouter);
 
 export default router;
