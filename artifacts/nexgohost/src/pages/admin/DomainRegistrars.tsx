@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Globe, Plus, Settings, Trash2, ToggleLeft, ToggleRight,
   CheckCircle, AlertCircle, RefreshCw, ChevronDown, ChevronUp,
-  Eye, EyeOff, Star, X, Zap, Mail, Server,
+  Eye, EyeOff, Star, X, Zap, Mail, Server, FolderOpen, File, BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,7 +141,16 @@ function AddModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
   const [isDefault, setIsDefault] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fields, setFields] = useState<ConfigField[]>([]);
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const { data: serverFiles, isLoading: loadingFiles } = useQuery<{ files: Array<{ name: string; path: string; size: number; isDir: boolean }> }>({
+    queryKey: ["admin-module-files-registrars"],
+    queryFn: () => apiFetch("/api/admin/modules/files?category=registrars"),
+    enabled: showFileBrowser,
+    staleTime: 30_000,
+  });
 
   const pickPreset = async (p: typeof PRESETS[0]) => {
     setSelectedType(p.type);
@@ -237,6 +246,76 @@ function AddModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => vo
                   This registrar requires no API credentials — domains will be processed manually via email.
                 </div>
               )}
+
+              {/* ── Server File Browser ── */}
+              <div className="rounded-xl border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowFileBrowser(b => !b)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors"
+                >
+                  <FolderOpen size={14} className="text-primary" />
+                  Browse server module files
+                  <span className="ml-auto text-[10px] text-muted-foreground">{showFileBrowser ? "▲ Hide" : "▼ Show"}</span>
+                </button>
+                <AnimatePresence>
+                  {showFileBrowser && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-border bg-muted/20 p-3">
+                        {loadingFiles ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                            <RefreshCw size={12} className="animate-spin" /> Loading files…
+                          </div>
+                        ) : !serverFiles?.files?.length ? (
+                          <p className="text-xs text-muted-foreground py-1">
+                            No module files found in <code className="font-mono">modules/registrars/</code>.
+                            Upload a .zip first from the Module Manager.
+                          </p>
+                        ) : (
+                          <ul className="space-y-1 max-h-40 overflow-y-auto">
+                            {serverFiles.files.map(f => (
+                              <li key={f.path}>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedFile(f.isDir ? null : f.path)}
+                                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors ${
+                                    selectedFile === f.path
+                                      ? "bg-primary/10 text-primary font-semibold"
+                                      : f.isDir
+                                        ? "text-muted-foreground cursor-default"
+                                        : "hover:bg-muted text-foreground"
+                                  }`}
+                                >
+                                  {f.isDir
+                                    ? <FolderOpen size={12} className="shrink-0 text-amber-500" />
+                                    : <File size={12} className="shrink-0 text-primary/70" />
+                                  }
+                                  <span className="truncate">{f.path}</span>
+                                  {!f.isDir && <span className="ml-auto text-muted-foreground font-mono shrink-0">
+                                    {f.size > 1024 ? `${(f.size / 1024).toFixed(1)} KB` : `${f.size} B`}
+                                  </span>}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {selectedFile && (
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg px-2.5 py-1.5 border border-emerald-200 dark:border-emerald-800/40">
+                            <BadgeCheck size={12} className="shrink-0" />
+                            Selected: <code className="font-mono">{selectedFile}</code>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               <div className="flex items-center gap-2 p-3 rounded-xl border border-border">
                 <input type="checkbox" id="isDefault" checked={isDefault} onChange={e => setIsDefault(e.target.checked)}
@@ -347,13 +426,19 @@ function RegistrarCard({ r, onRefresh }: { r: Registrar; onRefresh: () => void }
                 <Star size={9} /> Default
               </span>
             )}
-            <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
-              r.isActive
-                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                : "bg-muted text-muted-foreground border-border"
-            }`}>
-              {r.isActive ? "Active" : "Inactive"}
-            </span>
+            {r.isActive ? (
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full border font-bold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/25">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                Module Active
+              </span>
+            ) : (
+              <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium bg-muted text-muted-foreground border-border">
+                Inactive
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">{preset?.description ?? r.description}</p>
           {r.lastTestResult && (

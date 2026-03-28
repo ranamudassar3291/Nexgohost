@@ -335,7 +335,7 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
 function UploadZone({ onSuccess }: { onSuccess: () => void }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<{ module: UploadedModule; message: string; detected: boolean } | null>(null);
+  const [result, setResult] = useState<{ module: UploadedModule; message: string; detected: boolean; sqlResult?: { ran: boolean; statements: number; error?: string }; hooksRegistered?: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -441,19 +441,35 @@ function UploadZone({ onSuccess }: { onSuccess: () => void }) {
             <span className="font-semibold text-foreground capitalize">{result.module.type}</span>
             <span className="text-muted-foreground">Version</span>
             <span className="font-semibold text-foreground">{result.module.version}</span>
-            <span className="text-muted-foreground">Config fields detected</span>
+            <span className="text-muted-foreground">Config fields</span>
             <span className="font-semibold text-foreground">{result.module.configFields.length}</span>
-            {result.module.hooks.length > 0 && (
-              <>
-                <span className="text-muted-foreground">Hooks</span>
-                <span className="font-semibold text-foreground">{result.module.hooks.join(", ")}</span>
-              </>
-            )}
+            {/* SQL result row */}
+            <span className="text-muted-foreground">SQL migration</span>
+            <span className={`font-semibold ${result.sqlResult?.ran ? "text-emerald-600" : "text-muted-foreground"}`}>
+              {result.sqlResult?.ran
+                ? `✓ ${result.sqlResult.statements} statement${result.sqlResult.statements === 1 ? "" : "s"} executed`
+                : result.sqlResult?.error
+                  ? `⚠ ${result.sqlResult.error}`
+                  : "No install.sql found"}
+            </span>
+            {/* Hooks row */}
+            <span className="text-muted-foreground">Hooks registered</span>
+            <span className={`font-semibold ${(result.hooksRegistered?.length ?? 0) > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>
+              {(result.hooksRegistered?.length ?? 0) > 0
+                ? result.hooksRegistered!.join(", ")
+                : "None detected"}
+            </span>
           </div>
           {!result.detected && (
             <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
               <AlertCircle size={11} />
               No <code className="font-mono">module.json</code> found — default fields were used. Please review and configure below.
+            </p>
+          )}
+          {result.sqlResult?.error && (
+            <p className="text-[11px] text-red-600 dark:text-red-400 flex items-center gap-1.5">
+              <AlertCircle size={11} />
+              SQL error: {result.sqlResult.error}. Module installed but schema migration failed — run install.sql manually.
             </p>
           )}
         </div>
@@ -465,10 +481,12 @@ function UploadZone({ onSuccess }: { onSuccess: () => void }) {
           Module .zip format specification
         </summary>
         <div className="mt-2 p-3.5 rounded-xl bg-muted/50 font-mono text-[11px] space-y-1 border border-border">
-          <p className="text-foreground font-semibold mb-2">Required structure:</p>
+          <p className="text-foreground font-semibold mb-2">Recommended structure:</p>
           <p>my-module.zip/</p>
-          <p className="pl-4 text-primary">├── module.json  <span className="text-muted-foreground">(required)</span></p>
-          <p className="pl-4">└── index.js     <span className="text-muted-foreground">(optional)</span></p>
+          <p className="pl-4 text-primary">├── module.json  <span className="text-muted-foreground">(type, name, configFields)</span></p>
+          <p className="pl-4 text-amber-500">├── install.sql  <span className="text-muted-foreground">(auto-executed on install)</span></p>
+          <p className="pl-4 text-violet-400">├── hooks.php    <span className="text-muted-foreground">(hooks auto-registered)</span></p>
+          <p className="pl-4">└── index.js     <span className="text-muted-foreground">(main module logic)</span></p>
           <p className="text-foreground font-semibold mt-3 mb-2">module.json structure:</p>
           <pre className="whitespace-pre-wrap">{`{
   "name": "MyGateway",
