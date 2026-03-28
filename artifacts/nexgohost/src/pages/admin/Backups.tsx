@@ -551,8 +551,8 @@ export default function AdminBackups() {
           <p className="text-sm font-semibold">Zero-Risk Backup Policy</p>
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
             Backups use PostgreSQL's MVCC — <strong>zero table locks</strong>, no downtime, live clients can buy domains and pay invoices during any backup run.
-            Every file gets a unique ISO date name (e.g. <em>Noehost_Full_Backup_2026-03-28.zip</em>) stored in
-            <strong> Noehost_Cloud_Backups/Full_Databases/</strong> and <strong>Full_Files/</strong>.
+            Every file gets a unique ISO date name (e.g. <em>Noehost_DB_2026-03-28.sql</em> / <em>Noehost_Full_Backup_2026-03-28.zip</em>) stored in
+            <strong> Noehost_Backups_Official/Databases/</strong> and <strong>Full_Files_Archive/</strong>.
             Old backups are <strong>never auto-deleted</strong> — your entire history stays on Drive.
             File size is verified against Drive after every upload to confirm a complete, uncorrupted transfer.
           </p>

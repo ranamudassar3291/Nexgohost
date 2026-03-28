@@ -207,9 +207,9 @@ async function ensureFolderStructure(drive: drive_v3.Drive): Promise<{
     };
   }
 
-  const rootFolderId = await findOrCreateFolder(drive, "Noehost_Cloud_Backups");
-  const dbFolderId = await findOrCreateFolder(drive, "Full_Databases", rootFolderId);
-  const filesFolderId = await findOrCreateFolder(drive, "Full_Files", rootFolderId);
+  const rootFolderId = await findOrCreateFolder(drive, "Noehost_Backups_Official");
+  const dbFolderId = await findOrCreateFolder(drive, "Databases", rootFolderId);
+  const filesFolderId = await findOrCreateFolder(drive, "Full_Files_Archive", rootFolderId);
 
   // Cache folder IDs in DB
   await db.update(googleDriveTokensTable).set({ rootFolderId, dbFolderId, filesFolderId }).where(eq(googleDriveTokensTable.id, "primary"));
@@ -324,9 +324,9 @@ export async function runGoogleDriveBackup(triggeredBy: "cron" | "manual" = "cro
   fs.mkdirSync(TMP_DIR, { recursive: true });
 
   const ds = getPktDateStamp();  // e.g. "2026-03-28"
-  const dbLocalPath = path.join(TMP_DIR, `Noehost_DB_Backup_${ds}.sql`);
+  const dbLocalPath = path.join(TMP_DIR, `Noehost_DB_${ds}.sql`);
   const filesLocalPath = path.join(TMP_DIR, `Noehost_Full_Backup_${ds}.zip`);
-  const dbFileName = `Noehost_DB_Backup_${ds}.sql`;
+  const dbFileName = `Noehost_DB_${ds}.sql`;
   const filesFileName = `Noehost_Full_Backup_${ds}.zip`;
 
   const [logRow] = await db.insert(driveBackupLogsTable).values({
