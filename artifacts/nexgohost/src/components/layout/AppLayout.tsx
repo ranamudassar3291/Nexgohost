@@ -2,7 +2,7 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle } from "lucide-react";
+import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
@@ -20,7 +20,6 @@ interface NavGroup {
   items: { name: string; href: string; icon: LucideIcon }[];
 }
 
-// Admin navigation grouped by category
 const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
@@ -138,12 +137,10 @@ export function AppLayout({ children, role }: LayoutProps) {
     setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  // For client: flat list from route config
   const clientLinks = routesByRole.client
     .filter(r => r.inNav)
     .map(r => ({ name: r.label, href: r.path, icon: r.icon }));
 
-  // For admin: we use ADMIN_NAV_GROUPS, pull icons from routes config
   const routeIconMap = routesByRole.admin.reduce<Record<string, LucideIcon>>((acc, r) => {
     acc[r.path] = r.icon;
     return acc;
@@ -160,11 +157,22 @@ export function AppLayout({ children, role }: LayoutProps) {
   const isActive = (href: string) =>
     location === href || location.startsWith(`${href}/`);
 
+  const pageTitle = (() => {
+    const parts = location.split("/").filter(Boolean);
+    if (parts.length === 0) return "Home";
+    const last = parts[parts.length - 1];
+    if (/^[0-9a-f-]{20,}$/i.test(last)) return parts[parts.length - 2]?.replace(/-/g, " ") || "Details";
+    return last.replace(/-/g, " ");
+  })();
+
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="p-5 flex items-center gap-3 border-b border-border/50">
-        <div className="w-9 h-9 bg-gradient-to-br from-primary to-purple-600 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-lg shadow-primary/30">
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-lg"
+          style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+        >
           N
         </div>
         <div>
@@ -176,7 +184,7 @@ export function AppLayout({ children, role }: LayoutProps) {
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {role === "admin" ? (
           adminNavGroups.map(group => {
             const isCollapsed = collapsedGroups[group.label];
@@ -213,12 +221,20 @@ export function AppLayout({ children, role }: LayoutProps) {
                           const Icon = item.icon;
                           return (
                             <Link key={item.name} href={item.href}>
-                              <div onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
-                                active
-                                  ? "bg-primary/10 text-primary font-semibold border border-primary/20"
-                                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
-                              }`}>
-                                {Icon && <Icon size={16} className={active ? "text-primary shrink-0" : "text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"} />}
+                              <div
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
+                                  active
+                                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
+                                }`}
+                              >
+                                {Icon && (
+                                  <Icon
+                                    size={16}
+                                    className={active ? "text-primary shrink-0" : "text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"}
+                                  />
+                                )}
                                 <span className="text-sm truncate">{item.name}</span>
                                 {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
                               </div>
@@ -234,16 +250,30 @@ export function AppLayout({ children, role }: LayoutProps) {
           })
         ) : (
           <div className="space-y-0.5">
+            {/* Order Now CTA — always pinned at top for client */}
+            <Link href="/client/orders/new">
+              <div
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl mb-3 cursor-pointer text-white font-bold text-sm shadow-md transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #673ab7 0%, #9c27b0 100%)" }}
+              >
+                <Plus size={16} />
+                Order Now
+              </div>
+            </Link>
             {clientLinks.map(link => {
               const active = isActive(link.href);
               const Icon = link.icon;
               return (
                 <Link key={link.name} href={link.href}>
-                  <div onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
-                    active
-                      ? "bg-primary/10 text-primary font-semibold border border-primary/20"
-                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
-                  }`}>
+                  <div
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
+                      active
+                        ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                        : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
+                    }`}
+                  >
                     <Icon size={18} className={active ? "text-primary shrink-0" : "text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"} />
                     <span className="text-sm">{link.name}</span>
                     {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
@@ -262,7 +292,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             {user?.firstName?.[0]}{user?.lastName?.[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{user?.firstName} {user?.lastName}</p>
+            <p className="text-sm font-semibold text-foreground truncate">{user?.firstName} {user?.lastName}</p>
             <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
           </div>
         </div>
@@ -281,38 +311,67 @@ export function AppLayout({ children, role }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row font-sans">
 
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center font-bold text-white text-xs">N</div>
-          <span className="font-display font-bold text-lg text-foreground">Noehost</span>
+      {/* ── Mobile / Tablet Header (hidden on md+ desktop) ── */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-white/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow"
+            style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+          >
+            N
+          </div>
+          <span className="font-display font-bold text-lg text-foreground tracking-tight">Noehost</span>
         </div>
+
+        {/* Right action cluster */}
         <div className="flex items-center gap-1">
+          {/* Order Now — always visible for client on mobile */}
+          {role === "client" && (
+            <Link href="/client/orders/new">
+              <button
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow transition-opacity hover:opacity-90 mr-1"
+                style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+              >
+                <Plus size={13} />
+                Order
+              </button>
+            </Link>
+          )}
+
+          {/* Cart icon */}
           {role === "client" && (
             <button
               onClick={() => { setLocation("/client/cart"); setMobileMenuOpen(false); }}
-              className="relative p-2 rounded-xl text-muted-foreground"
+              className="relative p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              aria-label="Cart"
             >
-              <ShoppingCart size={20} />
+              <ShoppingCart size={19} />
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-white rounded-full text-[10px] font-bold flex items-center justify-center">
                   {cartCount}
                 </span>
               )}
             </button>
           )}
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground p-2">
+
+          {/* Hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-xl text-foreground hover:bg-secondary transition-colors"
+            aria-label="Toggle menu"
+          >
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
       </div>
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border sticky top-0 h-screen overflow-hidden">
+      {/* ── Desktop Sidebar (md+ screens, or desktop-mode on mobile) ── */}
+      <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border sticky top-0 h-screen overflow-hidden shadow-sm">
         {sidebarContent}
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* ── Mobile Slide-out Sidebar Overlay ── */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
@@ -320,15 +379,15 @@ export function AppLayout({ children, role }: LayoutProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-40 md:hidden"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
               onClick={() => setMobileMenuOpen(false)}
             />
             <motion.aside
-              initial={{ x: -280, opacity: 0 }}
+              initial={{ x: -290, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -280, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed top-0 left-0 h-screen w-72 bg-card border-r border-border z-50 md:hidden"
+              exit={{ x: -290, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 32 }}
+              className="fixed top-0 left-0 h-screen w-72 bg-card border-r border-border z-50 md:hidden shadow-2xl"
             >
               {sidebarContent}
             </motion.aside>
@@ -336,18 +395,12 @@ export function AppLayout({ children, role }: LayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-screen max-w-full overflow-hidden">
-        <header className="hidden md:flex h-16 items-center justify-between px-8 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30">
+      {/* ── Main Content ── */}
+      <main className="flex-1 flex flex-col min-h-screen overflow-hidden">
+        {/* Desktop top-bar header */}
+        <header className="hidden md:flex h-16 items-center justify-between px-8 border-b border-border/50 bg-white/80 backdrop-blur-xl sticky top-0 z-30 shadow-sm">
           <h2 className="text-lg font-display font-semibold text-foreground capitalize">
-            {(() => {
-              const parts = location.split("/").filter(Boolean);
-              if (parts.length === 0) return "Home";
-              const last = parts[parts.length - 1];
-              // Don't show UUIDs as page title
-              if (/^[0-9a-f-]{20,}$/i.test(last)) return parts[parts.length - 2]?.replace(/-/g, " ") || "Details";
-              return last.replace(/-/g, " ");
-            })()}
+            {pageTitle}
           </h2>
           <div className="flex items-center gap-3">
             {role === "admin" && (
@@ -357,6 +410,15 @@ export function AppLayout({ children, role }: LayoutProps) {
             )}
             {role === "client" && (
               <>
+                {/* Order Now CTA in desktop header */}
+                <Link href="/client/orders/new">
+                  <button
+                    className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow transition-opacity hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+                  >
+                    <Plus size={15} /> Order Now
+                  </button>
+                </Link>
                 <NotificationBell />
                 <button
                   onClick={() => setLocation("/client/cart")}
@@ -365,7 +427,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                 >
                   <ShoppingCart size={18} />
                   {cartCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground rounded-full text-[10px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-white rounded-full text-[10px] font-bold flex items-center justify-center">
                       {cartCount}
                     </span>
                   )}
@@ -378,6 +440,7 @@ export function AppLayout({ children, role }: LayoutProps) {
           </div>
         </header>
 
+        {/* Spaceship low-balance alert banner */}
         {showLowBalanceAlert && (
           <div className="mx-4 mt-3 md:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 text-[13px] font-medium">
             <AlertTriangle size={16} className="shrink-0 text-red-400" />
@@ -389,11 +452,12 @@ export function AppLayout({ children, role }: LayoutProps) {
           </div>
         )}
 
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto">
+        {/* Page content */}
+        <div className="flex-1 p-4 md:p-8 overflow-y-auto overflow-x-hidden">
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
             className="max-w-7xl mx-auto space-y-6"
           >
             {children}

@@ -352,7 +352,7 @@ export default function ClientHosting() {
                 <h3 className="text-[14px] font-bold text-foreground">VPS Servers</h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">{vpsServices.length}</span>
               </div>
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {vpsServices.map(s => <ServiceCard key={s.id} service={s} />)}
               </div>
             </section>
@@ -365,7 +365,7 @@ export default function ClientHosting() {
                 <h3 className="text-[14px] font-bold text-foreground">Web Hosting</h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">{hostingServices.length}</span>
               </div>
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {hostingServices.map(s => <ServiceCard key={s.id} service={s} />)}
               </div>
             </section>
