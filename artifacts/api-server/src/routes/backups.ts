@@ -26,6 +26,7 @@ import {
   setAutoBackupEnabled,
   runGoogleDriveBackup,
   getDriveCallbackUrl,
+  getDriveStorageInfo,
 } from "../lib/drive-backup.js";
 import { getAppUrl } from "../lib/app-url.js";
 
@@ -100,6 +101,21 @@ router.post("/admin/backups/toggle", authenticate, requireAdmin, async (req: Req
     res.json({ enabled: !!enabled, message: `Automatic backups ${enabled ? "enabled" : "disabled"}.` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Live Drive Storage ────────────────────────────────────────────────────────
+
+router.get("/admin/backups/storage", authenticate, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const info = await getDriveStorageInfo();
+    if (!info) {
+      res.json({ usedMb: null, totalMb: null });
+      return;
+    }
+    res.json(info);
+  } catch (err: any) {
+    res.json({ usedMb: null, totalMb: null, error: err.message });
   }
 });
 

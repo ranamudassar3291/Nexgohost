@@ -82,13 +82,17 @@ export async function exchangeCodeForTokens(code: string): Promise<{ email: stri
   const info = await people.userinfo.get();
   const email = info.data.email || "unknown@gmail.com";
 
-  // Upsert single "primary" token row
+  // Upsert single "primary" token row — reset cached folder IDs on reconnect
+  // so that the correct Noehost_Cloud_Backups folder structure is created fresh.
   await db.insert(googleDriveTokensTable).values({
     id: "primary",
     email,
     accessToken: tokens.access_token!,
     refreshToken: tokens.refresh_token,
     expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(Date.now() + 3600_000),
+    rootFolderId: null,
+    dbFolderId: null,
+    filesFolderId: null,
   }).onConflictDoUpdate({
     target: googleDriveTokensTable.id,
     set: {
@@ -96,6 +100,9 @@ export async function exchangeCodeForTokens(code: string): Promise<{ email: stri
       accessToken: tokens.access_token!,
       refreshToken: tokens.refresh_token,
       expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(Date.now() + 3600_000),
+      rootFolderId: null,
+      dbFolderId: null,
+      filesFolderId: null,
       updatedAt: new Date(),
     },
   });
@@ -138,6 +145,23 @@ export async function setAutoBackupEnabled(enabled: boolean): Promise<void> {
   await db.insert(settingsTable)
     .values({ key: "drive_backup_enabled", value: enabled ? "true" : "false" })
     .onConflictDoUpdate({ target: settingsTable.key, set: { value: enabled ? "true" : "false", updatedAt: new Date() } });
+}
+
+// ── Live Drive storage query ──────────────────────────────────────────────────
+
+export async function getDriveStorageInfo(): Promise<{ usedMb: number; totalMb: number } | null> {
+  try {
+    const drive = await getDriveClient();
+    const about = await drive.about.get({ fields: "storageQuota" });
+    const q = about.data.storageQuota;
+    if (!q?.usage) return null;
+    return {
+      usedMb: Math.ceil(parseInt(q.usage) / (1024 * 1024)),
+      totalMb: q.limit ? Math.ceil(parseInt(q.limit) / (1024 * 1024)) : 15 * 1024, // 15 GB free tier default
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── Authenticated Drive client ─────────────────────────────────────────────────
@@ -207,8 +231,8 @@ async function ensureFolderStructure(drive: drive_v3.Drive): Promise<{
     };
   }
 
-  const rootFolderId = await findOrCreateFolder(drive, "Noehost_Backups_Official");
-  const dbFolderId = await findOrCreateFolder(drive, "Databases", rootFolderId);
+  const rootFolderId = await findOrCreateFolder(drive, "Noehost_Cloud_Backups");
+  const dbFolderId = await findOrCreateFolder(drive, "Daily_Databases", rootFolderId);
   const filesFolderId = await findOrCreateFolder(drive, "Full_Files_Archive", rootFolderId);
 
   // Cache folder IDs in DB
