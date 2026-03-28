@@ -1,8 +1,25 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
-import { eq, sql, and, asc } from "drizzle-orm";
+import { eq, sql, and, asc, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+
+// ── Restoration fee for redemption period domains ────────────────────────────
+function getRestorationFee(tld: string): number {
+  const t = tld.toLowerCase();
+  if (t.includes(".pk")) return 5000;
+  if (t === ".com" || t === ".net") return 15000;
+  return 10000;
+}
+
+// ── Coupon code validity check (shared with renew route) ─────────────────────
+async function findValidPromo(code: string) {
+  const [promo] = await db.select().from(promoCodesTable).where(eq(promoCodesTable.code, code.toUpperCase())).limit(1);
+  if (!promo || !promo.isActive) return null;
+  if (promo.usageLimit && promo.usedCount >= promo.usageLimit) return null;
+  if (promo.expiresAt && new Date() >= promo.expiresAt) return null;
+  return promo;
+}
 
 const router = Router();
 
@@ -373,10 +390,12 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
     const [domain] = await db.select().from(domainsTable)
       .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
-    if (domain.status === "cancelled" || domain.status === "transferred") {
+    const blockedStatuses = ["cancelled", "transferred", "pending_delete"];
+    if (blockedStatuses.includes(domain.status as string)) {
       res.status(400).json({ error: `Cannot renew a ${domain.status} domain` }); return;
     }
 
+    const isRedemption = domain.status === "redemption_period";
     const tld = domain.tld;
     const [pricing] = await db.select().from(domainExtensionsTable)
       .where(eq(domainExtensionsTable.extension, tld)).limit(1);
@@ -386,16 +405,12 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
     let discountAmount = 0;
     let appliedPromo: string | null = null;
     const domainFqdn = `${domain.name}${domain.tld}`;
+    const restorationFee = isRedemption ? getRestorationFee(tld) : 0;
 
-    // Apply promo code if provided
-    if (promoCode) {
-      const [promo] = await db.select().from(promoCodesTable)
-        .where(eq(promoCodesTable.code, promoCode.toUpperCase())).limit(1);
-      if (
-        promo && promo.isActive &&
-        (!promo.usageLimit || promo.usedCount < promo.usageLimit) &&
-        (!promo.expiresAt || new Date() < promo.expiresAt)
-      ) {
+    // Apply promo code if provided (only when not in redemption — no discounts on restoration fees)
+    if (promoCode && !isRedemption) {
+      const promo = await findValidPromo(promoCode);
+      if (promo) {
         const at = (promo as any).applicableTo ?? "all";
         if (at === "all" || at === "domain") {
           discountAmount = Number((renewPrice * promo.discountPercent / 100).toFixed(2));
@@ -406,16 +421,22 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
       }
     }
 
-    console.log("RENEW DEBUG:", { domain: domainFqdn, tld, originalPrice: Number(pricing.renewalPrice), discount: discountAmount, finalPrice: renewPrice, promo: appliedPromo });
+    const totalAmount = Number((renewPrice + restorationFee).toFixed(2));
+
+    const invoiceItems: any[] = [
+      { description: `${domainFqdn} - Domain Renewal (1 year)`, quantity: 1, unitPrice: Number(pricing.renewalPrice), total: Number(pricing.renewalPrice) },
+      ...(discountAmount > 0 ? [{ description: `Promo: ${appliedPromo}`, quantity: 1, unitPrice: -discountAmount, total: -discountAmount }] : []),
+      ...(restorationFee > 0 ? [{ description: `Restoration Fee (Registry Policy) — ${tld}`, quantity: 1, unitPrice: restorationFee, total: restorationFee }] : []),
+    ];
 
     const [order] = await db.insert(ordersTable).values({
       clientId,
       type: "renewal",
       itemId: domain.id,
       itemName: `${domainFqdn} - Domain Renewal (1 year)`,
-      amount: String(renewPrice),
+      amount: String(totalAmount),
       status: "pending",
-      notes: `Domain renewal for ${domainFqdn}${appliedPromo ? ` (promo: ${appliedPromo})` : ""}`,
+      notes: `Domain renewal for ${domainFqdn}${appliedPromo ? ` (promo: ${appliedPromo})` : ""}${restorationFee > 0 ? ` + Restoration Fee Rs. ${restorationFee.toLocaleString()}` : ""}`,
     }).returning();
 
     const invoiceNumber = generateInvoiceNumber();
@@ -426,20 +447,12 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
       invoiceNumber,
       clientId,
       orderId: order.id,
-      amount: String(renewPrice),
+      amount: String(totalAmount),
       tax: "0",
-      total: String(renewPrice),
+      total: String(totalAmount),
       status: "unpaid",
       dueDate,
-      items: [
-        {
-          description: `${domainFqdn} - Domain Renewal (1 year)`,
-          quantity: 1,
-          unitPrice: Number(pricing.renewalPrice),
-          total: Number(pricing.renewalPrice),
-        },
-        ...(discountAmount > 0 ? [{ description: `Promo: ${appliedPromo}`, quantity: 1, unitPrice: -discountAmount, total: -discountAmount }] : []),
-      ],
+      items: invoiceItems,
     } as any).returning();
 
     console.log("RENEW DEBUG:", { domain: domainFqdn, renewPrice, invoiceId: invoice.id, invoiceNumber, promo: appliedPromo });
@@ -448,8 +461,10 @@ router.post("/domains/:id/renew", authenticate, async (req: AuthRequest, res) =>
       success: true,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
-      amount: renewPrice,
+      amount: totalAmount,
       domain: domainFqdn,
+      restorationFee,
+      isRedemption,
     });
   } catch (err: any) {
     console.error("[DOMAIN RENEW]", err);

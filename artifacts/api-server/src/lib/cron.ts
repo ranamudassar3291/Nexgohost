@@ -16,6 +16,7 @@ import {
   emailDomainRenewalReminder, emailDomainExpiryWarning,
   emailServiceTerminated, emailTerminationWarning,
   emailDomainStatusAlert,
+  emailDomain30DayReminder, emailDomain15DayDiscount, emailDomain1DayUrgent,
   sendEmail,
 } from "./email.js";
 import { sendWhatsAppAlert } from "./whatsapp.js";
@@ -282,15 +283,30 @@ export async function runHostingRenewalReminderCron(): Promise<void> {
 // ─── Task 4: Domain renewal + expiry warning cron ────────────────────────────
 // Sends expiry warnings at 30, 7, and 1 day before expiry.
 // Duplicate guard: one email per (domain, emailType) per window.
+// ─── Helper: get formatted renewal price for a domain ──────────────────────────
+async function getDomainRenewalPriceStr(tld: string, clientId: string): Promise<{ raw: number; formatted: string }> {
+  try {
+    const tldClean = tld.replace(/^\./, "");
+    const [pricing] = await db.select().from(domainPricingTable)
+      .where(sql`LOWER(tld) = LOWER(${tldClean})`).limit(1);
+    if (!pricing?.renewalPrice) return { raw: 0, formatted: "Contact support" };
+    const [clientInv] = await db.select({ currencyCode: invoicesTable.currencyCode, currencySymbol: invoicesTable.currencySymbol, currencyRate: invoicesTable.currencyRate })
+      .from(invoicesTable).where(eq(invoicesTable.clientId, clientId)).orderBy(desc(invoicesTable.createdAt)).limit(1);
+    const raw = Number(pricing.renewalPrice);
+    const formatted = convertAndFormat(raw, clientInv?.currencyCode, clientInv?.currencySymbol, clientInv?.currencyRate);
+    return { raw, formatted };
+  } catch { return { raw: 0, formatted: "Contact support" }; }
+}
+
 export async function runDomainRenewalCron(): Promise<void> {
   const now = new Date();
-  const thirtyOneDays = new Date(now); thirtyOneDays.setDate(thirtyOneDays.getDate() + 31);
+  const inThirtyOneDays = new Date(now); inThirtyOneDays.setDate(inThirtyOneDays.getDate() + 31);
 
   try {
     const expiringDomains = await db.select().from(domainsTable)
       .where(and(
         eq(domainsTable.status, "active"),
-        lte(domainsTable.expiryDate, thirtyOneDays),
+        lte(domainsTable.expiryDate, inThirtyOneDays),
         gte(domainsTable.expiryDate, now),
       ));
 
@@ -305,9 +321,10 @@ export async function runDomainRenewalCron(): Promise<void> {
       const daysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       const domainFqdn = `${domain.name}${domain.tld}`;
       const expiryStr = expiryDate.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+      const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
+      const renewUrl = `${(await import("./app-url.js")).getClientUrl()}/domains/${domain.id}`;
 
       if (domain.autoRenew) {
-        // Auto-renew: extend by 1 year when ≤ 1 day remaining
         if (daysRemaining <= 1) {
           const newExpiry = new Date(expiryDate);
           newExpiry.setFullYear(newExpiry.getFullYear() + 1);
@@ -318,62 +335,60 @@ export async function runDomainRenewalCron(): Promise<void> {
           notify(domain.clientId, "domain", "Domain Renewed", `${domainFqdn} has been auto-renewed for 1 year.`, `/client/domains`).catch(() => {});
           renewed++;
         }
-        continue; // No reminder needed for auto-renew domains
+        continue;
       }
 
-      // Determine which milestone applies: 30, 7, or 1 day
+      // ── 3-Step Milestone selection ──────────────────────────────────────────
       let emailType: string | null = null;
       if (daysRemaining <= 1 && daysRemaining >= 0) emailType = "domain_expiring_1d";
-      else if (daysRemaining <= 7) emailType = "domain_expiring_7d";
+      else if (daysRemaining <= 15) emailType = "domain_expiring_15d";
       else if (daysRemaining <= 30) emailType = "domain_expiring_30d";
-
       if (!emailType) continue;
 
-      // Duplicate guard: only send this milestone once
+      // Duplicate guard: send each milestone only once
       const alreadySent = await db.select().from(emailLogsTable)
-        .where(and(
-          eq(emailLogsTable.referenceId, domain.id),
-          eq(emailLogsTable.emailType, emailType),
-        )).limit(1);
-
+        .where(and(eq(emailLogsTable.referenceId, domain.id), eq(emailLogsTable.emailType, emailType))).limit(1);
       if (alreadySent.length > 0) continue;
 
-      // Look up renewal price from domain_pricing table
-      let renewalPriceStr = "Contact support";
+      const { raw: renewalPriceRaw, formatted: renewalPriceStr } = await getDomainRenewalPriceStr(domain.tld, domain.clientId);
+
       try {
-        const tldClean = domain.tld.replace(/^\./, "");
-        const [pricing] = await db.select().from(domainPricingTable)
-          .where(sql`LOWER(tld) = LOWER(${tldClean})`)
-          .limit(1);
-        if (pricing?.renewalPrice) {
-          // Use client's currency from their most recent invoice if available
-          const [clientInv] = await db.select({
-            currencyCode: invoicesTable.currencyCode,
-            currencySymbol: invoicesTable.currencySymbol,
-            currencyRate: invoicesTable.currencyRate,
-          }).from(invoicesTable)
-            .where(eq(invoicesTable.clientId, domain.clientId))
-            .orderBy(desc(invoicesTable.createdAt))
-            .limit(1);
-          renewalPriceStr = convertAndFormat(
-            Number(pricing.renewalPrice),
-            clientInv?.currencyCode,
-            clientInv?.currencySymbol,
-            clientInv?.currencyRate,
-          );
+        if (emailType === "domain_expiring_30d") {
+          // ── Step 1: 30-Day "Don't Lose Your Identity" ────────────────────────
+          await emailDomain30DayReminder(user.email, { clientName, domainName: domainFqdn, expiryDate: expiryStr, renewalPrice: renewalPriceStr, renewUrl },
+            { clientId: domain.clientId, referenceId: domain.id });
+
+        } else if (emailType === "domain_expiring_15d") {
+          // ── Step 2: 15-Day "Discounted Renewal" — generate promo code ─────────
+          const couponCode = `RENEW10-${domain.name.toUpperCase().slice(0, 6)}`;
+          const discountedRaw = renewalPriceRaw > 0 ? Math.round(renewalPriceRaw * 0.9) : 0;
+          const discountedStr = renewalPriceRaw > 0
+            ? convertAndFormat(discountedRaw)
+            : "Contact support";
+          const promoExpiry = new Date(); promoExpiry.setDate(promoExpiry.getDate() + 15);
+
+          // Upsert promo code (idempotent — code is unique, skip if exists)
+          try {
+            await db.insert(promoCodesTable).values({
+              code: couponCode,
+              description: `15-day renewal discount for ${domainFqdn}`,
+              discountType: "percent",
+              discountPercent: 10,
+              isActive: true,
+              usageLimit: 1,
+              expiresAt: promoExpiry,
+              applicableTo: "domain",
+            } as any).onConflictDoNothing();
+          } catch { /* code already exists */ }
+
+          await emailDomain15DayDiscount(user.email, { clientName, domainName: domainFqdn, expiryDate: expiryStr, renewalPrice: renewalPriceStr, discountedPrice: discountedStr, couponCode, renewUrl },
+            { clientId: domain.clientId, referenceId: domain.id });
+
+        } else if (emailType === "domain_expiring_1d") {
+          // ── Step 3: 1-Day "Final Urgent Warning" ─────────────────────────────
+          await emailDomain1DayUrgent(user.email, { clientName, domainName: domainFqdn, expiryDate: expiryStr, renewalPrice: renewalPriceStr, renewUrl },
+            { clientId: domain.clientId, referenceId: domain.id });
         }
-      } catch { /* non-fatal */ }
-
-      const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
-
-      try {
-        await emailDomainExpiryWarning(user.email, {
-          clientName,
-          domainName: domainFqdn,
-          expiryDate: expiryStr,
-          daysRemaining,
-          renewalPrice: renewalPriceStr,
-        }, { clientId: domain.clientId, referenceId: domain.id });
       } catch { /* non-fatal */ }
 
       await logEmail(domain.clientId, user.email, emailType, `Domain ${domainFqdn} expires in ${daysRemaining} day(s)`, domain.id);

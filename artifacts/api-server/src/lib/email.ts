@@ -621,6 +621,133 @@ export async function emailHostingRenewalReminder(
   }, meta);
 }
 
+// ─── 30-Day Domain Renewal Reminder ("Don't Lose Your Identity") ─────────────
+export async function emailDomain30DayReminder(
+  to: string,
+  vars: { clientName: string; domainName: string; expiryDate: string; renewalPrice: string; renewUrl?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  const year = new Date().getFullYear();
+  const renewUrl = vars.renewUrl || `${getClientUrl()}/domains`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0d0d1a;font-family:Inter,'Helvetica Neue',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0d1a;padding:40px 16px"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid #2a2a3a">
+  <tr><td style="background:linear-gradient(135deg,#701AFE 0%,#9B51E0 100%);padding:36px 40px;text-align:center">
+    <p style="margin:0 0 4px;font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px">Noehost</p>
+    <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1.5px">Domain Registrar</p>
+  </td></tr>
+  <tr><td style="background:#111128;padding:32px 40px">
+    <div style="text-align:center;background:#1a1a2e;border:1px solid #2a2a3a;border-radius:12px;padding:20px;margin-bottom:28px">
+      <p style="margin:0 0 4px;font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px">Domain expiring in</p>
+      <p style="margin:0;font-size:56px;font-weight:900;color:#701AFE;line-height:1">30</p>
+      <p style="margin:4px 0 0;font-size:16px;font-weight:700;color:#c084fc">Days</p>
+    </div>
+    <p style="margin:0 0 16px;font-size:15px;color:#d1d5db;line-height:1.7">Dear <strong style="color:#fff">${vars.clientName}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#d1d5db;line-height:1.7">Your domain <strong style="color:#c084fc">${vars.domainName}</strong> is expiring on <strong style="color:#fff">${vars.expiryDate}</strong>. Your online identity, email, and website depend on it — don't let it lapse.</p>
+    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#1a1a2e;border:1px solid #2a2a3a;border-radius:12px;margin:0 0 28px;overflow:hidden">
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">Domain</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><strong style="color:#c084fc">${vars.domainName}</strong></td></tr>
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">Expiry Date</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><strong style="color:#f87171">${vars.expiryDate}</strong></td></tr>
+      <tr><td style="padding:14px 20px"><span style="font-size:12px;color:#9ca3af">Renewal Price</span></td><td style="padding:14px 20px;text-align:right"><strong style="color:#22c55e">${vars.renewalPrice}</strong></td></tr>
+    </table>
+    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 28px"><tr><td style="text-align:center">
+      <a href="${renewUrl}" style="display:inline-block;background:linear-gradient(135deg,#701AFE,#9B51E0,#C084FC);color:#fff;text-decoration:none;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700">Renew My Domain Now →</a>
+    </td></tr></table>
+    <hr style="border:none;border-top:1px solid #2a2a3a;margin:0 0 20px">
+    <p style="margin:0;font-size:12px;color:#6b7280;text-align:center">© ${year} Noehost. All rights reserved.</p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+  return sendEmail({ to, subject: `Your domain ${vars.domainName} expires in 30 days`, html, emailType: "domain-30d-reminder", clientId: meta?.clientId, referenceId: meta?.referenceId });
+}
+
+// ─── 15-Day Domain Renewal Reminder (Discounted Renewal + Coupon) ─────────────
+export async function emailDomain15DayDiscount(
+  to: string,
+  vars: { clientName: string; domainName: string; expiryDate: string; renewalPrice: string; discountedPrice: string; couponCode: string; renewUrl?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  const year = new Date().getFullYear();
+  const renewUrl = vars.renewUrl || `${getClientUrl()}/domains`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0d0d1a;font-family:Inter,'Helvetica Neue',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0d1a;padding:40px 16px"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid #2a2a3a">
+  <tr><td style="background:#0f5132;padding:10px 40px;text-align:center">
+    <p style="margin:0;font-size:12px;font-weight:700;color:#d1fae5;text-transform:uppercase;letter-spacing:2px">🏷 LIMITED TIME — 10% DISCOUNT INSIDE</p>
+  </td></tr>
+  <tr><td style="background:linear-gradient(135deg,#1a0533 0%,#0d0d1a 100%);padding:36px 40px 28px;border-bottom:1px solid #2a2a3a;text-align:center">
+    <p style="margin:0 0 4px;font-size:28px;font-weight:900;color:#fff">Noehost</p>
+    <p style="margin:8px 0 0;font-size:20px;font-weight:700;color:#22c55e">Renew ${vars.domainName} &amp; Save 10%!</p>
+    <p style="margin:6px 0 0;font-size:13px;color:#9ca3af">Only 15 days left — use your exclusive coupon below</p>
+  </td></tr>
+  <tr><td style="background:#111128;padding:32px 40px">
+    <p style="margin:0 0 20px;font-size:15px;color:#d1d5db;line-height:1.7">Dear <strong style="color:#fff">${vars.clientName}</strong>, as a valued Noehost customer, we're offering you an exclusive <strong style="color:#22c55e">10% discount</strong> to renew before your domain expires.</p>
+    <div style="background:linear-gradient(135deg,#052e16,#0d0d1a);border:2px dashed #22c55e;border-radius:12px;padding:20px;text-align:center;margin:0 0 24px">
+      <p style="margin:0 0 6px;font-size:11px;color:#86efac;text-transform:uppercase;letter-spacing:2px">Your Exclusive Coupon Code</p>
+      <p style="margin:0 0 8px;font-size:28px;font-weight:900;color:#22c55e;letter-spacing:4px;font-family:monospace">${vars.couponCode}</p>
+      <p style="margin:0;font-size:12px;color:#4ade80">Valid for 15 days · One-time use · Domain renewals only</p>
+    </div>
+    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#1a1a2e;border:1px solid #2a2a3a;border-radius:12px;margin:0 0 24px;overflow:hidden">
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">Domain</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><strong style="color:#c084fc">${vars.domainName}</strong></td></tr>
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">Original Price</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><span style="color:#9ca3af;text-decoration:line-through">${vars.renewalPrice}</span></td></tr>
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">10% Discount</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><span style="color:#22c55e;font-weight:700">-10%</span></td></tr>
+      <tr style="background:#052e16"><td style="padding:14px 20px"><strong style="color:#22c55e">Price With Coupon</strong></td><td style="padding:14px 20px;text-align:right"><strong style="color:#22c55e;font-size:18px">${vars.discountedPrice}</strong></td></tr>
+    </table>
+    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 28px"><tr><td style="text-align:center">
+      <a href="${renewUrl}" style="display:inline-block;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;text-decoration:none;padding:16px 44px;border-radius:50px;font-size:16px;font-weight:700">🏷 Claim Discount &amp; Renew</a>
+    </td></tr></table>
+    <hr style="border:none;border-top:1px solid #2a2a3a;margin:0 0 20px">
+    <p style="margin:0;font-size:12px;color:#6b7280;text-align:center">© ${year} Noehost. Coupon code: <strong style="color:#22c55e">${vars.couponCode}</strong></p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+  return sendEmail({ to, subject: `🏷 Renew ${vars.domainName} now and save 10%!`, html, emailType: "domain-15d-discount", clientId: meta?.clientId, referenceId: meta?.referenceId });
+}
+
+// ─── 1-Day Domain Renewal Reminder (Final Urgent Warning) ────────────────────
+export async function emailDomain1DayUrgent(
+  to: string,
+  vars: { clientName: string; domainName: string; expiryDate: string; renewalPrice: string; renewUrl?: string },
+  meta?: { clientId?: string; referenceId?: string },
+) {
+  const year = new Date().getFullYear();
+  const renewUrl = vars.renewUrl || `${getClientUrl()}/domains`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0d0d1a;font-family:Inter,'Helvetica Neue',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0d0d1a;padding:40px 16px"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid #7f1d1d">
+  <tr><td style="background:#dc2626;padding:12px 40px;text-align:center">
+    <p style="margin:0;font-size:13px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:2px">🚨 URGENT — ACTION REQUIRED IMMEDIATELY</p>
+  </td></tr>
+  <tr><td style="background:linear-gradient(135deg,#3b0202 0%,#0d0d1a 100%);padding:36px 40px;text-align:center;border-bottom:1px solid #7f1d1d">
+    <p style="margin:0 0 4px;font-size:28px;font-weight:900;color:#fff">Noehost</p>
+    <div style="background:#3b0202;border:2px solid #dc2626;border-radius:12px;display:inline-block;padding:14px 40px;margin:16px 0 12px">
+      <p style="margin:0;font-size:64px;font-weight:900;color:#dc2626;line-height:1">1</p>
+      <p style="margin:4px 0 0;font-size:14px;font-weight:700;color:#fca5a5;text-transform:uppercase;letter-spacing:1px">Day Left</p>
+    </div>
+    <p style="margin:0;font-size:16px;color:#fca5a5;font-weight:600">Your domain expires <strong>TOMORROW</strong></p>
+  </td></tr>
+  <tr><td style="background:#111128;padding:32px 40px">
+    <p style="margin:0 0 16px;font-size:15px;color:#d1d5db;line-height:1.7">Dear <strong style="color:#fff">${vars.clientName}</strong>,</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#d1d5db;line-height:1.7">This is your <strong style="color:#f87171">final notice</strong>. Your domain <strong style="color:#fca5a5">${vars.domainName}</strong> expires on <strong style="color:#f87171">${vars.expiryDate}</strong>. If not renewed, your website, emails, and online presence will go offline immediately.</p>
+    <div style="background:#3b0202;border:1px solid #7f1d1d;border-radius:10px;padding:16px 20px;margin:0 0 24px">
+      <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#f87171">What happens if you don't renew?</p>
+      <p style="margin:0;font-size:13px;color:#fca5a5;line-height:1.6">❌ Website goes offline · ❌ Emails stop working · ❌ Domain enters Grace Period (higher fees) · ❌ After 60 days — permanent deletion</p>
+    </div>
+    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#1a1a2e;border:1px solid #7f1d1d;border-radius:12px;margin:0 0 28px;overflow:hidden">
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">Domain</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><strong style="color:#fca5a5">${vars.domainName}</strong></td></tr>
+      <tr><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a"><span style="font-size:12px;color:#9ca3af">Expires</span></td><td style="padding:14px 20px;border-bottom:1px solid #2a2a3a;text-align:right"><strong style="color:#f87171">${vars.expiryDate}</strong></td></tr>
+      <tr><td style="padding:14px 20px"><span style="font-size:12px;color:#9ca3af">Renewal Price</span></td><td style="padding:14px 20px;text-align:right"><strong style="color:#22c55e">${vars.renewalPrice}</strong></td></tr>
+    </table>
+    <table cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 28px"><tr><td style="text-align:center">
+      <a href="${renewUrl}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;padding:18px 48px;border-radius:50px;font-size:17px;font-weight:900;letter-spacing:0.3px">🚨 Renew NOW — Last Chance!</a>
+    </td></tr></table>
+    <hr style="border:none;border-top:1px solid #2a2a3a;margin:0 0 20px">
+    <p style="margin:0;font-size:12px;color:#6b7280;text-align:center">© ${year} Noehost. Do not ignore this email.</p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+  return sendEmail({ to, subject: `URGENT: Your domain ${vars.domainName} expires tomorrow`, html, emailType: "domain-1d-urgent", clientId: meta?.clientId, referenceId: meta?.referenceId });
+}
+
 export async function emailDomainStatusAlert(
   to: string,
   vars: {

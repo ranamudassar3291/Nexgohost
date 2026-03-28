@@ -212,6 +212,14 @@ export default function DomainManage() {
   // Lifecycle lock: disable DNS/NS management for critical lifecycle states
   const isLifecycleLocked = ["redemption_period", "pending_delete", "client_hold"].includes(domain.status);
 
+  function getRestorationFee(tld: string): number {
+    const t = tld.toLowerCase();
+    if (t.includes(".pk")) return 5000;
+    if (t === ".com" || t === ".net") return 15000;
+    return 10000;
+  }
+  const restorationFee = domain.status === "redemption_period" ? getRestorationFee(domain.tld) : 0;
+
   async function handleToggleLock() {
     if (isLocked && domain.isIn60DayLock && !domain.lockOverrideByAdmin) {
       toast({ title: "Transfer Lock Cannot Be Removed", description: `${domain.daysRemainingInLock} day(s) remaining in 60-day lock period.`, variant: "destructive" });
@@ -530,7 +538,7 @@ export default function DomainManage() {
             </p>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               {domain.status === "pending_delete" && "Your domain is in the final deletion stage. DNS and nameserver management are disabled. Contact support immediately."}
-              {domain.status === "redemption_period" && "Your domain is in the ICANN Redemption Period. A restore fee applies to recover it. DNS and nameserver management are disabled until the domain is restored."}
+              {domain.status === "redemption_period" && <>Your domain is in the ICANN Redemption Period. <strong className="text-amber-300">A Restoration Fee of Rs. {restorationFee.toLocaleString()} will be added to your renewal invoice</strong> as per Registry policy. DNS and nameserver management are disabled until the domain is restored.</>}
               {domain.status === "client_hold" && "This domain has been placed on hold by an administrator. DNS and nameserver management are disabled. Contact support for assistance."}
             </p>
           </div>

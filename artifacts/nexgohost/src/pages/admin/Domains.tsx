@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown, Bell, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -39,6 +39,13 @@ interface Domain {
 }
 
 interface Client { id: string; firstName: string; lastName: string; email: string; }
+
+interface UpcomingRenewal {
+  id: string; domain: string; name: string; tld: string; status: string;
+  expiryDate: string; daysLeft: number; autoRenew: boolean;
+  clientName: string; clientEmail: string;
+  renewalPrice: number | null; totalDue: number; restorationFee: number;
+}
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -86,11 +93,30 @@ export default function AdminDomains() {
   const [lockResults, setLockResults] = useState<Record<string, { lockStatus: string; eppCode?: string | null; lockOverrideByAdmin?: boolean }>>({});
   const [lifecycleOverrideId, setLifecycleOverrideId] = useState<string | null>(null);
   const [lifecycleDropdown, setLifecycleDropdown] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"all" | "upcoming">("all");
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
   const { data: domains = [], isLoading } = useQuery<Domain[]>({
     queryKey: ["admin-domains"],
     queryFn: () => apiFetch("/api/admin/domains"),
   });
+
+  const { data: upcomingData, isLoading: upcomingLoading, refetch: refetchUpcoming } = useQuery<{ domains: UpcomingRenewal[] }>({
+    queryKey: ["admin-upcoming-renewals"],
+    queryFn: () => apiFetch("/api/admin/domains/upcoming-renewals"),
+    enabled: activeTab === "upcoming",
+  });
+  const upcomingRenewals = upcomingData?.domains ?? [];
+
+  async function handleSendReminder(domainId: string) {
+    setSendingReminderId(domainId);
+    try {
+      const r = await apiFetch(`/api/admin/domains/${domainId}/send-reminder`, { method: "POST" });
+      toast({ title: "Reminder Sent", description: `Email sent to ${r.to} (${r.emailSent})` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally { setSendingReminderId(null); }
+  }
 
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ["admin-clients-simple"],
@@ -348,6 +374,19 @@ export default function AdminDomains() {
         </Button>
       </div>
 
+      {/* ── Tab Navigation ── */}
+      <div className="flex gap-1 border-b border-border pb-0">
+        <button onClick={() => setActiveTab("all")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all border-b-2 -mb-px ${activeTab === "all" ? "border-primary text-primary bg-primary/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <Globe size={15} /> All Domains
+        </button>
+        <button onClick={() => { setActiveTab("upcoming"); refetchUpcoming(); }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all border-b-2 -mb-px ${activeTab === "upcoming" ? "border-amber-400 text-amber-400 bg-amber-500/5" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          <Clock size={15} /> Upcoming Renewals
+        </button>
+      </div>
+
+      {activeTab === "all" && <>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -514,6 +553,109 @@ export default function AdminDomains() {
           </tbody>
         </table>
       </div>
+      </>}
+
+      {activeTab === "upcoming" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">All domains expiring within the next 60 days. Send targeted renewal reminders and monitor potential revenue.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetchUpcoming()} className="gap-2 text-xs h-8">
+              <RefreshCw size={13} /> Refresh
+            </Button>
+          </div>
+
+          {upcomingLoading ? (
+            <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-400" /></div>
+          ) : upcomingRenewals.length === 0 ? (
+            <div className="bg-card border border-border rounded-2xl p-12 text-center">
+              <Clock className="mx-auto mb-3 text-muted-foreground/40" size={40} />
+              <p className="text-muted-foreground">No domains expiring in the next 60 days.</p>
+            </div>
+          ) : (
+            <>
+              {/* Revenue Summary */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <p className="text-xs text-muted-foreground mb-1">Domains Expiring</p>
+                  <p className="text-2xl font-bold text-amber-400">{upcomingRenewals.length}</p>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <p className="text-xs text-muted-foreground mb-1">Potential Revenue</p>
+                  <p className="text-2xl font-bold text-green-400">Rs. {upcomingRenewals.reduce((s, d) => s + (d.totalDue || 0), 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <p className="text-xs text-muted-foreground mb-1">With Restoration Fee</p>
+                  <p className="text-2xl font-bold text-orange-400">{upcomingRenewals.filter(d => d.restorationFee > 0).length} domains</p>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-2xl overflow-hidden overflow-x-auto">
+                <table className="w-full min-w-[850px]">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Domain</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Client</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Expires</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Days Left</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Renewal Value</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Auto Renew</th>
+                      <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {upcomingRenewals.map(d => (
+                      <tr key={d.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <p className="text-sm font-semibold text-foreground">{d.domain}</p>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="text-sm text-foreground">{d.clientName}</p>
+                          <p className="text-xs text-muted-foreground">{d.clientEmail}</p>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border capitalize ${statusColors[d.status] || "bg-secondary border-border text-muted-foreground"}`}>
+                            {d.status.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                          {d.expiryDate ? format(new Date(d.expiryDate), "MMM d, yyyy") : "—"}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`text-sm font-bold ${d.daysLeft <= 1 ? "text-red-400" : d.daysLeft <= 7 ? "text-orange-400" : d.daysLeft <= 15 ? "text-amber-400" : "text-yellow-300"}`}>
+                            {d.daysLeft}d
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="text-sm font-semibold text-green-400">Rs. {(d.totalDue || 0).toLocaleString()}</p>
+                          {d.restorationFee > 0 && (
+                            <p className="text-xs text-orange-400">incl. Rs. {d.restorationFee.toLocaleString()} restore fee</p>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${d.autoRenew ? "bg-green-500/10 text-green-400" : "bg-gray-500/10 text-gray-400"}`}>
+                            {d.autoRenew ? "Yes" : "No"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <Button size="sm" variant="outline" disabled={sendingReminderId === d.id}
+                            onClick={() => handleSendReminder(d.id)}
+                            className="h-7 px-3 text-xs gap-1.5 border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+                            {sendingReminderId === d.id ? <Loader2 size={11} className="animate-spin" /> : <Bell size={11} />}
+                            Send Reminder
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
