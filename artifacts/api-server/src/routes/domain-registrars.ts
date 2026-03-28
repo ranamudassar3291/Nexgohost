@@ -1,13 +1,26 @@
 /**
  * Noehost Domain Registrar Management API
- * Supports: Namecheap, LogicBoxes, ResellerClub, Custom API, None (email-only)
+ * Supports: Namecheap, LogicBoxes, ResellerClub, Spaceship, Custom API, None (email-only)
  * + Universal ZIP module installer for any WHMCS-compatible registrar module
  */
 import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
-import { domainRegistrarsTable, domainsTable, ordersTable, invoicesTable, usersTable } from "@workspace/db/schema";
+import { domainRegistrarsTable, domainsTable, ordersTable, invoicesTable, usersTable, currenciesTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import {
+  fetchSpaceshipLivePrices,
+  fetchSpaceshipBalance,
+  runLossPrevention,
+  spaceshipRegister,
+  spaceshipRenew,
+  spaceshipTransfer,
+  spaceshipGetEpp,
+  spaceshipUpdateNameservers,
+  spaceshipGetLock,
+  spaceshipSetLock,
+  getUsdToPkrWithBuffer,
+} from "../lib/spaceship.js";
 import OpenAI from "openai";
 import multer from "multer";
 import AdmZip from "adm-zip";
@@ -258,6 +271,13 @@ export const REGISTRAR_FIELDS: Record<string, { key: string; label: string; type
     { key: "apiKey",    label: "API Key",            type: "password", required: true },
     { key: "sandbox",   label: "Sandbox Mode",       type: "checkbox", required: false },
   ],
+  spaceship: [
+    { key: "apiKey",            label: "API Key",                    type: "text",     required: true,  description: "Found in Spaceship Dashboard → API → Keys" },
+    { key: "apiSecret",         label: "API Secret",                 type: "password", required: true,  description: "Secret key paired with your API Key" },
+    { key: "lossThresholdUsd",  label: "Loss-Prevention Threshold ($)", type: "text", required: false, description: "If live API cost exceeds this USD amount, registration is ABORTED and you get an alert. Default: 1.50" },
+    { key: "useAccountBalance", label: "Use Account Balance (Wallet)", type: "checkbox", required: false, description: "Charge all transactions to your $20 Spaceship wallet — instant activation" },
+    { key: "sandbox",           label: "Sandbox / Test Mode",        type: "checkbox", required: false, description: "Use Spaceship sandbox environment for testing" },
+  ],
   custom: [
     { key: "apiUrl",    label: "API Base URL",      type: "text",     required: true,  description: "Base URL of your custom registrar API" },
     { key: "apiKey",    label: "API Key",            type: "password", required: true  },
@@ -331,6 +351,32 @@ async function callRegistrarApi(
       const res = await fetch(url);
       const data = await res.json();
       return { success: res.ok, result: data, error: res.ok ? undefined : data.message || "API error" };
+    }
+
+    if (type === "spaceship") {
+      const { apiKey, apiSecret } = config;
+      const useWallet = config.useAccountBalance !== "false";
+      const domainFqdn = params.domainName as string || "";
+
+      if (action === "register") {
+        const ns = params.nameservers
+          ? (params.nameservers as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+          : ["ns1.noehost.com", "ns2.noehost.com"];
+        return spaceshipRegister(apiKey, apiSecret, domainFqdn, Number(params.years ?? 1), ns, useWallet);
+      }
+      if (action === "updateNs") {
+        const ns = (params.nameservers as string).split(",").map((s: string) => s.trim()).filter(Boolean);
+        return spaceshipUpdateNameservers(apiKey, apiSecret, domainFqdn, ns);
+      }
+      if (action === "lock") return spaceshipSetLock(apiKey, apiSecret, domainFqdn, true);
+      if (action === "unlock") return spaceshipSetLock(apiKey, apiSecret, domainFqdn, false);
+      if (action === "getEpp") return spaceshipGetEpp(apiKey, apiSecret, domainFqdn);
+      if (action === "check") {
+        // Use balance check as connectivity test
+        const bal = await fetchSpaceshipBalance(apiKey, apiSecret);
+        return { success: true, result: { balance: `$${bal.balance} ${bal.currency}`, message: "Spaceship connection OK" } };
+      }
+      return { success: false, error: `Spaceship: unknown action '${action}'` };
     }
 
     if (type === "custom") {
@@ -899,6 +945,70 @@ router.delete("/admin/domain-registrars/:id", authenticate, requireAdmin, async 
   }
 });
 
+// ── Spaceship: Live TLD Prices ────────────────────────────────────────────────
+// GET /admin/domain-registrars/:id/live-tld-prices?tlds=.com,.net,.store
+router.get("/admin/domain-registrars/:id/live-tld-prices", authenticate, requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const [r] = await db.select().from(domainRegistrarsTable)
+        .where(eq(domainRegistrarsTable.id, req.params.id));
+      if (!r) { res.status(404).json({ error: "Registrar not found" }); return; }
+      if (r.type !== "spaceship") {
+        res.status(400).json({ error: "Live prices are only available for Spaceship registrar" });
+        return;
+      }
+      const config = JSON.parse(r.config ?? "{}");
+      const tldParam = (req.query.tlds as string) || ".com,.net,.org,.store,.online,.pk,.shop,.info";
+      const tlds = tldParam.split(",").map(t => t.trim()).filter(Boolean);
+
+      const [prices, balance, usdToPkr] = await Promise.all([
+        fetchSpaceshipLivePrices(config.apiKey, config.apiSecret, tlds),
+        fetchSpaceshipBalance(config.apiKey, config.apiSecret).catch(() => ({ balance: null, currency: "USD" })),
+        getUsdToPkrWithBuffer(),
+      ]);
+
+      res.json({
+        success: true,
+        usdToPkr,
+        buffer: 10,
+        balance,
+        prices: prices.map(p => ({
+          tld: p.tld,
+          registrationUsd: p.registrationUsd,
+          renewalUsd: p.renewalUsd,
+          transferUsd: p.transferUsd,
+          registrationPkr: p.registrationUsd != null ? Math.round(p.registrationUsd * usdToPkr) : null,
+          renewalPkr: p.renewalUsd != null ? Math.round(p.renewalUsd * usdToPkr) : null,
+          transferPkr: p.transferUsd != null ? Math.round(p.transferUsd * usdToPkr) : null,
+        })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ── Spaceship: Account Balance ────────────────────────────────────────────────
+// GET /admin/domain-registrars/:id/balance
+router.get("/admin/domain-registrars/:id/balance", authenticate, requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const [r] = await db.select().from(domainRegistrarsTable)
+        .where(eq(domainRegistrarsTable.id, req.params.id));
+      if (!r) { res.status(404).json({ error: "Registrar not found" }); return; }
+      if (r.type !== "spaceship") {
+        res.status(400).json({ error: "Balance check is only available for Spaceship registrar" });
+        return;
+      }
+      const config = JSON.parse(r.config ?? "{}");
+      const balance = await fetchSpaceshipBalance(config.apiKey, config.apiSecret);
+      res.json({ success: true, ...balance });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // ── Domain action via registrar ───────────────────────────────────────────────
 // POST /admin/domain-registrars/:registrarId/action/:domainId
 router.post("/admin/domain-registrars/:registrarId/action/:domainId",
@@ -955,12 +1065,56 @@ router.post("/admin/orders/:id/activate-domain-registrar", authenticate, require
           registrarName = reg.name;
           const config = JSON.parse(reg.config ?? "{}");
           const nsArr = ["ns1.noehost.com", "ns2.noehost.com"];
-          apiCallResult = await callRegistrarApi(reg.type, "register", config, {
-            domainName: fullDomain,
-            years: String(period),
-            nameservers: nsArr.join(","),
-            ns1: nsArr[0], ns2: nsArr[1],
-          });
+
+          // ── Spaceship Loss-Prevention Kill Switch ──────────────────────────
+          if (reg.type === "spaceship") {
+            const lossThreshold = Number(config.lossThresholdUsd ?? 1.5);
+            // Estimate client paid amount from invoice
+            let clientPaidPkr = 0;
+            if (order.invoiceId) {
+              const [inv] = await db.select({ total: invoicesTable.total } as any)
+                .from(invoicesTable).where(eq(invoicesTable.id, order.invoiceId)).limit(1);
+              clientPaidPkr = Number((inv as any)?.total ?? 0);
+            }
+
+            const lossCheck = await runLossPrevention(
+              config.apiKey,
+              config.apiSecret,
+              tld,
+              clientPaidPkr,
+              lossThreshold,
+              fullDomain,
+              "registration",
+            );
+
+            if (!lossCheck.allowed) {
+              res.status(402).json({
+                aborted: true,
+                lossPreventionTriggered: true,
+                reason: lossCheck.reason,
+                liveCostUsd: lossCheck.liveCostUsd,
+                liveCostPkr: lossCheck.liveCostPkr,
+                thresholdUsd: lossCheck.lossThresholdUsd,
+                usdToPkr: lossCheck.usdToPkr,
+                message: `Registration ABORTED: Live API cost $${lossCheck.liveCostUsd} exceeds your threshold of $${lossCheck.lossThresholdUsd}. WhatsApp + Email alert sent to admin.`,
+              });
+              return;
+            }
+
+            // Use Spaceship wallet — register via native lib
+            const useWallet = config.useAccountBalance !== "false";
+            apiCallResult = await spaceshipRegister(
+              config.apiKey, config.apiSecret, fullDomain,
+              Number(period), nsArr, useWallet,
+            );
+          } else {
+            apiCallResult = await callRegistrarApi(reg.type, "register", config, {
+              domainName: fullDomain,
+              years: String(period),
+              nameservers: nsArr.join(","),
+              ns1: nsArr[0], ns2: nsArr[1],
+            });
+          }
         }
       }
 

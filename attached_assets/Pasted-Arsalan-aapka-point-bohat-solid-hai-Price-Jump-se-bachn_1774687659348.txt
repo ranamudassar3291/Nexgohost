@@ -1,0 +1,42 @@
+Arsalan, aapka point bohat solid hai. "Price Jump" se bachne ke liye ye zaroori hai ke domain activate karne se pehle aapko asli price nazar aaye. Hum aik "Manual Approval & Price Verify" mode banayenge jahan aap registrar select karenge, price check karenge, aur phir "Confirm" dabayenge.
+
+Yahan aapka Ultimate Registrar Selector & Price Guard prompt hai:
+
+🚀 Master Prompt: Manual Registrar Selector & Live Price Verify
+"I need to implement a Manual Activation & Price Verification system in the Admin Panel to prevent losses from price jumps. Execute these technical modules:
+
+1. The 'Activation Pending' Dashboard:
+
+New Status: When a client pays, set the domain status to 'Pending Activation'.
+
+Admin Interface: Create a dedicated table in Admin > Pending Domains. Each row must show: Client Name, Domain, Amount Paid (PKR), and a 'Prepare Activation' button.
+
+2. Registrar Selector & Live Price Fetcher:
+
+Dropdown Menu: When I click 'Prepare Activation', show a popup with a Registrar Dropdown (Spaceship, IONOS, Sav).
+
+Real-Time API Call: Upon selecting a registrar, the system must instantly call their API to fetch the Live Cost of that domain in USD.
+
+Margin Calculator: Show me the calculation on screen:
+
+Client Paid: Rs. 750
+
+Live Cost: $1.00 (Rs. 285 approx)
+
+Estimated Profit: Rs. 465
+
+Color Coding: If the Live Cost is > $1.50, highlight the price in RED to warn me of a potential loss.
+
+3. One-Click Group Activation:
+
+Confirmation: Only after I click a final 'Confirm & Register' button should the API call be sent to the registrar.
+
+Auto-Sync: Once the registrar returns 'Success', automatically update the domain status to 'Active', save the Registrar Name in the database, and send the welcome email.
+
+4. Profit Analytics & History:
+
+Keep a log of every registration including: Registrar Used, Cost Price, and Net Profit after accounting for the 24-hour Google Rate cache and bank taxes.
+
+5. UI Cleanup:
+
+Ensure the 'Pending Activation' list is clean and allows me to 'Group Select' multiple domains to activate them all at once via the same registrar."

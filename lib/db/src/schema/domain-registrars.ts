@@ -8,6 +8,7 @@ export const registrarTypeEnum = pgEnum("registrar_type", [
   "resellerclub",
   "enom",
   "opensrs",
+  "spaceship",
   "custom",
   "none",
 ]);

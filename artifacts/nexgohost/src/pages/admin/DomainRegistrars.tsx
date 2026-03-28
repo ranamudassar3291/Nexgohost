@@ -5,7 +5,8 @@ import {
   CheckCircle, AlertCircle, RefreshCw, ChevronDown, ChevronUp,
   Eye, EyeOff, Star, X, Zap, Mail, Server, FolderOpen, File, BadgeCheck,
   Upload, Shield, ShieldAlert, PackageOpen, Sparkles, RotateCcw,
-  FileArchive, CheckCircle2, ChevronRight,
+  FileArchive, CheckCircle2, ChevronRight, TrendingUp, DollarSign,
+  Wallet, Activity, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,13 @@ const PRESETS = [
     color: "from-green-500/15 to-green-400/5",
     badge: "bg-green-500/10 text-green-500 border-green-500/20",
     logo: "OS",
+  },
+  {
+    type: "spaceship", name: "Spaceship",
+    description: "Modern, developer-friendly registrar with competitive pricing, wallet-based billing, and a live Loss-Prevention kill switch.",
+    color: "from-sky-500/15 to-teal-400/5",
+    badge: "bg-sky-500/10 text-sky-500 border-sky-500/20",
+    logo: "SS",
   },
   {
     type: "custom", name: "Custom API",
@@ -975,15 +983,52 @@ function AddModal({ onClose, onSaved, prefill }: { onClose: () => void; onSaved:
 }
 
 // ── Registrar card ────────────────────────────────────────────────────────────
+interface TldPrice {
+  tld: string;
+  registrationUsd: number | null;
+  renewalUsd: number | null;
+  transferUsd: number | null;
+  registrationPkr: number | null;
+  renewalPkr: number | null;
+  transferPkr: number | null;
+}
+
+interface LivePriceData {
+  usdToPkr: number;
+  buffer: number;
+  balance: { balance: number | null; currency: string };
+  prices: TldPrice[];
+}
+
 function RegistrarCard({ r, onRefresh }: { r: Registrar; onRefresh: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [config, setConfig] = useState<Record<string, string>>(r.config ?? {});
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showPrices, setShowPrices] = useState(false);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const [liveData, setLiveData] = useState<LivePriceData | null>(null);
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [tldInput, setTldInput] = useState(".com,.net,.org,.store,.online,.pk");
   const { toast } = useToast();
 
   const preset = PRESETS.find(p => p.type === r.type);
+
+  const fetchLivePrices = async () => {
+    setLoadingPrices(true);
+    setPriceError(null);
+    try {
+      const data = await apiFetch(
+        `/api/admin/domain-registrars/${r.id}/live-tld-prices?tlds=${encodeURIComponent(tldInput)}`
+      );
+      setLiveData(data);
+      setShowPrices(true);
+    } catch (err: any) {
+      setPriceError(err.message);
+      toast({ title: "Error fetching live prices", description: err.message, variant: "destructive" });
+    } finally { setLoadingPrices(false); }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -1130,6 +1175,93 @@ function RegistrarCard({ r, onRefresh }: { r: Registrar; onRefresh: () => void }
                         onChange={v => setConfig(c => ({ ...c, [f.key]: v }))} />
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Spaceship Live Prices Panel */}
+              {r.type === "spaceship" && (
+                <div className="mb-4 border border-sky-500/20 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between bg-sky-500/5 px-4 py-3 border-b border-sky-500/15">
+                    <div className="flex items-center gap-2">
+                      <Activity size={14} className="text-sky-500" />
+                      <span className="text-sm font-semibold text-foreground">Live API Prices</span>
+                      {liveData && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 border border-sky-500/20 font-medium">
+                          Rate: Rs. {liveData.usdToPkr}/USD (+Rs.{liveData.buffer} buffer)
+                        </span>
+                      )}
+                      {liveData?.balance?.balance != null && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-600 border border-teal-500/20 font-medium flex items-center gap-1">
+                          <Wallet size={9} /> ${liveData.balance.balance} wallet
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={tldInput}
+                        onChange={e => setTldInput(e.target.value)}
+                        placeholder=".com,.net,.store"
+                        className="h-7 text-xs rounded-lg w-40 border-sky-500/20"
+                      />
+                      <Button size="sm" onClick={fetchLivePrices} disabled={loadingPrices}
+                        className="h-7 rounded-lg text-xs gap-1 bg-sky-600 hover:bg-sky-700 text-white">
+                        {loadingPrices ? <RefreshCw size={10} className="animate-spin" /> : <TrendingUp size={10} />}
+                        {loadingPrices ? "Fetching…" : "Fetch"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {priceError && (
+                    <div className="flex items-center gap-2 p-3 text-xs text-red-500 bg-red-500/5">
+                      <AlertTriangle size={12} /> {priceError}
+                    </div>
+                  )}
+
+                  {showPrices && liveData && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-[10px] text-muted-foreground border-b border-border">
+                            <th className="text-left px-4 py-2 font-semibold">TLD</th>
+                            <th className="text-right px-3 py-2 font-semibold">Reg (USD)</th>
+                            <th className="text-right px-3 py-2 font-semibold">Reg (PKR)</th>
+                            <th className="text-right px-3 py-2 font-semibold">Renew (USD)</th>
+                            <th className="text-right px-3 py-2 font-semibold">Renew (PKR)</th>
+                            <th className="text-right px-3 py-2 font-semibold">Transfer (USD)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {liveData.prices.map((p, i) => (
+                            <tr key={p.tld} className={`border-b border-border/50 ${i % 2 === 0 ? "bg-muted/10" : ""}`}>
+                              <td className="px-4 py-2 font-mono font-bold text-sky-600">{p.tld}</td>
+                              <td className="px-3 py-2 text-right text-muted-foreground">
+                                {p.registrationUsd != null ? `$${p.registrationUsd.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-foreground">
+                                {p.registrationPkr != null ? `Rs. ${p.registrationPkr.toLocaleString()}` : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right text-muted-foreground">
+                                {p.renewalUsd != null ? `$${p.renewalUsd.toFixed(2)}` : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold text-foreground">
+                                {p.renewalPkr != null ? `Rs. ${p.renewalPkr.toLocaleString()}` : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right text-muted-foreground">
+                                {p.transferUsd != null ? `$${p.transferUsd.toFixed(2)}` : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {!showPrices && !loadingPrices && !priceError && (
+                    <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                      <DollarSign size={20} className="mx-auto mb-2 text-muted-foreground/40" />
+                      Enter TLD(s) above and click Fetch to see live API costs and PKR equivalents
+                    </div>
+                  )}
                 </div>
               )}
 

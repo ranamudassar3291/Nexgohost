@@ -1338,6 +1338,67 @@ export async function emailAffiliateCommission(
   }, meta);
 }
 
+// ── Spaceship Price Jump Alert (Admin) ────────────────────────────────────────
+export async function emailSpaceshipPriceAlert(
+  to: string,
+  vars: {
+    domainName: string;
+    liveCostUsd: string;
+    liveCostPkr: string;
+    clientPaidPkr: string;
+    thresholdUsd: string;
+    usdToPkr: string;
+  },
+): Promise<{ sent: boolean; message: string }> {
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0f0f0f;font-family:Arial,sans-serif">
+  <div style="max-width:600px;margin:40px auto;background:#1a1a1a;border-radius:12px;overflow:hidden;border:1px solid #dc2626">
+    <div style="background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);padding:32px 40px;text-align:center">
+      <div style="font-size:48px;margin-bottom:8px">🚨</div>
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800;letter-spacing:-0.5px">PRICE JUMP DETECTED</h1>
+      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:13px">Spaceship Registration PAUSED — Action Required</p>
+    </div>
+    <div style="padding:36px 40px">
+      <div style="background:#2a0a0a;border:1px solid #dc2626;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+        <p style="margin:0;color:#fca5a5;font-size:13px;font-weight:600">⚠ Registration has been automatically paused to protect your profit margin.</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <tr style="border-bottom:1px solid #2d2d2d">
+          <td style="padding:12px 0;color:#9ca3af;font-size:13px;width:45%">Domain</td>
+          <td style="padding:12px 0;color:#fff;font-size:14px;font-weight:700">${vars.domainName}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #2d2d2d">
+          <td style="padding:12px 0;color:#9ca3af;font-size:13px">Live API Cost</td>
+          <td style="padding:12px 0;color:#f87171;font-size:16px;font-weight:700">$${vars.liveCostUsd} <span style="color:#6b7280;font-size:13px;font-weight:400">(Rs. ${Number(vars.liveCostPkr).toLocaleString()})</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid #2d2d2d">
+          <td style="padding:12px 0;color:#9ca3af;font-size:13px">Client Paid</td>
+          <td style="padding:12px 0;color:#34d399;font-size:14px;font-weight:600">Rs. ${Number(vars.clientPaidPkr).toLocaleString()}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #2d2d2d">
+          <td style="padding:12px 0;color:#9ca3af;font-size:13px">Your Threshold</td>
+          <td style="padding:12px 0;color:#fbbf24;font-size:14px;font-weight:600">$${vars.thresholdUsd}</td>
+        </tr>
+        <tr>
+          <td style="padding:12px 0;color:#9ca3af;font-size:13px">Exchange Rate Used</td>
+          <td style="padding:12px 0;color:#e5e7eb;font-size:13px">Rs. ${vars.usdToPkr} / USD <span style="color:#6b7280">(incl. Rs.10 buffer)</span></td>
+        </tr>
+      </table>
+      <div style="margin:28px 0 0;text-align:center">
+        <p style="color:#6b7280;font-size:12px;margin:0 0 16px">Log in to manually process this domain or update your TLD pricing.</p>
+        <a href="${getAppUrl()}/admin/orders" style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:14px;display:inline-block">Review in Admin Panel →</a>
+      </div>
+    </div>
+    <div style="background:#111;padding:16px 40px;text-align:center;border-top:1px solid #2d2d2d">
+      <p style="margin:0;color:#4b5563;font-size:11px">${COMPANY} Loss-Prevention System • Registration ID has been queued for manual review</p>
+    </div>
+  </div>
+</body></html>`;
+
+  return sendEmail(to, `🚨 Price Jump: ${vars.domainName} costs $${vars.liveCostUsd} — Registration Paused`, html);
+}
+
 export async function emailDomainTransferRejected(
   to: string,
   vars: { clientName: string; domain: string; reason?: string },
