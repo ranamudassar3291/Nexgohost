@@ -97,7 +97,7 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     .where(
       and(
         sql`${hostingServicesTable.serverId} IS NOT NULL`,
-        sql`${hostingServicesTable.status} NOT IN ('terminated', 'cancelled')`,
+        sql`${hostingServicesTable.status} NOT IN ('terminated')`,
       )
     )
     .groupBy(hostingServicesTable.serverId);
