@@ -186,6 +186,19 @@
 - Backup directory: `uploads/backups/` (project-relative, writable)
 - `WP_BACKUP_DIR` env var override supported
 
+### Google Drive Backup System (Session 34)
+- **DB Schema**: `driveBackupLogsTable` in `lib/db/src/schema/backups.ts` — tracks every backup run
+- **Engine**: `artifacts/api-server/src/lib/drive-backup.ts` — Google Drive upload using service account, pg_dump DB dump, adm-zip file archive, 30-day retention
+- **Cron**: `runGoogleDriveBackupCron()` in `cron.ts` — fires at 3:00 AM PKT (22:00 UTC), idempotent (skips if already ran today)
+- **API Routes**: `artifacts/api-server/src/routes/backups.ts`
+  - `GET /api/admin/backups` — backup history (last 30)
+  - `GET /api/admin/backups/status` — config status + last run
+  - `POST /api/admin/backups/run` — manual trigger (async background)
+- **Admin UI**: `artifacts/nexgohost/src/pages/admin/Backups.tsx` — status cards, Drive storage bar, backup history table, collapsible setup guide
+- **Nav**: "Backup & Drive" link added to Security section in AppLayout
+- **Auth required**: `GOOGLE_SERVICE_ACCOUNT_JSON` env var (service account JSON key), optional `GOOGLE_DRIVE_FOLDER_ID`
+- `googleapis` npm package installed in api-server
+
 ### Environment Variables Set
 - `JWT_SECRET`: 96-char random hex (shared env var)
 - `WP_SIMULATE`: `true` (development env var — remove for production)

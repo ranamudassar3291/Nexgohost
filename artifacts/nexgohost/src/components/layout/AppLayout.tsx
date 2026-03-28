@@ -88,6 +88,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "WhatsApp Alerts",  href: "/admin/whatsapp",         icon: (() => null) as any },
       { name: "Security",         href: "/admin/security",         icon: (() => null) as any },
       { name: "Firewall",         href: "/admin/firewall",         icon: (() => null) as any },
+      { name: "Backup & Drive",   href: "/admin/backups",          icon: (() => null) as any },
     ],
   },
   {

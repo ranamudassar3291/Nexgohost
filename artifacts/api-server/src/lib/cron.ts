@@ -766,6 +766,42 @@ export async function runVpsPowerOffCron(): Promise<void> {
   }
 }
 
+// ─── Google Drive nightly backup (3:00 AM PKT = 22:00 UTC) ──────────────────
+export async function runGoogleDriveBackupCron(): Promise<void> {
+  // Only run between 22:00–22:10 UTC (= 03:00–03:10 AM PKT, UTC+5)
+  const now = new Date();
+  const utcH = now.getUTCHours();
+  const utcM = now.getUTCMinutes();
+  if (utcH !== 22 || utcM > 10) return;
+
+  // Skip if a backup already ran successfully today
+  const { driveBackupLogsTable: tbl } = await import("@workspace/db/schema");
+  const { desc: descOrd } = await import("drizzle-orm");
+  const [latest] = await db.select().from(tbl).orderBy(descOrd(tbl.startedAt)).limit(1);
+  if (latest?.status === "success") {
+    const latestDate = latest.startedAt.toISOString().slice(0, 10);
+    const todayDate = now.toISOString().slice(0, 10);
+    if (latestDate === todayDate) {
+      console.log("[CRON] drive_backup: already completed today, skipping.");
+      return;
+    }
+  }
+
+  console.log("[CRON] drive_backup: starting nightly Google Drive backup…");
+  try {
+    const { isDriveConfigured, runGoogleDriveBackup } = await import("./drive-backup.js");
+    if (!isDriveConfigured()) {
+      console.log("[CRON] drive_backup: GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping.");
+      return;
+    }
+    await runGoogleDriveBackup("cron");
+    await logCron("drive_backup", "success", "Google Drive backup completed successfully");
+  } catch (err: any) {
+    await logCron("drive_backup", "failed", err.message);
+    console.error("[CRON] drive_backup error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
@@ -780,6 +816,7 @@ export async function runAllCronTasks(): Promise<void> {
     runInvoiceRemindersCron(),
     runVpsPowerOffCron(),
     runDailyBackupCron(),
+    runGoogleDriveBackupCron(),
   ]);
   console.log("[CRON] All tasks completed.");
 }

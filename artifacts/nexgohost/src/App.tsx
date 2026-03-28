@@ -57,6 +57,7 @@ import EmailTemplates from "@/pages/admin/EmailTemplates";
 import FraudLogs from "@/pages/admin/FraudLogs";
 import AutomationSettings from "@/pages/admin/AutomationSettings";
 import SecuritySettings from "@/pages/admin/SecuritySettings";
+import AdminBackups from "@/pages/admin/Backups";
 import Firewall from "@/pages/admin/Firewall";
 import ServerLogs from "@/pages/admin/ServerLogs";
 import AdminAffiliates from "@/pages/admin/Affiliates";
@@ -358,6 +359,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/security">
         <AdminPage><SecuritySettings /></AdminPage>
+      </Route>
+      <Route path="/admin/backups">
+        <AdminPage><AdminBackups /></AdminPage>
       </Route>
       <Route path="/admin/firewall">
         <AdminPage><Firewall /></AdminPage>

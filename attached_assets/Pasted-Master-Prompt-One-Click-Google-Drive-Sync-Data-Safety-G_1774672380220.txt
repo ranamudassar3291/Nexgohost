@@ -1,0 +1,36 @@
+Master Prompt: One-Click Google Drive Sync & Data Safety Guard
+"I want to implement a zero-config, one-click Google Drive backup system that uses direct Google OAuth (Sign-in) instead of manual API keys. Execute these core safety and automation modules:
+
+1. 'Sign in with Google' Drive Connection:
+
+One-Click Setup: In the Admin Panel, add a button: 'Connect Google Drive for Backups'.
+
+Automatic Permissions: Once I sign in, the system must automatically get permission to create files in my Drive.
+
+Auto-Folder Creation: On the first sync, it must create a main folder Noehost_Cloud_Backups with two sub-folders: Daily_Databases and Full_Files_Backup.
+
+2. Bulletproof Data Safety (Non-Destructive):
+
+Read-Only Export: The backup script must strictly use mysqldump or a stream-based export that DOES NOT lock tables or modify any existing client data.
+
+Zero-Risk Logic: Ensure that even if the backup fails, the live website and database remain 100% untouched and online.
+
+Full Backup: Every night at 3:00 AM, it must perform a FULL backup (not partial) of the entire database and the /modules, /uploads, and /config folders.
+
+3. Intelligent Overwrite Protection (Drive Side):
+
+No Deletion: Never delete old backups unless I manually say so. Each backup must have a unique timestamp (e.g., Full_Backup_28_March_2026_0300.zip).
+
+Latest Sync: Ensure the system identifies and moves only the latest state of the panel to the Drive, so I always have the most recent version available for recovery.
+
+4. 'Offline-Proof' Recovery System:
+
+Local-to-Cloud Bridge: If the main server goes offline, the backup on Google Drive must be formatted in a way that I can restore it to any new server in minutes.
+
+Integrity Check: After each upload, the system should verify the file size on Drive to ensure it’s a 'Full' backup and not a corrupted or half-filled file.
+
+5. Admin UI Integration:
+
+Show a simple toggle: 'Automatic Daily Backups: ON/OFF'.
+
+Display the Gmail address currently connected for backups and a 'Sync Now' button for manual emergency backups."
