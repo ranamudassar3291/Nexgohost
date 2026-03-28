@@ -46,6 +46,12 @@ interface SearchResult {
   results: TldResult[];
 }
 
+interface TldPriceInfo {
+  tld: string; enabled: boolean; sortOrder: number;
+  registrationPrice: number; renewalPrice: number;
+  promoRegistrationPrice?: number | null;
+}
+
 interface CartItem {
   name: string;
   tld: string;
@@ -129,20 +135,22 @@ const statusLabels: Record<string, string> = {
   pending_transfer: "Pending Transfer",
 };
 
-function ExpiryRing({ daysLeft, registrationDate }: { daysLeft: number | null; registrationDate?: string | null }) {
+function ExpiryRing({ daysLeft, registrationDate, size = 46 }: { daysLeft: number | null; registrationDate?: string | null; size?: number }) {
   if (daysLeft === null) return null;
   const regDate = registrationDate ? new Date(registrationDate) : null;
   const total = regDate ? Math.round((Date.now() - regDate.getTime()) / (1000 * 60 * 60 * 24)) + Math.max(0, daysLeft) : 365;
   const pct = Math.max(0, Math.min(100, (Math.max(0, daysLeft) / Math.max(1, total)) * 100));
-  const r = 17;
+  const cx = size / 2;
+  const r = size * 0.37;
+  const sw = size * 0.098;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
   const color = daysLeft < 0 ? "#ef4444" : daysLeft < 30 ? "#ef4444" : daysLeft < 90 ? "#f59e0b" : "#22c55e";
   return (
     <div className="flex flex-col items-center gap-0.5 shrink-0">
-      <svg width="46" height="46" viewBox="0 0 46 46" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="23" cy="23" r={r} stroke="rgba(255,255,255,0.06)" strokeWidth="4.5" fill="none" />
-        <circle cx="23" cy="23" r={r} stroke={color} strokeWidth="4.5" fill="none"
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={cx} cy={cx} r={r} stroke="rgba(255,255,255,0.06)" strokeWidth={sw} fill="none" />
+        <circle cx={cx} cy={cx} r={r} stroke={color} strokeWidth={sw} fill="none"
           strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{ transition: "stroke-dasharray 0.6s ease" }} />
       </svg>
       <span className="text-[9px] font-black" style={{ color }}>
@@ -196,6 +204,7 @@ export default function ClientDomains() {
   const [eppCopiedId, setEppCopiedId] = useState<string | null>(null);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [cardTab, setCardTab] = useState<Record<string, "overview" | "security">>({});
+  const [portfolioSearch, setPortfolioSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -212,6 +221,13 @@ export default function ClientDomains() {
     queryFn: () => apiFetch("/api/client/hosting"),
     retry: false,
   });
+
+  const { data: rawTldPricing } = useQuery({
+    queryKey: ["domain-tlds-pricing"],
+    queryFn: () => apiFetch("/api/domain-search/tlds").catch(() => []),
+    staleTime: 3_600_000,
+  });
+  const tldPricing: TldPriceInfo[] = (Array.isArray(rawTldPricing) ? rawTldPricing : []).filter((t: TldPriceInfo) => t.enabled);
 
   function domainHasHosting(domain: MyDomain): boolean {
     const fullName = `${domain.name}${domain.tld}`.toLowerCase();
@@ -508,6 +524,28 @@ export default function ClientDomains() {
             />
           ) : (
             <>
+              {/* ── Special Deal Banner ── */}
+              {tldPricing.some(t => t.tld === ".com") && (
+                <div className="relative overflow-hidden rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 border border-primary/25"
+                  style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.10) 0%, rgba(155,81,224,0.06) 100%)" }}>
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #9B51E0 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+                  <div className="flex items-center gap-3 relative">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                      <Tag size={15} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">
+                        🎉 Special Deal — <span className="text-primary">.com</span> domains from{" "}
+                        <span className="text-primary font-black">{formatPrice(tldPricing.find(t => t.tld === ".com")?.registrationPrice ?? 0)}</span>
+                        <span className="text-muted-foreground font-normal"> for 1st year</span>
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Type your domain name above to check availability instantly</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black bg-primary text-white tracking-wide relative">🔥 HOT DEAL</span>
+                </div>
+              )}
+
               <div className="bg-card border border-border rounded-2xl p-6 shadow-lg shadow-black/5">
                 <h3 className="text-lg font-display font-bold mb-4">Search Domain Availability</h3>
                 <div className="flex gap-3">
@@ -636,14 +674,41 @@ export default function ClientDomains() {
               )}
 
               {!searchData && !searching && !searchError && (
-                <div className="bg-card border border-border/50 border-dashed rounded-3xl p-16 text-center">
-                  <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20">
-                    <Globe className="w-10 h-10 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-display font-bold text-foreground">Find Your Perfect Domain</h3>
-                  <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
-                    Type a domain name above to check availability across all TLDs configured by your admin.
-                  </p>
+                <div className="space-y-4">
+                  {tldPricing.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-bold text-foreground">Popular domain extensions</p>
+                        <p className="text-[10px] text-muted-foreground">Click any TLD to search</p>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {tldPricing.sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)).slice(0, 8).map(t => (
+                          <button key={t.tld}
+                            onClick={() => { if (searchInput.trim()) { setTypedTld(t.tld); setSearchQuery(searchInput.trim().split(".")[0]); } else { inputRef.current?.focus(); } }}
+                            className="flex flex-col items-center gap-2 p-4 bg-card border border-border rounded-2xl hover:border-primary/50 hover:shadow-md hover:shadow-primary/5 transition-all group text-center"
+                          >
+                            <TldIcon tld={t.tld} />
+                            <div>
+                              <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{t.tld}</p>
+                              <p className="text-xs font-black text-primary">{formatPrice(t.registrationPrice)}</p>
+                              <p className="text-[9px] text-muted-foreground">/ year</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {tldPricing.length === 0 && (
+                    <div className="bg-card border border-border/50 border-dashed rounded-3xl p-16 text-center">
+                      <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20">
+                        <Globe className="w-10 h-10 text-primary" />
+                      </div>
+                      <h3 className="text-xl font-display font-bold text-foreground">Find Your Perfect Domain</h3>
+                      <p className="text-muted-foreground mt-2 max-w-sm mx-auto">
+                        Type a domain name above to check availability across all TLDs configured by your admin.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -653,34 +718,24 @@ export default function ClientDomains() {
 
       {activeTab === "my-domains" && (
         <div className="space-y-4">
-          {/* Quick domain search at top of My Domains */}
-          <div className="bg-card border border-border rounded-2xl p-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <input
-                  className="w-full pl-9 pr-3 h-10 bg-background border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono"
-                  placeholder="Search for a new domain…"
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
-                      setSearchInput((e.target as HTMLInputElement).value.trim());
-                      setActiveTab("order");
-                      setTimeout(() => {
-                        setSearchQuery((e.target as HTMLInputElement).value.trim().split(".")[0]);
-                      }, 50);
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 shrink-0"
-                onClick={() => { setActiveTab("order"); setTimeout(() => inputRef.current?.focus(), 100); }}
-              >
-                <Globe size={14} /> Browse All TLDs
-              </Button>
+          {/* Portfolio header: search filter + add new button */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <input
+                className="w-full pl-9 pr-3 h-10 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                placeholder="Filter your domains…"
+                value={portfolioSearch}
+                onChange={e => setPortfolioSearch(e.target.value)}
+              />
             </div>
+            <button
+              onClick={() => { setActiveTab("order"); setOrderView("search"); setTimeout(() => inputRef.current?.focus(), 100); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0"
+              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
+            >
+              <Plus size={15} /> Add New Domain
+            </button>
           </div>
 
           {/* ── Setup Progress: Hostinger-style launch steps ── */}
@@ -751,7 +806,28 @@ export default function ClientDomains() {
               </Button>
             </div>
           ) : (
-            myDomains.map(domain => {
+            (() => {
+              const filteredDomains = portfolioSearch
+                ? myDomains.filter(d => `${d.name}${d.tld}`.toLowerCase().includes(portfolioSearch.toLowerCase()))
+                : myDomains;
+              if (filteredDomains.length === 0) return (
+                <div className="bg-card border border-border border-dashed rounded-2xl p-10 text-center">
+                  <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="font-semibold text-foreground">No domains match "{portfolioSearch}"</p>
+                  <p className="text-sm text-muted-foreground mt-1">Try a different search term.</p>
+                </div>
+              );
+              return (
+              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                {/* Table header */}
+                <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_auto] gap-4 px-5 py-3 border-b border-border bg-secondary/30">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Domain</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Status</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Expiry</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Auto-Renew</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Actions</p>
+                </div>
+                {filteredDomains.map((domain, rowIdx) => {
               const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
               const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
               const isExpiringSoon = daysLeft !== null && daysLeft < 30 && daysLeft >= 0;
@@ -763,208 +839,191 @@ export default function ClientDomains() {
               const hasHosting = isActive ? domainHasHosting(domain) : true;
               const isExpanded = expandedCard === domain.id;
               const tab = cardTab[domain.id] ?? "overview";
+              const dotColor = domain.status === "active" ? "bg-green-400" : domain.status === "expired" ? "bg-red-400" : domain.status === "pending" ? "bg-yellow-400" : "bg-gray-400";
               return (
-                <div key={domain.id} className={`bg-card border rounded-2xl overflow-hidden transition-all duration-200 ${isExpiringSoon || isExpired ? "border-orange-500/30" : "border-border hover:border-primary/20"}`}>
-
-                  {/* ── Top urgency banner ── */}
-                  {(isExpiringSoon || isExpired) && (
-                    <div className={`px-5 py-2 text-xs font-semibold flex items-center gap-2 ${isExpired ? "bg-red-500/10 text-red-400 border-b border-red-500/20" : "bg-orange-500/10 text-orange-400 border-b border-orange-500/20"}`}>
-                      <AlertCircle size={12} />
-                      {isExpired ? `Expired ${Math.abs(daysLeft!)} days ago — Renew immediately to restore.` : `Expiring in ${daysLeft} days — Renew soon to avoid interruption.`}
-                    </div>
-                  )}
-
-                  {/* ── Card main row ── */}
-                  <div className="flex items-center gap-4 px-5 pt-5 pb-4">
-                    {/* Left: TLD Badge */}
-                    <TldIcon tld={domain.tld} />
-
-                    {/* Center: Domain info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-bold text-foreground font-mono">{domain.name}{domain.tld}</h3>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColors[domain.status] ?? "bg-secondary text-muted-foreground border-border"}`}>
-                          {statusLabels[domain.status] ?? domain.status}
-                        </span>
-                        {isLocked && !domain.isIn60DayLock && (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 border border-red-500/20">
-                            <Lock className="w-2.5 h-2.5" /> Locked
-                          </span>
-                        )}
-                        {domain.isIn60DayLock && !domain.lockOverrideByAdmin && (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                            <Lock className="w-2.5 h-2.5" /> 60-Day Lock
-                          </span>
-                        )}
+                <div key={domain.id} className={`border-b last:border-b-0 ${isExpiringSoon || isExpired ? "border-orange-500/20 bg-orange-500/[0.02]" : "border-border"}`}>
+                  {/* ── Main table row ── */}
+                  <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_auto] gap-4 items-center px-5 py-4">
+                    {/* Domain */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <TldIcon tld={domain.tld} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground font-mono truncate">{domain.name}{domain.tld}</p>
                         {!hasHosting && isActive && (
                           <button onClick={() => navigate("/client/orders/new")}
-                            className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors">
+                            className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5 mt-0.5">
                             <Globe className="w-2.5 h-2.5" /> Website not live · Get Hosting
                           </button>
                         )}
+                        {(isLocked && !domain.isIn60DayLock) && (
+                          <p className="text-[10px] text-red-400 flex items-center gap-0.5 mt-0.5"><Lock className="w-2.5 h-2.5" /> Transfer Locked</p>
+                        )}
+                        {domain.isIn60DayLock && !domain.lockOverrideByAdmin && (
+                          <p className="text-[10px] text-orange-400 flex items-center gap-0.5 mt-0.5"><Lock className="w-2.5 h-2.5" /> 60-Day Lock · {domain.daysRemainingInLock}d</p>
+                        )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-                        {expiryDate ? `Expires ${format(expiryDate, "MMM d, yyyy")}` : "No expiry date"}
-                      </p>
                     </div>
 
-                    {/* Right: Expiry ring + actions */}
-                    <div className="flex items-center gap-3 shrink-0">
-                      {expiryDate && <ExpiryRing daysLeft={daysLeft} registrationDate={domain.registrationDate} />}
-                      <div className="flex flex-col gap-1.5">
-                        <button
-                          onClick={() => setManageDomainModal(domain)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border bg-secondary/60 border-border hover:border-primary/40 hover:bg-primary/5 text-foreground transition-all"
-                        >
-                          <Settings size={12} /> All Settings
-                        </button>
-                        <button
-                          onClick={() => {
-                            setExpandedCard(isExpanded ? null : domain.id);
-                            if (!isExpanded) setCardTab(prev => ({ ...prev, [domain.id]: prev[domain.id] ?? "overview" }));
-                          }}
-                          className="flex items-center justify-center gap-1 px-3 py-1 rounded-lg text-[10px] font-medium border border-border/50 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-                        >
-                          {isExpanded ? "Hide ↑" : "Manage ↓"}
-                        </button>
+                    {/* Status */}
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor} ${domain.status === "active" ? "shadow-[0_0_6px_currentColor]" : ""}`} />
+                      <span className="text-xs font-semibold text-foreground">{statusLabels[domain.status] ?? domain.status}</span>
+                    </div>
+
+                    {/* Expiry */}
+                    <div className="flex items-center gap-2.5">
+                      <ExpiryRing daysLeft={daysLeft} registrationDate={domain.registrationDate} />
+                      <div>
+                        <p className="text-xs text-foreground font-mono">
+                          {expiryDate ? format(expiryDate, "MMM d, yyyy") : "—"}
+                        </p>
+                        {daysLeft !== null && (
+                          <p className={`text-[10px] font-medium ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
+                            {isExpired ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
+                          </p>
+                        )}
                       </div>
+                    </div>
+
+                    {/* Auto-Renew toggle */}
+                    <button
+                      onClick={() => toggleAutoRenew(domain.id, domain.autoRenew)}
+                      className="flex items-center gap-2 group"
+                    >
+                      <div className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${domain.autoRenew ? "bg-green-500" : "bg-border"}`}>
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${domain.autoRenew ? "left-4" : "left-0.5"}`} />
+                      </div>
+                      <span className={`text-xs font-medium ${domain.autoRenew ? "text-green-400" : "text-muted-foreground"}`}>
+                        {domain.autoRenew ? "On" : "Off"}
+                      </span>
+                    </button>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {(isActive || isExpired) && (
+                        <button onClick={() => handleRenewDomain(domain)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors flex items-center gap-1">
+                          <RefreshCw size={11} /> Renew
+                        </button>
+                      )}
+                      {isPending && (
+                        <button onClick={() => navigate("/client/invoices")}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 transition-colors flex items-center gap-1">
+                          <CreditCard size={11} /> Pay
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setManageDomainModal(domain)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-secondary/60 hover:border-primary/40 hover:bg-primary/5 text-foreground transition-all flex items-center gap-1"
+                      >
+                        <Settings size={11} /> Manage
+                      </button>
+                      <button
+                        onClick={() => {
+                          setExpandedCard(isExpanded ? null : domain.id);
+                          if (!isExpanded) setCardTab(prev => ({ ...prev, [domain.id]: prev[domain.id] ?? "overview" }));
+                        }}
+                        className="p-1.5 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+                        title={isExpanded ? "Collapse" : "Quick actions"}
+                      >
+                        <ChevronRight size={13} className={`transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                      </button>
                     </div>
                   </div>
 
-                  {/* ── Expandable management panel ── */}
+                  {/* ── Expandable panel ── */}
                   {isExpanded && (
-                    <div className="border-t border-border/60">
-                      {/* Tab bar */}
-                      <div className="flex border-b border-border/40 bg-secondary/20 px-4">
+                    <div className="border-t border-border/40 bg-secondary/10">
+                      <div className="flex border-b border-border/30 px-5">
                         {(["overview", "security"] as const).map(t => (
                           <button key={t} onClick={() => setCardTab(prev => ({ ...prev, [domain.id]: t }))}
-                            className={`px-4 py-2.5 text-xs font-semibold capitalize border-b-2 transition-all -mb-px ${tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                            className={`px-4 py-2 text-xs font-bold capitalize border-b-2 transition-all -mb-px ${tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
                             {t === "overview" ? "Overview" : "Security"}
                           </button>
                         ))}
-                        <div className="ml-auto flex items-center gap-1.5 py-1.5">
-                          {isActive && (
-                            <button onClick={() => navigate(`/client/dns/${domain.id}`)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold transition-colors hover:bg-blue-500/20">
-                              <Network size={10} /> DNS Records
-                            </button>
-                          )}
-                          {(isActive || isExpired) && (
-                            <button onClick={() => handleRenewDomain(domain)}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-lg text-[10px] font-bold transition-colors hover:bg-green-500/20">
-                              <RefreshCw size={10} /> Renew
-                            </button>
-                          )}
-                          {isPending && (
-                            <button onClick={() => navigate("/client/invoices")}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded-lg text-[10px] font-bold transition-colors hover:bg-yellow-500/20">
-                              <CreditCard size={10} /> Pay Now
-                            </button>
-                          )}
-                        </div>
+                        {isActive && (
+                          <button onClick={() => navigate(`/client/dns/${domain.id}`)}
+                            className="ml-auto flex items-center gap-1 px-3 py-1.5 my-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold hover:bg-blue-500/20 transition-colors">
+                            <Network size={10} /> DNS Records
+                          </button>
+                        )}
                       </div>
 
-                      {/* Tab: Overview — Nameservers + Auto-renew */}
                       {tab === "overview" && (
-                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                                <Server size={9} /> Nameservers
-                              </p>
-                              {isActive && (
-                                <button onClick={() => navigate(`/client/dns/${domain.id}`)} className="text-[10px] text-primary hover:underline">Edit →</button>
-                              )}
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Server size={9} /> Nameservers</p>
+                              {isActive && <button onClick={() => navigate(`/client/dns/${domain.id}`)} className="text-[10px] text-primary hover:underline">Edit →</button>}
                             </div>
-                            <div className="space-y-1">
-                              {(domain.nameservers && domain.nameservers.length > 0 ? domain.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).map((ns, i) => (
-                                <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-secondary/40 rounded-lg">
-                                  <span className="text-[9px] text-muted-foreground font-mono">NS{i + 1}</span>
+                            <div className="space-y-1.5">
+                              {(domain.nameservers?.length ? domain.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).map((ns, i) => (
+                                <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-secondary/60 rounded-lg">
+                                  <span className="text-[9px] text-muted-foreground font-mono w-7">NS{i + 1}</span>
                                   <span className="font-mono text-xs text-foreground">{ns}</span>
                                 </div>
                               ))}
                             </div>
                           </div>
-                          <div>
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
-                              <RotateCcw size={9} /> Auto-Renew
-                            </p>
-                            <button onClick={() => toggleAutoRenew(domain.id, domain.autoRenew)}
-                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${domain.autoRenew ? "bg-green-500/8 border-green-500/25" : "bg-secondary/40 border-border"}`}>
-                              <div>
-                                <p className={`text-xs font-bold ${domain.autoRenew ? "text-green-400" : "text-foreground"}`}>
-                                  {domain.autoRenew ? "Auto-Renew On" : "Auto-Renew Off"}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground">{domain.autoRenew ? "Domain renews automatically" : "Manual renewal required"}</p>
+                          <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><ClipboardList size={9} /> Domain Info</p>
+                            <div className="space-y-1.5 text-xs text-muted-foreground">
+                              <div className="flex justify-between px-2.5 py-1.5 bg-secondary/60 rounded-lg">
+                                <span>Registered</span>
+                                <span className="font-mono text-foreground">{domain.registrationDate ? format(new Date(domain.registrationDate), "MMM d, yyyy") : "—"}</span>
                               </div>
-                              <div className={`w-9 h-5 rounded-full transition-colors relative ${domain.autoRenew ? "bg-green-500" : "bg-border"}`}>
-                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${domain.autoRenew ? "left-4" : "left-0.5"}`} />
+                              <div className="flex justify-between px-2.5 py-1.5 bg-secondary/60 rounded-lg">
+                                <span>Expires</span>
+                                <span className={`font-mono font-bold ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-foreground"}`}>
+                                  {expiryDate ? format(expiryDate, "MMM d, yyyy") : "—"}
+                                </span>
                               </div>
-                            </button>
-                            <div className="mt-2 px-3 py-2 bg-secondary/30 rounded-lg">
-                              <p className="text-[10px] text-muted-foreground">
-                                Registered: {domain.registrationDate ? format(new Date(domain.registrationDate), "MMM d, yyyy") : "—"}
-                              </p>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Tab: Security — Transfer Lock + EPP */}
                       {tab === "security" && (
-                        <div className="p-4 space-y-3">
+                        <div className="p-5 space-y-3">
                           {domain.isIn60DayLock && !domain.lockOverrideByAdmin && (
                             <div className="flex items-start gap-3 p-3 rounded-xl border border-orange-500/30 bg-orange-500/5">
-                              <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center shrink-0">
-                                <Lock size={13} className="text-orange-400" />
-                              </div>
+                              <Lock size={13} className="text-orange-400 shrink-0 mt-0.5" />
                               <div>
                                 <p className="text-xs font-bold text-orange-400">60-Day Registration Lock Active</p>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                  Cannot transfer within 60 days of registration. <span className="font-bold text-orange-300">{domain.daysRemainingInLock}d remaining.</span>
-                                </p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">Cannot transfer for <span className="font-bold text-orange-300">{domain.daysRemainingInLock}d</span> more.</p>
                               </div>
                             </div>
                           )}
-                          <button
-                            disabled={lockLoading === domain.id || (domain.isIn60DayLock && !domain.lockOverrideByAdmin)}
+                          <button disabled={lockLoading === domain.id || (domain.isIn60DayLock && !domain.lockOverrideByAdmin)}
                             onClick={() => handleToggleLock(domain)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all disabled:opacity-60 disabled:cursor-not-allowed ${isLocked ? "bg-red-500/5 border-red-500/25 hover:bg-red-500/10" : "bg-green-500/5 border-green-500/25 hover:bg-green-500/10"}`}>
-                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isLocked ? "bg-red-500/15" : "bg-green-500/15"}`}>
-                              {lockLoading === domain.id ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : <ShieldCheck size={14} className={isLocked ? "text-red-400" : "text-green-400"} />}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all disabled:opacity-50 ${isLocked ? "bg-red-500/5 border-red-500/25 hover:bg-red-500/10" : "bg-green-500/5 border-green-500/25 hover:bg-green-500/10"}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isLocked ? "bg-red-500/15" : "bg-green-500/15"}`}>
+                              {lockLoading === domain.id ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <ShieldCheck size={13} className={isLocked ? "text-red-400" : "text-green-400"} />}
                             </div>
                             <div className="text-left">
                               <p className="text-xs font-bold text-foreground">Transfer Lock</p>
-                              <p className={`text-[10px] font-medium ${isLocked ? "text-red-400" : "text-green-400"}`}>
-                                {isLocked ? "Locked — click to unlock for transfer" : "Unlocked — click to lock"}
-                              </p>
+                              <p className={`text-[10px] font-medium ${isLocked ? "text-red-400" : "text-green-400"}`}>{isLocked ? "Locked — click to unlock" : "Unlocked — click to lock"}</p>
                             </div>
                           </button>
                           {!isLocked && eppOverrides[domain.id] && (
                             <div className="flex items-center gap-3 p-3 bg-amber-500/5 border border-amber-500/25 rounded-xl">
-                              <Key size={13} className="text-amber-400 shrink-0" />
+                              <Key size={12} className="text-amber-400 shrink-0" />
                               <code className="flex-1 font-mono text-xs text-foreground tracking-widest truncate">{eppOverrides[domain.id]}</code>
-                              <button onClick={() => handleCopyEpp(domain.id, eppOverrides[domain.id]!)}
-                                className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400">
+                              <button onClick={() => handleCopyEpp(domain.id, eppOverrides[domain.id]!)} className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400">
                                 {eppCopiedId === domain.id ? <CheckCheck size={12} /> : <Copy size={12} />}
                               </button>
                             </div>
                           )}
-                          <div className="flex items-center gap-2 p-3 bg-blue-500/5 border border-blue-500/15 rounded-xl">
-                            <ShieldCheck size={13} className="text-blue-400 shrink-0" />
-                            <div>
-                              <p className="text-xs font-bold text-blue-400">WHOIS Privacy</p>
-                              <p className="text-[10px] text-muted-foreground">Contact info is protected and hidden from public WHOIS</p>
-                            </div>
-                            <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 bg-blue-500/15 text-blue-400 rounded-full">Active</span>
-                          </div>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
               );
-            })
+                })}
+              </div>
+              );
+            })()
           )}
 
           {/* ── Recommended Extensions: Brand Protection Upsell ── */}
@@ -1118,18 +1177,36 @@ export default function ClientDomains() {
         const mdIsLocked = mdLockStatus === "locked";
         const mdEppCode = !mdIsLocked ? (eppOverrides[md.id] !== undefined ? eppOverrides[md.id] : md.eppCode) : null;
         const mdIn60Day = md.isIn60DayLock && !md.lockOverrideByAdmin;
+        const mdExpiryDate = md.expiryDate ? new Date(md.expiryDate) : null;
+        const mdDaysLeft = mdExpiryDate ? Math.floor((mdExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+        const mdHasHosting = md.status === "active" ? domainHasHosting(md) : false;
+        const checklistSteps = [
+          { label: "Domain Registered", done: true, desc: `${md.name}${md.tld} is registered` },
+          { label: "Point to Nameservers", done: !!(md.nameservers && md.nameservers.length > 0), desc: md.nameservers?.[0] ?? "Set nameservers" },
+          { label: "Get Hosting", done: mdHasHosting, desc: mdHasHosting ? "Hosting is active" : "Host your website files", cta: !mdHasHosting },
+          { label: "Launch Website", done: false, desc: "Go live on the internet", locked: !mdHasHosting },
+        ];
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setManageDomainModal(null)}>
-            <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setManageDomainModal(null)}>
+            <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               {/* Modal header */}
-              <div className="flex items-center justify-between p-5 border-b border-border">
-                <div>
-                  <h3 className="font-bold text-foreground font-mono">{md.name}{md.tld}</h3>
-                  <span className={`inline-flex mt-1 items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[md.status] ?? "bg-secondary text-muted-foreground border-border"}`}>
-                    {statusLabels[md.status] ?? md.status}
-                  </span>
+              <div className="flex items-center gap-3 p-5 border-b border-border">
+                <TldIcon tld={md.tld} />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-foreground font-mono text-base">{md.name}{md.tld}</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColors[md.status] ?? "bg-secondary text-muted-foreground border-border"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${md.status === "active" ? "bg-green-400" : md.status === "expired" ? "bg-red-400" : "bg-yellow-400"}`} />
+                      {statusLabels[md.status] ?? md.status}
+                    </span>
+                    {mdDaysLeft !== null && (
+                      <span className={`text-[10px] text-muted-foreground font-mono`}>
+                        {mdDaysLeft < 0 ? `Expired ${Math.abs(mdDaysLeft)}d ago` : `${mdDaysLeft}d until expiry`}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <button onClick={() => setManageDomainModal(null)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+                <button onClick={() => setManageDomainModal(null)} className="text-muted-foreground hover:text-foreground transition-colors p-1 ml-auto">
                   <X size={18} />
                 </button>
               </div>
@@ -1137,86 +1214,93 @@ export default function ClientDomains() {
               {/* Status guard */}
               {(isPending || isCancelled || isPendingTransfer) ? (
                 <div className="p-6 text-center space-y-3">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${
-                    isPending ? "bg-yellow-500/10" : isCancelled ? "bg-secondary" : "bg-purple-500/10"
-                  }`}>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto ${isPending ? "bg-yellow-500/10" : isCancelled ? "bg-secondary" : "bg-purple-500/10"}`}>
                     <AlertCircle size={22} className={isPending ? "text-yellow-400" : isCancelled ? "text-muted-foreground" : "text-purple-400"} />
                   </div>
                   <p className="font-medium text-foreground">
                     {isPending ? "Payment Required" : isCancelled ? "Domain Cancelled" : "Transfer In Progress"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {isPending
-                      ? "Complete payment to activate this domain and access management settings."
-                      : isCancelled
-                        ? "This domain has been cancelled. Management settings are unavailable."
-                        : "Domain settings cannot be changed while a transfer is in progress. Management will be available once the transfer completes."}
+                    {isPending ? "Complete payment to activate this domain and access management settings."
+                      : isCancelled ? "This domain has been cancelled. Management settings are unavailable."
+                      : "Domain settings cannot be changed while a transfer is in progress."}
                   </p>
-                  {isPending && (
-                    <Button onClick={() => { setManageDomainModal(null); navigate("/client/invoices"); }} className="gap-2">
-                      <Receipt size={15} /> Pay Now
-                    </Button>
-                  )}
-                  {isPendingTransfer && (
-                    <Button variant="outline" onClick={() => { setManageDomainModal(null); }} className="gap-2">
-                      View Transfer Status
-                    </Button>
-                  )}
+                  {isPending && (<Button onClick={() => { setManageDomainModal(null); navigate("/client/invoices"); }} className="gap-2"><Receipt size={15} /> Pay Now</Button>)}
                 </div>
               ) : (
-                <div className="p-5 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Renew Domain */}
-                    <button
-                      className="flex items-center gap-3 p-3 bg-secondary/40 border border-border rounded-xl hover:border-green-500/40 hover:bg-green-500/5 transition-all text-left"
-                      onClick={() => handleRenewDomain(md)}
-                      disabled={renewLoading}
-                    >
-                      <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        {renewLoading ? <Loader2 size={15} className="animate-spin text-green-400" /> : <RefreshCw size={15} className="text-green-400" />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Renew Domain</p>
-                        <p className="text-xs text-muted-foreground">Creates renewal invoice</p>
-                      </div>
-                    </button>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_260px] divide-y sm:divide-y-0 sm:divide-x divide-border">
 
-                    {/* Nameservers */}
-                    <button
-                      className="flex items-center gap-3 p-3 bg-secondary/40 border border-border rounded-xl hover:border-blue-500/40 hover:bg-blue-500/5 transition-all text-left"
-                      onClick={() => { setManageDomainModal(null); setDnsModal(md); }}
-                    >
-                      <div className="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        <Server size={15} className="text-blue-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Nameservers</p>
-                        <p className="text-xs text-muted-foreground font-mono truncate">{md.nameservers?.[0] ?? "ns1.noehost.com"}</p>
-                      </div>
-                    </button>
+                  {/* ── LEFT: Checklist + Tools ── */}
+                  <div className="p-5 space-y-5">
 
-                    {/* DNS Management */}
-                    <button
-                      className="flex items-center gap-3 p-3 bg-secondary/40 border border-border rounded-xl hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left"
-                      onClick={() => { setManageDomainModal(null); navigate(`/client/dns/${md.id}`); }}
-                    >
-                      <div className="w-9 h-9 bg-violet-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        <Network size={15} className="text-violet-400" />
+                    {/* Domain Checklist */}
+                    <div>
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <CheckCircle2 size={11} /> Your Domain Checklist
+                      </p>
+                      <div className="space-y-2">
+                        {checklistSteps.map((step, i) => (
+                          <div key={i} className={`flex items-center gap-3 p-2.5 rounded-xl border ${step.done ? "border-green-500/20 bg-green-500/5" : step.cta ? "border-primary/25 bg-primary/5" : "border-border bg-secondary/20"}`}>
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${step.done ? "bg-green-500/20" : step.cta ? "bg-primary/15 animate-pulse" : "bg-secondary"}`}>
+                              {step.done ? <CheckCircle2 size={12} className="text-green-400" /> : step.locked ? <Lock size={10} className="text-muted-foreground" /> : <ChevronRight size={11} className="text-primary" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-bold ${step.done ? "text-green-400" : step.cta ? "text-primary" : "text-muted-foreground"}`}>{step.label}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{step.desc}</p>
+                            </div>
+                            {step.cta && (
+                              <button onClick={() => { setManageDomainModal(null); navigate("/client/orders/new"); }}
+                                className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white shrink-0"
+                                style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                                Buy Now →
+                              </button>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">DNS Management</p>
-                        <p className="text-xs text-muted-foreground">A, CNAME, MX records</p>
-                      </div>
-                    </button>
+                    </div>
 
-                    {/* Get EPP Code — only shown when unlocked */}
-                    {!mdIsLocked && (
-                      <button
-                        className="flex items-center gap-3 p-3 bg-secondary/40 border border-amber-500/30 rounded-xl hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left"
-                        onClick={() => { setManageDomainModal(null); openEppModal(md); }}
-                      >
-                        <div className="w-9 h-9 bg-amber-500/10 rounded-lg flex items-center justify-center shrink-0">
-                          <Key size={15} className="text-amber-400" />
+                    {/* Tools Grid */}
+                    <div>
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <Settings size={11} /> Domain Tools
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleRenewDomain(md)} disabled={renewLoading}
+                          className="flex items-center gap-2.5 p-3 bg-secondary/40 border border-border rounded-xl hover:border-green-500/40 hover:bg-green-500/5 transition-all text-left">
+                          <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            {renewLoading ? <Loader2 size={13} className="animate-spin text-green-400" /> : <RefreshCw size={13} className="text-green-400" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Renew Domain</p>
+                            <p className="text-[10px] text-muted-foreground">Create renewal invoice</p>
+                          </div>
+                        </button>
+                        <button onClick={() => { setManageDomainModal(null); setDnsModal(md); }}
+                          className="flex items-center gap-2.5 p-3 bg-secondary/40 border border-border rounded-xl hover:border-blue-500/40 hover:bg-blue-500/5 transition-all text-left">
+                          <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            <Server size={13} className="text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Nameservers</p>
+                            <p className="text-[10px] text-muted-foreground font-mono truncate">{md.nameservers?.[0] ?? "ns1.noehost.com"}</p>
+                          </div>
+                        </button>
+                        <button onClick={() => { setManageDomainModal(null); navigate(`/client/dns/${md.id}`); }}
+                          className="flex items-center gap-2.5 p-3 bg-secondary/40 border border-border rounded-xl hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left">
+                          <div className="w-8 h-8 bg-violet-500/10 rounded-lg flex items-center justify-center shrink-0">
+                            <Network size={13} className="text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">DNS Records</p>
+                            <p className="text-[10px] text-muted-foreground">A, CNAME, MX records</p>
+                          </div>
+                        </button>
+                        {!mdIsLocked && (
+                          <button onClick={() => { setManageDomainModal(null); openEppModal(md); }}
+                            className="flex items-center gap-2.5 p-3 bg-secondary/40 border border-amber-500/30 rounded-xl hover:bg-amber-500/5 transition-all text-left">
+                            <div className="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center shrink-0">
+                              <Key size={13} className="text-amber-400" />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-foreground">Get EPP Code</p>
@@ -1225,115 +1309,95 @@ export default function ClientDomains() {
                       </button>
                     )}
 
-                    {/* Transfer Lock — full section spanning 2 cols when in 60-day lock */}
-                    <button
-                      disabled={lockLoading === md.id || mdIn60Day}
-                      className={`flex items-center gap-3 p-3 bg-secondary/40 border rounded-xl transition-all text-left ${
-                        mdIn60Day
-                          ? "border-orange-500/30 cursor-not-allowed opacity-80"
-                          : mdIsLocked
-                            ? "border-red-500/30 hover:border-red-400/50 hover:bg-red-500/5"
-                            : "border-green-500/30 hover:border-green-400/50 hover:bg-green-500/5"
-                      }`}
-                      onClick={() => !mdIn60Day && handleToggleLock(md)}
-                    >
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                        mdIn60Day ? "bg-orange-500/10" : mdIsLocked ? "bg-red-500/10" : "bg-green-500/10"
-                      }`}>
-                        {lockLoading === md.id
-                          ? <Loader2 size={15} className="animate-spin text-muted-foreground" />
-                          : mdIn60Day
-                            ? <Lock size={15} className="text-orange-400" />
-                            : mdIsLocked
-                              ? <Lock size={15} className="text-red-400" />
-                              : <ShieldCheck size={15} className="text-green-400" />
-                        }
+                        <button disabled={lockLoading === md.id || mdIn60Day}
+                          onClick={() => !mdIn60Day && handleToggleLock(md)}
+                          className={`flex items-center gap-2.5 p-3 bg-secondary/40 border rounded-xl transition-all text-left disabled:opacity-60 ${mdIn60Day ? "border-orange-500/30" : mdIsLocked ? "border-red-500/30 hover:bg-red-500/5" : "border-green-500/30 hover:bg-green-500/5"}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${mdIn60Day ? "bg-orange-500/10" : mdIsLocked ? "bg-red-500/10" : "bg-green-500/10"}`}>
+                            {lockLoading === md.id ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : mdIn60Day ? <Lock size={13} className="text-orange-400" /> : mdIsLocked ? <Lock size={13} className="text-red-400" /> : <ShieldCheck size={13} className="text-green-400" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Transfer Lock</p>
+                            <p className={`text-[10px] font-medium ${mdIn60Day ? "text-orange-400" : mdIsLocked ? "text-red-400" : "text-green-400"}`}>{mdIn60Day ? `60-day lock · ${md.daysRemainingInLock}d left` : mdIsLocked ? "Locked" : "Unlocked"}</p>
+                          </div>
+                        </button>
+                        <button onClick={() => toggleAutoRenew(md.id, md.autoRenew)}
+                          className="flex items-center gap-2.5 p-3 bg-secondary/40 border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${md.autoRenew ? "bg-green-500/10" : "bg-secondary"}`}>
+                            <RotateCcw size={13} className={md.autoRenew ? "text-green-400" : "text-muted-foreground"} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Auto-Renew</p>
+                            <p className={`text-[10px] font-medium ${md.autoRenew ? "text-green-400" : "text-muted-foreground"}`}>{md.autoRenew ? "Enabled" : "Disabled"}</p>
+                          </div>
+                        </button>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground">Transfer Lock</p>
-                        <p className={`text-xs font-medium truncate ${
-                          mdIn60Day ? "text-orange-400" : mdIsLocked ? "text-red-400" : "text-green-400"
-                        }`}>
-                          {mdIn60Day
-                            ? `Locked — ${md.daysRemainingInLock}d remaining`
-                            : mdIsLocked
-                              ? "Locked — click to unlock"
-                              : "Unlocked — click to lock"
-                          }
-                        </p>
-                      </div>
-                    </button>
-
-                    {/* Auto Renew toggle */}
-                    <button
-                      className="flex items-center gap-3 p-3 bg-secondary/40 border border-border rounded-xl hover:border-primary/40 hover:bg-primary/5 transition-all text-left"
-                      onClick={() => toggleAutoRenew(md.id, md.autoRenew)}
-                    >
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${md.autoRenew ? "bg-green-500/10" : "bg-secondary"}`}>
-                        <RotateCcw size={15} className={md.autoRenew ? "text-green-400" : "text-muted-foreground"} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Auto-Renew</p>
-                        <p className={`text-xs font-medium ${md.autoRenew ? "text-green-400" : "text-muted-foreground"}`}>
-                          {md.autoRenew ? "Enabled" : "Disabled"}
-                        </p>
-                      </div>
-                    </button>
+                    </div>
                   </div>
 
-                  {/* ── 60-Day Registration Lock Banner ── */}
-                  {mdIn60Day && (
-                    <div className="flex items-start gap-3 rounded-xl border border-orange-500/30 bg-orange-500/5 p-3">
-                      <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center shrink-0 mt-0.5">
-                        <Lock size={14} className="text-orange-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-orange-400">60-Day Registration Lock Active</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Domain cannot be transferred within 60 days of registration.{" "}
-                          <span className="font-bold text-orange-300">{md.daysRemainingInLock} day{md.daysRemainingInLock !== 1 ? "s" : ""} remaining.</span>
-                          {md.lockOverrideByAdmin && (
-                            <span className="ml-1 text-green-400 font-medium">Admin override active.</span>
-                          )}
-                        </p>
+                  {/* ── RIGHT: Domain Info Sidebar ── */}
+                  <div className="p-5 space-y-4 bg-secondary/10">
+                    {/* Expiry ring + days */}
+                    <div className="flex flex-col items-center py-4 bg-card border border-border rounded-xl">
+                      <ExpiryRing daysLeft={mdDaysLeft} registrationDate={md.registrationDate} size={72} />
+                      <p className="text-xs font-bold text-foreground mt-3">{mdExpiryDate ? format(mdExpiryDate, "MMM d, yyyy") : "No expiry"}</p>
+                      <p className={`text-[10px] mt-0.5 font-medium ${mdDaysLeft !== null && mdDaysLeft < 0 ? "text-red-400" : mdDaysLeft !== null && mdDaysLeft < 30 ? "text-orange-400" : "text-muted-foreground"}`}>
+                        {mdDaysLeft !== null ? (mdDaysLeft < 0 ? `Expired ${Math.abs(mdDaysLeft)}d ago` : `${mdDaysLeft} days left`) : "—"}
+                      </p>
+                      {(mdDaysLeft === null || mdDaysLeft < 60) && (
+                        <button onClick={() => handleRenewDomain(md)} disabled={renewLoading}
+                          className="mt-3 px-4 py-1.5 rounded-lg text-xs font-bold text-white"
+                          style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                          {renewLoading ? "Processing…" : "Renew Now →"}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Domain details */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Domain Details</p>
+                      <div className="space-y-1.5 text-[11px]">
+                        {[
+                          { label: "Registered", value: md.registrationDate ? format(new Date(md.registrationDate), "MMM d, yyyy") : "—" },
+                          { label: "Auto-Renew", value: md.autoRenew ? "Enabled" : "Disabled", color: md.autoRenew ? "text-green-400" : "text-muted-foreground" },
+                          { label: "Transfer Lock", value: mdIn60Day ? "60-Day Lock" : mdIsLocked ? "Locked" : "Unlocked", color: mdIsLocked || mdIn60Day ? "text-red-400" : "text-green-400" },
+                          { label: "WHOIS Privacy", value: "Protected", color: "text-blue-400" },
+                        ].map(({ label, value, color }) => (
+                          <div key={label} className="flex justify-between px-2.5 py-1.5 bg-secondary/60 rounded-lg">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className={`font-semibold ${color ?? "text-foreground"}`}>{value}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
 
-                  {/* ── EPP Code Inline Display (when unlocked) ── */}
-                  {!mdIsLocked && mdEppCode && (
-                    <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
-                        <Key size={14} className="text-amber-400" />
+                    {/* Nameservers */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Nameservers</p>
+                        <button onClick={() => { setManageDomainModal(null); setDnsModal(md); }} className="text-[10px] text-primary hover:underline">Edit</button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-amber-400">EPP / Auth Code</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <code className="flex-1 bg-black/30 border border-border rounded-lg px-3 py-1.5 text-xs font-mono text-foreground tracking-widest truncate">
-                            {mdEppCode}
-                          </code>
-                          <button
-                            onClick={() => handleCopyEpp(md.id, mdEppCode)}
-                            className="shrink-0 p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 transition-colors"
-                            title="Copy EPP code"
-                          >
-                            {eppCopiedId === md.id ? <CheckCheck size={14} /> : <Copy size={14} />}
+                      <div className="space-y-1">
+                        {(md.nameservers?.length ? md.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).slice(0, 2).map((ns, i) => (
+                          <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-secondary/60 rounded-lg">
+                            <span className="text-[9px] text-muted-foreground font-mono w-6">NS{i + 1}</span>
+                            <span className="font-mono text-[10px] text-foreground truncate">{ns}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* EPP Code (if unlocked) */}
+                    {!mdIsLocked && mdEppCode && (
+                      <div className="p-3 bg-amber-500/5 border border-amber-500/25 rounded-xl space-y-2">
+                        <p className="text-[10px] font-bold text-amber-400 flex items-center gap-1"><Key size={9} /> EPP / Auth Code</p>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 font-mono text-[10px] text-foreground bg-black/20 px-2 py-1 rounded-lg truncate tracking-widest">{mdEppCode}</code>
+                          <button onClick={() => handleCopyEpp(md.id, mdEppCode)} className="p-1 rounded bg-amber-500/15 text-amber-400">
+                            {eppCopiedId === md.id ? <CheckCheck size={11} /> : <Copy size={11} />}
                           </button>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1.5">
-                          Share this code with the receiving registrar to complete the domain transfer. Lock the domain again to invalidate this code.
-                        </p>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Domain info footer */}
-                  <div className="pt-3 border-t border-border/50 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
-                    {md.registrationDate && <span>Registered: {format(new Date(md.registrationDate), "MMM d, yyyy")}</span>}
-                    {md.expiryDate && <span>Expires: {format(new Date(md.expiryDate), "MMM d, yyyy")}</span>}
-                    {md.nameservers?.[0] && <span>NS: {md.nameservers[0]}</span>}
-                    {md.lastLockChange && <span>Lock changed: {format(new Date(md.lastLockChange), "MMM d, yyyy")}</span>}
-                    {md.lockOverrideByAdmin && <span className="text-green-400 font-medium">Admin override active</span>}
+                    )}
                   </div>
                 </div>
               )}

@@ -1,0 +1,42 @@
+Master Prompt: Noehost "Launch AI" & Automated Success Logic
+"I want to implement an automated 'Launch AI' logic that tracks a user's progress and celebrates their success, exactly like a premium hosting provider. Execute these technical modules:
+
+1. Automated Progress Tracking (The Logic):
+
+State Engine: Create a backend function that checks the user's account status in real-time:
+
+Step 1 (Domain): If domains_table has an active record -> Green ✅.
+
+Step 2 (Hosting): If hosting_orders has a 'Paid' status for a linked domain -> Green ✅.
+
+Step 3 (SSL/Live): If the domain is resolving and has an SSL certificate -> Green ✅.
+
+Auto-Update UI: The 'Website Setup Progress' bar must update automatically without the user clicking anything.
+
+2. 'Congratulations! Your Website is Live' (The Success State):
+
+The Big Reveal: When all three steps are green (100%), replace the progress bar with a high-end, celebratory Success Card.
+
+Design: Use a purple glow effect, confetti animation (lightweight JS), and a message: 'Congratulations! Your brand is now global. Your website is officially LIVE.'
+
+Quick Actions: Show buttons for 'Manage Website', 'Open Site', and 'Create Professional Email'.
+
+3. Intelligent 'Next Best Action' (AI Upsell):
+
+If the site is live, the 'Checklist' should now suggest Growth Tools:
+
+'Secure your brand: Register the .net and .org versions before someone else does.'
+
+'Boost Trust: Get a professional email address (info@yourdomain.com).'
+
+4. Real-Time Domain Availability Engine (The Fix):
+
+Finalize the Domain Checker layout.
+
+Real-API Integration: Ensure the search bar hits the Spaceship/Ionos API. If a domain is available, show the discounted price in the user's local currency (based on the 24h Google Rate cache).
+
+5. UI Fidelity & Safety:
+
+Re-verify that the Domain Overview and Portfolio look exactly like the Hostinger screenshots I provided.
+
+Data Protection: Ensure this logic does not affect existing customers' historical data. Use the Production Database safely."
