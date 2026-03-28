@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff, ArrowLeftRight, ListOrdered, Eye, EyeOff } from "lucide-react";
+import { Globe, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Shield, ShieldOff, ArrowLeftRight, ListOrdered, Eye, EyeOff, Sparkles, Save } from "lucide-react";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,15 @@ const EMPTY = {
   sortOrder: "999", showInSuggestions: true,
 };
 
+interface PromoConfig {
+  enabled: boolean;
+  tld: string;
+  price: number;
+  originalPrice: number;
+  text: string;
+  years: number;
+}
+
 export default function DomainExtensions() {
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
@@ -48,11 +57,46 @@ export default function DomainExtensions() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [promoForm, setPromoForm] = useState<PromoConfig | null>(null);
+  const [savingPromo, setSavingPromo] = useState(false);
 
   const { data: extensions = [], isLoading } = useQuery<DomainExtension[]>({
     queryKey: ["admin-domain-extensions"],
     queryFn: () => apiFetch("/api/admin/domain-extensions"),
   });
+
+  const { data: promoData } = useQuery<PromoConfig>({
+    queryKey: ["admin-domain-promo"],
+    queryFn: () => fetch("/api/domain-search/promo", { credentials: "include" }).then(r => r.json()),
+    staleTime: 60_000,
+  });
+
+  const promo = promoForm ?? promoData ?? { enabled: true, tld: ".com", price: 99, originalPrice: 3000, text: "Special deal — Get a .com domain for Rs. 99/1st year when you buy for 3 years", years: 3 };
+
+  async function savePromo() {
+    setSavingPromo(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/domain-search/promo", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(promo),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed");
+      queryClient.invalidateQueries({ queryKey: ["admin-domain-promo"] });
+      queryClient.invalidateQueries({ queryKey: ["domain-promo"] });
+      toast({ title: "Promo banner saved", description: "Changes are live on the Domain Search page." });
+    } catch {
+      toast({ title: "Error", description: "Failed to save promo banner", variant: "destructive" });
+    } finally {
+      setSavingPromo(false);
+    }
+  }
+
+  function setPromo(patch: Partial<PromoConfig>) {
+    setPromoForm(prev => ({ ...(prev ?? promo), ...patch }));
+  }
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -370,6 +414,97 @@ export default function DomainExtensions() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Promo Banner Editor */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)" }}>
+            <Sparkles size={15} className="text-white" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground text-sm">Domain Search Promo Banner</h3>
+            <p className="text-xs text-muted-foreground">Edit the special deal banner shown on the client domain search page</p>
+          </div>
+          <div className="ml-auto flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-xs text-muted-foreground">Enabled</span>
+              <button
+                onClick={() => setPromo({ enabled: !promo.enabled })}
+                className={`relative w-10 h-5 rounded-full transition-colors ${promo.enabled ? "bg-primary" : "bg-secondary"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${promo.enabled ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </label>
+          </div>
+        </div>
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Banner Text</label>
+            <Input
+              value={promo.text}
+              onChange={e => setPromo({ text: e.target.value })}
+              placeholder="Special deal — Get a .com domain for Rs. 99/1st year..."
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Deal TLD (e.g. .com)</label>
+            <Input
+              value={promo.tld}
+              onChange={e => setPromo({ tld: e.target.value })}
+              placeholder=".com"
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Required Years</label>
+            <Input
+              type="number"
+              value={promo.years}
+              onChange={e => setPromo({ years: parseInt(e.target.value) || 3 })}
+              min={1} max={10}
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Deal Price (PKR, 1st year)</label>
+            <Input
+              type="number"
+              value={promo.price}
+              onChange={e => setPromo({ price: parseFloat(e.target.value) || 0 })}
+              placeholder="99"
+              className="text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block font-medium">Original Price (PKR, for strikethrough)</label>
+            <Input
+              type="number"
+              value={promo.originalPrice}
+              onChange={e => setPromo({ originalPrice: parseFloat(e.target.value) || 0 })}
+              placeholder="3000"
+              className="text-sm"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <div className="text-xs text-muted-foreground bg-muted/40 rounded-xl p-3 mb-4 leading-relaxed">
+              <strong>Preview:</strong>{" "}
+              {promo.enabled
+                ? <>✅ Banner active — <span className="line-through opacity-60">PKR {promo.originalPrice}</span> → PKR {promo.price}/1st yr for {promo.tld} ({promo.years}yr)</>
+                : "❌ Banner disabled — not shown to clients"}
+            </div>
+            <Button
+              onClick={savePromo}
+              disabled={savingPromo}
+              className="gap-2"
+              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)", border: "none" }}
+            >
+              {savingPromo ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Save Promo Banner
+            </Button>
+          </div>
         </div>
       </div>
     </motion.div>

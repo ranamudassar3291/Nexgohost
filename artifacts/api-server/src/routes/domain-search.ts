@@ -6,7 +6,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { domainExtensionsTable } from "@workspace/db/schema";
-import { authenticate, type AuthRequest } from "../lib/auth.js";
+import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 const router = Router();
 
@@ -116,7 +116,7 @@ router.post("/domain-search", authenticate, async (req: AuthRequest, res) => {
       targetExtensions = tlds.map(t => t.toLowerCase().replace(/^\./, ""));
     } else {
       const rows = await db.select().from(domainExtensionsTable)
-        .then(r => r.filter(e => e.isActive).slice(0, 8));
+        .then(r => r.filter(e => e.status === "active").slice(0, 8));
       targetExtensions = rows.map(r => r.extension.replace(/^\./, ""));
     }
 
@@ -140,12 +140,16 @@ router.post("/domain-search", authenticate, async (req: AuthRequest, res) => {
         if (!check) check = await checkDns(fullDomain);
 
         const available = check?.available ?? null;
+        const fullRow = priceMap.get(ext) as any;
         return {
           domain: fullDomain,
           available,
           status: available === true ? "available" : available === false ? "taken" : "unknown",
-          registerPrice: priceRow ? parseFloat(priceRow.registerPrice) : null,
-          renewPrice:    priceRow ? parseFloat(priceRow.renewPrice)    : null,
+          registerPrice:      priceRow ? parseFloat(priceRow.registerPrice) : null,
+          register2YearPrice: fullRow?.register2YearPrice ? parseFloat(fullRow.register2YearPrice) : null,
+          register3YearPrice: fullRow?.register3YearPrice ? parseFloat(fullRow.register3YearPrice) : null,
+          renewPrice:         priceRow ? parseFloat(priceRow.renewPrice ?? priceRow.renewalPrice ?? "0") : null,
+          isFreeWithHosting:  fullRow?.isFreeWithHosting ?? false,
           extension: `.${ext}`,
           checkedVia: check?.via ?? "unknown",
         };
@@ -169,14 +173,69 @@ router.post("/domain-search", authenticate, async (req: AuthRequest, res) => {
 router.get("/domain-search/tlds", authenticate, async (_req, res) => {
   try {
     const rows = await db.select().from(domainExtensionsTable)
-      .then(r => r.filter(e => e.isActive));
-    res.json(rows.map(r => ({
+      .then(r => r.filter(e => e.status === "active"));
+    res.json(rows.sort((a,b) => (a.sortOrder??999)-(b.sortOrder??999)).map(r => ({
       extension: r.extension,
+      tld: r.extension.startsWith(".") ? r.extension : `.${r.extension}`,
       registerPrice: parseFloat(r.registerPrice as any),
-      renewPrice: parseFloat(r.renewPrice as any),
+      register2YearPrice: r.register2YearPrice ? parseFloat(r.register2YearPrice as any) : null,
+      register3YearPrice: r.register3YearPrice ? parseFloat(r.register3YearPrice as any) : null,
+      renewPrice: parseFloat(r.renewalPrice as any),
+      renewalPrice: parseFloat(r.renewalPrice as any),
+      isFreeWithHosting: r.isFreeWithHosting ?? false,
+      sortOrder: r.sortOrder ?? 999,
+      showInSuggestions: r.showInSuggestions ?? true,
     })));
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch TLDs" });
+  }
+});
+
+// GET /api/domain-search/promo — public promo banner config
+router.get("/domain-search/promo", async (_req, res) => {
+  try {
+    const { settingsTable } = await import("@workspace/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const keys = ["domain_promo_enabled", "domain_promo_tld", "domain_promo_price",
+                  "domain_promo_original_price", "domain_promo_text", "domain_promo_years"];
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) { if (keys.includes(r.key)) map[r.key] = r.value ?? ""; }
+
+    res.json({
+      enabled: map.domain_promo_enabled !== "false",
+      tld: map.domain_promo_tld || ".com",
+      price: parseFloat(map.domain_promo_price || "99"),
+      originalPrice: parseFloat(map.domain_promo_original_price || "3000"),
+      text: map.domain_promo_text || "Special deal — Get a .com domain for Rs. 99/1st year when you buy for 3 years",
+      years: parseInt(map.domain_promo_years || "3"),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch promo" });
+  }
+});
+
+// PUT /api/admin/domain-search/promo — update promo banner config (admin only)
+router.put("/admin/domain-search/promo", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { settingsTable } = await import("@workspace/db/schema");
+    const { enabled, tld, price, originalPrice, text, years } = req.body;
+    const updates: Array<{ key: string; value: string }> = [
+      { key: "domain_promo_enabled",        value: String(enabled ?? true) },
+      { key: "domain_promo_tld",            value: tld ?? ".com" },
+      { key: "domain_promo_price",          value: String(price ?? 99) },
+      { key: "domain_promo_original_price", value: String(originalPrice ?? 3000) },
+      { key: "domain_promo_text",           value: text ?? "" },
+      { key: "domain_promo_years",          value: String(years ?? 3) },
+    ];
+    for (const u of updates) {
+      await db.insert(settingsTable).values({ key: u.key, value: u.value })
+        .onConflictDoUpdate({ target: settingsTable.key, set: { value: u.value } });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[PROMO-UPDATE]", err);
+    res.status(500).json({ error: "Failed to update promo" });
   }
 });
 
