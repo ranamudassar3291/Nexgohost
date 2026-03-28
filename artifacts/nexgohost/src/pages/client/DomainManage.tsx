@@ -644,17 +644,22 @@ export default function DomainManage() {
           </button>
 
           {/* EPP Code */}
-          <button onClick={isLocked ? undefined : handleFetchEpp}
-            disabled={isLocked}
+          <button
+            onClick={() => {
+              if (isLifecycleLocked) { toast({ title: "Transfer Disabled", description: "Domain transfers are not permitted during lifecycle restriction. Contact support.", variant: "destructive" }); return; }
+              if (isLocked) return;
+              handleFetchEpp();
+            }}
+            disabled={isLocked && !isLifecycleLocked}
             className={`flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left group
-              ${isLocked ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
+              ${isLifecycleLocked || isLocked ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
             <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <Key size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground">EPP Code</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isLocked ? "Unlock transfer first" : eppVisible ? "Tap to hide" : "Select reason → reveal"}
+                {isLifecycleLocked ? "Unavailable" : isLocked ? "Unlock transfer first" : eppVisible ? "Tap to hide" : "Select reason → reveal"}
               </p>
             </div>
           </button>
