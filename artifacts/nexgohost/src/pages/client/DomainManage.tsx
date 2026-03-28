@@ -5,9 +5,11 @@ import {
   ArrowLeft, Globe, CheckCircle2, Lock, ChevronRight, RefreshCw,
   Network, ShieldCheck, Eye, Key, Copy, CheckCheck, Loader2,
   Plus, Trash2, Server, ExternalLink, AlertTriangle, RotateCcw, Save,
+  Sparkles, PartyPopper, Timer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/context/CurrencyProvider";
 
 async function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token") || "";
@@ -82,10 +84,20 @@ function LargeExpiryRing({ daysLeft, registrationDate }: { daysLeft: number | nu
   );
 }
 
+const EPP_REASONS = [
+  "Better Pricing at New Registrar",
+  "Moving Registrar",
+  "Support Issue",
+  "Business Sale or Acquisition",
+  "Consolidating Domains",
+  "Other",
+];
+
 export default function DomainManage() {
   const [, params] = useRoute("/client/domains/manage/:id");
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
   const domainId = params?.id ?? "";
 
@@ -97,6 +109,9 @@ export default function DomainManage() {
   const [eppVisible, setEppVisible] = useState(false);
   const [eppCode, setEppCode] = useState<string | null>(null);
   const [eppCopied, setEppCopied] = useState(false);
+  const [eppReasonModal, setEppReasonModal] = useState(false);
+  const [eppReason, setEppReason] = useState("");
+  const [eppFetching, setEppFetching] = useState(false);
 
   const [nameservers, setNameservers] = useState<string[]>(["ns1.noehost.com", "ns2.noehost.com"]);
   const [nsEditing, setNsEditing] = useState(false);
@@ -167,6 +182,9 @@ export default function DomainManage() {
   const hasHosting = hostingServices.some(
     s => s.status === "active" && s.domain?.toLowerCase() === fullName.toLowerCase()
   );
+  const hasValidNameservers = (domain.nameservers ?? []).filter(ns => ns?.trim()).length >= 2;
+  const isWebsiteLive = hasHosting && hasValidNameservers;
+  const setupComplete = isActive && hasHosting && isWebsiteLive;
   const currentLock = lockStatus ?? domain.lockStatus ?? "locked";
   const isLocked = currentLock === "locked";
   const currentAutoRenew = autoRenewState !== null ? autoRenewState : domain.autoRenew;
@@ -257,15 +275,25 @@ export default function DomainManage() {
     } finally { setDnsDeleting(null); }
   }
 
-  async function handleFetchEpp() {
+  function handleFetchEpp() {
     if (eppCode) { setEppVisible(v => !v); return; }
+    setEppReason("");
+    setEppReasonModal(true);
+  }
+
+  async function handleConfirmEppReason() {
+    if (!eppReason) { toast({ title: "Select a transfer reason", variant: "destructive" }); return; }
+    setEppFetching(true);
     try {
-      const data = await apiFetch(`/api/domains/${domainId}/epp`);
+      const data = await apiFetch(`/api/domains/${domainId}/epp`, {
+        method: "GET",
+      });
       setEppCode(data.eppCode ?? null);
       setEppVisible(true);
+      setEppReasonModal(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+    } finally { setEppFetching(false); }
   }
 
   async function copyEpp() {
@@ -339,73 +367,120 @@ export default function DomainManage() {
       </div>
 
       {/* ── 3-Mark Setup Wizard ── */}
-      <div className="rounded-2xl border border-primary/20 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.05) 0%, rgba(155,81,224,0.02) 100%)" }}>
-        <div className="px-5 py-3.5 border-b border-primary/10 flex items-center gap-2.5">
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
-            <Globe size={12} className="text-white" />
-          </div>
-          <p className="text-sm font-bold text-foreground">Website Setup</p>
-          <span className="ml-auto text-xs font-semibold text-primary">
-            {[isActive, hasHosting].filter(Boolean).length}/3 Complete
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 divide-x divide-primary/10">
-          {/* Step 1: Domain Setup */}
-          <div className="px-4 py-4 flex flex-col items-center text-center gap-2">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500/15 border border-green-500/30">
-              <CheckCircle2 size={18} className="text-green-400" />
+      {setupComplete ? (
+        <div className="rounded-2xl overflow-hidden border border-green-500/30 relative"
+          style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(112,26,254,0.06) 100%)" }}>
+          <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 0 0 60px rgba(34,197,94,0.07)" }} />
+          <div className="px-6 py-5 flex items-center gap-4 relative">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)" }}>
+              <PartyPopper size={24} className="text-white" />
             </div>
-            <div>
-              <p className="text-xs font-bold text-foreground">Domain Setup</p>
-              <p className="text-[10px] text-green-400 font-medium mt-0.5">Registered ✓</p>
-            </div>
-          </div>
-
-          {/* Step 2: Buy Hosting */}
-          <div className={`px-4 py-4 flex flex-col items-center text-center gap-2 ${!hasHosting ? "bg-primary/[0.03]" : ""}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all
-              ${hasHosting ? "bg-green-500/15 border border-green-500/30"
-              : isActive ? "bg-primary/15 border border-primary/30 animate-pulse"
-              : "bg-secondary border border-border opacity-60"}`}>
-              {hasHosting
-                ? <CheckCircle2 size={18} className="text-green-400" />
-                : isActive ? <ChevronRight size={18} className="text-primary" />
-                : <Lock size={15} className="text-muted-foreground" />}
-            </div>
-            <div>
-              <p className="text-xs font-bold text-foreground">Buy Hosting</p>
-              {hasHosting
-                ? <p className="text-[10px] text-green-400 font-medium mt-0.5">Active ✓</p>
-                : isActive
-                ? <button onClick={() => navigate("/client/orders/new")}
-                    className="text-[10px] text-primary font-semibold hover:underline mt-0.5 flex items-center gap-0.5 mx-auto">
-                    Get Hosting <ExternalLink size={9} />
-                  </button>
-                : <p className="text-[10px] text-muted-foreground mt-0.5">Requires active domain</p>}
-            </div>
-          </div>
-
-          {/* Step 3: Launch Website */}
-          <div className="px-4 py-4 flex flex-col items-center text-center gap-2">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all
-              ${hasHosting ? "bg-green-500/15 border border-green-500/30 animate-pulse"
-              : "bg-secondary border border-border opacity-50"}`}>
-              {hasHosting
-                ? <CheckCircle2 size={18} className="text-green-400" />
-                : <Lock size={15} className="text-muted-foreground" />}
-            </div>
-            <div>
-              <p className="text-xs font-bold text-foreground">Launch Website</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {hasHosting ? "Website live" : "Unlocks with hosting"}
+            <div className="flex-1">
+              <p className="text-lg font-black text-foreground">🎉 Website Live!</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                <span className="font-mono font-semibold text-foreground">{fullName}</span> is active, hosted, and live on the internet.
               </p>
             </div>
+            <div className="flex flex-col items-center gap-1 shrink-0">
+              <div className="flex gap-1">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="w-2.5 h-2.5 rounded-full bg-green-400" style={{ animation: `pulse 1s ease-in-out ${i * 0.2}s infinite` }} />
+                ))}
+              </div>
+              <p className="text-[9px] text-green-400 font-bold uppercase tracking-wider">3/3 Done</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-green-500/15 border-t border-green-500/20">
+            {[
+              { label: "Domain Setup", note: "Registered ✓" },
+              { label: "Hosting Active", note: "Running ✓" },
+              { label: "Launch Complete", note: "Website live ✓" },
+            ].map(step => (
+              <div key={step.label} className="px-4 py-3 flex flex-col items-center text-center gap-1.5">
+                <CheckCircle2 size={16} className="text-green-400" />
+                <div>
+                  <p className="text-[10px] font-bold text-foreground">{step.label}</p>
+                  <p className="text-[9px] text-green-400 font-semibold">{step.note}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-2xl border border-primary/20 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.05) 0%, rgba(155,81,224,0.02) 100%)" }}>
+          <div className="px-5 py-3.5 border-b border-primary/10 flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+              <Globe size={12} className="text-white" />
+            </div>
+            <p className="text-sm font-bold text-foreground">Website Setup</p>
+            <span className="ml-auto text-xs font-semibold text-primary">
+              {[isActive, hasHosting, isWebsiteLive].filter(Boolean).length}/3 Complete
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 divide-x divide-primary/10">
+            {/* Step 1: Domain Setup */}
+            <div className="px-4 py-4 flex flex-col items-center text-center gap-2">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500/15 border border-green-500/30">
+                <CheckCircle2 size={18} className="text-green-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Domain Setup</p>
+                <p className="text-[10px] text-green-400 font-medium mt-0.5">Registered ✓</p>
+              </div>
+            </div>
+
+            {/* Step 2: Buy Hosting */}
+            <div className={`px-4 py-4 flex flex-col items-center text-center gap-2 ${!hasHosting ? "bg-primary/[0.03]" : ""}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all
+                ${hasHosting ? "bg-green-500/15 border border-green-500/30"
+                : isActive ? "bg-primary/15 border border-primary/30 animate-pulse"
+                : "bg-secondary border border-border opacity-60"}`}>
+                {hasHosting ? <CheckCircle2 size={18} className="text-green-400" />
+                  : isActive ? <ChevronRight size={18} className="text-primary" />
+                  : <Lock size={15} className="text-muted-foreground" />}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Buy Hosting</p>
+                {hasHosting
+                  ? <p className="text-[10px] text-green-400 font-medium mt-0.5">Active ✓</p>
+                  : isActive
+                  ? <button onClick={() => navigate("/client/orders/new")}
+                      className="text-[10px] text-primary font-semibold hover:underline mt-0.5 flex items-center gap-0.5 mx-auto">
+                      Get Hosting <ExternalLink size={9} />
+                    </button>
+                  : <p className="text-[10px] text-muted-foreground mt-0.5">Requires active domain</p>}
+              </div>
+            </div>
+
+            {/* Step 3: Launch Website — auto-completes when hosting + valid nameservers */}
+            <div className="px-4 py-4 flex flex-col items-center text-center gap-2">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all
+                ${isWebsiteLive ? "bg-green-500/15 border border-green-500/30"
+                : hasHosting ? "bg-amber-500/15 border border-amber-500/30 animate-pulse"
+                : "bg-secondary border border-border opacity-50"}`}>
+                {isWebsiteLive ? <CheckCircle2 size={18} className="text-green-400" />
+                  : hasHosting ? <Network size={16} className="text-amber-400" />
+                  : <Lock size={15} className="text-muted-foreground" />}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Launch Website</p>
+                {isWebsiteLive
+                  ? <p className="text-[10px] text-green-400 font-semibold mt-0.5">Live ✓</p>
+                  : hasHosting
+                  ? <button onClick={() => setSection("nameservers")}
+                      className="text-[10px] text-amber-400 font-semibold hover:underline mt-0.5">
+                      Set nameservers →
+                    </button>
+                  : <p className="text-[10px] text-muted-foreground mt-0.5">Unlocks with hosting</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Expiry Warning ── */}
       {daysLeft !== null && daysLeft < 30 && (
@@ -469,23 +544,40 @@ export default function DomainManage() {
           </button>
 
           {/* Transfer Lock */}
-          <button onClick={handleToggleLock} disabled={lockLoading}
-            className="flex flex-col items-start gap-3 p-4 rounded-2xl border border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02] transition-all text-left group disabled:opacity-60">
-            <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-              {lockLoading
-                ? <Loader2 size={18} className="animate-spin text-muted-foreground" />
-                : <ShieldCheck size={18} className={isLocked ? "text-red-400" : "text-green-400"} />}
+          {domain.isIn60DayLock && !domain.lockOverrideByAdmin ? (
+            <div className="flex flex-col items-start gap-3 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-left cursor-not-allowed opacity-90">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                <Timer size={18} className="text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Transfer Lock</p>
+                <p className="text-[10px] font-semibold text-amber-400 mt-0.5">🔒 Locked</p>
+                <div className="mt-1.5 px-2 py-0.5 bg-amber-500/15 border border-amber-500/25 rounded-full w-fit">
+                  <p className="text-[9px] font-bold text-amber-400 whitespace-nowrap">
+                    Transfer Guard Active: {domain.daysRemainingInLock}d left
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-foreground">Transfer Lock</p>
-              <p className={`text-[10px] font-semibold mt-0.5 ${isLocked ? "text-red-400" : "text-green-400"}`}>
-                {isLocked ? "🔒 Locked" : "🔓 Unlocked"}
-              </p>
-              {!isLocked && eppCode && (
-                <p className="text-[10px] text-muted-foreground">EPP code available ↓</p>
-              )}
-            </div>
-          </button>
+          ) : (
+            <button onClick={handleToggleLock} disabled={lockLoading}
+              className="flex flex-col items-start gap-3 p-4 rounded-2xl border border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02] transition-all text-left group disabled:opacity-60">
+              <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                {lockLoading
+                  ? <Loader2 size={18} className="animate-spin text-muted-foreground" />
+                  : <ShieldCheck size={18} className={isLocked ? "text-green-400" : "text-red-400"} />}
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Transfer Lock</p>
+                <p className={`text-[10px] font-semibold mt-0.5 ${isLocked ? "text-green-400" : "text-red-400"}`}>
+                  {isLocked ? "🔒 Protected" : "🔓 Unlocked"}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {isLocked ? "Tap to unlock for transfer" : "Tap to re-lock"}
+                </p>
+              </div>
+            </button>
+          )}
 
           {/* Auto-Renew */}
           <button onClick={handleToggleAutoRenew} disabled={autoRenewLoading}
@@ -504,15 +596,17 @@ export default function DomainManage() {
           </button>
 
           {/* EPP Code */}
-          <button onClick={handleFetchEpp}
-            className="flex flex-col items-start gap-3 p-4 rounded-2xl border border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02] transition-all text-left group">
+          <button onClick={isLocked ? undefined : handleFetchEpp}
+            disabled={isLocked}
+            className={`flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left group
+              ${isLocked ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
             <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <Key size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground">EPP Code</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isLocked ? "Unlock transfer lock first" : eppVisible ? "Tap to hide" : "Tap to reveal"}
+                {isLocked ? "Unlock transfer first" : eppVisible ? "Tap to hide" : "Select reason → reveal"}
               </p>
             </div>
           </button>
@@ -695,6 +789,94 @@ export default function DomainManage() {
           ))}
         </div>
       </div>
+
+      {/* ── TLD Variation Suggestions ── */}
+      <div className="rounded-2xl border border-primary/15 overflow-hidden"
+        style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 100%)" }}>
+        <div className="px-5 py-3 border-b border-primary/10 flex items-center gap-2">
+          <Sparkles size={14} className="text-primary" />
+          <div>
+            <p className="text-sm font-bold text-foreground">Secure Your Brand</p>
+            <p className="text-[10px] text-muted-foreground">Register {domain.name} in other extensions</p>
+          </div>
+        </div>
+        <div className="p-4 flex flex-wrap gap-2.5">
+          {[".net", ".org", ".pk", ".co", ".info", ".biz", ".io", ".com.pk"].filter(t => t !== domain.tld).slice(0, 6).map(tld => (
+            <button
+              key={tld}
+              onClick={() => navigate(`/client/domains?tab=order&domain=${encodeURIComponent(domain.name + tld)}`)}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-card border border-border rounded-xl hover:border-primary/40 transition-colors group"
+            >
+              <div style={{
+                background: ({".com":"#1a73e8",".net":"#0f9d58",".org":"#8430d6",".pk":"#01411c",".co":"#e67c00",".io":"#1a1a2e",".info":"#2aa0d4",".biz":"#b5451b",".com.pk":"#01411c"}[tld] ?? "#4b5563"),
+                color: "#fff"
+              }} className="w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-black shrink-0">
+                {tld.replace(".", "").replace(".", "").toUpperCase().slice(0, 5)}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground font-mono">{domain.name}{tld}</p>
+                <p className="text-[9px] text-primary font-semibold group-hover:underline">Check →</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── EPP Transfer Reason Modal ── */}
+      {eppReasonModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-background border border-border rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                <Key size={14} className="text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Request EPP Code</p>
+                <p className="text-[10px] text-muted-foreground">Select a transfer reason to continue</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Per ICANN policy, a transfer reason is required before an EPP/Auth code is revealed. This is logged for security.
+              </p>
+              <div className="space-y-2">
+                {EPP_REASONS.map(reason => (
+                  <button
+                    key={reason}
+                    onClick={() => setEppReason(reason)}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                      eppReason === reason
+                        ? "border-primary/50 bg-primary/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-border/80"
+                    }`}
+                  >
+                    {eppReason === reason && <span className="text-primary mr-2">✓</span>}
+                    {reason}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setEppReasonModal(false)}
+                  className="flex-1 px-4 py-2 text-sm text-muted-foreground border border-border rounded-xl hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmEppReason}
+                  disabled={!eppReason || eppFetching}
+                  className="flex-1 px-4 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}
+                >
+                  {eppFetching ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
+                  Reveal EPP Code
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

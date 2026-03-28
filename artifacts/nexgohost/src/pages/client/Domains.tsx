@@ -205,6 +205,8 @@ export default function ClientDomains() {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [cardTab, setCardTab] = useState<Record<string, "overview" | "security">>({});
   const [portfolioSearch, setPortfolioSearch] = useState("");
+  const [portfolioPage, setPortfolioPage] = useState(1);
+  const DOMAINS_PER_PAGE = 10;
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -809,22 +811,24 @@ export default function ClientDomains() {
             </div>
           ) : (
             (() => {
-              const filteredDomains = portfolioSearch
+              const STATUS_ORDER: Record<string, number> = { active: 0, pending: 1, suspended: 2, pending_transfer: 3, expired: 4, cancelled: 5, transferred: 6 };
+              const filtered = (portfolioSearch
                 ? myDomains.filter(d => `${d.name}${d.tld}`.toLowerCase().includes(portfolioSearch.toLowerCase()))
-                : myDomains;
-              if (filteredDomains.length === 0) return (
+                : [...myDomains]
+              ).sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+
+              if (filtered.length === 0) return (
                 <div className="bg-card border border-border border-dashed rounded-2xl p-10 text-center">
                   <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
                   <p className="font-semibold text-foreground">No domains match "{portfolioSearch}"</p>
                   <p className="text-sm text-muted-foreground mt-1">Try a different search term.</p>
                 </div>
               );
-              return (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
-                {filteredDomains.map((domain) => {
-              const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
-              const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / 86400000) : null;
-              const expiryColor = daysLeft === null ? '' : daysLeft < 0 ? 'text-red-400' : daysLeft < 30 ? 'text-red-400' : daysLeft < 90 ? 'text-amber-400' : 'text-green-400';
+
+              const totalPages = Math.ceil(filtered.length / DOMAINS_PER_PAGE);
+              const page = Math.min(portfolioPage, totalPages);
+              const paged = filtered.slice((page - 1) * DOMAINS_PER_PAGE, page * DOMAINS_PER_PAGE);
+
               const sMap = {
                 active:      { label: 'Active',      cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
                 expired:     { label: 'Expired',     cls: 'bg-red-500/10 text-red-400 border-red-500/20' },
@@ -832,93 +836,80 @@ export default function ClientDomains() {
                 suspended:   { label: 'Suspended',   cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
                 transferred: { label: 'Transferred', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
                 cancelled:   { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
+                pending_transfer: { label: 'Pending Transfer', cls: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
               };
-              const statusEntry = sMap[domain.status as keyof typeof sMap] ?? { label: domain.status, cls: 'bg-secondary text-muted-foreground border-border' };
+
               return (
-                <div key={domain.id}
-                  className="flex items-center gap-4 px-5 py-4 hover:bg-primary/[0.015] transition-colors group"
-                >
-                  <TldIcon tld={domain.tld} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-bold font-mono text-foreground truncate">{domain.name}{domain.tld}</p>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${statusEntry.cls}`}>{statusEntry.label}</span>
-                      {daysLeft !== null && (
-                        <span className={`text-xs font-semibold ${expiryColor}`}>
-                          {daysLeft < 0 ? `Expired ${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
-                        </span>
-                      )}
-                    </div>
+                <div className="space-y-2">
+                  <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+                    {paged.map((domain) => {
+                      const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
+                      const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / 86400000) : null;
+                      const statusEntry = sMap[domain.status as keyof typeof sMap] ?? { label: domain.status, cls: 'bg-secondary text-muted-foreground border-border' };
+                      return (
+                        <div key={domain.id} className="flex items-center gap-4 px-5 py-4 hover:bg-primary/[0.015] transition-colors group">
+                          <TldIcon tld={domain.tld} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base font-bold font-mono text-foreground truncate">{domain.name}{domain.tld}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${statusEntry.cls}`}>{statusEntry.label}</span>
+                              {daysLeft !== null && (
+                                <span className={`text-xs font-semibold ${daysLeft < 0 ? 'text-red-400' : daysLeft < 30 ? 'text-red-400' : daysLeft < 90 ? 'text-amber-400' : 'text-green-400'}`}>
+                                  {daysLeft < 0 ? `Expired ${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ExpiryRing daysLeft={daysLeft} registrationDate={domain.registrationDate} size={42} />
+                          <button
+                            onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
+                            style={{ background: 'linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)' }}
+                          >
+                            Manage <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <button
-                    onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
-                    style={{ background: 'linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)' }}
-                  >
-                    Manage <ChevronRight size={14} />
-                  </button>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-1">
+                      <p className="text-xs text-muted-foreground">
+                        Showing {(page - 1) * DOMAINS_PER_PAGE + 1}–{Math.min(page * DOMAINS_PER_PAGE, filtered.length)} of {filtered.length} domains
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setPortfolioPage(p => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                        >
+                          ← Prev
+                        </button>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                          <button
+                            key={p}
+                            onClick={() => setPortfolioPage(p)}
+                            className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+                            style={p === page ? { background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" } : {}}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setPortfolioPage(p => Math.min(totalPages, p + 1))}
+                          disabled={page === totalPages}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              );
-                })}
-              </div>
               );
             })()
           )}
-
-          {/* ── Recommended Extensions: Brand Protection Upsell ── */}
-          {!domainsLoading && myDomains.length > 0 && (() => {
-            const ownedTlds = new Set(myDomains.map(d => d.tld));
-            const ownedNames = [...new Set(myDomains.filter(d => d.status === "active").map(d => d.name))];
-            const suggestTlds = [".net", ".org", ".co", ".info", ".biz"].filter(t => !ownedTlds.has(t));
-            if (ownedNames.length === 0 || suggestTlds.length === 0) return null;
-            const primaryName = ownedNames[0];
-            return (
-              <div className="rounded-2xl border border-primary/15 overflow-hidden"
-                style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 100%)" }}>
-                <div className="px-5 py-3 border-b border-primary/10 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={14} className="text-primary" />
-                    <div>
-                      <p className="text-sm font-bold text-foreground">Secure Your Brand</p>
-                      <p className="text-[10px] text-muted-foreground">Register these extensions before someone else does</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => { setActiveTab("order"); setTimeout(() => inputRef.current?.focus(), 100); }}
-                    className="text-xs font-semibold text-primary hover:underline"
-                  >
-                    Browse All →
-                  </button>
-                </div>
-                <div className="p-4 flex flex-wrap gap-3">
-                  {suggestTlds.slice(0, 5).map(tld => (
-                    <div key={tld} className="flex items-center gap-3 px-3.5 py-2.5 bg-card border border-border rounded-xl hover:border-primary/30 transition-colors">
-                      <TldIcon tld={tld} />
-                      <div>
-                        <p className="text-sm font-bold text-foreground font-mono">{primaryName}{tld}</p>
-                        <p className="text-[10px] text-muted-foreground">Recommended extension</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSearchInput(primaryName + tld);
-                          setActiveTab("order");
-                          setOrderView("search");
-                          setTimeout(() => {
-                            setTypedTld(tld);
-                            setSearchQuery(primaryName);
-                          }, 100);
-                        }}
-                        className="ml-2 h-7 px-3 rounded-lg text-xs font-bold text-white shrink-0"
-                        style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
-                      >
-                        Check →
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
         </div>
       )}
 

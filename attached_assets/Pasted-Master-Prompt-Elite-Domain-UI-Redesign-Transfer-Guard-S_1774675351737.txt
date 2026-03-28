@@ -1,0 +1,34 @@
+Master Prompt: Elite Domain UI Redesign, Transfer Guard, & Setup Fix
+"I want to completely overhaul the Domain management experience. My goal is to match Hostinger's clean aesthetic and IONOS's secure transfer logic. Execute these technical modules immediately:
+
+1. 'Zero-Clutter' Domain Portfolio UI (/client/domains):
+
+Button Cleanup: Delete the old messy buttons. Replace them with a single, high-end '+ Order New Domain' button at the top right.
+
+List Overhaul: Use the modern, icon-based card layout from Hostinger. Show TLD icon, domain name, visual status (with colors), visual expiration ring, and ONE 'Manage' button.
+
+Pagination & Sorting: Show only 10 domains per page. Automatically sort so all 'Active' domains are on Page 1, 'Expired' on Page 2, and 'Cancelled' on the final page.
+
+Remove Suggestions: Delete all domain suggestions from this page. The suggestion section must ONLY be shown on the detailed Domain Manage page, targeting that specific domain's variations (e.g., .net, .org, .pk).
+
+2. 'Transfer Guard' Lock Fix (IONOS Style):
+
+Transfer Lock Rules: Implement the strict rules for transfer:
+
+< 60 Days: If a domain is less than 60 days old (from purchase or transfer-in), the 'Unlock Transfer' button must be disabled. Show a countdown badge: 'Transfer Lock Active: 32 days left'.
+
+> 60 Days: If older than 60 days, enable the 'Unlock Transfer' button.
+
+EPP Code Logic (The 'IONOS' Flow): When a user clicks 'Fetch EPP Code', they MUST first select a Transfer Reason from a predefined list (e.g., Better Pricing, Moving Registrar, Support Issue). Only after selection should the EPP Code be revealed. Log this reason in the database.
+
+3. 'Auto-Live' Website Launch Fix:
+
+Logic Overhaul: The '3-Mark' Setup Progress bar must auto-complete Step 3. If a domain is linked to active hosting (Step 2 is ✅) AND it has valid nameservers, automatically mark Step 3 ✅ as 'Launch Complete'.
+
+Celebration UI: When all three marks are complete, show a celebratory 'Website Live' glow card.
+
+Database Check: Re-verify that the Production Database is used securely for tracking these statuses and the 60-day transfer rules.
+
+4. Global Sync & Currency:
+
+Ensure all prices on the search or management pages match the latest values in my Admin Panel, and convert using the 24-hour Google Rate cache based on the user's location."
