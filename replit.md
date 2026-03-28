@@ -186,17 +186,37 @@
 - Backup directory: `uploads/backups/` (project-relative, writable)
 - `WP_BACKUP_DIR` env var override supported
 
-### Google Drive Backup System (Session 34)
-- **DB Schema**: `driveBackupLogsTable` in `lib/db/src/schema/backups.ts` — tracks every backup run
-- **Engine**: `artifacts/api-server/src/lib/drive-backup.ts` — Google Drive upload using service account, pg_dump DB dump, adm-zip file archive, 30-day retention
-- **Cron**: `runGoogleDriveBackupCron()` in `cron.ts` — fires at 3:00 AM PKT (22:00 UTC), idempotent (skips if already ran today)
-- **API Routes**: `artifacts/api-server/src/routes/backups.ts`
-  - `GET /api/admin/backups` — backup history (last 30)
-  - `GET /api/admin/backups/status` — config status + last run
-  - `POST /api/admin/backups/run` — manual trigger (async background)
-- **Admin UI**: `artifacts/nexgohost/src/pages/admin/Backups.tsx` — status cards, Drive storage bar, backup history table, collapsible setup guide
-- **Nav**: "Backup & Drive" link added to Security section in AppLayout
-- **Auth required**: `GOOGLE_SERVICE_ACCOUNT_JSON` env var (service account JSON key), optional `GOOGLE_DRIVE_FOLDER_ID`
+### Google Drive Backup System (Session 34 — OAuth Edition)
+- **DB Schema additions** (`lib/db/src/schema/backups.ts`):
+  - `googleDriveTokensTable` — stores OAuth2 refresh/access tokens + Gmail email (single "primary" row)
+  - `driveBackupLogsTable` — logs every backup run with status, sizes, file IDs, integrity check
+- **Engine** (`artifacts/api-server/src/lib/drive-backup.ts`):
+  - OAuth2 "Sign in with Google" — no service account JSON needed
+  - Reuses existing `google_client_id` / `google_client_secret` from DB settings
+  - Tokens auto-refresh (persisted to DB on each refresh event)
+  - Folder structure: `Noehost_Cloud_Backups/Daily_Databases/` + `/Full_Files_Backup/`
+  - Filename format: `Full_Backup_28_March_2026_0300.zip` (PKT timestamp)
+  - Non-destructive: pg_dump uses PostgreSQL MVCC (no table locks)
+  - Full backup: DB + modules + uploads + config + env snapshot
+  - NO auto-deletion — every backup is kept on Drive forever
+  - Integrity check: Drive file size verified against local file after upload
+- **Cron** (`cron.ts`): `runGoogleDriveBackupCron()` at 22:00 UTC (3:00 AM PKT), checks connection + auto-backup toggle
+- **API Routes** (`artifacts/api-server/src/routes/backups.ts`):
+  - `GET /api/admin/backups/google/auth-url` — generate Google OAuth consent URL
+  - `GET /api/admin/backups/google/callback` — receive code, exchange for tokens, redirect to admin UI
+  - `DELETE /api/admin/backups/google/disconnect` — revoke + remove tokens
+  - `POST /api/admin/backups/toggle` — toggle auto-backup ON/OFF (stored in settings table)
+  - `GET /api/admin/backups/status` — connection status, email, toggle state, last run
+  - `GET /api/admin/backups` — backup history (last 50)
+  - `POST /api/admin/backups/run` — manual trigger (async background "Sync Now")
+- **Admin UI** (`artifacts/nexgohost/src/pages/admin/Backups.tsx`):
+  - "Connect Google Drive for Backups" button (Google-branded)
+  - Connected Gmail badge + Disconnect link
+  - Automatic Daily Backups ON/OFF toggle
+  - Sync Now button, storage bar, integrity badge
+  - Collapsible 6-step setup guide with callback URL
+  - Full backup history table
+- **Nav**: "Backup & Drive" in Security section of admin sidebar
 - `googleapis` npm package installed in api-server
 
 ### Environment Variables Set

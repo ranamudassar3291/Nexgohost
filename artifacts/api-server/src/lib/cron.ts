@@ -789,9 +789,14 @@ export async function runGoogleDriveBackupCron(): Promise<void> {
 
   console.log("[CRON] drive_backup: starting nightly Google Drive backup…");
   try {
-    const { isDriveConfigured, runGoogleDriveBackup } = await import("./drive-backup.js");
-    if (!isDriveConfigured()) {
-      console.log("[CRON] drive_backup: GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping.");
+    const { getDriveConnectionStatus, isAutoBackupEnabled, runGoogleDriveBackup } = await import("./drive-backup.js");
+    const [connStatus, autoEnabled] = await Promise.all([getDriveConnectionStatus(), isAutoBackupEnabled()]);
+    if (!connStatus.connected) {
+      console.log("[CRON] drive_backup: Google Drive not connected — skipping.");
+      return;
+    }
+    if (!autoEnabled) {
+      console.log("[CRON] drive_backup: Automatic backups disabled by admin — skipping.");
       return;
     }
     await runGoogleDriveBackup("cron");

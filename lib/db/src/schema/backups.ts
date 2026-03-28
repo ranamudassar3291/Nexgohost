@@ -17,6 +17,21 @@ export const hostingBackupsTable = pgTable("hosting_backups", {
 
 export type HostingBackup = typeof hostingBackupsTable.$inferSelect;
 
+export const googleDriveTokensTable = pgTable("google_drive_tokens", {
+  id: text("id").primaryKey().default("primary"),
+  email: text("email").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  rootFolderId: text("root_folder_id"),
+  dbFolderId: text("db_folder_id"),
+  filesFolderId: text("files_folder_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type GoogleDriveToken = typeof googleDriveTokensTable.$inferSelect;
+
 export const driveBackupLogsTable = pgTable("drive_backup_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   status: text("status").notNull().default("pending"),
