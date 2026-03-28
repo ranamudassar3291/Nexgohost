@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
-import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi, CheckCircle2, Rocket, Lock } from "lucide-react";
+import { Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign, Terminal, Mail, ExternalLink, Loader2, Wallet, Gift, AlertTriangle, Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi, CheckCircle2, Rocket, Lock, BadgeCheck, ShieldCheck, Zap, Star, RefreshCw, Globe2, PartyPopper } from "lucide-react";
 import { WelcomeTour, useWelcomeTour } from "@/components/WelcomeTour";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,52 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return res.json();
 }
 
+interface SetupProgress {
+  step1: boolean; step2: boolean; step3: boolean;
+  allComplete: boolean; primaryDomain: string | null;
+  siteUrl: string | null; pct: number;
+}
+
+const CONFETTI_COLORS = ["#701AFE", "#9B51E0", "#C084FC", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
+
+function Confetti({ active }: { active: boolean }) {
+  if (!active) return null;
+  const pieces = Array.from({ length: 32 }, (_, i) => ({
+    id: i,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    left: `${3 + (i * 3.1) % 94}%`,
+    delay: `${(i * 0.08) % 1.8}s`,
+    duration: `${1.8 + (i * 0.11) % 1.2}s`,
+    size: i % 3 === 0 ? 10 : i % 3 === 1 ? 7 : 5,
+    rotation: i % 2 === 0 ? "360deg" : "-360deg",
+  }));
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-10" aria-hidden="true">
+      {pieces.map(p => (
+        <div key={p.id} style={{
+          position: "absolute", top: "-12px", left: p.left,
+          width: p.size, height: p.size,
+          backgroundColor: p.color,
+          borderRadius: p.id % 4 === 0 ? "50%" : "2px",
+          animationName: "confettiFall",
+          animationDuration: p.duration,
+          animationDelay: p.delay,
+          animationTimingFunction: "ease-in",
+          animationIterationCount: "1",
+          animationFillMode: "forwards",
+        }} />
+      ))}
+      <style>{`
+        @keyframes confettiFall {
+          0%   { transform: translateY(0)    rotate(0deg) scale(1);   opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateY(340px) rotate(720deg) scale(0.6); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 const orderStatusColors: Record<string, string> = {
   pending:   "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   approved:  "bg-green-500/10 text-green-400 border-green-500/20",
@@ -132,6 +178,20 @@ export default function ClientDashboard() {
     queryKey: ["client-domains-dashboard"],
     queryFn: () => apiFetch("/api/domains").then(d => d || []),
   });
+  const { data: setupProgress, refetch: refetchProgress } = useQuery<SetupProgress>({
+    queryKey: ["client-setup-progress"],
+    queryFn: () => apiFetch("/api/client/setup-progress"),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+  const [confettiActive, setConfettiActive] = useState(false);
+  useEffect(() => {
+    if (setupProgress?.allComplete) {
+      setConfettiActive(true);
+      const t = setTimeout(() => setConfettiActive(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [setupProgress?.allComplete]);
   const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ["public-announcements"],
     queryFn: () => fetch("/api/announcements").then(r => r.json()).then(d => (d.announcements || []).filter((a: Announcement) => a.isActive)),
@@ -272,65 +332,184 @@ export default function ClientDashboard() {
         ))}
       </div>
 
-      {/* ── Launch Progress Wizard (shown when user has domains but no hosting) ── */}
-      {allDomains.length > 0 && activeServices.length === 0 && (
-        <div className="rounded-2xl border border-violet-500/25 overflow-hidden shadow-lg"
-          style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.04) 100%)" }}>
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-violet-500/15"
-            style={{ background: "rgba(112,26,254,0.09)" }}>
-            <Rocket size={16} className="text-primary shrink-0" />
-            <p className="text-sm font-bold text-primary">Launch your website — 3 steps to go live</p>
-            <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-              33% Complete
-            </span>
-          </div>
-          {/* Progress bar */}
-          <div className="h-1.5 w-full bg-primary/10">
-            <div className="h-full bg-primary/60 transition-all" style={{ width: "33%" }} />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-violet-500/10">
-            {/* Step 1: Domain registered ✅ */}
-            <div className="px-5 py-4 flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/15 border-2 border-emerald-500/50 flex items-center justify-center shrink-0">
-                <CheckCircle2 size={18} className="text-emerald-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground text-sm">Register Domain</p>
-                <p className="text-xs text-emerald-500 font-medium mt-0.5">Completed ✓</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {allDomains[0] ? `${allDomains[0].name}${allDomains[0].tld}` : "Your domain is ready"}
-                </p>
-              </div>
+      {/* ── Launch Progress Wizard ── */}
+      {setupProgress && !setupProgress.allComplete && allDomains.length > 0 && (() => {
+        const pct = setupProgress.pct;
+        const s1 = setupProgress.step1;
+        const s2 = setupProgress.step2;
+        const steps = [
+          {
+            label: "Register Domain", icon: Globe, done: s1,
+            desc: s1 ? (setupProgress.primaryDomain ?? "Your domain is ready") : "Order a domain to get started.",
+            cta: !s1 ? { label: "Get Domain →", href: "/client/domains" } : null,
+            color: "emerald",
+          },
+          {
+            label: "Setup Hosting", icon: Server, done: s2,
+            desc: s2 ? "Hosting is active and running." : "Your domain needs a server to go live.",
+            cta: !s2 ? { label: "Get Hosting →", href: "/client/orders/new" } : null,
+            color: "primary",
+          },
+          {
+            label: "Website Live", icon: Rocket, done: false,
+            desc: "Complete the steps above to go live.",
+            cta: null,
+            color: "violet",
+            locked: !s1 || !s2,
+          },
+        ];
+        return (
+          <div className="rounded-2xl border border-violet-500/25 overflow-hidden shadow-lg"
+            style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.04) 100%)" }}>
+            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-violet-500/15"
+              style={{ background: "rgba(112,26,254,0.09)" }}>
+              <Rocket size={16} className="text-primary shrink-0" />
+              <p className="text-sm font-bold text-primary">Launch your website — 3 steps to go live</p>
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                {pct}% Complete
+              </span>
             </div>
+            <div className="h-1.5 w-full bg-primary/10">
+              <div className="h-full transition-all duration-700" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#701AFE,#9B51E0)" }} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-violet-500/10">
+              {steps.map((step, i) => (
+                <div key={i} className={`px-5 py-4 flex items-start gap-3 ${step.locked ? "opacity-45" : ""}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 ${
+                    step.done
+                      ? "bg-emerald-500/15 border-emerald-500/50"
+                      : step.locked
+                        ? "bg-secondary border-border"
+                        : "bg-primary/10 border-primary animate-pulse"
+                  }`}>
+                    {step.done
+                      ? <CheckCircle2 size={18} className="text-emerald-500" />
+                      : step.locked
+                        ? <Lock size={16} className="text-muted-foreground" />
+                        : <step.icon size={16} className="text-primary" />
+                    }
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground text-sm">{step.label}</p>
+                    <p className={`text-xs font-medium mt-0.5 ${step.done ? "text-emerald-500" : step.locked ? "text-muted-foreground" : "text-orange-400"}`}>
+                      {step.done ? "Completed ✓" : step.locked ? "Locked 🔒" : "Pending ⏳"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">{step.desc}</p>
+                    {step.cta && (
+                      <Link href={step.cta.href}>
+                        <button className="h-8 px-3 rounded-lg text-xs font-bold text-white shadow-md"
+                          style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}>
+                          {step.cta.label}
+                        </button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
-            {/* Step 2: Setup Hosting ⏳ */}
-            <div className="px-5 py-4 flex items-start gap-3 relative">
-              <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center shrink-0 animate-pulse">
-                <Server size={16} className="text-primary" />
+      {/* ── Celebration Card — Website is LIVE ── */}
+      {setupProgress?.allComplete && (
+        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-violet-500/40"
+          style={{ background: "linear-gradient(135deg, #0f0523 0%, #1a0540 40%, #2d0a6b 100%)" }}>
+          <Confetti active={confettiActive} />
+          {/* Glow ring */}
+          <div className="absolute inset-0 pointer-events-none" style={{
+            background: "radial-gradient(ellipse 70% 60% at 50% 0%, rgba(112,26,254,0.45) 0%, transparent 70%)",
+          }} />
+          <div className="relative z-[1] p-8 text-center flex flex-col items-center gap-5">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center shadow-2xl"
+              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)", boxShadow: "0 0 60px rgba(112,26,254,0.7)" }}>
+              <PartyPopper size={36} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white tracking-tight">
+                Congratulations! 🎉
+              </h2>
+              <p className="text-base font-semibold text-violet-200 mt-1">Your brand is now global.</p>
+              <p className="text-sm text-violet-300/80 mt-2 max-w-md mx-auto">
+                Your website is officially <span className="text-white font-bold">LIVE</span>
+                {setupProgress.primaryDomain ? ` at ` : ""}
+                {setupProgress.primaryDomain && (
+                  <a href={setupProgress.siteUrl ?? "#"} target="_blank" rel="noopener noreferrer"
+                    className="font-bold text-violet-200 underline underline-offset-2 hover:text-white transition-colors">
+                    {setupProgress.primaryDomain}
+                  </a>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link href="/client/hosting">
+                <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-lg border border-white/20 hover:border-white/40 transition-all"
+                  style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                  <Server size={14} /> Manage Website
+                </button>
+              </Link>
+              {setupProgress.siteUrl && (
+                <a href={setupProgress.siteUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-lg border border-white/20 hover:bg-white/10 transition-all">
+                  <ExternalLink size={14} /> Open Site
+                </a>
+              )}
+              <Link href="/client/tickets">
+                <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-violet-200 border border-violet-500/40 hover:bg-violet-500/10 transition-all">
+                  <Mail size={14} /> Create Email
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Next Best Action (shown when site is live) ── */}
+      {setupProgress?.allComplete && (
+        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border flex items-center gap-2"
+            style={{ background: "linear-gradient(90deg, rgba(112,26,254,0.05) 0%, transparent 100%)" }}>
+            <Zap size={15} className="text-primary" />
+            <p className="text-sm font-bold text-foreground">Growth Opportunities for Your Brand</p>
+            <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">Site Live ✓</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
+            {/* .net / .org brand protection */}
+            {[".net", ".org"].map(ext => (
+              <div key={ext} className="px-5 py-4 flex gap-3 hover:bg-secondary/20 transition-colors">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">
+                  <ShieldCheck size={17} className="text-orange-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-foreground">Secure your brand with {ext}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                    Register <span className="font-mono text-foreground">{setupProgress.primaryDomain?.replace(/\.[^.]+$/, "") ?? "yourdomain"}{ext}</span> before someone else does.
+                  </p>
+                  <Link href="/client/domains">
+                    <button className="h-7 px-3 rounded-lg text-[11px] font-bold text-white"
+                      style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                      Register {ext} →
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            ))}
+            {/* Professional Email */}
+            <div className="px-5 py-4 flex gap-3 hover:bg-secondary/20 transition-colors">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                <Mail size={17} className="text-blue-400" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-foreground text-sm">Setup Hosting</p>
-                <p className="text-xs text-orange-400 font-medium mt-0.5">Pending ⏳</p>
-                <p className="text-xs text-muted-foreground mt-1 mb-2.5">Your domain needs a server to go live.</p>
+                <p className="text-sm font-bold text-foreground">Boost Trust with Email</p>
+                <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+                  Get a professional address like <span className="font-mono text-foreground">info@{setupProgress.primaryDomain ?? "yourdomain.com"}</span>
+                </p>
                 <Link href="/client/orders/new">
-                  <button className="h-8 px-3 rounded-lg text-xs font-bold text-white shadow-md"
-                    style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}>
-                    Get Hosting →
+                  <button className="h-7 px-3 rounded-lg text-[11px] font-bold text-white"
+                    style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                    Get Business Email →
                   </button>
                 </Link>
-              </div>
-            </div>
-
-            {/* Step 3: Website 🔒 */}
-            <div className="px-5 py-4 flex items-start gap-3 opacity-50">
-              <div className="w-10 h-10 rounded-full bg-secondary border-2 border-border flex items-center justify-center shrink-0">
-                <Lock size={16} className="text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">Create Website</p>
-                <p className="text-xs text-muted-foreground font-medium mt-0.5">Locked 🔒</p>
-                <p className="text-xs text-muted-foreground mt-1">Complete Step 2 to unlock.</p>
               </div>
             </div>
           </div>

@@ -45,6 +45,7 @@ import configRouter from "./config.js";
 import syncRouter from "./sync.js";
 import globalRouter from "./global.js";
 import domainSearchRouter from "./domain-search.js";
+import setupProgressRouter from "./setup-progress.js";
 
 const router: IRouter = Router();
 
@@ -98,5 +99,6 @@ router.use(configRouter);
 router.use(syncRouter);
 router.use(globalRouter);
 router.use(domainSearchRouter);
+router.use(setupProgressRouter);
 
 export default router;
