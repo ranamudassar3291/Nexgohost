@@ -208,8 +208,8 @@ async function ensureFolderStructure(drive: drive_v3.Drive): Promise<{
   }
 
   const rootFolderId = await findOrCreateFolder(drive, "Noehost_Cloud_Backups");
-  const dbFolderId = await findOrCreateFolder(drive, "Daily_Databases", rootFolderId);
-  const filesFolderId = await findOrCreateFolder(drive, "Full_Files_Backup", rootFolderId);
+  const dbFolderId = await findOrCreateFolder(drive, "Full_Databases", rootFolderId);
+  const filesFolderId = await findOrCreateFolder(drive, "Full_Files", rootFolderId);
 
   // Cache folder IDs in DB
   await db.update(googleDriveTokensTable).set({ rootFolderId, dbFolderId, filesFolderId }).where(eq(googleDriveTokensTable.id, "primary"));
@@ -217,26 +217,19 @@ async function ensureFolderStructure(drive: drive_v3.Drive): Promise<{
   return { rootFolderId, dbFolderId, filesFolderId };
 }
 
-// ── PKT timestamp for filenames ────────────────────────────────────────────────
+// ── ISO date stamp in PKT for filenames ───────────────────────────────────────
+// Format: 2026-03-28  →  files become Noehost_Full_Backup_2026-03-28.zip
 
-function getPktTimestamp(): string {
+function getPktDateStamp(): string {
   const now = new Date();
-  const pkt = new Intl.DateTimeFormat("en-PK", {
-    timeZone: "Asia/Karachi",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-
-  const get = (t: string) => pkt.find(p => p.type === t)?.value ?? "";
-  const day = get("day");
-  const month = get("month");
-  const year = get("year");
-  const hm = `${get("hour")}${get("minute")}`;
-  return `${day}_${month}_${year}_${hm}`;
+  // Convert to PKT (UTC+5) and format as YYYY-MM-DD
+  const pktOffset = 5 * 60; // minutes
+  const pktMs = now.getTime() + pktOffset * 60_000;
+  const pkt = new Date(pktMs);
+  const y = pkt.getUTCFullYear();
+  const m = String(pkt.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(pkt.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 // ── Upload with integrity check ────────────────────────────────────────────────
@@ -330,11 +323,11 @@ export async function runGoogleDriveBackup(triggeredBy: "cron" | "manual" = "cro
 
   fs.mkdirSync(TMP_DIR, { recursive: true });
 
-  const ts = getPktTimestamp();
-  const dbLocalPath = path.join(TMP_DIR, `DB_Backup_${ts}.sql`);
-  const filesLocalPath = path.join(TMP_DIR, `Full_Backup_${ts}.zip`);
-  const dbFileName = `DB_Backup_${ts}.sql`;
-  const filesFileName = `Full_Backup_${ts}.zip`;
+  const ds = getPktDateStamp();  // e.g. "2026-03-28"
+  const dbLocalPath = path.join(TMP_DIR, `Noehost_DB_Backup_${ds}.sql`);
+  const filesLocalPath = path.join(TMP_DIR, `Noehost_Full_Backup_${ds}.zip`);
+  const dbFileName = `Noehost_DB_Backup_${ds}.sql`;
+  const filesFileName = `Noehost_Full_Backup_${ds}.zip`;
 
   const [logRow] = await db.insert(driveBackupLogsTable).values({
     status: "running",

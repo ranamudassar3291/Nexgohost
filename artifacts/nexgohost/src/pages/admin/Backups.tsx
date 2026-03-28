@@ -43,6 +43,23 @@ function fmtDate(iso: string | null) {
   });
 }
 
+function fmtLastSync(iso: string | null, status: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const now = new Date();
+  // Compare calendar dates in PKT (UTC+5)
+  const pktOffset = 5 * 60 * 60_000;
+  const dPkt = new Date(d.getTime() + pktOffset);
+  const nowPkt = new Date(now.getTime() + pktOffset);
+  const dDate = dPkt.toISOString().slice(0, 10);
+  const todayDate = nowPkt.toISOString().slice(0, 10);
+  const yesterdayDate = new Date(nowPkt.getTime() - 86_400_000).toISOString().slice(0, 10);
+  const timeStr = dPkt.toISOString().slice(11, 16).replace(":", ":"); // "03:00"
+  const label = dDate === todayDate ? "Today" : dDate === yesterdayDate ? "Yesterday" : fmtDate(iso).split(",")[0];
+  const statusLabel = status === "success" ? "✓ Success" : status === "failed" ? "✗ Failed" : status;
+  return `${label} ${timeStr} PKT (${statusLabel})`;
+}
+
 function fmtSize(kb: number | null) {
   if (kb == null) return "—";
   if (kb < 1024) return `${kb} KB`;
@@ -322,12 +339,14 @@ export default function AdminBackups() {
             /* ── Connected state ── */
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
                   <CheckCircle size={20} className="text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-emerald-700 dark:text-emerald-400">Connected</p>
-                  <p className="text-sm text-muted-foreground">{status?.email ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Status</p>
+                  <p className="font-semibold text-foreground">
+                    Connected to <span className="text-emerald-600 dark:text-emerald-400">{status?.email ?? "—"}</span>
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -377,18 +396,20 @@ export default function AdminBackups() {
       {/* ── Stats Row (when connected) ── */}
       {connected && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Last Backup */}
+          {/* Last Sync */}
           <div className="rounded-xl border bg-card p-5 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-              <CloudUpload size={13} /> Last Backup
+              <CloudUpload size={13} /> Last Sync
             </p>
-            {statusLoading ? <div className="h-5 w-24 bg-muted animate-pulse rounded" /> : last ? (
+            {statusLoading ? <div className="h-5 w-32 bg-muted animate-pulse rounded" /> : last ? (
               <>
                 <StatusBadge status={last.status} />
-                <p className="text-xs text-muted-foreground">{fmtDate(last.startedAt)}</p>
+                <p className="text-xs font-medium text-foreground/80 leading-relaxed">
+                  {fmtLastSync(last.startedAt, last.status)}
+                </p>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">No backups yet</p>
+              <p className="text-sm text-muted-foreground">No syncs yet</p>
             )}
           </div>
 
@@ -529,10 +550,11 @@ export default function AdminBackups() {
         <div>
           <p className="text-sm font-semibold">Zero-Risk Backup Policy</p>
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            Backups use PostgreSQL's MVCC — no table locks, no downtime, live data is never modified.
-            Each backup gets a unique PKT timestamp (e.g. <em>Full_Backup_28_March_2026_0300.zip</em>).
-            Old backups are <strong>never deleted</strong> from Drive automatically — full history is always preserved.
-            Integrity is verified by comparing file sizes after every upload.
+            Backups use PostgreSQL's MVCC — <strong>zero table locks</strong>, no downtime, live clients can buy domains and pay invoices during any backup run.
+            Every file gets a unique ISO date name (e.g. <em>Noehost_Full_Backup_2026-03-28.zip</em>) stored in
+            <strong> Noehost_Cloud_Backups/Full_Databases/</strong> and <strong>Full_Files/</strong>.
+            Old backups are <strong>never auto-deleted</strong> — your entire history stays on Drive.
+            File size is verified against Drive after every upload to confirm a complete, uncorrupted transfer.
           </p>
         </div>
       </div>
