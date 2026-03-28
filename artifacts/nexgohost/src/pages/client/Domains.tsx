@@ -61,6 +61,7 @@ interface CartItem {
 
 interface OrderSuccess {
   domain: string;
+  invoiceId: string | null;
   invoiceNumber: string;
   amount: number;
   period: number;
@@ -378,6 +379,29 @@ export default function ClientDomains() {
     if (e.key === "Enter") handleSearch();
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab");
+    const domainParam = params.get("domain");
+    if (tabParam === "order") {
+      setActiveTab("order");
+      if (domainParam) {
+        const decoded = decodeURIComponent(domainParam).toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+        const dotIdx = decoded.indexOf(".");
+        if (dotIdx > 0) {
+          const name = decoded.slice(0, dotIdx);
+          const tld = decoded.slice(dotIdx);
+          setSearchInput(decoded);
+          setTypedTld(tld);
+          setSearchQuery(name);
+        } else {
+          setSearchInput(decoded);
+          setSearchQuery(decoded);
+        }
+      }
+    }
+  }, []);
+
   const addToCart = (result: TldResult) => {
     const key = `${searchData!.name}${result.tld}`;
     if (cart.some(c => `${c.name}${c.tld}` === key)) {
@@ -429,6 +453,7 @@ export default function ClientDomains() {
         if (!res.ok) throw new Error(data.error || "Failed to place order");
         lastSuccess = {
           domain: data.order?.domain || `${item.name}${item.tld}`,
+          invoiceId: data.invoice?.id || null,
           invoiceNumber: data.invoice?.invoiceNumber || "",
           amount: data.invoice?.amount || getPriceForPeriod(item),
           period: item.period,
@@ -448,13 +473,16 @@ export default function ClientDomains() {
     }
 
     if (lastSuccess) {
-      setSuccess(lastSuccess);
-      setOrderView("success");
       queryClient.invalidateQueries({ queryKey: ["my-domains"] });
       setCart([]);
       setSearchQuery(null);
       setSearchInput("");
       setOrderNameservers(["ns1.noehost.com", "ns2.noehost.com"]);
+      if (lastSuccess.invoiceId) {
+        navigate(`/client/invoices/${lastSuccess.invoiceId}`);
+      } else {
+        navigate("/client/invoices");
+      }
     }
   };
 
@@ -731,13 +759,6 @@ export default function ClientDomains() {
                 onChange={e => setPortfolioSearch(e.target.value)}
               />
             </div>
-            <button
-              onClick={() => { setActiveTab("order"); setOrderView("search"); setTimeout(() => inputRef.current?.focus(), 100); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0"
-              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
-            >
-              <Plus size={15} /> Order Domain
-            </button>
           </div>
 
           {/* ── Setup Progress: Hostinger-style launch steps ── */}
@@ -811,7 +832,7 @@ export default function ClientDomains() {
             </div>
           ) : (
             (() => {
-              const STATUS_ORDER: Record<string, number> = { active: 0, pending: 1, suspended: 2, pending_transfer: 3, expired: 4, cancelled: 5, transferred: 6 };
+              const STATUS_ORDER: Record<string, number> = { active: 0, pending: 1, suspended: 2, pending_transfer: 3, transferred: 4, cancelled: 5, expired: 5 };
               const filtered = (portfolioSearch
                 ? myDomains.filter(d => `${d.name}${d.tld}`.toLowerCase().includes(portfolioSearch.toLowerCase()))
                 : [...myDomains]
@@ -831,7 +852,7 @@ export default function ClientDomains() {
 
               const sMap = {
                 active:      { label: 'Active',      cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
-                expired:     { label: 'Expired',     cls: 'bg-red-500/10 text-red-400 border-red-500/20' },
+                expired:     { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
                 pending:     { label: 'Pending',     cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
                 suspended:   { label: 'Suspended',   cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
                 transferred: { label: 'Transferred', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
