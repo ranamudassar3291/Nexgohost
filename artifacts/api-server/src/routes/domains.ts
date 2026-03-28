@@ -530,6 +530,23 @@ router.get("/domains", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+router.get("/domains/:id", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [domain] = await db.select().from(domainsTable)
+      .where(eq(domainsTable.id, id))
+      .limit(1);
+    if (!domain || domain.clientId !== req.user!.userId) {
+      return res.status(404).json({ error: "Domain not found" });
+    }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    res.json(formatDomain(domain, user ? `${user.firstName} ${user.lastName}` : ""));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Admin: get all domains
 router.get("/admin/domains", authenticate, requireAdmin, async (_req, res) => {
   try {

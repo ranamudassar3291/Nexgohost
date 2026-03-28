@@ -718,13 +718,13 @@ export default function ClientDomains() {
 
       {activeTab === "my-domains" && (
         <div className="space-y-4">
-          {/* Portfolio header: search filter + add new button */}
+          {/* Portfolio header */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <input
                 className="w-full pl-9 pr-3 h-10 bg-card border border-border rounded-xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-                placeholder="Filter your domains…"
+                placeholder="Search your domains…"
                 value={portfolioSearch}
                 onChange={e => setPortfolioSearch(e.target.value)}
               />
@@ -734,12 +734,12 @@ export default function ClientDomains() {
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0"
               style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
             >
-              <Plus size={15} /> Add New Domain
+              <Plus size={15} /> Order Domain
             </button>
           </div>
 
           {/* ── Setup Progress: Hostinger-style launch steps ── */}
-          {!domainsLoading && (() => {
+          {!domainsLoading && false && (() => {
             const hasDomain = myDomains.some(d => d.status === "active");
             const hasHosting = hostingServices.some(s => s.status === "active");
             const steps = [
@@ -795,7 +795,9 @@ export default function ClientDomains() {
           })()}
 
           {domainsLoading ? (
-            <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-20 bg-card border border-border rounded-2xl animate-pulse" />)}
+            </div>
           ) : myDomains.length === 0 ? (
             <div className="bg-card border border-border border-dashed rounded-3xl p-12 text-center">
               <Globe className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
@@ -818,206 +820,43 @@ export default function ClientDomains() {
                 </div>
               );
               return (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                {/* Table header */}
-                <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_auto] gap-4 px-5 py-3 border-b border-border bg-secondary/30">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Domain</p>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Status</p>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Expiry</p>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Auto-Renew</p>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Actions</p>
-                </div>
-                {filteredDomains.map((domain, rowIdx) => {
+              <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+                {filteredDomains.map((domain) => {
               const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
-              const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
-              const isExpiringSoon = daysLeft !== null && daysLeft < 30 && daysLeft >= 0;
-              const isExpired = daysLeft !== null && daysLeft < 0;
-              const lockStatus = lockOverrides[domain.id] ?? domain.lockStatus ?? "unlocked";
-              const isLocked = lockStatus === "locked";
-              const isActive = domain.status === "active";
-              const isPending = domain.status === "pending";
-              const hasHosting = isActive ? domainHasHosting(domain) : true;
-              const isExpanded = expandedCard === domain.id;
-              const tab = cardTab[domain.id] ?? "overview";
-              const dotColor = domain.status === "active" ? "bg-green-400" : domain.status === "expired" ? "bg-red-400" : domain.status === "pending" ? "bg-yellow-400" : "bg-gray-400";
+              const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / 86400000) : null;
+              const expiryColor = daysLeft === null ? '' : daysLeft < 0 ? 'text-red-400' : daysLeft < 30 ? 'text-red-400' : daysLeft < 90 ? 'text-amber-400' : 'text-green-400';
+              const sMap = {
+                active:      { label: 'Active',      cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
+                expired:     { label: 'Expired',     cls: 'bg-red-500/10 text-red-400 border-red-500/20' },
+                pending:     { label: 'Pending',     cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' },
+                suspended:   { label: 'Suspended',   cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+                transferred: { label: 'Transferred', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+                cancelled:   { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
+              };
+              const statusEntry = sMap[domain.status as keyof typeof sMap] ?? { label: domain.status, cls: 'bg-secondary text-muted-foreground border-border' };
               return (
-                <div key={domain.id} className={`border-b last:border-b-0 ${isExpiringSoon || isExpired ? "border-orange-500/20 bg-orange-500/[0.02]" : "border-border"}`}>
-                  {/* ── Main table row ── */}
-                  <div className="grid grid-cols-[2fr_1fr_1.2fr_1fr_auto] gap-4 items-center px-5 py-4">
-                    {/* Domain */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <TldIcon tld={domain.tld} />
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-foreground font-mono truncate">{domain.name}{domain.tld}</p>
-                        {!hasHosting && isActive && (
-                          <button onClick={() => navigate("/client/orders/new")}
-                            className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5 mt-0.5">
-                            <Globe className="w-2.5 h-2.5" /> Website not live · Get Hosting
-                          </button>
-                        )}
-                        {(isLocked && !domain.isIn60DayLock) && (
-                          <p className="text-[10px] text-red-400 flex items-center gap-0.5 mt-0.5"><Lock className="w-2.5 h-2.5" /> Transfer Locked</p>
-                        )}
-                        {domain.isIn60DayLock && !domain.lockOverrideByAdmin && (
-                          <p className="text-[10px] text-orange-400 flex items-center gap-0.5 mt-0.5"><Lock className="w-2.5 h-2.5" /> 60-Day Lock · {domain.daysRemainingInLock}d</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Status */}
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor} ${domain.status === "active" ? "shadow-[0_0_6px_currentColor]" : ""}`} />
-                      <span className="text-xs font-semibold text-foreground">{statusLabels[domain.status] ?? domain.status}</span>
-                    </div>
-
-                    {/* Expiry */}
-                    <div className="flex items-center gap-2.5">
-                      <ExpiryRing daysLeft={daysLeft} registrationDate={domain.registrationDate} />
-                      <div>
-                        <p className="text-xs text-foreground font-mono">
-                          {expiryDate ? format(expiryDate, "MMM d, yyyy") : "—"}
-                        </p>
-                        {daysLeft !== null && (
-                          <p className={`text-[10px] font-medium ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
-                            {isExpired ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Auto-Renew toggle */}
-                    <button
-                      onClick={() => toggleAutoRenew(domain.id, domain.autoRenew)}
-                      className="flex items-center gap-2 group"
-                    >
-                      <div className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${domain.autoRenew ? "bg-green-500" : "bg-border"}`}>
-                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${domain.autoRenew ? "left-4" : "left-0.5"}`} />
-                      </div>
-                      <span className={`text-xs font-medium ${domain.autoRenew ? "text-green-400" : "text-muted-foreground"}`}>
-                        {domain.autoRenew ? "On" : "Off"}
-                      </span>
-                    </button>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {(isActive || isExpired) && (
-                        <button onClick={() => handleRenewDomain(domain)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors flex items-center gap-1">
-                          <RefreshCw size={11} /> Renew
-                        </button>
+                <div key={domain.id}
+                  className="flex items-center gap-4 px-5 py-4 hover:bg-primary/[0.015] transition-colors group"
+                >
+                  <TldIcon tld={domain.tld} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-base font-bold font-mono text-foreground truncate">{domain.name}{domain.tld}</p>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${statusEntry.cls}`}>{statusEntry.label}</span>
+                      {daysLeft !== null && (
+                        <span className={`text-xs font-semibold ${expiryColor}`}>
+                          {daysLeft < 0 ? `Expired ${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
+                        </span>
                       )}
-                      {isPending && (
-                        <button onClick={() => navigate("/client/invoices")}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 transition-colors flex items-center gap-1">
-                          <CreditCard size={11} /> Pay
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setManageDomainModal(domain)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-secondary/60 hover:border-primary/40 hover:bg-primary/5 text-foreground transition-all flex items-center gap-1"
-                      >
-                        <Settings size={11} /> Manage
-                      </button>
-                      <button
-                        onClick={() => {
-                          setExpandedCard(isExpanded ? null : domain.id);
-                          if (!isExpanded) setCardTab(prev => ({ ...prev, [domain.id]: prev[domain.id] ?? "overview" }));
-                        }}
-                        className="p-1.5 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors"
-                        title={isExpanded ? "Collapse" : "Quick actions"}
-                      >
-                        <ChevronRight size={13} className={`transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                      </button>
                     </div>
                   </div>
-
-                  {/* ── Expandable panel ── */}
-                  {isExpanded && (
-                    <div className="border-t border-border/40 bg-secondary/10">
-                      <div className="flex border-b border-border/30 px-5">
-                        {(["overview", "security"] as const).map(t => (
-                          <button key={t} onClick={() => setCardTab(prev => ({ ...prev, [domain.id]: t }))}
-                            className={`px-4 py-2 text-xs font-bold capitalize border-b-2 transition-all -mb-px ${tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-                            {t === "overview" ? "Overview" : "Security"}
-                          </button>
-                        ))}
-                        {isActive && (
-                          <button onClick={() => navigate(`/client/dns/${domain.id}`)}
-                            className="ml-auto flex items-center gap-1 px-3 py-1.5 my-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold hover:bg-blue-500/20 transition-colors">
-                            <Network size={10} /> DNS Records
-                          </button>
-                        )}
-                      </div>
-
-                      {tab === "overview" && (
-                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Server size={9} /> Nameservers</p>
-                              {isActive && <button onClick={() => navigate(`/client/dns/${domain.id}`)} className="text-[10px] text-primary hover:underline">Edit →</button>}
-                            </div>
-                            <div className="space-y-1.5">
-                              {(domain.nameservers?.length ? domain.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).map((ns, i) => (
-                                <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-secondary/60 rounded-lg">
-                                  <span className="text-[9px] text-muted-foreground font-mono w-7">NS{i + 1}</span>
-                                  <span className="font-mono text-xs text-foreground">{ns}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1"><ClipboardList size={9} /> Domain Info</p>
-                            <div className="space-y-1.5 text-xs text-muted-foreground">
-                              <div className="flex justify-between px-2.5 py-1.5 bg-secondary/60 rounded-lg">
-                                <span>Registered</span>
-                                <span className="font-mono text-foreground">{domain.registrationDate ? format(new Date(domain.registrationDate), "MMM d, yyyy") : "—"}</span>
-                              </div>
-                              <div className="flex justify-between px-2.5 py-1.5 bg-secondary/60 rounded-lg">
-                                <span>Expires</span>
-                                <span className={`font-mono font-bold ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-foreground"}`}>
-                                  {expiryDate ? format(expiryDate, "MMM d, yyyy") : "—"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {tab === "security" && (
-                        <div className="p-5 space-y-3">
-                          {domain.isIn60DayLock && !domain.lockOverrideByAdmin && (
-                            <div className="flex items-start gap-3 p-3 rounded-xl border border-orange-500/30 bg-orange-500/5">
-                              <Lock size={13} className="text-orange-400 shrink-0 mt-0.5" />
-                              <div>
-                                <p className="text-xs font-bold text-orange-400">60-Day Registration Lock Active</p>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">Cannot transfer for <span className="font-bold text-orange-300">{domain.daysRemainingInLock}d</span> more.</p>
-                              </div>
-                            </div>
-                          )}
-                          <button disabled={lockLoading === domain.id || (domain.isIn60DayLock && !domain.lockOverrideByAdmin)}
-                            onClick={() => handleToggleLock(domain)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all disabled:opacity-50 ${isLocked ? "bg-red-500/5 border-red-500/25 hover:bg-red-500/10" : "bg-green-500/5 border-green-500/25 hover:bg-green-500/10"}`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isLocked ? "bg-red-500/15" : "bg-green-500/15"}`}>
-                              {lockLoading === domain.id ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <ShieldCheck size={13} className={isLocked ? "text-red-400" : "text-green-400"} />}
-                            </div>
-                            <div className="text-left">
-                              <p className="text-xs font-bold text-foreground">Transfer Lock</p>
-                              <p className={`text-[10px] font-medium ${isLocked ? "text-red-400" : "text-green-400"}`}>{isLocked ? "Locked — click to unlock" : "Unlocked — click to lock"}</p>
-                            </div>
-                          </button>
-                          {!isLocked && eppOverrides[domain.id] && (
-                            <div className="flex items-center gap-3 p-3 bg-amber-500/5 border border-amber-500/25 rounded-xl">
-                              <Key size={12} className="text-amber-400 shrink-0" />
-                              <code className="flex-1 font-mono text-xs text-foreground tracking-widest truncate">{eppOverrides[domain.id]}</code>
-                              <button onClick={() => handleCopyEpp(domain.id, eppOverrides[domain.id]!)} className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400">
-                                {eppCopiedId === domain.id ? <CheckCheck size={12} /> : <Copy size={12} />}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <button
+                    onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
+                    style={{ background: 'linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)' }}
+                  >
+                    Manage <ChevronRight size={14} />
+                  </button>
                 </div>
               );
                 })}

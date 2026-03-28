@@ -82,6 +82,7 @@ import ClientDashboard from "@/pages/client/Dashboard";
 import ClientHosting from "@/pages/client/Hosting";
 import ClientServiceDetail from "@/pages/client/ServiceDetail";
 import ClientDomains from "@/pages/client/Domains";
+import DomainManage from "@/pages/client/DomainManage";
 import ClientInvoices from "@/pages/client/Invoices";
 import ClientTickets from "@/pages/client/Tickets";
 import ClientTicketDetail from "@/pages/client/TicketDetail";
@@ -394,6 +395,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/hosting">
         <ClientPage><ClientHosting /></ClientPage>
+      </Route>
+      <Route path="/client/domains/manage/:id">
+        <ClientPage><DomainManage /></ClientPage>
       </Route>
       <Route path="/client/domains">
         <ClientPage><ClientDomains /></ClientPage>
