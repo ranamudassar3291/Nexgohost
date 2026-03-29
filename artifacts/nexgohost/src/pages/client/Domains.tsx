@@ -25,6 +25,8 @@ interface MyDomain {
   isIn60DayLock: boolean;
   registrationAgeDays: number;
   daysRemainingInLock: number;
+  canManage: boolean;
+  manageLockReason: string | null;
 }
 
 interface TldResult {
@@ -882,13 +884,22 @@ export default function ClientDomains() {
                             </div>
                           </div>
                           <ExpiryRing daysLeft={daysLeft} registrationDate={domain.registrationDate} size={42} />
-                          <button
-                            onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
-                            style={{ background: 'linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)' }}
-                          >
-                            Manage <ChevronRight size={14} />
-                          </button>
+                          {domain.canManage !== false ? (
+                            <button
+                              onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
+                              style={{ background: 'linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)' }}
+                            >
+                              Manage <ChevronRight size={14} />
+                            </button>
+                          ) : (
+                            <span
+                              title={domain.manageLockReason || "Management disabled. Please pay your unpaid invoice or wait for activation."}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-muted-foreground shrink-0 cursor-not-allowed select-none bg-secondary border border-border"
+                            >
+                              🔒 Locked
+                            </span>
+                          )}
                         </div>
                       );
                     })}

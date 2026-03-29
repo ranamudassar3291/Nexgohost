@@ -32,6 +32,8 @@ interface MyDomain {
   isIn60DayLock: boolean; daysRemainingInLock: number;
   lockOverrideByAdmin: boolean; registrationAgeDays: number;
   renewalPrice?: number; registrationPrice?: number;
+  canManage: boolean;
+  manageLockReason: string | null;
 }
 
 interface DnsRecord { id: string; type: string; name: string; value: string; ttl?: number; }
@@ -327,6 +329,23 @@ export default function DomainManage() {
         <ArrowLeft size={15} /> Back to Domains
       </button>
 
+      {/* Management lock banner */}
+      {!domain.canManage && domain.manageLockReason && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-red-500/30 bg-red-500/8 text-sm">
+          <div className="flex items-center gap-2 text-red-400">
+            <Lock size={15} className="shrink-0" />
+            <span>{domain.manageLockReason}</span>
+          </div>
+          <button
+            onClick={() => navigate("/client/invoices")}
+            className="shrink-0 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
+            style={{ background: "linear-gradient(135deg,#701AFE,#9B51E0)" }}
+          >
+            Pay Invoice →
+          </button>
+        </div>
+      )}
+
       {/* ── Hero: Ring + Domain Info ── */}
       <div className="rounded-2xl border border-border overflow-hidden"
         style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.03) 50%, transparent 100%)" }}>
@@ -616,7 +635,7 @@ export default function DomainManage() {
               </div>
             </div>
           ) : (
-            <button onClick={handleToggleLock} disabled={lockLoading}
+            <button onClick={handleToggleLock} disabled={lockLoading || !domain.canManage}
               className="flex flex-col items-start gap-3 p-4 rounded-2xl border border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02] transition-all text-left group disabled:opacity-60">
               <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
                 {lockLoading
@@ -654,13 +673,14 @@ export default function DomainManage() {
           {/* EPP Code */}
           <button
             onClick={() => {
+              if (!domain.canManage) { toast({ title: "Domain Management Locked", description: domain.manageLockReason || "Please pay your invoice to unlock.", variant: "destructive" }); return; }
               if (isLifecycleLocked) { toast({ title: "Transfer Disabled", description: "Domain transfers are not permitted during lifecycle restriction. Contact support.", variant: "destructive" }); return; }
               if (isLocked) return;
               handleFetchEpp();
             }}
-            disabled={isLocked && !isLifecycleLocked}
+            disabled={(isLocked && !isLifecycleLocked) || !domain.canManage}
             className={`flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left group
-              ${isLifecycleLocked || isLocked ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
+              ${!domain.canManage || isLifecycleLocked || isLocked ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
             <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <Key size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
@@ -696,12 +716,12 @@ export default function DomainManage() {
               <p className="text-sm font-bold text-foreground">Nameservers</p>
             </div>
             {!nsEditing
-              ? <button onClick={() => setNsEditing(true)}
-                  className="text-xs font-semibold text-primary hover:underline">Edit</button>
+              ? <button onClick={() => setNsEditing(true)} disabled={!domain.canManage}
+                  className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed">Edit</button>
               : <div className="flex items-center gap-2">
                   <button onClick={() => setNsEditing(false)}
                     className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
-                  <button onClick={handleSaveNameservers} disabled={nsSaving}
+                  <button onClick={handleSaveNameservers} disabled={nsSaving || !domain.canManage}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-60"
                     style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
                     {nsSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
@@ -748,8 +768,8 @@ export default function DomainManage() {
               <Network size={15} className="text-primary" />
               <p className="text-sm font-bold text-foreground">DNS Records</p>
             </div>
-            <button onClick={() => setShowAddDns(v => !v)}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white"
+            <button onClick={() => setShowAddDns(v => !v)} disabled={!domain.canManage}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
               <Plus size={12} /> Add Record
             </button>
@@ -788,7 +808,7 @@ export default function DomainManage() {
               </div>
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowAddDns(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5">Cancel</button>
-                <button onClick={handleAddDns} disabled={dnsAdding}
+                <button onClick={handleAddDns} disabled={dnsAdding || !domain.canManage}
                   className="flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg text-white disabled:opacity-60"
                   style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
                   {dnsAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save Record
@@ -820,7 +840,7 @@ export default function DomainManage() {
                   <p className="text-xs font-mono text-foreground truncate">{rec.name}</p>
                   <p className="text-xs font-mono text-muted-foreground truncate">{rec.value}</p>
                   <p className="text-xs text-muted-foreground">{rec.ttl ?? 3600}s</p>
-                  <button onClick={() => handleDeleteDns(rec.id)} disabled={dnsDeleting === rec.id}
+                  <button onClick={() => handleDeleteDns(rec.id)} disabled={dnsDeleting === rec.id || !domain.canManage}
                     className="text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center">
                     {dnsDeleting === rec.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                   </button>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
-import { eq, sql, and, asc, desc } from "drizzle-orm";
+import { eq, sql, and, asc, desc, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 // ── Restoration fee for redemption period domains ────────────────────────────
@@ -81,12 +81,86 @@ function generateEppCode(domainId: string): string {
   return `${hash.slice(0, 4)}-${hash.slice(4, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}`.toUpperCase();
 }
 
-function formatDomain(d: typeof domainsTable.$inferSelect, clientName?: string) {
+// ── Domain management lock helpers ────────────────────────────────────────────
+const DOMAIN_MANAGEABLE_STATUSES = new Set(["active", "grace_period"]);
+
+async function canManageDomain(
+  domain: typeof domainsTable.$inferSelect,
+): Promise<{ canManage: boolean; manageLockReason: string | null }> {
+  if (!DOMAIN_MANAGEABLE_STATUSES.has(domain.status as string)) {
+    return { canManage: false, manageLockReason: `Management disabled. Domain is ${domain.status}. Please pay your invoice or contact support.` };
+  }
+  if (domain.nextDueDate) {
+    const msOverdue = Date.now() - new Date(domain.nextDueDate).getTime();
+    if (msOverdue > 24 * 60 * 60 * 1000) {
+      return { canManage: false, manageLockReason: "Management disabled. Domain renewal is overdue by more than 1 day. Please renew to restore access." };
+    }
+  }
+  const [unpaidInvoice] = await db
+    .select({ id: invoicesTable.id })
+    .from(invoicesTable)
+    .innerJoin(ordersTable, eq(ordersTable.id, invoicesTable.orderId))
+    .where(and(eq(ordersTable.itemId, domain.id), eq(invoicesTable.status, "unpaid")))
+    .limit(1);
+  if (unpaidInvoice) {
+    return { canManage: false, manageLockReason: "Management disabled. Please pay your unpaid invoice to restore access." };
+  }
+  return { canManage: true, manageLockReason: null };
+}
+
+async function bulkCanManageDomains(
+  domains: (typeof domainsTable.$inferSelect)[],
+): Promise<Map<string, { canManage: boolean; manageLockReason: string | null }>> {
+  const result = new Map<string, { canManage: boolean; manageLockReason: string | null }>();
+  const activeDomains = domains.filter(d => DOMAIN_MANAGEABLE_STATUSES.has(d.status as string));
+  for (const d of domains) {
+    if (!DOMAIN_MANAGEABLE_STATUSES.has(d.status as string)) {
+      result.set(d.id, { canManage: false, manageLockReason: `Management disabled. Domain is ${d.status}. Please pay your invoice or contact support.` });
+    }
+  }
+  const dueDateBlocked = new Set<string>();
+  for (const d of activeDomains) {
+    if (d.nextDueDate) {
+      const msOverdue = Date.now() - new Date(d.nextDueDate).getTime();
+      if (msOverdue > 24 * 60 * 60 * 1000) {
+        result.set(d.id, { canManage: false, manageLockReason: "Management disabled. Domain renewal is overdue by more than 1 day. Please renew to restore access." });
+        dueDateBlocked.add(d.id);
+      }
+    }
+  }
+  const remainingIds = activeDomains.filter(d => !dueDateBlocked.has(d.id)).map(d => d.id);
+  if (remainingIds.length > 0) {
+    const unpaidRows = await db
+      .select({ itemId: ordersTable.itemId })
+      .from(invoicesTable)
+      .innerJoin(ordersTable, eq(ordersTable.id, invoicesTable.orderId))
+      .where(and(inArray(ordersTable.itemId, remainingIds), eq(invoicesTable.status, "unpaid")));
+    const unpaidDomainIds = new Set(unpaidRows.map(r => r.itemId).filter(Boolean));
+    for (const d of activeDomains) {
+      if (!result.has(d.id)) {
+        if (unpaidDomainIds.has(d.id)) {
+          result.set(d.id, { canManage: false, manageLockReason: "Management disabled. Please pay your unpaid invoice to restore access." });
+        } else {
+          result.set(d.id, { canManage: true, manageLockReason: null });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function formatDomain(
+  d: typeof domainsTable.$inferSelect,
+  clientName?: string,
+  manage?: { canManage: boolean; manageLockReason: string | null },
+) {
   const { isIn60DayLock, registrationAgeDays, daysRemainingInLock } = calcRegistrationLock(d.registrationDate, d.lockOverrideByAdmin);
   return {
     id: d.id,
     clientId: d.clientId,
     clientName: clientName || "",
+    canManage: manage?.canManage ?? true,
+    manageLockReason: manage?.manageLockReason ?? null,
     name: d.name,
     tld: d.tld,
     registrar: d.registrar || "",
@@ -359,6 +433,8 @@ router.put("/domains/:id/nameservers", authenticate, async (req: AuthRequest, re
     const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, req.params.id)).limit(1);
     if (!domain) { res.status(404).json({ error: "Not found" }); return; }
     if (domain.clientId !== req.user!.userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    const { canManage, manageLockReason } = await canManageDomain(domain);
+    if (!canManage) { res.status(403).json({ error: manageLockReason || "Management is currently disabled for this domain." }); return; }
     const { nameservers } = req.body;
     if (!Array.isArray(nameservers) || nameservers.length < 2) {
       res.status(400).json({ error: "At least 2 nameservers required" }); return;
@@ -495,7 +571,8 @@ router.post("/domains/:id/dns", authenticate, async (req: AuthRequest, res) => {
     const [domain] = await db.select().from(domainsTable)
       .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
-    if (domain.status === "pending") { res.status(400).json({ error: "Cannot manage DNS for a pending domain" }); return; }
+    const { canManage, manageLockReason } = await canManageDomain(domain);
+    if (!canManage) { res.status(403).json({ error: manageLockReason || "Management is currently disabled for this domain." }); return; }
 
     const { type, name, value, ttl = 3600, priority } = req.body;
     if (!type || !name || !value) { res.status(400).json({ error: "type, name, and value are required" }); return; }
@@ -523,6 +600,8 @@ router.delete("/domains/:id/dns/:recordId", authenticate, async (req: AuthReques
     const [domain] = await db.select().from(domainsTable)
       .where(and(eq(domainsTable.id, req.params.id), eq(domainsTable.clientId, clientId))).limit(1);
     if (!domain) { res.status(404).json({ error: "Domain not found" }); return; }
+    const { canManage: cm, manageLockReason: mlr } = await canManageDomain(domain);
+    if (!cm) { res.status(403).json({ error: mlr || "Management is currently disabled for this domain." }); return; }
 
     await db.delete(dnsRecordsTable)
       .where(and(eq(dnsRecordsTable.id, req.params.recordId), eq(dnsRecordsTable.serviceId, domain.id)));
@@ -538,7 +617,8 @@ router.get("/domains", authenticate, async (req: AuthRequest, res) => {
   try {
     const domains = await db.select().from(domainsTable).where(eq(domainsTable.clientId, req.user!.userId));
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    res.json(domains.map(d => formatDomain(d, user ? `${user.firstName} ${user.lastName}` : "")));
+    const manageMap = await bulkCanManageDomains(domains);
+    res.json(domains.map(d => formatDomain(d, user ? `${user.firstName} ${user.lastName}` : "", manageMap.get(d.id))));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -555,7 +635,8 @@ router.get("/domains/:id", authenticate, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: "Domain not found" });
     }
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    res.json(formatDomain(domain, user ? `${user.firstName} ${user.lastName}` : ""));
+    const manage = await canManageDomain(domain);
+    res.json(formatDomain(domain, user ? `${user.firstName} ${user.lastName}` : "", manage));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -761,6 +842,10 @@ router.put("/domains/:id/lock", authenticate, async (req: AuthRequest, res) => {
     if (!isAdmin && domain.clientId !== req.user!.userId) {
       res.status(403).json({ error: "Forbidden" }); return;
     }
+    if (!isAdmin) {
+      const { canManage, manageLockReason } = await canManageDomain(domain);
+      if (!canManage) { res.status(403).json({ error: manageLockReason || "Management is currently disabled for this domain." }); return; }
+    }
 
     const currentLock = domain.lockStatus ?? "locked";
     const targetLock = req.body.lockStatus ?? (currentLock === "locked" ? "unlocked" : "locked");
@@ -896,6 +981,10 @@ router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
     const isAdmin = req.user!.role === "admin" || req.user!.adminPermission === "super_admin";
     if (!isAdmin && domain.clientId !== req.user!.userId) {
       res.status(403).json({ error: "Forbidden" }); return;
+    }
+    if (!isAdmin) {
+      const { canManage, manageLockReason } = await canManageDomain(domain);
+      if (!canManage) { res.status(403).json({ error: manageLockReason || "Management is currently disabled for this domain." }); return; }
     }
 
     if (domain.lockStatus === "locked") {

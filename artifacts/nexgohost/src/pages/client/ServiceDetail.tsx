@@ -94,6 +94,8 @@ interface Service {
   wpProvisionStep: string | null;
   wpProvisionError: string | null;
   autoRenew: boolean;
+  canManage: boolean;
+  manageLockReason: string | null;
 }
 
 interface DnsRecord {
@@ -706,6 +708,23 @@ export default function ServiceDetail() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
 
+      {/* Management lock banner */}
+      {!service.canManage && service.manageLockReason && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-red-500/30 bg-red-500/8 text-sm">
+          <div className="flex items-center gap-2 text-red-400">
+            <Lock size={15} className="shrink-0" />
+            <span>{service.manageLockReason}</span>
+          </div>
+          <button
+            onClick={() => setLocation("/client/invoices")}
+            className="shrink-0 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
+            style={{ background: "linear-gradient(135deg,#701AFE,#9B51E0)" }}
+          >
+            Pay Invoice →
+          </button>
+        </div>
+      )}
+
       {/* Renewal Modal */}
       {(showRenewModal || renewSuccess) && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1197,7 +1216,7 @@ export default function ServiceDetail() {
               </div>
               <button
                 onClick={handleCpanelLogin}
-                disabled={!!ssoLoading || service.status !== "active"}
+                disabled={!!ssoLoading || service.status !== "active" || !service.canManage}
                 className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
               >
                 {ssoLoading === "cpanel" ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
@@ -1217,7 +1236,7 @@ export default function ServiceDetail() {
               </div>
               <button
                 onClick={handleCpanelLogin}
-                disabled={!!ssoLoading || service.status !== "active"}
+                disabled={!!ssoLoading || service.status !== "active" || !service.canManage}
                 className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-secondary/50 transition-colors text-foreground disabled:opacity-50"
               >
                 <MousePointerClick size={12} /> Open Builder →
@@ -1242,7 +1261,7 @@ export default function ServiceDetail() {
               icon: FileText,
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: "#701AFE",
             },
             {
@@ -1251,7 +1270,7 @@ export default function ServiceDetail() {
               icon: Database,
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: "#2563eb",
             },
             {
@@ -1260,7 +1279,7 @@ export default function ServiceDetail() {
               icon: Code2,
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: "#7c3aed",
             },
             {
@@ -1269,7 +1288,7 @@ export default function ServiceDetail() {
               icon: service.sslStatus === "active" || service.sslStatus === "installed" ? ShieldCheck : ShieldX,
               onClick: handleReinstallSSL,
               loading: reinstallingSSL,
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: service.sslStatus === "active" || service.sslStatus === "installed" ? "#10b981" : "#ef4444",
             },
             {
@@ -1278,7 +1297,7 @@ export default function ServiceDetail() {
               icon: Clock,
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: "#0891b2",
             },
             {
@@ -1296,7 +1315,7 @@ export default function ServiceDetail() {
               icon: Mail,
               onClick: handleWebmailLogin,
               loading: ssoLoading === "webmail",
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: "#ec4899",
             },
             {
@@ -1305,7 +1324,7 @@ export default function ServiceDetail() {
               icon: ExternalLink,
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
-              disabled: service.status !== "active",
+              disabled: service.status !== "active" || !service.canManage,
               color: "#701AFE",
             },
           ].map(({ label, desc, icon: Icon, onClick, loading, disabled, color }) => (
@@ -1364,7 +1383,7 @@ export default function ServiceDetail() {
               </button>
             </div>
             <div className="flex gap-3">
-              <Button onClick={handleChangePassword} disabled={passwordLoading || newPassword.length < 8} className="gap-2">
+              <Button onClick={handleChangePassword} disabled={passwordLoading || newPassword.length < 8 || !service.canManage} className="gap-2">
                 {passwordLoading && <Loader2 size={15} className="animate-spin" />}
                 Update Password
               </Button>

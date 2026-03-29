@@ -2,7 +2,7 @@ import path from "path";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable, promoCodesTable } from "@workspace/db/schema";
-import { eq, sql, and, isNull, isNotNull } from "drizzle-orm";
+import { eq, sql, and, isNull, isNotNull, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
@@ -92,11 +92,17 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
   };
 }
 
-function formatService(s: typeof hostingServicesTable.$inferSelect, clientName?: string) {
+function formatService(
+  s: typeof hostingServicesTable.$inferSelect,
+  clientName?: string,
+  manage?: { canManage: boolean; manageLockReason: string | null },
+) {
   return {
     id: s.id,
     clientId: s.clientId,
     clientName: clientName || "",
+    canManage: manage?.canManage ?? true,
+    manageLockReason: manage?.manageLockReason ?? null,
     planId: s.planId,
     planName: s.planName,
     domain: s.domain,
@@ -124,6 +130,89 @@ function formatService(s: typeof hostingServicesTable.$inferSelect, clientName?:
     freeDomainAvailable: s.freeDomainAvailable ?? false,
     createdAt: s.createdAt.toISOString(),
   };
+}
+
+// ── Service management lock helper ────────────────────────────────────────────
+/**
+ * Returns whether a hosting service can be managed by the client right now.
+ * Blocked when: status is not active, due date is >1 day overdue, or there's an unpaid invoice.
+ */
+async function canManageHostingService(
+  service: typeof hostingServicesTable.$inferSelect,
+): Promise<{ canManage: boolean; manageLockReason: string | null }> {
+  const BLOCKED_STATUSES = new Set(["pending", "suspended", "terminated", "pending_termination", "cancelled"]);
+  if (BLOCKED_STATUSES.has(service.status as string)) {
+    return { canManage: false, manageLockReason: `Management disabled. Service is ${service.status}. Please pay your invoice or contact support.` };
+  }
+  if (service.nextDueDate) {
+    const msOverdue = Date.now() - new Date(service.nextDueDate).getTime();
+    if (msOverdue > 24 * 60 * 60 * 1000) {
+      return { canManage: false, manageLockReason: "Management disabled. Service renewal is overdue by more than 1 day. Please renew to restore access." };
+    }
+  }
+  // Check for unpaid invoice linked to this service via orders
+  const [unpaidInvoice] = await db
+    .select({ id: invoicesTable.id })
+    .from(invoicesTable)
+    .innerJoin(ordersTable, eq(ordersTable.id, invoicesTable.orderId))
+    .where(and(eq(ordersTable.itemId, service.id), eq(invoicesTable.status, "unpaid")))
+    .limit(1);
+  if (unpaidInvoice) {
+    return { canManage: false, manageLockReason: "Management disabled. Please pay your unpaid invoice to restore access." };
+  }
+  return { canManage: true, manageLockReason: null };
+}
+
+/**
+ * Batch-compute manageability for multiple services (avoids N+1 for the list endpoint).
+ */
+async function bulkCanManageHostingServices(
+  services: (typeof hostingServicesTable.$inferSelect)[],
+): Promise<Map<string, { canManage: boolean; manageLockReason: string | null }>> {
+  const BLOCKED_STATUSES = new Set(["pending", "suspended", "terminated", "pending_termination", "cancelled"]);
+  const result = new Map<string, { canManage: boolean; manageLockReason: string | null }>();
+
+  // Determine status-blocked services up front
+  const activeServices = services.filter(s => !BLOCKED_STATUSES.has(s.status as string));
+  for (const s of services) {
+    if (BLOCKED_STATUSES.has(s.status as string)) {
+      result.set(s.id, { canManage: false, manageLockReason: `Management disabled. Service is ${s.status}. Please pay your invoice or contact support.` });
+    }
+  }
+
+  // Check due date for non-blocked services
+  const dueDateBlocked = new Set<string>();
+  for (const s of activeServices) {
+    if (s.nextDueDate) {
+      const msOverdue = Date.now() - new Date(s.nextDueDate).getTime();
+      if (msOverdue > 24 * 60 * 60 * 1000) {
+        result.set(s.id, { canManage: false, manageLockReason: "Management disabled. Service renewal is overdue by more than 1 day. Please renew to restore access." });
+        dueDateBlocked.add(s.id);
+      }
+    }
+  }
+
+  // Check unpaid invoices for remaining services in one query
+  const remainingIds = activeServices.filter(s => !dueDateBlocked.has(s.id)).map(s => s.id);
+  if (remainingIds.length > 0) {
+    const unpaidRows = await db
+      .select({ itemId: ordersTable.itemId })
+      .from(invoicesTable)
+      .innerJoin(ordersTable, eq(ordersTable.id, invoicesTable.orderId))
+      .where(and(inArray(ordersTable.itemId, remainingIds), eq(invoicesTable.status, "unpaid")));
+    const unpaidServiceIds = new Set(unpaidRows.map(r => r.itemId).filter(Boolean));
+    for (const s of activeServices) {
+      if (!result.has(s.id)) {
+        if (unpaidServiceIds.has(s.id)) {
+          result.set(s.id, { canManage: false, manageLockReason: "Management disabled. Please pay your unpaid invoice to restore access." });
+        } else {
+          result.set(s.id, { canManage: true, manageLockReason: null });
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 // Public: list all hosting plans
@@ -708,8 +797,10 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
     if (!service || service.clientId !== req.user!.userId) {
       return res.status(404).json({ error: "Service not found" });
     }
-    if (service.status !== "active") {
-      return res.status(400).json({ error: "Service must be active to login" });
+    // Universal management lock check
+    const { canManage, manageLockReason } = await canManageHostingService(service);
+    if (!canManage) {
+      return res.status(403).json({ error: manageLockReason || "Management is currently disabled for this service." });
     }
     if (!service.username) {
       return res.status(400).json({ error: "No cPanel username is linked to this service. Please contact support." });
@@ -918,7 +1009,8 @@ router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
   try {
     const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.clientId, req.user!.userId));
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    res.json(services.map(s => formatService(s, user ? `${user.firstName} ${user.lastName}` : "")));
+    const manageMap = await bulkCanManageHostingServices(services);
+    res.json(services.map(s => formatService(s, user ? `${user.firstName} ${user.lastName}` : "", manageMap.get(s.id))));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -934,7 +1026,8 @@ router.get("/client/hosting/:id", authenticate, async (req: AuthRequest, res) =>
       .limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
-    return res.json(formatService(service, user ? `${user.firstName} ${user.lastName}` : ""));
+    const manage = await canManageHostingService(service);
+    return res.json(formatService(service, user ? `${user.firstName} ${user.lastName}` : "", manage));
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
@@ -1284,6 +1377,8 @@ router.post("/client/hosting/:id/change-password", authenticate, async (req: Aut
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
+    const { canManage, manageLockReason } = await canManageHostingService(service);
+    if (!canManage) return res.status(403).json({ error: manageLockReason || "Management is currently disabled for this service." });
 
     let serverUpdated = false;
     if (service.serverId) {

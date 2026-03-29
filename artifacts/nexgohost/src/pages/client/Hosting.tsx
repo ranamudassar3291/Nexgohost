@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Server, Globe, Calendar, Settings, Cpu, Zap, ExternalLink, Loader2, Mail,
-  ChevronRight, Wifi, HardDrive, ShieldCheck, Sparkles, RefreshCw, Clock,
+  ChevronRight, Wifi, HardDrive, ShieldCheck, Sparkles, RefreshCw, Clock, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -20,6 +20,8 @@ interface HostingService {
   cancelRequested: boolean;
   diskSpace?: string;
   bandwidth?: string;
+  canManage: boolean;
+  manageLockReason: string | null;
 }
 
 interface HostingPlan {
@@ -199,32 +201,53 @@ export default function ClientHosting() {
             </div>
           )}
 
+          {/* Management lock banner */}
+          {!service.canManage && service.manageLockReason && (
+            <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-xl bg-red-500/8 border border-red-500/20 text-xs text-red-400">
+              <Lock size={11} className="shrink-0 mt-0.5" />
+              <span>{service.manageLockReason}</span>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setLocation(isVps ? `/client/vps/${service.id}` : `/client/hosting/${service.id}`)}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
-              style={{ background: BRAND_GRADIENT }}
-            >
-              {isVps ? <Cpu size={14} /> : <Settings size={14} />}
-              {isVps ? "Manage VPS" : "Manage Service"}
-              <ChevronRight size={13} />
-            </button>
+            {service.canManage ? (
+              <button
+                onClick={() => setLocation(isVps ? `/client/vps/${service.id}` : `/client/hosting/${service.id}`)}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
+                style={{ background: BRAND_GRADIENT }}
+              >
+                {isVps ? <Cpu size={14} /> : <Settings size={14} />}
+                {isVps ? "Manage VPS" : "Manage Service"}
+                <ChevronRight size={13} />
+              </button>
+            ) : (
+              <span
+                title={service.manageLockReason || "Management disabled"}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-muted-foreground shadow-sm cursor-not-allowed select-none bg-secondary/60 border border-border"
+              >
+                <Lock size={13} />
+                {isVps ? "Manage VPS" : "Manage Service"}
+                <ChevronRight size={13} />
+              </span>
+            )}
 
             {!isVps && isActive && (
               <>
                 <button
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-secondary/60 transition-colors text-foreground disabled:opacity-50"
-                  disabled={!!loading}
-                  onClick={() => handleQuickLogin(service.id, "cpanel")}
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-secondary/60 transition-colors text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={!!loading || !service.canManage}
+                  title={!service.canManage ? (service.manageLockReason || "Management disabled") : undefined}
+                  onClick={() => service.canManage && handleQuickLogin(service.id, "cpanel")}
                 >
-                  {loading === "cpanel" ? <Loader2 size={13} className="animate-spin" /> : <ExternalLink size={13} />}
+                  {loading === "cpanel" ? <Loader2 size={13} className="animate-spin" /> : !service.canManage ? <Lock size={13} /> : <ExternalLink size={13} />}
                   {loading === "cpanel" ? "Opening…" : "cPanel"}
                 </button>
                 <button
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-secondary/60 transition-colors text-foreground disabled:opacity-50"
-                  disabled={!!loading}
-                  onClick={() => handleQuickLogin(service.id, "webmail")}
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-secondary/60 transition-colors text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={!!loading || !service.canManage}
+                  title={!service.canManage ? (service.manageLockReason || "Management disabled") : undefined}
+                  onClick={() => service.canManage && handleQuickLogin(service.id, "webmail")}
                 >
                   {loading === "webmail" ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
                   {loading === "webmail" ? "Opening…" : "Webmail"}
