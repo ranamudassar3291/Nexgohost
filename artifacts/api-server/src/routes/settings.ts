@@ -124,8 +124,9 @@ router.post("/admin/settings/smtp/verify", authenticate, requireAdmin, async (re
     const transportOpts: any = {
       host, port,
       auth: { user, pass },
-      connectionTimeout: 10_000,
-      greetingTimeout:   10_000,
+      connectionTimeout: 15_000,
+      greetingTimeout:   15_000,
+      tls: { rejectUnauthorized: false },
     };
     if (encryption === "ssl")      { transportOpts.secure = true; }
     else if (encryption === "tls") { transportOpts.secure = false; transportOpts.requireTLS = true; }
@@ -167,6 +168,60 @@ router.post("/admin/settings/smtp/test", authenticate, requireAdmin, async (req:
       res.status(400).json({ success: false, message: result.message });
     }
   } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/test-mail?to=you@gmail.com — quick smoke test (admin JWT or system key)
+router.get("/test-mail", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clearSmtpCache, sendEmail } = await import("../lib/email.js");
+    clearSmtpCache();
+
+    const to = (req.query.to as string) || req.user?.email || "";
+    if (!to) {
+      res.status(400).json({ success: false, message: "Provide ?to=your@email.com in the query string" });
+      return;
+    }
+
+    console.log(`[TEST-MAIL] Sending test email to ${to}…`);
+    const result = await sendEmail({
+      to,
+      subject: "✅ Noehost SMTP Test — Connection Working",
+      html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:40px 16px;background:#f3f0ff;font-family:Inter,Arial,sans-serif">
+  <div style="max-width:480px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(103,58,183,.12);border:1px solid #ede9fe">
+    <div style="background:linear-gradient(135deg,#673ab7 0%,#9c27b0 100%);padding:32px;text-align:center">
+      <h1 style="margin:0;color:#fff;font-size:24px;font-weight:900;letter-spacing:-0.5px">Noehost</h1>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,.75);font-size:13px">SMTP Connection Test</p>
+    </div>
+    <div style="padding:32px">
+      <p style="font-size:16px;font-weight:700;color:#1a1a2e;margin:0 0 12px">✅ Your SMTP is working!</p>
+      <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 20px">
+        This test email confirms that your SMTP configuration is correct and emails will be delivered to your clients successfully.
+      </p>
+      <div style="background:#f3f0ff;border-radius:10px;padding:16px;font-size:12px;color:#673ab7;font-family:monospace">
+        Sent: ${new Date().toUTCString()}<br/>
+        To: ${to}
+      </div>
+    </div>
+    <div style="background:#f9f7ff;padding:16px 32px;text-align:center;border-top:1px solid #ede9fe">
+      <p style="margin:0;font-size:12px;color:#9ca3af">© ${new Date().getFullYear()} Noehost · All rights reserved</p>
+    </div>
+  </div>
+</body></html>`,
+      emailType: "test",
+    });
+
+    if (result.sent) {
+      console.log(`[TEST-MAIL] ✅ Success — delivered to ${to}`);
+      res.json({ success: true, message: `Test email delivered to ${to}` });
+    } else {
+      console.error(`[TEST-MAIL] ❌ Failed: ${result.message}`);
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (err: any) {
+    console.error("[TEST-MAIL] Exception:", err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });

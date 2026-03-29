@@ -105,9 +105,11 @@ function buildTransportOptions(cfg: SmtpConfig): nodemailer.TransportOptions {
     host: cfg.host,
     port: cfg.port,
     auth: { user: cfg.user, pass: cfg.pass },
-    connectionTimeout: 10_000,
-    greetingTimeout:   10_000,
-    socketTimeout:     10_000,
+    connectionTimeout: 15_000,
+    greetingTimeout:   15_000,
+    socketTimeout:     15_000,
+    // Required for Replit: bypass self-signed / intermediate SSL cert issues
+    tls: { rejectUnauthorized: false },
   } as any;
 
   if (cfg.encryption === "ssl") {
@@ -119,6 +121,7 @@ function buildTransportOptions(cfg: SmtpConfig): nodemailer.TransportOptions {
     base.secure = false;
   }
 
+  console.log(`[EMAIL] Transport: ${cfg.host}:${cfg.port} | enc=${cfg.encryption} | user=${cfg.user}`);
   return base;
 }
 
