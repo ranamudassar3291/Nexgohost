@@ -98,7 +98,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
       }
       const finalAmount = Math.max(0, domainPrice);
 
-      const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+      // Domain invoices: due date = 1 year from now (next renewal date)
+      const dueDate = new Date(); dueDate.setFullYear(dueDate.getFullYear() + 1);
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
       const invoiceNumber = `INV-${dateStr}-${rand}`;
@@ -316,7 +317,12 @@ async function handleCheckout(req: AuthRequest, res: any) {
         }
       }
 
-      const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+      // VPS invoice: due date = billing cycle from now (next renewal date)
+      const dueDate = new Date();
+      if (cycle === "yearly") dueDate.setFullYear(dueDate.getFullYear() + 1);
+      else if (cycle === "quarterly") dueDate.setMonth(dueDate.getMonth() + 3);
+      else if (cycle === "semiannual") dueDate.setMonth(dueDate.getMonth() + 6);
+      else dueDate.setMonth(dueDate.getMonth() + 1);
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
       const invoiceNumber = `INV-${dateStr}-${rand}`;
@@ -563,9 +569,12 @@ async function handleCheckout(req: AuthRequest, res: any) {
       freeDomainAvailable: shouldSetFreeDomainAvailable,
     }).returning();
 
-    // 3. Create invoice (due in 7 days)
+    // 3. Create invoice — due date = billing cycle from now (next renewal date)
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 7);
+    if (cycle === "yearly") dueDate.setFullYear(dueDate.getFullYear() + 1);
+    else if (cycle === "quarterly") dueDate.setMonth(dueDate.getMonth() + 3);
+    else if (cycle === "semiannual") dueDate.setMonth(dueDate.getMonth() + 6);
+    else dueDate.setMonth(dueDate.getMonth() + 1);
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
     const invoiceNumber = `INV-${dateStr}-${rand}`;
@@ -717,7 +726,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
               total: "0.00",
               status: "paid",
               paidDate: new Date(),
-              dueDate: new Date(),
+              dueDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
               items: [{ description: `Free Domain: ${domain} (bundle with ${plan.name})`, quantity: 1, unitPrice: 0, total: 0 }],
             }).returning();
             await db.update(ordersTable).set({ invoiceId: domInvoice.id, updatedAt: new Date() })
@@ -1063,8 +1072,9 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       notes: noteParts.join(", "),
     }).returning();
 
+    // Domain invoice: due date = registration period from now
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 7);
+    dueDate.setFullYear(dueDate.getFullYear() + registrationYears);
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
     const invoiceNumber = `INV-${dateStr}-${rand}`;

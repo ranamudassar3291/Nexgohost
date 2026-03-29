@@ -14,9 +14,19 @@ function isUnpaidStatus(status: string | null | undefined): boolean {
   return ["unpaid", "overdue"].includes(status ?? "");
 }
 
+// Helper: calculate next due date based on billing cycle
+function calcNextDueDate(billingCycle: string | null | undefined, from: Date = new Date()): Date {
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1);
+  else if (billingCycle === "quarterly") d.setMonth(d.getMonth() + 3);
+  else if (billingCycle === "semiannual") d.setMonth(d.getMonth() + 6);
+  else d.setMonth(d.getMonth() + 1); // monthly (default)
+  return d;
+}
+
 // Shared domain activation logic — used by mark-paid, approve, and zero-amount checkout
-// invoiceDueDate: the invoice's due date (service renewal date = domain expiry date for exact sync)
-async function activateDomainOrder(order: any, invoiceNumber?: string, invoiceDueDate?: Date | null): Promise<void> {
+async function activateDomainOrder(order: any, invoiceNumber?: string): Promise<void> {
   const fullDomain = (order.domain || order.itemName || "").toLowerCase().trim();
   const dotIdx = fullDomain.indexOf(".");
   const domainName = dotIdx > 0 ? fullDomain.substring(0, dotIdx) : fullDomain;
@@ -24,10 +34,9 @@ async function activateDomainOrder(order: any, invoiceNumber?: string, invoiceDu
   if (!domainName) return;
 
   const now = new Date();
-  // 365-Day Rule: use invoice due date as the master expiry for exact sync across domain + hosting + invoice
-  const expiryDate = (invoiceDueDate && !isNaN(new Date(invoiceDueDate).getTime()))
-    ? new Date(invoiceDueDate)
-    : (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })();
+  // Domain registrations always expire 1 year from activation date
+  const expiryDate = new Date(now);
+  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
 
   // Exact match — no LIKE/partial matching
   const [existing] = await db.select().from(domainsTable)
@@ -413,38 +422,50 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
           }
         }
       } else if (order?.type === "domain") {
-        // Domain Activation Module: pass invoice due date for exact 365-day expiry sync
-        await activateDomainOrder(order, updated.invoiceNumber, updated.dueDate ?? null);
+        await activateDomainOrder(order, updated.invoiceNumber);
       }
     } catch (e) { console.error("[PROVISION] mark-paid downstream error:", e); /* non-blocking */ }
 
-    // Renewal invoice (serviceId set, no orderId) — update service nextDueDate from payment date
+    // Update invoice dueDate to billing-cycle-based renewal date after payment
     try {
-      if (updated.serviceId && !updated.orderId) {
+      const paidDate = new Date();
+      let newDueDate: Date | null = null;
+
+      if (updated.orderId) {
+        const [order] = await db.select({ type: ordersTable.type, billingCycle: ordersTable.billingCycle })
+          .from(ordersTable).where(eq(ordersTable.id, updated.orderId)).limit(1);
+        if (order) {
+          if (order.type === "domain" || order.type === "renewal") {
+            newDueDate = new Date(paidDate);
+            newDueDate.setFullYear(newDueDate.getFullYear() + 1);
+            newDueDate.setHours(0, 0, 0, 0);
+          } else if (order.type === "hosting") {
+            newDueDate = calcNextDueDate(order.billingCycle, paidDate);
+          }
+        }
+      } else if (updated.serviceId) {
+        // Renewal invoice — update service nextDueDate and sync invoice dueDate
         const [svc] = await db.select({
           id: hostingServicesTable.id,
           billingCycle: hostingServicesTable.billingCycle,
         }).from(hostingServicesTable)
           .where(eq(hostingServicesTable.id, updated.serviceId)).limit(1);
-
         if (svc) {
-          const paidDate = new Date();
-          const newNextDueDate = new Date(paidDate);
-          if (svc.billingCycle === "yearly") {
-            newNextDueDate.setFullYear(newNextDueDate.getFullYear() + 1);
-          } else {
-            newNextDueDate.setMonth(newNextDueDate.getMonth() + 1);
-          }
-          newNextDueDate.setHours(0, 0, 0, 0);
-
+          newDueDate = calcNextDueDate(svc.billingCycle, paidDate);
           await db.update(hostingServicesTable)
-            .set({ nextDueDate: newNextDueDate, status: "active", updatedAt: new Date() })
+            .set({ nextDueDate: newDueDate, status: "active", updatedAt: new Date() })
             .where(eq(hostingServicesTable.id, svc.id));
-
-          console.log(`[RENEWAL] Service ${svc.id} next due updated to ${newNextDueDate.toISOString().slice(0, 10)}`);
+          console.log(`[RENEWAL] Service ${svc.id} next due updated to ${newDueDate.toISOString().slice(0, 10)}`);
         }
       }
-    } catch (e) { console.error("[RENEWAL] nextDueDate update error:", e); }
+
+      if (newDueDate) {
+        await db.update(invoicesTable)
+          .set({ dueDate: newDueDate, updatedAt: new Date() })
+          .where(eq(invoicesTable.id, updated.id));
+        console.log(`[INVOICE] ${updated.invoiceNumber} dueDate updated to ${newDueDate.toISOString().slice(0, 10)}`);
+      }
+    } catch (e) { console.error("[INVOICE] dueDate update error (non-fatal):", e); }
 
     // Auto-approve & credit affiliate commission when order invoice is paid
     try {
