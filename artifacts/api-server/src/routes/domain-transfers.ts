@@ -12,7 +12,7 @@ import {
   affiliateCommissionsTable,
   promoCodesTable,
 } from "@workspace/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, or, ilike } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
 import {
   emailDomainTransferInitiated,
@@ -696,6 +696,217 @@ router.put("/admin/domain-transfers/:id/reject", authenticate, requireRole("admi
     res.json({ transfer: updated });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Search clients (for Add Transfer form) ─────────────────────────────
+router.get("/admin/domain-transfers/users/search", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const q = String(req.query.q || "").trim();
+    if (!q) { res.json({ users: [] }); return; }
+    const users = await db.select({
+      id: usersTable.id,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      email: usersTable.email,
+    }).from(usersTable)
+      .where(
+        or(
+          ilike(usersTable.email, `%${q}%`),
+          ilike(usersTable.firstName, `%${q}%`),
+          ilike(usersTable.lastName, `%${q}%`),
+        )
+      )
+      .orderBy(usersTable.firstName)
+      .limit(20);
+    res.json({ users });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Admin: Create a transfer on behalf of a client ────────────────────────────
+router.post("/admin/domain-transfers", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const { clientId, domainName, epp } = req.body;
+    if (!clientId || !domainName || !epp) {
+      res.status(400).json({ error: "clientId, domainName and epp are required" });
+      return;
+    }
+
+    const domain = domainName.trim().toLowerCase();
+    if (!validateDomainFormat(domain)) {
+      res.status(400).json({ error: "Invalid domain name format" });
+      return;
+    }
+
+    const tld = extractTld(domain);
+    const name = extractName(domain);
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    if (!user) { res.status(404).json({ error: "Client not found" }); return; }
+
+    // Get transfer pricing (admin bypasses RDAP & strict EPP validation)
+    const pricing = await getTransferPricing(tld);
+    const transferPrice = pricing ? Number(pricing.transferPrice) : 0;
+
+    // Create Order
+    const [order] = await db.insert(ordersTable).values({
+      clientId,
+      type: "domain",
+      itemName: `${domain} - Domain Transfer (Admin Added)`,
+      amount: String(transferPrice),
+      status: "pending",
+      notes: `Admin-created domain transfer for ${domain}`,
+    }).returning();
+
+    // Create Invoice
+    const invoiceNumber = generateInvoiceNumber();
+    const dueDate = new Date();
+    dueDate.setFullYear(dueDate.getFullYear() + 1);
+    const [invoice] = await db.insert(invoicesTable).values({
+      invoiceNumber,
+      clientId,
+      orderId: order.id,
+      amount: String(transferPrice),
+      tax: "0",
+      total: String(transferPrice),
+      status: "unpaid",
+      dueDate,
+      items: [{
+        description: `${domain} - Domain Transfer (1 year)`,
+        quantity: 1,
+        unitPrice: transferPrice,
+        total: transferPrice,
+      }],
+    }).returning();
+
+    // Link invoice to order
+    await db.update(ordersTable).set({ invoiceId: invoice.id, updatedAt: new Date() })
+      .where(eq(ordersTable.id, order.id));
+
+    // Domain entry (pending_transfer)
+    const [domainEntry] = await db.insert(domainsTable).values({
+      clientId,
+      name,
+      tld: `.${tld}`,
+      registrar: "Transfer Pending",
+      status: "pending_transfer" as any,
+      lockStatus: "unknown",
+      autoRenew: true,
+      nameservers: [],
+    }).onConflictDoNothing().returning();
+
+    // Create transfer record
+    const [transfer] = await db.insert(domainTransfersTable).values({
+      clientId,
+      domainName: domain,
+      epp: epp.trim(),
+      status: "pending",
+      validationMessage: "Transfer manually added by admin.",
+      price: String(transferPrice),
+      orderId: order.id,
+      invoiceId: invoice.id,
+    }).returning();
+
+    // Link transfer to domain
+    if (domainEntry) {
+      await db.update(domainsTable)
+        .set({ transferId: transfer.id, updatedAt: new Date() })
+        .where(eq(domainsTable.id, domainEntry.id));
+    }
+
+    // Notify client
+    const clientName = `${user.firstName} ${user.lastName}`;
+    emailDomainTransferInitiated(user.email, {
+      clientName,
+      domain,
+      transferPrice: transferPrice.toFixed(2),
+      invoiceNumber,
+    }).catch(console.warn);
+
+    res.status(201).json({ transfer, order, invoice });
+  } catch (err) {
+    console.error("[ADMIN CREATE TRANSFER ERROR]", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
+// ── Admin: Generic status update (pending → processing → completed / rejected) ─
+router.put("/admin/domain-transfers/:id/status", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const { status, adminNotes, expiryDate } = req.body || {};
+    const allowed = ["pending", "validating", "approved", "completed", "rejected", "cancelled"];
+    if (!status || !allowed.includes(status)) {
+      res.status(400).json({ error: `Invalid status. Allowed: ${allowed.join(", ")}` });
+      return;
+    }
+
+    const [transfer] = await db.select().from(domainTransfersTable)
+      .where(eq(domainTransfersTable.id, req.params.id!)).limit(1);
+    if (!transfer) { res.status(404).json({ error: "Transfer not found" }); return; }
+
+    const [updated] = await db.update(domainTransfersTable)
+      .set({ status: status as any, adminNotes: adminNotes || transfer.adminNotes, updatedAt: new Date() })
+      .where(eq(domainTransfersTable.id, req.params.id!))
+      .returning();
+
+    const tld = extractTld(transfer.domainName);
+    const name = extractName(transfer.domainName);
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, transfer.clientId)).limit(1);
+    const clientName = user ? `${user.firstName} ${user.lastName}` : "Client";
+
+    // Status-specific domain table and email updates
+    if (status === "approved") {
+      const existing = await db.update(domainsTable)
+        .set({ status: "transferring" as any, registrar: "Transfer In Progress", updatedAt: new Date() })
+        .where(eq(domainsTable.transferId, transfer.id)).returning();
+      if (!existing.length) {
+        await db.insert(domainsTable).values({
+          clientId: transfer.clientId, name, tld: `.${tld}`,
+          status: "transferring" as any, registrar: "Transfer In Progress", transferId: transfer.id,
+        }).onConflictDoNothing();
+      }
+      if (user) emailDomainTransferApproved(user.email, {
+        clientName, domain: transfer.domainName, adminNotes: adminNotes || undefined,
+      }).catch(console.warn);
+
+    } else if (status === "completed") {
+      const expiry = expiryDate ? new Date(expiryDate) : (() => {
+        const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d;
+      })();
+      const existing = await db.update(domainsTable)
+        .set({ status: "active", registrar: "Noehost", expiryDate: expiry, nextDueDate: expiry, updatedAt: new Date() })
+        .where(eq(domainsTable.transferId, transfer.id)).returning();
+      if (!existing.length) {
+        await db.insert(domainsTable).values({
+          clientId: transfer.clientId, name, tld: `.${tld}`,
+          status: "active", registrar: "Noehost", expiryDate: expiry, nextDueDate: expiry, transferId: transfer.id,
+        }).onConflictDoNothing();
+      }
+      if (transfer.orderId) {
+        await db.update(ordersTable).set({ status: "completed", updatedAt: new Date() } as any)
+          .where(eq(ordersTable.id, transfer.orderId));
+      }
+      if (user) emailDomainTransferCompleted(user.email, {
+        clientName, domain: transfer.domainName,
+        expiryDate: expiry.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
+      }).catch(console.warn);
+
+    } else if (status === "rejected") {
+      await db.update(domainsTable)
+        .set({ status: "cancelled" as any, updatedAt: new Date() })
+        .where(eq(domainsTable.transferId, transfer.id));
+      if (user) emailDomainTransferRejected(user.email, {
+        clientName, domain: transfer.domainName, reason: adminNotes || undefined,
+      }).catch(console.warn);
+    }
+
+    res.json({ transfer: updated });
+  } catch (err) {
+    console.error("[ADMIN STATUS UPDATE ERROR]", err);
     res.status(500).json({ error: "Server error" });
   }
 });
