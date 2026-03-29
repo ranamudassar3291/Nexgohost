@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";

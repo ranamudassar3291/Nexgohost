@@ -457,4 +457,112 @@ router.get("/admin/servers/:id/api-server-ip", authenticate, requireAdmin, async
   }
 });
 
+// ─── POST /admin/servers/:id/verify ───────────────────────────────────────────
+// Calls WHM /json-api/listaccts to confirm credentials work, then fetches server
+// disk / hostname / IP info via /json-api/gethostinginfoapi.
+// On success, marks server status = 'active' in DB.
+router.post("/admin/servers/:id/verify", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [server] = await db.select().from(serversTable).where(eq(serversTable.id, req.params.id)).limit(1);
+    if (!server) return res.status(404).json({ error: "Server not found" });
+    if (!server.apiToken) return res.status(400).json({ error: "No API token — save a token first" });
+
+    const port = server.apiPort || 2087;
+    const authUser = server.apiUsername || "root";
+    const authHeader = `whm ${authUser}:${server.apiToken}`;
+    const base = `https://${server.hostname}:${port}`;
+
+    // ── Step 1: listaccts — proves credentials work ──────────────────────────
+    let accounts: { user: string; domain: string }[] = [];
+    try {
+      const data: any = await whmGet(`${base}/json-api/listaccts?api.version=1`, authHeader, 15000);
+      const accts: any[] = data?.data?.acct ?? data?.acct ?? [];
+      accounts = accts.map((a: any) => ({ user: a.user || a.login, domain: a.domain }));
+    } catch (err: any) {
+      return res.status(400).json({ success: false, connected: false, error: err.message });
+    }
+
+    // ── Step 2: gethostinginfoapi — disk + hostname ──────────────────────────
+    let diskUsedMB = 0;
+    let diskFreeMB = 0;
+    let diskTotalMB = 0;
+    let resolvedHostname = server.hostname;
+    let resolvedIp = server.ipAddress || "";
+
+    try {
+      const info: any = await whmGet(`${base}/json-api/gethostinginfoapi?api.version=1`, authHeader, 10000);
+      const d = info?.data ?? info;
+
+      // Hostname
+      if (d?.hostname) resolvedHostname = d.hostname;
+
+      // Disk: WHM returns bytes or blocks (1 block = 1024 bytes on most systems)
+      const rawUsed  = Number(d?.diskused  ?? d?.disk_used  ?? 0);
+      const rawFree  = Number(d?.diskfree  ?? d?.disk_free  ?? 0);
+      const rawTotal = Number(d?.disktotal ?? d?.disk_total ?? 0);
+
+      // Values > 1_000_000 are likely bytes; smaller values are likely MB already
+      const toMB = (v: number) => v > 1_048_576 ? Math.round(v / 1024 / 1024) : Math.round(v);
+      diskUsedMB  = toMB(rawUsed);
+      diskFreeMB  = toMB(rawFree);
+      diskTotalMB = toMB(rawTotal) || diskUsedMB + diskFreeMB;
+    } catch { /* non-critical — ignore */ }
+
+    // ── Step 3: Resolve IP from hostname if not stored ───────────────────────
+    if (!resolvedIp) {
+      try {
+        const { default: dns } = await import("node:dns/promises");
+        const addrs = await dns.lookup(resolvedHostname, { family: 4 });
+        resolvedIp = addrs.address;
+      } catch { /* ignore */ }
+    }
+
+    // ── Step 4: Update server in DB — mark active, store resolved IP/hostname ─
+    await db.update(serversTable).set({
+      status: "active",
+      ...(resolvedIp && !server.ipAddress ? { ipAddress: resolvedIp } : {}),
+      updatedAt: new Date(),
+    }).where(eq(serversTable.id, server.id));
+
+    console.log(`[VERIFY] Server ${server.hostname}: connected, ${accounts.length} accounts, disk ${diskUsedMB}/${diskTotalMB} MB`);
+
+    res.json({
+      success: true,
+      connected: true,
+      hostname: resolvedHostname,
+      ipAddress: resolvedIp,
+      accountCount: accounts.length,
+      accounts: accounts.slice(0, 20),  // first 20 only
+      diskUsedMB,
+      diskFreeMB,
+      diskTotalMB,
+      message: `Connected — ${accounts.length} account(s) on ${resolvedHostname}`,
+    });
+  } catch (err: any) {
+    console.error("[VERIFY] error:", err.message);
+    res.status(500).json({ success: false, connected: false, error: err.message });
+  }
+});
+
+// ─── POST /admin/servers/:id/reset-credentials ────────────────────────────────
+// Clears the stored API token and marks the server inactive so a fresh token
+// can be entered without stale-credential conflicts.
+router.post("/admin/servers/:id/reset-credentials", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [server] = await db.select().from(serversTable).where(eq(serversTable.id, req.params.id)).limit(1);
+    if (!server) return res.status(404).json({ error: "Server not found" });
+
+    await db.update(serversTable).set({
+      apiToken: null,
+      status: "inactive",
+      updatedAt: new Date(),
+    }).where(eq(serversTable.id, server.id));
+
+    console.log(`[RESET] Cleared API token for server ${server.name} (${server.hostname})`);
+    res.json({ success: true, message: "Credentials cleared. Enter a new API token and save." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
