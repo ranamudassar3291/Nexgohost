@@ -16,8 +16,8 @@ export interface TaxInfo {
  * Countries listed as 0 are either tax-free or outside tax scope.
  */
 const TAX_RATES: Record<string, { rate: number; label: string }> = {
-  // Pakistan — GST 17% on services/digital
-  PK:  { rate: 0.17, label: "GST" },
+  // Pakistan — Tax-exempt for local clients (base price only, no GST)
+  PK:  { rate: 0,    label: "GST" },
   // EU Countries — VAT (approximate standard rates)
   DE:  { rate: 0.19, label: "VAT" },
   FR:  { rate: 0.20, label: "VAT" },

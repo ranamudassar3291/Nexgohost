@@ -88,15 +88,8 @@ export async function runBillingCron(): Promise<void> {
       if (!user) continue;
 
       const invoiceNumber = await generateInvoiceNumber();
-      const dueDate = new Date(today);
-      dueDate.setDate(dueDate.getDate() + 7);
-
-      const nextDueDate = new Date(service.nextDueDate || today);
-      if (service.billingCycle === "yearly") {
-        nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-      } else {
-        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-      }
+      // Due date = the actual service due date (not arbitrary today+7)
+      const dueDate = new Date(service.nextDueDate || today);
 
       // Use actual plan price; fall back to "0.00" only if no plan found
       const amount = service.billingCycle === "yearly"
@@ -115,9 +108,9 @@ export async function runBillingCron(): Promise<void> {
         items: [{ description: `${service.planName} - Renewal`, amount }],
       });
 
-      await db.update(hostingServicesTable)
-        .set({ nextDueDate, updatedAt: new Date() })
-        .where(eq(hostingServicesTable.id, service.id));
+      // NOTE: nextDueDate is NOT updated here — it is updated when the renewal
+      // invoice is actually paid (see activateInvoice.ts), so the new due date
+      // is always anchored to the real payment date.
 
       await logEmail(service.clientId, user.email, "invoice_generated", `Invoice ${invoiceNumber} – Service Renewal`, service.id);
       notify(service.clientId, "invoice", "Invoice Generated", `Invoice ${invoiceNumber} for ${service.planName} renewal — Rs. ${amount}`, `/client/invoices`).catch(() => {});

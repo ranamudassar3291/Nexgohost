@@ -418,6 +418,34 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
       }
     } catch (e) { console.error("[PROVISION] mark-paid downstream error:", e); /* non-blocking */ }
 
+    // Renewal invoice (serviceId set, no orderId) — update service nextDueDate from payment date
+    try {
+      if (updated.serviceId && !updated.orderId) {
+        const [svc] = await db.select({
+          id: hostingServicesTable.id,
+          billingCycle: hostingServicesTable.billingCycle,
+        }).from(hostingServicesTable)
+          .where(eq(hostingServicesTable.id, updated.serviceId)).limit(1);
+
+        if (svc) {
+          const paidDate = new Date();
+          const newNextDueDate = new Date(paidDate);
+          if (svc.billingCycle === "yearly") {
+            newNextDueDate.setFullYear(newNextDueDate.getFullYear() + 1);
+          } else {
+            newNextDueDate.setMonth(newNextDueDate.getMonth() + 1);
+          }
+          newNextDueDate.setHours(0, 0, 0, 0);
+
+          await db.update(hostingServicesTable)
+            .set({ nextDueDate: newNextDueDate, status: "active", updatedAt: new Date() })
+            .where(eq(hostingServicesTable.id, svc.id));
+
+          console.log(`[RENEWAL] Service ${svc.id} next due updated to ${newNextDueDate.toISOString().slice(0, 10)}`);
+        }
+      }
+    } catch (e) { console.error("[RENEWAL] nextDueDate update error:", e); }
+
     // Auto-approve & credit affiliate commission when order invoice is paid
     try {
       if (updated.orderId) {

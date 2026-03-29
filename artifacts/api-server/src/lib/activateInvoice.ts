@@ -192,6 +192,36 @@ export async function processInvoicePaid(
       }
     } catch (e) { console.error("[ACTIVATE] provision error (non-fatal):", e); }
 
+    // 5b. Renewal invoice (serviceId set, no orderId) — update service nextDueDate
+    //     anchored to the actual payment date so due dates stay consistent.
+    try {
+      if (updated.serviceId && !updated.orderId) {
+        const [svc] = await db.select({
+          id: hostingServicesTable.id,
+          billingCycle: hostingServicesTable.billingCycle,
+          nextDueDate: hostingServicesTable.nextDueDate,
+        }).from(hostingServicesTable)
+          .where(eq(hostingServicesTable.id, updated.serviceId)).limit(1);
+
+        if (svc) {
+          const paidDate = new Date();
+          const newNextDueDate = new Date(paidDate);
+          if (svc.billingCycle === "yearly") {
+            newNextDueDate.setFullYear(newNextDueDate.getFullYear() + 1);
+          } else {
+            newNextDueDate.setMonth(newNextDueDate.getMonth() + 1);
+          }
+          newNextDueDate.setHours(0, 0, 0, 0);
+
+          await db.update(hostingServicesTable)
+            .set({ nextDueDate: newNextDueDate, status: "active", updatedAt: new Date() })
+            .where(eq(hostingServicesTable.id, svc.id));
+
+          console.log(`[ACTIVATE] Service ${svc.id} renewed — next due: ${newNextDueDate.toISOString().slice(0, 10)}`);
+        }
+      }
+    } catch (e) { console.error("[ACTIVATE] renewal nextDueDate update error (non-fatal):", e); }
+
     // 6. Auto-credit affiliate commission
     try {
       if (updated.orderId) {
