@@ -26,8 +26,8 @@ import { eq } from "drizzle-orm";
  */
 function renderTemplate(template: string, vars: Record<string, string>): string {
   return template
-    .replace(/\{\{([a-z_]+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
-    .replace(/\{([a-z_]+)\}/g,     (_, key) => vars[key] ?? `{${key}}`);
+    .replace(/\{\{([a-z0-9_]+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
+    .replace(/\{([a-z0-9_]+)\}/g,     (_, key) => vars[key] ?? `{${key}}`);
 }
 
 /** Strip HTML tags for plain-text fallback */
