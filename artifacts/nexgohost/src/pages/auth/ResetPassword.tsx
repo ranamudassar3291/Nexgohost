@@ -52,7 +52,7 @@ export default function ResetPassword() {
   };
 
   const inputCls = (field?: "password" | "confirm") =>
-    `w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-white pr-11 ${
+    `w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5] bg-white pr-11 ${
       field && fieldErrs[field] ? "border-red-400 bg-red-50" : "border-gray-200"
     }`;
 
@@ -62,7 +62,7 @@ export default function ResetPassword() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-[#701AFE] flex items-center justify-center mb-3 shadow-lg shadow-[#701AFE]/30">
+          <div className="w-12 h-12 rounded-2xl bg-[#4F46E5] flex items-center justify-center mb-3 shadow-lg shadow-[#4F46E5]/30">
             <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-7 h-7" />
           </div>
         </div>
@@ -73,8 +73,8 @@ export default function ResetPassword() {
             {/* ── Reset form ── */}
             {!done && (
               <motion.div key="form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#701AFE]/10 mb-5">
-                  <LockKeyhole size={22} className="text-[#701AFE]" />
+                <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#4F46E5]/10 mb-5">
+                  <LockKeyhole size={22} className="text-[#4F46E5]" />
                 </div>
                 <h1 className="text-2xl font-bold text-black mb-1">Set new password</h1>
                 <p className="text-gray-500 text-sm mb-6">
@@ -140,7 +140,7 @@ export default function ResetPassword() {
                   <button
                     type="submit"
                     disabled={loading || !token}
-                    className="w-full h-11 mt-1 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#701AFE]/25"
+                    className="w-full h-11 mt-1 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#4F46E5]/25"
                   >
                     {loading ? (
                       <><Loader2 size={17} className="animate-spin" /><span>Updating…</span></>
@@ -151,7 +151,7 @@ export default function ResetPassword() {
                 </form>
 
                 <div className="mt-5 text-center">
-                  <a href="/forgot-password" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#701AFE] transition-colors">
+                  <a href="/forgot-password" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#4F46E5] transition-colors">
                     <ArrowLeft size={14} /> Request a new link
                   </a>
                 </div>
@@ -170,7 +170,7 @@ export default function ResetPassword() {
                 </p>
                 <a
                   href="/client/login"
-                  className="inline-flex items-center justify-center w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors gap-2 shadow-md shadow-[#701AFE]/25"
+                  className="inline-flex items-center justify-center w-full h-11 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors gap-2 shadow-md shadow-[#4F46E5]/25"
                 >
                   Sign in to your account
                 </a>

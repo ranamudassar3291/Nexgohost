@@ -45,7 +45,7 @@ async function apiFetch(url: string, opts: RequestInit = {}) {
   return res.json();
 }
 
-const BRAND_GRADIENT = "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)";
+const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
 
 const statusConfig: Record<string, { dot: string; badge: string; label: string; pulse: boolean }> = {
   active:    { dot: "bg-green-400",  badge: "bg-green-500/15 text-green-400 border-green-500/25",  label: "Active",    pulse: true  },
@@ -117,8 +117,8 @@ export default function ClientHosting() {
         animate={{ opacity: 1, y: 0 }}
         className="relative rounded-2xl border overflow-hidden transition-all hover:shadow-lg hover:shadow-primary/5"
         style={{
-          background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 50%, rgba(var(--card)) 100%)",
-          borderColor: isActive ? "rgba(112,26,254,0.18)" : "rgba(var(--border))",
+          background: "white",
+          borderColor: isActive ? "rgba(79,70,229,0.2)" : undefined,
         }}
       >
         {/* Top accent line for active services */}
@@ -131,15 +131,14 @@ export default function ClientHosting() {
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
               {/* Plan icon */}
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-                style={{ background: isVps ? "linear-gradient(135deg, #701AFE25 0%, #9B59FE20 100%)" : "rgba(112,26,254,0.1)" }}>
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-primary/10">
                 {isVps ? <Cpu size={20} className="text-primary" /> : <Server size={20} className="text-primary" />}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-foreground">{service.planName}</span>
                   {isVps && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-0.5">
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-primary/10 text-primary border border-primary/20 flex items-center gap-0.5">
                       <Zap size={8} /> VPS
                     </span>
                   )}
@@ -318,8 +317,8 @@ export default function ClientHosting() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.07 }}
-                    className={`relative rounded-2xl border p-5 flex flex-col gap-3 ${i === 1 ? "border-primary/40 shadow-lg shadow-primary/10" : "border-border"}`}
-                    style={i === 1 ? { background: "linear-gradient(135deg, rgba(112,26,254,0.05) 0%, rgba(155,81,224,0.03) 100%)" } : {}}
+                    className={`relative rounded-2xl border p-5 flex flex-col gap-3 ${i === 1 ? "border-primary/30 shadow-md" : "border-border"}`}
+                    style={i === 1 ? { background: "rgba(79,70,229,0.03)" } : {}}
                   >
                     {i === 1 && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold text-white shadow"

@@ -553,7 +553,7 @@ export default function HelpCenterArticle() {
             {feedbackState === "idle" ? (
               <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-violet-500/5 p-6">
                 <div className="flex items-start gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
+                  <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
                     <Sparkles className="w-5 h-5 text-white" />
                   </div>
                   <div>

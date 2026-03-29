@@ -12,7 +12,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrency } from "@/context/CurrencyProvider";
 
-const P = "#701AFE";
+const P = "#4F46E5";
 
 interface VpsService {
   id: string; planId: string; planName: string; domain: string | null;

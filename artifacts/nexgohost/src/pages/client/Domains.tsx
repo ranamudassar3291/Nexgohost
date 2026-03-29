@@ -516,7 +516,7 @@ export default function ClientDomains() {
           </button>
           <button
             onClick={() => { setActiveTab("order"); setOrderView("search"); setTimeout(() => inputRef.current?.focus(), 100); }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium text-sm shadow-lg shadow-primary/20 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium text-sm shadow-sm transition-colors"
           >
             <Globe size={16} /> Order New Domain
           </button>
@@ -560,9 +560,9 @@ export default function ClientDomains() {
               {tldPricing.some(t => t.tld === ".com") && (
                 <div className="relative overflow-hidden rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 border border-primary/25"
                   style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.10) 0%, rgba(155,81,224,0.06) 100%)" }}>
-                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #9B51E0 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #6366F1 1px, transparent 0)", backgroundSize: "24px 24px" }} />
                   <div className="flex items-center gap-3 relative">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                       <Tag size={15} className="text-white" />
                     </div>
                     <div>
@@ -686,7 +686,7 @@ export default function ClientDomains() {
                                           onClick={() => addToCart(result)}
                                           disabled={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
                                           className="ml-auto h-7 px-3 rounded-lg text-xs font-bold text-white disabled:opacity-50"
-                                          style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
+                                          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
                                         >
                                           {cart.some(c => c.name === searchData.name && c.tld === result.tld) ? "Added ✓" : "+ Add"}
                                         </button>
@@ -779,7 +779,7 @@ export default function ClientDomains() {
                 style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.03) 100%)" }}>
                 <div className="px-5 py-3.5 flex items-center justify-between border-b border-primary/10">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                       <Globe size={13} className="text-white" />
                     </div>
                     <div>
@@ -790,7 +790,7 @@ export default function ClientDomains() {
                   <div className="flex items-center gap-2">
                     <div className="w-28 h-2 bg-border rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%`, background: "linear-gradient(90deg, #701AFE, #9B51E0)" }} />
+                        style={{ width: `${pct}%`, background: "linear-gradient(90deg, #4F46E5, #6366F1)" }} />
                     </div>
                     <span className="text-xs font-bold text-primary">{pct}%</span>
                   </div>
@@ -807,7 +807,7 @@ export default function ClientDomains() {
                         {step.cta && (
                           <button onClick={() => navigate("/client/orders/new")}
                             className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-white"
-                            style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                            style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                             Buy Now →
                           </button>
                         )}
@@ -888,7 +888,7 @@ export default function ClientDomains() {
                             <button
                               onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
                               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
-                              style={{ background: 'linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)' }}
+                              style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)' }}
                             >
                               Manage <ChevronRight size={14} />
                             </button>
@@ -923,7 +923,7 @@ export default function ClientDomains() {
                             key={p}
                             onClick={() => setPortfolioPage(p)}
                             className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
-                            style={p === page ? { background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" } : {}}
+                            style={p === page ? { background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" } : {}}
                           >
                             {p}
                           </button>
@@ -1113,7 +1113,7 @@ export default function ClientDomains() {
                             {step.cta && (
                               <button onClick={() => { setManageDomainModal(null); navigate("/client/orders/new"); }}
                                 className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white shrink-0"
-                                style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                                style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                                 Buy Now →
                               </button>
                             )}
@@ -1208,7 +1208,7 @@ export default function ClientDomains() {
                       {(mdDaysLeft === null || mdDaysLeft < 60) && (
                         <button onClick={() => handleRenewDomain(md)} disabled={renewLoading}
                           className="mt-3 px-4 py-1.5 rounded-lg text-xs font-bold text-white"
-                          style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                          style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                           {renewLoading ? "Processing…" : "Renew Now →"}
                         </button>
                       )}
@@ -1509,7 +1509,7 @@ function CartDrawer({ cart, onClose, onRemove, onUpdatePeriod, onReview, total }
           <Button
             onClick={onReview}
             disabled={cart.length === 0}
-            className="w-full bg-primary hover:bg-primary/90 text-white h-12 font-bold text-base gap-2 shadow-lg shadow-primary/20"
+            className="w-full bg-primary hover:bg-primary/90 text-white h-12 font-bold text-base gap-2 shadow-sm"
           >
             <ClipboardList size={18} /> Review Order
           </Button>
@@ -1850,7 +1850,7 @@ function ReviewStep({ cart, onBack, onUpdatePeriod, onRemove, onPlaceOrder, isLo
           <Button
             onClick={() => onPlaceOrder(promoCode, paymentMethodId)}
             disabled={isLoading || cart.length === 0}
-            className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold text-base gap-2 shadow-lg shadow-primary/20"
+            className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold text-base gap-2 shadow-sm"
           >
             {isLoading ? (
               <><Loader2 className="animate-spin" size={18} /> Placing Order…</>

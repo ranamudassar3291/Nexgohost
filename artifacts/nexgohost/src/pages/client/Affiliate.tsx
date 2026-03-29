@@ -178,14 +178,14 @@ export default function Affiliate() {
       <stop offset="100%" style="stop-color:#1A1040"/>
     </linearGradient>
     <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#701AFE"/>
+      <stop offset="0%" style="stop-color:#4F46E5"/>
       <stop offset="100%" style="stop-color:#9B51F5"/>
     </linearGradient>
   </defs>
   <rect width="${width}" height="${height}" fill="url(#bg)" rx="8"/>
   <rect x="0" y="${height - 4}" width="${width}" height="4" fill="url(#accent)" rx="0"/>
   <text x="${width / 2}" y="${height * 0.38}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(14, Math.round(height * 0.18))}px" font-weight="800" fill="#FFFFFF" text-anchor="middle">⚡ Web Hosting from</text>
-  <text x="${width / 2}" y="${height * 0.62}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(18, Math.round(height * 0.26))}px" font-weight="900" fill="#701AFE" text-anchor="middle">Rs. 999/yr</text>
+  <text x="${width / 2}" y="${height * 0.62}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(18, Math.round(height * 0.26))}px" font-weight="900" fill="#4F46E5" text-anchor="middle">Rs. 999/yr</text>
   <text x="${width / 2}" y="${height * 0.84}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(10, Math.round(height * 0.13))}px" fill="#9B8EC4" text-anchor="middle">noehost.com · Use code: ${affiliate.referralCode}</text>
 </svg>`;
     const blob = new Blob([svg], { type: "image/svg+xml" });
@@ -253,7 +253,7 @@ export default function Affiliate() {
           </div>
           <div className="flex gap-2">
             <Input value={referralUrl} readOnly className="font-mono text-sm bg-white" />
-            <Button onClick={copyLink} className="bg-[#701AFE] hover:bg-[#5e14d4] shrink-0">
+            <Button onClick={copyLink} className="bg-[#4F46E5] hover:bg-[#4338CA] shrink-0">
               <Copy className="h-4 w-4 mr-1" /> Copy
             </Button>
           </div>
@@ -321,7 +321,7 @@ export default function Affiliate() {
             </div>
             <span className="text-sm font-medium text-purple-700">{Math.round(progressPct)}%</span>
           </div>
-          <Progress value={progressPct} className="h-3 [&>div]:bg-[#701AFE]" />
+          <Progress value={progressPct} className="h-3 [&>div]:bg-[#4F46E5]" />
           <p className="text-xs text-gray-400 mt-2">
             {availableBalance >= threshold
               ? "You've reached the minimum payout threshold! You can withdraw now."
@@ -334,8 +334,8 @@ export default function Affiliate() {
       <Card className="border-purple-200 bg-gradient-to-br from-[#0D0D1F] to-[#1A1040] text-white overflow-hidden">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-[#701AFE]/20 border border-[#701AFE]/30">
-              <Share2 className="h-5 w-5 text-[#701AFE]" />
+            <div className="p-2 rounded-lg bg-[#4F46E5]/20 border border-[#4F46E5]/30">
+              <Share2 className="h-5 w-5 text-[#4F46E5]" />
             </div>
             <div>
               <CardTitle className="text-base text-white">Marketing Kit</CardTitle>
@@ -353,7 +353,7 @@ export default function Affiliate() {
               </div>
               <Button
                 onClick={copyLink}
-                className="bg-[#701AFE] hover:bg-[#5e14d4] text-white shrink-0 gap-1.5"
+                className="bg-[#4F46E5] hover:bg-[#4338CA] text-white shrink-0 gap-1.5"
               >
                 <Copy className="h-4 w-4" /> Copy Link
               </Button>
@@ -384,11 +384,11 @@ export default function Affiliate() {
                 <button
                   key={label}
                   onClick={() => downloadBanner(w, h, label)}
-                  className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-[#2A2A4A] bg-[#0A0A1A] hover:border-[#701AFE]/60 hover:bg-[#13132A] transition-all text-left group"
+                  className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-[#2A2A4A] bg-[#0A0A1A] hover:border-[#4F46E5]/60 hover:bg-[#13132A] transition-all text-left group"
                 >
                   <div className="flex items-center justify-between w-full">
                     <span className="text-xs font-semibold text-purple-200 group-hover:text-white transition-colors">{label}</span>
-                    <Download className="h-3.5 w-3.5 text-[#701AFE] opacity-70 group-hover:opacity-100" />
+                    <Download className="h-3.5 w-3.5 text-[#4F46E5] opacity-70 group-hover:opacity-100" />
                   </div>
                   <span className="text-[11px] text-purple-400">{desc}</span>
                 </button>
@@ -398,7 +398,7 @@ export default function Affiliate() {
           </div>
 
           {/* Motivational nudge */}
-          <div className="rounded-xl border border-[#701AFE]/30 bg-[#701AFE]/10 px-4 py-3 text-center">
+          <div className="rounded-xl border border-[#4F46E5]/30 bg-[#4F46E5]/10 px-4 py-3 text-center">
             <p className="text-sm font-semibold text-white">🚀 Share your link more to earn more!</p>
             <p className="text-xs text-purple-400 mt-1">Every paying referral puts money directly into your account.</p>
           </div>
@@ -530,7 +530,7 @@ export default function Affiliate() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Available balance: {formatPrice(availableBalance)}</p>
               </div>
-              <Button type="submit" disabled={walletLoading || availableBalance < 100} className="w-full bg-[#701AFE] hover:bg-[#5e14d4]">
+              <Button type="submit" disabled={walletLoading || availableBalance < 100} className="w-full bg-[#4F46E5] hover:bg-[#4338CA]">
                 {walletLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <ArrowUpRight className="h-4 w-4 mr-2" />}
                 Transfer to Wallet
               </Button>
@@ -565,7 +565,7 @@ export default function Affiliate() {
                     placeholder="Account number or IBAN" className="mt-1" />
                 </div>
               </div>
-              <Button type="submit" disabled={bankLoading || availableBalance < threshold} className="w-full bg-[#701AFE] hover:bg-[#5e14d4]">
+              <Button type="submit" disabled={bankLoading || availableBalance < threshold} className="w-full bg-[#4F46E5] hover:bg-[#4338CA]">
                 {bankLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Building2 className="h-4 w-4 mr-2" />}
                 Submit Withdrawal Request
               </Button>

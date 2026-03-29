@@ -10,7 +10,7 @@ const TOUR_KEY = "noehost_tour_v1";
 const STEPS = [
   {
     icon: Sparkles,
-    color: "#701AFE",
+    color: "#4F46E5",
     title: "Welcome to Noehost! 🎉",
     subtitle: "Your all-in-one hosting platform",
     body: "We're glad to have you. This quick tour will show you around the key areas of your control panel — it takes less than a minute.",
@@ -27,7 +27,7 @@ const STEPS = [
   },
   {
     icon: Server,
-    color: "#9B51E0",
+    color: "#6366F1",
     title: "Manage Your Hosting",
     subtitle: "My Services in the sidebar",
     body: "My Services shows all your active hosting plans. From there you can open cPanel, check resource usage (disk, bandwidth), install WordPress, and manage SSL.",
@@ -126,7 +126,7 @@ export function WelcomeTour({ onClose }: { onClose: () => void }) {
                 href={current.action.href}
                 onClick={dismiss}
                 className="flex items-center justify-center gap-2 h-11 w-full rounded-xl text-sm font-bold text-white shadow-lg"
-                style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)" }}
+                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)" }}
               >
                 <Rocket size={14} /> {current.action.label}
               </a>

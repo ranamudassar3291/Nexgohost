@@ -26,8 +26,8 @@ const PERMISSION_META: Record<AdminPermission, { label: string; description: str
   super_admin: {
     label: "Super Admin",
     description: "Full unrestricted access including admin user management",
-    color: "#701AFE",
-    bg: "#701AFE15",
+    color: "#4F46E5",
+    bg: "#4F46E515",
     icon: ShieldAlert,
   },
   full: {
@@ -420,7 +420,7 @@ export default function AdminUsers() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
-                            style={{ background: "#701AFE20", color: "#701AFE" }}>
+                            style={{ background: "#4F46E520", color: "#4F46E5" }}>
                             {admin.firstName[0]}{admin.lastName[0]}
                           </div>
                           <div>

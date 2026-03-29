@@ -108,7 +108,7 @@ interface VpsLocation { id: string; countryName: string; countryCode: string; fl
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const P        = "#701AFE";
+const P        = "#4F46E5";
 const PSHADOW  = `0 4px 20px rgba(112,26,254,0.28)`;
 const DOMAIN_KEY = "order_wizard_domain";
 
@@ -180,18 +180,18 @@ function StepBar({ active, labels }: { active: number; labels?: string[] }) {
             <div key={label} className="flex items-start">
               <div className="flex flex-col items-center w-[76px] sm:w-[90px]">
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                  done ? "bg-[#701AFE] text-white shadow-md" :
-                  cur  ? "bg-[#701AFE] text-white ring-4 ring-[#701AFE]/25 shadow-md" :
+                  done ? "bg-[#4F46E5] text-white shadow-md" :
+                  cur  ? "bg-[#4F46E5] text-white ring-4 ring-[#4F46E5]/25 shadow-md" :
                          "bg-gray-100 text-gray-400"
                 }`}>
                   {done ? <Check size={15} strokeWidth={2.5}/> : i + 1}
                 </div>
-                <span className={`mt-1.5 text-[11px] font-semibold text-center leading-tight ${cur ? "text-[#701AFE]" : done ? "text-gray-600" : "text-gray-400"}`}>
+                <span className={`mt-1.5 text-[11px] font-semibold text-center leading-tight ${cur ? "text-[#4F46E5]" : done ? "text-gray-600" : "text-gray-400"}`}>
                   {label}
                 </span>
               </div>
               {i < displayLabels.length - 1 && (
-                <div className={`w-10 sm:w-14 h-0.5 mt-[18px] shrink-0 transition-colors duration-500 ${done ? "bg-[#701AFE]" : "bg-gray-200"}`}/>
+                <div className={`w-10 sm:w-14 h-0.5 mt-[18px] shrink-0 transition-colors duration-500 ${done ? "bg-[#4F46E5]" : "bg-gray-200"}`}/>
               )}
             </div>
           );
@@ -608,11 +608,11 @@ function VpsGroupSection({ onSelectVps }: { onSelectVps: () => void }) {
                       <button
                         key={plan.id}
                         onClick={onSelectVps}
-                        className="text-left p-4 rounded-xl border border-gray-200 hover:border-[#701AFE] hover:shadow-md transition-all duration-200 group"
+                        className="text-left p-4 rounded-xl border border-gray-200 hover:border-[#4F46E5] hover:shadow-md transition-all duration-200 group"
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <p className="text-[14px] font-bold text-gray-900 group-hover:text-[#701AFE] transition-colors">{plan.name}</p>
+                            <p className="text-[14px] font-bold text-gray-900 group-hover:text-[#4F46E5] transition-colors">{plan.name}</p>
                             {plan.description && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{plan.description}</p>}
                           </div>
                         </div>
@@ -1307,7 +1307,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                   )}
 
                   {/* Header */}
-                  <div className={`px-5 pt-7 pb-4 ${isSel ? "border-b border-[#701AFE]/15" : "border-b border-gray-100"}`}>
+                  <div className={`px-5 pt-7 pb-4 ${isSel ? "border-b border-[#4F46E5]/15" : "border-b border-gray-100"}`}>
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <h3 className="text-[15px] font-bold text-gray-900">{plan.name}</h3>
                       {isRec && !isSel && <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: P }}>Best Value</span>}
@@ -1509,7 +1509,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             {[...domResults].filter(r => r.registrationPrice > 0 && (r.showInSuggestions === true || r.tld === domTypedTld)).sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)).slice(0, 10).map(r => (
               <div key={r.tld}
                 className={`flex items-center gap-3 justify-between px-4 py-3.5 bg-white rounded-xl border transition-all ${
-                  r.available ? "border-gray-200 hover:border-[#701AFE]/30" : "border-gray-100 opacity-50"
+                  r.available ? "border-gray-200 hover:border-[#4F46E5]/30" : "border-gray-100 opacity-50"
                 }`}>
                 <div className="flex items-center gap-0.5 flex-1 min-w-0">
                   <span className="text-[15px] font-bold text-gray-900">{searched}</span>
@@ -2454,7 +2454,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                         <div key={r.tld}
                           className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
                             r.available
-                              ? isFreeExt ? "border-green-200 hover:border-green-400" : "border-gray-200 hover:border-[#701AFE]/30"
+                              ? isFreeExt ? "border-green-200 hover:border-green-400" : "border-gray-200 hover:border-[#4F46E5]/30"
                               : "opacity-45 border-gray-100"
                           }`}>
                           <div className="flex items-center gap-0.5 flex-1 min-w-0">

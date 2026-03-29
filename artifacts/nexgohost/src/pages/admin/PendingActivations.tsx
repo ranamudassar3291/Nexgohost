@@ -12,8 +12,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-const BRAND = "#701AFE";
-const BRAND_GRADIENT = "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)";
+const BRAND = "#4F46E5";
+const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)";
 
 async function apiFetch(url: string, opts: RequestInit = {}) {
   const token = localStorage.getItem("token");

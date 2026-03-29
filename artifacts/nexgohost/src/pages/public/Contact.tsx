@@ -6,7 +6,7 @@ const EMAIL     = "support@noehost.com";
 const BILLING   = "billing@noehost.com";
 const WA_NUM    = "923151711821";
 const WA_URL    = `https://wa.me/${WA_NUM}`;
-const BRAND     = "#701AFE";
+const BRAND     = "#4F46E5";
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });

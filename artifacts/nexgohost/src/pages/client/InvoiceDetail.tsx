@@ -34,7 +34,7 @@ interface PaymentMethod {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BRAND = "#701AFE";
+const BRAND = "#4F46E5";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; bgClass: string; textClass: string; borderClass: string }> = {
   paid:            { label: "Paid",            icon: CheckCircle, bgClass: "bg-emerald-50",  textClass: "text-emerald-700",  borderClass: "border-emerald-300" },
@@ -68,18 +68,18 @@ function PaymentInstructions({ method }: { method: PaymentMethod }) {
     <div className="space-y-2">
       {/* Receiver name + number — always bold and prominent */}
       {(s.accountTitle || s.mobileNumber || s.accountNumber) && (
-        <div className="rounded-lg bg-[#701AFE]/5 border border-[#701AFE]/20 p-3 space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#701AFE]/70">
+        <div className="rounded-lg bg-[#4F46E5]/5 border border-[#4F46E5]/20 p-3 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#4F46E5]/70">
             {isWallet ? "Send Payment To" : "Transfer To"}
           </p>
           {s.accountTitle && (
             <p className="text-sm font-extrabold text-slate-900">{s.accountTitle}</p>
           )}
           {s.mobileNumber && (
-            <p className="text-base font-black text-[#701AFE] tracking-wide">{s.mobileNumber}</p>
+            <p className="text-base font-black text-[#4F46E5] tracking-wide">{s.mobileNumber}</p>
           )}
           {s.accountNumber && !s.mobileNumber && (
-            <p className="text-base font-black text-[#701AFE] tracking-wide">{s.accountNumber}</p>
+            <p className="text-base font-black text-[#4F46E5] tracking-wide">{s.accountNumber}</p>
           )}
           {s.bankName && (
             <p className="text-xs text-slate-500">{s.bankName}</p>
@@ -319,7 +319,7 @@ export default function InvoiceDetail() {
           <Button
             variant="outline" size="sm"
             onClick={handleDownloadPdf} disabled={downloading}
-            className="gap-2 border-[#701AFE]/30 text-[#701AFE] hover:bg-[#701AFE]/5"
+            className="gap-2 border-[#4F46E5]/30 text-[#4F46E5] hover:bg-[#4F46E5]/5"
           >
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
             {downloading ? "Generating…" : "Download PDF"}
@@ -520,8 +520,8 @@ export default function InvoiceDetail() {
                   onClick={() => setSelectedGateway(mobileWalletMethods[0].id)}
                   className={`flex items-center gap-3 rounded-xl border-2 px-5 py-4 transition-all cursor-pointer ${
                     mobileWalletMethods.some(m => m.id === selectedGateway)
-                      ? "border-[#701AFE] bg-[#701AFE]/5"
-                      : "border-slate-200 bg-white hover:border-[#701AFE]/50"
+                      ? "border-[#4F46E5] bg-[#4F46E5]/5"
+                      : "border-slate-200 bg-white hover:border-[#4F46E5]/50"
                   }`}
                 >
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xl" style={{ background: "rgba(112,26,254,0.08)" }}>
@@ -545,7 +545,7 @@ export default function InvoiceDetail() {
                       key={pm.id}
                       onClick={() => setSelectedGateway(selectedGateway === pm.id ? "" : pm.id)}
                       className={`bg-white border-2 rounded-xl p-4 cursor-pointer transition-all ${
-                        selectedGateway === pm.id ? "border-[#701AFE] shadow-md shadow-[#701AFE]/10" : "border-slate-200 hover:border-[#701AFE]/40"
+                        selectedGateway === pm.id ? "border-[#4F46E5] shadow-md shadow-[#4F46E5]/10" : "border-slate-200 hover:border-[#4F46E5]/40"
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-2.5">

@@ -153,7 +153,7 @@ export default function AdminLogin() {
                     </div>
                   </div>
                   <Button type="submit" disabled={loading}
-                    className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25">
+                    className="w-full h-12 text-base font-semibold rounded-xl bg-primary hover:bg-primary/90 shadow-sm">
                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In to Admin Panel <ArrowRight className="w-4 h-4" /></span>}
                   </Button>
                 </form>

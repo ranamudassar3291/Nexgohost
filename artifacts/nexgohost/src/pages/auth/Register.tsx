@@ -25,7 +25,7 @@ async function apiFetch(url: string, token: string | null, opts?: RequestInit) {
 
 type FieldErrors = Partial<Record<"firstName" | "lastName" | "email" | "password", string>>;
 
-const BRAND = "#701AFE";
+const BRAND = "#4F46E5";
 const defaultCountry = COUNTRIES.find(c => c.code === "PK") ?? COUNTRIES[0]!;
 
 function CountryDropdown({
@@ -72,7 +72,7 @@ function CountryDropdown({
         onClick={() => setOpen(o => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="w-full h-11 flex items-center gap-2.5 px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm text-gray-800 transition-all focus:outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE]"
+        className="w-full h-11 flex items-center gap-2.5 px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm text-gray-800 transition-all focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5]"
       >
         <span className="text-xl leading-none shrink-0">{value.flag}</span>
         <span className="flex-1 text-left truncate">
@@ -100,7 +100,7 @@ function CountryDropdown({
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search country…"
-                  className="w-full h-8 pl-7 pr-3 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-gray-50"
+                  className="w-full h-8 pl-7 pr-3 text-xs rounded-lg border border-gray-200 outline-none focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5] bg-gray-50"
                 />
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function Register() {
   };
 
   const inputCls = (field?: string) =>
-    `w-full h-11 px-4 rounded-xl border text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-white ${
+    `w-full h-11 px-4 rounded-xl border text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5] bg-white ${
       field && fieldErrors[field as keyof FieldErrors] ? "border-red-400 bg-red-50" : "border-gray-200"
     }`;
 
@@ -319,7 +319,7 @@ export default function Register() {
         {/* Logo & heading */}
         <div className="flex flex-col items-center mb-7">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-violet-500/30"
-            style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}>
+            style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
             <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost"
               className="w-7 h-7" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
@@ -479,7 +479,7 @@ export default function Register() {
                   type="submit"
                   disabled={loading || (captchaRequired && !captchaToken)}
                   className="w-full h-12 mt-1 rounded-xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:brightness-110 active:scale-[0.99]"
-                  style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)" }}
+                  style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)" }}
                 >
                   {loading
                     ? <><Loader2 size={16} className="animate-spin" /> Creating account…</>
@@ -517,11 +517,11 @@ export default function Register() {
                   placeholder="000000"
                   maxLength={6}
                   inputMode="numeric"
-                  className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.5em] text-gray-900 outline-none focus:ring-2 focus:border-[#701AFE] transition-all"
+                  className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.5em] text-gray-900 outline-none focus:ring-2 focus:border-[#4F46E5] transition-all"
                 />
                 <button type="submit" disabled={loading || code.length !== 6}
                   className="w-full h-11 rounded-xl text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-60 shadow-lg"
-                  style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}
+                  style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
                 >
                   {loading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : "Verify & activate account"}
                 </button>

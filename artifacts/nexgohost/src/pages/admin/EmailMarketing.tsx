@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
-const BRAND = "#701AFE";
+const BRAND = "#4F46E5";
 const API = import.meta.env.BASE_URL?.replace(/\/$/, "") + "/api";
 
 function authHeaders() {
@@ -18,18 +18,18 @@ const TEMPLATES = [
     id: "promotional",
     name: "🎉 Promotional Offer",
     subject: "Exclusive Offer Just For You — {company_name}",
-    html: `<h2 style="color:#701AFE;margin:0 0 16px">We have a special offer for you! 🎉</h2>
+    html: `<h2 style="color:#4F46E5;margin:0 0 16px">We have a special offer for you! 🎉</h2>
 <p>Hi <strong>{client_name}</strong>,</p>
 <p>As a valued {company_name} customer, we're excited to share an exclusive deal with you.</p>
 <table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;width:100%">
-  <tr><td style="background:#f4f0ff;border:2px dashed #701AFE;border-radius:8px;padding:20px;text-align:center">
+  <tr><td style="background:#f4f0ff;border:2px dashed #4F46E5;border-radius:8px;padding:20px;text-align:center">
     <p style="margin:0 0 4px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px">Limited Time Offer</p>
-    <p style="margin:0;font-size:22px;font-weight:800;color:#701AFE">20% OFF All Hosting Plans</p>
+    <p style="margin:0;font-size:22px;font-weight:800;color:#4F46E5">20% OFF All Hosting Plans</p>
     <p style="margin:8px 0 0;font-size:12px;color:#888">Use code: <strong>SPECIAL20</strong> at checkout</p>
   </td></tr>
 </table>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/hosting" style="display:inline-block;background:linear-gradient(135deg,#701AFE,#9B51E0);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Claim Your Discount →</a>
+  <a href="https://noehost.com/client/hosting" style="display:inline-block;background:linear-gradient(135deg,#4F46E5,#6366F1);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Claim Your Discount →</a>
 </p>
 <p style="font-size:13px;color:#666">This offer expires soon. Don't miss out!</p>`,
   },
@@ -55,33 +55,33 @@ const TEMPLATES = [
     id: "welcome",
     name: "👋 Welcome & Offer",
     subject: "Welcome to {company_name}! Here's a gift 🎁",
-    html: `<h2 style="color:#701AFE;margin:0 0 16px">Welcome to {company_name}! 🎉</h2>
+    html: `<h2 style="color:#4F46E5;margin:0 0 16px">Welcome to {company_name}! 🎉</h2>
 <p>Hi <strong>{client_name}</strong>,</p>
 <p>Thank you for joining {company_name}! We're thrilled to have you as part of our community.</p>
 <p>To help you get started, we'd like to offer you a special welcome discount:</p>
 <table cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;width:100%">
-  <tr><td style="background:#f4f0ff;border:2px dashed #701AFE;border-radius:8px;padding:20px;text-align:center">
+  <tr><td style="background:#f4f0ff;border:2px dashed #4F46E5;border-radius:8px;padding:20px;text-align:center">
     <p style="margin:0 0 4px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px">Welcome Gift</p>
-    <p style="margin:0;font-size:24px;font-weight:800;color:#701AFE">15% OFF Your First Order</p>
+    <p style="margin:0;font-size:24px;font-weight:800;color:#4F46E5">15% OFF Your First Order</p>
     <p style="margin:8px 0 0;font-size:12px;color:#888">Code: <strong>WELCOME15</strong></p>
   </td></tr>
 </table>
 <p>Explore our hosting plans, domain registration, and much more at your dashboard.</p>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/dashboard" style="display:inline-block;background:linear-gradient(135deg,#701AFE,#9B51E0);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Go to Dashboard →</a>
+  <a href="https://noehost.com/client/dashboard" style="display:inline-block;background:linear-gradient(135deg,#4F46E5,#6366F1);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Go to Dashboard →</a>
 </p>`,
   },
   {
     id: "announcement",
     name: "📢 General Announcement",
     subject: "Important Update from {company_name}",
-    html: `<h2 style="color:#701AFE;margin:0 0 16px">Important Announcement 📢</h2>
+    html: `<h2 style="color:#4F46E5;margin:0 0 16px">Important Announcement 📢</h2>
 <p>Hi <strong>{client_name}</strong>,</p>
 <p>We have an important update to share with you from {company_name}.</p>
 <p>[Write your announcement content here. Be clear and concise.]</p>
 <p>If you have any questions or need assistance, our support team is always ready to help.</p>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/tickets/new" style="display:inline-block;background:linear-gradient(135deg,#701AFE,#9B51E0);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700">Contact Support →</a>
+  <a href="https://noehost.com/client/tickets/new" style="display:inline-block;background:linear-gradient(135deg,#4F46E5,#6366F1);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700">Contact Support →</a>
 </p>`,
   },
   {
@@ -413,7 +413,7 @@ export default function EmailMarketing() {
               <Button
                 onClick={handleSend}
                 disabled={sending}
-                style={{ flex: 1, background: "linear-gradient(135deg,#701AFE,#9B51E0)", color: "#fff" }}
+                style={{ flex: 1, background: "linear-gradient(135deg,#4F46E5,#6366F1)", color: "#fff" }}
               >
                 {sending ? "Sending..." : "Send Campaign"}
               </Button>

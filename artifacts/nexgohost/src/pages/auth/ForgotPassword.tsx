@@ -42,7 +42,7 @@ export default function ForgotPassword() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-[#701AFE] flex items-center justify-center mb-3 shadow-lg shadow-[#701AFE]/30">
+          <div className="w-12 h-12 rounded-2xl bg-[#4F46E5] flex items-center justify-center mb-3 shadow-lg shadow-[#4F46E5]/30">
             <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-7 h-7" />
           </div>
         </div>
@@ -75,7 +75,7 @@ export default function ForgotPassword() {
                       value={email}
                       onChange={e => { setEmail(e.target.value); setFieldErr(null); setError(null); }}
                       placeholder="you@example.com"
-                      className={`w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-white ${fieldErr ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+                      className={`w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5] bg-white ${fieldErr ? "border-red-400 bg-red-50" : "border-gray-200"}`}
                     />
                     {fieldErr && <p className="mt-1.5 text-xs text-red-500">{fieldErr}</p>}
                   </div>
@@ -83,7 +83,7 @@ export default function ForgotPassword() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#701AFE]/25"
+                    className="w-full h-11 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#4F46E5]/25"
                   >
                     {loading ? (
                       <><Loader2 size={17} className="animate-spin" /><span>Sending…</span></>
@@ -94,7 +94,7 @@ export default function ForgotPassword() {
                 </form>
 
                 <div className="mt-5 text-center">
-                  <a href="/client/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#701AFE] transition-colors">
+                  <a href="/client/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#4F46E5] transition-colors">
                     <ArrowLeft size={14} /> Back to login
                   </a>
                 </div>
@@ -117,12 +117,12 @@ export default function ForgotPassword() {
                 </p>
                 <button
                   onClick={() => { setSent(false); setEmail(""); }}
-                  className="text-sm text-[#701AFE] hover:underline"
+                  className="text-sm text-[#4F46E5] hover:underline"
                 >
                   Try a different email
                 </button>
                 <div className="mt-4">
-                  <a href="/client/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#701AFE] transition-colors">
+                  <a href="/client/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#4F46E5] transition-colors">
                     <ArrowLeft size={14} /> Back to login
                   </a>
                 </div>

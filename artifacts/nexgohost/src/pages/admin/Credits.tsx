@@ -131,7 +131,7 @@ export default function AdminCredits() {
                   <motion.button key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                     onClick={() => { setSelectedClient(c); setAdjustAmount(""); setAdjustDesc(""); }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${selectedClient?.id === c.id ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/20 hover:bg-secondary/20"}`}>
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-purple-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0">
                       {c.firstName[0]}{c.lastName[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -163,7 +163,7 @@ export default function AdminCredits() {
               <div className="bg-card border border-border rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-purple-700 flex items-center justify-center text-white text-sm font-bold">
+                    <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white text-sm font-bold">
                       {selectedClient.firstName[0]}{selectedClient.lastName[0]}
                     </div>
                     <div>
@@ -175,7 +175,7 @@ export default function AdminCredits() {
                     <X size={14} />
                   </button>
                 </div>
-                <div className="bg-gradient-to-r from-primary to-purple-700 rounded-xl p-4 text-white">
+                <div className="bg-primary rounded-xl p-4 text-white">
                   <p className="text-xs opacity-70 font-medium uppercase tracking-wider mb-1">Current Balance</p>
                   <p className="text-3xl font-extrabold">{formatPrice(parseFloat(creditData?.creditBalance ?? selectedClient.creditBalance ?? "0"))}</p>
                 </div>

@@ -20,7 +20,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#701AFE]"/>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#4F46E5]"/>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
           {/* Logo */}
           <Link href={user ? "/client/dashboard" : "/"} className="flex items-center gap-2.5 no-underline">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-white text-[15px] shadow-lg"
-              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9b59ff 100%)" }}>
+              style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
               N
             </div>
             <span className="text-[17px] font-extrabold text-gray-900 tracking-tight">Noehost</span>
@@ -47,14 +47,14 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
               <ShieldCheck size={14} className="text-green-500"/> SSL Secured
             </span>
             <span className="flex items-center gap-1.5">
-              <Lock size={12} style={{ color: "#701AFE" }}/> Secure Checkout
+              <Lock size={12} style={{ color: "#4F46E5" }}/> Secure Checkout
             </span>
             <span className="hidden sm:block text-gray-300">|</span>
             <span className="hidden sm:block">30-Day Money-Back</span>
             {!user && allowGuest && (
               <>
                 <span className="text-gray-300">|</span>
-                <Link href="/client/login" className="font-semibold text-[#701AFE] hover:underline no-underline">Sign in</Link>
+                <Link href="/client/login" className="font-semibold text-[#4F46E5] hover:underline no-underline">Sign in</Link>
               </>
             )}
           </div>

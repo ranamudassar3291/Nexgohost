@@ -420,7 +420,7 @@ export default function DomainExtensions() {
       {/* Promo Banner Editor */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)" }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)" }}>
             <Sparkles size={15} className="text-white" />
           </div>
           <div>
@@ -499,7 +499,7 @@ export default function DomainExtensions() {
               onClick={savePromo}
               disabled={savingPromo}
               className="gap-2"
-              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)", border: "none" }}
+              style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)", border: "none" }}
             >
               {savingPromo ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Save Promo Banner

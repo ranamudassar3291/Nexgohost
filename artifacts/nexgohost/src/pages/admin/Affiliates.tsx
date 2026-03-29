@@ -619,7 +619,7 @@ export default function AdminAffiliates() {
                   <Button
                     onClick={saveSettings}
                     disabled={settingsSaving}
-                    className="w-full bg-[#701AFE] hover:bg-[#5e14d4]"
+                    className="w-full bg-[#4F46E5] hover:bg-[#4338CA]"
                   >
                     {settingsSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                     Save Settings
@@ -758,7 +758,7 @@ export default function AdminAffiliates() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditAff(null)}>Cancel</Button>
-            <Button onClick={saveEditAff} disabled={editSaving} className="bg-[#701AFE] hover:bg-[#5e14d4]">
+            <Button onClick={saveEditAff} disabled={editSaving} className="bg-[#4F46E5] hover:bg-[#4338CA]">
               {editSaving ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null} Save
             </Button>
           </DialogFooter>
@@ -800,7 +800,7 @@ export default function AdminAffiliates() {
               disabled={withdrawLoading}
               className={withdrawDialog?.action === "reject"
                 ? "bg-red-600 hover:bg-red-700 text-white"
-                : "bg-[#701AFE] hover:bg-[#5e14d4]"}
+                : "bg-[#4F46E5] hover:bg-[#4338CA]"}
             >
               {withdrawLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
               {withdrawDialog?.action === "approve" ? "Approve" : withdrawDialog?.action === "pay" ? "Mark Paid" : "Reject"}

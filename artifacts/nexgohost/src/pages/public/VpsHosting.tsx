@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useCurrency } from "@/context/CurrencyProvider";
 
-const P        = "#701AFE";
+const P        = "#4F46E5";
 const PSHADOW  = "0 4px 20px rgba(112,26,254,0.28)";
 
 interface VpsPlan {
@@ -163,7 +163,7 @@ export default function VpsHosting() {
           <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full opacity-20"
             style={{ background: "radial-gradient(circle, #9B59FE 0%, transparent 70%)" }}/>
           <div className="absolute -bottom-32 -left-32 w-[400px] h-[400px] rounded-full opacity-10"
-            style={{ background: "radial-gradient(circle, #701AFE 0%, transparent 70%)" }}/>
+            style={{ background: "radial-gradient(circle, #4F46E5 0%, transparent 70%)" }}/>
         </div>
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 text-center">

@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 
-const BRAND = "#701AFE";
+const BRAND = "#4F46E5";
 
 async function apiFetch(url: string, opts: RequestInit = {}) {
   const token = localStorage.getItem("token");

@@ -72,7 +72,7 @@ interface CartItem {
 
 type Period = 1 | 2 | 3;
 
-const BRAND = "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)";
+const BRAND = "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)";
 
 export default function DomainSearch() {
   const [query, setQuery] = useState("");

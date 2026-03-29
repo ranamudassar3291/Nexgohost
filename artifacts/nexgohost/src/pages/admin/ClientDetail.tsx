@@ -849,7 +849,7 @@ export default function AdminClientDetail() {
             <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-[60px] pointer-events-none" />
 
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-purple-700 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-primary/20">
+              <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white text-2xl font-bold shadow-sm">
                 {initials}
               </div>
               <div>

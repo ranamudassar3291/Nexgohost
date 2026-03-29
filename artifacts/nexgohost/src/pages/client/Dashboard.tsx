@@ -83,7 +83,7 @@ interface SetupProgress {
   siteUrl: string | null; pct: number;
 }
 
-const CONFETTI_COLORS = ["#701AFE", "#9B51E0", "#C084FC", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
+const CONFETTI_COLORS = ["#4F46E5", "#6366F1", "#818CF8", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
 
 function Confetti({ active }: { active: boolean }) {
   if (!active) return null;
@@ -305,7 +305,7 @@ export default function ClientDashboard() {
             </div>
           )}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20">
+            <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-sm">
               <Link href="/client/hosting">View Services</Link>
             </Button>
             <Button asChild variant="outline" className="bg-card/50 backdrop-blur border-border/50">
@@ -370,7 +370,7 @@ export default function ClientDashboard() {
               </span>
             </div>
             <div className="h-1.5 w-full bg-primary/10">
-              <div className="h-full transition-all duration-700" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#701AFE,#9B51E0)" }} />
+              <div className="h-full transition-all duration-700" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#4F46E5,#6366F1)" }} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-violet-500/10">
               {steps.map((step, i) => (
@@ -398,7 +398,7 @@ export default function ClientDashboard() {
                     {step.cta && (
                       <Link href={step.cta.href}>
                         <button className="h-8 px-3 rounded-lg text-xs font-bold text-white shadow-md"
-                          style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 100%)" }}>
+                          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
                           {step.cta.label}
                         </button>
                       </Link>
@@ -422,7 +422,7 @@ export default function ClientDashboard() {
           }} />
           <div className="relative z-[1] p-8 text-center flex flex-col items-center gap-5">
             <div className="w-20 h-20 rounded-full flex items-center justify-center shadow-2xl"
-              style={{ background: "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)", boxShadow: "0 0 60px rgba(112,26,254,0.7)" }}>
+              style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)", boxShadow: "0 0 60px rgba(112,26,254,0.7)" }}>
               <PartyPopper size={36} className="text-white" />
             </div>
             <div>
@@ -444,7 +444,7 @@ export default function ClientDashboard() {
             <div className="flex flex-wrap justify-center gap-3">
               <Link href="/client/hosting">
                 <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-lg border border-white/20 hover:border-white/40 transition-all"
-                  style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                  style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                   <Server size={14} /> Manage Website
                 </button>
               </Link>
@@ -487,7 +487,7 @@ export default function ClientDashboard() {
                   </p>
                   <Link href="/client/domains">
                     <button className="h-7 px-3 rounded-lg text-[11px] font-bold text-white"
-                      style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                      style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                       Register {ext} →
                     </button>
                   </Link>
@@ -506,7 +506,7 @@ export default function ClientDashboard() {
                 </p>
                 <Link href="/client/orders/new">
                   <button className="h-7 px-3 rounded-lg text-[11px] font-bold text-white"
-                    style={{ background: "linear-gradient(135deg, #701AFE, #9B51E0)" }}>
+                    style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
                     Get Business Email →
                   </button>
                 </Link>
@@ -642,18 +642,18 @@ export default function ClientDashboard() {
       {/* Free Domain Notification */}
       {freeDomainService && (
         <div className="rounded-2xl p-5 flex items-center gap-4 border"
-          style={{ background: "linear-gradient(135deg, #f3ebff 0%, #ede0ff 100%)", borderColor: "#c084fc" }}>
+          style={{ background: "linear-gradient(135deg, #f3ebff 0%, #ede0ff 100%)", borderColor: "#818CF8" }}>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border"
-            style={{ background: "#701AFE15", borderColor: "#701AFE40" }}>
-            <Gift size={22} style={{ color: "#701AFE" }} />
+            style={{ background: "#4F46E515", borderColor: "#4F46E540" }}>
+            <Gift size={22} style={{ color: "#4F46E5" }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: "#701AFE" }}>You have 1 Free Domain waiting to be claimed!</p>
+            <p className="text-sm font-bold" style={{ color: "#4F46E5" }}>You have 1 Free Domain waiting to be claimed!</p>
             <p className="text-xs text-purple-700 mt-0.5">Your <span className="font-semibold">{freeDomainService.planName}</span> yearly plan includes a free domain registration. Claim it now before it expires.</p>
           </div>
           <button onClick={handleClaimFreeDomain}
             className="shrink-0 px-4 py-2 text-[13px] font-bold text-white rounded-xl shadow transition-all hover:opacity-90"
-            style={{ background: "#701AFE", boxShadow: "0 4px 14px rgba(112,26,254,0.28)" }}>
+            style={{ background: "#4F46E5", boxShadow: "0 4px 14px rgba(112,26,254,0.28)" }}>
             Claim Now
           </button>
         </div>

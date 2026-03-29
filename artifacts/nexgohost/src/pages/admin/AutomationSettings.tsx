@@ -14,7 +14,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
-const BRAND = "#701AFE";
+const BRAND = "#4F46E5";
 
 interface TaskStat {
   task: string;

@@ -52,7 +52,7 @@ interface CartDomain { fullName: string; price: number; }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const P = "#701AFE";
+const P = "#4F46E5";
 const DOMAIN_STORAGE_KEY = "order_wizard_domain";
 
 function tok(): string | null { return localStorage.getItem("token"); }
@@ -105,7 +105,7 @@ const GROUP_META: Record<string, {
 }> = {
   "shared-hosting": {
     icon: <Server size={26} strokeWidth={1.6} />,
-    color: "#701AFE",
+    color: "#4F46E5",
     tagline: "Perfect for websites, blogs & small businesses",
     bullets: ["cPanel Included", "Free SSL Certificate", "NVMe SSD Storage", "99.9% Uptime Guarantee"],
     badge: "Most Popular",
@@ -113,9 +113,9 @@ const GROUP_META: Record<string, {
   "wordpress-hosting": {
     icon: (
       <svg width="26" height="26" viewBox="0 0 120 120" fill="none">
-        <circle cx="60" cy="60" r="56" stroke="#701AFE" strokeWidth="8"/>
-        <path d="M9 60C9 31.8 31.8 9 60 9" stroke="#701AFE" strokeWidth="5" strokeLinecap="round"/>
-        <text x="22" y="78" fontSize="62" fontWeight="bold" fill="#701AFE" fontFamily="Georgia,serif">W</text>
+        <circle cx="60" cy="60" r="56" stroke="#4F46E5" strokeWidth="8"/>
+        <path d="M9 60C9 31.8 31.8 9 60 9" stroke="#4F46E5" strokeWidth="5" strokeLinecap="round"/>
+        <text x="22" y="78" fontSize="62" fontWeight="bold" fill="#4F46E5" fontFamily="Georgia,serif">W</text>
       </svg>
     ),
     color: "#0073aa",
@@ -124,13 +124,13 @@ const GROUP_META: Record<string, {
   },
   "reseller-hosting": {
     icon: <Users size={26} strokeWidth={1.6} />,
-    color: "#701AFE",
+    color: "#4F46E5",
     tagline: "Start your own hosting business with WHM",
     bullets: ["WHM Control Panel", "White-Label Ready", "WHMCS-Compatible", "Private Nameservers"],
   },
   "vps-hosting": {
     icon: <Zap size={26} strokeWidth={1.6} />,
-    color: "#701AFE",
+    color: "#4F46E5",
     tagline: "Dedicated resources with full root SSH access",
     bullets: ["Full Root Access", "Dedicated IP", "NVMe SSD Storage", "Scalable Resources"],
   },
@@ -168,7 +168,7 @@ function BackLink({ onClick, label = "Back" }: { onClick: () => void; label?: st
 function Pill({ label, color = "gray" }: { label: string; color?: "gray" | "purple" | "blue" }) {
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-      color === "purple" ? "bg-[#701AFE]/10 text-[#701AFE]"
+      color === "purple" ? "bg-[#4F46E5]/10 text-[#4F46E5]"
       : color === "blue" ? "bg-blue-50 text-blue-600"
       : "bg-gray-100 text-gray-500"
     }`}>
@@ -180,7 +180,7 @@ function Pill({ label, color = "gray" }: { label: string; color?: "gray" | "purp
 function Feature({ text }: { text: string }) {
   return (
     <li className="flex items-center gap-2 text-[13px] text-gray-600">
-      <Check size={12} className="text-[#701AFE] shrink-0" />
+      <Check size={12} className="text-[#4F46E5] shrink-0" />
       <span>{text}</span>
     </li>
   );
@@ -201,18 +201,18 @@ function ProgressBar({ step }: { step: number }) {
             <div key={label} className="flex items-start">
               <div className="flex flex-col items-center w-20 sm:w-24">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                  done   ? "bg-[#701AFE] text-white"
-                  : active ? "bg-[#701AFE] text-white ring-[3px] ring-[#701AFE]/20"
+                  done   ? "bg-[#4F46E5] text-white"
+                  : active ? "bg-[#4F46E5] text-white ring-[3px] ring-[#4F46E5]/20"
                   : "bg-white border-2 border-gray-200 text-gray-400"}`}>
                   {done ? <Check size={13} strokeWidth={2.5} /> : i + 1}
                 </div>
                 <span className={`mt-1.5 text-[10px] sm:text-[11px] font-semibold text-center leading-tight ${
-                  active ? "text-[#701AFE]" : done ? "text-gray-500" : "text-gray-400"}`}>
+                  active ? "text-[#4F46E5]" : done ? "text-gray-500" : "text-gray-400"}`}>
                   {label}
                 </span>
               </div>
               {i < STEPS.length - 1 && (
-                <div className={`w-6 sm:w-10 h-0.5 mt-3.5 shrink-0 transition-all duration-500 ${done ? "bg-[#701AFE]" : "bg-gray-200"}`} />
+                <div className={`w-6 sm:w-10 h-0.5 mt-3.5 shrink-0 transition-all duration-500 ${done ? "bg-[#4F46E5]" : "bg-gray-200"}`} />
               )}
             </div>
           );
@@ -243,7 +243,7 @@ function OrderSummary({ plan, planCycle, domain, formatPrice, onRemovePlan, onRe
   const content = (
     <>
       <div className="flex items-center gap-2 mb-4">
-        <Receipt size={15} className="text-[#701AFE]" />
+        <Receipt size={15} className="text-[#4F46E5]" />
         <h3 className="text-[13px] font-bold text-black uppercase tracking-wider">Order Summary</h3>
       </div>
 
@@ -300,7 +300,7 @@ function OrderSummary({ plan, planCycle, domain, formatPrice, onRemovePlan, onRe
         disabled={!hasItems}
         className={`w-full py-3 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 transition-all ${
           hasItems
-            ? "bg-[#701AFE] text-white hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 active:scale-[0.98]"
+            ? "bg-[#4F46E5] text-white hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/20 active:scale-[0.98]"
             : "bg-gray-100 text-gray-400 cursor-not-allowed"
         }`}
       >
@@ -333,10 +333,10 @@ function OrderSummary({ plan, planCycle, domain, formatPrice, onRemovePlan, onRe
               <p className="text-[12px] font-bold text-black truncate">
                 {plan?.name}{domain ? (plan ? ` + ${domain.fullName}` : domain.fullName) : ""}
               </p>
-              <p className="text-[11px] text-[#701AFE] font-semibold">{formatPrice(total)} total</p>
+              <p className="text-[11px] text-[#4F46E5] font-semibold">{formatPrice(total)} total</p>
             </div>
             <button onClick={onCheckout}
-              className="shrink-0 px-5 py-2.5 bg-[#701AFE] text-white text-[13px] font-bold rounded-xl hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 transition-all flex items-center gap-1.5">
+              className="shrink-0 px-5 py-2.5 bg-[#4F46E5] text-white text-[13px] font-bold rounded-xl hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/20 transition-all flex items-center gap-1.5">
               <ShoppingCart size={13} /> Checkout
             </button>
           </div>
@@ -630,16 +630,16 @@ export default function OrderFlow() {
               }}
               className={`relative group text-left rounded-2xl p-6 sm:p-7 flex flex-col transition-all duration-200 focus:outline-none
                 ${card.popular
-                  ? "bg-white border-2 border-[#701AFE] shadow-lg shadow-[#701AFE]/10"
-                  : "bg-white border border-gray-200 hover:border-[#701AFE] hover:shadow-lg hover:shadow-[#701AFE]/8"}`}
+                  ? "bg-white border-2 border-[#4F46E5] shadow-lg shadow-[#4F46E5]/10"
+                  : "bg-white border border-gray-200 hover:border-[#4F46E5] hover:shadow-lg hover:shadow-[#4F46E5]/8"}`}
             >
               {card.popular && (
-                <div className="absolute -top-3 left-6 flex items-center gap-1 bg-[#701AFE] text-white text-[10px] font-bold px-3 py-1 rounded-full shadow">
+                <div className="absolute -top-3 left-6 flex items-center gap-1 bg-[#4F46E5] text-white text-[10px] font-bold px-3 py-1 rounded-full shadow">
                   <Star size={8} strokeWidth={3} /> MOST ORDERED
                 </div>
               )}
 
-              <div className="w-12 h-12 rounded-xl bg-[#701AFE]/8 flex items-center justify-center mb-4 group-hover:bg-[#701AFE]/14 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-[#4F46E5]/8 flex items-center justify-center mb-4 group-hover:bg-[#4F46E5]/14 transition-colors">
                 {card.icon}
               </div>
 
@@ -649,12 +649,12 @@ export default function OrderFlow() {
               <ul className="space-y-2 mb-5 flex-1">
                 {card.bullets.map(b => (
                   <li key={b} className="flex items-center gap-2 text-[12px] text-gray-600">
-                    <Check size={12} strokeWidth={2.5} className="text-[#701AFE] shrink-0" /> {b}
+                    <Check size={12} strokeWidth={2.5} className="text-[#4F46E5] shrink-0" /> {b}
                   </li>
                 ))}
               </ul>
 
-              <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#701AFE] mt-auto group-hover:gap-2.5 transition-all">
+              <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#4F46E5] mt-auto group-hover:gap-2.5 transition-all">
                 {card.cta} <ChevronRight size={14} strokeWidth={2.5} />
               </div>
             </button>
@@ -692,7 +692,7 @@ export default function OrderFlow() {
 
         {groupsLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 size={28} className="animate-spin text-[#701AFE]" />
+            <Loader2 size={28} className="animate-spin text-[#4F46E5]" />
             <p className="text-sm text-gray-400">Loading hosting options…</p>
           </div>
         ) : (
@@ -715,17 +715,17 @@ export default function OrderFlow() {
                   }}
                   className={`relative group text-left rounded-2xl p-6 flex flex-col transition-all duration-200 focus:outline-none
                     ${isMain
-                      ? "bg-white border-2 border-[#701AFE] shadow-xl shadow-[#701AFE]/12"
-                      : "bg-white border border-gray-200 hover:border-[#701AFE] hover:shadow-lg hover:shadow-[#701AFE]/8"}`}
+                      ? "bg-white border-2 border-[#4F46E5] shadow-xl shadow-[#4F46E5]/12"
+                      : "bg-white border border-gray-200 hover:border-[#4F46E5] hover:shadow-lg hover:shadow-[#4F46E5]/8"}`}
                 >
                   {meta.badge && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-1 bg-[#701AFE] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow">
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-1 bg-[#4F46E5] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow">
                       <Star size={9} strokeWidth={3} /> {meta.badge}
                     </div>
                   )}
 
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${
-                    isMain ? "bg-[#701AFE]/12" : "bg-[#701AFE]/8 group-hover:bg-[#701AFE]/14"
+                    isMain ? "bg-[#4F46E5]/12" : "bg-[#4F46E5]/8 group-hover:bg-[#4F46E5]/14"
                   }`} style={{ color: P }}>
                     {meta.icon}
                   </div>
@@ -736,12 +736,12 @@ export default function OrderFlow() {
                   <ul className="space-y-2 mb-5 flex-1">
                     {meta.bullets.map(b => (
                       <li key={b} className="flex items-center gap-2 text-[12px] text-gray-600">
-                        <Check size={12} strokeWidth={2.5} className="text-[#701AFE] shrink-0" /> {b}
+                        <Check size={12} strokeWidth={2.5} className="text-[#4F46E5] shrink-0" /> {b}
                       </li>
                     ))}
                   </ul>
 
-                  <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#701AFE] mt-auto group-hover:gap-2.5 transition-all">
+                  <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#4F46E5] mt-auto group-hover:gap-2.5 transition-all">
                     View Plans <ChevronRight size={14} strokeWidth={2.5} />
                   </div>
                 </button>
@@ -785,7 +785,7 @@ export default function OrderFlow() {
 
         {plansLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 size={28} className="animate-spin text-[#701AFE]" />
+            <Loader2 size={28} className="animate-spin text-[#4F46E5]" />
             <p className="text-sm text-gray-400">Loading plans…</p>
           </div>
         ) : displayPlans.length === 0 ? (
@@ -809,18 +809,18 @@ export default function OrderFlow() {
               return (
                 <div key={plan.id} className={`relative flex flex-col rounded-2xl bg-white transition-all ${
                   isPopular
-                    ? "border-2 border-[#701AFE] shadow-xl shadow-[#701AFE]/12"
-                    : "border border-gray-200 hover:border-[#701AFE]/60 hover:shadow-lg"
+                    ? "border-2 border-[#4F46E5] shadow-xl shadow-[#4F46E5]/12"
+                    : "border border-gray-200 hover:border-[#4F46E5]/60 hover:shadow-lg"
                 }`}>
 
                   {isPopular && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-1 bg-[#701AFE] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow">
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap flex items-center gap-1 bg-[#4F46E5] text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow">
                       <Star size={9} strokeWidth={3} /> MOST POPULAR
                     </div>
                   )}
 
                   {/* Header */}
-                  <div className={`px-5 pt-6 pb-4 border-b ${isPopular ? "border-[#701AFE]/20" : "border-gray-100"}`}>
+                  <div className={`px-5 pt-6 pb-4 border-b ${isPopular ? "border-[#4F46E5]/20" : "border-gray-100"}`}>
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <h3 className="text-[16px] font-bold text-black leading-tight">{plan.name}</h3>
                       {isPopular && <Pill label="Best Value" color="purple" />}
@@ -834,8 +834,8 @@ export default function OrderFlow() {
                             onClick={() => setPlanCyclesMap(prev => ({ ...prev, [plan.id]: c }))}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
                               cycle === c
-                                ? "bg-[#701AFE] text-white border-[#701AFE]"
-                                : "bg-gray-50 text-gray-500 border-gray-200 hover:border-[#701AFE]/50"
+                                ? "bg-[#4F46E5] text-white border-[#4F46E5]"
+                                : "bg-gray-50 text-gray-500 border-gray-200 hover:border-[#4F46E5]/50"
                             }`}>
                             {CYCLE_LABELS[c]}
                           </button>
@@ -893,8 +893,8 @@ export default function OrderFlow() {
                         isSelected
                           ? "bg-green-50 text-green-700 border-2 border-green-200"
                           : isPopular
-                          ? "bg-[#701AFE] text-white hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 active:scale-[0.98]"
-                          : "bg-white text-[#701AFE] border-2 border-[#701AFE] hover:bg-[#701AFE]/5 active:scale-[0.98]"
+                          ? "bg-[#4F46E5] text-white hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/20 active:scale-[0.98]"
+                          : "bg-white text-[#4F46E5] border-2 border-[#4F46E5] hover:bg-[#4F46E5]/5 active:scale-[0.98]"
                       }`}>
                       {isSelected
                         ? <><CheckCircle2 size={15} /> Plan Selected</>
@@ -904,7 +904,7 @@ export default function OrderFlow() {
                     {/* Direct link copy button */}
                     <button
                       onClick={() => handleCopyLink(plan.id)}
-                      className="w-full py-2 rounded-xl text-[12px] font-medium border border-gray-200 text-gray-500 hover:border-[#701AFE]/40 hover:text-[#701AFE] transition-all flex items-center justify-center gap-1.5">
+                      className="w-full py-2 rounded-xl text-[12px] font-medium border border-gray-200 text-gray-500 hover:border-[#4F46E5]/40 hover:text-[#4F46E5] transition-all flex items-center justify-center gap-1.5">
                       {copiedPlanId === plan.id ? (
                         <><CheckCircle2 size={12} className="text-green-500" /> Link Copied!</>
                       ) : (
@@ -949,11 +949,11 @@ export default function OrderFlow() {
               <input ref={regInputRef} value={regQuery}
                 onChange={e => { setRegQuery(e.target.value); setRegResults(null); }}
                 placeholder="yourname, mybusiness, brandname…"
-                className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE] transition-all"
+                className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5] transition-all"
                 autoFocus />
             </div>
             <button type="submit" disabled={regChecking || !regQuery.trim()}
-              className="w-full sm:w-auto px-6 py-3.5 bg-[#701AFE] text-white rounded-xl text-[14px] font-bold hover:bg-[#5e14d4] disabled:opacity-60 shadow-md shadow-[#701AFE]/20 transition-all flex items-center justify-center gap-2">
+              className="w-full sm:w-auto px-6 py-3.5 bg-[#4F46E5] text-white rounded-xl text-[14px] font-bold hover:bg-[#4338CA] disabled:opacity-60 shadow-md shadow-[#4F46E5]/20 transition-all flex items-center justify-center gap-2">
               {regChecking ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Search
             </button>
           </div>
@@ -976,7 +976,7 @@ export default function OrderFlow() {
 
         {regChecking && (
           <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <Loader2 size={22} className="animate-spin text-[#701AFE]" />
+            <Loader2 size={22} className="animate-spin text-[#4F46E5]" />
             <p className="text-[13px] text-gray-400">Checking availability…</p>
           </div>
         )}
@@ -986,13 +986,13 @@ export default function OrderFlow() {
             {regResults.filter(r => r.registrationPrice > 0).slice(0, 8).map(r => (
               <div key={r.tld}
                 className={`flex items-center justify-between px-4 py-3.5 bg-white rounded-xl border transition-all ${
-                  r.available ? "border-gray-200 hover:border-[#701AFE]/40" : "border-gray-100 opacity-60"}`}>
+                  r.available ? "border-gray-200 hover:border-[#4F46E5]/40" : "border-gray-100 opacity-60"}`}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${r.available ? "bg-green-400" : "bg-red-400"}`} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-0.5 flex-wrap">
                       <span className="text-[14px] font-bold text-black">{searchedName}</span>
-                      <span className="text-[14px] font-bold text-[#701AFE]">{r.tld}</span>
+                      <span className="text-[14px] font-bold text-[#4F46E5]">{r.tld}</span>
                     </div>
                     <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${
                       r.available ? "text-green-600" : "text-red-400"}`}>
@@ -1008,7 +1008,7 @@ export default function OrderFlow() {
                         setCartDomain({ fullName: `${searchedName}${r.tld}`, price: r.registrationPrice });
                         handleCheckout();
                       }}
-                      className="px-3.5 py-1.5 bg-[#701AFE] text-white rounded-lg text-[12px] font-bold hover:bg-[#5e14d4] transition-all">
+                      className="px-3.5 py-1.5 bg-[#4F46E5] text-white rounded-lg text-[12px] font-bold hover:bg-[#4338CA] transition-all">
                       Add
                     </button>
                   )}
@@ -1040,7 +1040,7 @@ export default function OrderFlow() {
             <div className="relative">
               <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={transferDomain} onChange={e => setTransferDomain(e.target.value)} placeholder="example.com" autoFocus
-                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]" />
+                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5]" />
             </div>
           </div>
           <div>
@@ -1048,7 +1048,7 @@ export default function OrderFlow() {
             <div className="relative">
               <Key size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={eppCode} onChange={e => setEppCode(e.target.value)} type="text" placeholder="Paste your EPP code here"
-                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] font-mono focus:outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]" />
+                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] font-mono focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5]" />
             </div>
             <p className="text-[12px] text-gray-400 mt-1">Get this code from your current registrar's control panel.</p>
           </div>
@@ -1058,7 +1058,7 @@ export default function OrderFlow() {
             </div>
           )}
           <div className="bg-[#faf8ff] border border-[#e8e0ff] rounded-xl p-4">
-            <p className="text-[13px] font-semibold text-[#701AFE] mb-2">What happens next?</p>
+            <p className="text-[13px] font-semibold text-[#4F46E5] mb-2">What happens next?</p>
             <ol className="space-y-1 text-[12px] text-gray-500 list-decimal list-inside">
               <li>We verify your domain and EPP code</li>
               <li>You confirm the transfer payment</li>
@@ -1067,7 +1067,7 @@ export default function OrderFlow() {
             </ol>
           </div>
           <button type="submit"
-            className="w-full py-3.5 bg-[#701AFE] text-white rounded-xl text-[14px] font-bold hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 transition-all flex items-center justify-center gap-2">
+            className="w-full py-3.5 bg-[#4F46E5] text-white rounded-xl text-[14px] font-bold hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/20 transition-all flex items-center justify-center gap-2">
             <ArrowRightLeft size={16} /> Continue Transfer
           </button>
         </form>
@@ -1123,8 +1123,8 @@ export default function OrderFlow() {
               },
             ].map(opt => (
               <button key={opt.mode as string} onClick={() => setDomainMode(opt.mode)}
-                className="group text-left bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#701AFE] hover:shadow-md hover:shadow-[#701AFE]/8 transition-all focus:outline-none">
-                <div className="w-10 h-10 bg-[#701AFE]/8 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#701AFE]/14 transition-colors">
+                className="group text-left bg-white border border-gray-200 rounded-2xl p-5 hover:border-[#4F46E5] hover:shadow-md hover:shadow-[#4F46E5]/8 transition-all focus:outline-none">
+                <div className="w-10 h-10 bg-[#4F46E5]/8 rounded-xl flex items-center justify-center mb-3 group-hover:bg-[#4F46E5]/14 transition-colors">
                   {opt.icon}
                 </div>
                 {opt.badge && <Pill label={opt.badge} color="purple" />}
@@ -1133,7 +1133,7 @@ export default function OrderFlow() {
               </button>
             ))}
             <button onClick={() => goToCheckout("/client/cart")}
-              className="sm:col-span-2 w-full py-3 rounded-xl border border-dashed border-gray-300 text-[13px] text-gray-400 hover:border-[#701AFE]/40 hover:text-[#701AFE] transition-all">
+              className="sm:col-span-2 w-full py-3 rounded-xl border border-dashed border-gray-300 text-[13px] text-gray-400 hover:border-[#4F46E5]/40 hover:text-[#4F46E5] transition-all">
               Skip for now — I'll add a domain later
             </button>
           </div>
@@ -1143,7 +1143,7 @@ export default function OrderFlow() {
         {domainMode === "register" && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-xl mx-auto">
             <button onClick={() => { setDomainMode(null); setDomainResults(null); }}
-              className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-[#701AFE] mb-4 transition-colors">
+              className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-[#4F46E5] mb-4 transition-colors">
               <ArrowLeft size={13} /> Change option
             </button>
 
@@ -1153,29 +1153,29 @@ export default function OrderFlow() {
                 <input ref={domainInputRef} value={domainQuery}
                   onChange={e => { setDomainQuery(e.target.value); setDomainResults(null); }}
                   placeholder="e.g. mybusiness, mystore…" autoFocus
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]" />
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5]" />
               </div>
               <button type="submit" disabled={domainChecking || !domainQuery.trim()}
-                className="w-full sm:w-auto px-5 py-3 bg-[#701AFE] text-white rounded-xl text-[13px] font-bold hover:bg-[#5e14d4] disabled:opacity-60 flex items-center justify-center gap-1.5 transition-all">
+                className="w-full sm:w-auto px-5 py-3 bg-[#4F46E5] text-white rounded-xl text-[13px] font-bold hover:bg-[#4338CA] disabled:opacity-60 flex items-center justify-center gap-1.5 transition-all">
                 {domainChecking ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />} Check
               </button>
             </form>
 
             {domainError && <p className="text-[13px] text-red-500 mb-3 flex items-center gap-1.5"><AlertCircle size={13} /> {domainError}</p>}
-            {domainChecking && <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-[#701AFE] mx-auto" /></div>}
+            {domainChecking && <div className="text-center py-8"><Loader2 size={20} className="animate-spin text-[#4F46E5] mx-auto" /></div>}
 
             {domainResults && !domainChecking && (
               <div className="space-y-2">
                 {domainResults.filter(r => r.registrationPrice > 0).slice(0, 6).map(r => (
                   <div key={r.tld}
                     className={`flex items-center justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
-                      r.available ? "border-gray-200 hover:border-[#701AFE]/40" : "border-gray-100 opacity-55"}`}>
+                      r.available ? "border-gray-200 hover:border-[#4F46E5]/40" : "border-gray-100 opacity-55"}`}>
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-2 h-2 rounded-full shrink-0 ${r.available ? "bg-green-400" : "bg-red-400"}`} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-0.5 flex-wrap">
                           <span className="text-[14px] font-bold text-black">{searchedName}</span>
-                          <span className="text-[14px] font-bold text-[#701AFE]">{r.tld}</span>
+                          <span className="text-[14px] font-bold text-[#4F46E5]">{r.tld}</span>
                         </div>
                         <span className={`text-[11px] font-semibold ${r.available ? "text-green-600" : "text-red-400"}`}>
                           {r.available ? "Available" : "Taken"}
@@ -1190,7 +1190,7 @@ export default function OrderFlow() {
                             setCartDomain({ fullName: `${searchedName}${r.tld}`, price: r.registrationPrice });
                             goToCheckout("/client/cart");
                           }}
-                          className="px-3 py-1.5 bg-[#701AFE] text-white rounded-lg text-[12px] font-bold hover:bg-[#5e14d4] transition-all">
+                          className="px-3 py-1.5 bg-[#4F46E5] text-white rounded-lg text-[12px] font-bold hover:bg-[#4338CA] transition-all">
                           Add + Checkout
                         </button>
                       )}
@@ -1206,12 +1206,12 @@ export default function OrderFlow() {
         {domainMode === "existing" && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto">
             <button onClick={() => { setDomainMode(null); setExistingDomain(""); setDomainError(""); }}
-              className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-[#701AFE] mb-4 transition-colors">
+              className="flex items-center gap-1 text-[13px] text-gray-400 hover:text-[#4F46E5] mb-4 transition-colors">
               <ArrowLeft size={13} /> Change option
             </button>
 
             <div className="bg-[#faf8ff] border border-[#e8e0ff] rounded-xl p-4 mb-4">
-              <p className="text-[12px] text-[#701AFE] font-semibold mb-1">Point your domain to Noehost</p>
+              <p className="text-[12px] text-[#4F46E5] font-semibold mb-1">Point your domain to Noehost</p>
               <p className="text-[12px] text-gray-500">Update your domain's nameservers to:</p>
               <div className="mt-2 space-y-1 font-mono text-[12px] text-gray-700">
                 <p className="bg-white rounded px-3 py-1.5 border border-gray-200">ns1.noehost.com</p>
@@ -1226,7 +1226,7 @@ export default function OrderFlow() {
                 <input value={existingDomain}
                   onChange={e => { setExistingDomain(e.target.value); setDomainError(""); }}
                   placeholder="yourdomain.com" autoFocus
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]" />
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5]" />
               </div>
               {domainError && <p className="mt-1.5 text-[12px] text-red-500 flex items-center gap-1"><AlertCircle size={12} /> {domainError}</p>}
             </div>
@@ -1237,7 +1237,7 @@ export default function OrderFlow() {
                 sessionStorage.setItem("hosting_domain", existingDomain);
                 goToCheckout("/client/cart");
               }}
-              className="w-full py-3.5 bg-[#701AFE] text-white rounded-xl text-[14px] font-bold hover:bg-[#5e14d4] shadow-lg shadow-[#701AFE]/20 transition-all flex items-center justify-center gap-2">
+              className="w-full py-3.5 bg-[#4F46E5] text-white rounded-xl text-[14px] font-bold hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/20 transition-all flex items-center justify-center gap-2">
               Continue to Checkout <ChevronRight size={16} />
             </button>
           </motion.div>

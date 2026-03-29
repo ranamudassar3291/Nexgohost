@@ -112,7 +112,7 @@ export function PhoneInput({
         onChange={handleNumberChange}
         placeholder={placeholder}
         autoComplete="tel-national"
-        className="flex-1 h-11 px-3 rounded-r-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE] bg-white transition-all"
+        className="flex-1 h-11 px-3 rounded-r-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5] bg-white transition-all"
       />
 
       {/* ── Dropdown ── */}
@@ -128,7 +128,7 @@ export function PhoneInput({
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search country or code…"
-                className="w-full h-8 pl-7 pr-3 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#701AFE]/25 focus:border-[#701AFE]"
+                className="w-full h-8 pl-7 pr-3 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5]"
               />
             </div>
           </div>

@@ -15,7 +15,7 @@ import {
   Cpu, FileText, Code2, Cog, Wifi, MousePointerClick,
 } from "lucide-react";
 
-const BRAND_GRADIENT = "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)";
+const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
 
 function SvgRing({
   pct, size = 100, stroke = 8, color, label, used, limit, unlimited, loading,
@@ -718,7 +718,7 @@ export default function ServiceDetail() {
           <button
             onClick={() => setLocation("/client/invoices")}
             className="shrink-0 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
-            style={{ background: "linear-gradient(135deg,#701AFE,#9B51E0)" }}
+            style={{ background: "hsl(244 76% 59%)" }}
           >
             Pay Invoice →
           </button>
@@ -1143,7 +1143,7 @@ export default function ServiceDetail() {
           <SvgRing
             pct={diskPct}
             size={110} stroke={9}
-            color={diskPct > 80 ? "#f87171" : diskPct > 60 ? "#fb923c" : "#701AFE"}
+            color={diskPct > 80 ? "#f87171" : diskPct > 60 ? "#fb923c" : "#4F46E5"}
             label="Disk Usage"
             used={diskUsedDisplay}
             limit={diskLimit}
@@ -1153,7 +1153,7 @@ export default function ServiceDetail() {
           <SvgRing
             pct={bwPct}
             size={110} stroke={9}
-            color={bwPct > 80 ? "#f87171" : bwPct > 60 ? "#fb923c" : "#9B51E0"}
+            color={bwPct > 80 ? "#f87171" : bwPct > 60 ? "#fb923c" : "#6366F1"}
             label="Bandwidth"
             used={bwUsedDisplay}
             limit={bwLimit}
@@ -1163,7 +1163,7 @@ export default function ServiceDetail() {
           <SvgRing
             pct={0}
             size={110} stroke={9}
-            color="#C084FC"
+            color="#818CF8"
             label="Email Accounts"
             used="—"
             limit="Unlimited"
@@ -1262,7 +1262,7 @@ export default function ServiceDetail() {
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#701AFE",
+              color: "#4F46E5",
             },
             {
               label: "Databases",
@@ -1325,7 +1325,7 @@ export default function ServiceDetail() {
               onClick: handleCpanelLogin,
               loading: ssoLoading === "cpanel",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#701AFE",
+              color: "#4F46E5",
             },
           ].map(({ label, desc, icon: Icon, onClick, loading, disabled, color }) => (
             <button

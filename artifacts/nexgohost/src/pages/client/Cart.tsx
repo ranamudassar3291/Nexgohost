@@ -9,7 +9,7 @@ import { useCart, availableCycles, getItemPrice, CYCLE_LABELS, CYCLE_SUFFIX, typ
 import { useCurrency } from "@/context/CurrencyProvider";
 import { useQuery } from "@tanstack/react-query";
 
-const BRAND_GRADIENT = "linear-gradient(135deg, #701AFE 0%, #9B51E0 60%, #C084FC 100%)";
+const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)";
 
 interface Plan {
   id: string; name: string; description?: string | null; price: number;
@@ -45,7 +45,7 @@ function HostingUpsellBanner({
     >
       {/* Header */}
       <div className="px-5 py-4 flex items-start gap-3" style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.12) 0%, rgba(155,81,224,0.08) 100%)" }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#701AFE18" }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#4F46E518" }}>
           <Zap size={18} className="text-primary" />
         </div>
         <div>

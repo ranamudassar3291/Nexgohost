@@ -76,7 +76,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 function BotAvatar({ size = 40 }: { size?: number }) {
   return (
     <div style={{ width: size, height: size }}
-      className="rounded-full bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-primary/30">
+      className="rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm">
       <Bot size={size * 0.5} className="text-white" />
     </div>
   );
@@ -354,7 +354,7 @@ export default function ClientTickets() {
           </p>
         </div>
         {stage === null && (
-          <Button onClick={() => setStage("subject")} className="bg-primary hover:bg-primary/90 gap-2 shadow-lg shadow-primary/20">
+          <Button onClick={() => setStage("subject")} className="bg-primary hover:bg-primary/90 gap-2 shadow-sm">
             <Plus size={16} /> Open New Ticket
           </Button>
         )}

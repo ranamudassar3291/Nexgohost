@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
-const BRAND = "#701AFE";
+const BRAND = "#4F46E5";
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function apiFetch(url: string, opts: RequestInit = {}) {

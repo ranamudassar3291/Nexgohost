@@ -34,13 +34,13 @@ export default function ClientMigrations() {
           <h2 className="text-3xl font-display font-bold text-foreground">Website Migrations</h2>
           <p className="text-muted-foreground mt-1">Let our experts move your sites for free.</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-lg shadow-primary/20">
+        <Button onClick={() => setShowForm(!showForm)} className="bg-primary hover:bg-primary/90 text-white gap-2 shadow-sm">
           <ArrowRightLeft size={18} /> Request Migration
         </Button>
       </div>
 
       {showForm && (
-        <div className="bg-card border border-primary/30 rounded-2xl p-6 shadow-2xl shadow-primary/5 relative overflow-hidden">
+        <div className="bg-card border border-primary/20 rounded-2xl p-6 shadow-sm relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 rounded-full blur-[60px] pointer-events-none" />
           <h3 className="text-xl font-bold mb-6 font-display">Migration Details</h3>
           <form onSubmit={handleSubmit} className="space-y-5 relative z-10">

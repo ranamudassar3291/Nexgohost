@@ -148,7 +148,7 @@ export default function ClientLogin() {
     <div className="min-h-screen w-full flex bg-white">
 
       {/* ── Left marketing panel ──────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#701AFE] flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#4F46E5] flex-col justify-between p-12 relative overflow-hidden">
         {/* Decorative circles */}
         <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full" />
         <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-white/5  rounded-full" />
@@ -202,7 +202,7 @@ export default function ClientLogin() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-8 h-8" />
-            <span className="text-[#701AFE] text-lg font-bold">Noehost</span>
+            <span className="text-[#4F46E5] text-lg font-bold">Noehost</span>
           </div>
 
           <AnimatePresence mode="wait">
@@ -251,7 +251,7 @@ export default function ClientLogin() {
                       value={email}
                       onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: undefined })); setError(null); }}
                       placeholder="you@example.com"
-                      className={`w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE] ${fieldErrors.email ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"}`}
+                      className={`w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5] ${fieldErrors.email ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"}`}
                     />
                     {fieldErrors.email && <p className="mt-1.5 text-xs text-red-500">{fieldErrors.email}</p>}
                   </div>
@@ -259,7 +259,7 @@ export default function ClientLogin() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-sm font-medium text-gray-700">Password</label>
-                      <a href="/forgot-password" className="text-xs text-[#701AFE] hover:underline">Forgot password?</a>
+                      <a href="/forgot-password" className="text-xs text-[#4F46E5] hover:underline">Forgot password?</a>
                     </div>
                     <div className="relative">
                       <input
@@ -267,7 +267,7 @@ export default function ClientLogin() {
                         value={password}
                         onChange={e => { setPassword(e.target.value); setFieldErrors(p => ({ ...p, password: undefined })); setError(null); }}
                         placeholder="••••••••"
-                        className={`w-full h-11 px-4 pr-11 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE] ${fieldErrors.password ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"}`}
+                        className={`w-full h-11 px-4 pr-11 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5] ${fieldErrors.password ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"}`}
                       />
                       <button type="button" onClick={() => setShowPwd(p => !p)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -291,7 +291,7 @@ export default function ClientLogin() {
                   <button
                     type="submit"
                     disabled={loading || (captchaRequired && !captchaToken)}
-                    className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#701AFE]/30"
+                    className="w-full h-11 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 shadow-md shadow-[#4F46E5]/30"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : <><span>Sign in</span><ArrowRight size={16} /></>}
                   </button>
@@ -299,7 +299,7 @@ export default function ClientLogin() {
 
                 <p className="mt-6 text-center text-sm text-gray-500">
                   Don't have an account?{" "}
-                  <a href="/register" className="text-[#701AFE] font-medium hover:underline">Create account</a>
+                  <a href="/register" className="text-[#4F46E5] font-medium hover:underline">Create account</a>
                 </p>
               </motion.div>
             )}
@@ -307,8 +307,8 @@ export default function ClientLogin() {
             {/* ── Step: 2FA ── */}
             {step === "2fa" && (
               <motion.div key="2fa" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#701AFE]/10 mb-6">
-                  <Smartphone size={26} className="text-[#701AFE]" />
+                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#4F46E5]/10 mb-6">
+                  <Smartphone size={26} className="text-[#4F46E5]" />
                 </div>
                 <h1 className="text-2xl font-bold text-black mb-1">Two-factor verification</h1>
                 <p className="text-gray-500 text-sm mb-8">Enter the 6-digit code from your authenticator app</p>
@@ -325,10 +325,10 @@ export default function ClientLogin() {
                     onChange={e => { setTotp(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(null); }}
                     placeholder="000 000"
                     maxLength={6}
-                    className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.4em] text-black outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]"
+                    className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.4em] text-black outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5]"
                   />
                   <button type="submit" disabled={loading || totp.length !== 6}
-                    className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-60">
+                    className="w-full h-11 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-60">
                     {loading ? <Loader2 size={18} className="animate-spin" /> : "Verify code"}
                   </button>
                   <button type="button" onClick={() => { setStep("password"); setTotp(""); setError(null); }}
@@ -342,8 +342,8 @@ export default function ClientLogin() {
             {/* ── Step: email verify ── */}
             {step === "verify" && (
               <motion.div key="verify" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#701AFE]/10 mb-6">
-                  <MailCheck size={26} className="text-[#701AFE]" />
+                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-[#4F46E5]/10 mb-6">
+                  <MailCheck size={26} className="text-[#4F46E5]" />
                 </div>
                 <h1 className="text-2xl font-bold text-black mb-1">Check your email</h1>
                 <p className="text-gray-500 text-sm mb-2">
@@ -363,10 +363,10 @@ export default function ClientLogin() {
                     onChange={e => { setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(null); }}
                     placeholder="000 000"
                     maxLength={6}
-                    className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.4em] text-black outline-none focus:ring-2 focus:ring-[#701AFE]/30 focus:border-[#701AFE]"
+                    className="w-full h-14 px-4 rounded-xl border border-gray-200 text-center text-2xl font-mono tracking-[0.4em] text-black outline-none focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5]"
                   />
                   <button type="submit" disabled={loading || verifyCode.length !== 6}
-                    className="w-full h-11 rounded-xl bg-[#701AFE] hover:bg-[#5e14d4] text-white text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-60">
+                    className="w-full h-11 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-60">
                     {loading ? <Loader2 size={18} className="animate-spin" /> : "Verify & sign in"}
                   </button>
                 </form>
@@ -374,7 +374,7 @@ export default function ClientLogin() {
                   <button onClick={() => { setStep("password"); setVerifyCode(""); setError(null); }}
                     className="text-gray-500 hover:text-gray-700">← Back</button>
                   <button onClick={handleResend} disabled={resending || countdown > 0}
-                    className="flex items-center gap-1.5 text-[#701AFE] hover:underline disabled:opacity-50">
+                    className="flex items-center gap-1.5 text-[#4F46E5] hover:underline disabled:opacity-50">
                     {resending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                     {countdown > 0 ? `Resend in ${countdown}s` : "Resend code"}
                   </button>
