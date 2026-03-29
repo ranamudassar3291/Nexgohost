@@ -116,10 +116,10 @@ interface HostingPlan {
 }
 
 const statusColors: Record<string, string> = {
-  active: "bg-green-500/10 text-green-400 border-green-500/30",
-  suspended: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  terminated: "bg-red-500/10 text-red-400 border-red-500/30",
-  pending: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  active: "bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]",
+  suspended: "bg-orange-50 text-orange-700 border-orange-200",
+  terminated: "bg-red-50 text-red-700 border-red-200",
+  pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
 };
 
 function parseUsagePercent(used: string | null, limitStr: string): number {
@@ -1112,8 +1112,7 @@ export default function ServiceDetail() {
       </div>
 
       {/* ── Resource Visualizer: SVG Circular Progress Rings ── */}
-      <div className="rounded-2xl border border-border overflow-hidden"
-        style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 100%)" }}>
+      <div className="rounded-2xl border border-border overflow-hidden bg-card">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
             <Activity size={15} className="text-primary" /> Resource Usage
@@ -1181,12 +1180,10 @@ export default function ServiceDetail() {
             <Rocket size={16} className="text-white shrink-0" />
             <p className="text-sm font-bold text-white">Launch Your Site — your hosting is ready!</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-primary/10"
-            style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.05) 0%, rgba(155,81,224,0.03) 100%)" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/50">
             {/* Option 1: Install WordPress */}
             <div className="px-5 py-4 flex flex-col items-start gap-2">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(112,26,254,0.12)" }}>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <LayoutGrid size={16} className="text-primary" />
               </div>
               <div>
@@ -1206,8 +1203,7 @@ export default function ServiceDetail() {
 
             {/* Option 2: File Manager */}
             <div className="px-5 py-4 flex flex-col items-start gap-2">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(112,26,254,0.12)" }}>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <FileText size={16} className="text-primary" />
               </div>
               <div>
@@ -1226,8 +1222,7 @@ export default function ServiceDetail() {
 
             {/* Option 3: Website Builder (Sitejet) */}
             <div className="px-5 py-4 flex flex-col items-start gap-2">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(112,26,254,0.12)" }}>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <MousePointerClick size={16} className="text-primary" />
               </div>
               <div>

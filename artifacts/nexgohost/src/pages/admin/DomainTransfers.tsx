@@ -357,6 +357,23 @@ function TransferDetail({
           <span className="text-muted-foreground text-xs">Transfer Fee</span>
           <p className="font-bold text-foreground mt-0.5">{Number(t.price || 0).toLocaleString()} PKR</p>
         </div>
+        {t.invoiceNumber && (
+          <div className="col-span-2">
+            <span className="text-muted-foreground text-xs">Invoice</span>
+            <p className="font-medium text-foreground mt-0.5 flex items-center gap-2">
+              <span className="font-mono">{t.invoiceNumber}</span>
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                t.invoiceStatus === "paid"
+                  ? "bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]"
+                  : t.invoiceStatus === "overdue"
+                  ? "bg-red-50 text-red-700 border-red-200"
+                  : "bg-yellow-50 text-yellow-700 border-yellow-200"
+              }`}>
+                {t.invoiceStatus ? t.invoiceStatus.charAt(0).toUpperCase() + t.invoiceStatus.slice(1) : "Unpaid"}
+              </span>
+            </p>
+          </div>
+        )}
         {t.validationMessage && (
           <div className="col-span-2">
             <span className="text-muted-foreground text-xs">Validation Notes</span>

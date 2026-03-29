@@ -530,6 +530,8 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
       price: domainTransfersTable.price,
       orderId: domainTransfersTable.orderId,
       invoiceId: domainTransfersTable.invoiceId,
+      invoiceNumber: invoicesTable.invoiceNumber,
+      invoiceStatus: invoicesTable.status,
       createdAt: domainTransfersTable.createdAt,
       updatedAt: domainTransfersTable.updatedAt,
       clientId: domainTransfersTable.clientId,
@@ -539,6 +541,7 @@ router.get("/admin/domain-transfers", authenticate, requireRole("admin"), async 
     })
       .from(domainTransfersTable)
       .leftJoin(usersTable, eq(domainTransfersTable.clientId, usersTable.id))
+      .leftJoin(invoicesTable, eq(domainTransfersTable.invoiceId, invoicesTable.id))
       .orderBy(desc(domainTransfersTable.createdAt));
     res.json({ transfers });
   } catch (err) {

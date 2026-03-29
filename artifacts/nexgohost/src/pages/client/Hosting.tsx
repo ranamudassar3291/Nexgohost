@@ -48,10 +48,10 @@ async function apiFetch(url: string, opts: RequestInit = {}) {
 const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
 
 const statusConfig: Record<string, { dot: string; badge: string; label: string; pulse: boolean }> = {
-  active:    { dot: "bg-green-400",  badge: "bg-green-500/15 text-green-400 border-green-500/25",  label: "Active",    pulse: true  },
-  suspended: { dot: "bg-orange-400", badge: "bg-orange-500/15 text-orange-400 border-orange-500/25", label: "Suspended", pulse: false },
-  terminated:{ dot: "bg-red-400",   badge: "bg-red-500/15 text-red-400 border-red-500/25",   label: "Terminated",pulse: false },
-  pending:   { dot: "bg-yellow-400", badge: "bg-yellow-500/15 text-yellow-400 border-yellow-500/25", label: "Pending",   pulse: true  },
+  active:    { dot: "bg-emerald-500",  badge: "bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]",       label: "Active",    pulse: true  },
+  suspended: { dot: "bg-orange-400",   badge: "bg-orange-50 text-orange-700 border-orange-200",      label: "Suspended", pulse: false },
+  terminated:{ dot: "bg-red-400",      badge: "bg-red-50 text-red-700 border-red-200",               label: "Terminated",pulse: false },
+  pending:   { dot: "bg-yellow-400",   badge: "bg-yellow-50 text-yellow-700 border-yellow-200",      label: "Pending",   pulse: true  },
 };
 
 function isVpsService(planName: string) {
