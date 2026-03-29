@@ -84,7 +84,12 @@ router.post("/auth/register", async (req, res) => {
     } as any).returning();
 
     if (verificationRequired && code) {
-      await emailVerificationCode(email, firstName, code).catch(() => {});
+      try {
+        const emailResult = await emailVerificationCode(email, firstName, code, { clientId: user.id });
+        console.log(`[AUTH] Verification email to ${email}: sent=${emailResult.sent} msg=${emailResult.message}`);
+      } catch (emailErr: any) {
+        console.error(`[AUTH] ❌ Failed to send verification email to ${email}:`, emailErr.message);
+      }
     }
 
     // Welcome email — always sent on new account signup
@@ -166,7 +171,16 @@ router.post("/auth/resend-verification", authenticate, async (req: AuthRequest, 
     await db.update(usersTable).set({
       verificationCode: code, verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000), updatedAt: new Date(),
     }).where(eq(usersTable.id, user.id));
-    await emailVerificationCode(user.email, user.firstName, code).catch(() => {});
+    try {
+      const emailResult = await emailVerificationCode(user.email, user.firstName, code, { clientId: user.id });
+      console.log(`[AUTH] Resend verification to ${user.email}: sent=${emailResult.sent} msg=${emailResult.message}`);
+      if (!emailResult.sent) {
+        res.status(500).json({ success: false, message: `Email delivery failed: ${emailResult.message}` }); return;
+      }
+    } catch (emailErr: any) {
+      console.error(`[AUTH] ❌ Resend verification failed for ${user.email}:`, emailErr.message);
+      res.status(500).json({ success: false, message: emailErr.message }); return;
+    }
     res.json({ success: true, message: "Verification code resent" });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
