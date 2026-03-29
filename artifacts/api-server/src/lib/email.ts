@@ -1329,14 +1329,14 @@ export async function emailDomainTransferCompleted(
  */
 export async function emailAffiliateCommission(
   to: string,
-  vars: { clientName: string; commissionAmount: string; orderId: string; creditBalance: string },
+  vars: { clientName: string; commissionAmount: string; referralService: string; creditBalance: string },
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("affiliate-commission", to, {
-    client_name: vars.clientName,
+    affiliate_name: vars.clientName,
     commission_amount: vars.commissionAmount,
-    order_id: vars.orderId,
-    credit_balance: vars.creditBalance,
+    referral_service: vars.referralService,
+    current_balance: vars.creditBalance,
     client_area_url: getClientUrl(),
   }, meta);
 }

@@ -10,7 +10,7 @@ import { apiFetch } from "@/lib/api";
 import { useCurrency } from "@/context/CurrencyProvider";
 import {
   Copy, Link, TrendingUp, Clock, CheckCircle, Wallet, Building2, Users,
-  MousePointerClick, RefreshCw, ArrowUpRight, ChevronDown, ChevronUp, Gift, BadgeCheck,
+  MousePointerClick, RefreshCw, ArrowUpRight, ChevronDown, ChevronUp, Gift, BadgeCheck, Download, Share2,
 } from "lucide-react";
 
 interface AffiliateData {
@@ -170,6 +170,34 @@ export default function Affiliate() {
     toast({ title: "Copied!", description: "Referral code copied" });
   };
 
+  const downloadBanner = (width: number, height: number, label: string) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#13132A"/>
+      <stop offset="100%" style="stop-color:#1A1040"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#701AFE"/>
+      <stop offset="100%" style="stop-color:#9B51F5"/>
+    </linearGradient>
+  </defs>
+  <rect width="${width}" height="${height}" fill="url(#bg)" rx="8"/>
+  <rect x="0" y="${height - 4}" width="${width}" height="4" fill="url(#accent)" rx="0"/>
+  <text x="${width / 2}" y="${height * 0.38}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(14, Math.round(height * 0.18))}px" font-weight="800" fill="#FFFFFF" text-anchor="middle">⚡ Web Hosting from</text>
+  <text x="${width / 2}" y="${height * 0.62}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(18, Math.round(height * 0.26))}px" font-weight="900" fill="#701AFE" text-anchor="middle">Rs. 999/yr</text>
+  <text x="${width / 2}" y="${height * 0.84}" font-family="Inter,Arial,sans-serif" font-size="${Math.max(10, Math.round(height * 0.13))}px" fill="#9B8EC4" text-anchor="middle">noehost.com · Use code: ${affiliate.referralCode}</text>
+</svg>`;
+    const blob = new Blob([svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `noehost-banner-${label.replace(/\s/g, "_")}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Banner Downloaded!", description: `${label} banner saved to your device` });
+  };
+
   const handleWalletTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(walletAmt);
@@ -299,6 +327,81 @@ export default function Affiliate() {
               ? "You've reached the minimum payout threshold! You can withdraw now."
               : `${formatPrice(threshold - availableBalance)} more needed to reach the minimum threshold.`}
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Marketing Kit */}
+      <Card className="border-purple-200 bg-gradient-to-br from-[#0D0D1F] to-[#1A1040] text-white overflow-hidden">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-[#701AFE]/20 border border-[#701AFE]/30">
+              <Share2 className="h-5 w-5 text-[#701AFE]" />
+            </div>
+            <div>
+              <CardTitle className="text-base text-white">Marketing Kit</CardTitle>
+              <CardDescription className="text-purple-300 text-xs mt-0.5">Share your link and download ready-made banners to earn more</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Referral Link Copy */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Your Unique Referral Link</p>
+            <div className="flex gap-2">
+              <div className="flex-1 bg-[#0A0A1A] border border-[#2A2A4A] rounded-lg px-3 py-2.5 font-mono text-sm text-purple-200 truncate">
+                {referralUrl}
+              </div>
+              <Button
+                onClick={copyLink}
+                className="bg-[#701AFE] hover:bg-[#5e14d4] text-white shrink-0 gap-1.5"
+              >
+                <Copy className="h-4 w-4" /> Copy Link
+              </Button>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-purple-400">
+              <span>Referral Code:</span>
+              <button
+                onClick={copyCode}
+                className="font-mono font-bold text-purple-300 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                {affiliate.referralCode} <Copy className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-[#2A2A4A]" />
+
+          {/* Banner Downloads */}
+          <div>
+            <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider mb-3">Download Promotional Banners</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { label: "Square (1080×1080)", w: 1080, h: 1080, desc: "Instagram / Facebook" },
+                { label: "Leaderboard (728×90)", w: 728, h: 90, desc: "Website header banner" },
+                { label: "Rectangle (300×250)", w: 300, h: 250, desc: "Sidebar / Blog ad" },
+              ].map(({ label, w, h, desc }) => (
+                <button
+                  key={label}
+                  onClick={() => downloadBanner(w, h, label)}
+                  className="flex flex-col items-start gap-1.5 p-3 rounded-xl border border-[#2A2A4A] bg-[#0A0A1A] hover:border-[#701AFE]/60 hover:bg-[#13132A] transition-all text-left group"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-semibold text-purple-200 group-hover:text-white transition-colors">{label}</span>
+                    <Download className="h-3.5 w-3.5 text-[#701AFE] opacity-70 group-hover:opacity-100" />
+                  </div>
+                  <span className="text-[11px] text-purple-400">{desc}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-purple-500 mt-2.5">Banners include your referral code and download as SVG (scalable, print-ready).</p>
+          </div>
+
+          {/* Motivational nudge */}
+          <div className="rounded-xl border border-[#701AFE]/30 bg-[#701AFE]/10 px-4 py-3 text-center">
+            <p className="text-sm font-semibold text-white">🚀 Share your link more to earn more!</p>
+            <p className="text-xs text-purple-400 mt-1">Every paying referral puts money directly into your account.</p>
+          </div>
         </CardContent>
       </Card>
 

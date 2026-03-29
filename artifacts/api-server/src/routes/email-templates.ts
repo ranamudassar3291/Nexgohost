@@ -725,20 +725,134 @@ ${btnOutline("Go to WP Admin", "{{wp_admin_url}}")}
   {
     name: "Affiliate Commission Earned",
     slug: "affiliate-commission",
-    subject: "🎉 You earned a commission — Rs. {{commission_amount}}",
-    body: layout(`
-${successBanner("💸", "Commission Earned!", "Your referral reward has been credited")}
-<p style="margin:0 0 14px;color:#333333">Hi {{client_name}},</p>
-<p style="margin:0 0 4px;color:#333333">Great news! A client you referred just made a payment, and your commission has been credited to your account.</p>
-${infoTable("Commission Details", [
-  { label: "Commission Earned", value: `<span style="color:#38a169;font-size:16px;font-weight:700">Rs. {{commission_amount}}</span>` },
-  { label: "Related Order", value: "#{{order_id}}" },
-  { label: "New Credit Balance", value: `<span style="color:#701AFE;font-weight:700">Rs. {{credit_balance}}</span>` },
-])}
-${infoBox("Your commission has been added as account credit. You can use it on your next invoice or request a withdrawal from your affiliate dashboard.")}
-${btn("View Affiliate Dashboard", "{{client_area_url}}/affiliate")}
-`),
-    variables: ["{{client_name}}", "{{commission_amount}}", "{{order_id}}", "{{credit_balance}}", "{{client_area_url}}"],
+    subject: "💰 Congratulations! You just earned a new commission on Noehost",
+    body: `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Commission Earned — Noehost</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0D0D1F;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0D0D1F;padding:36px 16px">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#13132A;border-radius:12px;overflow:hidden;border:1px solid #2A2A4A">
+
+        <!-- ── HEADER ── -->
+        <tr>
+          <td style="padding:28px 40px 20px;text-align:center;border-bottom:1px solid #2A2A4A">
+            <span style="font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:26px;font-weight:800;color:#701AFE;letter-spacing:-0.5px">Noehost</span>
+          </td>
+        </tr>
+
+        <!-- ── HERO SECTION ── -->
+        <tr>
+          <td style="padding:40px 40px 0;text-align:center;background:linear-gradient(180deg,#1A1040 0%,#13132A 100%)">
+            <!-- Big Check / Money Icon -->
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 20px">
+              <tr>
+                <td style="width:88px;height:88px;background:linear-gradient(135deg,#701AFE,#9B51F5);border-radius:50%;text-align:center;vertical-align:middle">
+                  <span style="font-size:44px;line-height:88px">💰</span>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 8px;font-size:28px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px">Commission Earned!</p>
+            <p style="margin:0 0 32px;font-size:15px;color:#9B8EC4">Your referral just converted — here is your reward.</p>
+
+            <!-- Big Amount Badge -->
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 36px;background:linear-gradient(135deg,#701AFE22,#9B51F522);border:1px solid #701AFE55;border-radius:16px">
+              <tr>
+                <td style="padding:24px 48px;text-align:center">
+                  <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#9B8EC4;letter-spacing:1.5px;text-transform:uppercase">Commission Amount</p>
+                  <p style="margin:0;font-size:42px;font-weight:900;color:#FFFFFF;letter-spacing:-1px">Rs. {{commission_amount}}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ── BODY ── -->
+        <tr>
+          <td style="padding:32px 40px;color:#C4B8E8;font-size:15px;line-height:1.75">
+            <p style="margin:0 0 20px;color:#E8E0FF">Hi <strong style="color:#FFFFFF">{{affiliate_name}}</strong>,</p>
+            <p style="margin:0 0 28px;color:#9B8EC4">Congratulations! A client you referred just made a payment and your commission has been instantly credited to your affiliate account.</p>
+
+            <!-- Details Table -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius:10px;overflow:hidden;border:1px solid #2A2A4A;margin-bottom:28px">
+              <tr>
+                <td colspan="2" style="padding:14px 20px;background:#1E1E40;border-bottom:1px solid #2A2A4A">
+                  <span style="font-size:13px;font-weight:700;color:#9B8EC4;letter-spacing:0.5px;text-transform:uppercase">Earning Breakdown</span>
+                </td>
+              </tr>
+              <tr style="border-bottom:1px solid #2A2A4A">
+                <td style="padding:14px 20px;font-size:14px;color:#9B8EC4;border-bottom:1px solid #2A2A4A">Service Purchased</td>
+                <td style="padding:14px 20px;font-size:14px;font-weight:600;color:#FFFFFF;text-align:right;border-bottom:1px solid #2A2A4A">{{referral_service}}</td>
+              </tr>
+              <tr style="border-bottom:1px solid #2A2A4A">
+                <td style="padding:14px 20px;font-size:14px;color:#9B8EC4;border-bottom:1px solid #2A2A4A">Commission Earned</td>
+                <td style="padding:14px 20px;text-align:right;border-bottom:1px solid #2A2A4A"><span style="font-size:20px;font-weight:800;color:#34D399">Rs. {{commission_amount}}</span></td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;font-size:14px;color:#9B8EC4">Current Account Balance</td>
+                <td style="padding:14px 20px;text-align:right"><span style="font-size:18px;font-weight:700;color:#A78BFA">Rs. {{current_balance}}</span></td>
+              </tr>
+            </table>
+
+            <!-- Info Box -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius:10px;border-left:4px solid #701AFE;background:#1A1040;margin-bottom:32px">
+              <tr>
+                <td style="padding:16px 20px;font-size:14px;color:#9B8EC4;line-height:1.6">
+                  Your commission has been added as account credit. You can use it on your next invoice or request a withdrawal anytime from your affiliate dashboard.
+                </td>
+              </tr>
+            </table>
+
+            <!-- CTA Button -->
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 32px">
+              <tr>
+                <td style="border-radius:8px;background:linear-gradient(135deg,#701AFE,#9B51F5);text-align:center">
+                  <a href="{{client_area_url}}/affiliate" style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;letter-spacing:0.3px">
+                    View Affiliate Dashboard →
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Share More Section -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius:10px;background:#0D0D1F;border:1px solid #701AFE44;overflow:hidden;margin-bottom:8px">
+              <tr>
+                <td style="padding:20px 24px;text-align:center">
+                  <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#701AFE;letter-spacing:1px;text-transform:uppercase">🚀 Earn Even More</p>
+                  <p style="margin:0 0 14px;font-size:15px;font-weight:700;color:#FFFFFF">Share your link more to earn more!</p>
+                  <p style="margin:0;font-size:13px;color:#9B8EC4">Every referral you make brings you closer to bigger rewards. Keep sharing and watch your earnings grow.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ── FOOTER ── -->
+        <tr>
+          <td style="background:#0A0A1A;border-top:1px solid #2A2A4A;padding:24px 40px;text-align:center">
+            <p style="margin:0 0 10px;font-size:12px;color:#4A4A6A">
+              <a href="https://noehost.com/kb" style="color:#701AFE;text-decoration:none">Knowledge Base</a>
+              <span style="color:#2A2A4A;margin:0 8px">&middot;</span>
+              <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none">Support</a>
+              <span style="color:#2A2A4A;margin:0 8px">&middot;</span>
+              <a href="https://noehost.com/unsubscribe" style="color:#4A4A6A;text-decoration:underline">Unsubscribe</a>
+            </p>
+            <p style="margin:0;font-size:12px;color:#3A3A5A">&copy; 2026 Noehost. All rights reserved.</p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`,
+    variables: ["{{affiliate_name}}", "{{commission_amount}}", "{{referral_service}}", "{{current_balance}}", "{{client_area_url}}"],
   },
 
 ];

@@ -258,7 +258,7 @@ export async function processInvoicePaid(
               emailAffiliateCommission(affUser.email, {
                 clientName: `${affUser.firstName} ${affUser.lastName}`.trim() || affUser.email,
                 commissionAmount: Number(pendingComm.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                orderId: updated.orderId ?? updated.invoiceNumber,
+                referralService: pendingComm.description ?? `Invoice #${updated.invoiceNumber}`,
                 creditBalance: Number(newBalRow?.bal ?? pendingComm.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
               }, { clientId: affUser.id }).catch(e => console.warn("[ACTIVATE] affiliate email error:", e));
             }
