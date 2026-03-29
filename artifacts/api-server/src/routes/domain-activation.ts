@@ -391,10 +391,13 @@ router.post("/admin/domains/confirm-activation", authenticate, requireAdmin,
         const [client] = await db.select().from(usersTable)
           .where(eq(usersTable.id, order.clientId)).limit(1);
         if (client?.email) {
+          const fmtDate = (d: Date) => d.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
           await emailDomainRegistered(client.email, {
             clientName: `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || client.email,
             domain: fullDomain,
-            expiryDate: expiryDate.toLocaleDateString("en-GB"),
+            registrationDate: fmtDate(new Date()),
+            expiryDate: fmtDate(expiryDate),
+            nextDueDate: fmtDate(expiryDate),
             ns1: "ns1.noehost.com",
             ns2: "ns2.noehost.com",
           }, { clientId: order.clientId, referenceId: orderId });

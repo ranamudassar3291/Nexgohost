@@ -1124,12 +1124,15 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       });
     } catch { /* non-fatal — domain may already exist */ }
 
-    // Domain registration email (non-blocking)
-    const expiryFormatted = new Date(Date.now() + registrationYears * 365 * 24 * 60 * 60 * 1000)
-      .toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+    // Domain registration email — reuse the SAME expiryDate that was saved to the DB
+    // (setFullYear is the canonical calculation; no independent recalculation that could drift)
+    const fmtDate = (d: Date) => d.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+    const expiryFormatted = fmtDate(expiryDate); // expiryDate from line above (setFullYear used)
+    const regFormatted   = fmtDate(regDate);
     emailDomainRegistered(user.email, {
       clientName: `${user.firstName} ${user.lastName}`,
       domain: fullDomain,
+      registrationDate: regFormatted,
       expiryDate: expiryFormatted,
       nextDueDate: expiryFormatted,
       ns1: (resolvedNs && resolvedNs[0]) || `ns1.${new URL(getAppUrl()).hostname}`,
