@@ -855,9 +855,9 @@ const CPANEL_DEEP_LINKS: Record<string, { service: "cpaneld" | "webmaild"; paths
   cpanel:      { service: "cpaneld",  paths: ["/"] },
   filemanager: { service: "cpaneld",  paths: ["/frontend/paper_lantern/filemanager/index.html", "/frontend/jupiter/filemanager/index.html"] },
   databases:   { service: "cpaneld",  paths: ["/frontend/paper_lantern/sql/index.html", "/frontend/paper_lantern/sql/phpMyAdmin.html", "/frontend/jupiter/mysql/index.html"] },
-  php:         { service: "cpaneld",  paths: ["/frontend/paper_lantern/php_config/index.html", "/frontend/jupiter/php_config/index.html"] },
+  php:         { service: "cpaneld",  paths: ["/frontend/paper_lantern/multiphp_manager/index.html", "/frontend/paper_lantern/php_config/index.html", "/frontend/jupiter/php_config/index.html"] },
   cronjobs:    { service: "cpaneld",  paths: ["/frontend/paper_lantern/cron/index.html", "/frontend/jupiter/cron/index.html"] },
-  email:       { service: "cpaneld",  paths: ["/frontend/paper_lantern/mail/pops.html", "/frontend/paper_lantern/mail/accounts.html", "/frontend/jupiter/email/index.html"] },
+  email:       { service: "cpaneld",  paths: ["/frontend/paper_lantern/mail/accounts.html", "/frontend/paper_lantern/mail/index.html", "/frontend/jupiter/email/index.html"] },
   webmail:     { service: "webmaild", paths: ["/"] },
 };
 
