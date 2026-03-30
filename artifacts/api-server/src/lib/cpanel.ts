@@ -1249,6 +1249,36 @@ export async function cpanelGetWpAdminUrl(
   }
 }
 
+/**
+ * Probe a list of cPanel UI paths on a server (unauthenticated HEAD request).
+ * cPanel returns 302 (redirect to login) for pages that exist, 404 for pages that don't.
+ * Returns the first path that is NOT a 404, or null if all paths are missing.
+ */
+export function probeCpanelPaths(
+  hostname: string,
+  port: number,
+  paths: string[],
+  timeoutMs = 5000,
+): Promise<string | null> {
+  const tryPath = (path: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      const url = `https://${hostname}:${port}${path}`;
+      const req = https.request(url, { method: "HEAD", rejectUnauthorized: false, timeout: timeoutMs }, (res) => {
+        resolve(res.statusCode !== 404);
+      });
+      req.on("error", () => resolve(false));
+      req.on("timeout", () => { req.destroy(); resolve(false); });
+      req.end();
+    });
+
+  return (async () => {
+    for (const path of paths) {
+      if (await tryPath(path)) return path;
+    }
+    return null;
+  })();
+}
+
 export async function cpanelCreateUserSession(
   server: ServerConfig,
   username: string,

@@ -6,7 +6,7 @@ import { eq, sql, and, isNull, isNotNull, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
-import { cpanelCreateUserSession, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetLiveUsage, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
+import { cpanelCreateUserSession, probeCpanelPaths, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetLiveUsage, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -909,26 +909,26 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
       apiToken: server.apiToken!,
     };
 
-    // Generate a fresh WHM session token — valid for ~5 minutes
-    const primaryPath = link.paths[0] ?? "/";
-    const sessionUrl = await cpanelCreateUserSession(serverCfg, service.username, link.service);
+    // Run path probe + session generation in parallel to minimise latency
+    const cpanelPort = server.apiPort ? server.apiPort - 4 : 2083; // WHM is 2087, cPanel is 2083
+    const [sessionUrl, validPath] = await Promise.all([
+      cpanelCreateUserSession(serverCfg, service.username, link.service),
+      link.paths[0] === "/" ? Promise.resolve("/") : probeCpanelPaths(server.hostname, cpanelPort, link.paths, 4000),
+    ]);
+
+    const primaryPath = validPath ?? "/";
 
     let deepUrl: string;
     if (primaryPath === "/") {
-      // No deep link needed — just open the session root
       deepUrl = sessionUrl;
     } else if (sessionUrl.includes("/login/?session=") || sessionUrl.includes("/login?session=")) {
-      // WHM returned a login-token URL (e.g. /cpsessXXXX/login/?session=user:token:...).
-      // Append goto_uri as a query param — cPanel will redirect after validating the token.
       deepUrl = sessionUrl + "&goto_uri=" + encodeURIComponent(primaryPath);
     } else {
-      // WHM returned a direct session URL (e.g. /cpsessXXXX/).
-      // Deep-link by appending the path directly.
       const baseUrl = extractCpanelBase(sessionUrl);
       deepUrl = baseUrl + primaryPath;
     }
 
-    console.log(`[SSO-LAUNCH] target=${target} user=${service.username} path=${primaryPath} deepUrl=${deepUrl}`);
+    console.log(`[SSO-LAUNCH] target=${target} user=${service.username} probed=${validPath ?? "none"} deepUrl=${deepUrl}`);
 
     return res.json({ url: deepUrl, fallbackUrl: sessionUrl, target });
   } catch (err: any) {
