@@ -139,12 +139,13 @@ export default function DomainManage() {
     }
   }, [domain]);
 
-  const { data: dnsRecords = [], refetch: refetchDns, isLoading: dnsLoading } = useQuery<DnsRecord[]>({
+  const { data: dnsRaw, refetch: refetchDns, isLoading: dnsLoading } = useQuery<DnsRecord[]>({
     queryKey: ["domain-dns", domainId],
     queryFn: () => apiFetch(`/api/domains/${domainId}/dns`),
     enabled: !!domainId && section === "dns",
     retry: false,
   });
+  const dnsRecords: DnsRecord[] = Array.isArray(dnsRaw) ? dnsRaw : [];
 
   const { data: hostingServices = [] } = useQuery<Array<{ id: string; domain: string | null; status: string }>>({
     queryKey: ["client-services-domains"],

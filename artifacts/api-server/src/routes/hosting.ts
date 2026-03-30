@@ -848,6 +848,77 @@ router.post("/client/hosting/:id/webmail-login", authenticate, (req: AuthRequest
   ssoLogin(req, res, "webmaild"),
 );
 
+// ── SSO Deep-Link Launch: single endpoint that maps each Control Center button to a specific cPanel section ──
+const CPANEL_DEEP_LINKS: Record<string, { service: "cpaneld" | "webmaild"; path: string }> = {
+  cpanel:      { service: "cpaneld",  path: "/" },
+  filemanager: { service: "cpaneld",  path: "/frontend/paper_lantern/filemanager/index.html" },
+  databases:   { service: "cpaneld",  path: "/frontend/paper_lantern/phpmyadmin/index.live.php" },
+  php:         { service: "cpaneld",  path: "/frontend/paper_lantern/php_config/index.html" },
+  cronjobs:    { service: "cpaneld",  path: "/frontend/paper_lantern/cron/index.html" },
+  email:       { service: "cpaneld",  path: "/frontend/paper_lantern/mail/accounts.html" },
+  webmail:     { service: "webmaild", path: "/" },
+};
+
+router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const target: string = (req.body as any)?.target || "cpanel";
+    const link = CPANEL_DEEP_LINKS[target] ?? CPANEL_DEEP_LINKS.cpanel;
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service || service.clientId !== req.user!.userId) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    const { canManage, manageLockReason } = await canManageHostingService(service);
+    if (!canManage) {
+      return res.status(403).json({ error: manageLockReason || "Management is currently disabled for this service." });
+    }
+    if (!service.username) {
+      return res.status(400).json({ error: "No cPanel username linked to this service. Please contact support." });
+    }
+
+    const server = await resolveServerForService(service);
+    if (!server) {
+      const fallback = link.service === "webmaild" ? service.webmailUrl : service.cpanelUrl;
+      if (fallback) return res.json({ url: fallback });
+      return res.status(400).json({ error: "No server found. Contact support or add an active server in Admin → Servers." });
+    }
+
+    // 20i (StackCP): direct URLs, no WHM SSO token needed
+    if (server.type === "20i") {
+      const stackCPUrl = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
+      const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
+      const url = link.service === "webmaild" ? webmailUrl : stackCPUrl;
+      if (!url) return res.status(400).json({ error: "No 20i control panel URL found for this service." });
+      return res.json({ url });
+    }
+
+    const serverCfg = {
+      hostname: server.hostname,
+      port: server.apiPort || 2087,
+      username: server.apiUsername || "root",
+      apiToken: server.apiToken!,
+    };
+
+    // Generate fresh session token from WHM
+    const sessionUrl = await cpanelCreateUserSession(serverCfg, service.username, link.service);
+
+    // Build deep-link URL: extract the cpsessXXXXXXXX token and append the target path
+    let deepUrl = sessionUrl;
+    if (link.path && link.path !== "/") {
+      const baseMatch = sessionUrl.match(/^(https?:\/\/[^\/]+\/cpsess[A-Za-z0-9]+)/);
+      if (baseMatch) deepUrl = baseMatch[1] + link.path;
+    }
+
+    return res.json({ url: deepUrl, target });
+  } catch (err: any) {
+    const msg: string = err.message || "SSO launch failed";
+    console.warn(`[SSO-LAUNCH] ${(req.body as any)?.target} failed for service ${req.params.id}: ${msg}`);
+    return res.status(500).json({ error: msg });
+  }
+});
+
 // ── Admin SSO login: same as client SSO but no clientId check (admin can log into any account) ─
 async function adminSsoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "webmaild") {
   try {

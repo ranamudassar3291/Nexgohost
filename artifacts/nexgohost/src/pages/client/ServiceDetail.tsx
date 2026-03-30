@@ -12,7 +12,7 @@ import {
   AlertTriangle, AlertCircle, X, XCircle, ArrowUpCircle, CheckCircle,
   Lock, ChevronDown, ChevronUp, Network, Plus, Trash2, Pencil,
   Database, Download, ArchiveRestore, Clock, Rocket, Mail,
-  Cpu, FileText, Code2, Cog, Wifi, MousePointerClick,
+  Cpu, FileText, Code2, Cog, Wifi, MousePointerClick, AtSign,
 } from "lucide-react";
 
 const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
@@ -166,7 +166,7 @@ export default function ServiceDetail() {
 
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
-  const [ssoLoading, setSsoLoading] = useState<"cpanel" | "webmail" | null>(null);
+  const [ssoLoading, setSsoLoading] = useState<string | null>(null);
 
   // WordPress guided-install state
   const [wpInstallerLoading, setWpInstallerLoading] = useState(false);
@@ -339,6 +339,29 @@ export default function ServiceDetail() {
     } catch {
       if (service.webmailUrl) window.open(service.webmailUrl, "_blank");
       else toast({ title: "Error", description: "Webmail login failed", variant: "destructive" });
+    } finally { setSsoLoading(null); }
+  }
+
+  // SSO deep-link launcher: requests a fresh WHM session token and opens the specific cPanel section
+  async function handleDeepLaunch(target: string) {
+    if (!service) return;
+    setSsoLoading(target);
+    try {
+      const res = await authFetch(`/api/client/hosting/${service.id}/sso-launch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      });
+      const data = await res.json();
+      if (data.url) { window.open(data.url, "_blank"); return; }
+      // Fallback to stored URLs if SSO generation fails gracefully
+      if (target === "webmail" && service.webmailUrl) { window.open(service.webmailUrl, "_blank"); return; }
+      if (service.cpanelUrl) { window.open(service.cpanelUrl, "_blank"); return; }
+      toast({ title: "Cannot open panel", description: data.error || "Service not yet provisioned.", variant: "destructive" });
+    } catch {
+      const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
+      if (fallback) window.open(fallback, "_blank");
+      else toast({ title: "Error", description: "SSO login failed. Please try again.", variant: "destructive" });
     } finally { setSsoLoading(null); }
   }
 
@@ -1254,94 +1277,88 @@ export default function ServiceDetail() {
               label: "File Manager",
               desc: "Upload & manage files",
               icon: FileText,
-              onClick: handleCpanelLogin,
-              loading: ssoLoading === "cpanel",
+              onClick: () => handleDeepLaunch("filemanager"),
+              target: "filemanager",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#4F46E5",
             },
             {
               label: "Databases",
               desc: "MySQL & phpMyAdmin",
               icon: Database,
-              onClick: handleCpanelLogin,
-              loading: ssoLoading === "cpanel",
+              onClick: () => handleDeepLaunch("databases"),
+              target: "databases",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#2563eb",
             },
             {
               label: "PHP Version",
               desc: "Select PHP runtime",
               icon: Code2,
-              onClick: handleCpanelLogin,
-              loading: ssoLoading === "cpanel",
+              onClick: () => handleDeepLaunch("php"),
+              target: "php",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#7c3aed",
             },
             {
               label: "SSL Status",
               desc: service.sslStatus === "active" || service.sslStatus === "installed" ? "Certificate active" : "Reinstall SSL cert",
               icon: service.sslStatus === "active" || service.sslStatus === "installed" ? ShieldCheck : ShieldX,
               onClick: handleReinstallSSL,
-              loading: reinstallingSSL,
+              target: "ssl",
               disabled: service.status !== "active" || !service.canManage,
-              color: service.sslStatus === "active" || service.sslStatus === "installed" ? "#10b981" : "#ef4444",
             },
             {
               label: "Cron Jobs",
               desc: "Schedule automated tasks",
               icon: Clock,
-              onClick: handleCpanelLogin,
-              loading: ssoLoading === "cpanel",
+              onClick: () => handleDeepLaunch("cronjobs"),
+              target: "cronjobs",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#0891b2",
             },
             {
               label: "DNS Editor",
               desc: "Manage DNS records",
               icon: Network,
               onClick: () => { setActiveTab("dns"); if (dnsRecords.length === 0 && !dnsLoading) fetchDns(); },
-              loading: false,
+              target: "dns",
               disabled: false,
-              color: "#f59e0b",
             },
             {
               label: "Webmail",
-              desc: "Access email accounts",
+              desc: "Access inbox & email",
               icon: Mail,
-              onClick: handleWebmailLogin,
-              loading: ssoLoading === "webmail",
+              onClick: () => handleDeepLaunch("webmail"),
+              target: "webmail",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#ec4899",
             },
             {
-              label: "cPanel Login",
-              desc: "Full control panel",
-              icon: ExternalLink,
-              onClick: handleCpanelLogin,
-              loading: ssoLoading === "cpanel",
+              label: "Email Accounts",
+              desc: "Create & manage emails",
+              icon: AtSign,
+              onClick: () => handleDeepLaunch("email"),
+              target: "email",
               disabled: service.status !== "active" || !service.canManage,
-              color: "#4F46E5",
             },
-          ].map(({ label, desc, icon: Icon, onClick, loading, disabled, color }) => (
-            <button
-              key={label}
-              onClick={onClick}
-              disabled={disabled || loading}
-              className="group flex flex-col items-center gap-2.5 p-5 text-center hover:bg-secondary/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 group-disabled:scale-100"
-                style={{ background: `${color}18`, border: `1px solid ${color}25` }}>
-                {loading
-                  ? <Loader2 size={18} className="animate-spin" style={{ color }} />
-                  : <Icon size={18} style={{ color }} />
-                }
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-foreground">{label}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{desc}</p>
-              </div>
-            </button>
-          ))}
+          ].map(({ label, desc, icon: Icon, onClick, target, disabled }) => {
+            const isLoading = ssoLoading === target || (target === "ssl" && reinstallingSSL);
+            return (
+              <button
+                key={label}
+                onClick={onClick}
+                disabled={disabled || isLoading}
+                className="group flex flex-col items-center gap-2.5 p-5 text-center hover:bg-secondary/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center border border-primary/20 bg-primary/5 transition-transform group-hover:scale-110 group-hover:bg-primary/10 group-disabled:scale-100">
+                  {isLoading
+                    ? <Loader2 size={18} className="animate-spin text-primary" />
+                    : <Icon size={18} className="text-primary" />
+                  }
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">{label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{desc}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
