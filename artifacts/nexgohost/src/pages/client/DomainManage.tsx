@@ -348,7 +348,7 @@ export default function DomainManage() {
 
       {/* ── Hero: Ring + Domain Info ── */}
       <div className="rounded-2xl border border-border overflow-hidden"
-        style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.03) 50%, transparent 100%)" }}>
+        style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.06) 0%, rgba(99,102,241,0.03) 50%, transparent 100%)" }}>
         <div className="px-6 py-8 flex flex-col sm:flex-row items-center gap-8">
 
           {/* Ring */}
@@ -369,6 +369,20 @@ export default function DomainManage() {
                   <span className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${statusInfo.cls}`}>
                     {statusInfo.label}
                   </span>
+                  {/* Transfer Lock Status Badge */}
+                  {domain.isIn60DayLock && !domain.lockOverrideByAdmin ? (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full border font-semibold bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
+                      🔒 Transfer Locked · {domain.daysRemainingInLock}d
+                    </span>
+                  ) : isLocked ? (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full border font-semibold bg-green-500/10 text-green-400 border-green-500/20 flex items-center gap-1">
+                      🔒 Transfer Protected
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full border font-semibold bg-blue-500/10 text-blue-400 border-blue-500/20 flex items-center gap-1">
+                      ✓ Transferable
+                    </span>
+                  )}
                   {currentAutoRenew && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
                       Auto-Renew ON
@@ -403,7 +417,7 @@ export default function DomainManage() {
       {/* ── 3-Mark Setup Wizard ── */}
       {setupComplete ? (
         <div className="rounded-2xl overflow-hidden border border-green-500/30 relative"
-          style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(112,26,254,0.06) 100%)" }}>
+          style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(79,70,229,0.06) 100%)" }}>
           <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: "inset 0 0 60px rgba(34,197,94,0.07)" }} />
           <div className="px-6 py-5 flex items-center gap-4 relative">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
@@ -443,7 +457,7 @@ export default function DomainManage() {
         </div>
       ) : (
         <div className="rounded-2xl border border-primary/20 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.05) 0%, rgba(155,81,224,0.02) 100%)" }}>
+          style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.05) 0%, rgba(99,102,241,0.02) 100%)" }}>
           <div className="px-5 py-3.5 border-b border-primary/10 flex items-center gap-2.5">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
@@ -671,26 +685,54 @@ export default function DomainManage() {
           </button>
 
           {/* EPP Code */}
-          <button
-            onClick={() => {
-              if (!domain.canManage) { toast({ title: "Domain Management Locked", description: domain.manageLockReason || "Please pay your invoice to unlock.", variant: "destructive" }); return; }
-              if (isLifecycleLocked) { toast({ title: "Transfer Disabled", description: "Domain transfers are not permitted during lifecycle restriction. Contact support.", variant: "destructive" }); return; }
-              if (isLocked) return;
-              handleFetchEpp();
-            }}
-            disabled={(isLocked && !isLifecycleLocked) || !domain.canManage}
-            className={`flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left group
-              ${!domain.canManage || isLifecycleLocked || isLocked ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02]"}`}>
-            <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-              <Key size={18} className="text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-foreground">EPP Code</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isLifecycleLocked ? "Unavailable" : isLocked ? "Unlock transfer first" : eppVisible ? "Tap to hide" : "Select reason → reveal"}
-              </p>
-            </div>
-          </button>
+          {(() => {
+            const eppBlockedBy60Day = domain.isIn60DayLock && !domain.lockOverrideByAdmin;
+            const eppDisabled = eppBlockedBy60Day || isLifecycleLocked || isLocked || !domain.canManage;
+            const eppStatusText = !domain.canManage
+              ? "Management locked"
+              : eppBlockedBy60Day
+                ? `Locked · ${domain.daysRemainingInLock}d remaining`
+                : isLifecycleLocked
+                  ? "Unavailable"
+                  : isLocked
+                    ? "Unlock transfer first"
+                    : eppVisible
+                      ? "Tap to hide"
+                      : "Select reason → reveal";
+            return (
+              <div className="relative group/epp">
+                <button
+                  onClick={() => {
+                    if (!domain.canManage) { toast({ title: "Domain Management Locked", description: domain.manageLockReason || "Please pay your invoice to unlock.", variant: "destructive" }); return; }
+                    if (eppBlockedBy60Day) { toast({ title: "EPP Code Unavailable", description: `EPP Code is unavailable during the initial 60-day transfer lock period. ${domain.daysRemainingInLock} day(s) remaining.`, variant: "destructive" }); return; }
+                    if (isLifecycleLocked) { toast({ title: "Transfer Disabled", description: "Domain transfers are not permitted during lifecycle restriction. Contact support.", variant: "destructive" }); return; }
+                    if (isLocked) return;
+                    handleFetchEpp();
+                  }}
+                  disabled={eppDisabled && !eppBlockedBy60Day}
+                  className={`w-full flex flex-col items-start gap-3 p-4 rounded-2xl border transition-all text-left
+                    ${eppDisabled ? "border-border bg-card opacity-50 cursor-not-allowed" : "border-border bg-card hover:border-primary/30 hover:bg-primary/[0.02] group"}`}>
+                  <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center transition-colors">
+                    <Key size={18} className={eppDisabled ? "text-muted-foreground" : "text-muted-foreground group-hover:text-primary transition-colors"} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">EPP Code</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{eppStatusText}</p>
+                  </div>
+                </button>
+                {/* Tooltip for 60-day lock */}
+                {eppBlockedBy60Day && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 hidden group-hover/epp:block w-64 pointer-events-none">
+                    <div className="bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl px-3 py-2 shadow-xl border border-white/10 text-center">
+                      EPP Code is unavailable during the initial 60-day transfer lock period.
+                      <span className="block font-bold text-amber-400 mt-0.5">{domain.daysRemainingInLock} day(s) remaining</span>
+                    </div>
+                    <div className="w-2 h-2 bg-gray-900 border-r border-b border-white/10 rotate-45 mx-auto -mt-1" />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
         </div>
       </div>
@@ -873,7 +915,7 @@ export default function DomainManage() {
 
       {/* ── TLD Variation Suggestions ── */}
       <div className="rounded-2xl border border-primary/15 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.04) 0%, rgba(155,81,224,0.02) 100%)" }}>
+        style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(99,102,241,0.02) 100%)" }}>
         <div className="px-5 py-3 border-b border-primary/10 flex items-center gap-2">
           <Sparkles size={14} className="text-primary" />
           <div>

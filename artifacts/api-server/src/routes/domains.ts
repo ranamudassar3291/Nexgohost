@@ -987,6 +987,16 @@ router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
       if (!canManage) { res.status(403).json({ error: manageLockReason || "Management is currently disabled for this domain." }); return; }
     }
 
+    // Enforce 60-day ICANN registration lock — EPP code must not be issued during this period
+    const { isIn60DayLock, daysRemainingInLock } = calcRegistrationLock(domain.registrationDate, domain.lockOverrideByAdmin);
+    if (isIn60DayLock && !isAdmin) {
+      return res.status(403).json({
+        error: "60_DAY_LOCK",
+        message: `EPP Code is unavailable during the initial 60-day transfer lock period. ${daysRemainingInLock} day(s) remaining.`,
+        daysRemainingInLock,
+      });
+    }
+
     if (domain.lockStatus === "locked") {
       return res.status(403).json({
         error: "Transfer lock is enabled. Disable the transfer lock to reveal the EPP code.",
