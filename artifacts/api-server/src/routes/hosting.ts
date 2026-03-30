@@ -910,25 +910,27 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
     };
 
     // Generate a fresh WHM session token — valid for ~5 minutes
-    // Pass goto_uri so WHM bakes the redirect into the session URL (avoids static path construction)
     const primaryPath = link.paths[0] ?? "/";
-    const gotoUri = primaryPath !== "/" ? primaryPath : undefined;
-    const sessionUrl = await cpanelCreateUserSession(serverCfg, service.username, link.service, gotoUri);
+    const sessionUrl = await cpanelCreateUserSession(serverCfg, service.username, link.service);
 
-    // Also build a manual deep-link as fallback (in case WHM ignores goto_uri)
-    const baseUrl = extractCpanelBase(sessionUrl);
-    const manualDeepUrl = gotoUri ? baseUrl + primaryPath : sessionUrl;
+    let deepUrl: string;
+    if (primaryPath === "/") {
+      // No deep link needed — just open the session root
+      deepUrl = sessionUrl;
+    } else if (sessionUrl.includes("/login/?session=") || sessionUrl.includes("/login?session=")) {
+      // WHM returned a login-token URL (e.g. /cpsessXXXX/login/?session=user:token:...).
+      // Append goto_uri as a query param — cPanel will redirect after validating the token.
+      deepUrl = sessionUrl + "&goto_uri=" + encodeURIComponent(primaryPath);
+    } else {
+      // WHM returned a direct session URL (e.g. /cpsessXXXX/).
+      // Deep-link by appending the path directly.
+      const baseUrl = extractCpanelBase(sessionUrl);
+      deepUrl = baseUrl + primaryPath;
+    }
 
-    console.log(`[SSO-LAUNCH] target=${target} user=${service.username} gotoUri=${gotoUri || "/"} rawSession=${sessionUrl} manualDeep=${manualDeepUrl}`);
+    console.log(`[SSO-LAUNCH] target=${target} user=${service.username} path=${primaryPath} deepUrl=${deepUrl}`);
 
-    // Prefer the WHM session URL (which includes goto_uri redirect if supported),
-    // also return the manual deep-link and the base session as fallbacks
-    return res.json({
-      url: sessionUrl,
-      deepUrl: manualDeepUrl,
-      fallbackUrl: baseUrl + "/",
-      target,
-    });
+    return res.json({ url: deepUrl, fallbackUrl: sessionUrl, target });
   } catch (err: any) {
     const msg: string = err.message || "SSO launch failed";
     console.warn(`[SSO-LAUNCH] ${(req.body as any)?.target} failed for service ${req.params.id}: ${msg}`);
