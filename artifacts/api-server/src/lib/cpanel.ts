@@ -1253,11 +1253,14 @@ export async function cpanelCreateUserSession(
   server: ServerConfig,
   username: string,
   service: "cpaneld" | "webmaild",
+  gotoUri?: string,
 ): Promise<string> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
   const url = `https://${server.hostname}:${port}/json-api/create_user_session?api.version=1`;
-  const bodyParams = new URLSearchParams({ user: username, service }).toString();
+  const params: Record<string, string> = { user: username, service };
+  if (gotoUri) params.goto_uri = gotoUri;
+  const bodyParams = new URLSearchParams(params).toString();
 
   const rawBody = await httpsPost(url, { "Authorization": `whm ${authUser}:${server.apiToken}` }, bodyParams, 30000);
 

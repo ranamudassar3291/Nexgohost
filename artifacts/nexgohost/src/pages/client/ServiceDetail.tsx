@@ -353,15 +353,32 @@ export default function ServiceDetail() {
         body: JSON.stringify({ target }),
       });
       const data = await res.json();
-      if (data.url) { window.open(data.url, "_blank"); return; }
-      // Fallback to stored URLs if SSO generation fails gracefully
-      if (target === "webmail" && service.webmailUrl) { window.open(service.webmailUrl, "_blank"); return; }
-      if (service.cpanelUrl) { window.open(service.cpanelUrl, "_blank"); return; }
-      toast({ title: "Cannot open panel", description: data.error || "Service not yet provisioned.", variant: "destructive" });
+
+      if (!res.ok) {
+        // Server-side error (server unreachable, no credentials, etc.) — stay on the page
+        const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
+        if (fallback) {
+          window.open(fallback, "_blank");
+          toast({ title: "Using saved link", description: data.error || "Could not generate a fresh session. Opened the stored control panel link.", variant: "destructive" });
+        } else {
+          toast({ title: "Unable to connect to server", description: data.error || "Please try again later.", variant: "destructive" });
+        }
+        return;
+      }
+
+      if (data.url) {
+        window.open(data.url, "_blank");
+        return;
+      }
+
+      // No URL returned — use stored fallbacks
+      const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
+      if (fallback) { window.open(fallback, "_blank"); return; }
+      toast({ title: "Cannot open panel", description: "Service not yet provisioned. Please contact support.", variant: "destructive" });
     } catch {
       const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
       if (fallback) window.open(fallback, "_blank");
-      else toast({ title: "Error", description: "SSO login failed. Please try again.", variant: "destructive" });
+      else toast({ title: "Unable to connect to server", description: "Please try again later.", variant: "destructive" });
     } finally { setSsoLoading(null); }
   }
 

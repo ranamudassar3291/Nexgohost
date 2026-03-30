@@ -848,16 +848,24 @@ router.post("/client/hosting/:id/webmail-login", authenticate, (req: AuthRequest
   ssoLogin(req, res, "webmaild"),
 );
 
-// ── SSO Deep-Link Launch: single endpoint that maps each Control Center button to a specific cPanel section ──
-const CPANEL_DEEP_LINKS: Record<string, { service: "cpaneld" | "webmaild"; path: string }> = {
-  cpanel:      { service: "cpaneld",  path: "/" },
-  filemanager: { service: "cpaneld",  path: "/frontend/paper_lantern/filemanager/index.html" },
-  databases:   { service: "cpaneld",  path: "/frontend/paper_lantern/phpmyadmin/index.live.php" },
-  php:         { service: "cpaneld",  path: "/frontend/paper_lantern/php_config/index.html" },
-  cronjobs:    { service: "cpaneld",  path: "/frontend/paper_lantern/cron/index.html" },
-  email:       { service: "cpaneld",  path: "/frontend/paper_lantern/mail/accounts.html" },
-  webmail:     { service: "webmaild", path: "/" },
+// ── SSO Deep-Link Launch ───────────────────────────────────────────────────────
+// Paths are relative to the cpsess session root, supporting both paper_lantern and Jupiter themes.
+// Jupiter (cPanel >= 96) maps paper_lantern paths automatically via redirect.
+const CPANEL_DEEP_LINKS: Record<string, { service: "cpaneld" | "webmaild"; paths: string[] }> = {
+  cpanel:      { service: "cpaneld",  paths: ["/"] },
+  filemanager: { service: "cpaneld",  paths: ["/frontend/paper_lantern/filemanager/index.html", "/frontend/jupiter/filemanager/index.html"] },
+  databases:   { service: "cpaneld",  paths: ["/frontend/paper_lantern/sql/index.html", "/frontend/paper_lantern/sql/phpMyAdmin.html", "/frontend/jupiter/mysql/index.html"] },
+  php:         { service: "cpaneld",  paths: ["/frontend/paper_lantern/php_config/index.html", "/frontend/jupiter/php_config/index.html"] },
+  cronjobs:    { service: "cpaneld",  paths: ["/frontend/paper_lantern/cron/index.html", "/frontend/jupiter/cron/index.html"] },
+  email:       { service: "cpaneld",  paths: ["/frontend/paper_lantern/mail/pops.html", "/frontend/paper_lantern/mail/accounts.html", "/frontend/jupiter/email/index.html"] },
+  webmail:     { service: "webmaild", paths: ["/"] },
 };
+
+/** Extract the base cPanel session URL (strips everything after /cpsessXXXXXX) */
+function extractCpanelBase(sessionUrl: string): string {
+  const m = sessionUrl.match(/^(https?:\/\/[^\/]+(?::\d+)?\/cpsess[A-Za-z0-9]+)/);
+  return m ? m[1] : sessionUrl.replace(/\/+$/, "");
+}
 
 router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequest, res) => {
   try {
@@ -901,21 +909,31 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
       apiToken: server.apiToken!,
     };
 
-    // Generate fresh session token from WHM
-    const sessionUrl = await cpanelCreateUserSession(serverCfg, service.username, link.service);
+    // Generate a fresh WHM session token — valid for ~5 minutes
+    // Pass goto_uri so WHM bakes the redirect into the session URL (avoids static path construction)
+    const primaryPath = link.paths[0] ?? "/";
+    const gotoUri = primaryPath !== "/" ? primaryPath : undefined;
+    const sessionUrl = await cpanelCreateUserSession(serverCfg, service.username, link.service, gotoUri);
 
-    // Build deep-link URL: extract the cpsessXXXXXXXX token and append the target path
-    let deepUrl = sessionUrl;
-    if (link.path && link.path !== "/") {
-      const baseMatch = sessionUrl.match(/^(https?:\/\/[^\/]+\/cpsess[A-Za-z0-9]+)/);
-      if (baseMatch) deepUrl = baseMatch[1] + link.path;
-    }
+    // Also build a manual deep-link as fallback (in case WHM ignores goto_uri)
+    const baseUrl = extractCpanelBase(sessionUrl);
+    const manualDeepUrl = gotoUri ? baseUrl + primaryPath : sessionUrl;
 
-    return res.json({ url: deepUrl, target });
+    console.log(`[SSO-LAUNCH] target=${target} user=${service.username} gotoUri=${gotoUri || "/"} rawSession=${sessionUrl} manualDeep=${manualDeepUrl}`);
+
+    // Prefer the WHM session URL (which includes goto_uri redirect if supported),
+    // also return the manual deep-link and the base session as fallbacks
+    return res.json({
+      url: sessionUrl,
+      deepUrl: manualDeepUrl,
+      fallbackUrl: baseUrl + "/",
+      target,
+    });
   } catch (err: any) {
     const msg: string = err.message || "SSO launch failed";
     console.warn(`[SSO-LAUNCH] ${(req.body as any)?.target} failed for service ${req.params.id}: ${msg}`);
-    return res.status(500).json({ error: msg });
+    // Return 400 instead of 500 so the frontend shows a clean toast (not a browser 404)
+    return res.status(400).json({ error: `Unable to connect to server. ${msg}` });
   }
 });
 
