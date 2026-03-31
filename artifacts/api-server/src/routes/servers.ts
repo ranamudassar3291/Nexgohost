@@ -128,14 +128,15 @@ router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (re
   if (!apiKey) { res.status(400).json({ error: "apiKey is required" }); return; }
   if (type === "20i") {
     const result = await twentyiTestConnection(apiKey);
-    if (!result.success) { res.status(400).json({ error: result.message, success: false }); return; }
-    // Also fetch packages so the form can populate the dropdown
-    try {
-      const pkgs = await twentyiGetPackages(apiKey);
-      res.json({ success: true, message: result.message, packages: pkgs });
-    } catch {
-      res.json({ success: true, message: result.message, packages: [] });
+    // Always return 200 — client decides what to show based on success flag
+    if (!result.success) {
+      res.json({ success: false, message: result.message, diagnostic: result.diagnostic ?? null, packages: [] });
+      return;
     }
+    // Fetch packages using the proven-correct endpoint variant
+    let pkgs: any[] = [];
+    try { pkgs = await twentyiGetPackages(apiKey); } catch { /* empty */ }
+    res.json({ success: true, message: result.message, diagnostic: result.diagnostic ?? null, packages: pkgs });
     return;
   }
   res.status(400).json({ error: "Pre-save testing is only supported for 20i servers" });
@@ -262,10 +263,14 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   if (server.type === "20i") {
     const result = await twentyiTestConnection(server.apiToken);
     if (!result.success) {
-      res.status(400).json({ error: result.message, success: false });
+      // Return 200 so client can display diagnostic — not an HTTP error
+      res.json({ success: false, connected: false, message: result.message, diagnostic: result.diagnostic ?? null, packages: [] });
       return;
     }
-    res.json({ success: true, connected: true, message: result.message, packages: [] });
+    // Sync packages on successful test
+    let pkgs: any[] = [];
+    try { pkgs = await twentyiGetPackages(server.apiToken); } catch { /* ignore */ }
+    res.json({ success: true, connected: true, message: result.message, diagnostic: result.diagnostic ?? null, packages: pkgs });
     return;
   }
 

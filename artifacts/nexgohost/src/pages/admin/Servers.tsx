@@ -54,7 +54,7 @@ export default function Servers() {
 
   // 20i in-form test state
   const [testingForm, setTestingForm] = useState(false);
-  const [formTestResult, setFormTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [formTestResult, setFormTestResult] = useState<{ ok: boolean; msg: string; diagnostic?: { step?: string; endpoint?: string; detail?: string } | null } | null>(null);
   const [twentyiPkgs, setTwentyiPkgs] = useState<TwentyIPkg[]>([]);
   const [twentyiDefaultPkg, setTwentyiDefaultPkg] = useState("");
 
@@ -83,22 +83,27 @@ export default function Servers() {
 
   // ── In-form 20i connection test ──────────────────────────────────────────
   const handleFormTest = async () => {
-    if (!serverForm.apiToken) { toast({ title: "Enter your 20i API Key first", variant: "destructive" }); return; }
+    if (!serverForm.apiToken) { toast({ title: "Enter your 20i API Key first" }); return; }
     setTestingForm(true); setFormTestResult(null); setTwentyiPkgs([]);
     try {
+      // Always returns 200 — check success flag in response body
       const result = await apiFetch("/api/admin/servers/test-api-key", {
         method: "POST",
-        body: JSON.stringify({ apiKey: serverForm.apiToken, type: "20i" }),
+        body: JSON.stringify({ apiKey: serverForm.apiToken.trim(), type: "20i" }),
       });
-      setFormTestResult({ ok: true, msg: result.message });
-      if (result.packages && result.packages.length > 0) {
+      if (!result.success) {
+        setFormTestResult({ ok: false, msg: result.message, diagnostic: result.diagnostic });
+        return;
+      }
+      setFormTestResult({ ok: true, msg: result.message, diagnostic: result.diagnostic });
+      if (result.packages?.length > 0) {
         setTwentyiPkgs(result.packages);
         if (!twentyiDefaultPkg) setTwentyiDefaultPkg(result.packages[0].id);
       }
       toast({ title: "Connection successful", description: result.message });
     } catch (err: any) {
+      // Network / server crash path
       setFormTestResult({ ok: false, msg: err.message });
-      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
     } finally { setTestingForm(false); }
   };
 
@@ -142,14 +147,17 @@ export default function Servers() {
     setTesting(id);
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
-      setTestResults(r => ({ ...r, [id]: { ok: true, msg: result.message, packages: result.packages || [], permissions: result.permissions || [] } }));
-      const pkgSuffix = result.packages?.length ? ` — ${result.packages.length} package(s) found` : "";
-      const permFailed = (result.permissions || []).filter((p: any) => !p.ok).length;
-      const permSuffix = permFailed > 0 ? ` · ${permFailed} permission issue(s) detected` : "";
-      toast({ title: "Server Connected", description: result.message + pkgSuffix + permSuffix });
+      const isOk = result.success !== false && result.connected !== false;
+      setTestResults(r => ({ ...r, [id]: { ok: isOk, msg: result.message, packages: result.packages || [], permissions: result.permissions || [], diagnostic: result.diagnostic } }));
+      if (isOk) {
+        const pkgSuffix = result.packages?.length ? ` — ${result.packages.length} package(s) found` : "";
+        toast({ title: "Server Connected", description: result.message + pkgSuffix });
+      } else {
+        toast({ title: "Connection issue", description: result.diagnostic?.detail || result.message });
+      }
     } catch (err: any) {
       setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [], permissions: [] } }));
-      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
+      toast({ title: "Connection failed", description: err.message });
     } finally { setTesting(null); }
   };
 
@@ -300,9 +308,19 @@ export default function Servers() {
                       {testingForm ? "Testing…" : "Test Connection"}
                     </Button>
                     {formTestResult && (
-                      <div className={`flex items-start gap-2 text-xs p-3 rounded-lg border ${formTestResult.ok ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400" : "border-red-500/20 bg-red-500/5 text-red-400"}`}>
-                        {formTestResult.ok ? <CheckCircle size={13} className="mt-0.5 shrink-0" /> : <XCircle size={13} className="mt-0.5 shrink-0" />}
-                        <span>{formTestResult.msg}</span>
+                      <div className={`text-xs p-3 rounded-xl border space-y-1.5 ${formTestResult.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-primary/20 bg-primary/5"}`}>
+                        <div className={`flex items-start gap-2 font-medium ${formTestResult.ok ? "text-emerald-500" : "text-primary"}`}>
+                          {formTestResult.ok
+                            ? <CheckCircle size={13} className="mt-0.5 shrink-0" />
+                            : <XCircle size={13} className="mt-0.5 shrink-0" />}
+                          <span>{formTestResult.msg}</span>
+                        </div>
+                        {formTestResult.diagnostic?.detail && (
+                          <p className="text-muted-foreground pl-[19px]">{formTestResult.diagnostic.detail}</p>
+                        )}
+                        {formTestResult.ok && formTestResult.diagnostic?.endpoint && (
+                          <p className="text-muted-foreground pl-[19px]">Endpoint: <span className="font-mono">{formTestResult.diagnostic.endpoint}</span></p>
+                        )}
                       </div>
                     )}
                     {twentyiPkgs.length > 0 && (

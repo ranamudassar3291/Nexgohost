@@ -3,24 +3,35 @@
  * https://my.20i.com/reseller/apidoc
  */
 
+/**
+ * Sanitise an API key: trim whitespace and strip any invisible chars
+ * that can silently break Bearer token auth.
+ */
+function sanitiseKey(apiKey: string): string {
+  return apiKey.trim().replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "");
+}
+
 async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
+  const cleanKey = sanitiseKey(apiKey);
   const url = `https://api.20i.com${path}`;
   const res = await fetch(url, {
     method,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${cleanKey}`,
       "Content-Type": "application/json",
+      "Accept": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(25000),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 401) throw new Error("Unauthorized — check your 20i API Key (401)");
-    if (res.status === 403) throw new Error("Forbidden — your API key lacks permission for this action (403)");
-    if (res.status === 404) throw new Error(`Endpoint not found — check API Key / path: ${path} (404)`);
-    if (res.status === 429) throw new Error("Rate limited — too many requests to 20i API (429)");
+    if (res.status === 401) throw new Error("Invalid API key — authentication failed (401). Check your key in my.20i.com → Reseller API.");
+    if (res.status === 403) throw new Error("API key lacks permission for this action (403). Ensure it is a reseller-level key.");
+    if (res.status === 404) throw new Error(`Endpoint not found (404): ${path}`);
+    if (res.status === 429) throw new Error("Rate limited — too many requests to 20i API (429). Wait a moment and retry.");
+    if (res.status === 500) throw new Error(`20i server error (500) — try again later. Response: ${text.substring(0, 200)}`);
     throw new Error(`20i API error ${res.status}: ${text.substring(0, 300)}`);
   }
   return res.json();
@@ -47,15 +58,101 @@ async function twentyiRequest(apiKey: string, method: string, path: string, body
   throw lastErr!;
 }
 
+// ─── Probe helper — find working endpoint variant ────────────────────────────
+
+/**
+ * Try a list of endpoint paths in order, return the first successful response.
+ * On auth errors (401/403) we stop immediately — no point trying others.
+ * On 404 we move to the next path.
+ */
+async function probeEndpoints(apiKey: string, method: string, paths: string[]): Promise<{ path: string; data: any }> {
+  let lastErr: Error | null = null;
+  for (const path of paths) {
+    try {
+      const data = await twentyiRequestRaw(apiKey, method, path);
+      return { path, data };
+    } catch (err: any) {
+      lastErr = err;
+      const msg = err.message ?? "";
+      // Stop probing on auth/permission errors — retrying won't help
+      if (msg.includes("401") || msg.includes("authentication failed") ||
+          msg.includes("403") || msg.includes("permission")) throw err;
+      // On 404 continue to next candidate
+      if (msg.includes("404")) continue;
+      // On other errors (network, 5xx) propagate immediately
+      throw err;
+    }
+  }
+  throw lastErr ?? new Error("All endpoint variants returned 404 — check your API key and reseller account.");
+}
+
 // ─── Connection test ─────────────────────────────────────────────────────────
 
-export async function twentyiTestConnection(apiKey: string): Promise<{ success: boolean; message: string; packageCount?: number }> {
+export interface TwentyIConnectionResult {
+  success: boolean;
+  message: string;
+  packageCount?: number;
+  diagnostic?: {
+    step: string;
+    endpoint?: string;
+    detail?: string;
+  };
+}
+
+/**
+ * Test the 20i reseller API connection.
+ * 1. Probe the reseller info endpoint (basic auth check).
+ * 2. Probe the packages endpoint (functional check).
+ * Returns structured diagnostic info so the UI can show exactly what failed.
+ */
+export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConnectionResult> {
+  // Step 1: verify auth with the reseller info endpoint
+  let resellerOk = false;
   try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/packages");
-    const count = Array.isArray(data) ? data.length : 0;
-    return { success: true, message: `Connected to 20i API successfully. ${count} package(s) available.`, packageCount: count };
+    await probeEndpoints(apiKey, "GET", ["/reseller"]);
+    resellerOk = true;
   } catch (err: any) {
-    return { success: false, message: err.message || "20i connection failed" };
+    const msg = err.message ?? "";
+    if (msg.includes("401") || msg.includes("authentication") || msg.includes("403") || msg.includes("permission")) {
+      return {
+        success: false,
+        message: msg,
+        diagnostic: { step: "Authentication", detail: "API key was rejected. Ensure you copied the full Reseller API key from my.20i.com → Reseller API → API Key." },
+      };
+    }
+    // Non-auth error on /reseller — log and continue to package probe
+    console.warn(`[20i] /reseller probe non-fatal: ${msg}`);
+  }
+
+  // Step 2: find the packages endpoint
+  const PACKAGE_PATHS = ["/reseller/package", "/reseller/packages", "/package"];
+  try {
+    const { path, data } = await probeEndpoints(apiKey, "GET", PACKAGE_PATHS);
+    const packages = Array.isArray(data) ? data : (typeof data === "object" && data !== null ? Object.values(data) : []);
+    const count = packages.length;
+    console.log(`[20i] packages found at ${path} — ${count} package(s)`);
+    return {
+      success: true,
+      message: `Connected to 20i API successfully. ${count} package(s) available.`,
+      packageCount: count,
+      diagnostic: { step: "Packages", endpoint: path },
+    };
+  } catch (err: any) {
+    const msg = err.message ?? "";
+    if (resellerOk) {
+      // Auth works, but no packages endpoint found — connected but no packages
+      return {
+        success: true,
+        message: "Connected to 20i API. No packages endpoint found — create packages in your 20i reseller portal first.",
+        packageCount: 0,
+        diagnostic: { step: "Packages", detail: "Reseller authenticated but package list returned 404. Create packages at my.20i.com first." },
+      };
+    }
+    return {
+      success: false,
+      message: msg,
+      diagnostic: { step: "Packages", detail: msg },
+    };
   }
 }
 
@@ -71,10 +168,9 @@ export interface TwentyIPackage {
   subdomains?: number;
 }
 
-export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage[]> {
-  const data = await twentyiRequest(apiKey, "GET", "/reseller/packages");
-  if (!Array.isArray(data)) return [];
-  return data.map((pkg: any) => ({
+function normalisePackages(raw: any): TwentyIPackage[] {
+  const arr = Array.isArray(raw) ? raw : (raw && typeof raw === "object" ? Object.values(raw) : []);
+  return (arr as any[]).map((pkg: any) => ({
     id: String(pkg.id ?? pkg.name ?? ""),
     name: String(pkg.label ?? pkg.name ?? pkg.id ?? "Unknown Package"),
     diskSpaceMb: pkg.diskSpaceMb ?? pkg.diskSpace,
@@ -83,6 +179,16 @@ export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage
     databases: pkg.mySQLDatabases ?? pkg.databases,
     subdomains: pkg.subDomains ?? pkg.subdomains,
   }));
+}
+
+export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage[]> {
+  const PATHS = ["/reseller/package", "/reseller/packages", "/package"];
+  try {
+    const { data } = await probeEndpoints(apiKey, "GET", PATHS);
+    return normalisePackages(data);
+  } catch {
+    return [];
+  }
 }
 
 // ─── Create hosting account ──────────────────────────────────────────────────
