@@ -1,7 +1,67 @@
 /**
  * 20i Hosting API Module
  * https://my.20i.com/reseller/apidoc
+ *
+ * Proxy support: set TWENTYI_PROXY (or HTTPS_PROXY) env var to route all
+ * 20i API calls through a fixed-IP proxy (e.g. Fixie, Bright Data, etc.).
+ * Format: http://user:pass@proxy.host:port
+ *
+ * This solves 20i's IP whitelisting requirement — the proxy provides a
+ * permanent IP that you add to your 20i whitelist once and never touch again.
  */
+import { ProxyAgent } from "undici";
+
+/**
+ * Build a proxy dispatcher from env vars, or return undefined (direct connection).
+ * Priority: TWENTYI_PROXY > HTTPS_PROXY > FIXIE_URL > direct
+ */
+function buildProxyDispatcher(): ProxyAgent | undefined {
+  const proxyUrl = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
+  if (!proxyUrl) return undefined;
+  try {
+    return new ProxyAgent(proxyUrl);
+  } catch (e: any) {
+    console.warn(`[20i] Proxy config error — falling back to direct: ${e.message}`);
+    return undefined;
+  }
+}
+
+// Cache the proxy dispatcher (rebuilt on process restart / env change)
+let _proxyDispatcher: ProxyAgent | undefined | null = null; // null = not yet built
+function getProxy(): ProxyAgent | undefined {
+  if (_proxyDispatcher === null) {
+    _proxyDispatcher = buildProxyDispatcher();
+    if (_proxyDispatcher) {
+      const raw = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL || "";
+      const sanitised = raw.replace(/:[^:@]+@/, ":***@");
+      console.log(`[20i] Proxy bridge active → ${sanitised}`);
+    } else {
+      console.log("[20i] No proxy configured — calls go direct (Replit IP). Set TWENTYI_PROXY to use a fixed IP.");
+    }
+  }
+  return _proxyDispatcher;
+}
+
+/** Return the current outbound IP as seen by external services */
+export async function getOutboundIp(): Promise<string> {
+  try {
+    const proxy = getProxy();
+    const opts: any = { signal: AbortSignal.timeout(8000) };
+    if (proxy) opts.dispatcher = proxy;
+    const res = await fetch("https://api.ipify.org?format=json", opts);
+    const data = await res.json() as { ip: string };
+    return data.ip ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+/** Return proxy configuration status (safe — no secrets exposed) */
+export function getProxyConfig(): { enabled: boolean; url?: string } {
+  const raw = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
+  if (!raw) return { enabled: false };
+  return { enabled: true, url: raw.replace(/:[^:@]+@/, ":***@") };
+}
 
 /**
  * Sanitise an API key: trim whitespace and strip any invisible chars
@@ -14,7 +74,8 @@ function sanitiseKey(apiKey: string): string {
 async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
   const cleanKey = sanitiseKey(apiKey);
   const url = `https://api.20i.com${path}`;
-  const res = await fetch(url, {
+
+  const fetchOpts: any = {
     method,
     headers: {
       Authorization: `Bearer ${cleanKey}`,
@@ -23,11 +84,24 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
     },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(25000),
-  });
+  };
+
+  // Attach proxy dispatcher if configured
+  const proxy = getProxy();
+  if (proxy) fetchOpts.dispatcher = proxy;
+
+  const res = await fetch(url, fetchOpts);
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 401) throw new Error("Invalid API key — authentication failed (401). Check your key in my.20i.com → Reseller API.");
+    if (res.status === 401) {
+      const proxyNote = getProxy()
+        ? "Proxy is active — ensure your proxy's IP is whitelisted in 20i."
+        : "Your server's outbound IP must be whitelisted in 20i → Reseller API → IP Whitelist.";
+      throw new Error(
+        `Authentication failed (401). Check your API key in my.20i.com → Reseller API. ${proxyNote}`
+      );
+    }
     if (res.status === 403) throw new Error("API key lacks permission for this action (403). Ensure it is a reseller-level key.");
     if (res.status === 404) throw new Error(`Endpoint not found (404): ${path}`);
     if (res.status === 429) throw new Error("Rate limited — too many requests to 20i API (429). Wait a moment and retry.");
@@ -114,10 +188,16 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
   } catch (err: any) {
     const msg = err.message ?? "";
     if (msg.includes("401") || msg.includes("authentication") || msg.includes("403") || msg.includes("permission")) {
+      const proxyActive = !!getProxy();
       return {
         success: false,
-        message: msg,
-        diagnostic: { step: "Authentication", detail: "API key was rejected. Ensure you copied the full Reseller API key from my.20i.com → Reseller API → API Key." },
+        message: "Authentication failed (401 Unauthorized)",
+        diagnostic: {
+          step: "Authentication",
+          detail: proxyActive
+            ? "API key rejected. If the key is correct, ensure the proxy's fixed IP is added to 20i → Reseller API → IP Whitelist."
+            : "API key rejected OR server IP not whitelisted. Go to my.20i.com → Reseller API → IP Whitelist and add the IP shown in the panel above.",
+        },
       };
     }
     // Non-auth error on /reseller — log and continue to package probe

@@ -5,7 +5,7 @@ import { serversTable, serverGroupsTable, hostingServicesTable } from "@workspac
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq, sql, and } from "drizzle-orm";
 import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
-import { twentyiTestConnection, twentyiGetPackages } from "../lib/twenty-i.js";
+import { twentyiTestConnection, twentyiGetPackages, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
@@ -114,6 +114,22 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     accountCount: accountCounts[s.id] ?? 0,
   }));
   res.json(safeServers);
+});
+
+// GET /api/admin/servers/outbound-ip — returns current outbound IP (through proxy if configured)
+// IMPORTANT: must be defined BEFORE the /:id wildcard route
+router.get("/admin/servers/outbound-ip", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const [ip, proxy] = await Promise.all([getOutboundIp(), Promise.resolve(getProxyConfig())]);
+    res.json({ ip, proxy });
+  } catch (e: any) {
+    res.json({ ip: "unknown", proxy: getProxyConfig() });
+  }
+});
+
+// GET /api/admin/servers/proxy-config — proxy status without triggering an IP lookup
+router.get("/admin/servers/proxy-config", authenticate, requireAdmin, (_req, res) => {
+  res.json(getProxyConfig());
 });
 
 router.get("/admin/servers/:id", authenticate, requireAdmin, async (req, res) => {

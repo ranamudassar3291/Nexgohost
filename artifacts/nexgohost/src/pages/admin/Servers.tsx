@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe, AlertTriangle, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +57,15 @@ export default function Servers() {
   const [formTestResult, setFormTestResult] = useState<{ ok: boolean; msg: string; diagnostic?: { step?: string; endpoint?: string; detail?: string } | null } | null>(null);
   const [twentyiPkgs, setTwentyiPkgs] = useState<TwentyIPkg[]>([]);
   const [twentyiDefaultPkg, setTwentyiDefaultPkg] = useState("");
+
+  // Outbound IP — fetched lazily when 20i form is shown
+  const { data: outboundData, isLoading: loadingIp } = useQuery<{ ip: string; proxy: { enabled: boolean; url?: string } }>({
+    queryKey: ["outbound-ip"],
+    queryFn: () => apiFetch("/api/admin/servers/outbound-ip"),
+    enabled: showServerForm && is20i,
+    staleTime: 60 * 1000, // 1 min
+    retry: false,
+  });
 
   // Group state
   const [showGroupForm, setShowGroupForm] = useState(false);
@@ -272,12 +281,70 @@ export default function Servers() {
 
                 {/* ── 20i-specific fields ── */}
                 {is20i && (
-                  <div className="border border-violet-500/20 rounded-xl p-4 space-y-4 bg-violet-500/5">
+                  <div className="border border-primary/20 rounded-xl p-4 space-y-4 bg-primary/5">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="w-5 h-5 rounded-md bg-violet-500/20 flex items-center justify-center">
-                        <span className="text-xs font-bold text-violet-400">20</span>
+                      <div className="w-5 h-5 rounded-md bg-primary/15 flex items-center justify-center">
+                        <span className="text-xs font-bold text-primary">20</span>
                       </div>
-                      <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">20i Reseller API</p>
+                      <p className="text-xs font-semibold text-primary uppercase tracking-wider">20i Reseller API</p>
+                    </div>
+
+                    {/* ── IP Whitelist Warning ── */}
+                    <div className={`rounded-xl border p-3.5 space-y-2.5 ${outboundData?.proxy?.enabled ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/20 bg-amber-500/5"}`}>
+                      <div className="flex items-center gap-2">
+                        {outboundData?.proxy?.enabled
+                          ? <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
+                          : <AlertTriangle size={13} className="text-amber-500 shrink-0" />}
+                        <p className={`text-xs font-semibold ${outboundData?.proxy?.enabled ? "text-emerald-600" : "text-amber-600"}`}>
+                          {outboundData?.proxy?.enabled ? "Static IP Proxy Active" : "IP Whitelist Required"}
+                        </p>
+                      </div>
+
+                      {/* Current outbound IP */}
+                      <div className="flex items-center justify-between gap-2 bg-card/80 border border-border/40 rounded-lg px-3 py-2">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Current Server IP</p>
+                          <p className="font-mono text-sm font-semibold text-foreground">
+                            {loadingIp ? "Detecting…" : (outboundData?.ip ?? "unknown")}
+                          </p>
+                        </div>
+                        <div className="flex gap-1.5">
+                          {!loadingIp && outboundData?.ip && outboundData.ip !== "unknown" && (
+                            <button
+                              type="button"
+                              onClick={() => { navigator.clipboard.writeText(outboundData.ip); toast({ title: "IP copied to clipboard" }); }}
+                              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border bg-secondary/60 hover:bg-secondary transition-colors text-muted-foreground"
+                            >
+                              <Copy size={11} />
+                              Copy
+                            </button>
+                          )}
+                          <a
+                            href="https://my.20i.com/reseller/api-key"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-primary"
+                          >
+                            <ExternalLink size={11} />
+                            Whitelist
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Instruction text */}
+                      {outboundData?.proxy?.enabled ? (
+                        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                          Proxy via <span className="font-mono">{outboundData.proxy.url}</span>. All 20i calls use this fixed IP — add it to your 20i whitelist and you're set permanently.
+                        </p>
+                      ) : (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          Add the IP above to{" "}
+                          <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="underline">
+                            my.20i.com → Reseller API → IP Whitelist
+                          </a>
+                          . Or set <span className="font-mono">TWENTYI_PROXY</span> env var to a static-IP proxy for a permanent fix.
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">API Key *</label>
