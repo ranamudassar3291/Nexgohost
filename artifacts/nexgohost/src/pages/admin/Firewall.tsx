@@ -192,7 +192,7 @@ export default function Firewall() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `nexgohost-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `noehost-firewall-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Export Complete", description: "Full data export downloaded successfully." });

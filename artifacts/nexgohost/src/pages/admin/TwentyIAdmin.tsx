@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   Server, Users, Globe, Plus, Trash2, ExternalLink, RefreshCw, AlertTriangle,
-  CheckCircle, XCircle, Loader2, ChevronDown, Search, Shield, ArrowRightLeft,
-  Ticket, Send, Eye, Zap, Clock, RotateCcw, UserPlus, Link2, Ban, Play,
+  CheckCircle, XCircle, Loader2, Search, Shield, ArrowRightLeft,
+  Ticket, Send, Eye, Zap, Clock, UserPlus, Link2, Ban, Play,
+  Database, FileText, Wifi, Globe2, ChevronRight, type LucideIcon,
 } from "lucide-react";
 
 // ─── API helper ───────────────────────────────────────────────────────────────
@@ -22,8 +23,8 @@ async function apiFetch(url: string, opts: RequestInit = {}) {
 
 // ─── Reusable UI primitives ───────────────────────────────────────────────────
 
-function Spinner() {
-  return <Loader2 size={16} className="animate-spin" />;
+function Spinner({ size = 16 }: { size?: number }) {
+  return <Loader2 size={size} className="animate-spin" />;
 }
 
 function Badge({ label, color }: { label: string; color: string }) {
@@ -32,7 +33,7 @@ function Badge({ label, color }: { label: string; color: string }) {
     suspended: "bg-amber-500/10 text-amber-500 border-amber-500/20",
     terminated: "bg-red-500/10 text-red-500 border-red-500/20",
     open: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-    in_progress: "bg-violet-500/10 text-violet-500 border-violet-500/20",
+    in_progress: "bg-primary/10 text-primary border-primary/20",
     completed: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     pending: "bg-amber-500/10 text-amber-500 border-amber-500/20",
     failed: "bg-red-500/10 text-red-500 border-red-500/20",
@@ -65,7 +66,7 @@ function ConfirmModal({ title, description, onConfirm, onCancel, loading }: {
         <div className="flex gap-3 justify-end mt-6">
           <button onClick={onCancel} className="px-4 py-2 rounded-xl border border-border text-sm hover:bg-secondary/60 transition-colors">Cancel</button>
           <button onClick={onConfirm} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium disabled:opacity-50 transition-colors">
-            {loading ? <Spinner /> : <Trash2 size={14} />}
+            {loading ? <Spinner size={14} /> : <Trash2 size={14} />}
             Confirm
           </button>
         </div>
@@ -74,9 +75,12 @@ function ConfirmModal({ title, description, onConfirm, onCancel, loading }: {
   );
 }
 
-function PrimaryBtn({ onClick, disabled, children, small }: { onClick?: () => void; disabled?: boolean; children: React.ReactNode; small?: boolean }) {
+function PrimaryBtn({ onClick, disabled, children, small, type = "button" }: {
+  onClick?: () => void; disabled?: boolean; children: React.ReactNode; small?: boolean; type?: "button" | "submit";
+}) {
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className={`flex items-center gap-1.5 font-medium bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors rounded-xl disabled:opacity-40 disabled:cursor-not-allowed ${small ? "text-xs px-2.5 py-1.5" : "text-sm px-3 py-2"}`}
@@ -87,18 +91,44 @@ function PrimaryBtn({ onClick, disabled, children, small }: { onClick?: () => vo
 }
 
 function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-card border border-border rounded-2xl ${className ?? "p-6"}`}>{children}</div>;
+  return <div className={`bg-card border border-border rounded-2xl shadow-sm ${className ?? "p-6"}`}>{children}</div>;
+}
+
+function InputField({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
+  return (
+    <div className="space-y-1.5">
+      {label && <label className="text-xs text-muted-foreground font-medium block">{label}</label>}
+      <input
+        className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+        {...props}
+      />
+    </div>
+  );
+}
+
+function SelectField({ label, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) {
+  return (
+    <div className="space-y-1.5">
+      {label && <label className="text-xs text-muted-foreground font-medium block">{label}</label>}
+      <select
+        className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+        {...props}
+      >
+        {children}
+      </select>
+    </div>
+  );
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "overview",     label: "Overview",     icon: Server },
-  { id: "stack-users",  label: "StackUsers",   icon: Users },
-  { id: "sites",        label: "Hosting Sites",icon: Globe },
-  { id: "provision",    label: "Provision",    icon: Plus },
-  { id: "migrations",   label: "Migrations",   icon: ArrowRightLeft },
-  { id: "tickets",      label: "Tickets",      icon: Ticket },
+  { id: "overview",     label: "Overview",      icon: Server },
+  { id: "stack-users",  label: "StackUsers",    icon: Users },
+  { id: "sites",        label: "Hosting Sites", icon: Globe },
+  { id: "provision",    label: "Provision",     icon: Plus },
+  { id: "migrations",   label: "Migrations",    icon: ArrowRightLeft },
+  { id: "tickets",      label: "Tickets",       icon: Ticket },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -117,30 +147,30 @@ function OverviewTab({ server, lastSync, onSync, syncing }: {
               {server?.connected ? <CheckCircle size={18} className="text-emerald-500" /> : <XCircle size={18} className="text-red-500" />}
             </div>
             <div>
-              <p className="font-medium text-foreground">{server?.name ?? "20i Server"}</p>
+              <p className="font-semibold text-foreground">{server?.name ?? "20i Server"}</p>
               <p className="text-sm text-muted-foreground">
                 {server?.connected ? "Connected via 20i Reseller API" : (server?.error ?? "Not configured")}
               </p>
             </div>
           </div>
           <PrimaryBtn onClick={onSync} disabled={syncing}>
-            {syncing ? <Spinner /> : <RefreshCw size={14} />}
+            {syncing ? <Spinner size={14} /> : <RefreshCw size={14} />}
             {syncing ? "Syncing…" : "Sync Now"}
           </PrimaryBtn>
         </div>
         {server?.connected && (
           <div className="mt-4 pt-4 border-t border-border grid grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground">API Status</p>
-              <p className="font-medium text-emerald-500 mt-0.5">Active</p>
+              <p className="text-xs text-muted-foreground">API Status</p>
+              <p className="font-medium text-emerald-500 mt-1">Active</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Nameservers</p>
-              <p className="font-medium text-foreground mt-0.5 text-xs">{server.ns1 ?? "ns1.20i.com"}</p>
+              <p className="text-xs text-muted-foreground">Nameservers</p>
+              <p className="font-medium text-foreground mt-1 text-xs">{server.ns1 ?? "ns1.20i.com"}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Last Synced</p>
-              <p className="font-medium text-foreground mt-0.5">{lastSync ? new Date(lastSync).toLocaleTimeString() : "Never"}</p>
+              <p className="text-xs text-muted-foreground">Last Synced</p>
+              <p className="font-medium text-foreground mt-1">{lastSync ? new Date(lastSync).toLocaleTimeString() : "Never"}</p>
             </div>
           </div>
         )}
@@ -154,7 +184,7 @@ function OverviewTab({ server, lastSync, onSync, syncing }: {
         ].map(item => (
           <Card key={item.label} className="p-4">
             <div className="flex items-center gap-2 mb-2">
-              <item.icon size={14} className="text-primary" />
+              <item.icon size={13} className="text-primary" />
               <p className="text-xs text-muted-foreground">{item.label}</p>
             </div>
             <p className="text-sm font-medium text-foreground">{item.value}</p>
@@ -177,15 +207,17 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, refetch } = useQuery({
     queryKey: ["20i-stack-users"],
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
     refetchInterval: 5 * 60 * 1000,
   });
 
   const filtered = (users as any[]).filter((u: any) =>
+    !search ||
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.name?.toLowerCase().includes(search.toLowerCase())
+    u.name?.toLowerCase().includes(search.toLowerCase()) ||
+    u.id?.toLowerCase().includes(search.toLowerCase())
   );
 
   async function handleCreate() {
@@ -193,12 +225,12 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
     setCreating(true);
     try {
       await apiFetch("/api/admin/twenty-i/stack-users", { method: "POST", body: JSON.stringify(createForm) });
-      toast({ title: "StackUser created" });
+      toast({ title: "StackUser created successfully" });
       qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
       setShowCreate(false);
       setCreateForm({ email: "", name: "" });
     } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+      toast({ title: "Failed to create", description: e.message, variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -213,7 +245,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
       qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
       setConfirm(null);
     } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+      toast({ title: "Failed to delete", description: e.message, variant: "destructive" });
     } finally {
       setDeleting(false);
     }
@@ -230,16 +262,21 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
           loading={deleting}
         />
       )}
+
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
-            className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-border bg-card focus:outline-none focus:ring-1 focus:ring-primary/40"
-            placeholder="Search by email or name…"
+            className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-border bg-card focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+            placeholder="Search by name, email, or ID…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <PrimaryBtn onClick={() => refetch()} small>
+          <RefreshCw size={12} />
+          Refresh
+        </PrimaryBtn>
         <PrimaryBtn onClick={() => setShowCreate(!showCreate)}>
           <UserPlus size={14} />
           New StackUser
@@ -247,17 +284,26 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
       </div>
 
       {showCreate && (
-        <Card className="p-4">
-          <p className="text-sm font-medium mb-3">Create StackUser</p>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <input className="px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="Full name" value={createForm.name} onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))} />
-            <input type="email" className="px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="Email address" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} />
+        <Card className="p-5">
+          <p className="text-sm font-semibold mb-4 text-foreground">Create New StackUser</p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <InputField
+              placeholder="Full name"
+              value={createForm.name}
+              onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))}
+            />
+            <InputField
+              type="email"
+              placeholder="Email address"
+              value={createForm.email}
+              onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))}
+            />
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowCreate(false)} className="px-3 py-2 text-sm rounded-xl border border-border hover:bg-secondary/60 transition-colors">Cancel</button>
             <PrimaryBtn onClick={handleCreate} disabled={creating || !createForm.email || !createForm.name}>
-              {creating ? <Spinner /> : <Plus size={14} />}
-              Create
+              {creating ? <Spinner size={14} /> : <Plus size={14} />}
+              {creating ? "Creating…" : "Create StackUser"}
             </PrimaryBtn>
           </div>
         </Card>
@@ -268,16 +314,16 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">
-            {users.length === 0 ? "No StackUsers found on this 20i account." : "No matches for your search."}
+            {(users as any[]).length === 0 ? "No StackUsers found on this 20i account." : "No matches for your search."}
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">Name</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">Email</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">User ID</th>
-                <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">Actions</th>
+              <tr className="border-b border-border bg-secondary/20">
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Name</th>
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Email</th>
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">User ID</th>
+                <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -286,11 +332,16 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
                   <td className="px-4 py-3 font-medium text-foreground">{u.name || "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
                   <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{u.id}</td>
-                  <td className="px-4 py-3 flex justify-end gap-1.5">
-                    <PrimaryBtn small onClick={() => setConfirm({ userId: u.id, name: u.name || u.email })}>
-                      <Trash2 size={12} />
-                      Delete
-                    </PrimaryBtn>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 transition-colors"
+                        onClick={() => setConfirm({ userId: u.id, name: u.name || u.email })}
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -313,7 +364,7 @@ function SitesTab() {
   const [assignModal, setAssignModal] = useState<{ siteId: string; domain: string } | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
 
-  const { data: sites = [], isLoading } = useQuery({
+  const { data: sites = [], isLoading, refetch } = useQuery({
     queryKey: ["20i-sites"],
     queryFn: () => apiFetch("/api/admin/twenty-i/sites"),
     refetchInterval: 5 * 60 * 1000,
@@ -324,6 +375,7 @@ function SitesTab() {
   });
 
   const filtered = (sites as any[]).filter((s: any) =>
+    !search ||
     s.domain?.toLowerCase().includes(search.toLowerCase()) ||
     s.id?.toLowerCase().includes(search.toLowerCase())
   );
@@ -338,7 +390,7 @@ function SitesTab() {
       qc.invalidateQueries({ queryKey: ["20i-sites"] });
       setConfirm(null);
     } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+      toast({ title: "Action failed", description: e.message, variant: "destructive" });
     } finally {
       setActioning(null);
     }
@@ -369,7 +421,7 @@ function SitesTab() {
       setAssignModal(null);
       setAssignUserId("");
     } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+      toast({ title: "Assignment failed", description: e.message, variant: "destructive" });
     } finally {
       setActioning(null);
     }
@@ -393,20 +445,16 @@ function SitesTab() {
           <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
             <h3 className="font-semibold mb-1">Assign Site to StackUser</h3>
             <p className="text-sm text-muted-foreground mb-4">Assign <strong>{assignModal.domain}</strong> to a StackUser so they can manage it in StackCP.</p>
-            <select
-              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 mb-4"
-              value={assignUserId}
-              onChange={e => setAssignUserId(e.target.value)}
-            >
+            <SelectField value={assignUserId} onChange={e => setAssignUserId(e.target.value)}>
               <option value="">— Select StackUser —</option>
               {(stackUsers as any[]).map((u: any) => (
                 <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
               ))}
-            </select>
-            <div className="flex gap-2 justify-end">
+            </SelectField>
+            <div className="flex gap-2 justify-end mt-4">
               <button onClick={() => { setAssignModal(null); setAssignUserId(""); }} className="px-3 py-2 text-sm rounded-xl border border-border hover:bg-secondary/60 transition-colors">Cancel</button>
               <PrimaryBtn onClick={handleAssign} disabled={!assignUserId || !!actioning}>
-                {actioning ? <Spinner /> : <Link2 size={14} />}
+                {actioning ? <Spinner size={14} /> : <Link2 size={14} />}
                 Assign
               </PrimaryBtn>
             </div>
@@ -414,14 +462,20 @@ function SitesTab() {
         </div>
       )}
 
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-border bg-card focus:outline-none focus:ring-1 focus:ring-primary/40"
-          placeholder="Search by domain or site ID…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <input
+            className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-border bg-card focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+            placeholder="Search by domain or site ID…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <PrimaryBtn small onClick={() => refetch()}>
+          <RefreshCw size={12} />
+          Refresh
+        </PrimaryBtn>
       </div>
 
       <Card className="p-0 overflow-hidden">
@@ -432,12 +486,12 @@ function SitesTab() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">Domain</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">Site ID</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">Status</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-medium">Package</th>
-                <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">Actions</th>
+              <tr className="border-b border-border bg-secondary/20">
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Domain</th>
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Site ID</th>
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Status</th>
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Package</th>
+                <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -452,7 +506,7 @@ function SitesTab() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5 justify-end flex-wrap">
                         <PrimaryBtn small onClick={() => handleSSO(s.id)} disabled={actioning === s.id + "sso"}>
-                          {actioning === s.id + "sso" ? <Spinner /> : <ExternalLink size={12} />}
+                          {actioning === s.id + "sso" ? <Spinner size={12} /> : <ExternalLink size={12} />}
                           StackCP
                         </PrimaryBtn>
                         <PrimaryBtn small onClick={() => setAssignModal({ siteId: s.id, domain: s.domain })}>
@@ -461,7 +515,7 @@ function SitesTab() {
                         </PrimaryBtn>
                         {isSuspended ? (
                           <PrimaryBtn small onClick={() => handleAction(s.id, "unsuspend")} disabled={actioning === s.id + "unsuspend"}>
-                            {actioning === s.id + "unsuspend" ? <Spinner /> : <Play size={12} />}
+                            {actioning === s.id + "unsuspend" ? <Spinner size={12} /> : <Play size={12} />}
                             Enable
                           </PrimaryBtn>
                         ) : (
@@ -492,16 +546,27 @@ function SitesTab() {
 
 // ─── Provision Tab ────────────────────────────────────────────────────────────
 
+type ProvisionStep = "idle" | "user" | "hosting" | "saving" | "done" | "error";
+
+const PROVISION_STEPS = [
+  { id: "user",    label: "StackUser",          desc: "Verifying / creating StackUser account on 20i",     icon: Users },
+  { id: "hosting", label: "Provisioning",        desc: "Creating hosting package on 20i reseller account",  icon: Globe },
+  { id: "saving",  label: "Saving to NoePanel",  desc: "Registering service, syncing DNS & credentials",    icon: Database },
+];
+
 function ProvisionTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [form, setForm] = useState({ domain: "", packageId: "", clientId: "", stackUserId: "" });
-  const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<ProvisionStep>("idle");
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const stepTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const { data: packages = [] } = useQuery({
+  const { data: packages = [], isLoading: loadingPkgs } = useQuery({
     queryKey: ["20i-packages"],
     queryFn: () => apiFetch("/api/admin/twenty-i/packages"),
+    staleTime: 5 * 60 * 1000,
   });
   const { data: clients = [] } = useQuery({
     queryKey: ["20i-clients"],
@@ -512,99 +577,184 @@ function ProvisionTab() {
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
   });
 
+  function clearTimers() {
+    stepTimersRef.current.forEach(t => clearTimeout(t));
+    stepTimersRef.current = [];
+  }
+
   async function handleSubmit() {
     if (!form.domain || !form.clientId) return;
-    setSubmitting(true);
+    clearTimers();
+    setStep("user");
     setResult(null);
+    setError(null);
+
+    // Advance to step 2 after 1.2s
+    const t1 = setTimeout(() => setStep("hosting"), 1200);
+    stepTimersRef.current.push(t1);
+
     try {
       const data = await apiFetch("/api/admin/twenty-i/provision", {
         method: "POST",
         body: JSON.stringify(form),
       });
-      setResult(data);
-      toast({ title: "Hosting provisioned successfully!" });
-      qc.invalidateQueries({ queryKey: ["20i-sites"] });
-      setForm({ domain: "", packageId: "", clientId: "", stackUserId: "" });
+
+      clearTimers();
+      setStep("saving");
+
+      // Brief "saving" pause for UX
+      const t2 = setTimeout(() => {
+        setStep("done");
+        setResult(data);
+        toast({ title: "Hosting provisioned successfully!" });
+        qc.invalidateQueries({ queryKey: ["20i-sites"] });
+        setForm({ domain: "", packageId: "", clientId: "", stackUserId: "" });
+      }, 600);
+      stepTimersRef.current.push(t2);
     } catch (e: any) {
+      clearTimers();
+      setStep("error");
+      setError(e.message);
       toast({ title: "Provisioning failed", description: e.message, variant: "destructive" });
-    } finally {
-      setSubmitting(false);
     }
   }
 
+  const activeStepIdx = step === "user" ? 0 : step === "hosting" ? 1 : step === "saving" ? 2 : -1;
+  const isSubmitting = step === "user" || step === "hosting" || step === "saving";
+
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-5 max-w-2xl">
       <Card>
-        <h3 className="font-semibold text-foreground mb-4">Create Hosting Account on 20i</h3>
+        <h3 className="font-semibold text-foreground mb-1">Create Hosting Account on 20i</h3>
+        <p className="text-sm text-muted-foreground mb-5">Provision a new hosting account directly from NoePanel. Package list fetched live from your 20i reseller account.</p>
         <div className="space-y-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Domain Name *</label>
-            <input
-              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
-              placeholder="e.g. example.com"
-              value={form.domain}
-              onChange={e => setForm(p => ({ ...p, domain: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">20i Package (optional)</label>
-            <select
-              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
-              value={form.packageId}
-              onChange={e => setForm(p => ({ ...p, packageId: e.target.value }))}
-            >
-              <option value="">— Default package —</option>
-              {(packages as any[]).map((pkg: any) => (
-                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Assign to Client *</label>
-            <select
-              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
-              value={form.clientId}
-              onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
-            >
-              <option value="">— Select client —</option>
-              {(clients as any[]).map((c: any) => (
-                <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Assign to StackUser (optional)</label>
-            <select
-              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40"
-              value={form.stackUserId}
-              onChange={e => setForm(p => ({ ...p, stackUserId: e.target.value }))}
-            >
-              <option value="">— No StackUser —</option>
-              {(stackUsers as any[]).map((u: any) => (
-                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-              ))}
-            </select>
-          </div>
-          <PrimaryBtn onClick={handleSubmit} disabled={submitting || !form.domain || !form.clientId}>
-            {submitting ? <Spinner /> : <Zap size={14} />}
-            {submitting ? "Provisioning…" : "Provision Hosting"}
+          <InputField
+            label="Domain Name *"
+            placeholder="e.g. example.com"
+            value={form.domain}
+            onChange={e => setForm(p => ({ ...p, domain: e.target.value }))}
+            disabled={isSubmitting}
+          />
+          <SelectField
+            label={`20i Package${loadingPkgs ? " (loading…)" : ""}`}
+            value={form.packageId}
+            onChange={e => setForm(p => ({ ...p, packageId: e.target.value }))}
+            disabled={isSubmitting}
+          >
+            <option value="">— Default package —</option>
+            {(packages as any[]).map((pkg: any) => (
+              <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Assign to Client *"
+            value={form.clientId}
+            onChange={e => setForm(p => ({ ...p, clientId: e.target.value }))}
+            disabled={isSubmitting}
+          >
+            <option value="">— Select client —</option>
+            {(clients as any[]).map((c: any) => (
+              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>
+            ))}
+          </SelectField>
+          <SelectField
+            label="Assign to StackUser (optional)"
+            value={form.stackUserId}
+            onChange={e => setForm(p => ({ ...p, stackUserId: e.target.value }))}
+            disabled={isSubmitting}
+          >
+            <option value="">— No StackUser —</option>
+            {(stackUsers as any[]).map((u: any) => (
+              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+            ))}
+          </SelectField>
+          <PrimaryBtn onClick={handleSubmit} disabled={isSubmitting || !form.domain || !form.clientId}>
+            {isSubmitting ? <Spinner size={14} /> : <Zap size={14} />}
+            {isSubmitting ? "Provisioning…" : "Create Account"}
           </PrimaryBtn>
         </div>
       </Card>
 
-      {result && (
-        <Card className="p-4 border-emerald-500/20 bg-emerald-500/5">
-          <div className="flex items-center gap-2 text-emerald-600 font-medium mb-2">
-            <CheckCircle size={16} />
-            Hosting Created Successfully
+      {/* Step-by-step progress */}
+      {step !== "idle" && step !== "done" && (
+        <Card className="p-5">
+          <p className="text-sm font-semibold text-foreground mb-4">
+            {step === "error" ? "Provisioning Failed" : "Provisioning in Progress…"}
+          </p>
+          <div className="space-y-3">
+            {PROVISION_STEPS.map((s, idx) => {
+              const isDone = step === "error" ? false : activeStepIdx > idx;
+              const isActive = step === "error" ? false : activeStepIdx === idx;
+              const isFailed = step === "error" && activeStepIdx === idx;
+              return (
+                <div key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                  isDone ? "border-emerald-500/20 bg-emerald-500/5"
+                  : isActive ? "border-primary/20 bg-primary/5"
+                  : isFailed ? "border-red-500/20 bg-red-500/5"
+                  : "border-border/50 opacity-40"
+                }`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isDone ? "bg-emerald-500/10"
+                    : isActive ? "bg-primary/10"
+                    : isFailed ? "bg-red-500/10"
+                    : "bg-secondary"
+                  }`}>
+                    {isDone ? <CheckCircle size={14} className="text-emerald-500" />
+                    : isActive ? <Spinner size={14} />
+                    : isFailed ? <XCircle size={14} className="text-red-500" />
+                    : <ChevronRight size={13} className="text-muted-foreground" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${isDone ? "text-emerald-600" : isActive ? "text-primary" : isFailed ? "text-red-500" : "text-muted-foreground"}`}>
+                      Step {idx + 1}: {s.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{s.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="text-sm space-y-1 text-muted-foreground">
-            <p>Site ID: <span className="font-mono text-foreground">{result.siteId}</span></p>
+          {step === "error" && error && (
+            <div className="mt-3 p-3 rounded-xl border border-primary/20 bg-primary/5 text-xs text-primary">
+              {error}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Success result */}
+      {step === "done" && result && (
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+              <CheckCircle size={16} className="text-emerald-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">Hosting Created Successfully</p>
+              <p className="text-xs text-muted-foreground">All 3 steps completed</p>
+            </div>
+          </div>
+          <div className="space-y-2 text-sm border-t border-border pt-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Site ID</span>
+              <span className="font-mono text-foreground text-xs">{result.siteId}</span>
+            </div>
             {result.cpanelUrl && (
-              <p>StackCP URL: <a href={result.cpanelUrl} target="_blank" rel="noreferrer" className="text-primary underline">{result.cpanelUrl}</a></p>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">StackCP URL</span>
+                <a href={result.cpanelUrl} target="_blank" rel="noreferrer" className="text-primary text-xs underline flex items-center gap-1">
+                  Open <ExternalLink size={11} />
+                </a>
+              </div>
             )}
-            <p>Service ID in panel: <span className="font-mono text-foreground text-xs">{result.serviceId}</span></p>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Service ID</span>
+              <span className="font-mono text-foreground text-xs">{result.serviceId}</span>
+            </div>
           </div>
+          <button onClick={() => setStep("idle")} className="mt-4 w-full text-center text-xs text-primary hover:underline">
+            Provision another account
+          </button>
         </Card>
       )}
     </div>
@@ -613,26 +763,54 @@ function ProvisionTab() {
 
 // ─── Migrations Tab ───────────────────────────────────────────────────────────
 
+const MIGRATION_STATUS_STEPS: Record<string, { label: string; icon: LucideIcon; desc: string }> = {
+  queued:      { label: "Queued",              icon: Clock,         desc: "Waiting for migration slot…" },
+  connecting:  { label: "Connecting",          icon: Wifi,          desc: "Connecting to source server…" },
+  transferring:{ label: "Transferring Files",  icon: FileText,      desc: "Copying files from source host…" },
+  db_import:   { label: "Importing Database",  icon: Database,      desc: "Importing MySQL/MariaDB databases…" },
+  dns:         { label: "Configuring DNS",     icon: Globe2,        desc: "Updating DNS records & propagation…" },
+  verifying:   { label: "Verifying",           icon: CheckCircle,   desc: "Checking file integrity & health…" },
+  in_progress: { label: "In Progress",         icon: ArrowRightLeft, desc: "Migration running on 20i servers…" },
+  completed:   { label: "Completed",           icon: CheckCircle,   desc: "Migration finished successfully" },
+  failed:      { label: "Failed",              icon: XCircle,       desc: "Migration encountered an error" },
+};
+
+function progressToStep(progress: number): string {
+  if (progress < 10) return "connecting";
+  if (progress < 30) return "transferring";
+  if (progress < 55) return "db_import";
+  if (progress < 70) return "dns";
+  if (progress < 90) return "verifying";
+  return "in_progress";
+}
+
 function MigrationsTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [form, setForm] = useState({ domain: "", sourceType: "cpanel", host: "", username: "", password: "", siteId: "" });
+  const [showPass, setShowPass] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [polling, setPolling] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
 
   const { data: migrations = [], isLoading, refetch } = useQuery({
     queryKey: ["20i-migrations"],
     queryFn: () => apiFetch("/api/admin/twenty-i/migrations"),
-    refetchInterval: polling ? 8000 : false,
+    refetchInterval: polling ? 6000 : false,
   });
+
+  // Enable polling if any migration is in progress
+  useEffect(() => {
+    const hasActive = (migrations as any[]).some((m: any) => m.status === "in_progress" || m.status === "queued");
+    setPolling(hasActive);
+  }, [migrations]);
 
   async function handleStart() {
     if (!form.domain || !form.host || !form.username || !form.password) return;
     setSubmitting(true);
     try {
       const result = await apiFetch("/api/admin/twenty-i/migrations", { method: "POST", body: JSON.stringify(form) });
-      toast({ title: "Migration started!", description: `Migration ID: ${result.id}` });
-      setPolling(result.id);
+      toast({ title: "Migration started!", description: `ID: ${result.id}` });
+      setPolling(true);
       qc.invalidateQueries({ queryKey: ["20i-migrations"] });
       setForm({ domain: "", sourceType: "cpanel", host: "", username: "", password: "", siteId: "" });
     } catch (e: any) {
@@ -642,54 +820,51 @@ function MigrationsTab() {
     }
   }
 
-  const statusColor = (s: string) =>
-    s === "completed" ? "bg-emerald-500" : s === "failed" ? "bg-red-500" : s === "in_progress" ? "bg-primary" : "bg-amber-500";
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Card>
-        <h3 className="font-semibold mb-4">Start New Migration</h3>
+        <h3 className="font-semibold text-foreground mb-1">Start New Migration</h3>
+        <p className="text-sm text-muted-foreground mb-4">Enter source server credentials. 20i will transfer files, databases, and DNS automatically.</p>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Domain *</label>
-            <input className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="example.com" value={form.domain} onChange={e => setForm(p => ({ ...p, domain: e.target.value }))} />
+          <InputField label="Target Domain *" placeholder="example.com" value={form.domain} onChange={e => setForm(p => ({ ...p, domain: e.target.value }))} />
+          <SelectField label="Source Panel Type *" value={form.sourceType} onChange={e => setForm(p => ({ ...p, sourceType: e.target.value }))}>
+            <option value="cpanel">cPanel / WHM</option>
+            <option value="plesk">Plesk</option>
+            <option value="directadmin">DirectAdmin</option>
+            <option value="other">Other</option>
+          </SelectField>
+          <InputField label="Source Host / IP *" placeholder="server1.example.com" value={form.host} onChange={e => setForm(p => ({ ...p, host: e.target.value }))} />
+          <InputField label="Username *" placeholder="cPanel / panel username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground font-medium block">Password *</label>
+            <div className="relative">
+              <input
+                type={showPass ? "text" : "password"}
+                className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+                placeholder="Panel password"
+                value={form.password}
+                onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+              />
+              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPass(v => !v)}>
+                <Eye size={13} />
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Source Type *</label>
-            <select className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" value={form.sourceType} onChange={e => setForm(p => ({ ...p, sourceType: e.target.value }))}>
-              <option value="cpanel">cPanel</option>
-              <option value="plesk">Plesk</option>
-              <option value="directadmin">DirectAdmin</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Source Host *</label>
-            <input className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="e.g. server1.host.com" value={form.host} onChange={e => setForm(p => ({ ...p, host: e.target.value }))} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Username *</label>
-            <input className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="cPanel username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Password *</label>
-            <input type="password" className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="cPanel password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">Target Site ID (optional)</label>
-            <input className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="20i site ID" value={form.siteId} onChange={e => setForm(p => ({ ...p, siteId: e.target.value }))} />
-          </div>
+          <InputField label="Target Site ID (optional)" placeholder="20i site ID" value={form.siteId} onChange={e => setForm(p => ({ ...p, siteId: e.target.value }))} />
         </div>
         <div className="mt-4">
           <PrimaryBtn onClick={handleStart} disabled={submitting || !form.domain || !form.host || !form.username || !form.password}>
-            {submitting ? <Spinner /> : <ArrowRightLeft size={14} />}
+            {submitting ? <Spinner size={14} /> : <ArrowRightLeft size={14} />}
             {submitting ? "Starting…" : "Start Migration"}
           </PrimaryBtn>
         </div>
       </Card>
 
       <div className="flex items-center justify-between">
-        <h3 className="font-medium text-foreground">Migration History</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-foreground">Migration History</h3>
+          {polling && <span className="flex items-center gap-1 text-xs text-primary"><span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />Live</span>}
+        </div>
         <PrimaryBtn small onClick={() => refetch()}>
           <RefreshCw size={12} />
           Refresh
@@ -699,36 +874,56 @@ function MigrationsTab() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : (migrations as any[]).length === 0 ? (
-        <Card className="text-center py-10 text-muted-foreground text-sm">No migrations found.</Card>
+        <Card className="text-center py-10 text-muted-foreground text-sm">No migrations found. Start one above.</Card>
       ) : (
         <div className="space-y-3">
-          {(migrations as any[]).map((m: any) => (
-            <Card key={m.id} className="p-4">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-medium text-foreground">{m.domain}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">ID: {m.id} · {m.sourceType || "Unknown source"}</p>
-                </div>
-                <Badge label={m.status} color={m.status} />
-              </div>
-              {m.status === "in_progress" && (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                    <span>Progress</span>
-                    <span>{m.progress ?? 0}%</span>
+          {(migrations as any[]).map((m: any) => {
+            const progress = m.progress ?? 0;
+            const resolvedStatus = m.status === "in_progress" ? progressToStep(progress) : m.status;
+            const stepInfo = MIGRATION_STATUS_STEPS[resolvedStatus] ?? MIGRATION_STATUS_STEPS["in_progress"];
+            const StepIcon = stepInfo.icon;
+            const isActive = m.status === "in_progress" || m.status === "queued";
+            const isDone = m.status === "completed";
+            const isFailed = m.status === "failed";
+
+            return (
+              <Card key={m.id} className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isDone ? "bg-emerald-500/10" : isFailed ? "bg-red-500/10" : "bg-primary/10"}`}>
+                      {isActive
+                        ? <Spinner size={14} />
+                        : <StepIcon size={14} className={isDone ? "text-emerald-500" : isFailed ? "text-red-500" : "text-primary"} />}
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground text-sm">{m.domain}</p>
+                      <p className="text-xs text-muted-foreground">ID: {m.id} · {m.sourceType || "Unknown source"}</p>
+                    </div>
                   </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className={`h-full ${statusColor(m.status)} transition-all`} style={{ width: `${m.progress ?? 0}%` }} />
+                  <Badge label={m.status} color={m.status} />
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                    <span className={`font-medium ${isActive ? "text-primary" : isDone ? "text-emerald-500" : isFailed ? "text-red-500" : ""}`}>
+                      {stepInfo.label}
+                    </span>
+                    <span>{isDone ? "100" : progress}%</span>
                   </div>
+                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${isDone ? "bg-emerald-500" : isFailed ? "bg-red-500" : "bg-primary"} ${isActive ? "animate-pulse" : ""}`}
+                      style={{ width: `${isDone ? 100 : progress}%` }}
+                    />
+                  </div>
+                  {isActive && (
+                    <p className="text-xs text-muted-foreground mt-1.5">{stepInfo.desc}</p>
+                  )}
                 </div>
-              )}
-              {m.status === "completed" && (
-                <div className="mt-2 h-2 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-full" />
-                </div>
-              )}
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
@@ -741,16 +936,17 @@ function TicketsTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<any>(null);
+  const [search, setSearch] = useState("");
   const [reply, setReply] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [newTicket, setNewTicket] = useState({ subject: "", body: "", priority: "normal" });
   const [submitting, setSubmitting] = useState(false);
   const [replying, setReplying] = useState(false);
 
-  const { data: tickets = [], isLoading } = useQuery({
+  const { data: tickets = [], isLoading, refetch } = useQuery({
     queryKey: ["20i-tickets"],
     queryFn: () => apiFetch("/api/admin/twenty-i/tickets"),
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: 3 * 60 * 1000,
   });
 
   const { data: ticketDetail, isLoading: loadingDetail } = useQuery({
@@ -758,6 +954,12 @@ function TicketsTab() {
     queryFn: () => apiFetch(`/api/admin/twenty-i/tickets/${selected?.id}`),
     enabled: !!selected?.id,
   });
+
+  const filtered = (tickets as any[]).filter((t: any) =>
+    !search ||
+    t.subject?.toLowerCase().includes(search.toLowerCase()) ||
+    String(t.id).includes(search)
+  );
 
   async function handleCreate() {
     if (!newTicket.subject || !newTicket.body) return;
@@ -780,11 +982,11 @@ function TicketsTab() {
     setReplying(true);
     try {
       await apiFetch(`/api/admin/twenty-i/tickets/${selected.id}/reply`, { method: "POST", body: JSON.stringify({ body: reply }) });
-      toast({ title: "Reply sent" });
+      toast({ title: "Reply sent to 20i Support" });
       qc.invalidateQueries({ queryKey: ["20i-ticket", selected.id] });
       setReply("");
     } catch (e: any) {
-      toast({ title: "Failed", description: e.message, variant: "destructive" });
+      toast({ title: "Failed to send reply", description: e.message, variant: "destructive" });
     } finally {
       setReplying(false);
     }
@@ -793,43 +995,43 @@ function TicketsTab() {
   if (selected) {
     return (
       <div className="space-y-4">
-        <button onClick={() => setSelected(null)} className="text-sm text-primary hover:underline flex items-center gap-1">
+        <button onClick={() => { setSelected(null); setReply(""); }} className="text-sm text-primary hover:underline flex items-center gap-1">
           ← Back to tickets
         </button>
         <Card>
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="font-semibold text-foreground">{(ticketDetail as any)?.subject ?? selected.subject}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Ticket #{selected.id}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Ticket #{selected.id} · 20i Support</p>
             </div>
             <Badge label={(ticketDetail as any)?.status ?? selected.status} color={(ticketDetail as any)?.status ?? selected.status} />
           </div>
           {loadingDetail ? (
             <div className="flex justify-center py-8"><Spinner /></div>
           ) : (
-            <div className="space-y-3 mb-4">
+            <div className="space-y-2.5 mb-4">
               {((ticketDetail as any)?.messages ?? []).map((msg: any, i: number) => (
-                <div key={i} className={`p-3 rounded-xl text-sm ${msg.from === "Support" ? "bg-primary/5 border border-primary/10" : "bg-secondary/40"}`}>
-                  <p className="text-xs text-muted-foreground mb-1 font-medium">{msg.from} · {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}</p>
-                  <p className="text-foreground whitespace-pre-wrap">{msg.body}</p>
+                <div key={i} className={`p-3.5 rounded-xl text-sm ${msg.from === "Support" ? "bg-primary/5 border border-primary/10" : "bg-secondary/40 border border-border/40"}`}>
+                  <p className="text-xs text-muted-foreground mb-1.5 font-semibold">{msg.from} · {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}</p>
+                  <p className="text-foreground whitespace-pre-wrap leading-relaxed">{msg.body}</p>
                 </div>
               ))}
-              {!((ticketDetail as any)?.messages?.length) && <p className="text-sm text-muted-foreground">No messages loaded.</p>}
+              {!((ticketDetail as any)?.messages?.length) && <p className="text-sm text-muted-foreground py-4 text-center">No messages loaded.</p>}
             </div>
           )}
           <div className="border-t border-border pt-4">
-            <label className="text-xs text-muted-foreground mb-1.5 block">Your Reply</label>
+            <label className="text-xs text-muted-foreground font-medium mb-1.5 block">Your Reply to 20i Support</label>
             <textarea
-              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
-              rows={3}
-              placeholder="Type your reply to 20i Support…"
+              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none transition-shadow"
+              rows={4}
+              placeholder="Type your reply…"
               value={reply}
               onChange={e => setReply(e.target.value)}
             />
             <div className="flex justify-end mt-2">
               <PrimaryBtn onClick={handleReply} disabled={replying || !reply}>
-                {replying ? <Spinner /> : <Send size={14} />}
-                Send Reply
+                {replying ? <Spinner size={14} /> : <Send size={14} />}
+                {replying ? "Sending…" : "Send Reply"}
               </PrimaryBtn>
             </div>
           </div>
@@ -840,8 +1042,20 @@ function TicketsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{(tickets as any[]).length} ticket(s) from 20i Support</p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-48">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <input
+            className="w-full pl-8 pr-3 py-2 text-sm rounded-xl border border-border bg-card focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+            placeholder="Search by subject or ticket ID…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <PrimaryBtn small onClick={() => refetch()}>
+          <RefreshCw size={12} />
+          Refresh
+        </PrimaryBtn>
         <PrimaryBtn onClick={() => setShowCreate(!showCreate)}>
           <Plus size={14} />
           New Ticket
@@ -849,21 +1063,27 @@ function TicketsTab() {
       </div>
 
       {showCreate && (
-        <Card className="p-4">
-          <h3 className="font-medium mb-3">Create 20i Support Ticket</h3>
+        <Card className="p-5">
+          <h3 className="font-semibold mb-4 text-foreground">Create 20i Support Ticket</h3>
           <div className="space-y-3">
-            <input className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" placeholder="Subject" value={newTicket.subject} onChange={e => setNewTicket(p => ({ ...p, subject: e.target.value }))} />
-            <textarea className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none" rows={4} placeholder="Describe the issue…" value={newTicket.body} onChange={e => setNewTicket(p => ({ ...p, body: e.target.value }))} />
-            <select className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40" value={newTicket.priority} onChange={e => setNewTicket(p => ({ ...p, priority: e.target.value }))}>
+            <InputField placeholder="Subject" value={newTicket.subject} onChange={e => setNewTicket(p => ({ ...p, subject: e.target.value }))} />
+            <textarea
+              className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none transition-shadow"
+              rows={4}
+              placeholder="Describe the issue in detail…"
+              value={newTicket.body}
+              onChange={e => setNewTicket(p => ({ ...p, body: e.target.value }))}
+            />
+            <SelectField value={newTicket.priority} onChange={e => setNewTicket(p => ({ ...p, priority: e.target.value }))}>
               <option value="low">Low Priority</option>
               <option value="normal">Normal Priority</option>
               <option value="high">High Priority</option>
-            </select>
+            </SelectField>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowCreate(false)} className="px-3 py-2 text-sm rounded-xl border border-border hover:bg-secondary/60 transition-colors">Cancel</button>
               <PrimaryBtn onClick={handleCreate} disabled={submitting || !newTicket.subject || !newTicket.body}>
-                {submitting ? <Spinner /> : <Send size={14} />}
-                Submit Ticket
+                {submitting ? <Spinner size={14} /> : <Send size={14} />}
+                {submitting ? "Submitting…" : "Submit Ticket"}
               </PrimaryBtn>
             </div>
           </div>
@@ -872,20 +1092,28 @@ function TicketsTab() {
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Spinner /></div>
-      ) : (tickets as any[]).length === 0 ? (
-        <Card className="text-center py-10 text-muted-foreground text-sm">No tickets found.</Card>
+      ) : filtered.length === 0 ? (
+        <Card className="text-center py-10 text-muted-foreground text-sm">
+          {(tickets as any[]).length === 0 ? "No tickets found from 20i Support." : "No matches for your search."}
+        </Card>
       ) : (
         <div className="space-y-2">
-          {(tickets as any[]).map((t: any) => (
-            <Card key={t.id} className="p-4 cursor-pointer hover:bg-secondary/20 transition-colors" onClick={() => setSelected(t)}>
+          {filtered.map((t: any) => (
+            <Card
+              key={t.id}
+              className="p-4 cursor-pointer hover:bg-secondary/20 transition-colors hover:border-primary/20"
+              onClick={() => setSelected(t)}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-foreground truncate">{t.subject}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">#{t.id} · {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ""}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    #{t.id} · {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "Unknown date"}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 ml-4">
+                <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                   <Badge label={t.status ?? "open"} color={t.status ?? "open"} />
-                  <Eye size={14} className="text-muted-foreground" />
+                  <Eye size={13} className="text-muted-foreground" />
                 </div>
               </div>
             </Card>
@@ -926,7 +1154,6 @@ export default function TwentyIAdmin() {
     }
   }
 
-  // Auto-sync every 5 minutes
   useEffect(() => {
     syncIntervalRef.current = setInterval(doSync, 5 * 60 * 1000);
     return () => { if (syncIntervalRef.current) clearInterval(syncIntervalRef.current); };
@@ -937,30 +1164,36 @@ export default function TwentyIAdmin() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">20i Management Center</h2>
-          <p className="text-muted-foreground text-sm mt-1">Complete 20i Reseller API control — StackUsers, hosting, migrations, and support.</p>
+          <h2 className="text-2xl font-bold text-foreground">NoePanel — 20i Management</h2>
+          <p className="text-muted-foreground text-sm mt-1">StackUsers, hosting provisioning, migrations, and live support — all from NoePanel.</p>
         </div>
-        {lastSync && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border px-3 py-1.5 rounded-xl">
-            <Clock size={12} />
-            Last synced: {new Date(lastSync).toLocaleTimeString()}
+        <div className="flex items-center gap-2">
+          {lastSync && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm">
+              <Clock size={11} />
+              Synced {new Date(lastSync).toLocaleTimeString()}
+            </div>
+          )}
+          <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border shadow-sm ${server?.connected ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-red-500/5 border-red-500/20 text-red-500"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${server?.connected ? "bg-emerald-500" : "bg-red-500"}`} />
+            {server?.connected ? "API Connected" : "API Offline"}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Tab nav */}
-      <div className="flex flex-wrap gap-1 bg-secondary/40 p-1 rounded-2xl w-fit">
+      <div className="flex flex-wrap gap-1 bg-secondary/40 p-1 rounded-2xl w-fit border border-border/40">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
               activeTab === tab.id
                 ? "bg-card text-foreground shadow-sm border border-border/60"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <tab.icon size={14} />
+            <tab.icon size={13} />
             {tab.label}
           </button>
         ))}

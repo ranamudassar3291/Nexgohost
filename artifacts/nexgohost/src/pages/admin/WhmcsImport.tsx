@@ -522,7 +522,7 @@ export default function WhmcsImport() {
                 </h2>
                 <p className={`text-sm ${jobStatus.status === "completed" ? "text-green-400" : "text-red-400"}`}>
                   {jobStatus.status === "completed"
-                    ? "All WHMCS data has been migrated successfully to Nexgohost."
+                    ? "All WHMCS data has been migrated successfully to NoePanel."
                     : "A fatal error stopped the migration. Check the log below."}
                 </p>
               </div>

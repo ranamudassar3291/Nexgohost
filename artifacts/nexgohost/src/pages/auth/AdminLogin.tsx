@@ -105,7 +105,7 @@ export default function AdminLogin() {
                 <ShieldCheck size={12} className="text-primary-foreground" />
               </div>
             </div>
-            <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin Portal</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin Noehost</h1>
             <p className="text-muted-foreground text-center mt-1 text-sm">Sign in with your administrator credentials</p>
             <div className="mt-3 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 flex items-center gap-1.5 text-xs text-primary font-medium">
               <ShieldCheck size={12} /> Administrator Access

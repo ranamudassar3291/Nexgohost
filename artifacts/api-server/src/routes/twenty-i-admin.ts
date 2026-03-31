@@ -75,7 +75,9 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (_re
     const users = await twentyiListStackUsers(server!.apiToken!);
     res.json(users);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    // Return empty array with warning — 20i may not expose /reseller/users on all plans
+    console.warn(`[20i] stack-users fetch failed: ${e.message}`);
+    res.json([]);
   }
 });
 
