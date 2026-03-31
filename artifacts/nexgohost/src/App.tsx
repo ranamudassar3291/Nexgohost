@@ -50,6 +50,7 @@ import Modules from "@/pages/admin/Modules";
 import DomainRegistrars from "@/pages/admin/DomainRegistrars";
 import PendingActivations from "@/pages/admin/PendingActivations";
 import WhatsAppSettings from "@/pages/admin/WhatsAppSettings";
+import TwentyIAdmin from "@/pages/admin/TwentyIAdmin";
 import AdminReports from "@/pages/admin/Reports";
 import AdminTransactions from "@/pages/admin/Transactions";
 import CancellationRequests from "@/pages/admin/CancellationRequests";
@@ -287,6 +288,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/tickets">
         <AdminPage><AdminTickets /></AdminPage>
+      </Route>
+      <Route path="/admin/twenty-i">
+        <AdminPage><TwentyIAdmin /></AdminPage>
       </Route>
       <Route path="/admin/migrations">
         <AdminPage><AdminMigrations /></AdminPage>

@@ -51,6 +51,7 @@ import setupProgressRouter from "./setup-progress.js";
 import backupsRouter from "./backups.js";
 import emailMarketingRouter from "./email-marketing.js";
 import cartRouter from "./cart.js";
+import twentyIAdminRouter from "./twenty-i-admin.js";
 
 const router: IRouter = Router();
 
@@ -110,5 +111,6 @@ router.use(setupProgressRouter);
 router.use(backupsRouter);
 router.use(emailMarketingRouter);
 router.use(cartRouter);
+router.use(twentyIAdminRouter);
 
 export default router;

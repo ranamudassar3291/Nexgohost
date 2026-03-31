@@ -79,6 +79,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "20i Control",
+    items: [
+      { name: "20i Management",     href: "/admin/twenty-i",           icon: (() => null) as any },
+    ],
+  },
+  {
     label: "Migration",
     items: [
       { name: "WHMCS Import",     href: "/admin/whmcs-import",     icon: (() => null) as any },

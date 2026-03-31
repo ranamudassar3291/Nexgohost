@@ -200,6 +200,162 @@ export async function twentyiAssignSiteToUser(
   await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/setUser`, { userId: stackUserId });
 }
 
+// ─── List all hosting sites ───────────────────────────────────────────────────
+
+export interface TwentyISite {
+  id: string;
+  domain: string;
+  status: string;
+  package?: string;
+  stackUserId?: string;
+}
+
+export async function twentyiListSites(apiKey: string): Promise<TwentyISite[]> {
+  const data = await twentyiRequest(apiKey, "GET", "/reseller/web");
+  if (!Array.isArray(data)) return [];
+  return data.map((s: any) => ({
+    id: String(s.id ?? s.web_name ?? ""),
+    domain: String(s.domain_name ?? s.domain ?? ""),
+    status: s.status ?? (s.suspended ? "suspended" : "active"),
+    package: s.package_name ?? s.package ?? "",
+    stackUserId: s.user_id ? String(s.user_id) : undefined,
+  }));
+}
+
+// ─── Delete StackUser ─────────────────────────────────────────────────────────
+
+export async function twentyiDeleteStackUser(apiKey: string, userId: string): Promise<void> {
+  await twentyiRequest(apiKey, "DELETE", `/reseller/user/${userId}`);
+}
+
+// ─── Migrations ───────────────────────────────────────────────────────────────
+
+export interface TwentyIMigration {
+  id: string;
+  domain: string;
+  status: string;
+  progress?: number;
+  sourceType?: string;
+  createdAt?: string;
+}
+
+export async function twentyiStartMigration(
+  apiKey: string,
+  domain: string,
+  sourceType: "cpanel" | "plesk" | "directadmin" | "other",
+  host: string,
+  username: string,
+  password: string,
+  siteId?: string,
+): Promise<{ id: string }> {
+  const body: any = {
+    domain,
+    migration_type: sourceType,
+    source_host: host,
+    source_username: username,
+    source_password: password,
+  };
+  if (siteId) body.web_id = siteId;
+  const result = await twentyiRequest(apiKey, "POST", "/reseller/migration", body);
+  const id = result?.id ?? result?.migration_id ?? String(Date.now());
+  return { id: String(id) };
+}
+
+export async function twentyiListMigrations(apiKey: string): Promise<TwentyIMigration[]> {
+  const data = await twentyiRequest(apiKey, "GET", "/reseller/migration");
+  if (!Array.isArray(data)) return [];
+  return data.map((m: any) => ({
+    id: String(m.id ?? ""),
+    domain: m.domain ?? m.domain_name ?? "",
+    status: m.status ?? "unknown",
+    progress: m.progress ?? m.percent ?? 0,
+    sourceType: m.migration_type ?? m.type ?? "",
+    createdAt: m.created_at ?? m.date ?? "",
+  }));
+}
+
+export async function twentyiGetMigrationStatus(apiKey: string, migrationId: string): Promise<TwentyIMigration> {
+  const result = await twentyiRequest(apiKey, "GET", `/reseller/migration/${migrationId}`);
+  return {
+    id: String(result.id ?? migrationId),
+    domain: result.domain ?? result.domain_name ?? "",
+    status: result.status ?? "unknown",
+    progress: result.progress ?? result.percent ?? 0,
+    sourceType: result.migration_type ?? result.type ?? "",
+    createdAt: result.created_at ?? result.date ?? "",
+  };
+}
+
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+
+export interface TwentyITicket {
+  id: string;
+  subject: string;
+  status: string;
+  priority?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  messages?: { from: string; body: string; createdAt: string }[];
+}
+
+export async function twentyiListTickets(apiKey: string): Promise<TwentyITicket[]> {
+  const data = await twentyiRequest(apiKey, "GET", "/reseller/supportTicket");
+  if (!Array.isArray(data)) {
+    if (data && typeof data === "object") {
+      const arr = Object.values(data);
+      if (Array.isArray(arr)) return arr.map((t: any) => ({
+        id: String(t.id ?? t.ticket_id ?? ""),
+        subject: t.subject ?? "",
+        status: t.status ?? "open",
+        priority: t.priority,
+        createdAt: t.created_at ?? t.date ?? "",
+        updatedAt: t.updated_at ?? "",
+      }));
+    }
+    return [];
+  }
+  return data.map((t: any) => ({
+    id: String(t.id ?? t.ticket_id ?? ""),
+    subject: t.subject ?? "",
+    status: t.status ?? "open",
+    priority: t.priority,
+    createdAt: t.created_at ?? t.date ?? "",
+    updatedAt: t.updated_at ?? "",
+  }));
+}
+
+export async function twentyiGetTicket(apiKey: string, ticketId: string): Promise<TwentyITicket> {
+  const data = await twentyiRequest(apiKey, "GET", `/reseller/supportTicket/${ticketId}`);
+  return {
+    id: String(data.id ?? ticketId),
+    subject: data.subject ?? "",
+    status: data.status ?? "open",
+    priority: data.priority,
+    createdAt: data.created_at ?? "",
+    updatedAt: data.updated_at ?? "",
+    messages: Array.isArray(data.messages) ? data.messages.map((m: any) => ({
+      from: m.from ?? m.author ?? "Support",
+      body: m.body ?? m.message ?? "",
+      createdAt: m.created_at ?? m.date ?? "",
+    })) : [],
+  };
+}
+
+export async function twentyiCreateTicket(
+  apiKey: string,
+  subject: string,
+  body: string,
+  priority: "low" | "normal" | "high" = "normal",
+): Promise<{ id: string }> {
+  const result = await twentyiRequest(apiKey, "POST", "/reseller/supportTicket", { subject, body, priority });
+  const id = result?.id ?? result?.ticket_id ?? String(Date.now());
+  return { id: String(id) };
+}
+
+export async function twentyiReplyTicket(apiKey: string, ticketId: string, body: string): Promise<void> {
+  await twentyiRequest(apiKey, "PUT", `/reseller/supportTicket/${ticketId}`, { body });
+}
+
 // ─── SSO / Temporary Login ────────────────────────────────────────────────────
 
 /**

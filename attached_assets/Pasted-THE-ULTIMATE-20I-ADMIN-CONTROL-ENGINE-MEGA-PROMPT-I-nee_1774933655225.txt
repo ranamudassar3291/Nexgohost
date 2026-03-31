@@ -1,0 +1,50 @@
+THE ULTIMATE 20I ADMIN CONTROL ENGINE (MEGA-PROMPT)
+"I need to build a complete, high-power Admin Management System for 20i Reseller API within my panel. The goal is to 100% replace the 20i dashboard. Execute these massive technical tasks:
+
+1. Admin '20i Master Center' UI:
+
+Admin panel mein aik naya section '20i Management' banayein. Iska design clean, professional, aur Deep Slate Blue theme mein ho.
+
+2. StackUser & Hosting Management (The Core):
+
+User List: 20i API se saare StackUsers fetch karke table mein dikhayein. Search aur Delete ka option ho.
+
+Create User & Assign: Aik form banayein jahan se main naya StackUser create kar sakoon aur kisi bhi existing hosting package ko us user ke sath 'Assign' ya 'Re-assign' kar sakoon.
+
+Service Actions: Har hosting account ke sath Disable, Enable, Suspend, aur Terminate ke real-time API buttons hon.
+
+3. Manual Provisioning System:
+
+Admin side par 'Create Hosting' ka option ho jahan main:
+
+Domain name enter karoon.
+
+20i Package select karoon.
+
+Client/StackUser select karoon.
+
+Submit karte hi 20i par account create ho aur client ke dashboard mein show ho jaye.
+
+4. Two-Way Ticket System Integration:
+
+Aik advanced ticket bridge banayein. Jab main apne panel se ticket create karoon aur 'Forward to 20i' select karoon, toh wo automatic 20i Support API par create ho jaye.
+
+20i ka reply automatic mere panel mein fetch ho kar client aur admin ko show ho. Statuses (Open, In-Progress, Closed) 20i ke sath sync rahein.
+
+5. Full Migration Manager:
+
+20i ki Migration API ko integrate karein. Admin panel mein ek migration tool ho jahan se main cPanel/Plesk details daal kar migration start kar sakoon.
+
+Real-time 'Migration Status' (Progress bar) dikhayein jaisa 20i panel par dikhta hai.
+
+6. Database & API Guard:
+
+Use the API_KEY already set on the server.
+
+Safety Rule: Sab actions se pehle confirmation pop-up aaye. Pakistani clients ke liye kisi bhi admin-action par extra tax add na ho.
+
+Sync Logic: Har 5 minute baad 20i se status sync karein taake agar 20i ka panel band bhi ho jaye, mere panel mein data 'Last Synced' state mein mojud rahe.
+
+7. SSO & Deep Links:
+
+Har hosting service ke liye 'Log in to StackCP' ka dynamic SSO link generate karein jo 404 error na de."
