@@ -58,15 +58,6 @@ export default function Servers() {
   const [twentyiPkgs, setTwentyiPkgs] = useState<TwentyIPkg[]>([]);
   const [twentyiDefaultPkg, setTwentyiDefaultPkg] = useState("");
 
-  // Outbound IP — fetched lazily when 20i form is shown
-  const { data: outboundData, isLoading: loadingIp } = useQuery<{ ip: string; proxy: { enabled: boolean; url?: string } }>({
-    queryKey: ["outbound-ip"],
-    queryFn: () => apiFetch("/api/admin/servers/outbound-ip"),
-    enabled: showServerForm && is20i,
-    staleTime: 60 * 1000, // 1 min
-    retry: false,
-  });
-
   // Group state
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editGroupId, setEditGroupId] = useState<string | null>(null);
@@ -83,6 +74,15 @@ export default function Servers() {
   const setS = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setServerForm(s => ({ ...s, [f]: e.target.value }));
 
   const is20i = serverForm.type === "20i";
+
+  // Outbound IP — fetched lazily when 20i form is shown (must be after is20i is defined)
+  const { data: outboundData, isLoading: loadingIp } = useQuery<{ ip: string; proxy: { enabled: boolean; url?: string } }>({
+    queryKey: ["outbound-ip"],
+    queryFn: () => apiFetch("/api/admin/servers/outbound-ip"),
+    enabled: showServerForm && is20i,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
 
   const resetFormState = () => {
     setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER);
