@@ -195,8 +195,8 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
         diagnostic: {
           step: "Authentication",
           detail: proxyActive
-            ? "API key rejected. If the key is correct, ensure the proxy's fixed IP is added to 20i → Reseller API → IP Whitelist."
-            : "API key rejected OR server IP not whitelisted. Go to my.20i.com → Reseller API → IP Whitelist and add the IP shown in the panel above.",
+            ? "API key rejected even with proxy active. The API key itself is likely wrong — regenerate it at my.20i.com → Reseller API → API Key and paste it here."
+            : "Two possible causes: (1) Your API key is wrong — double-check or regenerate it at my.20i.com → Reseller API → API Key. (2) The server IP shown above is not yet whitelisted — add it at my.20i.com → Reseller API → IP Whitelist. If you already whitelisted the IP, cause (1) is most likely.",
         },
       };
     }

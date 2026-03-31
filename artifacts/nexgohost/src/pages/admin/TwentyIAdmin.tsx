@@ -364,10 +364,15 @@ function SitesTab() {
   const [assignModal, setAssignModal] = useState<{ siteId: string; domain: string } | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
 
-  const { data: sites = [], isLoading, refetch } = useQuery({
+  const { data: sites = [], isLoading, isError: sitesError, error: sitesErr, refetch } = useQuery({
     queryKey: ["20i-sites"],
-    queryFn: () => apiFetch("/api/admin/twenty-i/sites"),
+    queryFn: async () => {
+      const data = await apiFetch("/api/admin/twenty-i/sites");
+      if (data?.error === "auth_failed") throw new Error(data.message);
+      return Array.isArray(data) ? data : [];
+    },
     refetchInterval: 5 * 60 * 1000,
+    retry: false,
   });
   const { data: stackUsers = [] } = useQuery({
     queryKey: ["20i-stack-users"],
@@ -429,6 +434,15 @@ function SitesTab() {
 
   return (
     <div className="space-y-4">
+      {sitesError && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+          <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">20i API Authentication Error</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{(sitesErr as any)?.message ?? "Could not load sites."} Go to <a href="/admin/servers" className="underline font-medium">Admin → Servers</a> and verify your API key.</p>
+          </div>
+        </div>
+      )}
       {confirm && (
         <ConfirmModal
           title={confirm.action === "terminate" ? "Terminate Site" : "Suspend Site"}
@@ -792,10 +806,15 @@ function MigrationsTab() {
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState(false);
 
-  const { data: migrations = [], isLoading, refetch } = useQuery({
+  const { data: migrations = [], isLoading, isError: migrationsError, error: migrationsErr, refetch } = useQuery({
     queryKey: ["20i-migrations"],
-    queryFn: () => apiFetch("/api/admin/twenty-i/migrations"),
+    queryFn: async () => {
+      const data = await apiFetch("/api/admin/twenty-i/migrations");
+      if (data?.error === "auth_failed") throw new Error(data.message);
+      return Array.isArray(data) ? data : [];
+    },
     refetchInterval: polling ? 6000 : false,
+    retry: false,
   });
 
   // Enable polling if any migration is in progress
@@ -822,6 +841,15 @@ function MigrationsTab() {
 
   return (
     <div className="space-y-5">
+      {migrationsError && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
+          <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">20i API Authentication Error</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{(migrationsErr as any)?.message ?? "Could not load migrations."} Go to <a href="/admin/servers" className="underline font-medium">Admin → Servers</a> and verify your API key.</p>
+          </div>
+        </div>
+      )}
       <Card>
         <h3 className="font-semibold text-foreground mb-1">Start New Migration</h3>
         <p className="text-sm text-muted-foreground mb-4">Enter source server credentials. 20i will transfer files, databases, and DNS automatically.</p>

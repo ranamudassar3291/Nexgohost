@@ -35,15 +35,21 @@ async function logCron(task: string, status: "success" | "failed" | "skipped", m
 
 async function generateInvoiceNumber(): Promise<string> {
   const year = new Date().getFullYear();
+  const prefix = `INV-${year}-`;
+  // Order by the invoice_number string DESC so zero-padded sequences sort correctly.
+  // Filter to the current year so sequence resets cleanly each Jan 1.
   const [latest] = await db.select({ num: invoicesTable.invoiceNumber })
-    .from(invoicesTable).orderBy(sql`created_at DESC`).limit(1);
+    .from(invoicesTable)
+    .where(sql`${invoicesTable.invoiceNumber} LIKE ${prefix + "%"}`)
+    .orderBy(sql`${invoicesTable.invoiceNumber} DESC`)
+    .limit(1);
   let seq = 1;
   if (latest?.num) {
     const parts = latest.num.split("-");
     const last = parseInt(parts[parts.length - 1] || "0", 10);
     seq = isNaN(last) ? 1 : last + 1;
   }
-  return `INV-${year}-${String(seq).padStart(4, "0")}`;
+  return `${prefix}${String(seq).padStart(4, "0")}`;
 }
 
 async function logEmail(clientId: string, email: string, emailType: string, subject: string, referenceId?: string) {

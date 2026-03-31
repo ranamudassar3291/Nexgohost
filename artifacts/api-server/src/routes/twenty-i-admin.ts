@@ -114,6 +114,10 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (_req: Aut
     const sites = await twentyiListSites(server!.apiToken!);
     res.json(sites);
   } catch (e: any) {
+    const msg: string = e.message ?? "";
+    if (msg.includes("401") || msg.includes("Authentication failed") || msg.includes("403")) {
+      return res.status(200).json({ error: "auth_failed", message: "20i API key is invalid or the server IP is not whitelisted. Verify your API key in Admin → Servers.", sites: [] });
+    }
     res.status(500).json({ error: e.message });
   }
 });
@@ -290,6 +294,10 @@ router.get("/admin/twenty-i/migrations", authenticate, requireAdmin, async (_req
     const migrations = await twentyiListMigrations(server!.apiToken!);
     res.json(migrations);
   } catch (e: any) {
+    const msg: string = e.message ?? "";
+    if (msg.includes("401") || msg.includes("Authentication failed") || msg.includes("403")) {
+      return res.status(200).json({ error: "auth_failed", message: "20i API key is invalid or the server IP is not whitelisted. Verify your API key in Admin → Servers.", migrations: [] });
+    }
     res.status(500).json({ error: e.message });
   }
 });
