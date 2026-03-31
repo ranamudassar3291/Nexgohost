@@ -7,7 +7,7 @@ import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
 import { cpanelCreateUserSession, probeCpanelPaths, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetLiveUsage, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
-import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl } from "../lib/twenty-i.js";
+import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl, twentyiGetSSOUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
 import { execAsync as _execAsync } from "../lib/shell.js";
@@ -893,13 +893,22 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
       return res.status(400).json({ error: "No server found. Contact support or add an active server in Admin → Servers." });
     }
 
-    // 20i (StackCP): direct URLs, no WHM SSO token needed
+    // 20i (StackCP): generate a temporary one-click SSO login URL
     if (server.type === "20i") {
-      const stackCPUrl = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
-      const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
-      const url = link.service === "webmaild" ? webmailUrl : stackCPUrl;
-      if (!url) return res.status(400).json({ error: "No 20i control panel URL found for this service." });
-      return res.json({ url });
+      if (link.service === "webmaild") {
+        const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
+        if (!webmailUrl) return res.status(400).json({ error: "No webmail URL found for this service." });
+        return res.json({ url: webmailUrl });
+      }
+      if (!service.username || !server.apiToken) {
+        const fallback = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
+        if (fallback) return res.json({ url: fallback });
+        return res.status(400).json({ error: "No 20i site ID linked to this service. Please contact support." });
+      }
+      // Generate a real temporary login link via 20i API
+      const ssoUrl = await twentyiGetSSOUrl(server.apiToken, service.username);
+      console.log(`[SSO-LAUNCH] 20i SSO for siteId=${service.username} → ${ssoUrl}`);
+      return res.json({ url: ssoUrl });
     }
 
     const serverCfg = {

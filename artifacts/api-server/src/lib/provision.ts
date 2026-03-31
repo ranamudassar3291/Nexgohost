@@ -35,7 +35,7 @@ import { db } from "@workspace/db";
 import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serverLogsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
-import { twentyiCreateHosting } from "./twenty-i.js";
+import { twentyiCreateHosting, twentyiGetOrCreateStackUser, twentyiAssignSiteToUser } from "./twenty-i.js";
 import type { TwentyICreateResult } from "./twenty-i.js";
 import { emailHostingCreated, emailResellerHostingCreated, emailVerificationCode } from "./email.js";
 
@@ -424,6 +424,23 @@ export async function provisionHostingService(
       }
     } else if (module === "20i" && server.apiToken) {
       try {
+        // Step A — Get or create a StackUser for this client (idempotent)
+        const clientName = `${user.firstName} ${user.lastName}`.trim() || user.email;
+        let stackUserId: string | null = user.stackUserId ?? null;
+
+        if (!stackUserId) {
+          try {
+            const stackUser = await twentyiGetOrCreateStackUser(server.apiToken, user.email, clientName);
+            stackUserId = stackUser.id;
+            // Persist stackUserId on the user record for future services
+            await db.update(usersTable).set({ stackUserId, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+            console.log(`[PROVISION] 20i StackUser created/found: userId=${stackUserId} email=${user.email}`);
+          } catch (suErr: any) {
+            console.warn(`[PROVISION] 20i StackUser creation failed (non-fatal): ${suErr.message}`);
+          }
+        }
+
+        // Step B — Create the hosting package
         const twentyiResult: TwentyICreateResult = await twentyiCreateHosting(
           server.apiToken,
           domain,
@@ -436,12 +453,28 @@ export async function provisionHostingService(
         if (twentyiResult.cpanelUrl) cpanelUrl = twentyiResult.cpanelUrl;
         if (twentyiResult.webmailUrl) webmailUrl = twentyiResult.webmailUrl;
         console.log(`[PROVISION] 20i hosting created: siteId=${twentyiResult.siteId} domain=${domain}`);
+
+        // Step C — Assign the site to the StackUser so they can manage it from StackCP
+        if (stackUserId && twentyiResult.siteId) {
+          try {
+            await twentyiAssignSiteToUser(server.apiToken, twentyiResult.siteId, stackUserId);
+            console.log(`[PROVISION] 20i site ${twentyiResult.siteId} assigned to StackUser ${stackUserId}`);
+          } catch (assignErr: any) {
+            console.warn(`[PROVISION] 20i site assignment failed (non-fatal): ${assignErr.message}`);
+          }
+        }
+
+        // Persist the 20i package ID on the service record
+        await db.update(hostingServicesTable)
+          .set({ twentyIPackageId: plan?.modulePlanId ?? null })
+          .where(eq(hostingServicesTable.id, serviceId));
+
         await logServerAction({
           serviceId,
           serverId: server.id,
           action: "create_hosting_20i",
           status: "success",
-          response: JSON.stringify(twentyiResult),
+          response: JSON.stringify({ ...twentyiResult, stackUserId }),
         });
       } catch (err: any) {
         whmError = err.message;
@@ -507,14 +540,18 @@ export async function provisionHostingService(
     } else {
       // Shared / WordPress hosting — standard cPanel welcome email
       // WordPress install confirmation email is sent separately when WP is provisioned
+      // 20i servers use their own official nameservers unless the admin configured custom ones
+      const is20i = server?.type === "20i";
+      const defaultNs1 = is20i ? "ns1.20i.com" : `ns1.${new URL(getAppUrl()).hostname}`;
+      const defaultNs2 = is20i ? "ns2.20i.com" : `ns2.${new URL(getAppUrl()).hostname}`;
       await emailHostingCreated(user.email, {
         clientName: `${user.firstName} ${user.lastName}`,
         domain: service.domain || domain,
         username,
         password,
         cpanelUrl,
-        ns1: server?.ns1 || `ns1.${new URL(getAppUrl()).hostname}`,
-        ns2: server?.ns2 || `ns2.${new URL(getAppUrl()).hostname}`,
+        ns1: server?.ns1 || defaultNs1,
+        ns2: server?.ns2 || defaultNs2,
         webmailUrl,
       }, { clientId: user.id, referenceId: serviceId });
     }

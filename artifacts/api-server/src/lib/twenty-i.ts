@@ -144,3 +144,88 @@ export async function twentyiGetSiteInfo(apiKey: string, siteId: string): Promis
 export function twentyiStackCPUrl(siteId: string): string {
   return `https://my.20i.com/cp/${siteId}`;
 }
+
+// ─── StackUser (reseller sub-accounts) ───────────────────────────────────────
+
+export interface TwentyIStackUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+/** Create a new StackUser under the reseller account */
+export async function twentyiCreateStackUser(
+  apiKey: string,
+  email: string,
+  name: string,
+): Promise<TwentyIStackUser> {
+  const result = await twentyiRequest(apiKey, "POST", "/reseller/addUser", { email, name });
+  const id = result?.id ?? result?.user_id ?? result?.userId;
+  if (!id) throw new Error(`20i did not return a StackUser ID. Response: ${JSON.stringify(result).substring(0, 200)}`);
+  return { id: String(id), email, name };
+}
+
+/** List StackUsers belonging to this reseller account */
+export async function twentyiListStackUsers(apiKey: string): Promise<TwentyIStackUser[]> {
+  const data = await twentyiRequest(apiKey, "GET", "/reseller/users");
+  if (!Array.isArray(data)) return [];
+  return data.map((u: any) => ({ id: String(u.id ?? u.user_id ?? ""), email: u.email ?? "", name: u.name ?? "" }));
+}
+
+/**
+ * Find an existing StackUser by email or create a new one.
+ * Tries to find first to avoid duplicates.
+ */
+export async function twentyiGetOrCreateStackUser(
+  apiKey: string,
+  email: string,
+  name: string,
+): Promise<TwentyIStackUser> {
+  try {
+    const users = await twentyiListStackUsers(apiKey);
+    const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (existing) return existing;
+  } catch {
+    // Ignore list errors — proceed to create
+  }
+  return twentyiCreateStackUser(apiKey, email, name);
+}
+
+/** Assign a hosting site to a StackUser so they can manage it via StackCP */
+export async function twentyiAssignSiteToUser(
+  apiKey: string,
+  siteId: string,
+  stackUserId: string,
+): Promise<void> {
+  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/setUser`, { userId: stackUserId });
+}
+
+// ─── SSO / Temporary Login ────────────────────────────────────────────────────
+
+/**
+ * Generate a temporary one-click login URL for StackCP.
+ * Tries multiple 20i endpoint patterns for compatibility across API versions.
+ */
+export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<string> {
+  const endpoints = [
+    `/userHosting/${siteId}/temporaryLoginLink`,
+    `/userHosting/${siteId}/sso`,
+    `/userHosting/${siteId}/getLoginLink`,
+  ];
+
+  for (const path of endpoints) {
+    try {
+      const result = await twentyiRequest(apiKey, "GET", path);
+      const url = result?.url ?? result?.link ?? result?.loginUrl ?? result?.login_url;
+      if (url && typeof url === "string" && url.startsWith("http")) return url;
+      // Some endpoints return the URL directly as a string
+      if (typeof result === "string" && result.startsWith("http")) return result;
+    } catch (err: any) {
+      if (err.message?.includes("404")) continue; // Try next endpoint
+      throw err;
+    }
+  }
+
+  // Final fallback — return the static StackCP URL (user must already be logged in)
+  return twentyiStackCPUrl(siteId);
+}

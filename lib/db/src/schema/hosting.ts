@@ -91,6 +91,7 @@ export const hostingServicesTable = pgTable("hosting_services", {
   vpsProvisionedAt: timestamp("vps_provisioned_at"),
   vpsProvisionNotes: text("vps_provision_notes"),
   whmcsId: text("whmcs_id"),
+  twentyIPackageId: text("twenty_i_package_id"),
   amount: numeric("amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

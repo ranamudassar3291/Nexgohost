@@ -22,6 +22,8 @@ interface HostingService {
   bandwidth?: string;
   canManage: boolean;
   manageLockReason: string | null;
+  cpanelUrl?: string | null;
+  webmailUrl?: string | null;
 }
 
 interface HostingPlan {
@@ -85,8 +87,11 @@ export default function ClientHosting() {
   async function handleQuickLogin(serviceId: string, type: "cpanel" | "webmail") {
     setSsoLoading(p => ({ ...p, [serviceId]: type }));
     try {
-      const endpoint = type === "cpanel" ? "cpanel-login" : "webmail-login";
-      const data = await apiFetch(`/api/client/hosting/${serviceId}/${endpoint}`, { method: "POST" });
+      const data = await apiFetch(`/api/client/hosting/${serviceId}/sso-launch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: type === "webmail" ? "webmail" : "cpanel" }),
+      });
       if (data.url) {
         window.open(data.url, "_blank");
       } else {
@@ -106,6 +111,7 @@ export default function ClientHosting() {
     const isVps = isVpsService(service.planName);
     const isActive = service.status === "active";
     const loading = ssoLoading[service.id];
+    const is20i = !!(service.cpanelUrl?.includes("my.20i.com") || service.cpanelUrl?.includes("stackcp.com"));
     const cfg = statusConfig[service.status] ?? { dot: "bg-muted-foreground", badge: "bg-secondary border-border text-muted-foreground", label: service.status, pulse: false };
     const daysLeft = getDaysUntilRenewal(service.nextDueDate);
     const renewingSoon = daysLeft !== null && daysLeft <= 14 && daysLeft >= 0;
@@ -234,16 +240,16 @@ export default function ClientHosting() {
             {!isVps && isActive && (
               <>
                 <button
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-secondary/60 transition-colors text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   disabled={!!loading || !service.canManage}
                   title={!service.canManage ? (service.manageLockReason || "Management disabled") : undefined}
                   onClick={() => service.canManage && handleQuickLogin(service.id, "cpanel")}
                 >
                   {loading === "cpanel" ? <Loader2 size={13} className="animate-spin" /> : !service.canManage ? <Lock size={13} /> : <ExternalLink size={13} />}
-                  {loading === "cpanel" ? "Opening…" : "cPanel"}
+                  {loading === "cpanel" ? "Opening…" : is20i ? "StackCP" : "cPanel"}
                 </button>
                 <button
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium border border-border bg-card hover:bg-secondary/60 transition-colors text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-medium bg-primary/5 border border-primary/20 text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   disabled={!!loading || !service.canManage}
                   title={!service.canManage ? (service.manageLockReason || "Management disabled") : undefined}
                   onClick={() => service.canManage && handleQuickLogin(service.id, "webmail")}

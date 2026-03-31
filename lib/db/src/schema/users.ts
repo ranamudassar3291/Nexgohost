@@ -26,6 +26,7 @@ export const usersTable = pgTable("users", {
   creditBalance: numeric("credit_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   country: text("country"),
   billingCurrency: text("billing_currency"),
+  stackUserId: text("stack_user_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
