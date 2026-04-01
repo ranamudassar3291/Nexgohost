@@ -5,7 +5,7 @@ import { serversTable, serverGroupsTable, hostingServicesTable } from "@workspac
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq, sql, and } from "drizzle-orm";
 import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
-import { twentyiTestConnection, twentyiGetPackages, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
+import { twentyiTestConnection, twentyiGetPackages, twentyiRawDebug, runWithProxy, sanitiseKey, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
@@ -138,21 +138,28 @@ router.get("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   res.json(server);
 });
 
-// POST /api/admin/servers/test-api-key — pre-save credential test (no saved server required)
+// POST /api/admin/servers/test-api-key — pre-save credential test with full debug info
 router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (req, res) => {
-  const { apiKey, type } = req.body;
+  const { apiKey, type, proxyUrl } = req.body;
   if (!apiKey) { res.status(400).json({ error: "apiKey is required" }); return; }
   if (type === "20i") {
-    const result = await twentyiTestConnection(apiKey);
-    // Always return 200 — client decides what to show based on success flag
-    if (!result.success) {
-      res.json({ success: false, message: result.message, diagnostic: result.diagnostic ?? null, packages: [] });
-      return;
+    const runTest = async () => {
+      // Raw debug info — always collected
+      const debug = await twentyiRawDebug(apiKey);
+      const result = await twentyiTestConnection(apiKey);
+      if (!result.success) {
+        return res.json({ success: false, message: result.message, diagnostic: result.diagnostic ?? null, packages: [], debug });
+      }
+      let pkgs: any[] = [];
+      try { pkgs = await twentyiGetPackages(apiKey); } catch { /* empty */ }
+      return res.json({ success: true, message: result.message, diagnostic: result.diagnostic ?? null, packages: pkgs, debug });
+    };
+    // Run with optional per-request proxy override
+    if (proxyUrl !== undefined) {
+      await runWithProxy(proxyUrl || undefined, runTest);
+    } else {
+      await runTest();
     }
-    // Fetch packages using the proven-correct endpoint variant
-    let pkgs: any[] = [];
-    try { pkgs = await twentyiGetPackages(apiKey); } catch { /* empty */ }
-    res.json({ success: true, message: result.message, diagnostic: result.diagnostic ?? null, packages: pkgs });
     return;
   }
   res.status(400).json({ error: "Pre-save testing is only supported for 20i servers" });
@@ -165,13 +172,14 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
   if (type !== "20i" && !hostname) { res.status(400).json({ error: "hostname is required" }); return; }
   if (isDefault) { await db.update(serversTable).set({ isDefault: false }); }
   const resolvedHostname = (type === "20i") ? "api.20i.com" : hostname;
+  const cleanToken = apiToken ? sanitiseKey(apiToken) : null;
   const [record] = await db.insert(serversTable).values({
     name,
     hostname: resolvedHostname,
     ipAddress: ipAddress || null,
     type: type || "cpanel",
     apiUsername: (type === "20i") ? null : (apiUsername || null),
-    apiToken: apiToken || null,
+    apiToken: cleanToken,
     apiPort: (type === "20i") ? null : (apiPort ? parseInt(apiPort) : 2087),
     ns1: ns1 || null,
     ns2: ns2 || null,
@@ -193,9 +201,9 @@ router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   if (ipAddress !== undefined) updates.ipAddress = ipAddress;
   if (type !== undefined) updates.type = type;
   if (apiUsername !== undefined) updates.apiUsername = apiUsername || null;
-  // Only overwrite the stored token when a non-empty value is provided
-  // (empty string means "keep existing token" — prevents accidental wipe)
-  if (apiToken !== undefined && apiToken !== "") updates.apiToken = apiToken;
+  // Only overwrite the stored token when a non-empty value is provided.
+  // Also sanitise — strips hidden/zero-width chars that break Bearer auth.
+  if (apiToken !== undefined && apiToken !== "") updates.apiToken = sanitiseKey(apiToken);
   if (apiPort !== undefined) updates.apiPort = parseInt(apiPort);
   if (ns1 !== undefined) updates.ns1 = ns1;
   if (ns2 !== undefined) updates.ns2 = ns2;

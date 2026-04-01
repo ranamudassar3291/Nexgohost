@@ -55,6 +55,8 @@ export default function Servers() {
   // 20i in-form test state
   const [testingForm, setTestingForm] = useState(false);
   const [formTestResult, setFormTestResult] = useState<{ ok: boolean; msg: string; diagnostic?: { step?: string; endpoint?: string; detail?: string } | null } | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const [twentyiPkgs, setTwentyiPkgs] = useState<TwentyIPkg[]>([]);
   const [twentyiDefaultPkg, setTwentyiDefaultPkg] = useState("");
 
@@ -87,19 +89,25 @@ export default function Servers() {
   const resetFormState = () => {
     setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER);
     setIsDefault(false); setApiTokenSaved(false);
-    setFormTestResult(null); setTwentyiPkgs([]); setTwentyiDefaultPkg("");
+    setFormTestResult(null); setDebugInfo(null); setShowDebug(false);
+    setTwentyiPkgs([]); setTwentyiDefaultPkg("");
   };
 
   // ── In-form 20i connection test ──────────────────────────────────────────
   const handleFormTest = async () => {
     if (!serverForm.apiToken) { toast({ title: "Enter your 20i API Key first" }); return; }
-    setTestingForm(true); setFormTestResult(null); setTwentyiPkgs([]);
+    setTestingForm(true); setFormTestResult(null); setDebugInfo(null); setShowDebug(false); setTwentyiPkgs([]);
     try {
-      // Always returns 200 — check success flag in response body
       const result = await apiFetch("/api/admin/servers/test-api-key", {
         method: "POST",
-        body: JSON.stringify({ apiKey: serverForm.apiToken.trim(), type: "20i" }),
+        body: JSON.stringify({
+          apiKey: serverForm.apiToken.trim(),
+          type: "20i",
+          // proxyUrl from ipAddress field (per-server proxy override)
+          proxyUrl: serverForm.ipAddress || undefined,
+        }),
       });
+      if (result.debug) setDebugInfo(result.debug);
       if (!result.success) {
         setFormTestResult({ ok: false, msg: result.message, diagnostic: result.diagnostic });
         return;
@@ -111,7 +119,6 @@ export default function Servers() {
       }
       toast({ title: "Connection successful", description: result.message });
     } catch (err: any) {
-      // Network / server crash path
       setFormTestResult({ ok: false, msg: err.message });
     } finally { setTestingForm(false); }
   };
@@ -364,16 +371,37 @@ export default function Servers() {
                         </a>
                       </p>
                     </div>
+                    {/* Proxy URL (per-server static proxy) */}
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
+                        Static Proxy URL
+                        <span className="text-[10px] font-normal text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5 py-0.5">optional</span>
+                      </label>
+                      <Input
+                        type="text"
+                        value={serverForm.ipAddress}
+                        onChange={setS("ipAddress")}
+                        placeholder="http://user:pass@proxy.host:1234"
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Route all 20i API calls through a fixed-IP proxy so 20i always sees one whitelisted IP.
+                        Leave blank to use direct connection or the <span className="font-mono">TWENTYI_PROXY</span> env var.
+                      </p>
+                    </div>
+
                     <Button
                       type="button"
                       variant="outline"
-                      className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                      className="border-primary/30 text-primary hover:bg-primary/10"
                       onClick={handleFormTest}
                       disabled={testingForm || (!serverForm.apiToken && apiTokenSaved)}
                     >
                       {testingForm ? <Loader2 size={14} className="animate-spin mr-2" /> : <Wifi size={14} className="mr-2" />}
                       {testingForm ? "Testing…" : "Test Connection"}
                     </Button>
+
+                    {/* Test result */}
                     {formTestResult && (
                       <div className={`text-xs p-3 rounded-xl border space-y-1.5 ${formTestResult.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-primary/20 bg-primary/5"}`}>
                         <div className={`flex items-start gap-2 font-medium ${formTestResult.ok ? "text-emerald-500" : "text-primary"}`}>
@@ -387,6 +415,45 @@ export default function Servers() {
                         )}
                         {formTestResult.ok && formTestResult.diagnostic?.endpoint && (
                           <p className="text-muted-foreground pl-[19px]">Endpoint: <span className="font-mono">{formTestResult.diagnostic.endpoint}</span></p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Live Debug Log */}
+                    {debugInfo && (
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setShowDebug(v => !v)}
+                          className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Zap size={12} />
+                            Live Debug Log
+                          </span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${debugInfo.responseStatus === 200 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-primary/30 bg-primary/10 text-primary"}`}>
+                            HTTP {debugInfo.responseStatus ?? "ERR"}
+                          </span>
+                        </button>
+                        {showDebug && (
+                          <div className="border-t border-primary/10 divide-y divide-primary/10 text-xs font-mono">
+                            {[
+                              ["URL", `${debugInfo.method} ${debugInfo.url}`],
+                              ["Authorization", debugInfo.authFormat],
+                              ["Key Length", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}…  last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
+                              ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct)")],
+                              ["Response", `HTTP ${debugInfo.responseStatus ?? "—"}  ·  ${debugInfo.durationMs}ms`],
+                            ].map(([label, value]) => (
+                              <div key={label} className="flex gap-3 px-3.5 py-2">
+                                <span className="text-muted-foreground w-28 shrink-0">{label}</span>
+                                <span className="text-foreground/80 break-all">{value}</span>
+                              </div>
+                            ))}
+                            <div className="px-3.5 py-2">
+                              <span className="text-muted-foreground block mb-1">Raw Response</span>
+                              <pre className="text-foreground/70 whitespace-pre-wrap break-all leading-relaxed">{debugInfo.responseBody}</pre>
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}

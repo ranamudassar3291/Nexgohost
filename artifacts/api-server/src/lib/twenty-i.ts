@@ -2,47 +2,65 @@
  * 20i Hosting API Module
  * https://my.20i.com/reseller/apidoc
  *
- * Proxy support: set TWENTYI_PROXY (or HTTPS_PROXY) env var to route all
- * 20i API calls through a fixed-IP proxy (e.g. Fixie, Bright Data, etc.).
+ * Proxy support: Set TWENTYI_PROXY (or HTTPS_PROXY / FIXIE_URL) env var, OR
+ * store a proxy URL in the server record's ipAddress field (per-server override).
  * Format: http://user:pass@proxy.host:port
- *
- * This solves 20i's IP whitelisting requirement — the proxy provides a
- * permanent IP that you add to your 20i whitelist once and never touch again.
  */
 import { ProxyAgent } from "undici";
+import { AsyncLocalStorage } from "async_hooks";
+
+// ─── Per-request proxy override (via AsyncLocalStorage) ──────────────────────
+// This allows per-server proxy URLs without changing all function signatures.
+const _requestProxyStore = new AsyncLocalStorage<string | undefined>();
 
 /**
- * Build a proxy dispatcher from env vars, or return undefined (direct connection).
- * Priority: TWENTYI_PROXY > HTTPS_PROXY > FIXIE_URL > direct
+ * Run `fn` with a specific proxy URL active for all 20i calls within it.
+ * Pass `undefined` to explicitly disable the per-request override.
  */
-function buildProxyDispatcher(): ProxyAgent | undefined {
-  const proxyUrl = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
-  if (!proxyUrl) return undefined;
+export function runWithProxy<T>(proxyUrl: string | undefined, fn: () => T): T {
+  return _requestProxyStore.run(proxyUrl, fn);
+}
+
+// ─── Proxy dispatcher ─────────────────────────────────────────────────────────
+
+function buildProxyDispatcher(proxyUrl: string): ProxyAgent | undefined {
   try {
     return new ProxyAgent(proxyUrl);
   } catch (e: any) {
-    console.warn(`[20i] Proxy config error — falling back to direct: ${e.message}`);
+    console.warn(`[20i] Proxy config error: ${e.message}`);
     return undefined;
   }
 }
 
-// Cache the proxy dispatcher (rebuilt on process restart / env change)
-let _proxyDispatcher: ProxyAgent | undefined | null = null; // null = not yet built
-function getProxy(): ProxyAgent | undefined {
-  if (_proxyDispatcher === null) {
-    _proxyDispatcher = buildProxyDispatcher();
-    if (_proxyDispatcher) {
-      const raw = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL || "";
+// Env-var proxy (cached after first build)
+let _envProxyDispatcher: ProxyAgent | undefined | null = null;
+function getEnvProxy(): ProxyAgent | undefined {
+  if (_envProxyDispatcher === null) {
+    const raw = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
+    if (raw) {
+      _envProxyDispatcher = buildProxyDispatcher(raw);
       const sanitised = raw.replace(/:[^:@]+@/, ":***@");
       console.log(`[20i] Proxy bridge active → ${sanitised}`);
     } else {
-      console.log("[20i] No proxy configured — calls go direct (Replit IP). Set TWENTYI_PROXY to use a fixed IP.");
+      _envProxyDispatcher = undefined;
+      console.log("[20i] No proxy configured — calls go direct (Replit IP). Set TWENTYI_PROXY for a fixed IP.");
     }
   }
-  return _proxyDispatcher;
+  return _envProxyDispatcher;
 }
 
-/** Return the current outbound IP as seen by external services */
+/** Resolve the proxy to use: per-request override > env var > direct */
+function getProxy(): ProxyAgent | undefined {
+  const requestProxy = _requestProxyStore.getStore();
+  if (requestProxy !== undefined) {
+    // requestProxy is explicitly set (could be "" to force direct)
+    if (!requestProxy) return undefined;
+    return buildProxyDispatcher(requestProxy);
+  }
+  return getEnvProxy();
+}
+
+/** Return the current outbound IP as seen by external services (respects active proxy) */
 export async function getOutboundIp(): Promise<string> {
   try {
     const proxy = getProxy();
@@ -58,17 +76,104 @@ export async function getOutboundIp(): Promise<string> {
 
 /** Return proxy configuration status (safe — no secrets exposed) */
 export function getProxyConfig(): { enabled: boolean; url?: string } {
+  const requestProxy = _requestProxyStore.getStore();
+  if (requestProxy !== undefined) {
+    if (!requestProxy) return { enabled: false };
+    return { enabled: true, url: requestProxy.replace(/:[^:@]+@/, ":***@") };
+  }
   const raw = process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
   if (!raw) return { enabled: false };
   return { enabled: true, url: raw.replace(/:[^:@]+@/, ":***@") };
 }
 
 /**
- * Sanitise an API key: trim whitespace and strip any invisible chars
- * that can silently break Bearer token auth.
+ * Sanitise an API key: trim whitespace and strip invisible/zero-width chars
+ * that silently break Bearer token auth.
+ * Exported so routes can sanitise before saving to DB.
  */
-function sanitiseKey(apiKey: string): string {
-  return apiKey.trim().replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "");
+export function sanitiseKey(apiKey: string): string {
+  return apiKey.trim().replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
+}
+
+// ─── Raw debug test ───────────────────────────────────────────────────────────
+
+export interface TwentyIDebugInfo {
+  url: string;
+  method: string;
+  authFormat: string;       // "Bearer ****XXXX"
+  keyLength: number;
+  keyFirst4: string;
+  keyLast4: string;
+  keyHasHiddenChars: boolean;
+  outboundIp: string;
+  proxyActive: boolean;
+  proxyUrl?: string;
+  responseStatus: number | null;
+  responseBody: string;
+  durationMs: number;
+}
+
+/**
+ * Makes a raw, fully-logged test request to 20i /reseller.
+ * Returns every detail the user needs to diagnose auth issues.
+ * Optionally run inside runWithProxy() to test with a custom proxy URL.
+ */
+export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo> {
+  const rawKey = apiKey;
+  const cleanKey = sanitiseKey(apiKey);
+  const keyHasHiddenChars = cleanKey !== rawKey;
+  const keyLen = cleanKey.length;
+  const authFormat = keyLen > 8
+    ? `Bearer ${"*".repeat(Math.max(0, keyLen - 4))}${cleanKey.slice(-4)}`
+    : `Bearer ${"*".repeat(keyLen)}`;
+
+  const url = "https://api.20i.com/reseller";
+  const proxyConfig = getProxyConfig();
+  const proxy = getProxy();
+
+  const [outboundIp] = await Promise.allSettled([getOutboundIp()]).then(([r]) =>
+    r.status === "fulfilled" ? [r.value] : ["unknown"]
+  );
+
+  const start = Date.now();
+  let responseStatus: number | null = null;
+  let responseBody = "";
+
+  try {
+    const fetchOpts: any = {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${cleanKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(15000),
+    };
+    if (proxy) fetchOpts.dispatcher = proxy;
+
+    const res = await fetch(url, fetchOpts);
+    responseStatus = res.status;
+    const raw = await res.text().catch(() => "(could not read body)");
+    responseBody = raw.length > 600 ? raw.substring(0, 600) + "…" : raw;
+  } catch (e: any) {
+    responseBody = `Network error: ${e.message}`;
+  }
+
+  return {
+    url,
+    method: "GET",
+    authFormat,
+    keyLength: keyLen,
+    keyFirst4: cleanKey.substring(0, 4),
+    keyLast4: cleanKey.slice(-4),
+    keyHasHiddenChars,
+    outboundIp,
+    proxyActive: proxyConfig.enabled,
+    proxyUrl: proxyConfig.url,
+    responseStatus,
+    responseBody,
+    durationMs: Date.now() - start,
+  };
 }
 
 async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {

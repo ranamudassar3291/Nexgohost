@@ -26,6 +26,7 @@ import {
   twentyiGetTicket,
   twentyiCreateTicket,
   twentyiReplyTicket,
+  runWithProxy,
 } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -45,6 +46,15 @@ function requireApiKey(server: any, res: any): boolean {
   if (!server) { res.status(400).json({ error: "No active 20i server configured. Add one in Admin → Servers." }); return false; }
   if (!server.apiToken) { res.status(400).json({ error: "20i API key missing. Edit the server in Admin → Servers to add the API key." }); return false; }
   return true;
+}
+
+/**
+ * Run `fn` with the server's per-server proxy URL active (stored in ipAddress).
+ * If ipAddress is empty / not set, uses env-var proxy as normal.
+ */
+async function runWith20i<T>(server: any, fn: () => Promise<T>): Promise<T> {
+  const proxyUrl: string | undefined = server?.ipAddress || undefined;
+  return runWithProxy(proxyUrl, fn);
 }
 
 // ─── Server info ──────────────────────────────────────────────────────────────
@@ -72,10 +82,9 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (_re
   try {
     const server = await get20iServer();
     if (!requireApiKey(server, res)) return;
-    const users = await twentyiListStackUsers(server!.apiToken!);
+    const users = await runWith20i(server, () => twentyiListStackUsers(server!.apiToken!));
     res.json(users);
   } catch (e: any) {
-    // Return empty array with warning — 20i may not expose /reseller/users on all plans
     console.warn(`[20i] stack-users fetch failed: ${e.message}`);
     res.json([]);
   }
@@ -111,7 +120,7 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (_req: Aut
   try {
     const server = await get20iServer();
     if (!requireApiKey(server, res)) return;
-    const sites = await twentyiListSites(server!.apiToken!);
+    const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
     res.json(sites);
   } catch (e: any) {
     const msg: string = e.message ?? "";
@@ -291,7 +300,7 @@ router.get("/admin/twenty-i/migrations", authenticate, requireAdmin, async (_req
   try {
     const server = await get20iServer();
     if (!requireApiKey(server, res)) return;
-    const migrations = await twentyiListMigrations(server!.apiToken!);
+    const migrations = await runWith20i(server, () => twentyiListMigrations(server!.apiToken!));
     res.json(migrations);
   } catch (e: any) {
     const msg: string = e.message ?? "";
