@@ -464,9 +464,9 @@ export async function provisionHostingService(
           }
         }
 
-        // Persist the 20i package ID on the service record
+        // Persist the actual 20i site/package ID created during provisioning
         await db.update(hostingServicesTable)
-          .set({ twentyIPackageId: plan?.modulePlanId ?? null })
+          .set({ twentyIPackageId: twentyiResult.siteId ?? null })
           .where(eq(hostingServicesTable.id, serviceId));
 
         await logServerAction({

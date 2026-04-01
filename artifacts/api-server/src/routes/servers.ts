@@ -354,7 +354,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
       if (pkgs.length > 0) {
         const plans: Plan[] = pkgs.map(p => ({
           id: p.id,
-          name: p.name,
+          name: p.label,
           monthlyPrice: 0,
           yearlyPrice: 0,
         }));

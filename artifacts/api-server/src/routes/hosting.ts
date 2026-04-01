@@ -128,6 +128,7 @@ function formatService(
     wpUsername: s.wpUsername,
     wpPassword: s.wpPassword,
     freeDomainAvailable: s.freeDomainAvailable ?? false,
+    twentyIPackageId: s.twentyIPackageId,
     createdAt: s.createdAt.toISOString(),
   };
 }
@@ -274,7 +275,10 @@ router.get("/admin/hosting", authenticate, requireAdmin, async (_req, res) => {
     const services = await db.select().from(hostingServicesTable);
     const result = await Promise.all(services.map(async (s) => {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, s.clientId)).limit(1);
-      return formatService(s, user ? `${user.firstName} ${user.lastName}` : "");
+      return {
+        ...formatService(s, user ? `${user.firstName} ${user.lastName}` : ""),
+        stackUserId: user?.stackUserId ?? null,
+      };
     }));
     res.json(result);
   } catch (err) {

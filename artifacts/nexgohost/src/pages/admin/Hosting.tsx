@@ -13,6 +13,7 @@ interface HostingService {
   status: string; billingCycle: string | null; nextDueDate: string | null;
   sslStatus: string; diskUsed: string | null; bandwidthUsed: string | null;
   cancelRequested: boolean; cancelReason: string | null; createdAt: string;
+  twentyIPackageId?: string | null; stackUserId?: string | null;
 }
 
 interface PendingOrder {
@@ -407,6 +408,16 @@ export default function AdminHosting() {
                     <td className="p-4">
                       <div className="font-medium text-foreground">{s.domain || "—"}</div>
                       <div className="text-xs text-muted-foreground">{s.serverIp || "No server"}</div>
+                      {s.twentyIPackageId && (
+                        <div className="text-xs text-blue-400/80 font-mono mt-0.5" title="20i Site/Package ID">
+                          <span className="text-muted-foreground">pkg:</span> {s.twentyIPackageId}
+                        </div>
+                      )}
+                      {s.stackUserId && (
+                        <div className="text-xs text-violet-400/80 font-mono" title="20i StackUser ID">
+                          <span className="text-muted-foreground">stack:</span> {s.stackUserId}
+                        </div>
+                      )}
                       {s.cancelRequested && <div className="text-xs text-red-400 flex items-center gap-1 mt-0.5"><AlertTriangle size={10} /> Cancel requested</div>}
                     </td>
                     <td className="p-4 text-muted-foreground">{s.clientName}</td>
