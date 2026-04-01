@@ -249,56 +249,44 @@ async function doFetch(
 
 async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
   const cleanKey = sanitiseKey(apiKey);
+  // Endpoint is strictly https://api.20i.com — no overrides
   const url = `https://api.20i.com${path}`;
+  // Auth is strictly Bearer <Base64(key)> — no raw-key fallback
+  const authHeader = `Bearer ${Buffer.from(cleanKey).toString("base64")}`;
+  console.log(`[20i] → ${method} ${url} | Auth: Bearer <base64> | key_len=${cleanKey.length} last4=${cleanKey.slice(-4)}`);
 
-  // ── Attempt 1: Base64-encoded key (primary format per 20i dashboard) ─────────
-  let res = await doFetch(cleanKey, method, url, body, true);
-  let usedBase64 = true;
+  const fetchOpts: any = {
+    method,
+    headers: {
+      Authorization: authHeader,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(25000),
+  };
+  const proxy = getProxy();
+  if (proxy) fetchOpts.dispatcher = proxy;
 
-  // ── Attempt 2: If base64 fails → retry with raw key ──────────────────────────
-  if (res.status === 401) {
-    console.log("[20i] Base64 key rejected (401) — retrying with raw key…");
-    res = await doFetch(cleanKey, method, url, body, false);
-    usedBase64 = false;
-  }
-
-  // ── Attempt 3: If raw also fails → try auto-whitelist then retry both ─────────
-  if (res.status === 401) {
-    try {
-      const outboundIp = await getOutboundIp();
-      console.log(`[20i] Both formats rejected — attempting auto-whitelist of ${outboundIp}…`);
-      await twentyiAddToWhitelistRaw(cleanKey, outboundIp);
-      // Retry base64 first after whitelist
-      res = await doFetch(cleanKey, method, url, body, true);
-      usedBase64 = true;
-      if (res.status === 401) {
-        // Last chance: raw key after whitelist
-        res = await doFetch(cleanKey, method, url, body, false);
-        usedBase64 = false;
-      }
-    } catch {
-      // Whitelist attempt failed — fall through to error reporting
-    }
-  }
+  const res = await fetch(url, fetchOpts);
 
   if (res.ok) {
-    console.log(`[20i] ✓ Request succeeded (format: ${usedBase64 ? "base64" : "raw"}) → ${method} ${path}`);
+    console.log(`[20i] ✓ ${method} ${path} → HTTP ${res.status}`);
     return res.json();
   }
 
   const text = await res.text().catch(() => "");
+  console.error(`[20i] ✗ ${method} ${path} → HTTP ${res.status} | body: ${text.substring(0, 300)}`);
+
   if (res.status === 401) {
-    const proxyNote = getProxy()
-      ? "Proxy is active — ensure your proxy's IP is whitelisted in 20i."
-      : "Outbound IP (35.229.81.149) must be whitelisted in 20i → Reseller API → IP Whitelist.";
     throw new Error(
-      `Authentication failed (401) — both base64 and raw key formats tried. ${proxyNote}`
+      `20i auth failed (401) — Base64 key sent. Outbound IP (35.229.81.149) must be whitelisted at my.20i.com → Reseller API → IP Whitelist. Raw response: ${text.substring(0, 200)}`
     );
   }
-  if (res.status === 403) throw new Error("API key lacks permission for this action (403). Ensure it is a reseller-level key.");
-  if (res.status === 404) throw new Error(`Endpoint not found (404): ${path}`);
-  if (res.status === 429) throw new Error("Rate limited — too many requests to 20i API (429). Wait a moment and retry.");
-  if (res.status === 500) throw new Error(`20i server error (500) — try again later. Response: ${text.substring(0, 200)}`);
+  if (res.status === 403) throw new Error(`20i permission denied (403): ${text.substring(0, 200)}`);
+  if (res.status === 404) throw new Error(`20i endpoint not found (404): ${path}`);
+  if (res.status === 429) throw new Error("20i rate limit hit (429) — wait and retry.");
+  if (res.status === 500) throw new Error(`20i server error (500): ${text.substring(0, 200)}`);
   throw new Error(`20i API error ${res.status}: ${text.substring(0, 300)}`);
 }
 
