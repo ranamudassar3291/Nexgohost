@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# WhatsApp session credentials (private keys — must not be in source control)
+artifacts/api-server/whatsapp-session/

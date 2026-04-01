@@ -67,16 +67,32 @@ export async function isIpInMigrationWhitelist(ip: string): Promise<boolean> {
 }
 
 // ── Record a failed attempt and auto-block if threshold exceeded ──────────────
+// Set skipBlock=true to log the event for audit purposes without triggering IP block
+// (used for admin accounts so they can never be hard-locked out of the panel).
 export async function recordFailedAttempt(
   ip: string,
   req: Request,
   email?: string,
+  options?: { skipBlock?: boolean },
 ): Promise<{ blocked: boolean }> {
   const now = Date.now();
+  const skipBlock = options?.skipBlock === true;
 
-  // Never auto-block whitelisted IPs
+  // Never auto-block whitelisted IPs or when explicitly skipping
   const whitelisted = await isIpWhitelisted(ip);
-  if (whitelisted) return { blocked: false };
+  if (whitelisted || skipBlock) {
+    // Still log the failed attempt for audit trail
+    await db.insert(securityLogsTable).values({
+      event: "login_failed",
+      ipAddress: ip,
+      userAgent: req.headers["user-agent"] ?? null,
+      email: email ?? null,
+      path: req.path,
+      details: skipBlock ? "Admin failed attempt (logged only, no IP block)" : "Failed attempt (whitelisted IP)",
+      blocked: false,
+    }).catch(() => {});
+    return { blocked: false };
+  }
 
   let bucket = ipAttempts.get(ip);
   if (!bucket || now - bucket.windowStart > WINDOW_MS) {

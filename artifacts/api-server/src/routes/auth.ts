@@ -229,8 +229,9 @@ router.post("/auth/login", async (req, res) => {
     const valid = await comparePassword(password, user.passwordHash);
     if (!valid) {
       logActivity(user.id, "login_failed", req, "failed", "Invalid password").catch(() => {});
-      // Always record failed attempts in the log (admin accounts are not hard-blocked, but attempts are tracked)
-      await recordFailedAttempt(ip, req, email).catch(() => {});
+      // Admins: log for audit trail but never trigger IP block (prevents panel lockout)
+      // Non-admins: full brute-force protection (3 attempts → 30-min block)
+      await recordFailedAttempt(ip, req, email, { skipBlock: isAdmin }).catch(() => {});
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 
