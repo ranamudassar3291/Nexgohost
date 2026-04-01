@@ -228,6 +228,7 @@ export interface TwentyIStackUser {
   email?: string;
   type: string;
   masterFtp?: boolean;
+  siteCount?: number;
 }
 
 export interface TwentyICreateResult {
@@ -697,13 +698,20 @@ export async function twentyiListStackUsers(apiKey: string): Promise<TwentyIStac
     const data = await requestWithRetry<any>(apiKey, "GET", "/reseller/*/susers");
     if (!data?.users || typeof data.users !== "object") return [];
 
-    return Object.entries(data.users).map(([ref, u]: [string, any]) => ({
-      id: ref,
-      name: u.person_name ?? u.name ?? ref,
-      email: u.email ?? null,
-      type: u.type ?? "stack-user",
-      masterFtp: u.masterFtp ?? false,
-    }));
+    const grantMap: Record<string, Record<string, boolean>> = data.grant_map ?? {};
+
+    return Object.entries(data.users).map(([ref, u]: [string, any]) => {
+      const grants = grantMap[ref] ?? {};
+      const siteCount = Object.keys(grants).length;
+      return {
+        id: ref,
+        name: u.person_name ?? u.name ?? ref,
+        email: u.email ?? null,
+        type: u.type ?? "stack-user",
+        masterFtp: u.masterFtp ?? false,
+        siteCount,
+      };
+    });
   } catch {
     return [];
   }
@@ -757,6 +765,14 @@ export async function twentyiDeleteStackUser(apiKey: string, userId: string): Pr
   const ref = userId.startsWith("stack-user:") ? userId : `stack-user:${userId}`;
   await requestWithRetry(apiKey, "POST", "/reseller/*/susers", {
     users: { [ref]: { delete: true } },
+  });
+}
+
+// Set or reset a StackCP user's password.
+export async function twentyiSetStackUserPassword(apiKey: string, userId: string, password: string): Promise<void> {
+  const ref = userId.startsWith("stack-user:") ? userId : `stack-user:${userId}`;
+  await requestWithRetry(apiKey, "POST", "/reseller/*/susers", {
+    users: { [ref]: { password } },
   });
 }
 

@@ -3,7 +3,7 @@
  * All routes require admin authentication.
  */
 import { Router } from "express";
-import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
 import { db } from "@workspace/db";
 import { serversTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -11,6 +11,8 @@ import {
   twentyiListStackUsers,
   twentyiCreateStackUser,
   twentyiDeleteStackUser,
+  twentyiSetStackUserPassword,
+  twentyiGetOrCreateStackUser,
   twentyiListSites,
   twentyiGetPackages,
   twentyiCreateHosting,
@@ -299,6 +301,59 @@ router.delete("/admin/twenty-i/stack-users/:userId", authenticate, requireAdmin,
   }
 });
 
+// Set or reset a StackUser's password
+router.post("/admin/twenty-i/stack-users/:userId/reset-password", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { password } = req.body as { password?: string };
+    if (!password || password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+    const server = await get20iServer(req.query?.serverId as string | undefined);
+    if (!requireApiKey(server, res)) return;
+    await twentyiSetStackUserPassword(server!.apiToken!, req.params.userId, password);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create a StackUser on 20i and also create a panel client user with the same email/name
+router.post("/admin/twenty-i/stack-users/with-panel-user", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { email, name, createPanelUser } = req.body as { email?: string; name?: string; createPanelUser?: boolean };
+    if (!email || !name) return res.status(400).json({ error: "email and name are required" });
+    const server = await get20iServer(req.query?.serverId as string | undefined);
+    if (!requireApiKey(server, res)) return;
+
+    const stackUser = await twentyiCreateStackUser(server!.apiToken!, email, name);
+
+    let panelUserId: string | null = null;
+    if (createPanelUser) {
+      const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
+      if (existing.length > 0) {
+        panelUserId = existing[0].id;
+      } else {
+        const nameParts = name.trim().split(" ");
+        const firstName = nameParts[0] ?? name;
+        const lastName = nameParts.slice(1).join(" ") || "";
+        const randomPass = Math.random().toString(36).slice(2, 14);
+        const passwordHash = await hashPassword(randomPass);
+        const [inserted] = await db.insert(usersTable).values({
+          email,
+          firstName,
+          lastName,
+          passwordHash,
+          role: "client",
+          status: "active",
+        } as any).returning({ id: usersTable.id });
+        panelUserId = inserted?.id ?? null;
+      }
+    }
+
+    res.json({ ok: true, stackUser, panelUserId });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── Hosting Sites ────────────────────────────────────────────────────────────
 
 router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (req: AuthRequest, res) => {
@@ -532,6 +587,97 @@ router.get("/admin/twenty-i/migrations/:id", authenticate, requireAdmin, async (
     if (!requireApiKey(server, res)) return;
     const status = await twentyiGetMigrationStatus(server!.apiToken!, req.params.id);
     res.json(status);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Smart migrate: auto-detect/create StackUser + hosting, then start 20i migration
+router.post("/admin/twenty-i/smart-migrate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { clientId, domain, sourceType, host, username, password, siteId } = req.body as {
+      clientId?: string;
+      domain?: string;
+      sourceType?: string;
+      host?: string;
+      username?: string;
+      password?: string;
+      siteId?: string;
+    };
+    if (!clientId || !domain || !host || !username || !password) {
+      return res.status(400).json({ error: "clientId, domain, host, username and password are required" });
+    }
+    const server = await get20iServer(req.query?.serverId as string | undefined);
+    if (!requireApiKey(server, res)) return;
+
+    const apiKey = server!.apiToken!;
+    const steps: string[] = [];
+
+    // Step 1: Get client from DB
+    const [client] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
+    if (!client) return res.status(404).json({ error: "Client not found" });
+    const clientName = `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || client.email;
+
+    // Step 2: Get or create StackUser for this client
+    const existingUsers = await twentyiListStackUsers(apiKey);
+    const existingUser = existingUsers.find(u =>
+      u.email?.toLowerCase() === client.email.toLowerCase() ||
+      u.name?.toLowerCase() === client.email.toLowerCase()
+    );
+    const stackUser = existingUser ?? await twentyiCreateStackUser(apiKey, client.email, clientName);
+    if (existingUser) {
+      steps.push(`Found existing StackUser: ${stackUser.id}`);
+    } else {
+      steps.push(`Created new StackUser for ${client.email}`);
+    }
+
+    // Step 3: Create hosting if no siteId provided
+    let resolvedSiteId = siteId ?? null;
+    if (!resolvedSiteId) {
+      const result = await twentyiCreateHosting(apiKey, domain, client.email, undefined, stackUser.id);
+      if (!result.siteId) return res.status(500).json({ error: "Failed to create 20i hosting account" });
+      resolvedSiteId = result.siteId;
+      steps.push(`Created hosting account: ${resolvedSiteId}`);
+
+      // Save to DB
+      try {
+        await db.insert(hostingServicesTable).values({
+          clientId,
+          serverId: server!.id,
+          planName: "20i Hosting (Migrated)",
+          domain,
+          username: resolvedSiteId,
+          status: "active",
+          startDate: new Date(),
+        } as any);
+        steps.push("Saved hosting service to NoePanel");
+      } catch (dbErr: any) {
+        steps.push(`DB save warning: ${dbErr.message}`);
+      }
+    } else {
+      steps.push(`Using existing site: ${resolvedSiteId}`);
+    }
+
+    // Step 4: Assign to StackUser
+    try {
+      await twentyiAssignSiteToUser(apiKey, resolvedSiteId, stackUser.id);
+      steps.push(`Site assigned to StackUser ${stackUser.id}`);
+    } catch (assignErr: any) {
+      steps.push(`Assign warning: ${assignErr.message}`);
+    }
+
+    // Step 5: Start migration
+    const migration = await twentyiStartMigration(apiKey, domain, sourceType ?? "cpanel", host, username, password, resolvedSiteId);
+    steps.push(`Migration started — ID: ${migration.id ?? migration.migrationId ?? "pending"}`);
+
+    res.json({
+      ok: true,
+      steps,
+      stackUserId: stackUser.id,
+      siteId: resolvedSiteId,
+      migrationId: migration.id ?? migration.migrationId ?? null,
+      migration,
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

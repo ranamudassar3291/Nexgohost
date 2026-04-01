@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Server, Users, Globe, Plus, Trash2, ExternalLink, RefreshCw, AlertTriangle,
+  Server, Users, Globe, Plus, Trash2, ExternalLink, RefreshCw, AlertTriangle, AlertCircle,
   CheckCircle, XCircle, Loader2, Search, Shield, ArrowRightLeft,
   Ticket, Send, Eye, Zap, Clock, UserPlus, Link2, Ban, Play,
-  Database, FileText, Wifi, Globe2, ChevronRight, type LucideIcon,
+  Database, FileText, Wifi, Globe2, ChevronRight, KeyRound, ChevronLeft,
+  type LucideIcon,
 } from "lucide-react";
 
 // ─── API helper ───────────────────────────────────────────────────────────────
@@ -206,15 +207,22 @@ function OverviewTab({ server, lastSync, onSync, syncing }: {
 
 // ─── StackUsers Tab ───────────────────────────────────────────────────────────
 
+const PAGE_SIZE_USERS = 25;
+
 function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ email: "", name: "" });
+  const [createForm, setCreateForm] = useState({ email: "", name: "", createPanelUser: false });
   const [confirm, setConfirm] = useState<{ userId: string; name: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [pwModal, setPwModal] = useState<{ userId: string; name: string } | null>(null);
+  const [pwValue, setPwValue] = useState("");
+  const [pwShow, setPwShow] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
 
   const { data: users = [], isLoading, refetch } = useQuery({
     queryKey: ["20i-stack-users"],
@@ -229,15 +237,27 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
     u.id?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE_USERS);
+  const paginated = filtered.slice(page * PAGE_SIZE_USERS, (page + 1) * PAGE_SIZE_USERS);
+
+  useEffect(() => { setPage(0); }, [search]);
+
   async function handleCreate() {
     if (!createForm.email || !createForm.name) return;
     setCreating(true);
     try {
-      await apiFetch("/api/admin/twenty-i/stack-users", { method: "POST", body: JSON.stringify(createForm) });
-      toast({ title: "StackUser created successfully" });
+      const endpoint = createForm.createPanelUser
+        ? "/api/admin/twenty-i/stack-users/with-panel-user"
+        : "/api/admin/twenty-i/stack-users";
+      const body = createForm.createPanelUser
+        ? { email: createForm.email, name: createForm.name, createPanelUser: true }
+        : { email: createForm.email, name: createForm.name };
+      const result = await apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
+      const panelMsg = result.panelUserId ? ` Panel user also created (ID: ${result.panelUserId}).` : "";
+      toast({ title: "StackUser created successfully", description: panelMsg || undefined });
       qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
       setShowCreate(false);
-      setCreateForm({ email: "", name: "" });
+      setCreateForm({ email: "", name: "", createPanelUser: false });
     } catch (e: any) {
       toast({ title: "Failed to create", description: e.message, variant: "destructive" });
     } finally {
@@ -260,6 +280,25 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
     }
   }
 
+  async function handleSetPassword() {
+    if (!pwModal || !pwValue || pwValue.length < 8) return;
+    setPwSaving(true);
+    try {
+      await apiFetch(`/api/admin/twenty-i/stack-users/${pwModal.userId}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({ password: pwValue }),
+      });
+      toast({ title: "Password updated", description: `StackCP password changed for ${pwModal.name}` });
+      setPwModal(null);
+      setPwValue("");
+      setPwShow(false);
+    } catch (e: any) {
+      toast({ title: "Password update failed", description: e.message, variant: "destructive" });
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {confirm && (
@@ -270,6 +309,43 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
           onCancel={() => setConfirm(null)}
           loading={deleting}
         />
+      )}
+
+      {pwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <KeyRound size={16} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Reset StackCP Password</h3>
+                <p className="text-xs text-muted-foreground">{pwModal.name} ({pwModal.userId})</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">Set a new StackCP login password for this user. They will use this to log into StackCP.</p>
+            <div className="relative mb-4">
+              <input
+                type={pwShow ? "text" : "password"}
+                className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+                placeholder="New password (min 8 chars)"
+                value={pwValue}
+                onChange={e => setPwValue(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSetPassword()}
+              />
+              <button type="button" onClick={() => setPwShow(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <Eye size={13} />
+              </button>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { setPwModal(null); setPwValue(""); setPwShow(false); }} className="px-3 py-2 text-sm rounded-xl border border-border hover:bg-secondary/60 transition-colors">Cancel</button>
+              <PrimaryBtn onClick={handleSetPassword} disabled={pwSaving || pwValue.length < 8}>
+                {pwSaving ? <Spinner size={14} /> : <KeyRound size={14} />}
+                {pwSaving ? "Saving…" : "Set Password"}
+              </PrimaryBtn>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -295,7 +371,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
       {showCreate && (
         <Card className="p-5">
           <p className="text-sm font-semibold mb-4 text-foreground">Create New StackUser</p>
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <InputField
               placeholder="Full name"
               value={createForm.name}
@@ -308,6 +384,15 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
               onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))}
             />
           </div>
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer mb-4 select-none">
+            <input
+              type="checkbox"
+              checked={createForm.createPanelUser}
+              onChange={e => setCreateForm(p => ({ ...p, createPanelUser: e.target.checked }))}
+              className="rounded border-border"
+            />
+            <span>Also create a panel client user with the same email</span>
+          </label>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowCreate(false)} className="px-3 py-2 text-sm rounded-xl border border-border hover:bg-secondary/60 transition-colors">Cancel</button>
             <PrimaryBtn onClick={handleCreate} disabled={creating || !createForm.email || !createForm.name}>
@@ -326,36 +411,72 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
             {(users as any[]).length === 0 ? "No StackUsers found on this 20i account." : "No matches for your search."}
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/20">
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Name</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Email</th>
-                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">User ID</th>
-                <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u: any) => (
-                <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground">{u.name || "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.email || <span className="text-muted-foreground/40 italic text-xs">not returned by API</span>}</td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{u.id}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 transition-colors"
-                        onClick={() => setConfirm({ userId: u.id, name: u.name || u.email })}
-                      >
-                        <Trash2 size={12} />
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+          <>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/20">
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Name</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Email</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">User ID</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Sites</th>
+                  <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paginated.map((u: any) => (
+                  <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
+                    <td className="px-4 py-3 font-medium text-foreground">{u.name || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{u.email || <span className="text-muted-foreground/40 italic text-xs">—</span>}</td>
+                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{u.id}</td>
+                    <td className="px-4 py-3">
+                      {u.siteCount > 0
+                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">{u.siteCount}</span>
+                        : <span className="text-muted-foreground/40 text-xs">0</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5 flex-wrap">
+                        <PrimaryBtn small onClick={() => { setPwModal({ userId: u.id, name: u.name || u.email }); setPwValue(""); setPwShow(false); }}>
+                          <KeyRound size={12} />
+                          Password
+                        </PrimaryBtn>
+                        <button
+                          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 transition-colors"
+                          onClick={() => setConfirm({ userId: u.id, name: u.name || u.email })}
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
+                <span className="text-xs text-muted-foreground">
+                  Showing {page * PAGE_SIZE_USERS + 1}–{Math.min((page + 1) * PAGE_SIZE_USERS, filtered.length)} of {filtered.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="p-1.5 rounded-lg border border-border hover:bg-secondary/60 disabled:opacity-40 transition-colors"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <span className="text-xs text-muted-foreground px-2">{page + 1} / {totalPages}</span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="p-1.5 rounded-lg border border-border hover:bg-secondary/60 disabled:opacity-40 transition-colors"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Card>
     </div>
@@ -364,14 +485,19 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
 
 // ─── Hosting Sites Tab ────────────────────────────────────────────────────────
 
+const PAGE_SIZE_SITES = 25;
+
 function SitesTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [confirm, setConfirm] = useState<{ siteId: string; domain: string; action: "suspend" | "terminate" } | null>(null);
   const [actioning, setActioning] = useState<string | null>(null);
   const [assignModal, setAssignModal] = useState<{ siteId: string; domain: string } | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
+
+  useEffect(() => { setPage(0); }, [search]);
 
   const { data: sites = [], isLoading, isError: sitesError, error: sitesErr, refetch } = useQuery({
     queryKey: ["20i-sites"],
@@ -393,6 +519,9 @@ function SitesTab() {
     s.domain?.toLowerCase().includes(search.toLowerCase()) ||
     s.id?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalSitePages = Math.ceil(filtered.length / PAGE_SIZE_SITES);
+  const paginatedSites = filtered.slice(page * PAGE_SIZE_SITES, (page + 1) * PAGE_SIZE_SITES);
 
   async function handleAction(siteId: string, action: "suspend" | "unsuspend" | "terminate") {
     setActioning(siteId + action);
@@ -504,6 +633,7 @@ function SitesTab() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">No hosting sites found.</div>
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/20">
@@ -515,7 +645,7 @@ function SitesTab() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s: any) => {
+              {paginatedSites.map((s: any) => {
                 const isSuspended = s.status === "suspended";
                 return (
                   <tr key={s.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
@@ -561,6 +691,31 @@ function SitesTab() {
               })}
             </tbody>
           </table>
+          {totalSitePages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/10">
+              <span className="text-xs text-muted-foreground">
+                Showing {page * PAGE_SIZE_SITES + 1}–{Math.min((page + 1) * PAGE_SIZE_SITES, filtered.length)} of {filtered.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="p-1.5 rounded-lg border border-border hover:bg-secondary/60 disabled:opacity-40 transition-colors"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                <span className="text-xs text-muted-foreground px-2">{page + 1} / {totalSitePages}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalSitePages - 1, p + 1))}
+                  disabled={page >= totalSitePages - 1}
+                  className="p-1.5 rounded-lg border border-border hover:bg-secondary/60 disabled:opacity-40 transition-colors"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </Card>
     </div>
@@ -810,10 +965,20 @@ function progressToStep(progress: number): string {
 function MigrationsTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [mode, setMode] = useState<"manual" | "smart">("smart");
   const [form, setForm] = useState({ domain: "", sourceType: "cpanel", host: "", username: "", password: "", siteId: "" });
+  const [smartForm, setSmartForm] = useState({ clientId: "", domain: "", sourceType: "cpanel", host: "", username: "", password: "" });
   const [showPass, setShowPass] = useState(false);
+  const [showSmartPass, setShowSmartPass] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [smartResult, setSmartResult] = useState<any | null>(null);
   const [polling, setPolling] = useState(false);
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["20i-clients"],
+    queryFn: () => apiFetch("/api/admin/twenty-i/clients"),
+    staleTime: 2 * 60 * 1000,
+  });
 
   const { data: migrations = [], isLoading, isError: migrationsError, error: migrationsErr, refetch } = useQuery({
     queryKey: ["20i-migrations"],
@@ -826,7 +991,6 @@ function MigrationsTab() {
     retry: false,
   });
 
-  // Enable polling if any migration is in progress
   useEffect(() => {
     const hasActive = (migrations as any[]).some((m: any) => m.status === "in_progress" || m.status === "queued");
     setPolling(hasActive);
@@ -848,6 +1012,23 @@ function MigrationsTab() {
     }
   }
 
+  async function handleSmartMigrate() {
+    if (!smartForm.clientId || !smartForm.domain || !smartForm.host || !smartForm.username || !smartForm.password) return;
+    setSubmitting(true);
+    setSmartResult(null);
+    try {
+      const result = await apiFetch("/api/admin/twenty-i/smart-migrate", { method: "POST", body: JSON.stringify(smartForm) });
+      setSmartResult(result);
+      toast({ title: "Smart migration started!", description: `${result.steps?.length ?? 0} steps completed` });
+      setPolling(true);
+      qc.invalidateQueries({ queryKey: ["20i-migrations"] });
+    } catch (e: any) {
+      toast({ title: "Smart migration failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       {migrationsError && (
@@ -856,43 +1037,134 @@ function MigrationsTab() {
           <span>Could not load migrations — verify the API key and IP whitelist under <strong>Admin → Servers</strong>. Error: {(migrationsErr as any)?.message ?? "unknown"}</span>
         </div>
       )}
-      <Card>
-        <h3 className="font-semibold text-foreground mb-1">Start New Migration</h3>
-        <p className="text-sm text-muted-foreground mb-4">Enter source server credentials. 20i will transfer files, databases, and DNS automatically.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <InputField label="Target Domain *" placeholder="example.com" value={form.domain} onChange={e => setForm(p => ({ ...p, domain: e.target.value }))} />
-          <SelectField label="Source Panel Type *" value={form.sourceType} onChange={e => setForm(p => ({ ...p, sourceType: e.target.value }))}>
-            <option value="cpanel">cPanel / WHM</option>
-            <option value="plesk">Plesk</option>
-            <option value="directadmin">DirectAdmin</option>
-            <option value="other">Other</option>
-          </SelectField>
-          <InputField label="Source Host / IP *" placeholder="server1.example.com" value={form.host} onChange={e => setForm(p => ({ ...p, host: e.target.value }))} />
-          <InputField label="Username *" placeholder="cPanel / panel username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-medium block">Password *</label>
-            <div className="relative">
-              <input
-                type={showPass ? "text" : "password"}
-                className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
-                placeholder="Panel password"
-                value={form.password}
-                onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-              />
-              <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPass(v => !v)}>
-                <Eye size={13} />
-              </button>
+
+      {/* Mode Toggle */}
+      <div className="flex items-center gap-2 bg-secondary/40 p-1 rounded-xl w-fit border border-border/40">
+        <button
+          onClick={() => setMode("smart")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === "smart" ? "bg-card text-foreground shadow-sm border border-border/60" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Zap size={13} />
+          Smart Migrate
+        </button>
+        <button
+          onClick={() => setMode("manual")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${mode === "manual" ? "bg-card text-foreground shadow-sm border border-border/60" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <ArrowRightLeft size={13} />
+          Manual
+        </button>
+      </div>
+
+      {mode === "smart" ? (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-1">Smart Migration</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Select a panel client and source server — the system will auto-detect if a StackUser and 20i hosting account exist,
+            create them if needed, and then start the migration automatically.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <SelectField label="Panel Client *" value={smartForm.clientId} onChange={e => setSmartForm(p => ({ ...p, clientId: e.target.value }))}>
+              <option value="">— Select client —</option>
+              {(clients as any[]).map((c: any) => (
+                <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>
+              ))}
+            </SelectField>
+            <InputField label="Target Domain *" placeholder="example.com" value={smartForm.domain} onChange={e => setSmartForm(p => ({ ...p, domain: e.target.value }))} />
+            <SelectField label="Source Panel Type *" value={smartForm.sourceType} onChange={e => setSmartForm(p => ({ ...p, sourceType: e.target.value }))}>
+              <option value="cpanel">cPanel / WHM</option>
+              <option value="plesk">Plesk</option>
+              <option value="directadmin">DirectAdmin</option>
+              <option value="other">Other</option>
+            </SelectField>
+            <InputField label="Source Host / IP *" placeholder="server1.example.com" value={smartForm.host} onChange={e => setSmartForm(p => ({ ...p, host: e.target.value }))} />
+            <InputField label="cPanel Username *" placeholder="cpanel username" value={smartForm.username} onChange={e => setSmartForm(p => ({ ...p, username: e.target.value }))} />
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium block">cPanel Password *</label>
+              <div className="relative">
+                <input
+                  type={showSmartPass ? "text" : "password"}
+                  className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+                  placeholder="cPanel password"
+                  value={smartForm.password}
+                  onChange={e => setSmartForm(p => ({ ...p, password: e.target.value }))}
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowSmartPass(v => !v)}>
+                  <Eye size={13} />
+                </button>
+              </div>
             </div>
           </div>
-          <InputField label="Target Site ID (optional)" placeholder="20i site ID" value={form.siteId} onChange={e => setForm(p => ({ ...p, siteId: e.target.value }))} />
-        </div>
-        <div className="mt-4">
-          <PrimaryBtn onClick={handleStart} disabled={submitting || !form.domain || !form.host || !form.username || !form.password}>
-            {submitting ? <Spinner size={14} /> : <ArrowRightLeft size={14} />}
-            {submitting ? "Starting…" : "Start Migration"}
-          </PrimaryBtn>
-        </div>
-      </Card>
+          <div className="mt-4">
+            <PrimaryBtn
+              onClick={handleSmartMigrate}
+              disabled={submitting || !smartForm.clientId || !smartForm.domain || !smartForm.host || !smartForm.username || !smartForm.password}
+            >
+              {submitting ? <Spinner size={14} /> : <Zap size={14} />}
+              {submitting ? "Processing…" : "Start Smart Migration"}
+            </PrimaryBtn>
+          </div>
+          {smartResult && (
+            <div className="mt-4 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
+              <div className="flex items-center gap-2 font-semibold text-emerald-600 text-sm">
+                <CheckCircle size={14} />
+                Migration Started Successfully
+              </div>
+              <div className="space-y-1">
+                {(smartResult.steps ?? []).map((s: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-foreground/70">
+                    <CheckCircle size={11} className="text-emerald-500 mt-0.5 shrink-0" />
+                    <span>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-emerald-500/10">
+                {smartResult.stackUserId && <div>StackUser: <span className="font-mono text-foreground">{smartResult.stackUserId}</span></div>}
+                {smartResult.siteId && <div>Site ID: <span className="font-mono text-foreground">{smartResult.siteId}</span></div>}
+                {smartResult.migrationId && <div>Migration ID: <span className="font-mono text-foreground">{smartResult.migrationId}</span></div>}
+              </div>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-1">Manual Migration</h3>
+          <p className="text-sm text-muted-foreground mb-4">Enter source server credentials directly. 20i will transfer files, databases, and DNS automatically.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <InputField label="Target Domain *" placeholder="example.com" value={form.domain} onChange={e => setForm(p => ({ ...p, domain: e.target.value }))} />
+            <SelectField label="Source Panel Type *" value={form.sourceType} onChange={e => setForm(p => ({ ...p, sourceType: e.target.value }))}>
+              <option value="cpanel">cPanel / WHM</option>
+              <option value="plesk">Plesk</option>
+              <option value="directadmin">DirectAdmin</option>
+              <option value="other">Other</option>
+            </SelectField>
+            <InputField label="Source Host / IP *" placeholder="server1.example.com" value={form.host} onChange={e => setForm(p => ({ ...p, host: e.target.value }))} />
+            <InputField label="Username *" placeholder="cPanel / panel username" value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium block">Password *</label>
+              <div className="relative">
+                <input
+                  type={showPass ? "text" : "password"}
+                  className="w-full px-3 py-2 pr-10 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow"
+                  placeholder="Panel password"
+                  value={form.password}
+                  onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPass(v => !v)}>
+                  <Eye size={13} />
+                </button>
+              </div>
+            </div>
+            <InputField label="Target Site ID (optional)" placeholder="20i site ID" value={form.siteId} onChange={e => setForm(p => ({ ...p, siteId: e.target.value }))} />
+          </div>
+          <div className="mt-4">
+            <PrimaryBtn onClick={handleStart} disabled={submitting || !form.domain || !form.host || !form.username || !form.password}>
+              {submitting ? <Spinner size={14} /> : <ArrowRightLeft size={14} />}
+              {submitting ? "Starting…" : "Start Migration"}
+            </PrimaryBtn>
+          </div>
+        </Card>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
