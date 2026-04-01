@@ -32,6 +32,7 @@ import {
   getProxyConfig,
   twentyiGetWhitelist,
   twentyiAddToWhitelist,
+  twentyiAutoWhitelist,
   twentyiGetSiteRenewalDate,
 } from "../lib/twenty-i.js";
 
@@ -235,6 +236,7 @@ router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (_req:
 /**
  * POST /admin/twenty-i/whitelist/sync
  * Fetches the current outbound IP and attempts to add it to the 20i whitelist.
+ * Returns { success, outboundIp } or { error: "chicken_and_egg", outboundIp } when auth fails.
  */
 router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
   try {
@@ -243,19 +245,28 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
     if (!server.apiToken) return res.status(400).json({ error: "20i API key missing." });
 
     const outboundIp = await getOutboundIp();
+    const apiKey = server.apiToken;
 
-    const result = await runWith20i(server, () =>
-      twentyiAddToWhitelist(server!.apiToken!, outboundIp)
-    );
+    const wlResult = await runWith20i(server, () => twentyiAutoWhitelist(apiKey, outboundIp));
 
-    // Always log the attempt
-    if (result.success) {
+    if (wlResult.added) {
       console.log(`[20i-WHITELIST] ✓ Added ${outboundIp} to whitelist`);
-    } else {
-      console.warn(`[20i-WHITELIST] ✗ Failed to add ${outboundIp}: ${result.error}`);
+      return res.json({ success: true, outboundIp });
     }
 
-    return res.json({ outboundIp, ...result });
+    if (wlResult.reason === "ip_blocked") {
+      // Chicken-and-egg: 20i blocks all API calls including whitelist management until IP is added manually
+      console.warn(`[20i-WHITELIST] ✗ IP ${outboundIp} must be whitelisted manually at my.20i.com first`);
+      return res.json({
+        success: false,
+        error: "chicken_and_egg",
+        outboundIp,
+        message: `The 20i API requires your server IP to already be whitelisted. You must add ${outboundIp} manually once at my.20i.com → Reseller API → IP Whitelist. After that, this button will keep it up to date automatically.`,
+      });
+    }
+
+    console.warn(`[20i-WHITELIST] ✗ Failed to add ${outboundIp}: ${wlResult.reason}`);
+    return res.json({ success: false, error: wlResult.reason, outboundIp });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

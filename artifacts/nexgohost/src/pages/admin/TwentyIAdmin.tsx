@@ -1202,22 +1202,23 @@ export default function TwentyIAdmin() {
       const data = await apiFetch("/api/admin/twenty-i/whitelist/sync", { method: "POST" });
       setWlData((prev: any) => prev ? { ...prev, ...data } : data);
       if (data.success) {
-        toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist` });
-        // Refresh whitelist info
+        toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist — API is now connected` });
         const fresh = await apiFetch("/api/admin/twenty-i/whitelist");
         setWlData(fresh);
         qc.invalidateQueries({ queryKey: ["20i-sites"] });
         qc.invalidateQueries({ queryKey: ["20i-migrations"] });
       } else if (data.error === "chicken_and_egg") {
+        // 20i blocks all API calls (including whitelist management) until the IP is added manually once
         toast({
-          title: "Manual step required",
-          description: `Add ${data.outboundIp} at my.20i.com → Reseller API → IP Whitelist`,
+          title: "Manual whitelist required — one-time setup",
+          description: data.message ?? `Add ${data.outboundIp} at my.20i.com → Reseller API → IP Whitelist, then click this button again`,
+          duration: 12000,
         });
       } else {
-        toast({ title: "Sync failed", description: data.error ?? data.message, variant: "destructive" });
+        toast({ title: "Whitelist sync failed", description: data.error ?? data.message, variant: "destructive" });
       }
     } catch (e: any) {
-      toast({ title: "Sync error", description: e.message, variant: "destructive" });
+      toast({ title: "Whitelist sync error", description: e.message, variant: "destructive" });
     } finally {
       setWlSyncing(false);
     }
@@ -1347,12 +1348,19 @@ export default function TwentyIAdmin() {
           <div className="px-4 py-3.5 flex items-center justify-between flex-wrap gap-3 border-b border-primary/10">
             <div className="space-y-0.5">
               <p className="text-xs text-muted-foreground">Current Outbound IP (this server)</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono text-sm font-semibold text-foreground">{wlData.outboundIp}</span>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText(wlData.outboundIp ?? ""); toast({ title: "IP copied" }); }}
+                  className="text-[10px] px-2 py-0.5 rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                >
+                  Copy
+                </button>
                 {wlData.serverConfigured && (
                   wlData.isWhitelisted
                     ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Whitelisted</span>
-                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Not whitelisted</span>
+                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">Not whitelisted — add manually once</span>
                 )}
                 {wlData.proxy?.enabled && (
                   <span className="text-[10px] text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5">via proxy</span>
@@ -1360,7 +1368,7 @@ export default function TwentyIAdmin() {
               </div>
               {wlData.fetchError && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Could not read current whitelist from 20i (likely IP blocked) — whitelist entries not shown.
+                  Could not read whitelist from 20i (IP blocked) — the IP above needs to be added manually first.
                 </p>
               )}
             </div>
@@ -1391,18 +1399,26 @@ export default function TwentyIAdmin() {
             </div>
           )}
 
-          {/* Chicken-and-egg notice when IP not yet whitelisted */}
+          {/* Step-by-step setup guide when IP not yet whitelisted */}
           {!wlData.isWhitelisted && wlData.serverConfigured && (
-            <div className="px-4 py-3 border-t border-primary/10 bg-secondary/20">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">First-time setup:</strong> If the current IP has never been whitelisted, clicking "Add Current IP" will return a 401 (catch-22 — the API itself is blocked). You must add{" "}
-                <span className="font-mono font-semibold text-foreground">{wlData.outboundIp}</span>{" "}
-                once manually at{" "}
-                <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                  my.20i.com → Reseller API → IP Whitelist
-                </a>
-                . After that, this button will work for future IP changes automatically.
-              </p>
+            <div className="px-4 py-4 border-t border-amber-500/20 bg-amber-500/5">
+              <p className="text-xs font-semibold text-amber-700 mb-2.5">One-time manual step required:</p>
+              <ol className="text-xs text-foreground/70 space-y-1.5 list-decimal ml-4 mb-3">
+                <li>Open <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline font-medium">my.20i.com → Reseller API → IP Whitelist</a></li>
+                <li>
+                  Add this IP address:{" "}
+                  <span className="font-mono font-bold text-foreground">{wlData.outboundIp}</span>{" "}
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(wlData.outboundIp ?? ""); toast({ title: "IP copied" }); }}
+                    className="text-[10px] px-1.5 py-0.5 ml-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    Copy
+                  </button>
+                </li>
+                <li>Click Save in 20i, then click <strong>Add Current IP to Whitelist</strong> above</li>
+              </ol>
+              <p className="text-[10px] text-muted-foreground">After the first manual setup, this button will auto-update the whitelist whenever the server IP changes on restart.</p>
             </div>
           )}
         </div>

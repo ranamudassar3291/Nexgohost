@@ -152,7 +152,7 @@ async function twentyiRequest(apiKey: string, method: string, path: string, body
 
 async function twentyiAddToWhitelistRaw(cleanKey: string, ip: string): Promise<void> {
   try {
-    await twentyiRequestRaw(cleanKey, "POST", "/reseller/apiWhitelist", { apiWhitelist: { [ip]: {} } });
+    await twentyiRequestRaw(cleanKey, "POST", "/reseller/*/apiWhitelist", { apiWhitelist: { [ip]: {} } });
     console.log(`[20i] Auto-whitelist: ✓ Added ${ip}`);
   } catch (e: any) {
     console.warn(`[20i] Auto-whitelist: Could not add ${ip} — ${e.message}`);
@@ -507,21 +507,36 @@ export async function twentyiGetBandwidth(apiKey: string, siteId: string): Promi
 }
 
 // ─── IP whitelist management ──────────────────────────────────────────────────
+// Correct URL: /reseller/*/apiWhitelist  (* = self-reference per 20i docs)
 
 export async function twentyiGetWhitelist(apiKey: string): Promise<string[]> {
   try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/apiWhitelist");
+    const data = await twentyiRequest(apiKey, "GET", "/reseller/*/apiWhitelist");
     if (data && typeof data === "object") return Object.keys(data);
     return [];
   } catch { return []; }
 }
 
 export async function twentyiAddToWhitelist(apiKey: string, ip: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", "/reseller/apiWhitelist", { apiWhitelist: { [ip]: {} } });
+  await twentyiRequest(apiKey, "POST", "/reseller/*/apiWhitelist", { apiWhitelist: { [ip]: {} } });
 }
 
 export async function twentyiRemoveFromWhitelist(apiKey: string, ip: string): Promise<void> {
-  await twentyiRequest(apiKey, "DELETE", `/reseller/apiWhitelist/${ip}`);
+  await twentyiRequest(apiKey, "DELETE", `/reseller/*/apiWhitelist/${ip}`);
+}
+
+// Try to auto-add IP to whitelist. Returns true if added, false if auth failed (chicken-and-egg).
+export async function twentyiAutoWhitelist(apiKey: string, ip: string): Promise<{ added: boolean; reason: string }> {
+  try {
+    await twentyiRequest(apiKey, "POST", "/reseller/*/apiWhitelist", { apiWhitelist: { [ip]: {} } });
+    console.log(`[20i-WL] Auto-whitelist: added ${ip}`);
+    return { added: true, reason: "ok" };
+  } catch (e: any) {
+    const msg = String(e.message ?? "");
+    const reason = msg.includes("401") ? "ip_blocked" : msg.includes("403") ? "bad_key" : "error";
+    console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
+    return { added: false, reason };
+  }
 }
 
 // ─── Email hosting ────────────────────────────────────────────────────────────

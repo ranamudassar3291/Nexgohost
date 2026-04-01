@@ -469,12 +469,42 @@ export default function Servers() {
                         </button>
                         {showDebug && (
                           <div className="border-t border-primary/10 text-xs font-mono">
+                            {/* Action required banner when 401 */}
+                            {debugInfo.workingFormat === "none" && debugInfo.responseStatus === 401 && (
+                              <div className="px-3.5 py-3 bg-amber-500/8 border-b border-amber-500/20">
+                                <p className="text-amber-700 font-semibold text-[11px] mb-2">ACTION REQUIRED — Whitelist this IP in 20i:</p>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <code className="font-mono text-sm font-bold text-foreground bg-background border border-border rounded px-2 py-1">{debugInfo.outboundIp}</code>
+                                  <button
+                                    type="button"
+                                    onClick={() => { navigator.clipboard.writeText(debugInfo.outboundIp ?? ""); }}
+                                    className="text-[10px] px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-semibold"
+                                  >
+                                    Copy
+                                  </button>
+                                  <a
+                                    href="https://my.20i.com/reseller/api"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-semibold"
+                                  >
+                                    Open my.20i.com
+                                  </a>
+                                </div>
+                                <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal ml-3">
+                                  <li>Go to <strong>my.20i.com → Reseller API</strong></li>
+                                  <li>Find <strong>IP Whitelist</strong> section</li>
+                                  <li>Add <strong>{debugInfo.outboundIp}</strong> and save</li>
+                                  <li>Come back and click <strong>Test Connection</strong> again</li>
+                                </ol>
+                              </div>
+                            )}
                             {/* Summary rows */}
                             {[
                               ["URL", `${debugInfo.method} ${debugInfo.url}`],
                               ["Key", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
                               ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct)")],
-                              ["Working Format", debugInfo.workingFormat !== "none" ? `Bearer <${debugInfo.workingFormat}> ✓` : "NONE — both formats rejected"],
+                              ["Working Format", debugInfo.workingFormat !== "none" ? `Bearer <Base64(key)> ✓` : debugInfo.responseStatus === 401 ? "401 — IP not whitelisted" : "No format worked"],
                               ["Total Time", `${debugInfo.durationMs}ms`],
                             ].map(([label, value]) => (
                               <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">

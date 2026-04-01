@@ -7,7 +7,10 @@ import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
 import { autoFixSafepayKeys } from "./routes/safepay.js";
 import { getSystemApiKey } from "./lib/systemApiKey.js";
-import { getOutboundIp, getProxyConfig } from "./lib/twenty-i.js";
+import { getOutboundIp, getProxyConfig, twentyiAutoWhitelist } from "./lib/twenty-i.js";
+import { db } from "@workspace/db";
+import { serversTable } from "@workspace/db/schema";
+import { and, eq } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -26,13 +29,28 @@ if (Number.isNaN(port) || port <= 0) {
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
 
-  // Print outbound IP immediately so admin knows which IP to whitelist in 20i
-  getOutboundIp().then(ip => {
+  // Detect outbound IP and attempt auto-whitelist in 20i on every startup
+  getOutboundIp().then(async (ip) => {
     const proxy = getProxyConfig();
     if (proxy.enabled) {
-      console.log(`[20i] Outbound IP (via proxy ${proxy.url}): ${ip}  ← whitelist THIS in 20i`);
+      console.log(`[20i] Outbound IP (via proxy ${proxy.url}): ${ip}`);
     } else {
       console.log(`[20i] Outbound IP (direct — no proxy): ${ip}  ← whitelist THIS in 20i, or set TWENTYI_PROXY for a static IP`);
+    }
+    // Try to auto-add this IP to the 20i whitelist
+    try {
+      const [server] = await db.select().from(serversTable)
+        .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active"))).limit(1);
+      if (server?.apiToken) {
+        const wl = await twentyiAutoWhitelist(server.apiToken, ip);
+        if (wl.added) {
+          console.log(`[20i] Auto-whitelist: ✓ ${ip} added successfully`);
+        } else if (wl.reason === "ip_blocked") {
+          console.warn(`[20i] Auto-whitelist: IP ${ip} must be added manually at my.20i.com → Reseller API → IP Whitelist`);
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[20i] Auto-whitelist startup: ${e.message}`);
     }
   }).catch(() => {
     console.warn("[20i] Could not detect outbound IP at startup");
