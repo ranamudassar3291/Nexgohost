@@ -1,9 +1,9 @@
 import { Router } from "express";
 import https from "node:https";
 import { db } from "@workspace/db";
-import { serversTable, serverGroupsTable, hostingServicesTable, uploadedModulesTable } from "@workspace/db/schema";
+import { serversTable, serverGroupsTable, hostingServicesTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
-import { eq, sql, and, ilike } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
 import { twentyiTestConnection, twentyiGetPackages, twentyiRawDebug, runWithProxy, sanitiseKey, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
 
@@ -316,25 +316,11 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   }
 
   if (server.type === "20i") {
-    // Resolve API key: module config takes priority over server.apiToken
-    let effectiveKey = server.apiToken;
-    try {
-      const [mod] = await db.select().from(uploadedModulesTable).where(ilike(uploadedModulesTable.name, "%20i%")).limit(1);
-      if (mod) {
-        const cfg = typeof mod.config === "string" ? JSON.parse(mod.config) : (mod.config as Record<string, string>);
-        const modKey = (cfg?.api_key ?? "").trim();
-        if (modKey.length >= 20) {
-          effectiveKey = modKey;
-          console.log(`[SERVERS] 20i test: using module "${mod.name}" key (${modKey.length} chars, Base64 encoded per 20i spec)`);
-        }
-      }
-    } catch { /* fall through to server key */ }
-
+    const effectiveKey = server.apiToken;
     if (!effectiveKey) {
-      res.json({ success: false, connected: false, message: "No 20i API key found in module config or server record.", packages: [] });
+      res.json({ success: false, connected: false, message: "No 20i API key found. Edit this server to add the API key.", packages: [] });
       return;
     }
-
     const result = await twentyiTestConnection(effectiveKey);
     if (!result.success) {
       res.json({ success: false, connected: false, message: result.message, diagnostic: result.diagnostic ?? null, packages: [] });
@@ -356,18 +342,9 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
 
   type Plan = { id: string; name: string; monthlyPrice: number; yearlyPrice: number; };
 
-  // 20i: fetch real packages from reseller API — use module key if available
+  // 20i: fetch real packages from reseller API
   if (server.type === "20i") {
-    let resolvedKey = server.apiToken;
-    try {
-      const [mod] = await db.select().from(uploadedModulesTable).where(ilike(uploadedModulesTable.name, "%20i%")).limit(1);
-      if (mod) {
-        const cfg = typeof mod.config === "string" ? JSON.parse(mod.config) : (mod.config as Record<string, string>);
-        const modKey = (cfg?.api_key ?? "").trim();
-        if (modKey.length >= 20) resolvedKey = modKey;
-      }
-    } catch { /* fall through */ }
-
+    const resolvedKey = server.apiToken;
     if (!resolvedKey) {
       res.json({ plans: [], error: "No API key configured for this 20i server" });
       return;
