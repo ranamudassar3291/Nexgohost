@@ -30,6 +30,8 @@ import {
   twentyiRawDebug,
   getOutboundIp,
   getProxyConfig,
+  twentyiGetWhitelist,
+  twentyiAddToWhitelist,
 } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -130,6 +132,73 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req
     });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: "exception", message: e.message });
+  }
+});
+
+// ─── IP Whitelist ─────────────────────────────────────────────────────────────
+
+/**
+ * GET /admin/twenty-i/whitelist
+ * Returns current outbound IP + current 20i whitelist entries.
+ * Works even if NOT whitelisted (outbound IP from ipify.org is always available).
+ */
+router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const server = await get20iServer();
+    const outboundIp = await getOutboundIp();
+    const proxy = getProxyConfig();
+
+    if (!server || !server.apiToken) {
+      return res.json({ outboundIp, proxy, currentList: [], serverConfigured: false });
+    }
+
+    let currentList: string[] = [];
+    let fetchError: string | null = null;
+    try {
+      currentList = await runWith20i(server, () => twentyiGetWhitelist(server!.apiToken!));
+    } catch (e: any) {
+      fetchError = e.message; // Will be 401 if IP not yet whitelisted — that's ok
+    }
+
+    return res.json({
+      outboundIp,
+      proxy,
+      currentList,
+      fetchError,
+      isWhitelisted: currentList.includes(outboundIp),
+      serverConfigured: true,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /admin/twenty-i/whitelist/sync
+ * Fetches the current outbound IP and attempts to add it to the 20i whitelist.
+ */
+router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const server = await get20iServer();
+    if (!server) return res.status(400).json({ error: "No active 20i server configured." });
+    if (!server.apiToken) return res.status(400).json({ error: "20i API key missing." });
+
+    const outboundIp = await getOutboundIp();
+
+    const result = await runWith20i(server, () =>
+      twentyiAddToWhitelist(server!.apiToken!, outboundIp)
+    );
+
+    // Always log the attempt
+    if (result.success) {
+      console.log(`[20i-WHITELIST] ✓ Added ${outboundIp} to whitelist`);
+    } else {
+      console.warn(`[20i-WHITELIST] ✗ Failed to add ${outboundIp}: ${result.error}`);
+    }
+
+    return res.json({ outboundIp, ...result });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
   }
 });
 

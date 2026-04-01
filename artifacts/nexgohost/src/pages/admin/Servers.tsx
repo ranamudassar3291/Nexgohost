@@ -28,6 +28,52 @@ interface TwentyIPkg { id: string; name: string; }
 const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
 const EMPTY_GROUP = { name: "", description: "" };
 
+/** One-click "Add current IP to 20i whitelist" — shown in the 20i server edit form */
+function AutoWhitelistBtn({ serverId }: { serverId: string }) {
+  const { toast } = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState<any | null>(null);
+
+  const handleSync = async () => {
+    setSyncing(true); setResult(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/twenty-i/whitelist/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setSyncing(false); }
+  };
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={handleSync}
+        disabled={syncing}
+        className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 shadow-sm w-full justify-center"
+      >
+        {syncing ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
+        {syncing ? "Syncing IP to 20i Whitelist…" : "Auto-Add Current IP to 20i Whitelist"}
+      </button>
+      {result && (
+        <div className={`text-xs rounded-lg px-3 py-2 border ${result.success ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-primary/5 border-primary/20 text-primary"}`}>
+          {result.success
+            ? `✓ IP ${result.outboundIp} added. Reload the 20i Management page to confirm.`
+            : result.error === "chicken_and_egg"
+              ? `IP ${result.outboundIp} is blocked by 20i — add it manually once at my.20i.com → Reseller API → IP Whitelist, then retry.`
+              : `Failed: ${result.error ?? result.message}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TYPE_LABELS: Record<string, string> = { cpanel: "cPanel", directadmin: "DirectAdmin", plesk: "Plesk", "20i": "20i", none: "None" };
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
@@ -341,16 +387,21 @@ export default function Servers() {
                       {/* Instruction text */}
                       {outboundData?.proxy?.enabled ? (
                         <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                          Proxy via <span className="font-mono">{outboundData.proxy.url}</span>. All 20i calls use this fixed IP — add it to your 20i whitelist and you're set permanently.
+                          Proxy via <span className="font-mono">{outboundData.proxy.url}</span>. All 20i calls use this fixed IP — add it to your whitelist once and you're set permanently.
                         </p>
                       ) : (
-                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                        <p className="text-xs text-muted-foreground">
                           Add the IP above to{" "}
-                          <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="underline">
+                          <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="underline text-primary">
                             my.20i.com → Reseller API → IP Whitelist
                           </a>
-                          . Or set <span className="font-mono">TWENTYI_PROXY</span> env var to a static-IP proxy for a permanent fix.
+                          , or use the button below to auto-sync if you already have a working key.
                         </p>
+                      )}
+
+                      {/* Auto-whitelist button — only show when we have a saved server */}
+                      {editServerId && (
+                        <AutoWhitelistBtn serverId={editServerId} />
                       )}
                     </div>
                     <div className="space-y-1.5">
@@ -366,7 +417,7 @@ export default function Servers() {
                       )}
                       <p className="text-xs text-muted-foreground">
                         Find your API key in{" "}
-                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-violet-400 hover:underline">
+                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary hover:underline">
                           my.20i.com → API Key
                         </a>
                       </p>

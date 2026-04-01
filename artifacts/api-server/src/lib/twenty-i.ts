@@ -676,3 +676,87 @@ export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<
   // Final fallback — return the static StackCP URL (user must already be logged in)
   return twentyiStackCPUrl(siteId);
 }
+
+// ─── IP Whitelist management ───────────────────────────────────────────────────
+
+export interface TwentyIWhitelistResult {
+  success: boolean;
+  ip: string;
+  wasAlreadyPresent: boolean;
+  currentList: string[];
+  rawResponse?: any;
+  error?: string;
+}
+
+/**
+ * Fetch the current IP whitelist from 20i.
+ * Returns an array of whitelisted IP strings.
+ * NOTE: This call itself requires the calling IP to be whitelisted.
+ */
+export async function twentyiGetWhitelist(apiKey: string): Promise<string[]> {
+  const data = await twentyiRequest(apiKey, "GET", "/reseller/apiWhitelist");
+  // 20i returns { "apiWhitelist": { "ip": {} } } or similar
+  const raw = data?.apiWhitelist ?? data ?? {};
+  return Object.keys(raw);
+}
+
+/**
+ * Add an IP address to the 20i API whitelist.
+ * Returns full detail for the UI.
+ *
+ * ⚠ Chicken-and-egg: if the current IP is NOT already whitelisted, this call
+ * will also fail with 401. In that case we return success=false with an
+ * explanatory message.
+ */
+export async function twentyiAddToWhitelist(apiKey: string, ip: string): Promise<TwentyIWhitelistResult> {
+  const cleanKey = sanitiseKey(apiKey);
+  const url = "https://api.20i.com/reseller/apiWhitelist";
+
+  // Build raw request so we can capture the status code even on 401
+  const fetchOpts: any = {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${cleanKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ apiWhitelist: { [ip]: {} } }),
+    signal: AbortSignal.timeout(20000),
+  };
+  const proxy = getProxy();
+  if (proxy) fetchOpts.dispatcher = proxy;
+
+  const res = await fetch(url, fetchOpts);
+  const rawText = await res.text().catch(() => "");
+  let rawResponse: any;
+  try { rawResponse = JSON.parse(rawText); } catch { rawResponse = rawText; }
+
+  if (res.status === 401) {
+    return {
+      success: false,
+      ip,
+      wasAlreadyPresent: false,
+      currentList: [],
+      rawResponse,
+      error: "chicken_and_egg",
+    };
+  }
+
+  if (!res.ok) {
+    return {
+      success: false,
+      ip,
+      wasAlreadyPresent: false,
+      currentList: [],
+      rawResponse,
+      error: `HTTP ${res.status}`,
+    };
+  }
+
+  // Fetch updated list after adding
+  let currentList: string[] = [];
+  try { currentList = await twentyiGetWhitelist(apiKey); } catch { /* ignore */ }
+  const wasAlreadyPresent = currentList.includes(ip) && res.status === 200;
+
+  return { success: true, ip, wasAlreadyPresent: false, currentList, rawResponse };
+}

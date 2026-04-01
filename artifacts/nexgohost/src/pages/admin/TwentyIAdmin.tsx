@@ -94,6 +94,109 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
   return <div className={`bg-card border border-border rounded-2xl shadow-sm ${className ?? "p-6"}`}>{children}</div>;
 }
 
+/**
+ * Shown instead of red/amber error boxes when a 20i auth failure happens.
+ * Lets the admin auto-sync the current IP to the 20i whitelist in one click.
+ */
+function IpBlockedBanner({ message, onSynced }: { message?: string; onSynced?: () => void }) {
+  const { toast } = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState<any | null>(null);
+
+  async function handleSync() {
+    setSyncing(true);
+    setResult(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/twenty-i/whitelist/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) {
+        toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist`, description: "Refreshing data…" });
+        setTimeout(() => onSynced?.(), 1500);
+      } else if (data.error === "chicken_and_egg") {
+        // Expected — explain it clearly
+      } else {
+        toast({ title: "Sync failed", description: data.error ?? data.message, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Network error", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden">
+      <div className="flex items-start justify-between gap-4 px-4 py-3.5">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+            <Shield size={14} className="text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">IP Not Whitelisted in 20i</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {message ?? "The server's outbound IP is blocked by 20i. Click below to auto-add the current IP."}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 shadow-sm whitespace-nowrap"
+        >
+          {syncing ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+          {syncing ? "Syncing…" : "IP Changed? Sync with 20i"}
+        </button>
+      </div>
+
+      {/* Sync result */}
+      {result && (
+        <div className={`border-t px-4 py-3 text-xs ${result.success ? "border-emerald-500/20 bg-emerald-500/5" : "border-primary/10 bg-primary/3"}`}>
+          {result.success ? (
+            <div className="flex items-center gap-2 text-emerald-600 font-medium">
+              <CheckCircle size={12} />
+              IP <span className="font-mono">{result.outboundIp}</span> successfully added to 20i whitelist.
+              {result.currentList?.length > 0 && (
+                <span className="text-muted-foreground ml-1">({result.currentList.length} IPs total)</span>
+              )}
+            </div>
+          ) : result.error === "chicken_and_egg" ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-primary font-semibold">
+                <AlertTriangle size={12} />
+                Current IP <span className="font-mono">{result.outboundIp}</span> is blocked — cannot self-whitelist via API
+              </div>
+              <p className="text-muted-foreground leading-relaxed">
+                20i blocks the API itself when your IP is not whitelisted (catch-22). You must manually add{" "}
+                <span className="font-mono font-semibold text-foreground">{result.outboundIp}</span>{" "}
+                once at{" "}
+                <a
+                  href="https://my.20i.com/reseller/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-primary"
+                >
+                  my.20i.com → Reseller API → IP Whitelist
+                </a>
+                , then return here to use auto-sync for future IP changes.
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-primary font-medium">
+              <XCircle size={12} />
+              Sync failed: {result.error ?? result.message}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InputField({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
   return (
     <div className="space-y-1.5">
@@ -435,13 +538,10 @@ function SitesTab() {
   return (
     <div className="space-y-4">
       {sitesError && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-          <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">20i API Authentication Error</p>
-            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{(sitesErr as any)?.message ?? "Could not load sites."} Go to <a href="/admin/servers" className="underline font-medium">Admin → Servers</a> and verify your API key.</p>
-          </div>
-        </div>
+        <IpBlockedBanner
+          message={(sitesErr as any)?.message ?? "Could not load sites — 20i returned a 401 auth error."}
+          onSynced={refetch}
+        />
       )}
       {confirm && (
         <ConfirmModal
@@ -842,13 +942,10 @@ function MigrationsTab() {
   return (
     <div className="space-y-5">
       {migrationsError && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-          <AlertTriangle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">20i API Authentication Error</p>
-            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{(migrationsErr as any)?.message ?? "Could not load migrations."} Go to <a href="/admin/servers" className="underline font-medium">Admin → Servers</a> and verify your API key.</p>
-          </div>
-        </div>
+        <IpBlockedBanner
+          message={(migrationsErr as any)?.message ?? "Could not load migrations — 20i returned a 401 auth error."}
+          onSynced={refetch}
+        />
       )}
       <Card>
         <h3 className="font-semibold text-foreground mb-1">Start New Migration</h3>
@@ -1182,6 +1279,52 @@ export default function TwentyIAdmin() {
     }
   }
 
+  // Whitelist panel state
+  const [wlLoading, setWlLoading] = useState(false);
+  const [wlData, setWlData] = useState<any | null>(null);
+  const [wlSyncing, setWlSyncing] = useState(false);
+  const [showWl, setShowWl] = useState(false);
+
+  async function loadWhitelist() {
+    setWlLoading(true);
+    try {
+      const data = await apiFetch("/api/admin/twenty-i/whitelist");
+      setWlData(data);
+      setShowWl(true);
+    } catch (e: any) {
+      toast({ title: "Could not load whitelist", description: e.message, variant: "destructive" });
+    } finally {
+      setWlLoading(false);
+    }
+  }
+
+  async function syncWhitelist() {
+    setWlSyncing(true);
+    try {
+      const data = await apiFetch("/api/admin/twenty-i/whitelist/sync", { method: "POST" });
+      setWlData((prev: any) => prev ? { ...prev, ...data } : data);
+      if (data.success) {
+        toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist` });
+        // Refresh whitelist info
+        const fresh = await apiFetch("/api/admin/twenty-i/whitelist");
+        setWlData(fresh);
+        qc.invalidateQueries({ queryKey: ["20i-sites"] });
+        qc.invalidateQueries({ queryKey: ["20i-migrations"] });
+      } else if (data.error === "chicken_and_egg") {
+        toast({
+          title: "Manual step required",
+          description: `Add ${data.outboundIp} at my.20i.com → Reseller API → IP Whitelist`,
+        });
+      } else {
+        toast({ title: "Sync failed", description: data.error ?? data.message, variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Sync error", description: e.message, variant: "destructive" });
+    } finally {
+      setWlSyncing(false);
+    }
+  }
+
   const { data: server } = useQuery({
     queryKey: ["20i-server"],
     queryFn: () => apiFetch("/api/admin/twenty-i/server"),
@@ -1234,6 +1377,14 @@ export default function TwentyIAdmin() {
             {diagRunning ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
             {diagRunning ? "Diagnosing…" : "Run Diagnostic"}
           </button>
+          <button
+            onClick={showWl ? () => setShowWl(false) : loadWhitelist}
+            disabled={wlLoading}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border border-primary/40 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold shadow-sm disabled:opacity-50"
+          >
+            {wlLoading ? <Loader2 size={11} className="animate-spin" /> : <Shield size={11} />}
+            {wlLoading ? "Loading…" : "Update 20i Whitelist"}
+          </button>
         </div>
       </div>
 
@@ -1279,6 +1430,82 @@ export default function TwentyIAdmin() {
               </pre>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Whitelist Panel */}
+      {showWl && wlData && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
+            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+              <Shield size={14} className="text-primary" />
+              20i IP Whitelist Manager
+            </div>
+            <button onClick={() => setShowWl(false)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
+          </div>
+
+          {/* Current IP status */}
+          <div className="px-4 py-3.5 flex items-center justify-between flex-wrap gap-3 border-b border-primary/10">
+            <div className="space-y-0.5">
+              <p className="text-xs text-muted-foreground">Current Outbound IP (this server)</p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-semibold text-foreground">{wlData.outboundIp}</span>
+                {wlData.serverConfigured && (
+                  wlData.isWhitelisted
+                    ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Whitelisted</span>
+                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Not whitelisted</span>
+                )}
+                {wlData.proxy?.enabled && (
+                  <span className="text-[10px] text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5">via proxy</span>
+                )}
+              </div>
+              {wlData.fetchError && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Could not read current whitelist from 20i (likely IP blocked) — whitelist entries not shown.
+                </p>
+              )}
+            </div>
+            <button
+              onClick={syncWhitelist}
+              disabled={wlSyncing}
+              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 shadow-sm"
+            >
+              {wlSyncing ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+              {wlSyncing ? "Adding to whitelist…" : "Add Current IP to Whitelist"}
+            </button>
+          </div>
+
+          {/* Existing whitelist entries */}
+          {wlData.currentList?.length > 0 && (
+            <div className="px-4 py-3">
+              <p className="text-xs text-muted-foreground mb-2 font-medium">Currently Whitelisted IPs ({wlData.currentList.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {wlData.currentList.map((ip: string) => (
+                  <span
+                    key={ip}
+                    className={`font-mono text-xs px-2.5 py-1 rounded-lg border ${ip === wlData.outboundIp ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 font-semibold" : "bg-secondary/50 border-border/50 text-muted-foreground"}`}
+                  >
+                    {ip}{ip === wlData.outboundIp && " ← current"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Chicken-and-egg notice when IP not yet whitelisted */}
+          {!wlData.isWhitelisted && wlData.serverConfigured && (
+            <div className="px-4 py-3 border-t border-primary/10 bg-secondary/20">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong className="text-foreground">First-time setup:</strong> If the current IP has never been whitelisted, clicking "Add Current IP" will return a 401 (catch-22 — the API itself is blocked). You must add{" "}
+                <span className="font-mono font-semibold text-foreground">{wlData.outboundIp}</span>{" "}
+                once manually at{" "}
+                <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  my.20i.com → Reseller API → IP Whitelist
+                </a>
+                . After that, this button will work for future IP changes automatically.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
