@@ -251,9 +251,9 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
   const cleanKey = sanitiseKey(apiKey);
   // Endpoint is strictly https://api.20i.com — no overrides
   const url = `https://api.20i.com${path}`;
-  // Auth is strictly Bearer <Base64(key)> — no raw-key fallback
-  const authHeader = `Bearer ${Buffer.from(cleanKey).toString("base64")}`;
-  console.log(`[20i] → ${method} ${url} | Auth: Bearer <base64> | key_len=${cleanKey.length} last4=${cleanKey.slice(-4)}`);
+  // Auth: Bearer <raw key> per 20i Reseller API spec
+  const authHeader = `Bearer ${cleanKey}`;
+  console.log(`[20i] → ${method} ${url} | Auth: Bearer <raw> | key_len=${cleanKey.length} last4=${cleanKey.slice(-4)}`);
 
   const fetchOpts: any = {
     method,
@@ -280,7 +280,7 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
 
   if (res.status === 401) {
     throw new Error(
-      `20i auth failed (401) — Base64 key sent. Outbound IP (35.229.81.149) must be whitelisted at my.20i.com → Reseller API → IP Whitelist. Raw response: ${text.substring(0, 200)}`
+      `20i auth failed (401) — Raw Bearer key sent. Either the IP (35.229.81.149) is not whitelisted at my.20i.com → Reseller API → IP Whitelist, or the API key is invalid. Raw response: ${text.substring(0, 200)}`
     );
   }
   if (res.status === 403) throw new Error(`20i permission denied (403): ${text.substring(0, 200)}`);

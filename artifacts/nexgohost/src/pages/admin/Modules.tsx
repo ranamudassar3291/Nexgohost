@@ -622,10 +622,10 @@ export default function Modules() {
     setTiTesting(true);
     setTiTestResult(null);
     try {
-      const result = await apiFetch("/api/admin/twenty-i/diagnostic");
+      const result = await apiFetch("/api/20i/test", { method: "POST", body: JSON.stringify({}) });
       setTiTestResult(result);
     } catch (err: any) {
-      setTiTestResult({ ok: false, message: err.message });
+      setTiTestResult({ success: false, message: err.message });
     } finally {
       setTiTesting(false);
     }
@@ -829,20 +829,20 @@ export default function Modules() {
                       <div className="flex items-center gap-2.5">
                         <button
                           onClick={handleTest20i}
-                          disabled={ti_testing || !twentyiServer?.connected}
+                          disabled={ti_testing}
                           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 border"
                           style={{
-                            background: ti_testResult?.ok ? "#10b98115" : ti_testResult === null ? `${BRAND}12` : "#ef444415",
-                            borderColor: ti_testResult?.ok ? "#10b981" : ti_testResult === null ? BRAND : "#ef4444",
-                            color: ti_testResult?.ok ? "#059669" : ti_testResult === null ? BRAND : "#dc2626",
+                            background: ti_testResult?.success ? "#10b98115" : ti_testResult === null ? `${BRAND}12` : "#ef444415",
+                            borderColor: ti_testResult?.success ? "#10b981" : ti_testResult === null ? BRAND : "#ef4444",
+                            color: ti_testResult?.success ? "#059669" : ti_testResult === null ? BRAND : "#dc2626",
                           }}
                         >
                           {ti_testing ? (
                             <><RefreshCw size={12} className="animate-spin" /> Testing…</>
-                          ) : ti_testResult?.ok ? (
-                            <><CheckCircle size={12} /> 200 OK — Connected!</>
+                          ) : ti_testResult?.success ? (
+                            <><CheckCircle size={12} /> {ti_testResult.httpStatus ?? 200} OK — Connected!</>
                           ) : ti_testResult ? (
-                            <><AlertCircle size={12} /> {ti_testResult.debug?.responseStatus ?? "Failed"} — {ti_testResult.hint ?? "Check whitelist"}</>
+                            <><AlertCircle size={12} /> {ti_testResult.httpStatus ?? "Error"} — {ti_testResult.httpStatus === 401 ? "IP not whitelisted" : "Failed"}</>
                           ) : (
                             <><Zap size={12} /> Test Live API (api.20i.com)</>
                           )}
@@ -855,15 +855,34 @@ export default function Modules() {
                       </div>
 
                       {/* Detailed result */}
-                      {ti_testResult && !ti_testResult.ok && ti_testResult.hint && (
+                      {ti_testResult && !ti_testResult.success && (
                         <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300">
                           <Shield size={12} className="shrink-0 mt-0.5" />
-                          <div>
-                            <strong>Action required:</strong> {ti_testResult.hint}
-                            {ti_testResult.debug?.outboundIp && (
-                              <span className="block mt-1 font-mono font-semibold">Outbound IP: {ti_testResult.debug.outboundIp}</span>
+                          <div className="space-y-1">
+                            <div><strong>Error:</strong> {ti_testResult.message}</div>
+                            {ti_testResult.outboundIp && (
+                              <div className="font-mono font-semibold">Outbound IP to whitelist: {ti_testResult.outboundIp}</div>
+                            )}
+                            {ti_testResult.keySource && (
+                              <div className="text-muted-foreground">Key source: {ti_testResult.keySource}</div>
+                            )}
+                            {ti_testResult.attempts?.length > 0 && (
+                              <div className="mt-1 space-y-0.5">
+                                {(ti_testResult.attempts as any[]).map((a: any, i: number) => (
+                                  <div key={i} className="font-mono text-[10px] text-foreground/60">
+                                    [{a.httpStatus ?? "ERR"}] {a.url} ({a.durationMs}ms)
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {ti_testResult?.success && (
+                        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/40 text-xs text-green-700 dark:text-green-300">
+                          <CheckCircle size={12} className="shrink-0" />
+                          <span>Live connection verified via <span className="font-mono">{ti_testResult.workingUrl}</span></span>
                         </div>
                       )}
                     </div>
