@@ -342,21 +342,17 @@ export default function Servers() {
                       <p className="text-xs font-semibold text-primary uppercase tracking-wider">20i Reseller API</p>
                     </div>
 
-                    {/* ── IP Whitelist Warning ── */}
-                    <div className={`rounded-xl border p-3.5 space-y-2.5 ${outboundData?.proxy?.enabled ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/20 bg-amber-500/5"}`}>
+                    {/* ── IP Whitelist Info ── */}
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 space-y-2.5">
                       <div className="flex items-center gap-2">
-                        {outboundData?.proxy?.enabled
-                          ? <ShieldCheck size={13} className="text-emerald-500 shrink-0" />
-                          : <AlertTriangle size={13} className="text-amber-500 shrink-0" />}
-                        <p className={`text-xs font-semibold ${outboundData?.proxy?.enabled ? "text-emerald-600" : "text-amber-600"}`}>
-                          {outboundData?.proxy?.enabled ? "Static IP Proxy Active" : "IP Whitelist Required"}
-                        </p>
+                        <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                        <p className="text-xs font-semibold text-amber-600">IP Whitelist Required</p>
                       </div>
 
                       {/* Current outbound IP */}
                       <div className="flex items-center justify-between gap-2 bg-card/80 border border-border/40 rounded-lg px-3 py-2">
                         <div>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Current Server IP</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Panel Outbound IP</p>
                           <p className="font-mono text-sm font-semibold text-foreground">
                             {loadingIp ? "Detecting…" : (outboundData?.ip ?? "unknown")}
                           </p>
@@ -384,20 +380,13 @@ export default function Servers() {
                         </div>
                       </div>
 
-                      {/* Instruction text */}
-                      {outboundData?.proxy?.enabled ? (
-                        <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                          Proxy via <span className="font-mono">{outboundData.proxy.url}</span>. All 20i calls use this fixed IP — add it to your whitelist once and you're set permanently.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Add the IP above to{" "}
-                          <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="underline text-primary">
-                            my.20i.com → Reseller API → IP Whitelist
-                          </a>
-                          , or use the button below to auto-sync if you already have a working key.
-                        </p>
-                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Add the IP above to{" "}
+                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="underline text-primary">
+                          my.20i.com → Reseller API → IP Whitelist
+                        </a>
+                        . Once whitelisted, click Test Connection.
+                      </p>
 
                       {/* Auto-whitelist button — only show when we have a saved server */}
                       {editServerId && (

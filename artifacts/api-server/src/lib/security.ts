@@ -1,6 +1,6 @@
 /**
  * Noehost Iron-Clad Security Engine
- * - In-memory IP rate limiter (20 attempts/min → 30-min DB block)
+ * - In-memory IP rate limiter (3 attempts/min → 30-min DB block)
  * - Bad-bot blocker (403 on scanner UAs)
  * - Cloudflare Turnstile / Google reCAPTCHA v2 server-side verification
  * - DB-persisted blocked IPs (survives restarts)
@@ -23,7 +23,7 @@ interface AttemptBucket {
 }
 const ipAttempts = new Map<string, AttemptBucket>();
 const WINDOW_MS = 60_000;        // 1 minute sliding window
-const MAX_ATTEMPTS = 20;          // before block
+const MAX_ATTEMPTS = 3;           // before block (brute-force threshold)
 const BLOCK_MINUTES = 30;         // block duration
 
 export function getClientIp(req: Request): string {

@@ -229,7 +229,8 @@ router.post("/auth/login", async (req, res) => {
     const valid = await comparePassword(password, user.passwordHash);
     if (!valid) {
       logActivity(user.id, "login_failed", req, "failed", "Invalid password").catch(() => {});
-      if (!isAdmin) await recordFailedAttempt(ip, req, email).catch(() => {});
+      // Always record failed attempts in the log (admin accounts are not hard-blocked, but attempts are tracked)
+      await recordFailedAttempt(ip, req, email).catch(() => {});
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 

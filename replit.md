@@ -1,4 +1,19 @@
-# Nexgohost - Hosting & Client Management Platform
+# Noehost / NoePanel — Hosting & Client Management Platform
+
+## Recent Changes (Phase 1 — Security, Branding, Dark Mode)
+
+### Security: Brute-force threshold tightened to 3 attempts
+- `artifacts/api-server/src/lib/security.ts` — `MAX_ATTEMPTS` changed from 20 → 3 (30-min block after 3 failed logins in 1-min window)
+- `artifacts/api-server/src/routes/auth.ts` — `recordFailedAttempt` now called for ALL users including admins (admins still not hard-blocked but attempts are logged)
+
+### Feature: Light / Dark Mode toggle
+- `artifacts/nexgohost/src/context/ThemeProvider.tsx` — New context: reads/writes `noehost-theme` in localStorage, defaults to OS preference, applies `class="dark"` to `<html>`
+- `artifacts/nexgohost/src/App.tsx` — Wrapped root with `<ThemeProvider>`
+- `artifacts/nexgohost/src/components/layout/AppLayout.tsx` — Sun/Moon icon toggle button added to both desktop header and mobile header; header backgrounds changed from hardcoded `bg-white` → `bg-background` for dark mode compatibility
+- `artifacts/nexgohost/src/index.css` — Full `.dark { ... }` CSS variable block added: Deep Slate Blue palette (`#1E293B` background, `#334155` surface)
+
+### 20i UX: Simplify IP whitelist info box in Servers.tsx
+- `artifacts/nexgohost/src/pages/admin/Servers.tsx` — Removed confusing "Static IP Proxy Active" / "IP Whitelist Required" dual-state UI. Now always shows a clean amber "IP Whitelist Required" box with the panel outbound IP, Copy button, and Whitelist link.
 
 ## Recent Changes (Session 45 — Spaceship Registrar Integration + Manual Activation with Price Guard)
 

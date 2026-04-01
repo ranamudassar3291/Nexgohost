@@ -2,13 +2,14 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus } from "lucide-react";
+import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "@/context/ThemeProvider";
 
 interface LayoutProps {
   children: ReactNode;
@@ -118,6 +119,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -318,7 +320,7 @@ export function AppLayout({ children, role }: LayoutProps) {
     <div className="min-h-screen bg-background flex flex-col md:flex-row font-sans">
 
       {/* ── Mobile / Tablet Header (hidden on md+ desktop) ── */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-white/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           <div
@@ -360,6 +362,15 @@ export function AppLayout({ children, role }: LayoutProps) {
               )}
             </button>
           )}
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
+          </button>
 
           {/* Hamburger */}
           <button
@@ -404,11 +415,20 @@ export function AppLayout({ children, role }: LayoutProps) {
       {/* ── Main Content ── */}
       <main className="flex-1 flex flex-col min-h-screen overflow-hidden">
         {/* Desktop top-bar header */}
-        <header className="hidden md:flex h-16 items-center justify-between px-8 border-b border-border/50 bg-white/80 backdrop-blur-xl sticky top-0 z-30 shadow-sm">
+        <header className="hidden md:flex h-16 items-center justify-between px-8 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30 shadow-sm">
           <h2 className="text-lg font-display font-semibold text-foreground capitalize">
             {pageTitle}
           </h2>
           <div className="flex items-center gap-3">
+            {/* Dark/Light mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Light mode" : "Dark mode"}
+            >
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             {role === "admin" && (
               <div className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-2 text-xs text-primary font-semibold">
                 <ShieldAlert size={14} /> Admin Access

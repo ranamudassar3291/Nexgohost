@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
 import { CurrencyProvider } from "@/context/CurrencyProvider";
 import { CartProvider } from "@/context/CartContext";
+import { ThemeProvider } from "@/context/ThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -565,18 +566,20 @@ function RouterRoot() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthProvider>
-            <CurrencyProvider>
-              <CartProvider>
-                <RouterRoot />
-              </CartProvider>
-            </CurrencyProvider>
-          </AuthProvider>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <ThemeProvider>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AuthProvider>
+              <CurrencyProvider>
+                <CartProvider>
+                  <RouterRoot />
+                </CartProvider>
+              </CurrencyProvider>
+            </AuthProvider>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
