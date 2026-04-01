@@ -5,6 +5,7 @@ import {
   Server, ExternalLink, CheckCircle, Upload, Package, CreditCard,
   Zap, Trash2, Settings, ChevronDown, ChevronUp, AlertCircle,
   Eye, EyeOff, ToggleLeft, ToggleRight, RefreshCw, X, Globe,
+  Wifi, WifiOff, Key, Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -520,6 +521,13 @@ export default function Modules() {
     queryFn: () => apiFetch("/api/admin/modules/uploaded"),
   });
 
+  const { data: twentyiServer, refetch: refetchTwentyi, isFetching: ti_fetching } = useQuery<any>({
+    queryKey: ["admin-twentyi-server-status"],
+    queryFn: () => apiFetch("/api/admin/twenty-i/server"),
+    retry: false,
+    staleTime: 30_000,
+  });
+
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-modules-uploaded"] });
     refetch();
@@ -667,6 +675,56 @@ export default function Modules() {
                       </Button>
                     </a>
                   </div>
+
+                  {/* Live connection status — only for 20i */}
+                  {mod.id === "20i" && (
+                    <div className="mt-4 border-t border-border pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Connection Status</p>
+                        <button
+                          onClick={() => refetchTwentyi()}
+                          disabled={ti_fetching}
+                          className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                        >
+                          <RefreshCw size={11} className={ti_fetching ? "animate-spin" : ""} />
+                          Refresh
+                        </button>
+                      </div>
+                      {ti_fetching ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <RefreshCw size={12} className="animate-spin" /> Checking connection…
+                        </div>
+                      ) : twentyiServer?.connected ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Connected badge */}
+                          <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-border">
+                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Status</span>
+                            <div className="flex items-center gap-1.5">
+                              <Wifi size={13} className="text-emerald-500" />
+                              <span className="text-xs font-semibold text-emerald-600">Server Configured</span>
+                            </div>
+                          </div>
+                          {/* API key */}
+                          <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-border">
+                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">API Key</span>
+                            <div className="flex items-center gap-1.5">
+                              <Key size={12} className="text-primary" />
+                              <span className="text-xs font-mono font-semibold text-foreground">
+                                {twentyiServer.apiTokenMasked ?? (
+                                  <span className="text-muted-foreground italic">Not set</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <WifiOff size={12} className="text-red-400" />
+                          No 20i server configured — click <strong className="text-foreground">Configure 20i</strong> above to add your API key.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

@@ -94,108 +94,6 @@ function Card({ children, className }: { children: React.ReactNode; className?: 
   return <div className={`bg-card border border-border rounded-2xl shadow-sm ${className ?? "p-6"}`}>{children}</div>;
 }
 
-/**
- * Shown instead of red/amber error boxes when a 20i auth failure happens.
- * Lets the admin auto-sync the current IP to the 20i whitelist in one click.
- */
-function IpBlockedBanner({ message, onSynced }: { message?: string; onSynced?: () => void }) {
-  const { toast } = useToast();
-  const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
-
-  async function handleSync() {
-    setSyncing(true);
-    setResult(null);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/twenty-i/whitelist/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      setResult(data);
-      if (data.success) {
-        toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist`, description: "Refreshing data…" });
-        setTimeout(() => onSynced?.(), 1500);
-      } else if (data.error === "chicken_and_egg") {
-        // Expected — explain it clearly
-      } else {
-        toast({ title: "Sync failed", description: data.error ?? data.message, variant: "destructive" });
-      }
-    } catch (e: any) {
-      toast({ title: "Network error", description: e.message, variant: "destructive" });
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  return (
-    <div className="rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden">
-      <div className="flex items-start justify-between gap-4 px-4 py-3.5">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-            <Shield size={14} className="text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">IP Not Whitelisted in 20i</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {message ?? "The server's outbound IP is blocked by 20i. Click below to auto-add the current IP."}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 shadow-sm whitespace-nowrap"
-        >
-          {syncing ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-          {syncing ? "Syncing…" : "IP Changed? Sync with 20i"}
-        </button>
-      </div>
-
-      {/* Sync result */}
-      {result && (
-        <div className={`border-t px-4 py-3 text-xs ${result.success ? "border-emerald-500/20 bg-emerald-500/5" : "border-primary/10 bg-primary/3"}`}>
-          {result.success ? (
-            <div className="flex items-center gap-2 text-emerald-600 font-medium">
-              <CheckCircle size={12} />
-              IP <span className="font-mono">{result.outboundIp}</span> successfully added to 20i whitelist.
-              {result.currentList?.length > 0 && (
-                <span className="text-muted-foreground ml-1">({result.currentList.length} IPs total)</span>
-              )}
-            </div>
-          ) : result.error === "chicken_and_egg" ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-primary font-semibold">
-                <AlertTriangle size={12} />
-                Current IP <span className="font-mono">{result.outboundIp}</span> is blocked — cannot self-whitelist via API
-              </div>
-              <p className="text-muted-foreground leading-relaxed">
-                20i blocks the API itself when your IP is not whitelisted (catch-22). You must manually add{" "}
-                <span className="font-mono font-semibold text-foreground">{result.outboundIp}</span>{" "}
-                once at{" "}
-                <a
-                  href="https://my.20i.com/reseller/api"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-primary"
-                >
-                  my.20i.com → Reseller API → IP Whitelist
-                </a>
-                , then return here to use auto-sync for future IP changes.
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-primary font-medium">
-              <XCircle size={12} />
-              Sync failed: {result.error ?? result.message}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function InputField({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
   return (
@@ -538,10 +436,10 @@ function SitesTab() {
   return (
     <div className="space-y-4">
       {sitesError && (
-        <IpBlockedBanner
-          message={(sitesErr as any)?.message ?? "Could not load sites — 20i returned a 401 auth error."}
-          onSynced={refetch}
-        />
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/20 bg-primary/5 text-xs text-primary">
+          <AlertCircle size={13} className="shrink-0" />
+          <span>Could not load sites — verify the API key and IP whitelist under <strong>Admin → Servers</strong>. Error: {(sitesErr as any)?.message ?? "unknown"}</span>
+        </div>
       )}
       {confirm && (
         <ConfirmModal
@@ -942,10 +840,10 @@ function MigrationsTab() {
   return (
     <div className="space-y-5">
       {migrationsError && (
-        <IpBlockedBanner
-          message={(migrationsErr as any)?.message ?? "Could not load migrations — 20i returned a 401 auth error."}
-          onSynced={refetch}
-        />
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/20 bg-primary/5 text-xs text-primary">
+          <AlertCircle size={13} className="shrink-0" />
+          <span>Could not load migrations — verify the API key and IP whitelist under <strong>Admin → Servers</strong>. Error: {(migrationsErr as any)?.message ?? "unknown"}</span>
+        </div>
       )}
       <Card>
         <h3 className="font-semibold text-foreground mb-1">Start New Migration</h3>

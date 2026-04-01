@@ -74,6 +74,7 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (_req: Au
       id: server.id,
       name: server.name,
       hasApiToken: !!server.apiToken,
+      apiTokenMasked: server.apiToken ? `••••${server.apiToken.slice(-6)}` : null,
       ns1: server.ns1 ?? "ns1.20i.com",
       ns2: server.ns2 ?? "ns2.20i.com",
     });
