@@ -1,39 +1,56 @@
 /**
- * 20i Hosting API Module — axios-based transport
- * https://my.20i.com/reseller/apidoc
+ * 20i Reseller API - TypeScript/Node.js Client
+ * https://api.20i.com  (official API Blueprint v1)
  *
- * Auth:    Bearer <raw_api_key>  (NO Base64)
- * Base URL: https://api.20i.com
+ * Authentication
+ *   Authorization: Bearer {base64(apiKey)}
+ *   Per official docs: the raw API key MUST be Base64-encoded before use
+ *   as the Bearer token value.
  *
- * Proxy support: Set TWENTYI_PROXY (or HTTPS_PROXY / FIXIE_URL) env var.
- * Format: http://user:pass@proxy.host:port
+ * Reseller self-reference
+ *   All /reseller/{resellerId}/... endpoints use "*" as the resellerId
+ *   to refer to yourself (the authenticated reseller).
+ *
+ * Proxy support
+ *   Set TWENTYI_PROXY env var to an HTTP proxy URL to route all calls through it.
+ *   Format: http://user:pass@host:port
  */
-import axios, { AxiosRequestConfig, AxiosError } from "axios";
+
+import axios, { type AxiosRequestConfig } from "axios";
 import { AsyncLocalStorage } from "async_hooks";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const BASE_URL = "https://api.20i.com";
+const DEFAULT_TIMEOUT_MS = 25_000;
+const MAX_RETRIES = 3;
+
 // ─── Per-request proxy override ───────────────────────────────────────────────
-const _requestProxyStore = new AsyncLocalStorage<string | undefined>();
+
+const _proxyStore = new AsyncLocalStorage<string | undefined>();
 
 export function runWithProxy<T>(proxyUrl: string | undefined, fn: () => T): T {
-  return _requestProxyStore.run(proxyUrl, fn);
+  return _proxyStore.run(proxyUrl, fn);
 }
 
 // ─── Proxy helpers ────────────────────────────────────────────────────────────
 
-function getProxyUrl(): string | undefined {
-  const requestProxy = _requestProxyStore.getStore();
-  if (requestProxy !== undefined) return requestProxy || undefined;
+function resolveProxyUrl(): string | undefined {
+  const ctx = _proxyStore.getStore();
+  if (ctx !== undefined) return ctx || undefined;
   return process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
 }
 
-function buildAxiosProxy(proxyUrl: string): AxiosRequestConfig["proxy"] | undefined {
+function buildAxiosProxy(raw: string): AxiosRequestConfig["proxy"] | undefined {
   try {
-    const u = new URL(proxyUrl);
+    const u = new URL(raw);
     return {
       host: u.hostname,
-      port: parseInt(u.port || "80"),
+      port: parseInt(u.port || "80", 10),
       protocol: u.protocol.replace(":", ""),
-      ...(u.username ? { auth: { username: decodeURIComponent(u.username), password: decodeURIComponent(u.password) } } : {}),
+      ...(u.username
+        ? { auth: { username: decodeURIComponent(u.username), password: decodeURIComponent(u.password) } }
+        : {}),
     };
   } catch {
     return undefined;
@@ -41,44 +58,57 @@ function buildAxiosProxy(proxyUrl: string): AxiosRequestConfig["proxy"] | undefi
 }
 
 export function getProxyConfig(): { enabled: boolean; url?: string } {
-  const raw = getProxyUrl();
+  const raw = resolveProxyUrl();
   if (!raw) return { enabled: false };
   return { enabled: true, url: raw.replace(/:[^:@]+@/, ":***@") };
+}
+
+// ─── API key sanitisation ─────────────────────────────────────────────────────
+
+// Strip invisible/zero-width characters that silently corrupt the Bearer token
+export function sanitiseKey(key: string): string {
+  return key.trim().replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
+}
+
+// Base64-encode the API key -- required by official 20i documentation
+function encodeKey(raw: string): string {
+  return Buffer.from(sanitiseKey(raw)).toString("base64");
 }
 
 // ─── Outbound IP detection ────────────────────────────────────────────────────
 
 export async function getOutboundIp(): Promise<string> {
   try {
-    const proxyUrl = getProxyUrl();
-    const cfg: AxiosRequestConfig = { timeout: 8000 };
-    if (proxyUrl) cfg.proxy = buildAxiosProxy(proxyUrl);
+    const proxyUrl = resolveProxyUrl();
+    const cfg: AxiosRequestConfig = { timeout: 8_000 };
+    if (proxyUrl) {
+      const proxy = buildAxiosProxy(proxyUrl);
+      if (proxy) cfg.proxy = proxy;
+    }
     const res = await axios.get<{ ip: string }>("https://api.ipify.org?format=json", cfg);
     const ip = res.data?.ip ?? "unknown";
-    console.log(`[20i] Outbound IP (${proxyUrl ? "via proxy" : "direct — no proxy"}): ${ip}  ← whitelist THIS in 20i, or set TWENTYI_PROXY for a static IP`);
+    const via = proxyUrl ? `via proxy` : `direct — no proxy`;
+    console.log(`[20i] Outbound IP (${via}): ${ip}  \u2190 whitelist THIS in 20i, or set TWENTYI_PROXY for a static IP`);
     return ip;
   } catch {
     return "unknown";
   }
 }
 
-// ─── Key sanitisation ─────────────────────────────────────────────────────────
+// ─── Core HTTP request ────────────────────────────────────────────────────────
 
-export function sanitiseKey(apiKey: string): string {
-  return apiKey.trim().replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
-}
-
-// ─── Core axios request ───────────────────────────────────────────────────────
-
-async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
+async function request<T = any>(
+  apiKey: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
   const cleanKey = sanitiseKey(apiKey);
-  // 20i requires the API key to be Base64-encoded in the Bearer token (per official docs)
-  const token = Buffer.from(cleanKey).toString("base64");
-  const url = `https://api.20i.com${path}`;
+  const token = encodeKey(cleanKey);
+  const url = `${BASE_URL}${path}`;
+  const proxyUrl = resolveProxyUrl();
 
-  console.log(`[20i] → ${method} ${url}`);
-  console.log(`[20i]   raw_key: ${cleanKey.substring(0, 4)}****${cleanKey.slice(-4)} (len=${cleanKey.length})`);
-  console.log(`[20i]   b64_token: ${token.substring(0, 8)}... (len=${token.length})`);
+  console.log(`[20i] -> ${method} ${url}`);
 
   const cfg: AxiosRequestConfig = {
     method: method as any,
@@ -88,97 +118,128 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    data: body,
-    timeout: 25000,
-    validateStatus: () => true,   // handle all statuses ourselves
+    ...(body !== undefined ? { data: body } : {}),
+    timeout: DEFAULT_TIMEOUT_MS,
+    validateStatus: () => true,
   };
 
-  const proxyUrl = getProxyUrl();
   if (proxyUrl) {
     const proxy = buildAxiosProxy(proxyUrl);
     if (proxy) cfg.proxy = proxy;
-    console.log(`[20i]   Proxy: ${proxyUrl.replace(/:[^:@]+@/, ":***@")}`);
   }
 
   const res = await axios(cfg);
-  console.log(`[20i] ← HTTP ${res.status}  body=${JSON.stringify(res.data).substring(0, 300)}`);
+  const bodyPreview = JSON.stringify(res.data).substring(0, 300);
+  console.log(`[20i] <- HTTP ${res.status}  body=${bodyPreview}`);
 
-  if (res.status >= 200 && res.status < 300) {
-    console.log(`[20i] ✓ ${method} ${path} → HTTP ${res.status}`);
-    return res.data;
-  }
+  if (res.status >= 200 && res.status < 300) return res.data as T;
 
-  const bodyStr = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-  console.error(`[20i] ✗ ${method} ${path} → HTTP ${res.status}  body: ${bodyStr.substring(0, 300)}`);
+  const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
 
   if (res.status === 401) {
-    const proxyActive = !!proxyUrl;
     throw new Error(
-      `20i auth failed (401) — Authorization Bearer sent. ` +
-      (proxyActive
-        ? `Proxy active — check if proxy IP is also whitelisted.`
-        : `Check: (1) IP whitelisted at my.20i.com → Reseller API → IP Whitelist. (2) API key is correct.`) +
-      ` Raw: ${bodyStr.substring(0, 200)}`
+      `20i Authentication failed (401). ` +
+      `You must whitelist this server IP at my.20i.com -> Reseller API -> IP Whitelist. ` +
+      `Response: ${raw.substring(0, 200)}`,
     );
   }
-  if (res.status === 403) throw new Error(`20i permission denied (403). Use a Reseller Combined key. Raw: ${bodyStr.substring(0, 200)}`);
-  if (res.status === 404) throw new Error(`20i endpoint not found (404): ${path}`);
-  if (res.status === 429) throw new Error("20i rate limit hit (429) — please wait and retry.");
-  if (res.status === 500) throw new Error(`20i server error (500): ${bodyStr.substring(0, 200)}`);
-  throw new Error(`20i API error ${res.status}: ${bodyStr.substring(0, 300)}`);
+  if (res.status === 403) {
+    throw new Error(
+      `20i Forbidden (403). Make sure you are using a Reseller Combined API key. ` +
+      `Response: ${raw.substring(0, 200)}`,
+    );
+  }
+  if (res.status === 404) {
+    throw new Error(`20i Endpoint not found (404): ${path}`);
+  }
+  if (res.status === 429) {
+    throw new Error("20i Rate limit exceeded (429). Please wait before retrying.");
+  }
+  if (res.status >= 500) {
+    throw new Error(`20i Server error (${res.status}): ${raw.substring(0, 200)}`);
+  }
+
+  throw new Error(`20i API error ${res.status}: ${raw.substring(0, 300)}`);
 }
 
-/** Retry up to 3 times with exponential backoff on transient errors */
-async function twentyiRequest(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
-  const maxAttempts = 3;
-  let lastErr: Error | null = null;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+// Retry up to MAX_RETRIES times using exponential backoff. Skips retry on auth/not-found errors.
+async function requestWithRetry<T = any>(
+  apiKey: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  let lastErr!: Error;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await twentyiRequestRaw(apiKey, method, path, body);
+      return await request<T>(apiKey, method, path, body);
     } catch (err: any) {
       lastErr = err;
-      if (err.message?.includes("401") || err.message?.includes("403") || err.message?.includes("404")) throw err;
-      if (attempt < maxAttempts) {
-        const delay = attempt * 1200;
-        console.warn(`[20i] attempt ${attempt} failed (${err.message}), retrying in ${delay}ms…`);
+      const msg: string = err.message ?? "";
+      if (msg.includes("401") || msg.includes("403") || msg.includes("404")) throw err;
+      if (attempt < MAX_RETRIES) {
+        const delay = attempt * 1_200;
+        console.warn(`[20i] attempt ${attempt} failed (${msg.substring(0, 80)}), retrying in ${delay}ms`);
         await new Promise(r => setTimeout(r, delay));
       }
     }
   }
-  throw lastErr!;
+  throw lastErr;
 }
 
-// ─── Internal whitelist-add (no circular import) ──────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-async function twentyiAddToWhitelistRaw(cleanKey: string, ip: string): Promise<void> {
-  try {
-    await twentyiRequestRaw(cleanKey, "POST", "/reseller/*/apiWhitelist", { apiWhitelist: { [ip]: {} } });
-    console.log(`[20i] Auto-whitelist: ✓ Added ${ip}`);
-  } catch (e: any) {
-    console.warn(`[20i] Auto-whitelist: Could not add ${ip} — ${e.message}`);
-  }
+export interface TwentyIPackageType {
+  id: string;
+  label: string;
+  platform: string;
+  limits?: Record<string, any>;
+  installApps?: string[];
+  extraData?: { temporaryUrlDomain?: string; phpVersion?: string };
 }
 
-// ─── Probe helper ─────────────────────────────────────────────────────────────
-
-async function probeEndpoints(apiKey: string, method: string, paths: string[]): Promise<{ path: string; data: any }> {
-  let lastErr: Error | null = null;
-  for (const path of paths) {
-    try {
-      const data = await twentyiRequestRaw(apiKey, method, path);
-      return { path, data };
-    } catch (err: any) {
-      lastErr = err;
-      const msg = err.message ?? "";
-      if (msg.includes("401") || msg.includes("403")) throw err;
-      if (msg.includes("404")) continue;
-      throw err;
-    }
-  }
-  throw lastErr ?? new Error("All endpoint variants returned 404 — check your API key and reseller account.");
+export interface TwentyISite {
+  id: string;
+  name: string;
+  domain: string;
+  status: "active" | "suspended" | string;
+  packageTypeName?: string;
+  platform?: string;
+  enabled: boolean;
+  created?: string;
+  names?: string[];
+  stackUsers?: string[];
+  typeRef?: string;
 }
 
-// ─── Debug info (used by pre-save test endpoint) ──────────────────────────────
+export interface TwentyIStackUser {
+  id: string;
+  name: string;
+  type: string;
+  masterFtp?: boolean;
+}
+
+export interface TwentyICreateResult {
+  siteId: string | null;
+  cpanelUrl: string;
+  webmailUrl: string;
+}
+
+export interface TwentyIConnectionResult {
+  success: boolean;
+  message: string;
+  packageCount?: number;
+}
+
+// ─── Debug test (used by diagnostic endpoint) ─────────────────────────────────
+
+export interface TwentyIDebugAttempt {
+  format: "raw";
+  authHeaderPreview: string;
+  status: number | null;
+  body: string;
+  durationMs: number;
+}
 
 export interface TwentyIDebugInfo {
   url: string;
@@ -194,37 +255,24 @@ export interface TwentyIDebugInfo {
   responseStatus: number | null;
   responseBody: string;
   durationMs: number;
+  attempts: TwentyIDebugAttempt[];
+  workingFormat: "raw" | "none";
 }
 
-export interface TwentyIDebugAttempt {
-  format: "raw";
-  authHeaderPreview: string;
-  status: number | null;
-  body: string;
-  durationMs: number;
-}
-
-/**
- * Makes a raw, fully-logged test request to 20i /reseller using raw Bearer.
- * Returns full debug info including real outbound IP.
- */
-export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo & { attempts: TwentyIDebugAttempt[]; workingFormat: "raw" | "none" }> {
+export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo> {
   const rawKey = apiKey;
   const cleanKey = sanitiseKey(apiKey);
   const keyHasHiddenChars = cleanKey !== rawKey;
   const keyLen = cleanKey.length;
+  const token = encodeKey(cleanKey);
   const keyMask = keyLen > 8
     ? `Bearer ${"*".repeat(Math.max(0, keyLen - 4))}${cleanKey.slice(-4)}`
     : `Bearer ${"*".repeat(keyLen)}`;
 
-  const url = "https://api.20i.com/reseller/*/packageCount";
+  const url = `${BASE_URL}/reseller/*/packageCount`;
+  const proxyUrl = resolveProxyUrl();
   const proxyConfig = getProxyConfig();
-  const proxyUrl = getProxyUrl();
-
   const outboundIp = await getOutboundIp();
-
-  // Base64-encode the API key (required by official 20i docs)
-  const token = Buffer.from(cleanKey).toString("base64");
 
   const t0 = Date.now();
   let status: number | null = null;
@@ -240,7 +288,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      timeout: 20000,
+      timeout: DEFAULT_TIMEOUT_MS,
       validateStatus: () => true,
     };
     if (proxyUrl) {
@@ -250,7 +298,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
     const res = await axios(cfg);
     status = res.status;
     const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-    body = raw.length > 600 ? raw.substring(0, 600) + "…" : raw;
+    body = raw.length > 600 ? raw.substring(0, 600) + "..." : raw;
     if (res.status >= 200 && res.status < 300) workingFormat = "raw";
   } catch (e: any) {
     body = `Network error: ${e.message}`;
@@ -261,7 +309,9 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
   return {
     url,
     method: "GET",
-    authFormat: workingFormat === "raw" ? `${keyMask} ✓ (raw Bearer — working)` : `${keyMask} ✗ (raw Bearer — failed)`,
+    authFormat: workingFormat === "raw"
+      ? `${keyMask} (raw Bearer — working)`
+      : `${keyMask} (raw Bearer — failed)`,
     keyLength: keyLen,
     keyFirst4: cleanKey.substring(0, 4),
     keyLast4: cleanKey.slice(-4),
@@ -283,212 +333,403 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
   };
 }
 
-// ─── Connection test ──────────────────────────────────────────────────────────
+// ─── IP Whitelist ─────────────────────────────────────────────────────────────
+// Endpoint: GET/POST /reseller/*/apiWhitelist
 
-export interface TwentyIConnectionResult {
-  success: boolean;
-  message: string;
-  packageCount?: number;
-  diagnostic?: {
-    step: string;
-    endpoint?: string;
-    detail?: string;
-  };
+export async function twentyiGetWhitelist(apiKey: string): Promise<string[]> {
+  const data = await requestWithRetry<Record<string, any>>(apiKey, "GET", "/reseller/*/apiWhitelist");
+  if (data && typeof data === "object") return Object.keys(data);
+  return [];
 }
+
+export async function twentyiAddToWhitelist(apiKey: string, ip: string): Promise<void> {
+  await requestWithRetry(apiKey, "POST", "/reseller/*/apiWhitelist", {
+    apiWhitelist: { [ip]: {} },
+  });
+}
+
+export async function twentyiRemoveFromWhitelist(apiKey: string, ip: string): Promise<void> {
+  await requestWithRetry(apiKey, "DELETE", `/reseller/*/apiWhitelist/${ip}`);
+}
+
+// Try to auto-add IP to whitelist. Returns { added: boolean, reason: string }.
+export async function twentyiAutoWhitelist(
+  apiKey: string,
+  ip: string,
+): Promise<{ added: boolean; reason: string }> {
+  try {
+    await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
+      apiWhitelist: { [ip]: {} },
+    });
+    console.log(`[20i-WL] Auto-whitelist: added ${ip}`);
+    return { added: true, reason: "ok" };
+  } catch (e: any) {
+    const msg = String(e.message ?? "");
+    const reason = msg.includes("401") ? "ip_blocked"
+      : msg.includes("403") ? "bad_key"
+      : "error";
+    console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
+    return { added: false, reason };
+  }
+}
+
+// ─── Connection test ──────────────────────────────────────────────────────────
+// Endpoint: GET /reseller/*/packageCount
+// Returns: { linux: N, windows: N, wordpress: N }
 
 export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConnectionResult> {
   const cleanKey = sanitiseKey(apiKey);
-  console.log(`[20i] Testing connection — key_len=${cleanKey.length}  last4=${cleanKey.slice(-4)}`);
-
-  // Step 1: Verify auth with the reseller packageCount endpoint
-  let resellerOk = false;
-  try {
-    await probeEndpoints(apiKey, "GET", ["/reseller/*/packageCount"]);
-    resellerOk = true;
-    console.log("[20i] ✓ Reseller auth OK");
-  } catch (err: any) {
-    const msg = err.message ?? "";
-    if (msg.includes("401") || msg.includes("auth failed") || msg.includes("403") || msg.includes("permission")) {
-      return {
-        success: false,
-        message: "Authentication failed (401 Unauthorized)",
-        diagnostic: {
-          step: "Authentication",
-          detail: "Check: (1) IP whitelisted at my.20i.com → Reseller API → IP Whitelist. (2) API key is a valid Reseller Combined key.",
-        },
-      };
-    }
-    console.warn(`[20i] /reseller/*/packageCount probe non-fatal: ${msg}`);
+  if (cleanKey.length < 8) {
+    return { success: false, message: "API key is too short. Minimum 8 characters required." };
   }
 
-  // Step 2: Find the packages/accounts endpoint
-  const PACKAGE_PATHS = ["/reseller/*/packageTypes", "/package"];
   try {
-    const { path, data } = await probeEndpoints(apiKey, "GET", PACKAGE_PATHS);
-    const packages = Array.isArray(data) ? data : (typeof data === "object" && data !== null ? Object.values(data) : []);
-    const count = packages.length;
-    console.log(`[20i] ✓ Packages found at ${path} — ${count} package(s)`);
+    const data = await request<{ linux?: number; windows?: number; wordpress?: number }>(
+      cleanKey, "GET", "/reseller/*/packageCount",
+    );
+    const total = (data?.linux ?? 0) + (data?.windows ?? 0) + (data?.wordpress ?? 0);
+    console.log("[20i] Connection test OK — package counts:", data);
     return {
       success: true,
-      message: `Connected to 20i API. ${count} package(s) available.`,
-      packageCount: count,
-      diagnostic: { step: "Packages", endpoint: path },
+      message: `Connected to 20i API. ${total} package(s) available.`,
+      packageCount: total,
     };
   } catch (err: any) {
-    const msg = err.message ?? "";
-    if (resellerOk) {
-      return {
-        success: true,
-        message: "Connected to 20i API. No packages found — create some in your 20i reseller portal.",
-        packageCount: 0,
-        diagnostic: { step: "Packages", detail: "Auth OK but package endpoint returned 404." },
-      };
-    }
-    return {
-      success: false,
-      message: msg,
-      diagnostic: { step: "Packages", detail: msg },
-    };
+    return { success: false, message: err.message ?? "Connection failed" };
   }
 }
 
-// ─── Packages ─────────────────────────────────────────────────────────────────
+// ─── Package Types ────────────────────────────────────────────────────────────
+// Endpoint: GET /reseller/*/packageTypes
+// Returns array of package type objects
 
-export interface TwentyIPackage {
-  id: string;
-  name: string;
-  diskSpaceMb?: number;
-  bandwidthGb?: number;
-  emailBoxes?: number;
-  databases?: number;
-  subdomains?: number;
-}
-
-function normalisePackages(raw: any): TwentyIPackage[] {
-  const arr = Array.isArray(raw) ? raw : (raw && typeof raw === "object" ? Object.values(raw) : []);
-  return (arr as any[]).map((pkg: any) => ({
-    id: String(pkg.id ?? pkg.name ?? ""),
-    name: String(pkg.label ?? pkg.name ?? pkg.id ?? "Unknown Package"),
-    diskSpaceMb: pkg.diskSpaceMb ?? pkg.diskSpace,
-    bandwidthGb: pkg.monthlyBandwidthGb ?? pkg.bandwidth,
-    emailBoxes: pkg.emailBoxes,
-    databases: pkg.mySQLDatabases ?? pkg.databases,
-    subdomains: pkg.subDomains ?? pkg.subdomains,
-  }));
-}
-
-export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage[]> {
-  const PATHS = ["/reseller/package", "/reseller/packages", "/package"];
+export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackageType[]> {
   try {
-    const { data } = await probeEndpoints(apiKey, "GET", PATHS);
-    return normalisePackages(data);
+    const data = await requestWithRetry<any[]>(apiKey, "GET", "/reseller/*/packageTypes");
+    const arr = Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data) : []);
+    return (arr as any[]).map((p: any) => ({
+      id: String(p.id ?? ""),
+      label: String(p.label ?? p.name ?? p.id ?? "Unknown"),
+      platform: String(p.platform ?? "linux"),
+      limits: p.limits,
+      installApps: p.installApps,
+      extraData: p.extraData,
+    }));
   } catch {
     return [];
   }
 }
 
-// ─── Create hosting account ───────────────────────────────────────────────────
+// ─── List Sites (Hosting Packages) ────────────────────────────────────────────
+// Endpoint: GET /package
+// Returns array of all hosting packages for this reseller
 
-export interface TwentyICreateResult {
-  siteId: string | null;
-  cpanelUrl: string;
-  webmailUrl: string;
+export async function twentyiListSites(apiKey: string): Promise<TwentyISite[]> {
+  const data = await requestWithRetry<any[]>(apiKey, "GET", "/package");
+  const arr = Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data) : []);
+  return (arr as any[]).map((p: any) => ({
+    id: String(p.id ?? ""),
+    name: String(p.name ?? p.id ?? ""),
+    domain: String(p.name ?? ""),
+    status: p.enabled === false ? "suspended" : "active",
+    enabled: p.enabled !== false,
+    packageTypeName: p.packageTypeName ?? null,
+    platform: p.packageTypePlatform ?? null,
+    created: p.created ?? null,
+    names: Array.isArray(p.names) ? p.names : [],
+    stackUsers: Array.isArray(p.stackUsers) ? p.stackUsers : [],
+    typeRef: p.typeRef ?? null,
+  }));
 }
+
+// ─── Create Hosting Package ────────────────────────────────────────────────────
+// Endpoint: POST /reseller/*/addWeb
+// Body:
+//   type          - package type ID (from /reseller/*/packageTypes)
+//   domain_name   - primary domain for the site
+//   extra_domain_names - array of extra domains (can be empty)
+//   label         - memorable name for the package
+//   documentRoots - map of domain to document root path (e.g. "public_html")
+//   stackUser     - optional: "stack-user:{id}" to link an existing stack user
+// Returns: new package ID (integer)
 
 export async function twentyiCreateHosting(
   apiKey: string,
   domain: string,
-  email: string,
-  packageId?: string,
-  stackUser?: string,
+  _email: string,
+  packageTypeId?: string,
+  stackUserId?: string,
 ): Promise<TwentyICreateResult> {
-  const result = await twentyiRequest(apiKey, "POST", "/reseller/addWeb", {
+  const body: Record<string, any> = {
     domain_name: domain,
     extra_domain_names: [],
-    ...(packageId ? { package_id: packageId } : {}),
-    ...(stackUser ? { username: stackUser } : {}),
-    contact_email: email,
-  });
-  const siteId: string | null = result?.id ?? result?.web_name ?? result?.name ?? null;
+    label: domain,
+    documentRoots: { [domain]: "public_html" },
+  };
+
+  if (packageTypeId) body.type = packageTypeId;
+  if (stackUserId) body.stackUser = stackUserId.startsWith("stack-user:") ? stackUserId : `stack-user:${stackUserId}`;
+
+  const result = await requestWithRetry(apiKey, "POST", "/reseller/*/addWeb", body);
+
+  const siteId: string | null = typeof result === "number"
+    ? String(result)
+    : result?.id != null
+    ? String(result.id)
+    : result?.name != null
+    ? String(result.name)
+    : null;
+
   const cpanelUrl = siteId ? `https://my.20i.com/cp/${siteId}` : "";
   const webmailUrl = domain ? `https://webmail.${domain}` : "";
+
   return { siteId, cpanelUrl, webmailUrl };
 }
 
-// ─── Suspend / Unsuspend / Delete ─────────────────────────────────────────────
+// ─── Suspend / Unsuspend ──────────────────────────────────────────────────────
+// Endpoint: POST /package/{packageId}/userStatus
+// Body:
+//   includeRepeated - when reactivating, true = revoke all deactivations
+//   subservices     - { default: false } = suspend, { default: true } = unsuspend
+//   subservice_name "default" covers typical set of services
+// Returns: true
 
 export async function twentyiSuspend(apiKey: string, siteId: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/updateSubscription`, { status: 0 });
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/userStatus`, {
+    includeRepeated: false,
+    subservices: { default: false },
+  });
 }
 
 export async function twentyiUnsuspend(apiKey: string, siteId: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/updateSubscription`, { status: 1 });
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/userStatus`, {
+    includeRepeated: true,
+    subservices: { default: true },
+  });
 }
+
+// ─── Delete Package ───────────────────────────────────────────────────────────
+// Endpoint: POST /reseller/*/deleteWeb
+// Body: { "delete-id": [packageId] }
+// Returns: { [id]: true }
 
 export async function twentyiDelete(apiKey: string, siteId: string): Promise<void> {
-  await twentyiRequest(apiKey, "DELETE", `/userHosting/${siteId}`);
+  await requestWithRetry(apiKey, "POST", "/reseller/*/deleteWeb", {
+    "delete-id": [siteId],
+  });
 }
 
-// ─── SSL ──────────────────────────────────────────────────────────────────────
+// ─── Change Package Type ──────────────────────────────────────────────────────
+// Endpoint: POST /reseller/*/updateWebType
+// Body: { "package-id": id, type: newPackageTypeId }
 
-export async function twentyiInstallSSL(apiKey: string, siteId: string, domain: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/freeSSL`, { domains: [domain] });
+export async function twentyiChangePackageType(
+  apiKey: string,
+  siteId: string,
+  newTypeId: string,
+): Promise<void> {
+  await requestWithRetry(apiKey, "POST", "/reseller/*/updateWebType", {
+    "package-id": siteId,
+    type: newTypeId,
+  });
 }
 
-// ─── Site info ────────────────────────────────────────────────────────────────
+// ─── Single Sign-On (SSO) ─────────────────────────────────────────────────────
+// Endpoint: POST /package/{packageId}/web/userToken
+// Body: {} (empty)
+// Returns: { token: string } or { loginToken: string } or { url: string }
 
-export async function twentyiGetSiteInfo(apiKey: string, siteId: string): Promise<any> {
-  return twentyiRequest(apiKey, "GET", `/userHosting/${siteId}`);
+export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<string | null> {
+  try {
+    const result = await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/userToken`, {});
+    const token = result?.token ?? result?.loginToken ?? result?.userToken ?? null;
+    if (token) return `https://my.20i.com/cp/login/${token}`;
+    if (result?.url) return result.url;
+    return `https://my.20i.com/cp/${siteId}`;
+  } catch {
+    return `https://my.20i.com/cp/${siteId}`;
+  }
 }
 
-// ─── StackCP URL ──────────────────────────────────────────────────────────────
-
+// Get a static StackCP URL without an SSO token -- always works regardless of auth.
 export function twentyiStackCPUrl(siteId: string): string {
   return `https://my.20i.com/cp/${siteId}`;
 }
 
-// ─── StackUsers ───────────────────────────────────────────────────────────────
+// ─── Free SSL ────────────────────────────────────────────────────────────────
+// Endpoint: POST /package/{packageId}/web/freeSSL
+// Body: { domains: [domain] }
+// Returns: true on success
 
-export interface TwentyIStackUser {
-  id: string;
-  email: string;
-  name: string;
+export async function twentyiInstallSSL(apiKey: string, siteId: string, domain: string): Promise<void> {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/freeSSL`, {
+    domains: [domain],
+  });
 }
 
-export async function twentyiCreateStackUser(apiKey: string, email: string, name: string): Promise<TwentyIStackUser> {
-  const result = await twentyiRequest(apiKey, "POST", "/reseller/addUser", { email, name });
-  const id = result?.id ?? result?.user_id ?? result?.userId;
-  if (!id) throw new Error(`20i did not return a StackUser ID. Response: ${JSON.stringify(result).substring(0, 200)}`);
-  return { id: String(id), email, name };
+// ─── DNS Records ──────────────────────────────────────────────────────────────
+// Endpoint: GET /package/{packageId}/domain/{domainId}/dns
+// Returns dns record objects
+
+export async function twentyiGetDnsRecords(apiKey: string, siteId: string, domainId?: string): Promise<any[]> {
+  try {
+    const id = domainId ?? siteId;
+    const data = await requestWithRetry(apiKey, "GET", `/package/${siteId}/domain/${id}/dns`);
+    return Array.isArray(data) ? data : (typeof data === "object" ? Object.values(data) : []);
+  } catch {
+    return [];
+  }
 }
+
+export async function twentyiUpdateDnsRecord(
+  apiKey: string,
+  siteId: string,
+  domainId: string,
+  records: any,
+): Promise<void> {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/domain/${domainId}/dns`, records);
+}
+
+// ─── Email Configuration ──────────────────────────────────────────────────────
+// Endpoint: GET /package/{packageId}/email/{emailId}
+// emailId is typically the domain name
+
+export async function twentyiGetEmailConfig(apiKey: string, siteId: string, emailId?: string): Promise<any> {
+  try {
+    const id = emailId ?? "0";
+    return await requestWithRetry(apiKey, "GET", `/package/${siteId}/email/${id}`);
+  } catch {
+    return null;
+  }
+}
+
+// ─── Bandwidth Stats ──────────────────────────────────────────────────────────
+// Endpoint: GET /package/{packageId}/web/bandwidthStats
+
+export async function twentyiGetBandwidth(apiKey: string, siteId: string): Promise<any> {
+  try {
+    return await requestWithRetry(apiKey, "GET", `/package/${siteId}/web/bandwidthStats`);
+  } catch {
+    return null;
+  }
+}
+
+// ─── Domain Names for a Package ───────────────────────────────────────────────
+// Endpoint: GET /package/{packageId}/names
+
+export async function twentyiGetSiteNames(apiKey: string, siteId: string): Promise<string[]> {
+  try {
+    const data = await requestWithRetry(apiKey, "GET", `/package/${siteId}/names`);
+    return Array.isArray(data) ? data.map((n: any) => String(n.name ?? n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+// ─── Renewal / Service Dates ──────────────────────────────────────────────────
+// Uses the package info to get renewal and expiry dates
+
+export async function twentyiGetSiteRenewalDate(
+  apiKey: string,
+  siteId: string,
+): Promise<{ renewalDate: Date | null; expiryDate: Date | null }> {
+  try {
+    const data = await requestWithRetry(apiKey, "GET", `/package/${siteId}`);
+    const renewal = data?.renewalDate ?? data?.nextRenewalDate ?? data?.renewal_date ?? null;
+    const expiry = data?.expiryDate ?? data?.expiry_date ?? data?.expires ?? null;
+    return {
+      renewalDate: renewal ? new Date(renewal) : null,
+      expiryDate: expiry ? new Date(expiry) : null,
+    };
+  } catch {
+    return { renewalDate: null, expiryDate: null };
+  }
+}
+
+// ─── StackCP Users ────────────────────────────────────────────────────────────
+// Endpoint: GET /reseller/*/susers — retrieve stack user configuration
+// Endpoint: POST /reseller/*/susers — create / update / delete users
+// User ref format: "stack-user:{N}"
 
 export async function twentyiListStackUsers(apiKey: string): Promise<TwentyIStackUser[]> {
-  const data = await twentyiRequest(apiKey, "GET", "/reseller/users");
-  if (!Array.isArray(data)) return [];
-  return data.map((u: any) => ({ id: String(u.id ?? u.user_id ?? ""), email: u.email ?? "", name: u.name ?? "" }));
+  try {
+    const data = await requestWithRetry<any>(apiKey, "GET", "/reseller/*/susers");
+    if (!data?.users || typeof data.users !== "object") return [];
+
+    return Object.entries(data.users).map(([ref, u]: [string, any]) => ({
+      id: ref,
+      name: u.name ?? ref,
+      type: u.type ?? "stack-user",
+      masterFtp: u.masterFtp ?? false,
+    }));
+  } catch {
+    return [];
+  }
 }
 
-export async function twentyiGetOrCreateStackUser(apiKey: string, email: string, name: string): Promise<TwentyIStackUser> {
-  try {
-    const users = await twentyiListStackUsers(apiKey);
-    const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existing) return existing;
-  } catch { /* ignore list errors — proceed to create */ }
+// Create a new StackCP user. Uses POST /reseller/*/susers and passes a newUser payload.
+export async function twentyiCreateStackUser(
+  apiKey: string,
+  email: string,
+  name: string,
+): Promise<TwentyIStackUser> {
+  const result = await requestWithRetry(apiKey, "POST", "/reseller/*/susers", {
+    newUser: {
+      person_name: name,
+      email,
+      sendNewStackUserEmail: true,
+      cc: "GB",
+      sp: "",
+      pc: "",
+      address: "",
+      city: "",
+      voice: "",
+      notes: "",
+      billing_ref: "",
+    },
+  });
+
+  const ref = result?.userRef ?? result?.id ?? result?.user_id ?? null;
+  if (!ref) throw new Error(`20i did not return a user ref. Response: ${JSON.stringify(result).substring(0, 200)}`);
+
+  return { id: String(ref), name, type: "stack-user", masterFtp: false };
+}
+
+// Get an existing StackCP user by email, or create a new one if not found.
+export async function twentyiGetOrCreateStackUser(
+  apiKey: string,
+  email: string,
+  name: string,
+): Promise<TwentyIStackUser> {
+  const existing = await twentyiListStackUsers(apiKey);
+  const found = existing.find((u) => u.name?.toLowerCase() === email.toLowerCase());
+  if (found) return found;
   return twentyiCreateStackUser(apiKey, email, name);
 }
 
-export async function twentyiAssignSiteToUser(apiKey: string, siteId: string, stackUserId: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", `/reseller/addUserToHosting`, { web_hosting_id: siteId, user_id: stackUserId });
+// Delete a StackCP user by reference (e.g. "stack-user:1").
+export async function twentyiDeleteStackUser(apiKey: string, userId: string): Promise<void> {
+  const ref = userId.startsWith("stack-user:") ? userId : `stack-user:${userId}`;
+  await requestWithRetry(apiKey, "POST", "/reseller/*/susers", {
+    users: { [ref]: { delete: true } },
+  });
 }
 
-// ─── Domain management ────────────────────────────────────────────────────────
-
-export async function twentyiGetDomains(apiKey: string): Promise<any[]> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/domain");
-    return Array.isArray(data) ? data : (typeof data === "object" ? Object.values(data) : []);
-  } catch { return []; }
+// Assign a hosting package to a StackCP user via grant_map.
+export async function twentyiAssignSiteToUser(
+  apiKey: string,
+  siteId: string,
+  stackUserId: string,
+): Promise<void> {
+  const userRef = stackUserId.startsWith("stack-user:") ? stackUserId : `stack-user:${stackUserId}`;
+  const serviceRef = siteId.startsWith("stack-hosting:") ? siteId : `stack-hosting:${siteId}`;
+  await requestWithRetry(apiKey, "POST", "/reseller/*/susers", {
+    grant_map: { [userRef]: { [serviceRef]: true } },
+  });
 }
+
+// ─── Domain Registration ──────────────────────────────────────────────────────
+// Endpoint: POST /reseller/*/addDomain
 
 export async function twentyiRegisterDomain(
   apiKey: string,
@@ -496,204 +737,131 @@ export async function twentyiRegisterDomain(
   years = 1,
   contact: Record<string, unknown> = {},
 ): Promise<any> {
-  return twentyiRequest(apiKey, "POST", "/reseller/addDomain", { domain, years, contact });
+  return requestWithRetry(apiKey, "POST", "/reseller/*/addDomain", {
+    domain,
+    years,
+    contact,
+  });
 }
 
-// ─── Bandwidth / stats ────────────────────────────────────────────────────────
+// ─── List Domains ─────────────────────────────────────────────────────────────
+// Endpoint: GET /domain
 
-export async function twentyiGetBandwidth(apiKey: string, siteId: string): Promise<any> {
-  try { return await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/bandwidth`); }
-  catch { return null; }
-}
-
-// ─── IP whitelist management ──────────────────────────────────────────────────
-// Correct URL: /reseller/*/apiWhitelist  (* = self-reference per 20i docs)
-
-export async function twentyiGetWhitelist(apiKey: string): Promise<string[]> {
+export async function twentyiGetDomains(apiKey: string): Promise<any[]> {
   try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/*/apiWhitelist");
-    if (data && typeof data === "object") return Object.keys(data);
+    const data = await requestWithRetry(apiKey, "GET", "/domain");
+    return Array.isArray(data) ? data : (typeof data === "object" ? Object.values(data) : []);
+  } catch {
     return [];
-  } catch { return []; }
-}
-
-export async function twentyiAddToWhitelist(apiKey: string, ip: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", "/reseller/*/apiWhitelist", { apiWhitelist: { [ip]: {} } });
-}
-
-export async function twentyiRemoveFromWhitelist(apiKey: string, ip: string): Promise<void> {
-  await twentyiRequest(apiKey, "DELETE", `/reseller/*/apiWhitelist/${ip}`);
-}
-
-// Try to auto-add IP to whitelist. Returns true if added, false if auth failed (chicken-and-egg).
-export async function twentyiAutoWhitelist(apiKey: string, ip: string): Promise<{ added: boolean; reason: string }> {
-  try {
-    await twentyiRequest(apiKey, "POST", "/reseller/*/apiWhitelist", { apiWhitelist: { [ip]: {} } });
-    console.log(`[20i-WL] Auto-whitelist: added ${ip}`);
-    return { added: true, reason: "ok" };
-  } catch (e: any) {
-    const msg = String(e.message ?? "");
-    const reason = msg.includes("401") ? "ip_blocked" : msg.includes("403") ? "bad_key" : "error";
-    console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
-    return { added: false, reason };
   }
 }
 
-// ─── Email hosting ────────────────────────────────────────────────────────────
-
-export async function twentyiGetEmailBoxes(apiKey: string, siteId: string): Promise<any[]> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/email`);
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
-}
-
-export async function twentyiCreateEmailBox(
-  apiKey: string,
-  siteId: string,
-  localPart: string,
-  password: string,
-): Promise<any> {
-  return twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/email`, { localPart, password });
-}
-
-// ─── DNS management ───────────────────────────────────────────────────────────
-
-export async function twentyiGetDnsRecords(apiKey: string, siteId: string): Promise<any[]> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/dns`);
-    return Array.isArray(data) ? data : (typeof data === "object" ? Object.values(data) : []);
-  } catch { return []; }
-}
-
-export async function twentyiUpdateDnsRecord(
-  apiKey: string,
-  siteId: string,
-  record: { type: string; host: string; data: string; ttl?: number },
-): Promise<any> {
-  return twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/dns`, record);
-}
-
-// ─── FTP users ────────────────────────────────────────────────────────────────
-
-export async function twentyiGetFtpUsers(apiKey: string, siteId: string): Promise<any[]> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/ftpUsers`);
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
-}
-
-// ─── MySQL databases ──────────────────────────────────────────────────────────
-
-export async function twentyiGetDatabases(apiKey: string, siteId: string): Promise<any[]> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/mysql`);
-    return Array.isArray(data) ? data : [];
-  } catch { return []; }
-}
-
-// ─── PHP settings ─────────────────────────────────────────────────────────────
-
-export async function twentyiGetPhpVersion(apiKey: string, siteId: string): Promise<string | null> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/web`);
-    return data?.phpVersion ?? null;
-  } catch { return null; }
-}
-
-export async function twentyiSetPhpVersion(apiKey: string, siteId: string, version: string): Promise<void> {
-  await twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/web`, { phpVersion: version });
-}
-
-// ─── Stack Users (extended) ───────────────────────────────────────────────────
-
-export async function twentyiDeleteStackUser(apiKey: string, userId: string): Promise<void> {
-  await twentyiRequest(apiKey, "DELETE", `/reseller/user/${userId}`);
-}
-
-// ─── List sites ───────────────────────────────────────────────────────────────
-
-export interface TwentyISite {
-  id: string;
-  name: string;
-  domain?: string;
-  status?: string;
-  packageId?: string;
-}
-
-export async function twentyiListSites(apiKey: string): Promise<TwentyISite[]> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/web");
-    const arr = Array.isArray(data) ? data : (typeof data === "object" && data !== null ? Object.values(data) : []);
-    return (arr as any[]).map((s: any) => ({
-      id: String(s.id ?? s.web_name ?? s.name ?? ""),
-      name: String(s.name ?? s.domain ?? s.id ?? ""),
-      domain: s.domain ?? s.name ?? undefined,
-      status: s.status ?? undefined,
-      packageId: s.package_id ?? s.packageId ?? undefined,
-    }));
-  } catch { return []; }
-}
-
-// ─── SSO URL ──────────────────────────────────────────────────────────────────
-
-export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<string> {
-  const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/ssoURL`);
-  return data?.url ?? data?.sso_url ?? data ?? "";
-}
-
-// ─── Migrations ───────────────────────────────────────────────────────────────
+// ─── Site Migrations ──────────────────────────────────────────────────────────
+// Note: 20i's migration API is an internal/support feature.
+// These functions attempt the most likely endpoints; gracefully fall back to [].
 
 export async function twentyiStartMigration(
   apiKey: string,
-  siteId: string,
-  options: Record<string, unknown> = {},
+  domain: string,
+  sourceType: string,
+  host: string,
+  username: string,
+  password: string,
+  siteId?: string,
 ): Promise<any> {
-  return twentyiRequest(apiKey, "POST", `/userHosting/${siteId}/migrate`, options);
+  try {
+    const body: Record<string, any> = {
+      domain,
+      source: { type: sourceType, host, username, password },
+    };
+    if (siteId) body.packageId = siteId;
+    return await requestWithRetry(apiKey, "POST", "/reseller/*/addMigration", body);
+  } catch (e: any) {
+    throw new Error(`20i migration start failed: ${e.message}`);
+  }
 }
 
 export async function twentyiListMigrations(apiKey: string): Promise<any[]> {
   try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/migrations");
+    const data = await requestWithRetry(apiKey, "GET", "/reseller/*/migrations");
     return Array.isArray(data) ? data : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export async function twentyiGetMigrationStatus(apiKey: string, migrationId: string): Promise<any> {
-  return twentyiRequest(apiKey, "GET", `/reseller/migrations/${migrationId}`);
+  try {
+    return await requestWithRetry(apiKey, "GET", `/reseller/*/migration/${migrationId}`);
+  } catch (e: any) {
+    return { error: e.message };
+  }
 }
 
-// ─── Support tickets ──────────────────────────────────────────────────────────
+// ─── Support Tickets ──────────────────────────────────────────────────────────
+// 20i ticket management — standard support ticket endpoints
 
 export async function twentyiListTickets(apiKey: string): Promise<any[]> {
   try {
-    const data = await twentyiRequest(apiKey, "GET", "/reseller/tickets");
+    const data = await requestWithRetry(apiKey, "GET", "/reseller/*/tickets");
     return Array.isArray(data) ? data : (typeof data === "object" ? Object.values(data) : []);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export async function twentyiGetTicket(apiKey: string, ticketId: string): Promise<any> {
-  return twentyiRequest(apiKey, "GET", `/reseller/tickets/${ticketId}`);
+  return requestWithRetry(apiKey, "GET", `/reseller/*/ticket/${ticketId}`);
 }
 
 export async function twentyiCreateTicket(
   apiKey: string,
   subject: string,
-  message: string,
-  options: Record<string, unknown> = {},
+  body: string,
+  priority: "low" | "normal" | "high" | "urgent" = "normal",
 ): Promise<any> {
-  return twentyiRequest(apiKey, "POST", "/reseller/tickets", { subject, message, ...options });
+  return requestWithRetry(apiKey, "POST", "/reseller/*/tickets", { subject, body, priority });
 }
 
-export async function twentyiReplyTicket(apiKey: string, ticketId: string, message: string): Promise<any> {
-  return twentyiRequest(apiKey, "POST", `/reseller/tickets/${ticketId}`, { message });
+export async function twentyiReplyTicket(
+  apiKey: string,
+  ticketId: string,
+  body: string,
+): Promise<void> {
+  await requestWithRetry(apiKey, "POST", `/reseller/*/ticket/${ticketId}/reply`, { body });
 }
 
-// ─── Renewal date ─────────────────────────────────────────────────────────────
+// ─── PHP Version ──────────────────────────────────────────────────────────────
+// Endpoint: POST /package/{packageId}/web/phpVersion
 
-export async function twentyiGetSiteRenewalDate(apiKey: string, siteId: string): Promise<string | null> {
-  try {
-    const data = await twentyiRequest(apiKey, "GET", `/userHosting/${siteId}/renewalDate`);
-    return data?.renewalDate ?? data?.renewal_date ?? null;
-  } catch { return null; }
+export async function twentyiSetPhpVersion(
+  apiKey: string,
+  siteId: string,
+  phpVersion: string,
+): Promise<void> {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/phpVersion`, {
+    phpVersion,
+  });
+}
+
+// ─── CDN Management ───────────────────────────────────────────────────────────
+// Endpoint: POST /package/{packageId}/web/manageCdn
+
+export async function twentyiSetCdn(
+  apiKey: string,
+  siteId: string,
+  enabled: boolean,
+): Promise<void> {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/manageCdn`, { enabled });
+}
+
+// ─── Force HTTPS ──────────────────────────────────────────────────────────────
+// Endpoint: POST /package/{packageId}/web/forceSSL
+
+export async function twentyiForceHttps(
+  apiKey: string,
+  siteId: string,
+  enabled: boolean,
+): Promise<void> {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/forceSSL`, { enabled });
 }
