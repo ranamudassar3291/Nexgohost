@@ -48,9 +48,9 @@ async function getAdminEmail(): Promise<string> {
       .from(settingsTable)
       .where(eq(settingsTable.key, "admin_email"))
       .limit(1);
-    return row?.value || "admin@nexgohost.com";
+    return row?.value || "admin@noehost.com";
   } catch {
-    return "admin@nexgohost.com";
+    return "admin@noehost.com";
   }
 }
 

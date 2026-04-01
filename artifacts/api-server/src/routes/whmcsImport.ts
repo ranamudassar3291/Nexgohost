@@ -1,5 +1,5 @@
 /**
- * WHMCS → Nexgohost Complete Migration
+ * WHMCS → Noehost Complete Migration
  * Migrates ALL data exactly as-is: TLD extensions, hosting plans, servers,
  * clients (with original passwords), hosting services, domains, orders,
  * invoices, and tickets — with original numbers, dates, and statuses preserved.

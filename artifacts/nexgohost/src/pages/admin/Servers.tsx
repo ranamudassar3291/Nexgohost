@@ -482,26 +482,39 @@ export default function Servers() {
                             <Zap size={12} />
                             Live Debug Log
                           </span>
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${debugInfo.responseStatus === 200 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-primary/30 bg-primary/10 text-primary"}`}>
-                            HTTP {debugInfo.responseStatus ?? "ERR"}
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${debugInfo.workingFormat !== "none" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-red-400/30 bg-red-500/10 text-red-500"}`}>
+                            {debugInfo.workingFormat !== "none" ? `✓ Connected (${debugInfo.workingFormat})` : `HTTP ${debugInfo.responseStatus ?? "ERR"}`}
                           </span>
                         </button>
                         {showDebug && (
-                          <div className="border-t border-primary/10 divide-y divide-primary/10 text-xs font-mono">
+                          <div className="border-t border-primary/10 text-xs font-mono">
+                            {/* Summary rows */}
                             {[
                               ["URL", `${debugInfo.method} ${debugInfo.url}`],
-                              ["Authorization", debugInfo.authFormat],
-                              ["Key Length", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}…  last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
+                              ["Key", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
                               ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct)")],
-                              ["Response", `HTTP ${debugInfo.responseStatus ?? "—"}  ·  ${debugInfo.durationMs}ms`],
+                              ["Working Format", debugInfo.workingFormat !== "none" ? `Bearer <${debugInfo.workingFormat}> ✓` : "NONE — both formats rejected"],
+                              ["Total Time", `${debugInfo.durationMs}ms`],
                             ].map(([label, value]) => (
-                              <div key={label} className="flex gap-3 px-3.5 py-2">
-                                <span className="text-muted-foreground w-28 shrink-0">{label}</span>
+                              <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">
+                                <span className="text-muted-foreground w-32 shrink-0">{label}</span>
                                 <span className="text-foreground/80 break-all">{value}</span>
                               </div>
                             ))}
+                            {/* Per-attempt breakdown */}
+                            {Array.isArray(debugInfo.attempts) && debugInfo.attempts.map((a: any) => (
+                              <div key={a.format} className={`border-b border-primary/10 ${a.status === 200 ? "bg-emerald-500/5" : "bg-red-500/5"}`}>
+                                <div className="flex gap-3 px-3.5 py-1.5">
+                                  <span className="text-muted-foreground w-32 shrink-0">Attempt ({a.format})</span>
+                                  <span className={`break-all ${a.status === 200 ? "text-emerald-600" : "text-red-500"}`}>
+                                    {a.authHeaderPreview} → HTTP {a.status ?? "ERR"} · {a.durationMs}ms
+                                    {a.status === 200 ? " ✓ SUCCESS" : " ✗ FAILED"}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                             <div className="px-3.5 py-2">
-                              <span className="text-muted-foreground block mb-1">Raw Response</span>
+                              <span className="text-muted-foreground block mb-1">Raw Response (best attempt)</span>
                               <pre className="text-foreground/70 whitespace-pre-wrap break-all leading-relaxed">{debugInfo.responseBody}</pre>
                             </div>
                           </div>

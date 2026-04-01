@@ -1,5 +1,5 @@
 /**
- * Nexgohost Iron-Clad Security Engine
+ * Noehost Iron-Clad Security Engine
  * - In-memory IP rate limiter (20 attempts/min → 30-min DB block)
  * - Bad-bot blocker (403 on scanner UAs)
  * - Cloudflare Turnstile / Google reCAPTCHA v2 server-side verification
