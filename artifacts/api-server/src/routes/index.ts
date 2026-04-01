@@ -53,6 +53,7 @@ import emailMarketingRouter from "./email-marketing.js";
 import cartRouter from "./cart.js";
 import twentyIAdminRouter from "./twenty-i-admin.js";
 import twentyITestRouter from "./twenty-i-test.js";
+import systemRouter from "./system.js";
 
 const router: IRouter = Router();
 
@@ -114,5 +115,6 @@ router.use(emailMarketingRouter);
 router.use(cartRouter);
 router.use(twentyIAdminRouter);
 router.use(twentyITestRouter);
+router.use(systemRouter);
 
 export default router;

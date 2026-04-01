@@ -1,11 +1,11 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
   Server, ExternalLink, CheckCircle, Upload, Package, CreditCard,
   Zap, Trash2, Settings, ChevronDown, ChevronUp, AlertCircle,
   Eye, EyeOff, ToggleLeft, ToggleRight, RefreshCw, X, Globe,
-  Wifi, WifiOff, Key, Shield,
+  Wifi, WifiOff, Key, Shield, Copy, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -618,12 +618,44 @@ export default function Modules() {
   const [ti_testResult, setTiTestResult] = useState<any>(null);
   const [ti_testing, setTiTesting] = useState(false);
 
+  // Server outbound IP detection
+  const [serverIp, setServerIp] = useState<{ primary: string | null; secondary: string | null } | null>(null);
+  const [ipLoading, setIpLoading] = useState(false);
+  const [copiedIp, setCopiedIp] = useState<string | null>(null);
+
+  async function detectServerIp() {
+    setIpLoading(true);
+    try {
+      const result = await apiFetch("/api/system/ip");
+      if (result?.primary || result?.secondary) {
+        setServerIp({ primary: result.primary, secondary: result.secondary });
+      }
+    } catch { /* non-critical */ } finally {
+      setIpLoading(false);
+    }
+  }
+
+  // Auto-detect on mount
+  useEffect(() => { detectServerIp(); }, []);
+
+  function copyIp(ip: string) {
+    navigator.clipboard.writeText(ip).catch(() => {});
+    setCopiedIp(ip);
+    setTimeout(() => setCopiedIp(null), 2000);
+  }
+
   async function handleTest20i() {
     setTiTesting(true);
     setTiTestResult(null);
+    // Re-detect IP in parallel with starting the test (backend also detects, but this keeps UI in sync)
+    detectServerIp();
     try {
       const result = await apiFetch("/api/20i/test", { method: "POST", body: JSON.stringify({}) });
       setTiTestResult(result);
+      // Prefer IPs returned from the test (they were detected server-side just before the call)
+      if (result?.outboundIp?.primary || result?.outboundIp?.secondary) {
+        setServerIp(result.outboundIp);
+      }
     } catch (err: any) {
       setTiTestResult({ success: false, message: err.message });
     } finally {
@@ -825,7 +857,60 @@ export default function Modules() {
                         </div>
                       )}
 
-                      {/* Live API test — hits https://api.20i.com/reseller */}
+                      {/* ── Detected Server IP ──────────────────────────── */}
+                      <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Globe size={11} /> Detected Server IP
+                          </span>
+                          <button
+                            onClick={detectServerIp}
+                            disabled={ipLoading}
+                            className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                          >
+                            <RefreshCw size={10} className={ipLoading ? "animate-spin" : ""} /> Refresh
+                          </button>
+                        </div>
+
+                        {ipLoading && !serverIp ? (
+                          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <RefreshCw size={11} className="animate-spin" /> Detecting…
+                          </div>
+                        ) : serverIp ? (
+                          <div className="space-y-1.5">
+                            {[
+                              { label: "Primary (ipify.org)", ip: serverIp.primary },
+                              { label: "Secondary (ifconfig.me)", ip: serverIp.secondary },
+                            ].map(({ label, ip }) =>
+                              ip ? (
+                                <div key={label} className="flex items-center justify-between gap-2">
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground">{label}</div>
+                                    <div className="font-mono text-sm font-bold text-foreground">{ip}</div>
+                                  </div>
+                                  <button
+                                    onClick={() => copyIp(ip)}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border bg-background hover:bg-muted transition-colors"
+                                  >
+                                    {copiedIp === ip ? (
+                                      <><Check size={11} className="text-green-500" /> Copied!</>
+                                    ) : (
+                                      <><Copy size={11} /> Copy IP</>
+                                    )}
+                                  </button>
+                                </div>
+                              ) : null
+                            )}
+                            <p className="text-[10px] text-muted-foreground pt-0.5">
+                              Add this IP to <strong>my.20i.com → Reseller API → IP Whitelist</strong> before testing.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">Could not detect server IP — check network access.</div>
+                        )}
+                      </div>
+
+                      {/* ── Live API Test Button ─────────────────────────── */}
                       <div className="flex items-center gap-2.5">
                         <button
                           onClick={handleTest20i}
@@ -842,47 +927,93 @@ export default function Modules() {
                           ) : ti_testResult?.success ? (
                             <><CheckCircle size={12} /> {ti_testResult.httpStatus ?? 200} OK — Connected!</>
                           ) : ti_testResult ? (
-                            <><AlertCircle size={12} /> {ti_testResult.httpStatus ?? "Error"} — {ti_testResult.httpStatus === 401 ? "IP not whitelisted" : "Failed"}</>
+                            <><AlertCircle size={12} /> {ti_testResult.httpStatus ?? "ERR"} — {ti_testResult.errorType === "ip_not_whitelisted" ? "IP Not Whitelisted" : ti_testResult.httpStatus === 403 ? "Key Rejected" : "Failed"}</>
                           ) : (
-                            <><Zap size={12} /> Test Live API (api.20i.com)</>
+                            <><Zap size={12} /> Test Connection (api.20i.com)</>
                           )}
                         </button>
                         {ti_testResult && (
-                          <button onClick={() => setTiTestResult(null)} className="text-muted-foreground hover:text-foreground">
+                          <button
+                            onClick={() => { setTiTestResult(null); }}
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Dismiss"
+                          >
                             <X size={13} />
                           </button>
                         )}
                       </div>
 
-                      {/* Detailed result */}
-                      {ti_testResult && !ti_testResult.success && (
-                        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300">
-                          <Shield size={12} className="shrink-0 mt-0.5" />
-                          <div className="space-y-1">
-                            <div><strong>Error:</strong> {ti_testResult.message}</div>
-                            {ti_testResult.outboundIp && (
-                              <div className="font-mono font-semibold">Outbound IP to whitelist: {ti_testResult.outboundIp}</div>
-                            )}
+                      {/* ── Test Result: Success ─────────────────────────── */}
+                      {ti_testResult?.success && (
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/40 text-xs text-green-700 dark:text-green-300">
+                          <CheckCircle size={12} className="shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <div className="font-semibold">Connected successfully</div>
+                            <div className="text-[11px] font-mono opacity-75">{ti_testResult.workingUrl}</div>
                             {ti_testResult.keySource && (
-                              <div className="text-muted-foreground">Key source: {ti_testResult.keySource}</div>
-                            )}
-                            {ti_testResult.attempts?.length > 0 && (
-                              <div className="mt-1 space-y-0.5">
-                                {(ti_testResult.attempts as any[]).map((a: any, i: number) => (
-                                  <div key={i} className="font-mono text-[10px] text-foreground/60">
-                                    [{a.httpStatus ?? "ERR"}] {a.url} ({a.durationMs}ms)
-                                  </div>
-                                ))}
-                              </div>
+                              <div className="text-[10px] opacity-60">Key source: {ti_testResult.keySource}</div>
                             )}
                           </div>
                         </div>
                       )}
 
-                      {ti_testResult?.success && (
-                        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/40 text-xs text-green-700 dark:text-green-300">
-                          <CheckCircle size={12} className="shrink-0" />
-                          <span>Live connection verified via <span className="font-mono">{ti_testResult.workingUrl}</span></span>
+                      {/* ── Test Result: IP Not Whitelisted ─────────────── */}
+                      {ti_testResult && !ti_testResult.success && ti_testResult.errorType === "ip_not_whitelisted" && (
+                        <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/25 p-3 space-y-2 text-xs">
+                          <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300">
+                            <Shield size={13} /> IP Not Whitelisted (401)
+                          </div>
+                          <p className="text-amber-700 dark:text-amber-400">
+                            20i rejected this server's IP. Add it to the whitelist at{" "}
+                            <a href="https://my.20i.com" target="_blank" rel="noreferrer" className="underline font-semibold">
+                              my.20i.com → Reseller API → IP Whitelist
+                            </a>
+                            , then click <strong>Retry</strong>.
+                          </p>
+                          {(serverIp?.primary || serverIp?.secondary) && (
+                            <div className="flex flex-wrap gap-2">
+                              {[serverIp.primary, serverIp.secondary].filter(Boolean).map(ip => (
+                                <button
+                                  key={ip}
+                                  onClick={() => copyIp(ip!)}
+                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold border border-amber-400 dark:border-amber-600 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 transition-colors"
+                                >
+                                  {copiedIp === ip ? <Check size={11} /> : <Copy size={11} />}
+                                  {ip}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={handleTest20i}
+                            disabled={ti_testing}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-amber-400 dark:border-amber-600 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 text-amber-900 dark:text-amber-200 disabled:opacity-50 transition-colors"
+                          >
+                            <RefreshCw size={11} className={ti_testing ? "animate-spin" : ""} /> Retry Connection
+                          </button>
+                        </div>
+                      )}
+
+                      {/* ── Test Result: Other Error ─────────────────────── */}
+                      {ti_testResult && !ti_testResult.success && ti_testResult.errorType !== "ip_not_whitelisted" && (
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 text-xs text-red-800 dark:text-red-300">
+                          <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <div className="font-semibold">{ti_testResult.message}</div>
+                            {ti_testResult.hint && (
+                              <div className="text-[11px] opacity-80">{ti_testResult.hint}</div>
+                            )}
+                            {ti_testResult.keySource && (
+                              <div className="text-[10px] opacity-60">Key source: {ti_testResult.keySource}</div>
+                            )}
+                            {ti_testResult.attempts?.length > 0 && (
+                              <div className="mt-1 space-y-0.5 font-mono text-[10px] opacity-60">
+                                {(ti_testResult.attempts as any[]).map((a: any, i: number) => (
+                                  <div key={i}>[{a.httpStatus ?? "ERR"}] {a.url} ({a.durationMs}ms)</div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
