@@ -6,7 +6,7 @@ import { Router } from "express";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { db } from "@workspace/db";
 import { serversTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
   twentyiListStackUsers,
   twentyiCreateStackUser,
@@ -41,18 +41,29 @@ const router = Router();
 // ─── Helper: get 20i server ───────────────────────────────────────────────────
 
 // Get the active 20i server record from the database.
-async function get20iServer() {
+// If serverId is provided, fetch that specific server.
+// Otherwise fall back to the most recently created active 20i server.
+async function get20iServer(serverId?: string | null) {
+  if (serverId) {
+    const [server] = await db
+      .select()
+      .from(serversTable)
+      .where(and(eq(serversTable.id, serverId), eq(serversTable.type, "20i")))
+      .limit(1);
+    return server ?? null;
+  }
   const [server] = await db
     .select()
     .from(serversTable)
     .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
+    .orderBy(desc(serversTable.updatedAt))
     .limit(1);
   return server ?? null;
 }
 
 // Get the 20i API key from the active server record.
-async function get20iApiKey(): Promise<{ key: string | null; source: "server" | "none" }> {
-  const server = await get20iServer();
+async function get20iApiKey(serverId?: string | null): Promise<{ key: string | null; source: "server" | "none" }> {
+  const server = await get20iServer(serverId);
   if (server?.apiToken) {
     const key = server.apiToken.trim();
     console.log(`[20i-KEY] Using key from server "${server.name}" (${key.length} chars, last4: ${key.slice(-4)})`);
@@ -79,9 +90,31 @@ async function runWith20i<T>(_server: any, fn: () => Promise<T>): Promise<T> {
 
 // ─── Server info ──────────────────────────────────────────────────────────────
 
-router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+// List all active 20i servers so the admin can switch between them
+router.get("/admin/twenty-i/servers", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const servers = await db
+      .select()
+      .from(serversTable)
+      .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
+      .orderBy(desc(serversTable.updatedAt));
+    res.json(servers.map(s => ({
+      id: s.id,
+      name: s.name,
+      hasApiToken: !!s.apiToken,
+      apiTokenMasked: s.apiToken ? `••••${s.apiToken.slice(-6)}` : null,
+      ns1: s.ns1 ?? "ns1.20i.com",
+      ns2: s.ns2 ?? "ns2.20i.com",
+    })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const serverId = req.query.serverId as string | undefined;
+    const server = await get20iServer(serverId);
     if (!server) return res.json({ connected: false, error: "No active 20i server configured." });
     res.json({
       connected: true,
@@ -99,7 +132,7 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (_req: Au
 
 // ─── Direct diagnostic (no UI cache — tests saved key against live 20i API) ──
 
-router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { key, source } = await get20iApiKey();
     if (!key) {
@@ -158,9 +191,9 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req
  * Returns current outbound IP + current 20i whitelist entries.
  * Works even if NOT whitelisted (outbound IP from ipify.org is always available).
  */
-router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     const outboundIp = await getOutboundIp();
     const proxy = getProxyConfig();
 
@@ -194,9 +227,9 @@ router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (_req:
  * Fetches the current outbound IP and attempts to add it to the 20i whitelist.
  * Returns { success, outboundIp } or { error: "chicken_and_egg", outboundIp } when auth fails.
  */
-router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!server) return res.status(400).json({ error: "No active 20i server configured." });
     if (!server.apiToken) return res.status(400).json({ error: "20i API key missing." });
 
@@ -230,9 +263,9 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
 
 // ─── StackUsers ───────────────────────────────────────────────────────────────
 
-router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const users = await runWith20i(server, () => twentyiListStackUsers(server!.apiToken!));
     res.json(users);
@@ -246,7 +279,7 @@ router.post("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (re
   try {
     const { email, name } = req.body as { email?: string; name?: string };
     if (!email || !name) return res.status(400).json({ error: "email and name are required" });
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const user = await twentyiCreateStackUser(server!.apiToken!, email, name);
     res.json(user);
@@ -257,7 +290,7 @@ router.post("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (re
 
 router.delete("/admin/twenty-i/stack-users/:userId", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     await twentyiDeleteStackUser(server!.apiToken!, req.params.userId);
     res.json({ ok: true });
@@ -268,9 +301,9 @@ router.delete("/admin/twenty-i/stack-users/:userId", authenticate, requireAdmin,
 
 // ─── Hosting Sites ────────────────────────────────────────────────────────────
 
-router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
     res.json(sites);
@@ -285,7 +318,7 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (_req: Aut
 
 router.post("/admin/twenty-i/sites/:siteId/suspend", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     await twentyiSuspend(server!.apiToken!, req.params.siteId);
     // Mirror in DB
@@ -300,7 +333,7 @@ router.post("/admin/twenty-i/sites/:siteId/suspend", authenticate, requireAdmin,
 
 router.post("/admin/twenty-i/sites/:siteId/unsuspend", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     await twentyiUnsuspend(server!.apiToken!, req.params.siteId);
     await db.update(hostingServicesTable)
@@ -314,7 +347,7 @@ router.post("/admin/twenty-i/sites/:siteId/unsuspend", authenticate, requireAdmi
 
 router.delete("/admin/twenty-i/sites/:siteId", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     await twentyiDelete(server!.apiToken!, req.params.siteId);
     await db.update(hostingServicesTable)
@@ -330,7 +363,7 @@ router.post("/admin/twenty-i/sites/:siteId/assign", authenticate, requireAdmin, 
   try {
     const { stackUserId } = req.body as { stackUserId?: string };
     if (!stackUserId) return res.status(400).json({ error: "stackUserId is required" });
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     await twentyiAssignSiteToUser(server!.apiToken!, req.params.siteId, stackUserId);
     res.json({ ok: true });
@@ -341,7 +374,7 @@ router.post("/admin/twenty-i/sites/:siteId/assign", authenticate, requireAdmin, 
 
 router.get("/admin/twenty-i/sites/:siteId/sso", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const url = await twentyiGetSSOUrl(server!.apiToken!, req.params.siteId);
     res.json({ url });
@@ -352,9 +385,9 @@ router.get("/admin/twenty-i/sites/:siteId/sso", authenticate, requireAdmin, asyn
 
 // ─── Packages ─────────────────────────────────────────────────────────────────
 
-router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const packages = await twentyiGetPackages(server!.apiToken!);
     res.json(packages);
@@ -375,7 +408,7 @@ router.post("/admin/twenty-i/provision", authenticate, requireAdmin, async (req:
     };
     if (!domain || !clientId) return res.status(400).json({ error: "domain and clientId are required" });
 
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
 
     // Get client email
@@ -433,7 +466,7 @@ router.post("/admin/twenty-i/provision", authenticate, requireAdmin, async (req:
 
 // ─── Clients (for provisioning form) ─────────────────────────────────────────
 
-router.get("/admin/twenty-i/clients", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/clients", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const clients = await db
       .select({ id: usersTable.id, firstName: usersTable.firstName, lastName: usersTable.lastName, email: usersTable.email })
@@ -448,9 +481,9 @@ router.get("/admin/twenty-i/clients", authenticate, requireAdmin, async (_req: A
 
 // ─── Migrations ───────────────────────────────────────────────────────────────
 
-router.get("/admin/twenty-i/migrations", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/migrations", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const migrations = await runWith20i(server, () => twentyiListMigrations(server!.apiToken!));
     res.json(migrations);
@@ -476,7 +509,7 @@ router.post("/admin/twenty-i/migrations", authenticate, requireAdmin, async (req
     if (!domain || !sourceType || !host || !username || !password) {
       return res.status(400).json({ error: "domain, sourceType, host, username, and password are required" });
     }
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const result = await twentyiStartMigration(
       server!.apiToken!,
@@ -495,7 +528,7 @@ router.post("/admin/twenty-i/migrations", authenticate, requireAdmin, async (req
 
 router.get("/admin/twenty-i/migrations/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const status = await twentyiGetMigrationStatus(server!.apiToken!, req.params.id);
     res.json(status);
@@ -506,9 +539,9 @@ router.get("/admin/twenty-i/migrations/:id", authenticate, requireAdmin, async (
 
 // ─── Support Tickets ──────────────────────────────────────────────────────────
 
-router.get("/admin/twenty-i/tickets", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.get("/admin/twenty-i/tickets", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const tickets = await twentyiListTickets(server!.apiToken!);
     res.json(tickets);
@@ -519,7 +552,7 @@ router.get("/admin/twenty-i/tickets", authenticate, requireAdmin, async (_req: A
 
 router.get("/admin/twenty-i/tickets/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const ticket = await twentyiGetTicket(server!.apiToken!, req.params.id);
     res.json(ticket);
@@ -532,7 +565,7 @@ router.post("/admin/twenty-i/tickets", authenticate, requireAdmin, async (req: A
   try {
     const { subject, body, priority } = req.body as { subject?: string; body?: string; priority?: string };
     if (!subject || !body) return res.status(400).json({ error: "subject and body are required" });
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const result = await twentyiCreateTicket(server!.apiToken!, subject, body, (priority as any) ?? "normal");
     res.json(result);
@@ -545,7 +578,7 @@ router.post("/admin/twenty-i/tickets/:id/reply", authenticate, requireAdmin, asy
   try {
     const { body } = req.body as { body?: string };
     if (!body) return res.status(400).json({ error: "body is required" });
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     await twentyiReplyTicket(server!.apiToken!, req.params.id, body);
     res.json({ ok: true });
@@ -556,9 +589,9 @@ router.post("/admin/twenty-i/tickets/:id/reply", authenticate, requireAdmin, asy
 
 // ─── Sync (status + renewal dates) ────────────────────────────────────────────
 
-router.post("/admin/twenty-i/sync", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+router.post("/admin/twenty-i/sync", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
+    const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const apiKey = server!.apiToken!;
     const sites = await twentyiListSites(apiKey);

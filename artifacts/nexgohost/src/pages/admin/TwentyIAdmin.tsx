@@ -10,9 +10,17 @@ import {
 
 // ─── API helper ───────────────────────────────────────────────────────────────
 
+// Module-level selected server ID — set by TwentyIAdmin, read by all tab components
+let _activeServerId: string | null = null;
+
 async function apiFetch(url: string, opts: RequestInit = {}) {
   const token = localStorage.getItem("token");
-  const res = await fetch(url, {
+  let finalUrl = url;
+  if (_activeServerId && url.includes("/admin/twenty-i/") && !url.includes("serverId=")) {
+    const sep = url.includes("?") ? "&" : "?";
+    finalUrl = `${url}${sep}serverId=${encodeURIComponent(_activeServerId)}`;
+  }
+  const res = await fetch(finalUrl, {
     ...opts,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
   });
@@ -331,7 +339,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
               {filtered.map((u: any) => (
                 <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                   <td className="px-4 py-3 font-medium text-foreground">{u.name || "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{u.email || <span className="text-muted-foreground/40 italic text-xs">not returned by API</span>}</td>
                   <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{u.id}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
@@ -460,7 +468,7 @@ function SitesTab() {
             <SelectField value={assignUserId} onChange={e => setAssignUserId(e.target.value)}>
               <option value="">— Select StackUser —</option>
               {(stackUsers as any[]).map((u: any) => (
-                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                <option key={u.id} value={u.id}>{u.name}{u.email ? ` (${u.email})` : ""} — {u.id}</option>
               ))}
             </SelectField>
             <div className="flex gap-2 justify-end mt-4">
@@ -514,7 +522,10 @@ function SitesTab() {
                     <td className="px-4 py-3 font-medium text-foreground">{s.domain || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{s.id}</td>
                     <td className="px-4 py-3"><Badge label={s.status} color={s.status} /></td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{s.package || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      <div>{s.packageTypeName || "—"}</div>
+                      {s.names?.length > 1 && <div className="text-[10px] text-muted-foreground/60">{s.names.length} domains</div>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5 justify-end flex-wrap">
                         <PrimaryBtn small onClick={() => handleSSO(s.id)} disabled={actioning === s.id + "sso"}>
@@ -677,7 +688,7 @@ function ProvisionTab() {
           >
             <option value="">— No StackUser —</option>
             {(stackUsers as any[]).map((u: any) => (
-              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+              <option key={u.id} value={u.id}>{u.name}{u.email ? ` (${u.email})` : ""} — {u.id}</option>
             ))}
           </SelectField>
           <PrimaryBtn onClick={handleSubmit} disabled={isSubmitting || !form.domain || !form.clientId}>
@@ -1155,7 +1166,37 @@ export default function TwentyIAdmin() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch all active 20i servers so the admin can switch between them
+  const { data: allServers = [] } = useQuery({
+    queryKey: ["20i-server-list"],
+    queryFn: () => apiFetch("/api/admin/twenty-i/servers"),
+    staleTime: 60 * 1000,
+  });
+
+  // When the server list loads, pick the first one if none selected
+  useEffect(() => {
+    const list = allServers as any[];
+    if (list.length > 0 && !selectedServerId) {
+      const id = list[0].id;
+      setSelectedServerId(id);
+      _activeServerId = id;
+    }
+  }, [allServers]);
+
+  // When selection changes, update the module-level var and invalidate all 20i queries
+  function switchServer(id: string) {
+    setSelectedServerId(id);
+    _activeServerId = id;
+    qc.invalidateQueries({ queryKey: ["20i-server"] });
+    qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
+    qc.invalidateQueries({ queryKey: ["20i-sites"] });
+    qc.invalidateQueries({ queryKey: ["20i-packages"] });
+    qc.invalidateQueries({ queryKey: ["20i-migrations"] });
+    qc.invalidateQueries({ queryKey: ["20i-tickets"] });
+  }
 
   // Live diagnostic state
   const [diagRunning, setDiagRunning] = useState(false);
@@ -1259,6 +1300,18 @@ export default function TwentyIAdmin() {
           <p className="text-muted-foreground text-sm mt-1">StackUsers, hosting provisioning, migrations, and live support — all from NoePanel.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Server selector — only shown when multiple 20i servers exist */}
+          {(allServers as any[]).length > 1 && (
+            <select
+              value={selectedServerId ?? ""}
+              onChange={e => switchServer(e.target.value)}
+              className="text-xs px-2.5 py-1.5 rounded-xl border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              {(allServers as any[]).map((s: any) => (
+                <option key={s.id} value={s.id}>{s.name} (…{(s.apiTokenMasked ?? "").slice(-6)})</option>
+              ))}
+            </select>
+          )}
           {lastSync && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm">
               <Clock size={11} />

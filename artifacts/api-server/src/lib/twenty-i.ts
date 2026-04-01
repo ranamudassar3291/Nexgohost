@@ -225,6 +225,7 @@ export interface TwentyISite {
 export interface TwentyIStackUser {
   id: string;
   name: string;
+  email?: string;
   type: string;
   masterFtp?: boolean;
 }
@@ -404,8 +405,11 @@ export async function twentyiAutoWhitelist(
     const msg = String(e.message ?? "");
     const reason = msg.includes("403") ? "bad_key"
       : msg.includes("401") ? "auth_failed"
+      : msg.includes("404") ? "not_supported"
       : "error";
-    console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
+    if (reason !== "not_supported") {
+      console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
+    }
     return { added: false, reason };
   }
 }
@@ -695,7 +699,8 @@ export async function twentyiListStackUsers(apiKey: string): Promise<TwentyIStac
 
     return Object.entries(data.users).map(([ref, u]: [string, any]) => ({
       id: ref,
-      name: u.name ?? ref,
+      name: u.person_name ?? u.name ?? ref,
+      email: u.email ?? null,
       type: u.type ?? "stack-user",
       masterFtp: u.masterFtp ?? false,
     }));
@@ -739,7 +744,10 @@ export async function twentyiGetOrCreateStackUser(
   name: string,
 ): Promise<TwentyIStackUser> {
   const existing = await twentyiListStackUsers(apiKey);
-  const found = existing.find((u) => u.name?.toLowerCase() === email.toLowerCase());
+  const found = existing.find((u) =>
+    u.email?.toLowerCase() === email.toLowerCase() ||
+    u.name?.toLowerCase() === email.toLowerCase()
+  );
   if (found) return found;
   return twentyiCreateStackUser(apiKey, email, name);
 }
@@ -857,7 +865,12 @@ export async function twentyiCreateTicket(
   body: string,
   priority: "low" | "normal" | "high" | "urgent" = "normal",
 ): Promise<any> {
-  return requestWithRetry(apiKey, "POST", "/reseller/*/tickets", { subject, body, priority });
+  return requestWithRetry(apiKey, "POST", "/reseller/*/addTicket", {
+    subject,
+    body,
+    type: "General",
+    priority,
+  });
 }
 
 export async function twentyiReplyTicket(
@@ -865,7 +878,7 @@ export async function twentyiReplyTicket(
   ticketId: string,
   body: string,
 ): Promise<void> {
-  await requestWithRetry(apiKey, "POST", `/reseller/*/ticket/${ticketId}/reply`, { body });
+  await requestWithRetry(apiKey, "POST", `/reseller/*/ticket/${ticketId}/reply`, { body, message: body });
 }
 
 // ─── PHP Version ──────────────────────────────────────────────────────────────

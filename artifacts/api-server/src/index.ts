@@ -10,7 +10,7 @@ import { getSystemApiKey } from "./lib/systemApiKey.js";
 import { getOutboundIp, getProxyConfig, twentyiAutoWhitelist } from "./lib/twenty-i.js";
 import { db } from "@workspace/db";
 import { serversTable } from "@workspace/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -40,7 +40,8 @@ app.listen(port, async () => {
     // Try to auto-add this IP to the 20i whitelist
     try {
       const [server] = await db.select().from(serversTable)
-        .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active"))).limit(1);
+        .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
+        .orderBy(desc(serversTable.updatedAt)).limit(1);
       if (server?.apiToken) {
         const wl = await twentyiAutoWhitelist(server.apiToken, ip);
         if (wl.added) {
