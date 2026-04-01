@@ -1,7 +1,7 @@
 /**
  * 20i Module — Service layer
- * All calls use X-API-KEY header. Zero lib delegation — pure axios.
- * BASE_URL: https://api.20i.com/reseller/v1
+ * Auth: Authorization: Bearer <apiKey>
+ * Base: https://api.20i.com
  */
 import axios, { AxiosRequestConfig } from "axios";
 import { validateApiKey, classifyError } from "./20i.utils.js";
@@ -15,17 +15,13 @@ import type {
   SSOResult,
 } from "./20i.types.js";
 
-// ─── Base URL ─────────────────────────────────────────────────────────────────
-
-const BASE_URL = "https://api.20i.com/reseller/v1";
-
 // ─── Core axios request ───────────────────────────────────────────────────────
 
 async function apiRequest<T = any>(apiKey: string, method: string, path: string, data?: unknown): Promise<T> {
-  const url = `${BASE_URL}${path}`;
+  const url = `https://api.20i.com${path}`;
 
   const headers = {
-    "X-API-KEY": apiKey,
+    Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
@@ -33,8 +29,8 @@ async function apiRequest<T = any>(apiKey: string, method: string, path: string,
   // Debug logs
   console.log("20i API Call");
   console.log("URL:", url);
-  console.log("20i API KEY:", apiKey.substring(0, 4) + "****" + apiKey.slice(-4) + "  (len=" + apiKey.length + ")");
-  console.log("Headers:", { ...headers, "X-API-KEY": apiKey.substring(0, 4) + "****" + apiKey.slice(-4) });
+  console.log("20i KEY:", apiKey.length, "chars —", apiKey.substring(0, 4) + "****" + apiKey.slice(-4));
+  console.log("Headers:", { Authorization: `Bearer ${apiKey.substring(0, 4)}****`, "Content-Type": "application/json", Accept: "application/json" });
 
   const cfg: AxiosRequestConfig = {
     method: method as any,
@@ -65,23 +61,22 @@ export async function testConnection(apiKey: string): Promise<APIResponse<{ pack
   try {
     console.log("[20i] Testing connection...");
 
-    // IP debug
+    // Outgoing IP check
     console.log("Outgoing IP check...");
     try {
       const ip = await axios.get("https://api.ipify.org?format=json", { timeout: 5000 });
-      console.log("Server IP:", ip.data.ip);
+      console.log("Server IP:", ip.data.ip, "← must be whitelisted at my.20i.com → Reseller API → IP Whitelist");
     } catch {
       console.log("Server IP: (detection failed)");
     }
 
-    // Step 1: GET https://api.20i.com/reseller/v1/reseller
+    // Step 1: GET https://api.20i.com/reseller
     await apiRequest(clean, "GET", "/reseller");
 
-    // Step 2: GET https://api.20i.com/reseller/v1/package
-    const packages = await apiRequest(clean, "GET", "/package");
+    // Step 2: GET https://api.20i.com/reseller/package
+    const packages = await apiRequest(clean, "GET", "/reseller/package");
 
     console.log("[20i] Connection test SUCCESS — packages:", Array.isArray(packages) ? packages.length : 0);
-
     return {
       success: true,
       message: "Connected Successfully",
@@ -101,7 +96,7 @@ export async function getPackages(apiKey: string): Promise<APIResponse<Package[]
   if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
 
   try {
-    const raw = await apiRequest<any[]>(clean, "GET", "/package");
+    const raw = await apiRequest<any[]>(clean, "GET", "/reseller/package");
     const pkgs: Package[] = Array.isArray(raw) ? raw.map(p => ({
       id: String(p.id ?? p.name ?? ""),
       name: p.name ?? "Unnamed",
@@ -126,7 +121,7 @@ export async function getAccounts(apiKey: string): Promise<APIResponse<HostingAc
   if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
 
   try {
-    const raw = await apiRequest<any[]>(clean, "GET", "/web");
+    const raw = await apiRequest<any[]>(clean, "GET", "/reseller/web");
     const accounts: HostingAccount[] = Array.isArray(raw) ? raw.map(s => ({
       id: String(s.id),
       name: s.name ?? String(s.id),
@@ -152,19 +147,15 @@ export async function createAccount(apiKey: string, params: CreateHostingParams)
   if (!domain) return { success: false, message: "domain is required" };
   if (!email) return { success: false, message: "email is required" };
 
-  console.log(`[20i] Creating hosting for ${domain} (${email})  pkg=${packageId ?? "default"}`);
-
+  console.log(`[20i] Creating hosting for ${domain} (${email})`);
   try {
     const body: Record<string, any> = { domain, email };
     if (packageId) body.packageBundleTypes = [packageId];
-
-    const result = await apiRequest<any>(clean, "POST", "/web", body);
+    const result = await apiRequest<any>(clean, "POST", "/reseller", body);
     const siteId = result?.id ?? result?.hosting_id ?? null;
-
     console.log("[20i] Hosting created — siteId:", siteId);
     return { success: true, message: `Hosting account created for ${domain}`, siteId };
   } catch (err: any) {
-    console.error("[20i] Error creating account:", err.message);
     const c = classifyError(err);
     return { success: false, message: c.message };
   }
@@ -178,8 +169,7 @@ export async function suspendAccount(apiKey: string, siteId: string): Promise<AP
 
   console.log(`[20i] Suspending site ${siteId}`);
   try {
-    await apiRequest(clean, "POST", `/web/${siteId}/suspend`, {});
-    console.log(`[20i] Site ${siteId} suspended`);
+    await apiRequest(clean, "POST", `/reseller/web/${siteId}/suspend`, {});
     return { success: true, message: `Account ${siteId} suspended` };
   } catch (err: any) {
     const c = classifyError(err);
@@ -195,8 +185,7 @@ export async function unsuspendAccount(apiKey: string, siteId: string): Promise<
 
   console.log(`[20i] Unsuspending site ${siteId}`);
   try {
-    await apiRequest(clean, "POST", `/web/${siteId}/unsuspend`, {});
-    console.log(`[20i] Site ${siteId} unsuspended`);
+    await apiRequest(clean, "POST", `/reseller/web/${siteId}/unsuspend`, {});
     return { success: true, message: `Account ${siteId} unsuspended` };
   } catch (err: any) {
     const c = classifyError(err);
@@ -212,8 +201,7 @@ export async function terminateAccount(apiKey: string, siteId: string): Promise<
 
   console.log(`[20i] Terminating site ${siteId}`);
   try {
-    await apiRequest(clean, "DELETE", `/web/${siteId}`, {});
-    console.log(`[20i] Site ${siteId} terminated`);
+    await apiRequest(clean, "DELETE", `/reseller/web/${siteId}`, {});
     return { success: true, message: `Account ${siteId} terminated` };
   } catch (err: any) {
     const c = classifyError(err);
@@ -229,8 +217,7 @@ export async function changePackage(apiKey: string, siteId: string, newPackageId
 
   console.log(`[20i] Changing package for site ${siteId} → ${newPackageId}`);
   try {
-    await apiRequest(clean, "POST", `/web/${siteId}/package`, { packageId: newPackageId });
-    console.log(`[20i] Package changed for site ${siteId}`);
+    await apiRequest(clean, "POST", `/reseller/web/${siteId}/package`, { packageId: newPackageId });
     return { success: true, message: `Package changed to ${newPackageId}` };
   } catch (err: any) {
     const c = classifyError(err);
@@ -246,9 +233,8 @@ export async function singleSignOn(apiKey: string, siteId: string): Promise<SSOR
 
   console.log(`[20i] Getting SSO URL for site ${siteId}`);
   try {
-    const result = await apiRequest<any>(clean, "GET", `/web/${siteId}/login`);
+    const result = await apiRequest<any>(clean, "GET", `/reseller/web/${siteId}/login`);
     const url = result?.url ?? result?.loginUrl ?? result?.sso_url ?? null;
-    console.log("[20i] SSO URL obtained");
     return { success: true, message: "SSO URL generated", url };
   } catch (err: any) {
     const c = classifyError(err);
@@ -256,7 +242,7 @@ export async function singleSignOn(apiKey: string, siteId: string): Promise<SSOR
   }
 }
 
-// ─── addServer (test + config return) ────────────────────────────────────────
+// ─── addServer ───────────────────────────────────────────────────────────────
 
 export async function addServer(config: ServerConfig): Promise<APIResponse<{ name: string; apiKeyPreview: string; packageCount: number }>> {
   const { name, apiKey } = config;
@@ -266,7 +252,6 @@ export async function addServer(config: ServerConfig): Promise<APIResponse<{ nam
   if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
 
   console.log(`[20i] addServer — name="${name}"  key_len=${clean.length}  last4=${clean.slice(-4)}`);
-  console.log("[20i] Step 1: Testing connection…");
 
   const testResult = await testConnection(clean);
   console.log(`[20i] Test result: success=${testResult.success}  message=${testResult.message}`);
@@ -276,8 +261,6 @@ export async function addServer(config: ServerConfig): Promise<APIResponse<{ nam
   }
 
   const apiKeyPreview = `${clean.substring(0, 4)}...${clean.slice(-4)}`;
-  console.log(`[20i] ✓ Connected — name="${name}"  packages=${testResult.data?.packageCount ?? 0}`);
-
   return {
     success: true,
     message: "20i Server Connected",
