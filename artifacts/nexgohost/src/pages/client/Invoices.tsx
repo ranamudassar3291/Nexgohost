@@ -178,14 +178,8 @@ export default function ClientInvoices() {
       )
     : transactions;
 
-  const handlePay = async (id: string) => {
-    try {
-      await apiFetch(`/api/invoices/${id}/pay`, { method: "POST" });
-      queryClient.invalidateQueries({ queryKey: ["client-invoices"] });
-      toast({ title: "Payment Recorded", description: "Invoice marked as pending review." });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+  const handlePay = (id: string) => {
+    setLocation(`/client/invoices/${id}`);
   };
 
   const unpaidCount = invoices.filter(i => i.status === "unpaid" || i.status === "overdue").length;

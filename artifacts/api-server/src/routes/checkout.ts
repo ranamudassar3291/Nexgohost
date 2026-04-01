@@ -9,7 +9,7 @@ import {
   creditTransactionsTable, affiliateGroupCommissionsTable, affiliatePlanCommissionsTable, vpsPlansTable,
   domainTransfersTable,
 } from "@workspace/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, gt } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
 import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated, emailPaymentUnderReview } from "../lib/email.js";
@@ -103,6 +103,21 @@ async function handleCheckout(req: AuthRequest, res: any) {
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
       const invoiceNumber = `INV-${dateStr}-${rand}`;
+
+      // Duplicate guard: if a pending domain order for this client+domain was placed in the last 10 minutes, return it
+      const _domainDedupCutoff = new Date(Date.now() - 10 * 60 * 1000);
+      const [_existingDomainOrder] = await db.select().from(ordersTable)
+        .where(and(
+          eq(ordersTable.clientId, req.user!.userId),
+          eq(ordersTable.type, "domain"),
+          eq(ordersTable.itemName, domain),
+          eq(ordersTable.status, "pending"),
+          gt(ordersTable.createdAt, _domainDedupCutoff)
+        )).limit(1);
+      if (_existingDomainOrder?.invoiceId) {
+        res.json({ orderId: _existingDomainOrder.id, invoiceId: _existingDomainOrder.invoiceId, _deduplicated: true });
+        return;
+      }
 
       const domainLabel = transferDomain ? `Domain Transfer: ${domain}` : `Domain Registration: ${domain}`;
       const invoiceItems: any[] = [{
@@ -327,6 +342,21 @@ async function handleCheckout(req: AuthRequest, res: any) {
       const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
       const invoiceNumber = `INV-${dateStr}-${rand}`;
 
+      // Duplicate guard: if a pending VPS order for this client+plan was placed in the last 10 minutes, return it
+      const _vpsDedupCutoff = new Date(Date.now() - 10 * 60 * 1000);
+      const [_existingVpsOrder] = await db.select().from(ordersTable)
+        .where(and(
+          eq(ordersTable.clientId, req.user!.userId),
+          eq(ordersTable.type, "hosting"),
+          eq(ordersTable.itemId, vpsPlan.id),
+          eq(ordersTable.status, "pending"),
+          gt(ordersTable.createdAt, _vpsDedupCutoff)
+        )).limit(1);
+      if (_existingVpsOrder?.invoiceId) {
+        res.json({ orderId: _existingVpsOrder.id, invoiceId: _existingVpsOrder.invoiceId, _deduplicated: true });
+        return;
+      }
+
       const [order] = await db.insert(ordersTable).values({
         clientId: req.user!.userId,
         type: "hosting",
@@ -532,6 +562,21 @@ async function handleCheckout(req: AuthRequest, res: any) {
     else if (domain && transferDomain) noteParts.push(`Transfer: ${domain}`);
     else if (domain) noteParts.push(`Domain: ${domain}`);
     const notes = noteParts.join(", ");
+
+    // Duplicate guard: if a pending hosting order for this client+plan was placed in the last 10 minutes, return it
+    const _hostingDedupCutoff = new Date(Date.now() - 10 * 60 * 1000);
+    const [_existingHostingOrder] = await db.select().from(ordersTable)
+      .where(and(
+        eq(ordersTable.clientId, req.user!.userId),
+        eq(ordersTable.type, "hosting"),
+        eq(ordersTable.itemId, plan.id),
+        eq(ordersTable.status, "pending"),
+        gt(ordersTable.createdAt, _hostingDedupCutoff)
+      )).limit(1);
+    if (_existingHostingOrder?.invoiceId) {
+      res.json({ orderId: _existingHostingOrder.id, invoiceId: _existingHostingOrder.invoiceId, _deduplicated: true });
+      return;
+    }
 
     // 1. Create order
     const [order] = await db.insert(ordersTable).values({
