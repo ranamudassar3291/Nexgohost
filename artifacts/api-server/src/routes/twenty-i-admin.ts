@@ -109,9 +109,24 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req
       Promise.resolve(getProxyConfig()),
     ]);
 
-    // Log to console so admin can see it immediately in workflow logs
-    console.log(`[20i-DIAGNOSTIC] Outbound IP: ${debug.outboundIp}${proxy.enabled ? ` (proxy: ${proxy.url})` : " (direct)"}`);
-    console.log(`[20i-DIAGNOSTIC] HTTP ${debug.responseStatus} in ${debug.durationMs}ms — key: ${debug.authFormat}`);
+    // Full verbose log — visible in workflow logs immediately
+    console.log("=".repeat(60));
+    console.log("[20i-RAW-DIAGNOSTIC] ▶ Starting raw 20i API test");
+    console.log(`[20i-RAW-DIAGNOSTIC] Outbound IP  : ${debug.outboundIp}`);
+    console.log(`[20i-RAW-DIAGNOSTIC] Proxy        : ${proxy.enabled ? proxy.url : "none (direct)"}`);
+    console.log(`[20i-RAW-DIAGNOSTIC] Key length   : ${debug.keyLength} chars`);
+    console.log(`[20i-RAW-DIAGNOSTIC] Key (masked) : ${debug.authFormat}`);
+    console.log(`[20i-RAW-DIAGNOSTIC] Key first4   : ${debug.keyFirst4}  last4: ${debug.keyLast4}`);
+    console.log(`[20i-RAW-DIAGNOSTIC] Hidden chars : ${debug.keyHasHiddenChars}`);
+    for (const attempt of debug.attempts) {
+      console.log(`[20i-RAW-DIAGNOSTIC] ── Format: ${attempt.format} ──`);
+      console.log(`[20i-RAW-DIAGNOSTIC]    Auth header  : ${attempt.authHeaderPreview}`);
+      console.log(`[20i-RAW-DIAGNOSTIC]    HTTP status  : ${attempt.status}`);
+      console.log(`[20i-RAW-DIAGNOSTIC]    Duration     : ${attempt.durationMs}ms`);
+      console.log(`[20i-RAW-DIAGNOSTIC]    Raw response : ${attempt.body}`);
+    }
+    console.log(`[20i-RAW-DIAGNOSTIC] ✔ Working format: ${debug.workingFormat}`);
+    console.log("=".repeat(60));
 
     return res.json({
       ok: debug.responseStatus === 200,

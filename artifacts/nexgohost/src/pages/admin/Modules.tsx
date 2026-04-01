@@ -187,14 +187,22 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
     }
   };
 
-  const handleSave = async (activate: boolean) => {
+  // Save config — activate=true forces active, activate=undefined preserves current state
+  const handleSave = async (activate?: boolean) => {
     setSaving(true);
     try {
+      const body: any = { config };
+      if (activate !== undefined) body.activate = activate;
       await apiFetch(`/api/admin/modules/${mod.id}/config`, {
         method: "PUT",
-        body: JSON.stringify({ config, activate }),
+        body: JSON.stringify(body),
       });
-      toast({ title: activate ? "Module activated!" : "Configuration saved", description: `${mod.name} has been ${activate ? "activated and is now live" : "updated"}.` });
+      toast({
+        title: activate ? "Saved & Activated!" : "Configuration saved",
+        description: activate
+          ? `${mod.name} is now active and live.`
+          : `Config saved. Module status unchanged.`,
+      });
       onRefresh();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -203,13 +211,17 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
     }
   };
 
-  const handleToggle = async () => {
+  const [forceActivating, setForceActivating] = useState(false);
+  const handleForceActivate = async () => {
+    setForceActivating(true);
     try {
-      await apiFetch(`/api/admin/modules/${mod.id}/activate`, { method: "POST" });
-      toast({ title: mod.isActive ? "Module deactivated" : "Module activated", description: mod.name });
+      await apiFetch(`/api/admin/modules/${mod.id}/force-activate`, { method: "POST" });
+      toast({ title: "Force Activated!", description: `${mod.name} is now active — no validation checks applied.` });
       onRefresh();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Force activate failed", description: err.message, variant: "destructive" });
+    } finally {
+      setForceActivating(false);
     }
   };
 
@@ -298,13 +310,12 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={handleToggle}
-            title={isActive ? "Deactivate" : "Activate"}
-            className={`transition-colors ${isActive ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+          <span
+            title={isActive ? "Active — click Settings to configure" : "Inactive — open Settings and click Save & Activate"}
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${isActive ? "bg-green-500/10 text-green-600 border-green-500/30" : "bg-muted text-muted-foreground border-border"}`}
           >
-            {isActive ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
-          </button>
+            {isActive ? "Active" : "Inactive"}
+          </span>
           <button
             onClick={() => setExpanded(e => !e)}
             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -361,11 +372,11 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
                       </div>
                     ))}
                   </div>
-                  <div className="flex gap-3 mt-5">
+                  <div className="flex flex-wrap gap-3 mt-5">
                     <Button
                       size="sm"
                       onClick={() => handleSave(true)}
-                      disabled={saving}
+                      disabled={saving || forceActivating}
                       style={{ background: BRAND }}
                       className="text-white rounded-xl"
                     >
@@ -375,13 +386,28 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleSave(false)}
-                      disabled={saving}
+                      onClick={() => handleSave()}
+                      disabled={saving || forceActivating}
                       className="rounded-xl"
                     >
-                      Save Config Only
+                      Save Config
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleForceActivate}
+                      disabled={saving || forceActivating}
+                      className="rounded-xl border-green-500/40 text-green-700 hover:bg-green-500/10"
+                    >
+                      {forceActivating ? <RefreshCw size={13} className="animate-spin mr-1.5" /> : <CheckCircle size={13} className="mr-1.5" />}
+                      Force Activate
                     </Button>
                   </div>
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    <strong>Save Config</strong> preserves current active/inactive state. &nbsp;
+                    <strong>Save & Activate</strong> saves and immediately enables the module. &nbsp;
+                    <strong>Force Activate</strong> bypasses all checks.
+                  </p>
                 </>
               )}
             </div>

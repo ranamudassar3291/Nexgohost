@@ -335,25 +335,57 @@ router.put("/admin/modules/:id/meta", authenticate, requireAdmin, async (req: Re
 });
 
 // Save config & optionally activate
+// activate = true  → force set isActive = true  (Save & Activate)
+// activate = false → force set isActive = false (explicit deactivate)
+// activate = undefined → PRESERVE current isActive state (Save Config Only)
 router.put("/admin/modules/:id/config", authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { config, activate } = req.body as { config: Record<string, string>; activate?: boolean };
+
+    // Fetch current state so we can preserve isActive when activate is not specified
+    const [current] = await db.select().from(uploadedModulesTable)
+      .where(eq(uploadedModulesTable.id, req.params.id));
+    if (!current) { res.status(404).json({ error: "Module not found" }); return; }
+
+    const newActive = activate !== undefined ? activate : current.isActive;
+    const configStr = JSON.stringify(config);
+
+    console.log(`[MODULE] Saving config for "${current.name}" | activate param=${activate} | resulting isActive=${newActive}`);
+    console.log(`[MODULE] Config keys: ${Object.keys(config).join(", ")} | api_url=${config.api_url ?? "not set"} | api_key length=${config.api_key?.length ?? 0}`);
+
     const [updated] = await db.update(uploadedModulesTable)
       .set({
-        config: JSON.stringify(config),
-        isActive: activate ?? false,
-        status: (activate ? "active" : "inactive") as any,
+        config: configStr,
+        isActive: newActive,
+        status: (newActive ? "active" : "inactive") as any,
         updatedAt: new Date(),
       })
       .where(eq(uploadedModulesTable.id, req.params.id))
       .returning();
-    if (!updated) { res.status(404).json({ error: "Module not found" }); return; }
+
+    console.log(`[MODULE] Saved — DB isActive=${updated.isActive}, status=${updated.status}`);
+
     res.json({
       ...updated,
       configFields: JSON.parse(updated.configFields),
       config: JSON.parse(updated.config),
       hooks: JSON.parse(updated.hooks),
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Force-activate a module — no validation, no connection test, just sets active=true
+router.post("/admin/modules/:id/force-activate", authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const [updated] = await db.update(uploadedModulesTable)
+      .set({ isActive: true, status: "active" as any, updatedAt: new Date() })
+      .where(eq(uploadedModulesTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Module not found" }); return; }
+    console.log(`[MODULE] Force-activated "${updated.name}" — bypassing all validation`);
+    res.json({ success: true, isActive: true, status: "active", name: updated.name });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
