@@ -17,11 +17,20 @@ import { useToast } from "@/hooks/use-toast";
 const BRAND = "#4F46E5";
 
 // ── API helpers ───────────────────────────────────────────────────────────────
+function getToken(): string {
+  return localStorage.getItem("token") || "";
+}
+
 async function apiFetch(url: string, opts: RequestInit = {}) {
+  const token = getToken();
   const res = await fetch(url, {
     credentials: "include",
     ...opts,
-    headers: { "Content-Type": "application/json", ...opts.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...opts.headers,
+    },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Request failed");
@@ -353,9 +362,11 @@ function UploadZone({ onSuccess }: { onSuccess: () => void }) {
     try {
       const form = new FormData();
       form.append("module", file);
+      const token = getToken();
       const res = await fetch("/api/admin/modules/upload", {
         method: "POST",
         credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
       });
       const data = await res.json();
@@ -528,6 +539,22 @@ export default function Modules() {
     staleTime: 30_000,
   });
 
+  const [ti_testResult, setTiTestResult] = useState<any>(null);
+  const [ti_testing, setTiTesting] = useState(false);
+
+  async function handleTest20i() {
+    setTiTesting(true);
+    setTiTestResult(null);
+    try {
+      const result = await apiFetch("/api/admin/twenty-i/diagnostic");
+      setTiTestResult(result);
+    } catch (err: any) {
+      setTiTestResult({ ok: false, message: err.message });
+    } finally {
+      setTiTesting(false);
+    }
+  }
+
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-modules-uploaded"] });
     refetch();
@@ -678,8 +705,8 @@ export default function Modules() {
 
                   {/* Live connection status — only for 20i */}
                   {mod.id === "20i" && (
-                    <div className="mt-4 border-t border-border pt-4">
-                      <div className="flex items-center justify-between mb-3">
+                    <div className="mt-4 border-t border-border pt-4 space-y-3">
+                      <div className="flex items-center justify-between">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Connection Status</p>
                         <button
                           onClick={() => refetchTwentyi()}
@@ -690,29 +717,27 @@ export default function Modules() {
                           Refresh
                         </button>
                       </div>
+
+                      {/* Server config row */}
                       {ti_fetching ? (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <RefreshCw size={12} className="animate-spin" /> Checking connection…
+                          <RefreshCw size={12} className="animate-spin" /> Checking server…
                         </div>
                       ) : twentyiServer?.connected ? (
                         <div className="grid grid-cols-2 gap-3">
-                          {/* Connected badge */}
                           <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-border">
-                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Status</span>
+                            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Server</span>
                             <div className="flex items-center gap-1.5">
                               <Wifi size={13} className="text-emerald-500" />
-                              <span className="text-xs font-semibold text-emerald-600">Server Configured</span>
+                              <span className="text-xs font-semibold text-emerald-600">{twentyiServer.name ?? "Configured"}</span>
                             </div>
                           </div>
-                          {/* API key */}
                           <div className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-border">
                             <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">API Key</span>
                             <div className="flex items-center gap-1.5">
                               <Key size={12} className="text-primary" />
                               <span className="text-xs font-mono font-semibold text-foreground">
-                                {twentyiServer.apiTokenMasked ?? (
-                                  <span className="text-muted-foreground italic">Not set</span>
-                                )}
+                                {twentyiServer.apiTokenMasked ?? <span className="text-muted-foreground italic">Not set</span>}
                               </span>
                             </div>
                           </div>
@@ -721,6 +746,48 @@ export default function Modules() {
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <WifiOff size={12} className="text-red-400" />
                           No 20i server configured — click <strong className="text-foreground">Configure 20i</strong> above to add your API key.
+                        </div>
+                      )}
+
+                      {/* Live API test — hits https://api.20i.com/reseller */}
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          onClick={handleTest20i}
+                          disabled={ti_testing || !twentyiServer?.connected}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 border"
+                          style={{
+                            background: ti_testResult?.ok ? "#10b98115" : ti_testResult === null ? `${BRAND}12` : "#ef444415",
+                            borderColor: ti_testResult?.ok ? "#10b981" : ti_testResult === null ? BRAND : "#ef4444",
+                            color: ti_testResult?.ok ? "#059669" : ti_testResult === null ? BRAND : "#dc2626",
+                          }}
+                        >
+                          {ti_testing ? (
+                            <><RefreshCw size={12} className="animate-spin" /> Testing…</>
+                          ) : ti_testResult?.ok ? (
+                            <><CheckCircle size={12} /> 200 OK — Connected!</>
+                          ) : ti_testResult ? (
+                            <><AlertCircle size={12} /> {ti_testResult.debug?.responseStatus ?? "Failed"} — {ti_testResult.hint ?? "Check whitelist"}</>
+                          ) : (
+                            <><Zap size={12} /> Test Live API (api.20i.com)</>
+                          )}
+                        </button>
+                        {ti_testResult && (
+                          <button onClick={() => setTiTestResult(null)} className="text-muted-foreground hover:text-foreground">
+                            <X size={13} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Detailed result */}
+                      {ti_testResult && !ti_testResult.ok && ti_testResult.hint && (
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300">
+                          <Shield size={12} className="shrink-0 mt-0.5" />
+                          <div>
+                            <strong>Action required:</strong> {ti_testResult.hint}
+                            {ti_testResult.debug?.outboundIp && (
+                              <span className="block mt-1 font-mono font-semibold">Outbound IP: {ti_testResult.debug.outboundIp}</span>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
