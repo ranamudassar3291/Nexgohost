@@ -5,8 +5,8 @@
 import { Router } from "express";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { db } from "@workspace/db";
-import { serversTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { serversTable, hostingServicesTable, usersTable, uploadedModulesTable } from "@workspace/db/schema";
+import { eq, and, ilike } from "drizzle-orm";
 import {
   twentyiListStackUsers,
   twentyiCreateStackUser,
@@ -45,7 +45,64 @@ async function get20iServer() {
     .from(serversTable)
     .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
     .limit(1);
-  return server ?? null;
+  if (!server) return null;
+
+  // Module key takes priority over server.apiToken for all 20i API calls.
+  // This ensures all routes automatically use the "20i Reseller" module's key.
+  const [mod] = await db
+    .select()
+    .from(uploadedModulesTable)
+    .where(ilike(uploadedModulesTable.name, "%20i%"))
+    .limit(1);
+
+  if (mod) {
+    try {
+      const cfg = typeof mod.config === "string" ? JSON.parse(mod.config) : (mod.config as Record<string, string>);
+      const modKey = (cfg?.api_key ?? "").trim();
+      if (modKey.length >= 20) {
+        console.log(`[20i-KEY] Module "${mod.name}" key active (${modKey.length} chars, last4: ${modKey.slice(-4)})`);
+        return { ...server, apiToken: modKey };
+      }
+    } catch { /* malformed config — fall through to server key */ }
+  }
+
+  return server;
+}
+
+/**
+ * Unified 20i API key resolver.
+ * Priority: uploaded "20i Reseller" module config.api_key → server.apiToken
+ * Returns the clean key and which source it came from.
+ */
+async function get20iApiKey(): Promise<{ key: string | null; source: "module" | "server" | "none" }> {
+  // 1. Try the uploaded "20i Reseller" module's config first
+  const [mod] = await db
+    .select()
+    .from(uploadedModulesTable)
+    .where(ilike(uploadedModulesTable.name, "%20i%"))
+    .limit(1);
+
+  if (mod) {
+    try {
+      const cfg = typeof mod.config === "string" ? JSON.parse(mod.config) : mod.config;
+      const key = cfg?.api_key?.trim?.();
+      if (key && key.length >= 20) {
+        console.log(`[20i-KEY] Using key from module "${mod.name}" (${key.length} chars, last4: ${key.slice(-4)})`);
+        return { key, source: "module" };
+      }
+    } catch { /* malformed config — fall through */ }
+  }
+
+  // 2. Fall back to the active server record
+  const server = await get20iServer();
+  if (server?.apiToken) {
+    const key = server.apiToken.trim();
+    console.log(`[20i-KEY] Using key from server "${server.name}" (${key.length} chars, last4: ${key.slice(-4)})`);
+    return { key, source: "server" };
+  }
+
+  console.warn("[20i-KEY] No 20i API key found in module config or server record.");
+  return { key: null, source: "none" };
 }
 
 function requireApiKey(server: any, res: any): boolean {
@@ -87,24 +144,18 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (_req: Au
 
 router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
   try {
-    const server = await get20iServer();
-    if (!server) {
-      return res.json({
-        ok: false,
-        error: "no_server",
-        message: "No active 20i server configured. Add one in Admin → Servers.",
-      });
-    }
-    if (!server.apiToken) {
+    const { key, source } = await get20iApiKey();
+    if (!key) {
       return res.json({
         ok: false,
         error: "no_key",
-        message: "20i API key missing from the saved server record. Edit the server in Admin → Servers.",
+        message: "No 20i API key found. Add one via Admin → Modules (20i Reseller module) or Admin → Servers.",
       });
     }
 
+    console.log(`[20i-DIAGNOSTIC] Key source: ${source}`);
     const [debug, ip, proxy] = await Promise.all([
-      twentyiRawDebug(server.apiToken!),
+      twentyiRawDebug(key),
       getOutboundIp(),
       Promise.resolve(getProxyConfig()),
     ]);
@@ -130,7 +181,7 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req
 
     return res.json({
       ok: debug.responseStatus === 200,
-      serverName: server.name,
+      keySource: source,
       outboundIp: ip,
       proxy,
       debug,
