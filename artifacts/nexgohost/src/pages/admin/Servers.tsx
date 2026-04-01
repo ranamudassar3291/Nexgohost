@@ -23,7 +23,7 @@ interface ServerRecord {
   hasApiToken?: boolean;
   accountCount?: number;
 }
-interface TwentyIPkg { id: string; name: string; }
+interface TwentyIPkg { id: string; label: string; name?: string; }
 
 const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
 const EMPTY_GROUP = { name: "", description: "" };
@@ -544,7 +544,7 @@ export default function Servers() {
                           onChange={e => setTwentyiDefaultPkg(e.target.value)}
                           className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                         >
-                          {twentyiPkgs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          {twentyiPkgs.map(p => <option key={p.id} value={p.id}>{p.label ?? p.name}</option>)}
                         </select>
                         <p className="text-xs text-muted-foreground">Used when provisioning new hosting accounts with no explicit plan package.</p>
                       </div>

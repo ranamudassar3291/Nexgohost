@@ -424,7 +424,7 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
     const data = await request<{ linux?: number; windows?: number; wordpress?: number }>(
       cleanKey, "GET", "/reseller/*/packageCount",
     );
-    const total = (data?.linux ?? 0) + (data?.windows ?? 0) + (data?.wordpress ?? 0);
+    const total = Number(data?.linux ?? 0) + Number(data?.windows ?? 0) + Number(data?.wordpress ?? 0);
     console.log("[20i] Connection test OK — package counts:", data);
     return {
       success: true,
