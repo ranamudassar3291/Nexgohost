@@ -1,17 +1,13 @@
 /**
  * 20i Module — Service layer
- * All functions use axios with raw Bearer auth per 20i Reseller API spec.
- * Delegates to lib/twenty-i.ts for complex operations (provisioning, SSO, etc.)
+ * Direct axios calls using X-API-KEY header and correct reseller base URL.
  */
 import axios, { AxiosRequestConfig } from "axios";
 import {
-  twentyiTestConnection,
   twentyiCreateHosting,
   twentyiSuspend,
   twentyiUnsuspend,
   twentyiDelete,
-  twentyiGetPackages,
-  twentyiListSites,
   twentyiGetSSOUrl,
 } from "../../lib/twenty-i.js";
 import { validateApiKey, classifyError } from "./20i.utils.js";
@@ -25,28 +21,32 @@ import type {
   SSOResult,
 } from "./20i.types.js";
 
+// ─── Base URL ─────────────────────────────────────────────────────────────────
+
 const BASE_URL = "https://api.20i.com/reseller";
 
 // ─── Raw axios request ────────────────────────────────────────────────────────
 
 async function apiRequest<T = any>(apiKey: string, method: string, path: string, data?: unknown): Promise<T> {
-  const url = `https://api.20i.com${path}`;
-  const cfg: AxiosRequestConfig = {
-    method: method as any,
-    url,
-    headers: {
-      "X-API-KEY": apiKey,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    data,
-    timeout: 25000,
-    validateStatus: () => true,
+  const url = `${BASE_URL}${path}`;
+  const headers = {
+    "X-API-KEY": apiKey,
+    "Content-Type": "application/json",
+    Accept: "application/json",
   };
 
   console.log(`[20i API] → ${method} ${url}`);
   console.log(`[20i API]   X-API-KEY: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
-  console.log(`[20i API]   Headers:`, { "X-API-KEY": `${apiKey.substring(0, 4)}****`, "Content-Type": "application/json", Accept: "application/json" });
+  console.log(`[20i API]   Headers:`, { ...headers, "X-API-KEY": `${apiKey.substring(0, 4)}****` });
+
+  const cfg: AxiosRequestConfig = {
+    method: method as any,
+    url,
+    headers,
+    data,
+    timeout: 25000,
+    validateStatus: () => true,
+  };
 
   const res = await axios(cfg);
 
@@ -61,37 +61,45 @@ async function apiRequest<T = any>(apiKey: string, method: string, path: string,
 
 // ─── testConnection ───────────────────────────────────────────────────────────
 
-/**
- * Test the 20i Reseller API connection.
- * Step 1: GET /reseller — verify auth
- * Step 2: GET packages — verify permissions
- */
 export async function testConnection(apiKey: string): Promise<APIResponse<{ packageCount: number }>> {
   const { valid, clean, error } = validateApiKey(apiKey);
-  if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
-
-  console.log(`[20i] testConnection — key_len=${clean.length}  last4=${clean.slice(-4)}`);
+  if (!valid) {
+    return { success: false, message: error!, errorType: "invalid_api_key" };
+  }
 
   try {
-    const result = await twentyiTestConnection(clean);
-    if (!result.success) {
-      const { errorType } = classifyError({ response: { status: result.message.includes("401") ? 401 : 403 } });
-      return {
-        success: false,
-        message: result.message,
-        errorType: result.message.includes("401") ? "ip_not_whitelisted" : errorType,
-        data: { packageCount: 0 },
-      };
+    console.log("[20i] Testing connection...");
+
+    // IP debug log
+    console.log("Outgoing IP check...");
+    try {
+      const ip = await axios.get("https://api.ipify.org?format=json", { timeout: 5000 });
+      console.log("Server IP:", ip.data.ip);
+    } catch {
+      console.log("Server IP: (could not detect)");
     }
+
+    // Step 1: GET https://api.20i.com/reseller — verify auth
+    await apiRequest(clean, "GET", "");
+
+    // Step 2: GET https://api.20i.com/reseller/package — verify permissions
+    const packages = await apiRequest(clean, "GET", "/package");
+
     return {
       success: true,
-      message: result.message,
-      data: { packageCount: result.packageCount ?? 0 },
+      message: "20i Connection Successful",
+      data: {
+        packageCount: Array.isArray(packages) ? packages.length : 0,
+      },
     };
   } catch (err: any) {
-    console.error(`[20i] testConnection error:`, err);
+    console.error("20i connection error:", err);
     const classified = classifyError(err);
-    return { success: false, message: classified.message, errorType: classified.errorType, httpStatus: classified.httpStatus };
+    return {
+      success: false,
+      message: classified.message,
+      errorType: classified.errorType,
+    };
   }
 }
 
@@ -102,10 +110,18 @@ export async function getPackages(apiKey: string): Promise<APIResponse<Package[]
   if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
 
   try {
-    console.log("[20i API] → GET /reseller/package (packages)");
-    const pkgs = await twentyiGetPackages(clean);
-    console.log(`[20i API] ← ${pkgs.length} packages found`);
-    return { success: true, message: `${pkgs.length} package(s) found`, data: pkgs };
+    const pkgs = await apiRequest<any[]>(clean, "GET", "/package");
+    const list: Package[] = Array.isArray(pkgs) ? pkgs.map(p => ({
+      id: String(p.id ?? p.name),
+      name: p.name ?? "Unnamed",
+      diskSpaceMb: p.diskSpace,
+      bandwidthGb: p.bandwidth,
+      emailBoxes: p.mailboxes,
+      databases: p.databases,
+      subdomains: p.subdomains,
+    })) : [];
+    console.log(`[20i API] ← ${list.length} packages found`);
+    return { success: true, message: `${list.length} package(s) found`, data: list };
   } catch (err: any) {
     const classified = classifyError(err);
     return { success: false, message: classified.message, errorType: classified.errorType };
@@ -119,16 +135,15 @@ export async function getAccounts(apiKey: string): Promise<APIResponse<HostingAc
   if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
 
   try {
-    console.log("[20i API] → GET /reseller/web (accounts)");
-    const sites = await twentyiListSites(clean);
-    console.log(`[20i API] ← ${sites.length} accounts found`);
-    const accounts: HostingAccount[] = sites.map(s => ({
-      id: s.id,
-      name: s.name,
-      domain: s.domain ?? s.name,
-      status: s.status ?? "active",
-      packageId: s.packageId,
-    }));
+    const sites = await apiRequest<any[]>(clean, "GET", "/web");
+    const accounts: HostingAccount[] = Array.isArray(sites) ? sites.map(s => ({
+      id: String(s.id),
+      name: s.name ?? s.domain ?? String(s.id),
+      domain: s.domain ?? s.name ?? String(s.id),
+      status: s.active === false ? "suspended" : "active",
+      packageId: s.type?.package,
+    })) : [];
+    console.log(`[20i API] ← ${accounts.length} accounts found`);
     return { success: true, message: `${accounts.length} account(s) found`, data: accounts };
   } catch (err: any) {
     const classified = classifyError(err);
@@ -224,7 +239,8 @@ export async function changePackage(apiKey: string, siteId: string, newPackageId
 
   console.log(`[20i API] → Changing package for site ${siteId} → ${newPackageId}`);
   try {
-    await apiRequest(clean, "POST", `/userHosting/${siteId}/updatePackage`, { package_id: newPackageId });
+    // Correct endpoint: POST https://api.20i.com/reseller/web/{siteId}/package
+    await apiRequest(clean, "POST", `/web/${siteId}/package`, { packageId: newPackageId });
     console.log(`[20i API] ← Package changed for site ${siteId}`);
     return { success: true, message: `Package changed to ${newPackageId}` };
   } catch (err: any) {
@@ -261,9 +277,8 @@ export async function addServer(config: ServerConfig): Promise<APIResponse<{ nam
   if (!valid) return { success: false, message: error!, errorType: "invalid_api_key" };
 
   console.log(`[20i] addServer — name="${name}"  key_len=${clean.length}  last4=${clean.slice(-4)}`);
-
-  // Step 1: Test connection
   console.log("[20i] Step 1: Testing connection…");
+
   const testResult = await testConnection(clean);
   console.log(`[20i] Test result: success=${testResult.success}  message=${testResult.message}`);
 
@@ -276,7 +291,6 @@ export async function addServer(config: ServerConfig): Promise<APIResponse<{ nam
     };
   }
 
-  // Step 2: Return success (caller is responsible for DB persistence)
   const apiKeyPreview = `${clean.substring(0, 4)}...${clean.slice(-4)}`;
   console.log(`[20i] ✓ 20i Server Connected — name="${name}"  packages=${testResult.data?.packageCount ?? 0}`);
 
