@@ -1,16 +1,18 @@
 /**
  * POST /api/20i/test
  * Comprehensive 20i API tester with real outbound IP detection.
+ * Uses axios (not fetch) for maximum compatibility.
  * - Auth: Bearer <raw_api_key>  (no Base64)
- * - Tests: https://api.20i.com/reseller/v1/reseller then https://api.20i.com/reseller
+ * - Tests: https://api.20i.com/reseller
  * - Detects real outgoing IP from ipify.org + ifconfig.me before every test
- * - Returns full debug output for diagnosing 401/403/IP whitelist issues
  */
 import { Router } from "express";
+import axios, { AxiosRequestConfig } from "axios";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { db } from "@workspace/db";
 import { uploadedModulesTable, serversTable } from "@workspace/db/schema";
 import { ilike, eq, and } from "drizzle-orm";
+import { sanitiseKey } from "../lib/twenty-i.js";
 
 const router = Router();
 
@@ -31,17 +33,13 @@ interface IpInfo {
   secondary: string | null;
 }
 
-// ─── IP Detection ─────────────────────────────────────────────────────────────
+// ─── IP Detection (axios) ─────────────────────────────────────────────────────
 
 async function fetchIp(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    const text = (await res.text()).trim();
-    if (!res.ok || !text) return null;
-    if (text.startsWith("{")) {
-      const parsed = JSON.parse(text);
-      return (parsed.ip as string) ?? null;
-    }
+    const res = await axios.get(url, { timeout: 8000 });
+    if (typeof res.data === "object" && res.data?.ip) return String(res.data.ip);
+    const text = String(res.data ?? "").trim();
     return /^[\d.:a-fA-F]+$/.test(text) ? text : null;
   } catch {
     return null;
@@ -57,7 +55,7 @@ async function detectOutboundIp(): Promise<IpInfo> {
   return { primary, secondary };
 }
 
-// ─── 20i API Key Resolution ───────────────────────────────────────────────────
+// ─── API Key Resolution ───────────────────────────────────────────────────────
 
 async function resolveApiKey(bodyKey?: string): Promise<{ key: string; source: string } | null> {
   if (bodyKey && bodyKey.trim().length >= 10) {
@@ -81,44 +79,48 @@ async function resolveApiKey(bodyKey?: string): Promise<{ key: string; source: s
   return null;
 }
 
-// ─── Single endpoint attempt ──────────────────────────────────────────────────
+// ─── Single endpoint attempt (axios) ─────────────────────────────────────────
 
 async function tryEndpoint(apiKey: string, url: string): Promise<AttemptResult> {
   const start = Date.now();
   try {
     console.log(`[20i-TEST] → GET ${url}`);
-    console.log(`[20i-TEST]   Authorization: Bearer ****${apiKey.slice(-6)}`);
+    console.log(`[20i-TEST]   Authorization: Bearer ${apiKey.substring(0, 4)}...${apiKey.slice(-4)}  (len=${apiKey.length})`);
 
-    const res = await fetch(url, {
+    const cfg: AxiosRequestConfig = {
       method: "GET",
+      url,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      signal: AbortSignal.timeout(20000),
-    });
+      timeout: 20000,
+      validateStatus: () => true,
+    };
 
+    const res = await axios(cfg);
     const durationMs = Date.now() - start;
-    const bodyText = await res.text().catch(() => "");
+    const bodyStr = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
 
-    console.log(`[20i-TEST] ← HTTP ${res.status} (${durationMs}ms)  body=${bodyText.substring(0, 300)}`);
+    console.log(`[20i-TEST] ← HTTP ${res.status} (${durationMs}ms)  body=${bodyStr.substring(0, 300)}`);
 
-    if (res.ok) {
-      return { success: true, url, httpStatus: res.status, responseBody: bodyText.substring(0, 1000), errorType: "none", errorMessage: "", durationMs };
+    if (res.status >= 200 && res.status < 300) {
+      return { success: true, url, httpStatus: res.status, responseBody: bodyStr.substring(0, 1000), errorType: "none", errorMessage: "", durationMs };
     }
 
     let errorType: AttemptResult["errorType"] = "unknown";
-    let errorMessage = `HTTP ${res.status}: ${bodyText.substring(0, 200)}`;
+    let errorMessage = `HTTP ${res.status}: ${bodyStr.substring(0, 200)}`;
 
     if (res.status === 401) {
       errorType = "ip_not_whitelisted";
-      errorMessage = `401 Unauthorized — this server's IP is likely not whitelisted in 20i. Raw: ${bodyText.substring(0, 200)}`;
+      errorMessage = `401 Unauthorized — this server's IP is not whitelisted in 20i, or the API key is invalid. Raw: ${bodyStr.substring(0, 200)}`;
     } else if (res.status === 403) {
       errorType = "invalid_api_key";
-      errorMessage = `403 Forbidden — API key may be invalid or lack Reseller-level permissions. Raw: ${bodyText.substring(0, 200)}`;
+      errorMessage = `403 Forbidden — API key lacks Reseller permissions. Raw: ${bodyStr.substring(0, 200)}`;
     }
 
-    return { success: false, url, httpStatus: res.status, responseBody: bodyText.substring(0, 1000), errorType, errorMessage, durationMs };
+    return { success: false, url, httpStatus: res.status, responseBody: bodyStr.substring(0, 1000), errorType, errorMessage, durationMs };
   } catch (err: any) {
     const durationMs = Date.now() - start;
     console.error(`[20i-TEST] Network error: ${err.message}`);
@@ -128,16 +130,12 @@ async function tryEndpoint(apiKey: string, url: string): Promise<AttemptResult> 
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
-/**
- * POST /api/20i/test
- * Body: { apiKey?: string }  — omit to auto-resolve from module/server config
- */
 router.post("/20i/test", authenticate, requireAdmin, async (req: any, res) => {
   const { apiKey } = req.body as { apiKey?: string };
 
   console.log("[20i-TEST] ==============================================================");
 
-  // Detect real outgoing IP + resolve API key in parallel (saves latency)
+  // Detect real outgoing IP + resolve API key in parallel
   const [ipInfo, resolved] = await Promise.all([
     detectOutboundIp(),
     resolveApiKey(apiKey),
@@ -152,16 +150,14 @@ router.post("/20i/test", authenticate, requireAdmin, async (req: any, res) => {
     return;
   }
 
-  const cleanKey = resolved.key.replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
+  const cleanKey = sanitiseKey(resolved.key);
 
-  console.log(`[20i-TEST] key_len=${cleanKey.length}  last6=****${cleanKey.slice(-6)}  source=${resolved.source}`);
+  console.log(`[20i-TEST] KEY: ${cleanKey.substring(0, 4)}...${cleanKey.slice(-4)}  len=${cleanKey.length}`);
+  console.log(`[20i-TEST] Source: ${resolved.source}`);
   console.log(`[20i-TEST] Auth format: Bearer <raw_key>  (no Base64)`);
 
-  // Try v1 endpoint first, then legacy fallback
-  const urlsToTry = [
-    "https://api.20i.com/reseller/v1/reseller",
-    "https://api.20i.com/reseller",
-  ];
+  // Test https://api.20i.com/reseller (canonical endpoint)
+  const urlsToTry = ["https://api.20i.com/reseller"];
 
   const attempts: AttemptResult[] = [];
 
@@ -173,7 +169,6 @@ router.post("/20i/test", authenticate, requireAdmin, async (req: any, res) => {
       break;
     }
     if (attempt.httpStatus === 401 || attempt.httpStatus === 403) {
-      // Auth errors identical across all endpoints — stop early
       console.log(`[20i-TEST] ✗ Auth error ${attempt.httpStatus} — stopping`);
       break;
     }
@@ -182,7 +177,6 @@ router.post("/20i/test", authenticate, requireAdmin, async (req: any, res) => {
   console.log("[20i-TEST] ==============================================================");
 
   const passing = attempts.find(a => a.success);
-
   if (passing) {
     res.json({
       success: true,
@@ -197,20 +191,19 @@ router.post("/20i/test", authenticate, requireAdmin, async (req: any, res) => {
     return;
   }
 
-  // Build clear user-facing message based on error type
   const last = attempts[attempts.length - 1];
   let message = last.errorMessage;
   let hint = "";
 
   if (last.httpStatus === 401) {
     const ip = ipInfo.primary ?? ipInfo.secondary ?? "unknown";
-    message = `IP not whitelisted (401 Unauthorized). The server's outgoing IP must be added to my.20i.com → Reseller API → IP Whitelist.`;
+    message = `IP not whitelisted (401 Unauthorized). Add this server's IP to my.20i.com → Reseller API → IP Whitelist.`;
     hint = `Whitelist this IP in 20i: ${ip}`;
   } else if (last.httpStatus === 403) {
-    message = "API key rejected (403 Forbidden). Ensure you are using a Reseller-level Combined API key from my.20i.com.";
-    hint = "Get a Combined key at my.20i.com → API → Reseller API";
+    message = "API key rejected (403 Forbidden). Use a Reseller-level Combined API key from my.20i.com.";
+    hint = "Get a Combined key at my.20i.com → Reseller API → API Key";
   } else if (last.errorType === "network_error") {
-    message = "Network error — could not reach api.20i.com. Check firewall or proxy settings.";
+    message = "Network error — could not reach api.20i.com.";
   }
 
   res.json({

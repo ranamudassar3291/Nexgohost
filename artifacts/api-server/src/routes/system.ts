@@ -1,25 +1,20 @@
 /**
  * GET /api/system/ip
- * Detects the real outgoing IP of this server by querying two external services.
+ * Detects the real outgoing IP of this server using axios.
  * Primary:   https://api.ipify.org?format=json
  * Secondary: https://ifconfig.me/ip
  */
 import { Router } from "express";
+import axios from "axios";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 
 const router = Router();
 
-async function fetchIp(url: string, timeoutMs = 8000): Promise<string | null> {
+async function fetchIp(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    const text = (await res.text()).trim();
-    if (!res.ok || !text) return null;
-    // ipify returns JSON { ip: "x.x.x.x" }, ifconfig.me returns plain text
-    if (text.startsWith("{")) {
-      const parsed = JSON.parse(text);
-      return parsed.ip ?? null;
-    }
-    // Basic IPv4 / IPv6 sanity check
+    const res = await axios.get(url, { timeout: 8000 });
+    if (typeof res.data === "object" && res.data?.ip) return String(res.data.ip);
+    const text = String(res.data ?? "").trim();
     return /^[\d.:a-fA-F]+$/.test(text) ? text : null;
   } catch {
     return null;
@@ -29,7 +24,6 @@ async function fetchIp(url: string, timeoutMs = 8000): Promise<string | null> {
 /**
  * GET /api/system/ip
  * Returns the real outgoing IPs of this server (primary + secondary).
- * Both are fetched in parallel to save latency.
  */
 router.get("/system/ip", authenticate, requireAdmin, async (_req, res) => {
   console.log("[SYSTEM-IP] Detecting real outbound IP…");

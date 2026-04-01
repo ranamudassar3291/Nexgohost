@@ -166,13 +166,42 @@ router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (re
 });
 
 router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
-  const { name, hostname, ipAddress, type, apiUsername, apiToken, apiPort, ns1, ns2, maxAccounts, groupId, isDefault } = req.body;
+  const { name, hostname, ipAddress, type, apiUsername, apiToken, apiPort, ns1, ns2, maxAccounts, groupId, isDefault, skipTest } = req.body;
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
-  // For 20i servers, hostname is always api.20i.com — not user-supplied
   if (type !== "20i" && !hostname) { res.status(400).json({ error: "hostname is required" }); return; }
+
+  const cleanToken = apiToken ? sanitiseKey(apiToken) : null;
+
+  // ── Step 1: Test API before saving (20i only) ─────────────────────────────
+  if (type === "20i" && cleanToken && !skipTest) {
+    console.log(`[ADD-SERVER] Testing 20i API before saving — key_len=${cleanToken.length}  last4=${cleanToken.slice(-4)}`);
+    try {
+      const testResult = await twentyiTestConnection(cleanToken);
+      console.log(`[ADD-SERVER] Test result: success=${testResult.success}  message=${testResult.message}`);
+      if (!testResult.success) {
+        res.status(400).json({
+          error: testResult.message,
+          diagnostic: testResult.diagnostic ?? null,
+          hint: testResult.diagnostic?.detail ?? "Check your API key and ensure this server's IP is whitelisted at my.20i.com → Reseller API → IP Whitelist.",
+          success: false,
+        });
+        return;
+      }
+    } catch (err: any) {
+      console.error(`[ADD-SERVER] Pre-save test threw: ${err.message}`);
+      res.status(400).json({
+        error: err.message,
+        hint: "The API key test failed. Verify the key and IP whitelist at my.20i.com → Reseller API.",
+        success: false,
+      });
+      return;
+    }
+  }
+
+  // ── Step 2: Save to database ───────────────────────────────────────────────
   if (isDefault) { await db.update(serversTable).set({ isDefault: false }); }
   const resolvedHostname = (type === "20i") ? "api.20i.com" : hostname;
-  const cleanToken = apiToken ? sanitiseKey(apiToken) : null;
+
   const [record] = await db.insert(serversTable).values({
     name,
     hostname: resolvedHostname,
@@ -188,7 +217,9 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     isDefault: isDefault ?? false,
     status: "active",
   }).returning();
-  res.status(201).json(record);
+
+  console.log(`[ADD-SERVER] ✓ Saved server id=${record.id}  name=${record.name}  type=${record.type}`);
+  res.status(201).json({ ...record, success: true, message: type === "20i" ? "Connected Successfully" : "Server added" });
 });
 
 router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) => {

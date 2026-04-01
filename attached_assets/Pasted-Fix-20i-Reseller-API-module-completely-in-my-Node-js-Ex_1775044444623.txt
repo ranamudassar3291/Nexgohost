@@ -1,0 +1,167 @@
+Fix 20i Reseller API module completely in my Node.js + Express hosting panel.
+
+Current Issues:
+- Add Server gives 401 / 403 error
+- API key correct
+- IP already whitelisted
+- Same config working in another Replit project
+
+Tasks:
+
+1. Find Existing 20i Module
+Scan project for:
+
+20i
+reseller
+api.20i
+twentyi
+
+Fix existing code instead of creating new one.
+
+2. Fix Base URL
+
+Use correct API endpoint:
+
+https://api.20i.com/reseller
+
+NOT:
+
+my20i.com
+reseller.20i.com
+
+3. Fix Headers
+
+Use exact headers:
+
+headers: {
+Authorization: `Bearer ${apiKey}`,
+Accept: 'application/json',
+Content-Type: 'application/json'
+}
+
+4. Use Axios (not fetch)
+
+Install:
+
+npm install axios
+
+5. Create Test Connection Function
+
+async function test20i(apiKey){
+
+const axios = require('axios');
+
+try {
+
+const response = await axios.get(
+'https://api.20i.com/reseller',
+{
+headers:{
+Authorization:`Bearer ${apiKey}`,
+Accept:'application/json'
+}
+}
+);
+
+return {
+success:true,
+data:response.data
+}
+
+}catch(error){
+
+return{
+success:false,
+error:error.response?.data || error.message
+}
+
+}
+
+}
+
+6. Fix Add Server Logic
+
+When clicking "Add Server":
+
+Step 1 Test API
+Step 2 If success save server
+Step 3 If fail show error
+
+7. Add Debug Logs
+
+console.log("API KEY:", apiKey)
+console.log("Response:", response.data)
+console.log("Error:", error.response?.data)
+
+8. Fix CORS
+
+Install:
+
+npm install cors
+
+Add:
+
+app.use(cors())
+
+9. Fix Environment Variables
+
+If using .env
+
+require('dotenv').config()
+
+Check:
+
+process.env.TWENTYI_API
+
+10. Fix Async Await
+
+Ensure:
+
+await axios.get()
+
+Not missing await
+
+11. Test endpoints
+
+GET
+
+https://api.20i.com/reseller
+
+GET
+
+https://api.20i.com/reseller/packages
+
+12. Fix UI
+
+Add Server Button:
+
+POST /api/server/add
+
+Body:
+
+{
+"name":"20i Server",
+"apiKey":"xxxx"
+}
+
+13. Return Success
+
+If working show:
+
+Connected Successfully
+
+If not show:
+
+Invalid API Key
+IP Not Whitelisted
+Server Error
+
+14. Clean old broken code
+
+Remove:
+
+old fetch calls
+wrong endpoints
+duplicate modules
+
+15. Return fully working 20i integration
