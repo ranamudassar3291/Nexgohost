@@ -305,6 +305,35 @@ router.post("/admin/modules/upload",
   }
 );
 
+// Update module metadata (name, description, configFields)
+router.put("/admin/modules/:id/meta", authenticate, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name, description, configFields } = req.body as {
+      name?: string;
+      description?: string;
+      configFields?: ConfigField[];
+    };
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (name !== undefined) updates.name = name.trim();
+    if (description !== undefined) updates.description = description.trim();
+    if (configFields !== undefined) updates.configFields = JSON.stringify(configFields);
+
+    const [updated] = await db.update(uploadedModulesTable)
+      .set(updates)
+      .where(eq(uploadedModulesTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Module not found" }); return; }
+    res.json({
+      ...updated,
+      configFields: JSON.parse(updated.configFields),
+      config: JSON.parse(updated.config),
+      hooks: JSON.parse(updated.hooks),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Save config & optionally activate
 router.put("/admin/modules/:id/config", authenticate, requireAdmin, async (req: Request, res: Response) => {
   try {

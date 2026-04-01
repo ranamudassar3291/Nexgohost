@@ -164,7 +164,28 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
   const [expanded, setExpanded] = useState(false);
   const [config, setConfig] = useState<Record<string, string>>(mod.config ?? {});
   const [saving, setSaving] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState(mod.name);
+  const [renameSaving, setRenameSaving] = useState(false);
   const { toast } = useToast();
+
+  const handleRename = async () => {
+    if (!newName.trim() || newName.trim() === mod.name) { setRenaming(false); return; }
+    setRenameSaving(true);
+    try {
+      await apiFetch(`/api/admin/modules/${mod.id}/meta`, {
+        method: "PUT",
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      toast({ title: "Module renamed", description: `Now showing as "${newName.trim()}"` });
+      onRefresh();
+    } catch (err: any) {
+      toast({ title: "Rename failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRenameSaving(false);
+      setRenaming(false);
+    }
+  };
 
   const handleSave = async (activate: boolean) => {
     setSaving(true);
@@ -206,18 +227,47 @@ function UploadedModuleCard({ mod, onRefresh }: { mod: UploadedModule; onRefresh
   const typeIcon = mod.type === "server" ? <Server size={15} /> : mod.type === "registrar" ? <Globe size={15} /> : <CreditCard size={15} />;
   const isActive = mod.isActive;
 
+  const is20i = mod.name.toLowerCase().includes("20i") || mod.description?.toLowerCase().includes("20i");
+
   return (
     <div className={`bg-card border rounded-2xl overflow-hidden transition-all ${isActive ? "border-primary/40 shadow-sm shadow-primary/10" : "border-border"}`}>
       <div className="p-5 flex items-start gap-4">
-        {/* Icon */}
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-          <Package size={22} />
+        {/* Icon — branded for 20i, generic for others */}
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-black ${
+          is20i
+            ? "bg-gradient-to-br from-violet-500/20 to-violet-600/10 text-violet-600 border border-violet-500/20"
+            : isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+        }`}>
+          {is20i ? "20i" : <Package size={22} />}
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap mb-1">
-            <span className="font-bold text-foreground text-[15px]">{mod.name}</span>
+            {renaming ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setRenaming(false); }}
+                  className="text-sm font-bold border border-primary/40 rounded-lg px-2 py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 w-44"
+                />
+                <button onClick={handleRename} disabled={renameSaving} className="text-xs text-primary font-semibold hover:underline">
+                  {renameSaving ? "Saving…" : "Save"}
+                </button>
+                <button onClick={() => setRenaming(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+              </div>
+            ) : (
+              <span
+                className="font-bold text-foreground text-[15px] cursor-pointer hover:text-primary transition-colors group"
+                title="Click to rename"
+                onClick={() => setRenaming(true)}
+              >
+                {mod.name}
+                <span className="ml-1 opacity-0 group-hover:opacity-60 text-xs font-normal">(rename)</span>
+              </span>
+            )}
             <span className="text-[11px] px-2 py-0.5 rounded-full border font-medium flex items-center gap-1
               bg-muted text-muted-foreground border-border">
               {typeIcon}
