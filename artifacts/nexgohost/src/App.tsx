@@ -20,65 +20,29 @@ import Register from "@/pages/auth/Register";
 import ForgotPassword from "@/pages/auth/ForgotPassword";
 import ResetPassword from "@/pages/auth/ResetPassword";
 
-// Admin pages
+// Admin core pages (detail/add/edit flows kept standalone)
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminClients from "@/pages/admin/Clients";
 import AdminClientDetail from "@/pages/admin/ClientDetail";
 import AddClient from "@/pages/admin/AddClient";
 import EditClient from "@/pages/admin/EditClient";
-import AdminHosting from "@/pages/admin/Hosting";
-import AdminDomains from "@/pages/admin/Domains";
-import AdminPackages from "@/pages/admin/Packages";
 import AddPackage from "@/pages/admin/AddPackage";
 import EditPackage from "@/pages/admin/EditPackage";
-import AdminOrders from "@/pages/admin/Orders";
 import AddOrder from "@/pages/admin/AddOrder";
-import AdminInvoices from "@/pages/admin/Invoices";
 import AddInvoice from "@/pages/admin/AddInvoice";
-import AdminTickets from "@/pages/admin/Tickets";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
-import AdminMigrations from "@/pages/admin/Migrations";
-import WhmcsImport from "@/pages/admin/WhmcsImport";
-import AdminSettings from "@/pages/admin/Settings";
-import EmailConfiguration from "@/pages/admin/EmailConfiguration";
-import GoogleOAuth from "@/pages/admin/GoogleOAuth";
-import AdminPromoCodes from "@/pages/admin/PromoCodes";
-import AdminPaymentMethods from "@/pages/admin/PaymentMethods";
-import DomainExtensions from "@/pages/admin/DomainExtensions";
-import Currencies from "@/pages/admin/Currencies";
-import Servers from "@/pages/admin/Servers";
-import Modules from "@/pages/admin/Modules";
-import DomainRegistrars from "@/pages/admin/DomainRegistrars";
-import PendingActivations from "@/pages/admin/PendingActivations";
-import WhatsAppSettings from "@/pages/admin/WhatsAppSettings";
-import TwentyIAdmin from "@/pages/admin/TwentyIAdmin";
-import AdminReports from "@/pages/admin/Reports";
-import AdminTransactions from "@/pages/admin/Transactions";
-import CancellationRequests from "@/pages/admin/CancellationRequests";
-import ProductGroups from "@/pages/admin/ProductGroups";
-import EmailTemplates from "@/pages/admin/EmailTemplates";
-import FraudLogs from "@/pages/admin/FraudLogs";
-import AutomationSettings from "@/pages/admin/AutomationSettings";
-import SecuritySettings from "@/pages/admin/SecuritySettings";
-import AdminBackups from "@/pages/admin/Backups";
-import Firewall from "@/pages/admin/Firewall";
-import ServerLogs from "@/pages/admin/ServerLogs";
-import AdminAffiliates from "@/pages/admin/Affiliates";
-import AdminDomainTransfers from "@/pages/admin/DomainTransfers";
-import AdminCredits from "@/pages/admin/Credits";
-import EmailMarketing from "@/pages/admin/EmailMarketing";
-import VpsPlans from "@/pages/admin/VpsPlans";
-import VpsServices from "@/pages/admin/VpsServices";
 import AddVpsPlan from "@/pages/admin/AddVpsPlan";
 import VpsOsTemplates from "@/pages/admin/VpsOsTemplates";
-import VpsLocations from "@/pages/admin/VpsLocations";
-import AdminUsers from "@/pages/admin/AdminUsers";
-import KnowledgeBase from "@/pages/admin/KnowledgeBase";
 import KbArticleEditor from "@/pages/admin/KbArticleEditor";
-import ApiSettings from "@/pages/admin/ApiSettings";
-import ApiDocs from "@/pages/admin/ApiDocs";
-import Announcements from "@/pages/admin/Announcements";
-import ServerNodes from "@/pages/admin/ServerNodes";
+// Master pages — each groups related features into tabs
+import DomainsMaster from "@/pages/admin/DomainsMaster";
+import HostingMaster from "@/pages/admin/HostingMaster";
+import OrdersMaster from "@/pages/admin/OrdersMaster";
+import SupportMaster from "@/pages/admin/SupportMaster";
+import FinanceMaster from "@/pages/admin/FinanceMaster";
+import ServersMaster from "@/pages/admin/ServersMaster";
+import AnalyticsMaster from "@/pages/admin/AnalyticsMaster";
+import SystemMaster from "@/pages/admin/SystemMaster";
 import Status from "@/pages/public/Status";
 
 // Client pages
@@ -245,6 +209,8 @@ function RouterRoot() {
       <Route path="/admin/dashboard">
         <AdminPage><AdminDashboard /></AdminPage>
       </Route>
+
+      {/* Clients — standalone (has own detail/add/edit flows) */}
       <Route path="/admin/clients/add">
         <AdminPage><AddClient /></AdminPage>
       </Route>
@@ -257,140 +223,196 @@ function RouterRoot() {
       <Route path="/admin/clients">
         <AdminPage><AdminClients /></AdminPage>
       </Route>
-      <Route path="/admin/hosting">
-        <AdminPage><AdminHosting /></AdminPage>
-      </Route>
-      <Route path="/admin/domains">
-        <AdminPage><AdminDomains /></AdminPage>
-      </Route>
+
+      {/* Packages add/edit — standalone forms */}
       <Route path="/admin/packages/add">
         <AdminPage><AddPackage /></AdminPage>
       </Route>
       <Route path="/admin/packages/:id/edit">
         <AdminPage><EditPackage /></AdminPage>
       </Route>
-      <Route path="/admin/packages">
-        <AdminPage><AdminPackages /></AdminPage>
-      </Route>
+
+      {/* Orders add/invoice add — standalone forms */}
       <Route path="/admin/orders/add">
         <AdminPage><AddOrder /></AdminPage>
-      </Route>
-      <Route path="/admin/orders">
-        <AdminPage><AdminOrders /></AdminPage>
       </Route>
       <Route path="/admin/invoices/add">
         <AdminPage><AddInvoice /></AdminPage>
       </Route>
-      <Route path="/admin/invoices">
-        <AdminPage><AdminInvoices /></AdminPage>
-      </Route>
+
+      {/* Ticket detail — standalone */}
       <Route path="/admin/tickets/:id">
         <AdminPage><AdminTicketDetail /></AdminPage>
       </Route>
-      <Route path="/admin/tickets">
-        <AdminPage><AdminTickets /></AdminPage>
+
+      {/* KB article editor — standalone */}
+      <Route path="/admin/knowledge-base/edit/:id">
+        <AdminPage><KbArticleEditor /></AdminPage>
       </Route>
-      <Route path="/admin/twenty-i">
-        <AdminPage><TwentyIAdmin /></AdminPage>
+      <Route path="/admin/knowledge-base/new">
+        <AdminPage><KbArticleEditor /></AdminPage>
       </Route>
-      <Route path="/admin/migrations">
-        <AdminPage><AdminMigrations /></AdminPage>
-      </Route>
-      <Route path="/admin/whmcs-import">
-        <AdminPage><WhmcsImport /></AdminPage>
-      </Route>
-      <Route path="/admin/promo-codes">
-        <AdminPage><AdminPromoCodes /></AdminPage>
-      </Route>
-      <Route path="/admin/payment-methods">
-        <AdminPage><AdminPaymentMethods /></AdminPage>
-      </Route>
-      <Route path="/admin/domains/extensions">
-        <AdminPage><DomainExtensions /></AdminPage>
-      </Route>
-      <Route path="/admin/currencies">
-        <AdminPage><Currencies /></AdminPage>
-      </Route>
-      <Route path="/admin/servers">
-        <AdminPage><Servers /></AdminPage>
-      </Route>
-      <Route path="/admin/modules">
-        <AdminPage><Modules /></AdminPage>
-      </Route>
-      <Route path="/admin/domain-registrars">
-        <AdminPage><DomainRegistrars /></AdminPage>
-      </Route>
-      <Route path="/admin/pending-activations">
-        <AdminPage><PendingActivations /></AdminPage>
-      </Route>
-      <Route path="/admin/whatsapp">
-        <AdminPage><WhatsAppSettings /></AdminPage>
-      </Route>
+
+      {/* VPS add/edit/os-templates — standalone forms */}
       <Route path="/admin/vps/add">
         <AdminPage><AddVpsPlan /></AdminPage>
       </Route>
       <Route path="/admin/vps/:id/edit">
         <AdminPage><AddVpsPlan /></AdminPage>
       </Route>
-      <Route path="/admin/vps/services">
-        <AdminPage><VpsServices /></AdminPage>
-      </Route>
       <Route path="/admin/vps/os-templates">
         <AdminPage><VpsOsTemplates /></AdminPage>
       </Route>
-      <Route path="/admin/vps/locations">
-        <AdminPage><VpsLocations /></AdminPage>
+
+      {/* ── Master pages ── */}
+      <Route path="/admin/domains">
+        <AdminPage><DomainsMaster /></AdminPage>
       </Route>
-      <Route path="/admin/vps">
-        <AdminPage><VpsPlans /></AdminPage>
+      <Route path="/admin/hosting">
+        <AdminPage><HostingMaster /></AdminPage>
       </Route>
-      <Route path="/admin/reports">
-        <AdminPage><AdminReports /></AdminPage>
+      <Route path="/admin/orders">
+        <AdminPage><OrdersMaster /></AdminPage>
       </Route>
-      <Route path="/admin/transactions">
-        <AdminPage><AdminTransactions /></AdminPage>
+      <Route path="/admin/invoices">
+        <Redirect to="/admin/orders?tab=invoices" />
       </Route>
-      <Route path="/admin/cancellation-requests">
-        <AdminPage><CancellationRequests /></AdminPage>
+      <Route path="/admin/support">
+        <AdminPage><SupportMaster /></AdminPage>
       </Route>
-      <Route path="/admin/product-groups">
-        <AdminPage><ProductGroups /></AdminPage>
+      <Route path="/admin/tickets">
+        <AdminPage><SupportMaster /></AdminPage>
       </Route>
-      <Route path="/admin/email-templates">
-        <AdminPage><EmailTemplates /></AdminPage>
+      <Route path="/admin/finance">
+        <AdminPage><FinanceMaster /></AdminPage>
       </Route>
-      <Route path="/admin/fraud-logs">
-        <AdminPage><FraudLogs /></AdminPage>
+      <Route path="/admin/servers">
+        <AdminPage><ServersMaster /></AdminPage>
       </Route>
-      <Route path="/admin/server-logs">
-        <AdminPage><ServerLogs /></AdminPage>
+      <Route path="/admin/analytics">
+        <AdminPage><AnalyticsMaster /></AdminPage>
       </Route>
-      <Route path="/admin/cron-logs">
-        <AdminPage><AutomationSettings /></AdminPage>
-      </Route>
-      <Route path="/admin/security">
-        <AdminPage><SecuritySettings /></AdminPage>
-      </Route>
-      <Route path="/admin/backups">
-        <AdminPage><AdminBackups /></AdminPage>
-      </Route>
-      <Route path="/admin/firewall">
-        <AdminPage><Firewall /></AdminPage>
-      </Route>
-      <Route path="/admin/settings/email">
-        <AdminPage><EmailConfiguration /></AdminPage>
-      </Route>
-      <Route path="/admin/settings/google">
-        <AdminPage><GoogleOAuth /></AdminPage>
-      </Route>
-      <Route path="/admin/api-settings">
-        <AdminPage><ApiSettings /></AdminPage>
-      </Route>
-      <Route path="/admin/api-docs">
-        <AdminPage><ApiDocs /></AdminPage>
+      <Route path="/admin/system">
+        <AdminPage><SystemMaster /></AdminPage>
       </Route>
       <Route path="/admin/settings">
-        <AdminPage><AdminSettings /></AdminPage>
+        <AdminPage><SystemMaster /></AdminPage>
+      </Route>
+
+      {/* Legacy routes — redirect to master pages with correct tab */}
+      <Route path="/admin/domains/extensions">
+        <Redirect to="/admin/domains?tab=extensions" />
+      </Route>
+      <Route path="/admin/domain-transfers">
+        <Redirect to="/admin/domains?tab=transfers" />
+      </Route>
+      <Route path="/admin/domain-registrars">
+        <Redirect to="/admin/domains?tab=registrars" />
+      </Route>
+      <Route path="/admin/packages">
+        <Redirect to="/admin/hosting?tab=packages" />
+      </Route>
+      <Route path="/admin/pending-activations">
+        <Redirect to="/admin/hosting?tab=pending" />
+      </Route>
+      <Route path="/admin/vps/services">
+        <Redirect to="/admin/hosting?tab=vps-services" />
+      </Route>
+      <Route path="/admin/vps/locations">
+        <Redirect to="/admin/hosting?tab=vps-plans" />
+      </Route>
+      <Route path="/admin/vps">
+        <Redirect to="/admin/hosting?tab=vps-plans" />
+      </Route>
+      <Route path="/admin/transactions">
+        <Redirect to="/admin/orders?tab=transactions" />
+      </Route>
+      <Route path="/admin/migrations">
+        <Redirect to="/admin/support?tab=migrations" />
+      </Route>
+      <Route path="/admin/knowledge-base">
+        <Redirect to="/admin/support?tab=knowledge-base" />
+      </Route>
+      <Route path="/admin/announcements">
+        <Redirect to="/admin/support?tab=announcements" />
+      </Route>
+      <Route path="/admin/cancellation-requests">
+        <Redirect to="/admin/support?tab=cancellations" />
+      </Route>
+      <Route path="/admin/promo-codes">
+        <Redirect to="/admin/finance?tab=promo-codes" />
+      </Route>
+      <Route path="/admin/payment-methods">
+        <Redirect to="/admin/finance?tab=payment-methods" />
+      </Route>
+      <Route path="/admin/currencies">
+        <Redirect to="/admin/finance?tab=currencies" />
+      </Route>
+      <Route path="/admin/product-groups">
+        <Redirect to="/admin/finance?tab=product-groups" />
+      </Route>
+      <Route path="/admin/affiliates">
+        <Redirect to="/admin/finance?tab=affiliates" />
+      </Route>
+      <Route path="/admin/credits">
+        <Redirect to="/admin/finance?tab=credits" />
+      </Route>
+      <Route path="/admin/twenty-i">
+        <Redirect to="/admin/servers?tab=twenty-i" />
+      </Route>
+      <Route path="/admin/modules">
+        <Redirect to="/admin/servers?tab=modules" />
+      </Route>
+      <Route path="/admin/server-nodes">
+        <Redirect to="/admin/servers?tab=server-nodes" />
+      </Route>
+      <Route path="/admin/reports">
+        <Redirect to="/admin/analytics?tab=reports" />
+      </Route>
+      <Route path="/admin/fraud-logs">
+        <Redirect to="/admin/analytics?tab=fraud-logs" />
+      </Route>
+      <Route path="/admin/cron-logs">
+        <Redirect to="/admin/analytics?tab=automation" />
+      </Route>
+      <Route path="/admin/server-logs">
+        <Redirect to="/admin/analytics?tab=server-logs" />
+      </Route>
+      <Route path="/admin/backups">
+        <Redirect to="/admin/analytics?tab=backups" />
+      </Route>
+      <Route path="/admin/email-marketing">
+        <Redirect to="/admin/analytics?tab=email-marketing" />
+      </Route>
+      <Route path="/admin/whatsapp">
+        <Redirect to="/admin/analytics?tab=whatsapp" />
+      </Route>
+      <Route path="/admin/whmcs-import">
+        <Redirect to="/admin/analytics?tab=whmcs-import" />
+      </Route>
+      <Route path="/admin/admin-users">
+        <Redirect to="/admin/system?tab=admin-users" />
+      </Route>
+      <Route path="/admin/email-templates">
+        <Redirect to="/admin/system?tab=email-templates" />
+      </Route>
+      <Route path="/admin/settings/email">
+        <Redirect to="/admin/system?tab=email-config" />
+      </Route>
+      <Route path="/admin/settings/google">
+        <Redirect to="/admin/system?tab=google-oauth" />
+      </Route>
+      <Route path="/admin/api-settings">
+        <Redirect to="/admin/system?tab=api-settings" />
+      </Route>
+      <Route path="/admin/api-docs">
+        <Redirect to="/admin/system?tab=api-docs" />
+      </Route>
+      <Route path="/admin/security">
+        <Redirect to="/admin/system?tab=security" />
+      </Route>
+      <Route path="/admin/firewall">
+        <Redirect to="/admin/system?tab=firewall" />
       </Route>
 
       {/* ── Client routes (each individually guarded) ── */}
@@ -481,47 +503,18 @@ function RouterRoot() {
       <Route path="/client/profile">
         <ClientPage><ClientAccount /></ClientPage>
       </Route>
+      {/* Legacy admin alias redirects */}
       <Route path="/admin/products">
-        <AdminPage><AdminPackages /></AdminPage>
+        <Redirect to="/admin/hosting?tab=packages" />
       </Route>
       <Route path="/admin/payments">
-        <AdminPage><AdminPaymentMethods /></AdminPage>
+        <Redirect to="/admin/finance?tab=payment-methods" />
       </Route>
       <Route path="/admin/promos">
-        <AdminPage><AdminPromoCodes /></AdminPage>
+        <Redirect to="/admin/finance?tab=promo-codes" />
       </Route>
       <Route path="/admin/domain-extensions">
-        <AdminPage><DomainExtensions /></AdminPage>
-      </Route>
-      <Route path="/admin/affiliates">
-        <AdminPage><AdminAffiliates /></AdminPage>
-      </Route>
-      <Route path="/admin/domain-transfers">
-        <AdminPage><AdminDomainTransfers /></AdminPage>
-      </Route>
-      <Route path="/admin/credits">
-        <AdminPage><AdminCredits /></AdminPage>
-      </Route>
-      <Route path="/admin/admin-users">
-        <AdminPage><AdminUsers /></AdminPage>
-      </Route>
-      <Route path="/admin/knowledge-base/new">
-        <AdminPage><KbArticleEditor /></AdminPage>
-      </Route>
-      <Route path="/admin/knowledge-base/:id/edit">
-        <AdminPage><KbArticleEditor /></AdminPage>
-      </Route>
-      <Route path="/admin/knowledge-base">
-        <AdminPage><KnowledgeBase /></AdminPage>
-      </Route>
-      <Route path="/admin/announcements">
-        <AdminPage><Announcements /></AdminPage>
-      </Route>
-      <Route path="/admin/server-nodes">
-        <AdminPage><ServerNodes /></AdminPage>
-      </Route>
-      <Route path="/admin/email-marketing">
-        <AdminPage><EmailMarketing /></AdminPage>
+        <Redirect to="/admin/domains?tab=extensions" />
       </Route>
       {/* ── Legal pages — public (canonical + short aliases) ── */}
       <Route path="/legal/terms"       component={TermsOfService} />

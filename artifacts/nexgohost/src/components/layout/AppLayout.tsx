@@ -25,94 +25,31 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
     items: [
-      { name: "Dashboard", href: "/admin/dashboard", icon: (() => null) as any },
+      { name: "Dashboard",    href: "/admin/dashboard", icon: (() => null) as any },
+      { name: "Clients",      href: "/admin/clients",   icon: (() => null) as any },
     ],
   },
   {
-    label: "Management",
+    label: "Services",
     items: [
-      { name: "Clients",          href: "/admin/clients",         icon: (() => null) as any },
-      { name: "Hosting",          href: "/admin/hosting",             icon: (() => null) as any },
-      { name: "Domains",          href: "/admin/domains",             icon: (() => null) as any },
-      { name: "TLD Management",   href: "/admin/domains/extensions",  icon: (() => null) as any },
-      { name: "Packages",         href: "/admin/packages",            icon: (() => null) as any },
-      { name: "Orders",           href: "/admin/orders",          icon: (() => null) as any },
-      { name: "Invoices",         href: "/admin/invoices",        icon: (() => null) as any },
+      { name: "Domains",   href: "/admin/domains",  icon: (() => null) as any },
+      { name: "Hosting",   href: "/admin/hosting",  icon: (() => null) as any },
+      { name: "Orders",    href: "/admin/orders",   icon: (() => null) as any },
     ],
   },
   {
-    label: "Support",
+    label: "Customer Care",
     items: [
-      { name: "Tickets",          href: "/admin/tickets",                 icon: (() => null) as any },
-      { name: "Knowledge Base",   href: "/admin/knowledge-base",          icon: (() => null) as any },
-      { name: "Announcements",    href: "/admin/announcements",           icon: (() => null) as any },
-      { name: "Migrations",       href: "/admin/migrations",              icon: (() => null) as any },
-      { name: "Cancellations",    href: "/admin/cancellation-requests",   icon: (() => null) as any },
+      { name: "Support",   href: "/admin/support",  icon: (() => null) as any },
+      { name: "Finance",   href: "/admin/finance",  icon: (() => null) as any },
     ],
   },
   {
-    label: "Commerce",
+    label: "Technical",
     items: [
-      { name: "Promo Codes",        href: "/admin/promo-codes",        icon: (() => null) as any },
-      { name: "Payment Methods",    href: "/admin/payment-methods",    icon: (() => null) as any },
-      { name: "Currencies",         href: "/admin/currencies",         icon: (() => null) as any },
-      { name: "Product Groups",     href: "/admin/product-groups",     icon: (() => null) as any },
-      { name: "Affiliates",         href: "/admin/affiliates",         icon: (() => null) as any },
-      { name: "Domain Transfers",   href: "/admin/domain-transfers",   icon: (() => null) as any },
-      { name: "Credit Management",  href: "/admin/credits",            icon: (() => null) as any },
-    ],
-  },
-  {
-    label: "Marketing",
-    items: [
-      { name: "Email Marketing",    href: "/admin/email-marketing",    icon: (() => null) as any },
-    ],
-  },
-  {
-    label: "Infrastructure",
-    items: [
-      { name: "Servers",            href: "/admin/servers",            icon: (() => null) as any },
-      { name: "Server Nodes",       href: "/admin/server-nodes",       icon: (() => null) as any },
-      { name: "Modules",            href: "/admin/modules",            icon: (() => null) as any },
-      { name: "VPS Plans",          href: "/admin/vps",                icon: (() => null) as any },
-      { name: "Domain Registrars",  href: "/admin/domain-registrars",  icon: (() => null) as any },
-      { name: "Pending Activations", href: "/admin/pending-activations", icon: (() => null) as any },
-    ],
-  },
-  {
-    label: "20i Control",
-    items: [
-      { name: "20i Management",     href: "/admin/twenty-i",           icon: (() => null) as any },
-    ],
-  },
-  {
-    label: "Migration",
-    items: [
-      { name: "WHMCS Import",     href: "/admin/whmcs-import",     icon: (() => null) as any },
-    ],
-  },
-  {
-    label: "Analytics & Logs",
-    items: [
-      { name: "Reports",           href: "/admin/reports",          icon: (() => null) as any },
-      { name: "Transactions",     href: "/admin/transactions",     icon: (() => null) as any },
-      { name: "Fraud Logs",       href: "/admin/fraud-logs",       icon: (() => null) as any },
-      { name: "Automation",       href: "/admin/cron-logs",        icon: (() => null) as any },
-      { name: "Server Logs",      href: "/admin/server-logs",      icon: (() => null) as any },
-      { name: "WhatsApp Alerts",  href: "/admin/whatsapp",         icon: (() => null) as any },
-      { name: "Security",         href: "/admin/security",         icon: (() => null) as any },
-      { name: "Firewall",         href: "/admin/firewall",         icon: (() => null) as any },
-      { name: "Backup & Drive",   href: "/admin/backups",          icon: (() => null) as any },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { name: "Admin Users",      href: "/admin/admin-users",      icon: (() => null) as any },
-      { name: "Email Templates",  href: "/admin/email-templates",  icon: (() => null) as any },
-      { name: "Settings",         href: "/admin/settings",         icon: (() => null) as any },
-      { name: "API Settings",     href: "/admin/api-settings",     icon: (() => null) as any },
-      { name: "API Docs",         href: "/admin/api-docs",          icon: (() => null) as any },
+      { name: "Servers",    href: "/admin/servers",    icon: (() => null) as any },
+      { name: "Analytics",  href: "/admin/analytics",  icon: (() => null) as any },
+      { name: "System",     href: "/admin/system",     icon: (() => null) as any },
     ],
   },
 ];
@@ -162,8 +99,22 @@ export function AppLayout({ children, role }: LayoutProps) {
     })),
   }));
 
-  const isActive = (href: string) =>
-    location === href || location.startsWith(`${href}/`);
+  const MASTER_CHILDREN: Record<string, string[]> = {
+    "/admin/domains":   ["/admin/domain-registrars", "/admin/domain-transfers", "/admin/domains/extensions"],
+    "/admin/hosting":   ["/admin/packages", "/admin/pending-activations", "/admin/vps"],
+    "/admin/orders":    ["/admin/invoices", "/admin/transactions"],
+    "/admin/support":   ["/admin/tickets", "/admin/migrations", "/admin/knowledge-base", "/admin/announcements", "/admin/cancellation-requests"],
+    "/admin/finance":   ["/admin/promo-codes", "/admin/payment-methods", "/admin/currencies", "/admin/product-groups", "/admin/affiliates", "/admin/credits"],
+    "/admin/servers":   ["/admin/twenty-i", "/admin/modules", "/admin/server-nodes"],
+    "/admin/analytics": ["/admin/reports", "/admin/transactions", "/admin/fraud-logs", "/admin/cron-logs", "/admin/server-logs", "/admin/backups", "/admin/whatsapp", "/admin/email-marketing", "/admin/whmcs-import"],
+    "/admin/system":    ["/admin/settings", "/admin/admin-users", "/admin/email-templates", "/admin/api-settings", "/admin/api-docs", "/admin/security", "/admin/firewall"],
+  };
+
+  const isActive = (href: string) => {
+    if (location === href || location.startsWith(`${href}/`)) return true;
+    const children = MASTER_CHILDREN[href] ?? [];
+    return children.some(child => location === child || location.startsWith(`${child}/`));
+  };
 
   const pageTitle = (() => {
     const parts = location.split("/").filter(Boolean);
