@@ -55,12 +55,12 @@ function requireApiKey(server: any, res: any): boolean {
 }
 
 /**
- * Run `fn` with the server's per-server proxy URL active (stored in ipAddress).
- * If ipAddress is empty / not set, uses env-var proxy as normal.
+ * Run `fn` for a 20i server.
+ * Proxy is controlled exclusively via the TWENTYI_PROXY env var — the
+ * per-server ipAddress field is no longer used as a proxy override.
  */
-async function runWith20i<T>(server: any, fn: () => Promise<T>): Promise<T> {
-  const proxyUrl: string | undefined = server?.ipAddress || undefined;
-  return runWithProxy(proxyUrl, fn);
+async function runWith20i<T>(_server: any, fn: () => Promise<T>): Promise<T> {
+  return fn();
 }
 
 // ─── Server info ──────────────────────────────────────────────────────────────
@@ -102,20 +102,11 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req
       });
     }
 
-    // Run full debug with the saved server's proxy URL (stored in ipAddress)
-    const runDiag = async () => {
-      const [debug, ip, proxy] = await Promise.all([
-        twentyiRawDebug(server.apiToken!),
-        getOutboundIp(),
-        Promise.resolve(getProxyConfig()),
-      ]);
-      return { debug, ip, proxy };
-    };
-
-    const { debug, ip, proxy } = await runWithProxy(
-      server.ipAddress || undefined,
-      runDiag
-    );
+    const [debug, ip, proxy] = await Promise.all([
+      twentyiRawDebug(server.apiToken!),
+      getOutboundIp(),
+      Promise.resolve(getProxyConfig()),
+    ]);
 
     // Log to console so admin can see it immediately in workflow logs
     console.log(`[20i-DIAGNOSTIC] Outbound IP: ${debug.outboundIp}${proxy.enabled ? ` (proxy: ${proxy.url})` : " (direct)"}`);

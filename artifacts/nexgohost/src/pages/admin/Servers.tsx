@@ -422,25 +422,6 @@ export default function Servers() {
                         </a>
                       </p>
                     </div>
-                    {/* Proxy URL (per-server static proxy) */}
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
-                        Static Proxy URL
-                        <span className="text-[10px] font-normal text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5 py-0.5">optional</span>
-                      </label>
-                      <Input
-                        type="text"
-                        value={serverForm.ipAddress}
-                        onChange={setS("ipAddress")}
-                        placeholder="http://user:pass@proxy.host:1234"
-                        className="font-mono text-xs"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Route all 20i API calls through a fixed-IP proxy so 20i always sees one whitelisted IP.
-                        Leave blank to use direct connection or the <span className="font-mono">TWENTYI_PROXY</span> env var.
-                      </p>
-                    </div>
-
                     <Button
                       type="button"
                       variant="outline"
