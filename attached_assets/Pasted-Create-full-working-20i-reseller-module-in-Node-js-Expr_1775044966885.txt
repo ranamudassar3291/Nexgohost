@@ -1,0 +1,197 @@
+Create full working 20i reseller module in Node.js + Express + TypeScript
+
+Convert WHMCS PHP module to Node.js module
+
+Create folder:
+
+/modules/20i
+
+Create following files:
+
+modules/20i/20i.service.ts
+modules/20i/20i.controller.ts
+modules/20i/20i.routes.ts
+modules/20i/20i.types.ts
+modules/20i/20i.utils.ts
+modules/20i/index.ts
+
+Install dependencies:
+
+npm install axios dotenv
+
+--------------------------------
+
+20i.service.ts
+
+Create functions:
+
+testConnection
+createAccount
+suspendAccount
+unsuspendAccount
+terminateAccount
+changePackage
+singleSignOn
+getPackages
+getAccounts
+
+Use API:
+
+https://api.20i.com/reseller
+
+Authentication:
+
+Authorization: Bearer API_KEY
+
+Example:
+
+import axios from "axios";
+
+const API_URL = "https://api.20i.com/reseller";
+
+export const testConnection = async (apiKey:string)=>{
+
+try{
+
+const response = await axios.get(`${API_URL}`,{
+headers:{
+Authorization:`Bearer ${apiKey}`,
+Accept:"application/json"
+}
+})
+
+return response.data
+
+}catch(error:any){
+
+throw new Error(
+error.response?.data?.message || error.message
+)
+
+}
+
+}
+
+--------------------------------
+
+20i.controller.ts
+
+Create:
+
+testConnection
+addServer
+createHosting
+suspendHosting
+unsuspendHosting
+terminateHosting
+
+--------------------------------
+
+20i.routes.ts
+
+Create routes:
+
+POST /20i/test
+POST /20i/add-server
+POST /20i/create
+POST /20i/suspend
+POST /20i/unsuspend
+POST /20i/terminate
+GET /20i/packages
+GET /20i/accounts
+
+--------------------------------
+
+20i.types.ts
+
+Create interfaces:
+
+ServerConfig
+HostingAccount
+Package
+APIResponse
+
+--------------------------------
+
+20i.utils.ts
+
+Create helper functions:
+
+handleError
+validateApiKey
+formatResponse
+
+--------------------------------
+
+index.ts
+
+export all services
+
+--------------------------------
+
+Add to main server
+
+app.use("/api", require("./modules/20i"))
+
+--------------------------------
+
+Add Debug Logs
+
+console.log("20i API Call")
+console.log("Response:",response.data)
+console.log("Error:",error)
+
+--------------------------------
+
+Add Server Flow
+
+Step 1
+
+User adds API key
+
+Step 2
+
+Test connection
+
+Step 3
+
+Save server
+
+Step 4
+
+Enable module
+
+--------------------------------
+
+Create Add Server Function
+
+POST /20i/add-server
+
+Body:
+
+{
+"name":"20i Server",
+"apiKey":"xxx"
+}
+
+--------------------------------
+
+Return success:
+
+{
+success:true,
+message:"20i Server Connected"
+}
+
+--------------------------------
+
+Handle Errors:
+
+401 Unauthorized
+403 Forbidden
+Invalid API Key
+IP Not Whitelisted
+
+--------------------------------
+
+Create fully working 20i module
