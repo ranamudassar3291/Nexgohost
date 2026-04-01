@@ -1,6 +1,6 @@
 /**
  * 20i Module — Service layer
- * Direct axios calls using X-API-KEY header and correct reseller base URL.
+ * Direct axios calls using raw Authorization header and correct reseller base URL.
  */
 import axios, { AxiosRequestConfig } from "axios";
 import {
@@ -23,21 +23,21 @@ import type {
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://api.20i.com/reseller";
+const BASE_URL = "https://api.20i.com/reseller/v1";
 
 // ─── Raw axios request ────────────────────────────────────────────────────────
 
 async function apiRequest<T = any>(apiKey: string, method: string, path: string, data?: unknown): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const headers = {
-    "X-API-KEY": apiKey,
+    Authorization: apiKey,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
 
   console.log(`[20i API] → ${method} ${url}`);
-  console.log(`[20i API]   X-API-KEY: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
-  console.log(`[20i API]   Headers:`, { ...headers, "X-API-KEY": `${apiKey.substring(0, 4)}****` });
+  console.log(`[20i API]   Authorization: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
+  console.log(`[20i API]   Headers:`, { Authorization: `${apiKey.substring(0, 4)}****`, "Content-Type": "application/json", Accept: "application/json" });
 
   const cfg: AxiosRequestConfig = {
     method: method as any,

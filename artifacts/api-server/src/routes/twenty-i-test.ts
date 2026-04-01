@@ -85,14 +85,14 @@ async function tryEndpoint(apiKey: string, url: string): Promise<AttemptResult> 
   const start = Date.now();
   try {
     console.log(`[20i-TEST] → GET ${url}`);
-    console.log(`[20i-TEST]   X-API-KEY: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
-    console.log(`[20i-TEST]   Headers:`, { "X-API-KEY": `${apiKey.substring(0, 4)}****`, Accept: "application/json" });
+    console.log(`[20i-TEST]   Authorization: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
+    console.log(`[20i-TEST]   Headers:`, { Authorization: `${apiKey.substring(0, 4)}****`, Accept: "application/json" });
 
     const cfg: AxiosRequestConfig = {
       method: "GET",
       url,
       headers: {
-        "X-API-KEY": apiKey,
+        Authorization: apiKey,
         "Content-Type": "application/json",
         Accept: "application/json",
       },

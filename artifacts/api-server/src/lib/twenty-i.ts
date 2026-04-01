@@ -75,14 +75,14 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
   const url = `https://api.20i.com${path}`;
 
   console.log(`[20i] → ${method} ${url}`);
-  console.log(`[20i]   X-API-KEY: ${cleanKey.substring(0, 4)}****${cleanKey.slice(-4)}  (len=${cleanKey.length})`);
-  console.log(`[20i]   Headers: X-API-KEY, Accept: application/json, Content-Type: application/json`);
+  console.log(`[20i]   Authorization: ${cleanKey.substring(0, 4)}****${cleanKey.slice(-4)}  (len=${cleanKey.length})`);
+  console.log(`[20i]   Headers: Authorization (raw key), Accept: application/json, Content-Type: application/json`);
 
   const cfg: AxiosRequestConfig = {
     method: method as any,
     url,
     headers: {
-      "X-API-KEY": cleanKey,
+      Authorization: cleanKey,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -112,7 +112,7 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
   if (res.status === 401) {
     const proxyActive = !!proxyUrl;
     throw new Error(
-      `20i auth failed (401) — X-API-KEY header sent. ` +
+      `20i auth failed (401) — Authorization (raw key) header sent. ` +
       (proxyActive
         ? `Proxy active — check if proxy IP is also whitelisted.`
         : `Check: (1) IP whitelisted at my.20i.com → Reseller API → IP Whitelist. (2) API key is correct.`) +
@@ -231,7 +231,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
       method: "GET",
       url,
       headers: {
-        "X-API-KEY": cleanKey,
+        Authorization: cleanKey,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
