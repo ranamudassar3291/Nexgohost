@@ -107,7 +107,7 @@ export default function Servers() {
           proxyUrl: serverForm.ipAddress || undefined,
         }),
       });
-      if (result.debug) setDebugInfo(result.debug);
+      if (result.debug) { setDebugInfo(result.debug); setShowDebug(true); }
       if (!result.success) {
         setFormTestResult({ ok: false, msg: result.message, diagnostic: result.diagnostic });
         return;

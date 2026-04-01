@@ -1162,6 +1162,26 @@ export default function TwentyIAdmin() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Live diagnostic state
+  const [diagRunning, setDiagRunning] = useState(false);
+  const [diagResult, setDiagResult] = useState<any | null>(null);
+  const [showDiag, setShowDiag] = useState(false);
+
+  async function runDiagnostic() {
+    setDiagRunning(true);
+    setDiagResult(null);
+    try {
+      const result = await apiFetch("/api/admin/twenty-i/diagnostic");
+      setDiagResult(result);
+      setShowDiag(true);
+    } catch (e: any) {
+      setDiagResult({ ok: false, error: "exception", message: e.message });
+      setShowDiag(true);
+    } finally {
+      setDiagRunning(false);
+    }
+  }
+
   const { data: server } = useQuery({
     queryKey: ["20i-server"],
     queryFn: () => apiFetch("/api/admin/twenty-i/server"),
@@ -1195,7 +1215,7 @@ export default function TwentyIAdmin() {
           <h2 className="text-2xl font-bold text-foreground">NoePanel — 20i Management</h2>
           <p className="text-muted-foreground text-sm mt-1">StackUsers, hosting provisioning, migrations, and live support — all from NoePanel.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {lastSync && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border px-3 py-1.5 rounded-xl shadow-sm">
               <Clock size={11} />
@@ -1206,8 +1226,61 @@ export default function TwentyIAdmin() {
             <span className={`w-1.5 h-1.5 rounded-full ${server?.connected ? "bg-emerald-500" : "bg-red-500"}`} />
             {server?.connected ? "API Connected" : "API Offline"}
           </div>
+          <button
+            onClick={runDiagnostic}
+            disabled={diagRunning}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors font-medium shadow-sm disabled:opacity-50"
+          >
+            {diagRunning ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
+            {diagRunning ? "Diagnosing…" : "Run Diagnostic"}
+          </button>
         </div>
       </div>
+
+      {/* Live Diagnostic Panel */}
+      {showDiag && diagResult && (
+        <div className={`rounded-2xl border overflow-hidden ${diagResult.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-primary/20 bg-primary/5"}`}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
+            <div className="flex items-center gap-2 font-semibold text-sm">
+              {diagResult.ok
+                ? <CheckCircle size={14} className="text-emerald-500" />
+                : <XCircle size={14} className="text-primary" />}
+              <span className={diagResult.ok ? "text-emerald-600" : "text-primary"}>
+                {diagResult.ok ? "20i API Connected Successfully" : "20i API Connection Failed"}
+              </span>
+            </div>
+            <button onClick={() => setShowDiag(false)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
+          </div>
+          <div className="divide-y divide-primary/10 text-xs font-mono">
+            {diagResult.hint && (
+              <div className="px-4 py-2.5 bg-amber-500/5 border-b border-amber-500/15">
+                <span className="text-amber-600 font-sans font-semibold">⚠ Action needed: </span>
+                <span className="text-foreground/80 font-sans">{diagResult.hint}</span>
+              </div>
+            )}
+            {[
+              ["Server", diagResult.serverName ?? "—"],
+              ["Outbound IP", diagResult.debug?.outboundIp
+                ? `${diagResult.debug.outboundIp}${diagResult.debug.proxyActive ? ` (proxy: ${diagResult.debug.proxyUrl ?? "active"})` : " (direct — must be whitelisted in 20i)"}`
+                : "—"],
+              ["Authorization", diagResult.debug?.authFormat ?? "—"],
+              ["Key", `${diagResult.debug?.keyLength ?? "?"} chars · first: ${diagResult.debug?.keyFirst4 ?? "?"}… last: …${diagResult.debug?.keyLast4 ?? "?"}${diagResult.debug?.keyHasHiddenChars ? " ⚠ hidden chars were stripped" : ""}`],
+              ["Response", `HTTP ${diagResult.debug?.responseStatus ?? "ERR"} in ${diagResult.debug?.durationMs ?? "?"}ms`],
+            ].map(([label, value]) => (
+              <div key={label} className="flex gap-3 px-4 py-2">
+                <span className="text-muted-foreground w-28 shrink-0 font-sans">{label}</span>
+                <span className="text-foreground/80 break-all">{value}</span>
+              </div>
+            ))}
+            <div className="px-4 py-2.5">
+              <span className="text-muted-foreground font-sans block mb-1">Raw 20i Response</span>
+              <pre className="text-foreground/70 whitespace-pre-wrap break-all leading-relaxed">
+                {diagResult.debug?.responseBody ?? diagResult.message ?? "No response body"}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab nav */}
       <div className="flex flex-wrap gap-1 bg-secondary/40 p-1 rounded-2xl w-fit border border-border/40">

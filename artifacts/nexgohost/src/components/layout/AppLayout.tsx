@@ -184,7 +184,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         <div>
           <h1 className="font-display font-bold text-xl text-foreground tracking-tight">Noehost</h1>
           <p className="text-[10px] text-primary font-semibold tracking-widest uppercase">
-            {role === "admin" ? "Admin Noehost" : "Client Portal"}
+            {role === "admin" ? "NoePanel" : "Client Portal"}
           </p>
         </div>
       </div>

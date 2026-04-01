@@ -7,6 +7,7 @@ import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
 import { autoFixSafepayKeys } from "./routes/safepay.js";
 import { getSystemApiKey } from "./lib/systemApiKey.js";
+import { getOutboundIp, getProxyConfig } from "./lib/twenty-i.js";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,18 @@ if (Number.isNaN(port) || port <= 0) {
 
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
+
+  // Print outbound IP immediately so admin knows which IP to whitelist in 20i
+  getOutboundIp().then(ip => {
+    const proxy = getProxyConfig();
+    if (proxy.enabled) {
+      console.log(`[20i] Outbound IP (via proxy ${proxy.url}): ${ip}  ← whitelist THIS in 20i`);
+    } else {
+      console.log(`[20i] Outbound IP (direct — no proxy): ${ip}  ← whitelist THIS in 20i, or set TWENTYI_PROXY for a static IP`);
+    }
+  }).catch(() => {
+    console.warn("[20i] Could not detect outbound IP at startup");
+  });
 
   // Auto-refresh exchange rates on startup and every hour
   const runRefresh = async () => {

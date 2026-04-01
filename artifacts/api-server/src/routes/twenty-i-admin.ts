@@ -27,6 +27,9 @@ import {
   twentyiCreateTicket,
   twentyiReplyTicket,
   runWithProxy,
+  twentyiRawDebug,
+  getOutboundIp,
+  getProxyConfig,
 } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -73,6 +76,60 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (_req: Au
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Direct diagnostic (no UI cache — tests saved key against live 20i API) ──
+
+router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const server = await get20iServer();
+    if (!server) {
+      return res.json({
+        ok: false,
+        error: "no_server",
+        message: "No active 20i server configured. Add one in Admin → Servers.",
+      });
+    }
+    if (!server.apiToken) {
+      return res.json({
+        ok: false,
+        error: "no_key",
+        message: "20i API key missing from the saved server record. Edit the server in Admin → Servers.",
+      });
+    }
+
+    // Run full debug with the saved server's proxy URL (stored in ipAddress)
+    const runDiag = async () => {
+      const [debug, ip, proxy] = await Promise.all([
+        twentyiRawDebug(server.apiToken!),
+        getOutboundIp(),
+        Promise.resolve(getProxyConfig()),
+      ]);
+      return { debug, ip, proxy };
+    };
+
+    const { debug, ip, proxy } = await runWithProxy(
+      server.ipAddress || undefined,
+      runDiag
+    );
+
+    // Log to console so admin can see it immediately in workflow logs
+    console.log(`[20i-DIAGNOSTIC] Outbound IP: ${debug.outboundIp}${proxy.enabled ? ` (proxy: ${proxy.url})` : " (direct)"}`);
+    console.log(`[20i-DIAGNOSTIC] HTTP ${debug.responseStatus} in ${debug.durationMs}ms — key: ${debug.authFormat}`);
+
+    return res.json({
+      ok: debug.responseStatus === 200,
+      serverName: server.name,
+      outboundIp: ip,
+      proxy,
+      debug,
+      hint: debug.responseStatus === 401
+        ? `Whitelist ${debug.outboundIp} in my.20i.com → Reseller API → IP Whitelist, then retry.`
+        : undefined,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: "exception", message: e.message });
   }
 });
 
