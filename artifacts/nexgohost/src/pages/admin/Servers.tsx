@@ -458,8 +458,21 @@ export default function Servers() {
                         </button>
                         {showDebug && (
                           <div className="border-t border-primary/10 text-xs font-mono">
-                            {/* Action required banner when 401 */}
-                            {debugInfo.workingFormat === "none" && debugInfo.responseStatus === 401 && (
+                            {/* Wrong API key banner */}
+                            {debugInfo.diagnosis === "wrong_key" && (
+                              <div className="px-3.5 py-3 bg-red-500/8 border-b border-red-500/20">
+                                <p className="text-red-600 font-semibold text-[11px] mb-1">INVALID API KEY — Your 20i API key is incorrect</p>
+                                <p className="text-[10px] text-muted-foreground mb-2">20i rejected the key entirely (type: User ID). This means the key stored here does not match any valid reseller API key in your 20i account.</p>
+                                <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal ml-3">
+                                  <li>Go to <strong>my.20i.com → Reseller API</strong></li>
+                                  <li>Copy your <strong>General API Key</strong></li>
+                                  <li>Edit this server record and paste the correct key</li>
+                                  <li>Click <strong>Test Connection</strong> again</li>
+                                </ol>
+                              </div>
+                            )}
+                            {/* IP not whitelisted banner */}
+                            {debugInfo.diagnosis === "ip_blocked" && (
                               <div className="px-3.5 py-3 bg-amber-500/8 border-b border-amber-500/20">
                                 <p className="text-amber-700 font-semibold text-[11px] mb-2">ACTION REQUIRED — Whitelist this IP in 20i:</p>
                                 <div className="flex items-center gap-2 mb-2">
@@ -493,7 +506,7 @@ export default function Servers() {
                               ["URL", `${debugInfo.method} ${debugInfo.url}`],
                               ["Key", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
                               ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct)")],
-                              ["Working Format", debugInfo.workingFormat !== "none" ? `Bearer <Base64(key)> ✓` : debugInfo.responseStatus === 401 ? "401 — IP not whitelisted" : "No format worked"],
+                              ["Working Format", debugInfo.workingFormat !== "none" ? `Bearer <Base64(key)> ✓` : debugInfo.diagnosis === "wrong_key" ? "401 — Invalid API key (check your key)" : debugInfo.diagnosis === "ip_blocked" ? "401 — IP not whitelisted" : `${debugInfo.responseStatus ?? "ERR"} — Connection failed`],
                               ["Total Time", `${debugInfo.durationMs}ms`],
                             ].map(([label, value]) => (
                               <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">

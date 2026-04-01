@@ -137,9 +137,19 @@ async function request<T = any>(
   const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
 
   if (res.status === 401) {
+    let errType: string | null = null;
+    try { errType = (typeof res.data === "object" ? res.data?.type : JSON.parse(raw)?.type) ?? null; } catch { /* ignore */ }
+    if (errType === "User ID") {
+      throw new Error(
+        `20i Authentication failed (401) — INVALID API KEY. ` +
+        `The key you entered is not recognised by 20i. ` +
+        `Go to my.20i.com -> Reseller API and copy your General API Key. ` +
+        `Response: ${raw.substring(0, 200)}`,
+      );
+    }
     throw new Error(
-      `20i Authentication failed (401). ` +
-      `You must whitelist this server IP at my.20i.com -> Reseller API -> IP Whitelist. ` +
+      `20i Authentication failed (401) — IP NOT WHITELISTED. ` +
+      `Add this server IP at my.20i.com -> Reseller API -> IP Whitelist. ` +
       `Response: ${raw.substring(0, 200)}`,
     );
   }
@@ -257,6 +267,10 @@ export interface TwentyIDebugInfo {
   durationMs: number;
   attempts: TwentyIDebugAttempt[];
   workingFormat: "raw" | "none";
+  // Parsed from the 20i error JSON: "User ID" = wrong key, "GeneralApiKey" = IP blocked, etc.
+  twentyiErrorType: string | null;
+  // Human-readable diagnosis
+  diagnosis: "connected" | "wrong_key" | "ip_blocked" | "unknown_401" | "error";
 }
 
 export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo> {
@@ -306,12 +320,33 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
 
   const durationMs = Date.now() - t0;
 
+  // Parse 20i error type from response body to distinguish key-invalid vs IP-blocked
+  let twentyiErrorType: string | null = null;
+  let diagnosis: TwentyIDebugInfo["diagnosis"] = "error";
+  if (workingFormat === "raw") {
+    diagnosis = "connected";
+  } else if (status === 401) {
+    try {
+      const parsed = JSON.parse(body);
+      twentyiErrorType = parsed?.type ?? null;
+    } catch { /* not JSON */ }
+    // "User ID" type means the key is not recognised at all (wrong key)
+    // Any other type on 401 means the key decoded fine but IP is blocked
+    if (twentyiErrorType === "User ID") {
+      diagnosis = "wrong_key";
+    } else {
+      diagnosis = "ip_blocked";
+    }
+  } else {
+    diagnosis = "unknown_401";
+  }
+
   return {
     url,
     method: "GET",
     authFormat: workingFormat === "raw"
-      ? `${keyMask} (raw Bearer — working)`
-      : `${keyMask} (raw Bearer — failed)`,
+      ? `${keyMask} (raw Bearer -- working)`
+      : `${keyMask} (raw Bearer -- failed)`,
     keyLength: keyLen,
     keyFirst4: cleanKey.substring(0, 4),
     keyLast4: cleanKey.slice(-4),
@@ -323,6 +358,8 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
     responseBody: body,
     durationMs,
     workingFormat,
+    twentyiErrorType,
+    diagnosis,
     attempts: [{
       format: "raw",
       authHeaderPreview: keyMask,
@@ -365,8 +402,8 @@ export async function twentyiAutoWhitelist(
     return { added: true, reason: "ok" };
   } catch (e: any) {
     const msg = String(e.message ?? "");
-    const reason = msg.includes("401") ? "ip_blocked"
-      : msg.includes("403") ? "bad_key"
+    const reason = msg.includes("403") ? "bad_key"
+      : msg.includes("401") ? "auth_failed"
       : "error";
     console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
     return { added: false, reason };
