@@ -35,7 +35,7 @@ async function apiRequest<T = any>(apiKey: string, method: string, path: string,
     method: method as any,
     url,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "X-API-KEY": apiKey,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -45,6 +45,8 @@ async function apiRequest<T = any>(apiKey: string, method: string, path: string,
   };
 
   console.log(`[20i API] → ${method} ${url}`);
+  console.log(`[20i API]   X-API-KEY: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
+  console.log(`[20i API]   Headers:`, { "X-API-KEY": `${apiKey.substring(0, 4)}****`, "Content-Type": "application/json", Accept: "application/json" });
 
   const res = await axios(cfg);
 

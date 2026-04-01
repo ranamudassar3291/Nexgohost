@@ -812,7 +812,7 @@ router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async 
         const fetch = (await import("node-fetch")).default;
         const fullDomain = `${domain.name}${domain.tld}`;
         const resp = await (fetch as any)(`https://api.20i.com/domain/${fullDomain}`, {
-          headers: { Authorization: `Bearer ${server.apiToken}` },
+          headers: { "X-API-KEY": server.apiToken, Accept: "application/json" },
           signal: AbortSignal.timeout(8000),
         });
         if (resp.ok) {
