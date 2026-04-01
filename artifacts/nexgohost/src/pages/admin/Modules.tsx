@@ -626,7 +626,7 @@ export default function Modules() {
   async function detectServerIp() {
     setIpLoading(true);
     try {
-      const result = await apiFetch("/api/system/ip");
+      const result = await apiFetch(`/api/system/ip?nocache=${Date.now()}`);
       if (result?.primary || result?.secondary) {
         setServerIp({ primary: result.primary, secondary: result.secondary });
       }

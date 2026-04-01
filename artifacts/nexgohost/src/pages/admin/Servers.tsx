@@ -126,9 +126,9 @@ export default function Servers() {
   // Outbound IP — fetched lazily when 20i form is shown (must be after is20i is defined)
   const { data: outboundData, isLoading: loadingIp } = useQuery<{ ip: string; proxy: { enabled: boolean; url?: string } }>({
     queryKey: ["outbound-ip"],
-    queryFn: () => apiFetch("/api/admin/servers/outbound-ip"),
+    queryFn: () => apiFetch(`/api/admin/servers/outbound-ip?nocache=${Date.now()}`),
     enabled: showServerForm && is20i,
-    staleTime: 60 * 1000,
+    staleTime: 0,
     retry: false,
   });
 

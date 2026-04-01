@@ -22,7 +22,26 @@ async function fetchIp(url: string): Promise<string | null> {
 }
 
 /**
- * GET /api/system/ip
+ * GET /debug-ip  (public — no auth)
+ * Returns the real outgoing IP of this backend server.
+ * Open in browser: yourdomain.com/api/debug-ip
+ */
+router.get("/debug-ip", async (_req, res) => {
+  console.log("[DEBUG-IP] Detecting real outbound IP…");
+  const ip = await fetchIp("https://api.ipify.org?format=json");
+  const ip2 = await fetchIp("https://ifconfig.me/ip");
+  console.log(`[DEBUG-IP] Result: ${ip ?? "failed"} / ${ip2 ?? "failed"}`);
+  res.json({
+    serverIp: ip ?? ip2 ?? "could not detect",
+    primary: ip ?? null,
+    secondary: ip2 ?? null,
+    instruction: "Add BOTH IPs to: my.20i.com → Reseller API → IP Whitelist",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * GET /api/system/ip  (admin only)
  * Returns the real outgoing IPs of this server (primary + secondary).
  */
 router.get("/system/ip", authenticate, requireAdmin, async (_req, res) => {
