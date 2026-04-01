@@ -72,17 +72,19 @@ export function sanitiseKey(apiKey: string): string {
 
 async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
   const cleanKey = sanitiseKey(apiKey);
+  // 20i requires the API key to be Base64-encoded in the Bearer token (per official docs)
+  const token = Buffer.from(cleanKey).toString("base64");
   const url = `https://api.20i.com${path}`;
 
   console.log(`[20i] → ${method} ${url}`);
-  console.log(`[20i]   Authorization: Bearer ${cleanKey.substring(0, 4)}****${cleanKey.slice(-4)}  (len=${cleanKey.length})`);
-  console.log(`[20i]   Headers: Authorization Bearer, Content-Type: application/json, Accept: application/json`);
+  console.log(`[20i]   raw_key: ${cleanKey.substring(0, 4)}****${cleanKey.slice(-4)} (len=${cleanKey.length})`);
+  console.log(`[20i]   b64_token: ${token.substring(0, 8)}... (len=${token.length})`);
 
   const cfg: AxiosRequestConfig = {
     method: method as any,
     url,
     headers: {
-      Authorization: `Bearer ${cleanKey}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -215,11 +217,14 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
     ? `Bearer ${"*".repeat(Math.max(0, keyLen - 4))}${cleanKey.slice(-4)}`
     : `Bearer ${"*".repeat(keyLen)}`;
 
-  const url = "https://api.20i.com/reseller";
+  const url = "https://api.20i.com/reseller/*/packageCount";
   const proxyConfig = getProxyConfig();
   const proxyUrl = getProxyUrl();
 
   const outboundIp = await getOutboundIp();
+
+  // Base64-encode the API key (required by official 20i docs)
+  const token = Buffer.from(cleanKey).toString("base64");
 
   const t0 = Date.now();
   let status: number | null = null;
@@ -231,7 +236,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo 
       method: "GET",
       url,
       headers: {
-        Authorization: `Bearer ${cleanKey}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
@@ -295,10 +300,10 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
   const cleanKey = sanitiseKey(apiKey);
   console.log(`[20i] Testing connection — key_len=${cleanKey.length}  last4=${cleanKey.slice(-4)}`);
 
-  // Step 1: Verify auth with the reseller info endpoint
+  // Step 1: Verify auth with the reseller packageCount endpoint
   let resellerOk = false;
   try {
-    await probeEndpoints(apiKey, "GET", ["/reseller"]);
+    await probeEndpoints(apiKey, "GET", ["/reseller/*/packageCount"]);
     resellerOk = true;
     console.log("[20i] ✓ Reseller auth OK");
   } catch (err: any) {
@@ -309,15 +314,15 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
         message: "Authentication failed (401 Unauthorized)",
         diagnostic: {
           step: "Authentication",
-          detail: "Check: (1) Your API key is valid — regenerate at my.20i.com → Reseller API → API Key. (2) This server's IP is whitelisted at my.20i.com → Reseller API → IP Whitelist.",
+          detail: "Check: (1) IP whitelisted at my.20i.com → Reseller API → IP Whitelist. (2) API key is a valid Reseller Combined key.",
         },
       };
     }
-    console.warn(`[20i] /reseller probe non-fatal: ${msg}`);
+    console.warn(`[20i] /reseller/*/packageCount probe non-fatal: ${msg}`);
   }
 
-  // Step 2: Find the packages endpoint
-  const PACKAGE_PATHS = ["/reseller/package", "/reseller/packages", "/package"];
+  // Step 2: Find the packages/accounts endpoint
+  const PACKAGE_PATHS = ["/reseller/*/packageTypes", "/package"];
   try {
     const { path, data } = await probeEndpoints(apiKey, "GET", PACKAGE_PATHS);
     const packages = Array.isArray(data) ? data : (typeof data === "object" && data !== null ? Object.values(data) : []);

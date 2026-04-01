@@ -2,8 +2,8 @@
  * POST /api/20i/test
  * Comprehensive 20i API tester with real outbound IP detection.
  * Uses axios (not fetch) for maximum compatibility.
- * - Auth: Bearer <raw_api_key>  (no Base64)
- * - Tests: https://api.20i.com/reseller
+ * - Auth: Bearer <Base64(apiKey)>  ← REQUIRED by official 20i docs
+ * - Tests: https://api.20i.com/reseller/* (packageCount)
  * - Detects real outgoing IP from ipify.org + ifconfig.me before every test
  */
 import { Router } from "express";
@@ -83,16 +83,19 @@ async function resolveApiKey(bodyKey?: string): Promise<{ key: string; source: s
 
 async function tryEndpoint(apiKey: string, url: string): Promise<AttemptResult> {
   const start = Date.now();
+  // Base64-encode the API key (required by 20i official docs)
+  const token = Buffer.from(apiKey).toString("base64");
+
   try {
     console.log(`[20i-TEST] → GET ${url}`);
-    console.log(`[20i-TEST]   Authorization: Bearer ${apiKey.substring(0, 4)}****${apiKey.slice(-4)}  (len=${apiKey.length})`);
-    console.log(`[20i-TEST]   Headers:`, { Authorization: `Bearer ${apiKey.substring(0, 4)}****`, Accept: "application/json" });
+    console.log(`[20i-TEST]   raw_key: ${apiKey.substring(0, 4)}****${apiKey.slice(-4)} (len=${apiKey.length})`);
+    console.log(`[20i-TEST]   b64_token: ${token.substring(0, 8)}... (len=${token.length})`);
 
     const cfg: AxiosRequestConfig = {
       method: "GET",
       url,
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
@@ -155,10 +158,10 @@ router.post("/20i/test", authenticate, requireAdmin, async (req: any, res) => {
 
   console.log(`[20i-TEST] KEY: ${cleanKey.substring(0, 4)}...${cleanKey.slice(-4)}  len=${cleanKey.length}`);
   console.log(`[20i-TEST] Source: ${resolved.source}`);
-  console.log(`[20i-TEST] Auth format: Bearer <raw_key>  (no Base64)`);
+  console.log(`[20i-TEST] Auth format: Bearer <Base64(key)>  ← required by official 20i docs`);
 
-  // Test https://api.20i.com/reseller (canonical endpoint)
-  const urlsToTry = ["https://api.20i.com/reseller"];
+  // Test with the official endpoint: GET /reseller/*/packageCount
+  const urlsToTry = ["https://api.20i.com/reseller/*/packageCount"];
 
   const attempts: AttemptResult[] = [];
 
