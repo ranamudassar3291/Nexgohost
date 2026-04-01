@@ -30,6 +30,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("noehost-theme", theme);
   }, [theme]);
 
+  // Listen for OS-level theme changes and follow them IF the user has not made an explicit choice
+  useEffect(() => {
+    const stored = localStorage.getItem("noehost-theme");
+    if (stored) return; // user has an explicit preference — don't override it
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => setTheme(e.matches ? "dark" : "light");
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const toggleTheme = () => setTheme(prev => (prev === "dark" ? "light" : "dark"));
 
   return (
