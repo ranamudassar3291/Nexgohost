@@ -1337,7 +1337,8 @@ export default function TwentyIAdmin() {
       const result = await apiFetch("/api/admin/twenty-i/sync", { method: "POST" });
       setLastSync(result.syncedAt ?? new Date().toISOString());
       qc.invalidateQueries({ queryKey: ["20i-sites"] });
-      toast({ title: `Synced ${result.synced ?? 0} of ${result.total ?? 0} sites` });
+      const dateMsg = result.datesSynced > 0 ? `, ${result.datesSynced} renewal dates updated` : "";
+      toast({ title: `Synced ${result.synced ?? 0} of ${result.total ?? 0} sites${dateMsg}` });
     } catch (e: any) {
       toast({ title: "Sync failed", description: e.message, variant: "destructive" });
     } finally {

@@ -320,7 +320,7 @@ export default function Register() {
         <div className="flex flex-col items-center mb-7">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-violet-500/30"
             style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
-            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Nexgohost"
+            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost"
               className="w-7 h-7" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Create your account</h1>

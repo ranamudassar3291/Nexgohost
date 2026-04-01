@@ -110,7 +110,7 @@ export default function VpsHosting() {
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: P }}>
                 <Server size={16} className="text-white"/>
               </div>
-              <span className="text-[15px] font-extrabold text-gray-900">Nexgohost</span>
+              <span className="text-[15px] font-extrabold text-gray-900">Noehost</span>
             </span>
           </Link>
           <div className="hidden md:flex items-center gap-6 text-[13px] font-medium text-gray-600">
@@ -535,9 +535,9 @@ export default function VpsHosting() {
           <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: P }}>
             <Server size={14} className="text-white"/>
           </div>
-          <span className="text-[14px] font-bold text-white">Nexgohost</span>
+          <span className="text-[14px] font-bold text-white">Noehost</span>
         </div>
-        <p className="text-gray-500 text-[12px]">© {new Date().getFullYear()} Nexgohost. All rights reserved.</p>
+        <p className="text-gray-500 text-[12px]">© {new Date().getFullYear()} Noehost. All rights reserved.</p>
       </footer>
     </div>
   );

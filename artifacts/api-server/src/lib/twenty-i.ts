@@ -176,26 +176,41 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   };
 }
 
-async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
-  const cleanKey = sanitiseKey(apiKey);
-  const url = `https://api.20i.com${path}`;
-
+async function doFetch(cleanKey: string, method: string, url: string, body?: unknown): Promise<Response> {
   const fetchOpts: any = {
     method,
     headers: {
       Authorization: `Bearer ${cleanKey}`,
       "Content-Type": "application/json",
-      "Accept": "application/json",
+      Accept: "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(25000),
   };
-
-  // Attach proxy dispatcher if configured
   const proxy = getProxy();
   if (proxy) fetchOpts.dispatcher = proxy;
+  return fetch(url, fetchOpts);
+}
 
-  const res = await fetch(url, fetchOpts);
+async function twentyiRequestRaw(apiKey: string, method: string, path: string, body?: unknown): Promise<any> {
+  const cleanKey = sanitiseKey(apiKey);
+  const url = `https://api.20i.com${path}`;
+
+  let res = await doFetch(cleanKey, method, url, body);
+
+  // ── Auto-heal on 401: try to whitelist the current IP then retry once ──────
+  if (res.status === 401) {
+    try {
+      const outboundIp = await getOutboundIp();
+      console.log(`[20i] 401 received — attempting auto-whitelist of ${outboundIp} then retrying…`);
+      // Fire-and-forget whitelist attempt; it may also 401 if never whitelisted before
+      await twentyiAddToWhitelistRaw(cleanKey, outboundIp);
+    } catch {
+      // Whitelist attempt failed — continue to throw informative 401 error
+    }
+    // Retry the original request once
+    res = await doFetch(cleanKey, method, url, body);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -214,6 +229,32 @@ async function twentyiRequestRaw(apiKey: string, method: string, path: string, b
     throw new Error(`20i API error ${res.status}: ${text.substring(0, 300)}`);
   }
   return res.json();
+}
+
+/**
+ * Thin whitelist-add used internally for auto-heal — never throws.
+ * Uses the same proxy/key as the main request. Does NOT call twentyiAddToWhitelist
+ * (which imports this file) to avoid circular dependency.
+ */
+async function twentyiAddToWhitelistRaw(cleanKey: string, ip: string): Promise<void> {
+  const fetchOpts: any = {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${cleanKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ apiWhitelist: { [ip]: {} } }),
+    signal: AbortSignal.timeout(12000),
+  };
+  const proxy = getProxy();
+  if (proxy) fetchOpts.dispatcher = proxy;
+  const res = await fetch("https://api.20i.com/reseller/apiWhitelist", fetchOpts);
+  if (res.ok) {
+    console.log(`[20i] Auto-whitelist: ✓ Added ${ip} to whitelist`);
+  } else {
+    console.warn(`[20i] Auto-whitelist: HTTP ${res.status} — IP ${ip} could not be auto-added (manual step may be required)`);
+  }
 }
 
 /** Retry up to 3 times with exponential backoff on transient errors */
@@ -511,6 +552,29 @@ export async function twentyiListSites(apiKey: string): Promise<TwentyISite[]> {
     package: s.package_name ?? s.package ?? "",
     stackUserId: s.user_id ? String(s.user_id) : undefined,
   }));
+}
+
+/**
+ * Fetch renewal/expiry date for a specific hosting package from 20i.
+ * Tries /package/{id} first then falls back gracefully.
+ */
+export async function twentyiGetSiteRenewalDate(
+  apiKey: string,
+  siteId: string,
+): Promise<{ expiryDate: Date | null; renewalDate: Date | null }> {
+  try {
+    const data = await twentyiRequest(apiKey, "GET", `/package/${siteId}`);
+    const raw = data?.renewal_date ?? data?.expiry_date ?? data?.next_due_date ?? null;
+    const rawExpiry = data?.expiry_date ?? null;
+    const parseD = (v: any): Date | null => {
+      if (!v) return null;
+      const d = new Date(typeof v === "number" ? v * 1000 : v);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    return { expiryDate: parseD(rawExpiry), renewalDate: parseD(raw) };
+  } catch {
+    return { expiryDate: null, renewalDate: null };
+  }
 }
 
 // ─── Delete StackUser ─────────────────────────────────────────────────────────

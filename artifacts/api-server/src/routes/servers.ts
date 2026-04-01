@@ -432,7 +432,7 @@ router.post("/admin/servers/:id/whitelist-self", authenticate, requireAdmin, asy
     let whitelisted = false;
     let csfMethod = "";
     try {
-      const csfUrl = `https://${server.hostname}:${port}/cgi-bin/addon_csf.cgi?action=whitelist&ip=${encodeURIComponent(myIp)}&dir=in&comment=Nexgohost+API+Server&submit=Quick+Allow`;
+      const csfUrl = `https://${server.hostname}:${port}/cgi-bin/addon_csf.cgi?action=whitelist&ip=${encodeURIComponent(myIp)}&dir=in&comment=Noehost+API+Server&submit=Quick+Allow`;
       const data = await whmGet(csfUrl, authHeader, 10_000);
       // CSF CGI returns HTML, check for success indicators
       const body = JSON.stringify(data);

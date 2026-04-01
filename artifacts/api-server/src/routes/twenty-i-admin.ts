@@ -32,6 +32,7 @@ import {
   getProxyConfig,
   twentyiGetWhitelist,
   twentyiAddToWhitelist,
+  twentyiGetSiteRenewalDate,
 } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -528,26 +529,60 @@ router.post("/admin/twenty-i/tickets/:id/reply", authenticate, requireAdmin, asy
   }
 });
 
-// ─── Sync ──────────────────────────────────────────────────────────────────────
+// ─── Sync (status + renewal dates) ────────────────────────────────────────────
 
 router.post("/admin/twenty-i/sync", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
   try {
     const server = await get20iServer();
     if (!requireApiKey(server, res)) return;
-    const sites = await twentyiListSites(server!.apiToken!);
+    const apiKey = server!.apiToken!;
+    const sites = await twentyiListSites(apiKey);
 
     let synced = 0;
+    let datesSynced = 0;
+    const errors: string[] = [];
+
     for (const site of sites) {
-      const updated = await db.update(hostingServicesTable)
-        .set({
+      try {
+        // Fetch renewal dates for this specific package
+        const { expiryDate, renewalDate } = await twentyiGetSiteRenewalDate(apiKey, site.id);
+
+        const updatePayload: Record<string, any> = {
           status: site.status === "suspended" ? "suspended" : "active",
           updatedAt: new Date(),
-        })
-        .where(eq(hostingServicesTable.username, site.id));
-      if ((updated as any).rowCount > 0) synced++;
+        };
+        if (renewalDate) { updatePayload.nextDueDate = renewalDate; datesSynced++; }
+        if (expiryDate) updatePayload.expiryDate = expiryDate;
+
+        // Match by domain first, then by username (which stores the 20i site id)
+        const byDomain = await db.update(hostingServicesTable)
+          .set(updatePayload)
+          .where(eq(hostingServicesTable.domain, site.domain))
+          .returning({ id: hostingServicesTable.id });
+
+        if (byDomain.length > 0) {
+          synced++;
+        } else {
+          // Fallback: match by username = site.id
+          const byUser = await db.update(hostingServicesTable)
+            .set(updatePayload)
+            .where(eq(hostingServicesTable.username, site.id))
+            .returning({ id: hostingServicesTable.id });
+          if (byUser.length > 0) synced++;
+        }
+      } catch (siteErr: any) {
+        errors.push(`${site.domain}: ${siteErr.message}`);
+      }
     }
 
-    res.json({ ok: true, total: sites.length, synced, syncedAt: new Date().toISOString() });
+    res.json({
+      ok: true,
+      total: sites.length,
+      synced,
+      datesSynced,
+      errors: errors.length ? errors : undefined,
+      syncedAt: new Date().toISOString(),
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
