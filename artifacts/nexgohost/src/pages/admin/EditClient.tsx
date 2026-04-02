@@ -94,7 +94,8 @@ export default function EditClient() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ canMigrate: newValue }),
       });
-      const data = await res.json();
+      const text = await res.text().catch(() => "");
+      const data = text ? JSON.parse(text) : {};
       if (!res.ok) throw new Error(data.error || "Failed to update");
       setCanMigrate(data.canMigrate === true);
       toast({ title: newValue ? "Migration enabled" : "Migration disabled", description: `Client can ${newValue ? "now" : "no longer"} request website migrations.` });

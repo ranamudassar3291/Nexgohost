@@ -10,6 +10,12 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text().catch(() => "");
+  if (!text.trim()) return {};
+  try { return JSON.parse(text); } catch { return { _raw: text }; }
+}
+
 interface Migration {
   id: string;
   domain: string;
@@ -173,7 +179,7 @@ export default function ClientMigrations() {
   const fetchMigrations = useCallback(async () => {
     try {
       const res = await fetch("/api/migrations", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setMigrations(await res.json());
+      if (res.ok) setMigrations(await safeJson(res));
     } catch {
       // silent
     } finally {
@@ -195,7 +201,7 @@ export default function ClientMigrations() {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
-            const { migration: updated } = await res.json();
+            const { migration: updated } = await safeJson(res);
             setMigrations(prev => prev.map(p => p.id === updated.id ? updated : p));
           }
         } catch {
@@ -221,7 +227,7 @@ export default function ClientMigrations() {
       const res = await fetch(`/api/migrations/whm-accounts?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || "Failed to fetch WHM accounts");
       setWhmAccounts(data.accounts ?? []);
       setWhmFetched(true);
@@ -263,7 +269,7 @@ export default function ClientMigrations() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || "Failed to start migration");
 
       setMigrations(prev => [data, ...prev]);
@@ -285,7 +291,7 @@ export default function ClientMigrations() {
       const res = await fetch(`/api/migrations/${migrationId}/stackcp-url`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) throw new Error(data.error || "Could not get StackCP URL");
       window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (err: any) {
