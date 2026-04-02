@@ -140,10 +140,11 @@ router.get("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
 
 // POST /api/admin/servers/test-api-key — pre-save credential test with full debug info
 router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (req, res) => {
-  const { apiKey, type, proxyUrl } = req.body;
+  const { apiKey, type, proxyUrl, keyType } = req.body;
   if (!apiKey) { res.status(400).json({ error: "apiKey is required" }); return; }
   if (type === "20i") {
     const runTest = async () => {
+      console.log(`[TEST-KEY] keyType=${keyType || "general"}  keyLen=${String(apiKey).length}  last4=${String(apiKey).slice(-4)}`);
       // Raw debug info — always collected
       const debug = await twentyiRawDebug(apiKey);
       const result = await twentyiTestConnection(apiKey);

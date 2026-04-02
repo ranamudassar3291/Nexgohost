@@ -21,6 +21,7 @@ interface ServerRecord {
   ns1: string | null; ns2: string | null; maxAccounts: number | null;
   status: "active" | "inactive" | "maintenance"; groupId: string | null; isDefault: boolean;
   hasApiToken?: boolean;
+  keyType?: string;
   accountCount?: number;
 }
 interface TwentyIPkg { id: string; label: string; name?: string; }
@@ -149,7 +150,7 @@ export default function Servers() {
         body: JSON.stringify({
           apiKey: serverForm.apiToken.trim(),
           type: "20i",
-          // proxyUrl from ipAddress field (per-server proxy override)
+          keyType: serverForm.keyType || "general",
           proxyUrl: serverForm.ipAddress || undefined,
         }),
       });
@@ -394,12 +395,32 @@ export default function Servers() {
                       )}
                     </div>
                     <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground/80">Key Type</label>
+                      <select
+                        value={serverForm.keyType}
+                        onChange={e => { setServerForm(s => ({ ...s, keyType: e.target.value })); setFormTestResult(null); }}
+                        className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="general">General Key (short — Reseller API)</option>
+                        <option value="combined">Combined Key (long — Full Access)</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        {serverForm.keyType === "combined"
+                          ? "Combined Key grants full reseller + package-level access. Found at my.20i.com → Reseller API → Combined Key."
+                          : "General Key is the short Reseller API key. Found at my.20i.com → Reseller API → General Key."}
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">API Key *</label>
                       <Input
                         type="password"
                         value={serverForm.apiToken}
                         onChange={e => { setS("apiToken")(e); setFormTestResult(null); }}
-                        placeholder={apiTokenSaved ? "Key saved — enter new to replace" : "Paste your 20i reseller API key"}
+                        placeholder={apiTokenSaved
+                          ? "Key saved — enter new to replace"
+                          : serverForm.keyType === "combined"
+                            ? "Paste your 20i Combined Key (longer)"
+                            : "Paste your 20i General API Key (shorter)"}
                       />
                       {editServerId && apiTokenSaved && !serverForm.apiToken && (
                         <p className="text-xs text-emerald-400">✓ API key is saved — leave blank to keep existing</p>
@@ -767,6 +788,8 @@ export default function Servers() {
                           type: s.type,
                           apiUsername: s.apiUsername || "root",
                           apiToken: "",
+                          keyType: s.keyType || "general",
+                          proxyUrl: s.ipAddress || "",
                           apiPort: String(s.apiPort || 2087),
                           ns1: s.ns1 || "",
                           ns2: s.ns2 || "",

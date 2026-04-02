@@ -90,10 +90,14 @@ export function sanitiseKey(key: string): string {
 
 // Per 20i official docs: BOTH General and Combined API keys must be
 // Base64-encoded before use as the Bearer token value.
-// Format: Authorization: Bearer base64(rawKey)
+// General Key:  Authorization: Bearer base64(generalKey)
+// Combined Key: Authorization: Bearer base64(combinedKey)   ← same encoding, key is just longer
+// There is NO length restriction — Combined Keys are longer than General Keys and are fully supported.
 function buildBearerToken(raw: string): string {
   const clean = sanitiseKey(raw);
-  return Buffer.from(clean).toString("base64");
+  // ↓ This is the exact encoding line — works for BOTH General and Combined keys
+  const token = Buffer.from(clean).toString("base64");
+  return token;
 }
 
 // Exported helper for any route that constructs the Authorization header directly.
@@ -167,15 +171,14 @@ async function request<T = any>(
     try { errType = (typeof res.data === "object" ? res.data?.type : JSON.parse(raw)?.type) ?? null; } catch { /* ignore */ }
     if (errType === "User ID") {
       throw new Error(
-        `20i Authentication failed (401) — INVALID API KEY. ` +
-        `The key you entered is not recognised by 20i. ` +
-        `Go to my.20i.com -> Reseller API and copy your General API Key. ` +
+        `20i Authentication failed (401) — KEY NOT RECOGNISED. ` +
+        `Your API key was rejected by 20i. Verify that you are using a valid General Key or Combined Key from my.20i.com → Reseller API. ` +
         `Response: ${raw.substring(0, 200)}`,
       );
     }
     throw new Error(
-      `20i Authentication failed (401) — IP NOT WHITELISTED. ` +
-      `Add this server IP at my.20i.com -> Reseller API -> IP Whitelist. ` +
+      `20i Authentication failed (401) — IP NOT WHITELISTED or key invalid. ` +
+      `Add this server's outbound IP at my.20i.com → Reseller API → IP Whitelist, then retry. ` +
       `Response: ${raw.substring(0, 200)}`,
     );
   }
