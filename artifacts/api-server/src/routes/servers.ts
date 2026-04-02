@@ -242,10 +242,18 @@ router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   }
   if (keyType !== undefined) updates.keyType = keyType;
   if (proxyUrl !== undefined) updates.proxyUrl = proxyUrl || null;
-  if (apiPort !== undefined) updates.apiPort = parseInt(apiPort);
+  if (apiPort !== undefined) {
+    // parseInt(null) or parseInt("") → NaN, which PostgreSQL rejects for integer columns.
+    // For 20i servers the port is irrelevant — store null.
+    const parsed = parseInt(apiPort);
+    updates.apiPort = isNaN(parsed) ? null : parsed;
+  }
   if (ns1 !== undefined) updates.ns1 = ns1;
   if (ns2 !== undefined) updates.ns2 = ns2;
-  if (maxAccounts !== undefined) updates.maxAccounts = parseInt(maxAccounts);
+  if (maxAccounts !== undefined) {
+    const parsed = parseInt(maxAccounts);
+    updates.maxAccounts = isNaN(parsed) ? 500 : parsed;
+  }
   if (status !== undefined) updates.status = status;
   if (groupId !== undefined) updates.groupId = groupId || null;
   if (isDefault !== undefined) updates.isDefault = isDefault;
