@@ -386,12 +386,14 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
     diagnosis = "unknown_401";
   }
 
+  // Build what the actual Authorization header value looks like (one "Bearer " only)
+  const authHeaderPreview = `Authorization: Bearer <base64(${keyLen}-char-key)>`;
   return {
     url,
     method: "GET",
     authFormat: workingFormat === "raw"
-      ? `${keyMask} (raw Bearer -- working)`
-      : `${keyMask} (raw Bearer -- failed)`,
+      ? `${authHeaderPreview} ✓ accepted`
+      : `${authHeaderPreview} ✗ rejected (HTTP ${status})`,
     keyLength: keyLen,
     tokenLength: tokenLen,
     keyFirst4: cleanKey.substring(0, 4),
@@ -408,7 +410,8 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
     diagnosis,
     attempts: [{
       format: "raw",
-      authHeaderPreview: keyMask,
+      // Shows exactly what the Authorization header value looks like — one "Bearer " only
+      authHeaderPreview: `Bearer <base64(${keyLen}-char-key, first4=${cleanKey.substring(0, 4)}, last4=${cleanKey.slice(-4)})>`,
       status,
       body,
       durationMs,

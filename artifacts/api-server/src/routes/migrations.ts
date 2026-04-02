@@ -18,7 +18,11 @@ async function getAdminApiKey(): Promise<string | null> {
   try {
     const servers = await db.select().from(serversTable);
     const s = servers.find((sv: any) => sv.type === "20i");
-    return (s as any)?.apiKey ?? null;
+    // Field is `apiToken` (Drizzle ORM camelCase) — NOT `apiKey`
+    const key = (s as any)?.apiToken ?? null;
+    if (key) console.log(`[MIGRATION-KEY] Using 20i key — len=${key.length}  last4=${key.slice(-4)}`);
+    else console.warn("[MIGRATION-KEY] No 20i API key found — add it in Admin → Servers");
+    return key;
   } catch {
     return null;
   }
