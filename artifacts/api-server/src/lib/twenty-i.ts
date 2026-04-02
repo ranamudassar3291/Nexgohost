@@ -3,9 +3,11 @@
  * https://api.20i.com  (official API Blueprint v1)
  *
  * Authentication
- *   Authorization: Bearer {base64(apiKey)}
- *   Per official docs: the raw API key MUST be Base64-encoded before use
- *   as the Bearer token value.
+ *   Authorization: Bearer {base64(apiKey + "\n")}
+ *   Per official 20i API docs: the key MUST have a trailing newline appended
+ *   BEFORE base64 encoding. Proven by decoding their example token:
+ *   "ZTRkNGZkMzFhNTJkY2FlMwo=" → "e4d4fd31a52dcae3\n"
+ *   Without the "\n" the token is different and 20i returns 401 {"type":"User ID"}.
  *
  * Reseller self-reference
  *   All /reseller/{resellerId}/... endpoints use "*" as the resellerId
@@ -94,12 +96,15 @@ export function sanitiseKey(key: string): string {
     .replace(/[\r\n\t]/g, "");                            // carriage-return, newline, tab
 }
 
-// STEP 2 — Encode: base64(cleanKey).
+// STEP 2 — Encode: base64(cleanKey + "\n").
+// The 20i API requires a trailing newline appended to the key BEFORE base64 encoding.
+// Proof: their docs example token "ZTRkNGZkMzFhNTJkY2FlMwo=" decodes to "e4d4fd31a52dcae3\n".
+// Without the "\n" the encoded token is different and 20i returns {"type":"User ID"} 401.
 // Input:  a pre-sanitised key string (full length, + preserved for Combined Keys).
 // Output: the base64 token value — NO "Bearer" prefix is included here.
 // The caller adds the single "Bearer " prefix when building the Authorization header.
 function encodeKeyToBase64(cleanKey: string): string {
-  return Buffer.from(cleanKey).toString("base64");
+  return Buffer.from(cleanKey + "\n").toString("base64");
 }
 
 // Build the full Authorization header value.
