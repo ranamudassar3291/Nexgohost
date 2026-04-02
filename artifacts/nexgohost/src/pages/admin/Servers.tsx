@@ -462,16 +462,52 @@ export default function Servers() {
 
                     {/* Test result */}
                     {formTestResult && (
-                      <div className={`text-xs p-3 rounded-xl border space-y-1.5 ${formTestResult.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-primary/20 bg-primary/5"}`}>
-                        <div className={`flex items-start gap-2 font-medium ${formTestResult.ok ? "text-emerald-500" : "text-primary"}`}>
-                          {formTestResult.ok
-                            ? <CheckCircle size={13} className="mt-0.5 shrink-0" />
-                            : <XCircle size={13} className="mt-0.5 shrink-0" />}
-                          <span>{formTestResult.msg}</span>
-                        </div>
-                        {formTestResult.diagnostic?.detail && (
-                          <p className="text-muted-foreground pl-[19px]">{formTestResult.diagnostic.detail}</p>
-                        )}
+                      <div className={`text-xs p-3 rounded-xl border space-y-2 ${
+                        formTestResult.ok
+                          ? "border-emerald-500/20 bg-emerald-500/5"
+                          : "border-red-400/30 bg-red-500/5"
+                      }`}>
+                        {formTestResult.ok ? (
+                          <div className="flex items-start gap-2 font-medium text-emerald-500">
+                            <CheckCircle size={13} className="mt-0.5 shrink-0" />
+                            <span>{formTestResult.msg}</span>
+                          </div>
+                        ) : (() => {
+                          const msg = formTestResult.msg ?? "";
+                          const isWrongKey = msg.includes("KEY NOT RECOGNISED") || msg.includes('"type":"User ID"') || msg.includes("User ID");
+                          const isIpBlocked = msg.includes("IP NOT WHITELISTED") || msg.includes("ip_blocked");
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-start gap-2 font-semibold text-red-600">
+                                <XCircle size={13} className="mt-0.5 shrink-0" />
+                                <span>
+                                  {isWrongKey
+                                    ? "Invalid API Key — 20i does not recognise this key"
+                                    : isIpBlocked
+                                    ? "IP Not Whitelisted — add this server's IP in 20i"
+                                    : "Connection failed"}
+                                </span>
+                              </div>
+                              {isWrongKey && (
+                                <div className="ml-5 space-y-1 text-muted-foreground">
+                                  <p>The key you entered was rejected by 20i with error <code className="font-mono text-red-500">&#123;"type":"User ID"&#125;</code> — meaning the key does not match any account on their system.</p>
+                                  <p className="font-medium text-foreground/80 mt-1.5">Steps to fix:</p>
+                                  <ol className="ml-3 list-decimal space-y-0.5">
+                                    <li>Open <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API → API Keys</a></li>
+                                    <li>Copy your <strong>General API Key</strong> exactly as shown</li>
+                                    <li>Paste it in the field above and click <strong>Test Connection</strong></li>
+                                  </ol>
+                                </div>
+                              )}
+                              {isIpBlocked && (
+                                <p className="ml-5 text-muted-foreground">Add this server's outbound IP to the whitelist at my.20i.com → Reseller API → IP Whitelist, then test again.</p>
+                              )}
+                              {!isWrongKey && !isIpBlocked && (
+                                <p className="ml-5 text-muted-foreground">{msg}</p>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {formTestResult.ok && formTestResult.diagnostic?.endpoint && (
                           <p className="text-muted-foreground pl-[19px]">Endpoint: <span className="font-mono">{formTestResult.diagnostic.endpoint}</span></p>
                         )}
@@ -498,15 +534,25 @@ export default function Servers() {
                           <div className="border-t border-primary/10 text-xs font-mono">
                             {/* Wrong API key banner */}
                             {debugInfo.diagnosis === "wrong_key" && (
-                              <div className="px-3.5 py-3 bg-red-500/8 border-b border-red-500/20">
-                                <p className="text-red-600 font-semibold text-[11px] mb-1">KEY NOT RECOGNISED — 20i rejected this key</p>
-                                <p className="text-[10px] text-muted-foreground mb-2">20i returned a 401 with type "User ID". The key was not matched to any reseller account.</p>
-                                <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal ml-3">
-                                  <li>Go to <strong>my.20i.com → Reseller API</strong></li>
-                                  <li>Copy the full Combined Key (format: <code className="font-mono">GeneralKey+OAuthKey</code>)</li>
-                                  <li>Paste it into the "20i API Key" field above</li>
-                                  <li>Click <strong>Test Connection</strong> again</li>
-                                </ol>
+                              <div className="px-3.5 py-3 bg-red-500/8 border-b border-red-500/20 space-y-2.5">
+                                <p className="text-red-600 font-semibold text-[11px]">KEY NOT RECOGNISED — 20i rejected this key as invalid</p>
+                                <div className="rounded-lg bg-background border border-red-400/20 px-3 py-2 text-[10px] font-sans text-muted-foreground">
+                                  <p className="font-semibold text-foreground/80 mb-1">What this error means:</p>
+                                  <p>20i returned <code className="font-mono text-red-600">&#123;"type":"User ID"&#125;</code> — this is their specific error for <strong>"key not found in our system"</strong>. It is not an IP whitelist issue. The key string you entered does not match any 20i reseller account.</p>
+                                </div>
+                                <div className="text-[10px] font-sans text-muted-foreground space-y-1.5">
+                                  <p className="font-semibold text-foreground/80">How to get the correct key:</p>
+                                  <ol className="space-y-1 ml-3 list-decimal">
+                                    <li>Open <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline font-semibold">my.20i.com → Reseller API → API Keys</a></li>
+                                    <li>Find <strong>"General API Key"</strong> — copy it exactly (no spaces)</li>
+                                    <li>Optionally, also copy <strong>"Combined Key"</strong> and paste the full string including the <code className="font-mono">+</code></li>
+                                    <li>Paste into the "20i API Key" field above and click <strong>Test Connection</strong></li>
+                                  </ol>
+                                </div>
+                                <div className="rounded-lg bg-amber-500/8 border border-amber-400/20 px-3 py-2 text-[10px] font-sans">
+                                  <p className="font-semibold text-amber-700 mb-0.5">Also whitelist your current outbound IP:</p>
+                                  <p className="text-muted-foreground">Your panel's outbound IP is <code className="font-mono font-bold text-foreground">{debugInfo.outboundIp}</code>. Add it at <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API → IP Whitelist</a>, then test again.</p>
+                                </div>
                               </div>
                             )}
                             {/* IP not whitelisted banner */}
