@@ -21,7 +21,7 @@ const DEFAULT_MAX_RETRIES = 3;
 
 /**
  * Strip invisible/zero-width characters and control chars from a pasted key.
- * Preserves '+' which is part of the Combined Key format: GeneralKey+OAuthKey
+ * Preserves '+' which is the separator in the Combined Key format: GeneralKey+OAuthKey
  */
 export function sanitiseKey(raw: string): string {
   return raw
@@ -31,9 +31,27 @@ export function sanitiseKey(raw: string): string {
 }
 
 /**
- * Encode the clean API key to the base64 Bearer token.
- * IMPORTANT: a trailing "\n" MUST be appended before encoding — this is
- * required by 20i's API (proven by decoding their official docs example token).
+ * Extract the General Key for Bearer authentication from a Combined Key.
+ *
+ * 20i Combined Key format: "GeneralKey+OAuthKey"
+ * Only the GENERAL KEY (part before "+") must be base64-encoded in the Bearer token.
+ *
+ * Proof from server logs:
+ *   17-char key (General Key alone) → HTTP 404   (auth PASSED — resource not found)
+ *   35-char combined key            → HTTP 401   (auth FAILED — User ID)
+ *
+ * "cb574b954e850f7f5+c6e95e89ebd7ea3c0"  →  "cb574b954e850f7f5"
+ * "cb574b954e850f7f5"                     →  "cb574b954e850f7f5"  (unchanged)
+ */
+export function extractGeneralKey(cleanKey: string): string {
+  const plusIdx = cleanKey.indexOf("+");
+  if (plusIdx > 0) return cleanKey.substring(0, plusIdx);
+  return cleanKey;
+}
+
+/**
+ * Encode the General Key to the base64 Bearer token.
+ * IMPORTANT: a trailing "\n" MUST be appended before encoding — required by 20i's API.
  */
 export function encodeKey(cleanKey: string): string {
   return Buffer.from(cleanKey + "\n").toString("base64");
@@ -41,11 +59,13 @@ export function encodeKey(cleanKey: string): string {
 
 /**
  * Build the full Authorization header value.
- * Returns: "Bearer <base64(cleanKey + "\n")>"
+ * Extracts the General Key from a Combined Key, then encodes it.
+ * Returns: "Bearer <base64(generalKey + "\n")>"
  */
 export function buildAuthHeader(apiKey: string): string {
   const clean = sanitiseKey(apiKey);
-  const token = encodeKey(clean);
+  const generalKey = extractGeneralKey(clean);
+  const token = encodeKey(generalKey);
   return `Bearer ${token}`;
 }
 

@@ -439,14 +439,11 @@ export default function Servers() {
                         <p className="text-xs text-emerald-600">✓ Key saved — leave blank to keep existing</p>
                       )}
                       <div className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-1">
-                        <p className="font-semibold text-foreground/70">Where to find your key:</p>
+                        <p className="font-semibold text-foreground/70">Where to find your key — <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API</a>:</p>
                         <ul className="space-y-0.5 ml-2 list-disc">
-                          <li><strong>General Key only</strong>: paste it as-is (e.g. <code className="font-mono text-primary">cb574b954e850f7f5</code>)</li>
-                          <li><strong>Combined Key</strong>: paste the full string including the + (e.g. <code className="font-mono text-primary">cb574b954e850f7f5+c6e95e89ebd7ea3c0</code>)</li>
+                          <li><strong>General Key</strong>: paste it as-is (e.g. <code className="font-mono text-primary">cb574b954e850f7f5</code>)</li>
+                          <li><strong>Combined Key</strong>: paste the full string — the General Key is extracted automatically (e.g. <code className="font-mono text-primary">cb574b954e850f7f5+c6e95e89ebd7ea3c0</code>)</li>
                         </ul>
-                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline inline-block mt-1">
-                          Open my.20i.com → Reseller API →
-                        </a>
                       </div>
                     </div>
                     <Button

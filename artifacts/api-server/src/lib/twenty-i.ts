@@ -86,9 +86,8 @@ export function getProxyConfig(): { enabled: boolean; url?: string } {
 // ─── API key sanitisation ─────────────────────────────────────────────────────
 
 // STEP 1 — Sanitise: strip ONLY invisible/control chars.
-// Preserves ALL printable ASCII including +, /, =, : used in Combined Keys.
+// Preserves ALL printable ASCII including +, which is the separator in Combined Keys.
 // Combined Key format: generalApiKey+oauthClientKey  (e.g. "cb574b954e850f7f5+c6e95e89ebd7ea3c0")
-// The + separator MUST survive this function intact.
 export function sanitiseKey(key: string): string {
   return key
     .trim()
@@ -96,23 +95,43 @@ export function sanitiseKey(key: string): string {
     .replace(/[\r\n\t]/g, "");                            // carriage-return, newline, tab
 }
 
-// STEP 2 — Encode: base64(cleanKey + "\n").
-// The 20i API requires a trailing newline appended to the key BEFORE base64 encoding.
+// STEP 1b — Extract the General Key for Bearer authentication.
+//
+// 20i uses the General Key for Bearer token auth.
+// The Combined Key format is "GeneralKey+OAuthKey" — when pasted as-is, only
+// the GENERAL KEY (the part before "+") must be encoded into the Bearer token.
+//
+// Proof from logs:
+//   17-char key (General Key alone)  → HTTP 404  (authentication PASSED)
+//   35-char combined key             → HTTP 401  (authentication FAILED — User ID)
+//
+// 20i's PHP SDK also uses only the general key for REST auth:
+//   base64_encode($generalApiKey . "\n")
+//
+// This function extracts the correct auth portion:
+//   "cb574b954e850f7f5+c6e95e89ebd7ea3c0"  →  "cb574b954e850f7f5"
+//   "cb574b954e850f7f5"                     →  "cb574b954e850f7f5"  (unchanged)
+export function extractGeneralKey(cleanKey: string): string {
+  const plusIdx = cleanKey.indexOf("+");
+  if (plusIdx > 0) return cleanKey.substring(0, plusIdx);
+  return cleanKey;
+}
+
+// STEP 2 — Encode: base64(generalKey + "\n").
+// The 20i API requires a trailing newline appended BEFORE base64 encoding.
 // Proof: their docs example token "ZTRkNGZkMzFhNTJkY2FlMwo=" decodes to "e4d4fd31a52dcae3\n".
-// Without the "\n" the encoded token is different and 20i returns {"type":"User ID"} 401.
-// Input:  a pre-sanitised key string (full length, + preserved for Combined Keys).
-// Output: the base64 token value — NO "Bearer" prefix is included here.
-// The caller adds the single "Bearer " prefix when building the Authorization header.
+// Without the "\n" the token differs and 20i returns {"type":"User ID"} 401.
 function encodeKeyToBase64(cleanKey: string): string {
   return Buffer.from(cleanKey + "\n").toString("base64");
 }
 
 // Build the full Authorization header value.
-// Result is always exactly: "Bearer " + base64(sanitise(apiKey))
-// ONE "Bearer " prefix. Always. No exceptions.
+// Extracts the General Key from a Combined Key if needed, then encodes it.
+// Result: "Bearer " + base64(generalKey + "\n")
 export function buildAuthHeader(apiKey: string): string {
   const clean = sanitiseKey(apiKey);
-  const base64 = encodeKeyToBase64(clean);
+  const generalKey = extractGeneralKey(clean);
+  const base64 = encodeKeyToBase64(generalKey);
   return `Bearer ${base64}`;
 }
 
@@ -335,22 +354,32 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   const keyHasHiddenChars = cleanKey.length !== rawKey.trim().length;
   const keyLen = cleanKey.length;
 
-  // Step 2: base64-encode the FULL clean key (no truncation, no length limit)
-  const base64Token = encodeKeyToBase64(cleanKey);
+  // Step 2: extract the General Key (part before "+") for Bearer auth.
+  // 20i Combined Key format is "GeneralKey+OAuthKey". Only the General Key
+  // must be base64-encoded for the Bearer token — the full combined key fails with 401.
+  const generalKey = extractGeneralKey(cleanKey);
+  const isCombined = generalKey.length < keyLen;
+
+  // Step 3: base64-encode the General Key (NOT the full combined key)
+  const base64Token = encodeKeyToBase64(generalKey);
   const tokenLen = base64Token.length;
 
-  // Step 3: Authorization header value = "Bearer " + base64Token (single prefix)
+  // Step 4: Authorization header value = "Bearer " + base64Token (single prefix)
   const authHeaderValue = `Bearer ${base64Token}`;
 
   // ── Full diagnostic log ─────────────────────────────────────────────────────
   console.log(
-    `[20i-DEBUG] raw_len=${rawKey.length} clean_len=${keyLen} b64_len=${tokenLen}` +
+    `[20i-DEBUG] raw_len=${rawKey.length} clean_len=${keyLen} general_key_len=${generalKey.length}` +
+    ` combined=${isCombined} b64_len=${tokenLen}` +
     ` stripped=${keyHasHiddenChars}` +
-    ` key_first4=${cleanKey.substring(0, 4)} key_last4=${cleanKey.slice(-4)}` +
-    ` header="Bearer <${tokenLen}-char-base64>"  (SINGLE Bearer prefix)`
+    ` key_first4=${generalKey.substring(0, 4)} key_last4=${generalKey.slice(-4)}` +
+    ` header="Bearer <${tokenLen}-char-base64>"  (using General Key${isCombined ? " extracted from Combined Key" : ""})`
   );
 
-  const url = `${BASE_URL}/reseller/*/packageCount`;
+  // Use /reseller/*/packageTypes — more reliable than /packageCount for detecting valid auth.
+  // A 404 here means authentication PASSED (key valid) but account has no data yet.
+  // A 401 here means authentication FAILED (wrong key or IP blocked).
+  const url = `${BASE_URL}/reseller/*/packageTypes`;
   const proxyUrl = resolveProxyUrl();
   const proxyConfig = getProxyConfig();
   const outboundIp = await getOutboundIp();
@@ -391,7 +420,20 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   let twentyiErrorType: string | null = null;
   let diagnosis: TwentyIDebugInfo["diagnosis"] = "error";
   if (workingFormat === "raw") {
+    // 2xx — fully connected
     diagnosis = "connected";
+  } else if (status !== null && status >= 200 && status < 300) {
+    // Extra guard — 2xx that wasn't caught above
+    diagnosis = "connected";
+  } else if (status === 404) {
+    // 404 means authentication PASSED. 20i returned "Not Found" for the resource,
+    // not an auth error. This happens when the account has no packages yet.
+    // Treat as connected — the key is valid.
+    workingFormat = "raw";
+    diagnosis = "connected";
+  } else if (status === 403) {
+    // 403 = IP not whitelisted (key decoded correctly, IP rejected)
+    diagnosis = "ip_blocked";
   } else if (status === 401) {
     try {
       const parsed = JSON.parse(body);
@@ -411,7 +453,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   // The exact Authorization header VALUE that is sent over the wire — single "Bearer " prefix only.
   // Format: Bearer <base64(rawKey)>
   // The "Authorization:" header name is NOT included here — it is added by the HTTP layer separately.
-  const headerValue = `Bearer <base64(${keyLen}-char key)>`;
+  const headerValue = `Bearer <base64(${generalKey.length}-char general key)>`;
   return {
     url,
     method: "GET",
@@ -420,8 +462,8 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
       : `${headerValue} ✗ rejected (HTTP ${status})`,
     keyLength: keyLen,
     tokenLength: tokenLen,
-    keyFirst4: cleanKey.substring(0, 4),
-    keyLast4: cleanKey.slice(-4),
+    keyFirst4: generalKey.substring(0, 4),
+    keyLast4: generalKey.slice(-4),
     keyHasHiddenChars,
     outboundIp,
     proxyActive: proxyConfig.enabled,
@@ -434,8 +476,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
     diagnosis,
     attempts: [{
       format: "raw",
-      // The exact value of the Authorization header sent in the HTTP request — single "Bearer " prefix
-      authHeaderPreview: `Bearer <base64(${keyLen}-char key · first=${cleanKey.substring(0, 4)} · last=${cleanKey.slice(-4)})>`,
+      authHeaderPreview: `Bearer <base64(${generalKey.length}-char general key · first=${generalKey.substring(0, 4)} · last=${generalKey.slice(-4)}${isCombined ? " · extracted from combined key" : ""})>`,
       status,
       body,
       durationMs,
