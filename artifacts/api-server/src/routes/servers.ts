@@ -235,7 +235,11 @@ router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   if (ipAddress !== undefined) updates.ipAddress = ipAddress;
   if (type !== undefined) updates.type = type;
   if (apiUsername !== undefined) updates.apiUsername = apiUsername || null;
-  if (apiToken !== undefined && apiToken !== "") updates.apiToken = sanitiseKey(apiToken);
+  if (apiToken !== undefined && apiToken !== "") {
+    const cleaned = sanitiseKey(apiToken);
+    console.log(`[SAVE-SERVER] New API token received — raw_len=${String(apiToken).length}  clean_len=${cleaned.length}  keyType=${keyType ?? "unchanged"}  last4=${cleaned.slice(-4)}`);
+    updates.apiToken = cleaned;
+  }
   if (keyType !== undefined) updates.keyType = keyType;
   if (proxyUrl !== undefined) updates.proxyUrl = proxyUrl || null;
   if (apiPort !== undefined) updates.apiPort = parseInt(apiPort);

@@ -1640,7 +1640,8 @@ export default function TwentyIAdmin() {
                 ? `${diagResult.debug.outboundIp}${diagResult.debug.proxyActive ? ` (proxy: ${diagResult.debug.proxyUrl ?? "active"})` : " (direct — must be whitelisted in 20i)"}`
                 : "—"],
               ["Authorization", diagResult.debug?.authFormat ?? "—"],
-              ["Key", `${diagResult.debug?.keyLength ?? "?"} chars · first: ${diagResult.debug?.keyFirst4 ?? "?"}… last: …${diagResult.debug?.keyLast4 ?? "?"}${diagResult.debug?.keyHasHiddenChars ? " ⚠ hidden chars were stripped" : ""}`],
+              ["Raw Key", `${diagResult.debug?.keyLength ?? "?"} chars · first: ${diagResult.debug?.keyFirst4 ?? "?"}… last: …${diagResult.debug?.keyLast4 ?? "?"}${diagResult.debug?.keyHasHiddenChars ? " ⚠ hidden chars stripped" : " (no stripping)"}`],
+              ["Bearer Token", `${(diagResult.debug as any)?.tokenLength ?? "?"} chars (base64 of the raw key) sent in Authorization header`],
               ["Response", `HTTP ${diagResult.debug?.responseStatus ?? "ERR"} in ${diagResult.debug?.durationMs ?? "?"}ms`],
             ].map(([label, value]) => (
               <div key={label} className="flex gap-3 px-4 py-2">

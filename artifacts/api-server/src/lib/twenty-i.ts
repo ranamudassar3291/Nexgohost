@@ -83,9 +83,14 @@ export function getProxyConfig(): { enabled: boolean; url?: string } {
 
 // ─── API key sanitisation ─────────────────────────────────────────────────────
 
-// Strip invisible/zero-width characters that silently corrupt the Bearer token
+// Strip only true invisible/zero-width characters that silently corrupt the Bearer token.
+// We intentionally do NOT strip printable ASCII — Combined Keys can be longer and use
+// characters like +, /, =, :, which must be preserved.
 export function sanitiseKey(key: string): string {
-  return key.trim().replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
+  return key
+    .trim()
+    .replace(/[\u200B-\u200D\uFEFF\u00AD\u007F]/g, "")   // zero-width + DEL
+    .replace(/[\r\n\t]/g, "");                             // carriage-return, newline, tab (pasting artefacts)
 }
 
 // Per 20i official docs: BOTH General and Combined API keys must be
@@ -287,6 +292,7 @@ export interface TwentyIDebugInfo {
   method: string;
   authFormat: string;
   keyLength: number;
+  tokenLength: number;   // length of base64-encoded Bearer token — the actual bytes sent over the wire
   keyFirst4: string;
   keyLast4: string;
   keyHasHiddenChars: boolean;
@@ -309,10 +315,18 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   const cleanKey = sanitiseKey(apiKey);
   const keyHasHiddenChars = cleanKey !== rawKey;
   const keyLen = cleanKey.length;
-  const token = buildBearerToken(apiKey);
+  const token = buildBearerToken(apiKey);   // base64(cleanKey)
+  const tokenLen = token.length;            // bytes sent in the Authorization header
   const keyMask = keyLen > 8
     ? `Bearer ${"*".repeat(Math.max(0, keyLen - 4))}${cleanKey.slice(-4)}`
     : `Bearer ${"*".repeat(keyLen)}`;
+
+  // ── Diagnostic log (visible in server console) ─────────────────────────────
+  console.log(
+    `[20i-DEBUG] raw_key_len=${rawKey.length}  clean_key_len=${keyLen}` +
+    `  token_b64_len=${tokenLen}  stripped=${keyHasHiddenChars}` +
+    `  first4=${cleanKey.substring(0, 4)}  last4=${cleanKey.slice(-4)}`
+  );
 
   const url = `${BASE_URL}/reseller/*/packageCount`;
   const proxyUrl = resolveProxyUrl();
@@ -379,6 +393,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
       ? `${keyMask} (raw Bearer -- working)`
       : `${keyMask} (raw Bearer -- failed)`,
     keyLength: keyLen,
+    tokenLength: tokenLen,
     keyFirst4: cleanKey.substring(0, 4),
     keyLast4: cleanKey.slice(-4),
     keyHasHiddenChars,

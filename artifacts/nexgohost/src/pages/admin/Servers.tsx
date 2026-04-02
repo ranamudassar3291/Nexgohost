@@ -482,13 +482,13 @@ export default function Servers() {
                             {/* Wrong API key banner */}
                             {debugInfo.diagnosis === "wrong_key" && (
                               <div className="px-3.5 py-3 bg-red-500/8 border-b border-red-500/20">
-                                <p className="text-red-600 font-semibold text-[11px] mb-1">INVALID API KEY — Your 20i API key is incorrect</p>
-                                <p className="text-[10px] text-muted-foreground mb-2">20i rejected the key entirely (type: User ID). This means the key stored here does not match any valid reseller API key in your 20i account.</p>
+                                <p className="text-red-600 font-semibold text-[11px] mb-1">KEY NOT RECOGNISED — 20i rejected this API key</p>
+                                <p className="text-[10px] text-muted-foreground mb-2">20i returned a "User ID" error meaning neither a General Key nor a Combined Key matched your account. Verify you pasted the correct key and selected the correct Key Type above.</p>
                                 <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal ml-3">
                                   <li>Go to <strong>my.20i.com → Reseller API</strong></li>
-                                  <li>Copy your <strong>General API Key</strong></li>
-                                  <li>Edit this server record and paste the correct key</li>
-                                  <li>Click <strong>Test Connection</strong> again</li>
+                                  <li>Copy either your <strong>General Key</strong> or <strong>Combined Key</strong></li>
+                                  <li>Choose the matching <strong>Key Type</strong> in the dropdown above</li>
+                                  <li>Paste the full key and click <strong>Test Connection</strong> again</li>
                                 </ol>
                               </div>
                             )}
@@ -525,9 +525,10 @@ export default function Servers() {
                             {/* Summary rows */}
                             {[
                               ["URL", `${debugInfo.method} ${debugInfo.url}`],
-                              ["Key", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
-                              ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct)")],
-                              ["Working Format", debugInfo.workingFormat !== "none" ? `Bearer <Base64(key)> ✓` : debugInfo.diagnosis === "wrong_key" ? "401 — Invalid API key (check your key)" : debugInfo.diagnosis === "ip_blocked" ? "401 — IP not whitelisted" : `${debugInfo.responseStatus ?? "ERR"} — Connection failed`],
+                              ["Raw Key", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : " (no stripping)"}`],
+                              ["Bearer Token", `${debugInfo.tokenLength ?? "?"} chars (= base64 of ${debugInfo.keyLength}-char key) → Authorization: Bearer ${debugInfo.attempts?.[0]?.authHeaderPreview ?? "***"}`],
+                              ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct — must be whitelisted in 20i)")],
+                              ["Result", debugInfo.workingFormat !== "none" ? `✓ Connected — Bearer base64(key) accepted` : debugInfo.diagnosis === "wrong_key" ? "✗ 401 — key not recognised (wrong key pasted or wrong key type selected)" : debugInfo.diagnosis === "ip_blocked" ? "✗ 401 — IP not yet whitelisted in 20i" : `✗ HTTP ${debugInfo.responseStatus ?? "ERR"} — see response body below`],
                               ["Total Time", `${debugInfo.durationMs}ms`],
                             ].map(([label, value]) => (
                               <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">
