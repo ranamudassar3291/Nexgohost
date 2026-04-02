@@ -132,13 +132,13 @@ export function AppLayout({ children, role }: LayoutProps) {
       <div className="p-5 flex items-center gap-3 border-b border-border/50">
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-lg"
-          style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+          style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
         >
           N
         </div>
         <div>
-          <h1 className="font-display font-bold text-xl text-foreground tracking-tight">Noehost</h1>
-          <p className="text-[10px] text-primary font-semibold tracking-widest uppercase">
+          <h1 className="font-display font-bold text-xl tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>NoeHost</h1>
+          <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "#BB86FC" }}>
             {role === "admin" ? "NoePanel" : "Client Portal"}
           </p>
         </div>
@@ -216,7 +216,7 @@ export function AppLayout({ children, role }: LayoutProps) {
               <div
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl mb-3 cursor-pointer text-white font-bold text-sm shadow-md transition-opacity hover:opacity-90"
-                style={{ background: "linear-gradient(135deg, #673ab7 0%, #9c27b0 100%)" }}
+                style={{ background: "linear-gradient(135deg, #BB86FC 0%, #7C3AED 100%)", boxShadow: "0 0 14px rgba(187,134,252,0.35)" }}
               >
                 <Plus size={16} />
                 Order Now
@@ -278,11 +278,11 @@ export function AppLayout({ children, role }: LayoutProps) {
         <div className="flex items-center gap-2.5">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow"
-            style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+            style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.40)" }}
           >
             N
           </div>
-          <span className="font-display font-bold text-lg text-foreground tracking-tight">Noehost</span>
+          <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>NoeHost</span>
         </div>
 
         {/* Right action cluster */}
@@ -292,7 +292,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             <Link href="/client/orders/new">
               <button
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow transition-opacity hover:opacity-90 mr-1"
-                style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.35)" }}
               >
                 <Plus size={13} />
                 Order

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Poppins:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Poppins:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -57,7 +57,7 @@
   --color-sidebar-accent-border: var(--sidebar-accent-border);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Poppins', 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Poppins', 'Inter', sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -66,60 +66,62 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ── NoeHost LIGHT Theme ─────────────────────────────────────────────────────
+   A softer, blue-tinted light palette that shares the brand purple accents.
+   ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* ── PROFESSIONAL ENTERPRISE SAAS THEME — Indigo/Dark Slate ── */
-  --background: 220 20% 97%;          /* Clean cool-white page */
-  --foreground: 220 25% 8%;           /* Dark charcoal #111827 */
+  --background: 232 60% 97%;          /* Very soft lavender-white #F2F3FE */
+  --foreground: 232 60% 12%;          /* Deep navy text */
 
-  --card: 0 0% 100%;                  /* Pure white cards */
-  --card-foreground: 220 25% 8%;
-  --card-border: 220 18% 90%;
+  --card: 0 0% 100%;
+  --card-foreground: 232 60% 12%;
+  --card-border: 270 60% 88%;         /* Light purple border */
 
   --popover: 0 0% 100%;
-  --popover-foreground: 220 25% 8%;
-  --popover-border: 220 18% 90%;
+  --popover-foreground: 232 60% 12%;
+  --popover-border: 270 60% 88%;
 
-  --primary: 244 76% 59%;             /* Dark Slate Indigo #4F46E5 */
+  --primary: 270 95% 60%;             /* Rich purple #7C3AED → brand accent */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 18% 95%;           /* Soft grey (#f1f2f5) */
-  --secondary-foreground: 220 18% 24%;
+  --secondary: 232 50% 94%;
+  --secondary-foreground: 232 50% 20%;
 
-  --muted: 220 18% 93%;
-  --muted-foreground: 220 12% 48%;
+  --muted: 232 40% 92%;
+  --muted-foreground: 232 20% 50%;
 
-  --accent: 244 76% 59%;
+  --accent: 175 98% 35%;              /* Teal/neon green accent #03C4B2 */
   --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 84% 55%;
+  --destructive: 0 85% 55%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 220 16% 88%;
-  --input: 220 16% 88%;
-  --ring: 244 76% 59%;
+  --border: 232 40% 88%;
+  --input: 232 40% 88%;
+  --ring: 270 95% 60%;
 
-  --chart-1: 244 76% 59%;
-  --chart-2: 221 83% 53%;
-  --chart-3: 200 75% 50%;
-  --chart-4: 160 65% 45%;
-  --chart-5: 38 92% 50%;
+  --chart-1: 270 95% 60%;
+  --chart-2: 175 98% 35%;
+  --chart-3: 232 83% 53%;
+  --chart-4: 38 92% 50%;
+  --chart-5: 0 85% 55%;
 
-  --sidebar: 0 0% 100%;
-  --sidebar-foreground: 220 18% 22%;
-  --sidebar-border: 220 18% 90%;
-  --sidebar-primary: 244 76% 59%;
+  --sidebar: 232 55% 95%;
+  --sidebar-foreground: 232 50% 18%;
+  --sidebar-border: 232 40% 88%;
+  --sidebar-primary: 270 95% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 18% 95%;
-  --sidebar-accent-foreground: 220 18% 22%;
-  --sidebar-ring: 244 76% 59%;
+  --sidebar-accent: 232 50% 90%;
+  --sidebar-accent-foreground: 232 50% 18%;
+  --sidebar-ring: 270 95% 60%;
 
   --radius: 0.75rem;
 
-  --button-outline: rgba(0,0,0, .08);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(103, 58, 183, 0.12);
+  --badge-outline: rgba(103, 58, 183, 0.07);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(0,0,0, .02);
-  --elevate-2: rgba(0,0,0, .05);
+  --elevate-1: rgba(103, 58, 183, 0.04);
+  --elevate-2: rgba(103, 58, 183, 0.08);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -130,52 +132,60 @@
   --destructive-border: hsl(var(--destructive));
 }
 
-/* ── Deep Slate Blue Dark Mode ───────────────────────────────────────────── */
+/* ── NoeHost DARK Theme — matches noehost.com exactly ───────────────────────
+   Background:  #050A30  (232 73% 11%)   — deep navy
+   Cards:       #0B1042  (234 70% 16%)   — elevated surface
+   Primary:     #BB86FC  (270 95% 76%)   — neon purple
+   Accent/Teal: #03DAC6  (175 98% 43%)   — neon teal/green
+   Text:        #E0E0E0  (0 0% 88%)      — off-white
+   Muted text:  #8A8FAE  (231 18% 61%)   — blue-gray
+   Destructive: #FF5252  (0 100% 66%)    — bright red
+   ─────────────────────────────────────────────────────────────────────────── */
 .dark {
-  --background: 222 47% 11%;          /* #1E293B deep slate blue */
-  --foreground: 213 31% 91%;          /* near-white text */
+  --background: 232 73% 11%;          /* #050A30 deep navy */
+  --foreground: 0 0% 88%;             /* #E0E0E0 off-white text */
 
-  --card: 222 40% 14%;                /* #243044 surface */
-  --card-foreground: 213 31% 91%;
-  --card-border: 222 35% 20%;
+  --card: 234 70% 16%;                /* #0B1042 elevated surface */
+  --card-foreground: 0 0% 88%;
+  --card-border: 270 50% 30%;         /* Purple-tinted border */
 
-  --popover: 222 40% 13%;
-  --popover-foreground: 213 31% 91%;
-  --popover-border: 222 35% 20%;
+  --popover: 234 70% 14%;
+  --popover-foreground: 0 0% 88%;
+  --popover-border: 270 50% 28%;
 
-  --primary: 244 76% 65%;             /* slightly lighter indigo for dark bg */
-  --primary-foreground: 0 0% 100%;
+  --primary: 270 95% 76%;             /* #BB86FC neon purple */
+  --primary-foreground: 232 73% 8%;   /* Dark navy text on purple button */
 
-  --secondary: 222 35% 19%;           /* #334155 */
-  --secondary-foreground: 213 25% 80%;
+  --secondary: 234 60% 20%;           /* #0F1655 darker surface */
+  --secondary-foreground: 0 0% 75%;
 
-  --muted: 222 35% 17%;
-  --muted-foreground: 213 20% 55%;
+  --muted: 234 55% 18%;
+  --muted-foreground: 231 18% 61%;    /* #8A8FAE blue-gray */
 
-  --accent: 244 76% 65%;
-  --accent-foreground: 0 0% 100%;
+  --accent: 175 98% 43%;              /* #03DAC6 neon teal */
+  --accent-foreground: 232 73% 8%;
 
-  --destructive: 0 72% 51%;
+  --destructive: 0 100% 66%;          /* #FF5252 bright red */
   --destructive-foreground: 0 0% 100%;
 
-  --border: 222 30% 22%;
-  --input: 222 30% 22%;
-  --ring: 244 76% 65%;
+  --border: 270 35% 25%;              /* Purple-tinted border */
+  --input: 234 60% 19%;
+  --ring: 270 95% 76%;
 
-  --chart-1: 244 76% 65%;
-  --chart-2: 221 83% 60%;
-  --chart-3: 200 75% 55%;
-  --chart-4: 160 65% 50%;
-  --chart-5: 38 92% 55%;
+  --chart-1: 270 95% 76%;             /* Purple */
+  --chart-2: 175 98% 43%;             /* Teal */
+  --chart-3: 217 91% 60%;             /* Blue */
+  --chart-4: 38 92% 55%;              /* Amber */
+  --chart-5: 0 100% 66%;              /* Red */
 
-  --sidebar: 222 42% 12%;
-  --sidebar-foreground: 213 25% 82%;
-  --sidebar-border: 222 35% 20%;
-  --sidebar-primary: 244 76% 65%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 35% 17%;
-  --sidebar-accent-foreground: 213 25% 80%;
-  --sidebar-ring: 244 76% 65%;
+  --sidebar: 232 75% 9%;              /* Slightly darker than page bg */
+  --sidebar-foreground: 0 0% 82%;
+  --sidebar-border: 270 35% 22%;
+  --sidebar-primary: 270 95% 76%;
+  --sidebar-primary-foreground: 232 73% 8%;
+  --sidebar-accent: 234 65% 15%;
+  --sidebar-accent-foreground: 0 0% 82%;
+  --sidebar-ring: 270 95% 76%;
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -185,11 +195,11 @@
   --accent-border: hsl(var(--accent));
   --destructive-border: hsl(var(--destructive));
 
-  --button-outline: rgba(255,255,255, .08);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(187, 134, 252, 0.15);
+  --badge-outline: rgba(187, 134, 252, 0.08);
   --opaque-button-border-intensity: 6;
-  --elevate-1: rgba(0,0,0, .15);
-  --elevate-2: rgba(0,0,0, .25);
+  --elevate-1: rgba(0, 0, 0, 0.25);
+  --elevate-2: rgba(0, 0, 0, 0.40);
 }
 
 @layer base {
@@ -206,12 +216,10 @@
     @apply tracking-tight;
   }
 
-  /* Ensure minimum touch target size for all interactive elements */
   button, [role="button"], a, input[type="submit"] {
     min-height: 36px;
   }
 
-  /* Small explicit action buttons retain their size */
   button.touch-sm {
     min-height: 32px;
   }
@@ -230,25 +238,24 @@
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.4);
+  background: hsl(var(--primary) / 0.4);
 }
 
-/* Utility classes */
+/* ── NoeHost Glow & Neon Utilities ──────────────────────────────────────────── */
 @layer utilities {
-  /* Responsive table container — prevents page overflow on mobile */
+  /* Responsive table container */
   .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: var(--radius);
   }
 
-  /* Touch-optimised button (at least 44px tall) */
   .btn-touch {
     min-height: 44px !important;
     min-width: 44px;
   }
 
-  /* Card grid: 1 col mobile → 2 col tablet → 3-4 col desktop */
+  /* Card grid: 1 col → 2 col → 3 col */
   .card-grid-3 {
     display: grid;
     grid-template-columns: repeat(1, 1fr);
@@ -273,31 +280,126 @@
     .card-grid-4 { grid-template-columns: repeat(4, 1fr); }
   }
 
-  .glass-card {
-    @apply bg-white/95 backdrop-blur-xl border border-black/6 shadow-lg shadow-black/6;
-  }
+  /* ── Glow effects ─────────────────────────────────────────────────────── */
   .glow-primary {
-    box-shadow: 0 2px 12px -4px hsl(var(--primary) / 0.18);
+    box-shadow: 0 0 10px 2px hsl(270 95% 76% / 0.35),
+                0 2px 12px -4px hsl(270 95% 76% / 0.25);
   }
+  .glow-accent {
+    box-shadow: 0 0 10px 2px hsl(175 98% 43% / 0.35),
+                0 2px 12px -4px hsl(175 98% 43% / 0.25);
+  }
+  .glow-destructive {
+    box-shadow: 0 0 10px 2px hsl(0 100% 66% / 0.35),
+                0 2px 12px -4px hsl(0 100% 66% / 0.25);
+  }
+  .glow-warning {
+    box-shadow: 0 0 10px 2px hsl(38 92% 55% / 0.35),
+                0 2px 12px -4px hsl(38 92% 55% / 0.25);
+  }
+
+  /* ── Neon status badges ───────────────────────────────────────────────── */
+  .badge-paid {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
+    background: hsl(175 98% 43% / 0.12);
+    color: hsl(175 98% 53%);
+    border: 1px solid hsl(175 98% 43% / 0.35);
+    box-shadow: 0 0 8px hsl(175 98% 43% / 0.25);
+  }
+  .badge-unpaid {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
+    background: hsl(0 100% 66% / 0.12);
+    color: hsl(0 100% 72%);
+    border: 1px solid hsl(0 100% 66% / 0.35);
+    box-shadow: 0 0 8px hsl(0 100% 66% / 0.20);
+  }
+  .badge-pending {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
+    background: hsl(38 92% 55% / 0.12);
+    color: hsl(38 92% 65%);
+    border: 1px solid hsl(38 92% 55% / 0.35);
+    box-shadow: 0 0 8px hsl(38 92% 55% / 0.20);
+  }
+  .badge-primary {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
+    background: hsl(270 95% 76% / 0.12);
+    color: hsl(270 95% 82%);
+    border: 1px solid hsl(270 95% 76% / 0.35);
+    box-shadow: 0 0 8px hsl(270 95% 76% / 0.20);
+  }
+
+  /* ── NoeHost button styles ────────────────────────────────────────────── */
+  .btn-noe-primary {
+    background: hsl(270 95% 76%);
+    color: hsl(232 73% 8%);
+    border: none;
+    @apply font-semibold rounded-xl shadow-sm transition-all;
+  }
+  .btn-noe-primary:hover {
+    background: hsl(270 95% 70%);
+    box-shadow: 0 0 16px hsl(270 95% 76% / 0.40);
+  }
+
+  .btn-noe-outline {
+    background: transparent;
+    color: hsl(270 95% 76%);
+    border: 1px solid hsl(270 95% 76% / 0.50);
+    @apply font-semibold rounded-xl transition-all;
+  }
+  .btn-noe-outline:hover {
+    background: hsl(270 95% 76% / 0.10);
+    border-color: hsl(270 95% 76%);
+    box-shadow: 0 0 12px hsl(270 95% 76% / 0.25);
+  }
+
+  .btn-noe-teal {
+    background: hsl(175 98% 43%);
+    color: hsl(232 73% 8%);
+    border: none;
+    @apply font-semibold rounded-xl shadow-sm transition-all;
+  }
+  .btn-noe-teal:hover {
+    background: hsl(175 98% 38%);
+    box-shadow: 0 0 16px hsl(175 98% 43% / 0.40);
+  }
+
+  /* ── Card with purple border ─────────────────────────────────────────── */
+  .glass-card {
+    @apply bg-card border border-card-border shadow-lg rounded-xl;
+  }
+  .card-noe {
+    background: hsl(var(--card));
+    border: 1px solid hsl(270 50% 30% / 0.45);
+    @apply rounded-xl shadow-md;
+  }
+
+  /* ── Gradient text ───────────────────────────────────────────────────── */
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #BB86FC, #9C4DFF);
   }
   .text-gradient-primary {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-600;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #BB86FC, #03DAC6);
   }
+
+  /* ── NoeHost gradient background ─────────────────────────────────────── */
   .btn-gradient {
-    background: hsl(var(--primary));
-    @apply text-white border-0 shadow-sm;
+    background: linear-gradient(135deg, #BB86FC, #9C4DFF);
+    @apply text-white border-0 shadow-sm font-semibold;
   }
   .btn-gradient:hover {
-    background: hsl(var(--primary) / 0.9);
+    background: linear-gradient(135deg, #C99BFF, #AA62FF);
+    box-shadow: 0 0 16px rgba(187, 134, 252, 0.40);
+  }
+
+  /* Table row hover in dark mode — neon accent */
+  .dark tr:hover td {
+    background: hsl(270 60% 20% / 0.18) !important;
   }
 }
 
 /* ── Desktop-mode on Mobile ──────────────────────────────────────────────────
    When a mobile browser requests "Desktop Site" the viewport becomes ≥1024px.
    At that width we want the sidebar to be permanently visible just like on PC.
-   Tailwind's `md:` / `lg:` breakpoints handle this automatically — no JS needed.
-   The important thing is that maximum-scale is NOT set in the viewport meta tag
-   (removed from index.html) so the browser can freely scale the desktop layout.
    ─────────────────────────────────────────────────────────────────────────── */
