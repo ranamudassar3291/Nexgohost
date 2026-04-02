@@ -84,6 +84,7 @@ export function AppLayout({ children, role }: LayoutProps) {
 
   const clientLinks = routesByRole.client
     .filter(r => r.inNav)
+    .filter(r => r.path !== "/client/migrations" || (user as any)?.canMigrate === true)
     .map(r => ({ name: r.label, href: r.path, icon: r.icon }));
 
   const routeIconMap = routesByRole.admin.reduce<Record<string, LucideIcon>>((acc, r) => {

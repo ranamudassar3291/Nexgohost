@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const migrationStatusEnum = pgEnum("migration_status_enum", ["pending", "in_progress", "completed", "failed"]);
+export const migrationSourceEnum = pgEnum("migration_source_type", ["cpanel", "whm"]);
 
 export const migrationsTable = pgTable("migrations_requests", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -12,6 +13,10 @@ export const migrationsTable = pgTable("migrations_requests", {
   oldCpanelHost: text("old_cpanel_host").notNull(),
   oldCpanelUsername: text("old_cpanel_username").notNull(),
   oldCpanelPassword: text("old_cpanel_password").notNull(),
+  sourceType: migrationSourceEnum("source_type").default("cpanel"),
+  whmAccount: text("whm_account"),
+  twentyiJobId: text("twentyi_job_id"),
+  twentyiSiteId: text("twentyi_site_id"),
   status: migrationStatusEnum("status").notNull().default("pending"),
   progress: integer("progress").default(0),
   notes: text("notes"),

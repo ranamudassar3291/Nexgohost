@@ -254,6 +254,24 @@ router.post("/admin/clients/:id/resend-verification", authenticate, requireAdmin
   }
 });
 
+router.patch("/admin/clients/:id/can-migrate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { canMigrate } = req.body;
+    if (typeof canMigrate !== "boolean") {
+      res.status(400).json({ error: "canMigrate must be a boolean" }); return;
+    }
+    const [updated] = await db.update(usersTable)
+      .set({ canMigrate, updatedAt: new Date() })
+      .where(eq(usersTable.id, req.params.id))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(formatUser(updated));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.post("/admin/clients/:id/reset-password", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { newPassword } = req.body;

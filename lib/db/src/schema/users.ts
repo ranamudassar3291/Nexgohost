@@ -27,6 +27,7 @@ export const usersTable = pgTable("users", {
   country: text("country"),
   billingCurrency: text("billing_currency"),
   stackUserId: text("stack_user_id"),
+  canMigrate: boolean("can_migrate").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -37,6 +37,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     twoFactorEnabled: user.twoFactorEnabled,
     country: (user as any).country ?? null,
     billingCurrency: (user as any).billingCurrency ?? null,
+    canMigrate: user.canMigrate ?? false,
     createdAt: user.createdAt.toISOString(),
   };
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion } from "framer-motion";
-import { UserCog, ArrowLeft, Loader2, Wallet, RefreshCw } from "lucide-react";
+import { UserCog, ArrowLeft, Loader2, Wallet, RefreshCw, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,8 @@ export default function EditClient() {
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", company: "", phone: "", status: "active",
   });
+  const [canMigrate, setCanMigrate] = useState(false);
+  const [savingMigrate, setSavingMigrate] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -40,6 +42,7 @@ export default function EditClient() {
           phone: data.phone || "",
           status: data.status || "active",
         });
+        setCanMigrate(data.canMigrate === true);
         setCreditBalance(credData.creditBalance ?? "0");
       })
       .catch(() => toast({ title: "Error", description: "Could not load client data", variant: "destructive" }))
@@ -79,6 +82,26 @@ export default function EditClient() {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCanMigrateToggle = async (newValue: boolean) => {
+    setSavingMigrate(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/clients/${id}/can-migrate`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ canMigrate: newValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update");
+      setCanMigrate(data.canMigrate === true);
+      toast({ title: newValue ? "Migration enabled" : "Migration disabled", description: `Client can ${newValue ? "now" : "no longer"} request website migrations.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingMigrate(false);
     }
   };
 
@@ -260,6 +283,41 @@ export default function EditClient() {
                 <p className="text-[11px] text-muted-foreground">The system will automatically add or deduct the difference to reach this exact balance.</p>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Migration Access */}
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-border/50">
+            <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+              <ArrowRightLeft size={20} className="text-violet-600" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground">Migration Access</h2>
+              <p className="text-xs text-muted-foreground">Allow this client to request website migrations via 20i</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/30 border border-border/50">
+            <div>
+              <p className="font-medium text-sm text-foreground">Website Migration Enabled</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {canMigrate
+                  ? "Client can submit migration requests and use 20i migration features."
+                  : "Client cannot access the migration system."}
+              </p>
+            </div>
+            <button
+              onClick={() => handleCanMigrateToggle(!canMigrate)}
+              disabled={savingMigrate}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                canMigrate ? "bg-violet-600" : "bg-muted"
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                canMigrate ? "translate-x-6" : "translate-x-1"
+              }`} />
+            </button>
           </div>
         </div>
       </div>
