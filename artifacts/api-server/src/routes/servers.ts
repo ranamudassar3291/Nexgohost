@@ -166,7 +166,7 @@ router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (re
 });
 
 router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
-  const { name, hostname, ipAddress, type, apiUsername, apiToken, apiPort, ns1, ns2, maxAccounts, groupId, isDefault, skipTest } = req.body;
+  const { name, hostname, ipAddress, type, apiUsername, apiToken, keyType, proxyUrl, apiPort, ns1, ns2, maxAccounts, groupId, isDefault, skipTest } = req.body;
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
   if (type !== "20i" && !hostname) { res.status(400).json({ error: "hostname is required" }); return; }
 
@@ -209,6 +209,8 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     type: type || "cpanel",
     apiUsername: (type === "20i") ? null : (apiUsername || null),
     apiToken: cleanToken,
+    keyType: keyType || "general",
+    proxyUrl: proxyUrl || null,
     apiPort: (type === "20i") ? null : (apiPort ? parseInt(apiPort) : 2087),
     ns1: ns1 || null,
     ns2: ns2 || null,
@@ -224,7 +226,7 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
 
 router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { name, hostname, ipAddress, type, apiUsername, apiToken, apiPort, ns1, ns2, maxAccounts, status, groupId, isDefault } = req.body;
+  const { name, hostname, ipAddress, type, apiUsername, apiToken, keyType, proxyUrl, apiPort, ns1, ns2, maxAccounts, status, groupId, isDefault } = req.body;
   if (isDefault) { await db.update(serversTable).set({ isDefault: false }); }
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (name !== undefined) updates.name = name;
@@ -232,9 +234,9 @@ router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   if (ipAddress !== undefined) updates.ipAddress = ipAddress;
   if (type !== undefined) updates.type = type;
   if (apiUsername !== undefined) updates.apiUsername = apiUsername || null;
-  // Only overwrite the stored token when a non-empty value is provided.
-  // Also sanitise — strips hidden/zero-width chars that break Bearer auth.
   if (apiToken !== undefined && apiToken !== "") updates.apiToken = sanitiseKey(apiToken);
+  if (keyType !== undefined) updates.keyType = keyType;
+  if (proxyUrl !== undefined) updates.proxyUrl = proxyUrl || null;
   if (apiPort !== undefined) updates.apiPort = parseInt(apiPort);
   if (ns1 !== undefined) updates.ns1 = ns1;
   if (ns2 !== undefined) updates.ns2 = ns2;

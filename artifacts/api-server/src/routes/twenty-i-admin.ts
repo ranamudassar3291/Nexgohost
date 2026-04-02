@@ -7,7 +7,7 @@ import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../l
 import { db } from "@workspace/db";
 import { serversTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import {
+import { runWithCtx,
   twentyiListStackUsers,
   twentyiCreateStackUser,
   twentyiDeleteStackUser,
@@ -82,12 +82,15 @@ function requireApiKey(server: any, res: any): boolean {
 }
 
 /**
- * Run `fn` for a 20i server.
- * Proxy is controlled exclusively via the TWENTYI_PROXY env var — the
- * per-server ipAddress field is no longer used as a proxy override.
+ * Run `fn` in the context of a 20i server record.
+ * Threads the server's keyType (general vs combined) and proxyUrl (per-server static IP proxy)
+ * through AsyncLocalStorage so all 20i API calls pick them up automatically.
  */
-async function runWith20i<T>(_server: any, fn: () => Promise<T>): Promise<T> {
-  return fn();
+async function runWith20i<T>(server: any, fn: () => Promise<T>): Promise<T> {
+  return runWithCtx(
+    { keyType: server?.keyType ?? "general", proxyUrl: server?.proxyUrl ?? undefined },
+    fn,
+  );
 }
 
 // ─── Server info ──────────────────────────────────────────────────────────────
@@ -136,7 +139,9 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (req: Aut
 
 router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { key, source } = await get20iApiKey();
+    const serverId = req.query.serverId as string | undefined;
+    const server = await get20iServer(serverId);
+    const { key, source } = await get20iApiKey(serverId);
     if (!key) {
       return res.json({
         ok: false,
@@ -147,7 +152,7 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (req:
 
     console.log(`[20i-DIAGNOSTIC] Key source: ${source}`);
     const [debug, ip, proxy] = await Promise.all([
-      twentyiRawDebug(key),
+      runWith20i(server, () => twentyiRawDebug(key)),
       getOutboundIp(),
       Promise.resolve(getProxyConfig()),
     ]);

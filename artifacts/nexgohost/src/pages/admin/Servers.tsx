@@ -25,7 +25,7 @@ interface ServerRecord {
 }
 interface TwentyIPkg { id: string; label: string; name?: string; }
 
-const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
+const EMPTY_SERVER = { name: "", hostname: "", ipAddress: "", type: "cpanel", apiUsername: "", apiToken: "", keyType: "general", proxyUrl: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "" };
 const EMPTY_GROUP = { name: "", description: "" };
 
 /** One-click "Add current IP to 20i whitelist" — shown in the 20i server edit form */

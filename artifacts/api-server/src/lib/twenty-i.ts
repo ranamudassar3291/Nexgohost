@@ -25,20 +25,38 @@ const BASE_URL = "https://api.20i.com";
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_RETRIES = 3;
 
-// ─── Per-request proxy override ───────────────────────────────────────────────
+// ─── Per-request context (proxy + key type) ────────────────────────────────────
 
+interface RequestCtx {
+  proxyUrl?: string;
+  keyType?: string;
+}
+
+const _ctxStore = new AsyncLocalStorage<RequestCtx>();
+
+// Legacy: proxy-only override (kept for backwards compat)
 const _proxyStore = new AsyncLocalStorage<string | undefined>();
 
 export function runWithProxy<T>(proxyUrl: string | undefined, fn: () => T): T {
   return _proxyStore.run(proxyUrl, fn);
 }
 
+export function runWithCtx<T>(ctx: RequestCtx, fn: () => T): T {
+  return _ctxStore.run(ctx, fn);
+}
+
 // ─── Proxy helpers ────────────────────────────────────────────────────────────
 
 function resolveProxyUrl(): string | undefined {
-  const ctx = _proxyStore.getStore();
-  if (ctx !== undefined) return ctx || undefined;
+  const ctx = _ctxStore.getStore();
+  if (ctx?.proxyUrl !== undefined) return ctx.proxyUrl || undefined;
+  const legacy = _proxyStore.getStore();
+  if (legacy !== undefined) return legacy || undefined;
   return process.env.TWENTYI_PROXY || process.env.HTTPS_PROXY || process.env.FIXIE_URL;
+}
+
+function resolveKeyType(): string {
+  return _ctxStore.getStore()?.keyType ?? "general";
 }
 
 function buildAxiosProxy(raw: string): AxiosRequestConfig["proxy"] | undefined {
@@ -70,9 +88,15 @@ export function sanitiseKey(key: string): string {
   return key.trim().replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
 }
 
-// Base64-encode the API key -- required by official 20i documentation
-function encodeKey(raw: string): string {
-  return Buffer.from(sanitiseKey(raw)).toString("base64");
+// "general" key: base64-encode the raw key (official 20i doc requirement).
+// "combined" key: 20i Combined API key is already base64-encoded — use as-is.
+function buildBearerToken(raw: string): string {
+  const clean = sanitiseKey(raw);
+  const keyType = resolveKeyType();
+  if (keyType === "combined") {
+    return clean;
+  }
+  return Buffer.from(clean).toString("base64");
 }
 
 // ─── Outbound IP detection ────────────────────────────────────────────────────
@@ -103,8 +127,7 @@ async function request<T = any>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const cleanKey = sanitiseKey(apiKey);
-  const token = encodeKey(cleanKey);
+  const token = buildBearerToken(apiKey);
   const url = `${BASE_URL}${path}`;
   const proxyUrl = resolveProxyUrl();
 
@@ -280,7 +303,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   const cleanKey = sanitiseKey(apiKey);
   const keyHasHiddenChars = cleanKey !== rawKey;
   const keyLen = cleanKey.length;
-  const token = encodeKey(cleanKey);
+  const token = buildBearerToken(apiKey);
   const keyMask = keyLen > 8
     ? `Bearer ${"*".repeat(Math.max(0, keyLen - 4))}${cleanKey.slice(-4)}`
     : `Bearer ${"*".repeat(keyLen)}`;
