@@ -810,9 +810,10 @@ router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async 
     if (server.type === "20i" && server.apiToken) {
       try {
         const fetch = (await import("node-fetch")).default;
+        const { buildAuthHeader } = await import("../lib/twenty-i.js");
         const fullDomain = `${domain.name}${domain.tld}`;
         const resp = await (fetch as any)(`https://api.20i.com/domain/${fullDomain}`, {
-          headers: { Authorization: `Bearer ${server.apiToken}`, Accept: "application/json" },
+          headers: { Authorization: buildAuthHeader(server.apiToken), Accept: "application/json" },
           signal: AbortSignal.timeout(8000),
         });
         if (resp.ok) {

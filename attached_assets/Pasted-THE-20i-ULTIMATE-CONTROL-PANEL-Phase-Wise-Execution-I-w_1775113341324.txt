@@ -1,0 +1,35 @@
+THE 20i ULTIMATE CONTROL PANEL (Phase-Wise Execution)
+"I want to build a full 20i Management System so I never have to open the 20i panel again. Execute these phases one by one:
+
+PHASE 1: THE AUTHENTICATION ENGINE (Fix Combined Key)
+Backend Fix: Combined Key cf47c08abab823799+c2340060bd0ad85ec ko backend mein save karo.
+
+Logic: Is key ko Buffer.from(key).toString('base64') ke zariye encode karke Authorization: Bearer <token> header mein bhejo. Documentation ke mutabiq yahi 401 fix karega.
+
+Permanent IP: Check karo ke outbound IP har request mein constant rahe taake 20i whitelist bar-bar na badalni pare.
+
+PHASE 2: USER & STACKCP MANAGEMENT (Auto-Sync)
+Add User Form: Ek full form banao jisme Name, Email, aur Random Password generator ho. Jab user add ho, toh wo real-time mein 20i API par create hona chahiye.
+
+StackCP Login: 'Login to Control Panel' button ko set karo ke wo https://stackcp.com par redirect kare.
+
+One-Click Login: API se getLoginToken call karke user ko bina username/password ke direct login karwao.
+
+PHASE 3: SERVICE PROVISIONING (Auto-Detect Plans)
+Order Activation: Jab main 'Activate' click karoon, toh system khud detect kare ke user New hai ya Old.
+
+Logic: Agar New hai, toh pehle User create kare, phir Package create kare, aur automatically assign kare.
+
+Package Sync: 20i se saare Active Packages (Starter, Business, etc.) fetch karke mere panel mein dikhao.
+
+PHASE 4: REAL-TIME MIGRATION SYSTEM
+Migration Tool: cPanel aur WHM migration ka option dalo.
+
+Function: WHM ki details (IP, User, Pass) se login karke saare accounts fetch karo. User select kare ke konsa domain migrate karna hai aur status seedha 20i migration API se uthao.
+
+PHASE 5: BACKGROUND SYNC & UI
+Auto-Cron: Har 15 minute baad background mein sync chalao taake naye accounts aur usage data automatically update ho jaye.
+
+Branding: Har page par NoePanel branding ho aur footer se purana data saaf ho.
+
+Action: Start with PHASE 1 (Combined Key Fix). Show me the code where you handle the Base64 encoding and test the connection. Do not proceed to Phase 2 until connection is Green."

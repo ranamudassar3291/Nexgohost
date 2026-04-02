@@ -88,15 +88,18 @@ export function sanitiseKey(key: string): string {
   return key.trim().replace(/[\u200B-\u200D\uFEFF\u00AD\u0000-\u001F\u007F]/g, "");
 }
 
-// "general" key: base64-encode the raw key (official 20i doc requirement).
-// "combined" key: 20i Combined API key is already base64-encoded — use as-is.
+// Per 20i official docs: BOTH General and Combined API keys must be
+// Base64-encoded before use as the Bearer token value.
+// Format: Authorization: Bearer base64(rawKey)
 function buildBearerToken(raw: string): string {
   const clean = sanitiseKey(raw);
-  const keyType = resolveKeyType();
-  if (keyType === "combined") {
-    return clean;
-  }
   return Buffer.from(clean).toString("base64");
+}
+
+// Exported helper for any route that constructs the Authorization header directly.
+// Always use this instead of a raw `Bearer ${apiToken}` string.
+export function buildAuthHeader(apiKey: string): string {
+  return `Bearer ${buildBearerToken(apiKey)}`;
 }
 
 // ─── Outbound IP detection ────────────────────────────────────────────────────
@@ -427,11 +430,13 @@ export async function twentyiAutoWhitelist(
     return { added: true, reason: "ok" };
   } catch (e: any) {
     const msg = String(e.message ?? "");
-    const reason = msg.includes("403") ? "bad_key"
+    const reason = msg.includes("403") ? "ip_blocked"
       : msg.includes("401") ? "auth_failed"
       : msg.includes("404") ? "not_supported"
       : "error";
-    if (reason !== "not_supported") {
+    if (reason === "ip_blocked") {
+      console.warn(`[20i-WL] Auto-whitelist: IP ${ip} must be added manually at my.20i.com → Reseller API → IP Whitelist`);
+    } else if (reason !== "not_supported") {
       console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
     }
     return { added: false, reason };
