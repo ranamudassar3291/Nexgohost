@@ -70,8 +70,8 @@
    Clean white & professional purple — the billing SaaS standard.
    Background:  #F8F9FA  — very light gray, comfortable for long sessions.
    Cards:       #FFFFFF  — pure white with a subtle border.
-   Sidebar:     #FFFFFF  — clean white sidebar, purple active links.
-   Primary:     #7C3AED  — deep professional purple (Violet-700).
+   Sidebar:     #FFFFFF  — clean white sidebar, #6A1B9A active links.
+   Primary:     #6A1B9A  — NoeHost brand purple.
    Text:        #111827  — near-black, maximum readability.
    Muted:       #6B7280  — neutral gray for secondary text.
    Borders:     #E5E7EB  — very light gray, clean separators.
@@ -88,16 +88,16 @@
   --popover-foreground: 222 47% 11%;
   --popover-border: 220 13% 91%;
 
-  --primary: 262 83% 58%;             /* #7C3AED — deep professional purple */
+  --primary: 277 70% 36%;             /* #6A1B9A — NoeHost brand purple */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 14% 94%;           /* #F1F2F4 — very light secondary surface */
-  --secondary-foreground: 222 30% 25%;
+  --secondary: 277 30% 95%;           /* very soft purple tint surface */
+  --secondary-foreground: 277 40% 20%;
 
   --muted: 220 14% 93%;
   --muted-foreground: 220 9% 46%;     /* #6B7280 — neutral gray for secondary text */
 
-  --accent: 262 83% 58%;              /* purple used as accent too */
+  --accent: 277 70% 36%;              /* same brand purple for accent */
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84% 60%;           /* #EF4444 — standard red */
@@ -105,9 +105,9 @@
 
   --border: 220 13% 91%;              /* #E5E7EB */
   --input: 220 13% 91%;
-  --ring: 262 83% 58%;
+  --ring: 277 70% 36%;
 
-  --chart-1: 262 83% 58%;             /* Purple */
+  --chart-1: 277 70% 36%;             /* Purple */
   --chart-2: 152 69% 42%;             /* Green */
   --chart-3: 217 91% 60%;             /* Blue */
   --chart-4: 38 92% 50%;              /* Amber */
@@ -116,16 +116,16 @@
   --sidebar: 0 0% 100%;               /* #FFFFFF — pure white sidebar */
   --sidebar-foreground: 222 47% 11%;
   --sidebar-border: 220 13% 91%;
-  --sidebar-primary: 262 83% 58%;     /* purple active links */
+  --sidebar-primary: 277 70% 36%;     /* #6A1B9A brand purple — active links */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 262 83% 96%;      /* very soft purple hover bg */
-  --sidebar-accent-foreground: 262 83% 40%;
-  --sidebar-ring: 262 83% 58%;
+  --sidebar-accent: 277 30% 95%;      /* very soft purple hover bg */
+  --sidebar-accent-foreground: 277 70% 36%;
+  --sidebar-ring: 277 70% 36%;
 
   --radius: 0.75rem;
 
-  --button-outline: rgba(124, 58, 237, 0.12);
-  --badge-outline: rgba(124, 58, 237, 0.07);
+  --button-outline: rgba(106, 27, 154, 0.12);
+  --badge-outline: rgba(106, 27, 154, 0.07);
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.06);
@@ -276,9 +276,9 @@
   }
 
   /* ── NoeHost button styles ────────────────────────────────────────────── */
-  /* Primary: solid deep purple */
+  /* Primary: solid brand purple #6A1B9A */
   .btn-noe-primary {
-    background: #7C3AED;
+    background: #6A1B9A;
     color: #FFFFFF;
     border: none;
     font-weight: 600;
@@ -286,23 +286,23 @@
     transition: all 0.15s ease;
   }
   .btn-noe-primary:hover {
-    background: #6D28D9;
-    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.30);
+    background: #7B1FA2;
+    box-shadow: 0 4px 12px rgba(106, 27, 154, 0.30);
   }
 
   /* Outline: transparent with purple border */
   .btn-noe-outline {
     background: transparent;
-    color: #7C3AED;
-    border: 1px solid rgba(124, 58, 237, 0.40);
+    color: #6A1B9A;
+    border: 1px solid rgba(106, 27, 154, 0.40);
     font-weight: 600;
     border-radius: 0.75rem;
     transition: all 0.15s ease;
   }
   .btn-noe-outline:hover {
-    background: rgba(124, 58, 237, 0.06);
-    border-color: #7C3AED;
-    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.15);
+    background: rgba(106, 27, 154, 0.06);
+    border-color: #6A1B9A;
+    box-shadow: 0 2px 8px rgba(106, 27, 154, 0.15);
   }
 
   /* ── Cards ───────────────────────────────────────────────────────────── */
@@ -319,13 +319,13 @@
 
   /* ── Gradient text (logo / headings only) ────────────────────────────── */
   .text-gradient {
-    background: linear-gradient(135deg, #7C3AED, #9C4DFF);
+    background: linear-gradient(135deg, #6A1B9A, #9C27B0);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   .text-gradient-primary {
-    background: linear-gradient(135deg, #7C3AED, #5B21B6);
+    background: linear-gradient(135deg, #6A1B9A, #4A148C);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -333,21 +333,21 @@
 
   /* ── Primary action gradient button ─────────────────────────────────── */
   .btn-gradient {
-    background: linear-gradient(135deg, #7C3AED, #5B21B6);
+    background: linear-gradient(135deg, #6A1B9A, #4A148C);
     color: #FFFFFF;
     border: none;
     font-weight: 600;
-    box-shadow: 0 1px 6px rgba(124, 58, 237, 0.20);
+    box-shadow: 0 1px 6px rgba(106, 27, 154, 0.20);
     transition: all 0.15s ease;
   }
   .btn-gradient:hover {
-    background: linear-gradient(135deg, #6D28D9, #4C1D95);
-    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
+    background: linear-gradient(135deg, #7B1FA2, #6A1B9A);
+    box-shadow: 0 4px 16px rgba(106, 27, 154, 0.35);
   }
 
   /* Table row hover */
   tbody tr:hover td {
-    background: rgba(124, 58, 237, 0.03) !important;
+    background: rgba(106, 27, 154, 0.03) !important;
   }
 }
 
