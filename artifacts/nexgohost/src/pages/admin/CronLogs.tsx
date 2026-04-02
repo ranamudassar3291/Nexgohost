@@ -24,7 +24,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
 
 const statusColors: Record<string, string> = {
   success: "bg-green-500/10 text-green-400 border-green-500/20",
-  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  failed: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
   skipped: "bg-secondary text-muted-foreground border-border",
 };
 

@@ -41,7 +41,7 @@ function fileToBase64(file: File): Promise<string> {
 const STATUS_STYLES: Record<string, string> = {
   open: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   answered: "bg-green-500/10 text-green-400 border-green-500/20",
-  customer_reply: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  customer_reply: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
   closed: "bg-secondary text-muted-foreground border-border",
 };
 

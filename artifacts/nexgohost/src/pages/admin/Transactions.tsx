@@ -32,15 +32,15 @@ async function apiFetch(url: string) {
 const METHOD_CONFIG: Record<string, { label: string; color: string }> = {
   bank:    { label: "Bank Transfer",   color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   stripe:  { label: "Stripe",          color: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
-  paypal:  { label: "PayPal",          color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
-  crypto:  { label: "Crypto",          color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
+  paypal:  { label: "PayPal",          color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" },
+  crypto:  { label: "Crypto",          color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" },
   manual:  { label: "Manual",          color: "bg-secondary text-muted-foreground border-border" },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   completed: { label: "Completed", color: "bg-green-500/10 text-green-400 border-green-500/20",   icon: CheckCircle },
-  pending:   { label: "Pending",   color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20", icon: Clock },
-  failed:    { label: "Failed",    color: "bg-red-500/10 text-red-400 border-red-500/20",           icon: XCircle },
+  pending:   { label: "Pending",   color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]", icon: Clock },
+  failed:    { label: "Failed",    color: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",           icon: XCircle },
   refunded:  { label: "Refunded",  color: "bg-blue-500/10 text-blue-400 border-blue-500/20",        icon: RefreshCw },
 };
 

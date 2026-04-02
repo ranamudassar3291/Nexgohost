@@ -200,12 +200,12 @@ export default function DomainManage() {
 
   const statusMap: Record<string, { label: string; cls: string }> = {
     active: { label: "Active", cls: "bg-green-500/10 text-green-400 border-green-500/20" },
-    expired: { label: "Expired", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
-    pending: { label: "Pending", cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
-    suspended: { label: "Suspended", cls: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
+    expired: { label: "Expired", cls: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]" },
+    pending: { label: "Pending", cls: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" },
+    suspended: { label: "Suspended", cls: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" },
     transferred: { label: "Transferred", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
     cancelled: { label: "Cancelled", cls: "bg-secondary text-muted-foreground border-border" },
-    grace_period: { label: "Grace Period", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
+    grace_period: { label: "Grace Period", cls: "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]" },
     redemption_period: { label: "Redemption Period", cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
     pending_delete: { label: "Pending Delete", cls: "bg-red-700/10 text-red-500 border-red-700/20" },
     client_hold: { label: "Client Hold", cls: "bg-slate-500/10 text-slate-400 border-slate-500/20" },
@@ -372,7 +372,7 @@ export default function DomainManage() {
                   </span>
                   {/* Transfer Lock Status Badge */}
                   {domain.isIn60DayLock && !domain.lockOverrideByAdmin ? (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full border font-semibold bg-red-500/10 text-red-400 border-red-500/20 flex items-center gap-1">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full border font-semibold bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)] flex items-center gap-1">
                       🔒 Transfer Locked · {domain.daysRemainingInLock}d
                     </span>
                   ) : isLocked ? (

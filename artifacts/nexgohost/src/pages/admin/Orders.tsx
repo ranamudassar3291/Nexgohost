@@ -38,25 +38,25 @@ async function apiFetch(url: string, opts?: RequestInit) {
 }
 
 const statusColors: Record<string, string> = {
-  pending:    "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  pending:    "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
   approved:   "bg-green-500/10 text-green-400 border-green-500/20",
   completed:  "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  cancelled:  "bg-red-500/10 text-red-400 border-red-500/20",
-  suspended:  "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  fraud:      "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  cancelled:  "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  suspended:  "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  fraud:      "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]",
   terminated: "bg-red-800/10 text-red-600 border-red-800/20",
 };
 
 const paymentColors: Record<string, string> = {
   paid:   "bg-green-500/10 text-green-400 border-green-500/20",
-  unpaid: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  unpaid: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
 };
 
 const MODULE_COLORS: Record<string, string> = {
-  cpanel:      "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  cpanel:      "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
   "20i":       "bg-blue-500/10 text-blue-400 border-blue-500/20",
   directadmin: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  plesk:       "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  plesk:       "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]",
   none:        "bg-secondary/50 text-muted-foreground border-border",
 };
 

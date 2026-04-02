@@ -23,11 +23,11 @@ async function apiFetch(url: string, opts?: RequestInit) {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  pending:    { label: "Pending",    icon: Clock,         color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" },
+  pending:    { label: "Pending",    icon: Clock,         color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" },
   approved:   { label: "Active",     icon: CheckCircle,   color: "bg-green-500/10 text-green-400 border-green-500/20" },
   completed:  { label: "Completed",  icon: CheckCircle,   color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  suspended:  { label: "Suspended",  icon: PauseCircle,   color: "bg-orange-500/10 text-orange-400 border-orange-500/20" },
-  cancelled:  { label: "Cancelled",  icon: XCircle,       color: "bg-red-500/10 text-red-400 border-red-500/20" },
+  suspended:  { label: "Suspended",  icon: PauseCircle,   color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" },
+  cancelled:  { label: "Cancelled",  icon: XCircle,       color: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]" },
   terminated: { label: "Terminated", icon: Trash2,        color: "bg-red-900/10 text-red-300 border-red-900/20" },
   fraud:      { label: "Fraud",      icon: AlertTriangle, color: "bg-red-500/10 text-red-500 border-red-500/30" },
 };

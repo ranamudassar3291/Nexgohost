@@ -346,7 +346,7 @@ export default function EmailTemplates() {
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${t.isActive ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-secondary text-muted-foreground border-border"}`}>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${t.isActive ? "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]" : "bg-secondary text-muted-foreground border-border"}`}>
                     {t.isActive && <CheckCircle size={10} />}
                     {t.isActive ? "Active" : "Disabled"}
                   </span>

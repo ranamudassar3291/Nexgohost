@@ -124,10 +124,10 @@ function Confetti({ active }: { active: boolean }) {
 }
 
 const orderStatusColors: Record<string, string> = {
-  pending:   "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  pending:   "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
   approved:  "bg-green-500/10 text-green-400 border-green-500/20",
-  cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
-  suspended: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  cancelled: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  suspended: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
 };
 
 export default function ClientDashboard() {
@@ -785,8 +785,8 @@ export default function ClientDashboard() {
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold border ${
-                          inv.status === "paid" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                          inv.status === "unpaid" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                          inv.status === "paid" ? "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]" :
+                          inv.status === "unpaid" ? "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]" :
                           inv.status === "payment_pending" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
                           "bg-secondary text-muted-foreground border-border"
                         }`}>

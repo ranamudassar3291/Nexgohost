@@ -11,10 +11,10 @@ import { apiFetch } from "@/lib/api";
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; label: string }> = {
-    pending:    { cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",   label: "Pending" },
+    pending:    { cls: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",   label: "Pending" },
     validating: { cls: "bg-blue-500/10 text-blue-400 border-blue-500/20",         label: "Validating" },
-    approved:   { cls: "bg-orange-500/10 text-orange-400 border-orange-500/20",   label: "In Progress" },
-    rejected:   { cls: "bg-red-500/10 text-red-400 border-red-500/20",            label: "Rejected" },
+    approved:   { cls: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",   label: "In Progress" },
+    rejected:   { cls: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",            label: "Rejected" },
     completed:  { cls: "bg-green-500/10 text-green-400 border-green-500/20",      label: "Completed" },
     cancelled:  { cls: "bg-secondary text-muted-foreground border-transparent",   label: "Cancelled" },
   };

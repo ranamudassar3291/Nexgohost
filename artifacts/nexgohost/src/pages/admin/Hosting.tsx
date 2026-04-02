@@ -32,7 +32,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-500 border-green-500/20",
   suspended: "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  terminated: "bg-red-500/10 text-red-400 border-red-500/20",
+  terminated: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
   pending: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
 };
 

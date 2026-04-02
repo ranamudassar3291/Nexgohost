@@ -94,8 +94,8 @@ export default function CancellationRequests() {
                       )}
                       <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${
                         req.status === "active" ? "bg-green-500/10 text-green-400 border-green-500/20" :
-                        req.status === "pending" ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" :
-                        "bg-red-500/10 text-red-400 border-red-500/20"
+                        req.status === "pending" ? "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" :
+                        "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]"
                       }`}>{req.status}</span>
                     </div>
                     {req.cancelReason && (

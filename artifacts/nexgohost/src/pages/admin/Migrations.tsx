@@ -7,10 +7,10 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  pending: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
   in_progress: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   completed: "bg-green-500/10 text-green-400 border-green-500/20",
-  failed: "bg-red-500/10 text-red-400 border-red-500/20",
+  failed: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
 };
 
 const statusLabels: Record<string, string> = {

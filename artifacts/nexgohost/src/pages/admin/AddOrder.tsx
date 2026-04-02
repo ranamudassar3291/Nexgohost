@@ -188,7 +188,7 @@ export default function AddOrder() {
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Order</p>
                 <p className="font-semibold text-foreground">{result.order?.itemName}</p>
                 <p className="text-sm text-muted-foreground">{formatPrice(Number(result.order?.amount || 0))} · {result.order?.billingCycle}</p>
-                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${result.order?.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"}`}>
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${result.order?.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]"}`}>
                   {result.order?.status}
                 </span>
               </div>
@@ -197,7 +197,7 @@ export default function AddOrder() {
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Invoice</p>
                   <p className="font-mono font-semibold text-primary">{result.invoice?.invoiceNumber}</p>
                   <p className="text-sm text-muted-foreground">{formatPrice(Number(result.invoice?.total || 0))}</p>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${result.invoice?.status === "paid" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${result.invoice?.status === "paid" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]"}`}>
                     {result.invoice?.status}
                   </span>
                 </div>

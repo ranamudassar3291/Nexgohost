@@ -394,7 +394,7 @@ export default function DomainExtensions() {
                   </td>
                   <td className="p-4">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                      ext.status === "active" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-secondary text-muted-foreground border-border"
+                      ext.status === "active" ? "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]" : "bg-secondary text-muted-foreground border-border"
                     }`}>{ext.status}</span>
                   </td>
                   <td className="p-4">

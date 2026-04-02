@@ -132,60 +132,62 @@
   --destructive-border: hsl(var(--destructive));
 }
 
-/* ── NoeHost DARK Theme — matches noehost.com exactly ───────────────────────
-   Background:  #050A30  (232 73% 11%)   — deep navy
-   Cards:       #0B1042  (234 70% 16%)   — elevated surface
-   Primary:     #BB86FC  (270 95% 76%)   — neon purple
-   Accent/Teal: #03DAC6  (175 98% 43%)   — neon teal/green
-   Text:        #E0E0E0  (0 0% 88%)      — off-white
-   Muted text:  #8A8FAE  (231 18% 61%)   — blue-gray
-   Destructive: #FF5252  (0 100% 66%)    — bright red
+/* ── NoeHost DARK Theme — clean & minimal, matches noehost.com ───────────────
+   RULE: Surfaces are near-black. Purple/teal are ONLY used as sharp accents.
+   Background:  #050A30  — deep navy/near-black. Low saturation impression.
+   Cards:       #0C0E22  — barely lighter than bg. No over-colored blue.
+   Sidebar:     #030718  — darkest panel.
+   Primary:     #BB86FC  — neon purple. Used ONLY for buttons & active states.
+   Teal:        #03DAC6  — neon teal. Used ONLY for success/paid badges.
+   Text:        #F0F0F0  — high-contrast near-white.
+   Muted:       #9CA3AF  — neutral cool-gray (no blue tint).
+   Borders:     Very faint — 6% white or 15% purple max.
    ─────────────────────────────────────────────────────────────────────────── */
 .dark {
-  --background: 232 73% 11%;          /* #050A30 deep navy */
-  --foreground: 0 0% 88%;             /* #E0E0E0 off-white text */
+  --background: 233 81% 10%;          /* #050A30 — deep navy near-black */
+  --foreground: 0 0% 94%;             /* #F0F0F0 — high-contrast near-white */
 
-  --card: 234 70% 16%;                /* #0B1042 elevated surface */
-  --card-foreground: 0 0% 88%;
-  --card-border: 270 50% 30%;         /* Purple-tinted border */
+  --card: 235 55% 12%;                /* #0C0E24 — barely lighter surface */
+  --card-foreground: 0 0% 94%;
+  --card-border: 270 18% 22%;         /* very faint purple-tinted border */
 
-  --popover: 234 70% 14%;
-  --popover-foreground: 0 0% 88%;
-  --popover-border: 270 50% 28%;
+  --popover: 235 55% 11%;
+  --popover-foreground: 0 0% 94%;
+  --popover-border: 270 15% 20%;
 
-  --primary: 270 95% 76%;             /* #BB86FC neon purple */
-  --primary-foreground: 232 73% 8%;   /* Dark navy text on purple button */
+  --primary: 270 90% 74%;             /* #BB86FC — neon purple accent only */
+  --primary-foreground: 233 81% 7%;   /* near-black on purple button */
 
-  --secondary: 234 60% 20%;           /* #0F1655 darker surface */
-  --secondary-foreground: 0 0% 75%;
+  --secondary: 235 40% 15%;           /* very dark secondary surface */
+  --secondary-foreground: 0 0% 78%;
 
-  --muted: 234 55% 18%;
-  --muted-foreground: 231 18% 61%;    /* #8A8FAE blue-gray */
+  --muted: 235 35% 13%;
+  --muted-foreground: 220 9% 63%;     /* #9CA3AF — neutral gray, no blue tint */
 
-  --accent: 175 98% 43%;              /* #03DAC6 neon teal */
-  --accent-foreground: 232 73% 8%;
+  --accent: 175 98% 43%;              /* #03DAC6 — neon teal (paid/success only) */
+  --accent-foreground: 233 81% 7%;
 
-  --destructive: 0 100% 66%;          /* #FF5252 bright red */
+  --destructive: 0 90% 60%;           /* bright red for errors/unpaid */
   --destructive-foreground: 0 0% 100%;
 
-  --border: 270 35% 25%;              /* Purple-tinted border */
-  --input: 234 60% 19%;
-  --ring: 270 95% 76%;
+  --border: 235 22% 17%;              /* very subtle near-invisible border */
+  --input: 235 40% 14%;
+  --ring: 270 90% 74%;
 
-  --chart-1: 270 95% 76%;             /* Purple */
+  --chart-1: 270 90% 74%;             /* Purple */
   --chart-2: 175 98% 43%;             /* Teal */
   --chart-3: 217 91% 60%;             /* Blue */
   --chart-4: 38 92% 55%;              /* Amber */
-  --chart-5: 0 100% 66%;              /* Red */
+  --chart-5: 0 90% 60%;               /* Red */
 
-  --sidebar: 232 75% 9%;              /* Slightly darker than page bg */
-  --sidebar-foreground: 0 0% 82%;
-  --sidebar-border: 270 35% 22%;
-  --sidebar-primary: 270 95% 76%;
-  --sidebar-primary-foreground: 232 73% 8%;
-  --sidebar-accent: 234 65% 15%;
+  --sidebar: 236 90% 7%;              /* #030718 — darkest panel */
+  --sidebar-foreground: 0 0% 85%;
+  --sidebar-border: 270 12% 15%;
+  --sidebar-primary: 270 90% 74%;
+  --sidebar-primary-foreground: 233 81% 7%;
+  --sidebar-accent: 235 50% 12%;
   --sidebar-accent-foreground: 0 0% 82%;
-  --sidebar-ring: 270 95% 76%;
+  --sidebar-ring: 270 90% 74%;
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -195,11 +197,11 @@
   --accent-border: hsl(var(--accent));
   --destructive-border: hsl(var(--destructive));
 
-  --button-outline: rgba(187, 134, 252, 0.15);
-  --badge-outline: rgba(187, 134, 252, 0.08);
-  --opaque-button-border-intensity: 6;
-  --elevate-1: rgba(0, 0, 0, 0.25);
-  --elevate-2: rgba(0, 0, 0, 0.40);
+  --button-outline: rgba(187, 134, 252, 0.14);
+  --badge-outline: rgba(187, 134, 252, 0.07);
+  --opaque-button-border-intensity: 5;
+  --elevate-1: rgba(0, 0, 0, 0.30);
+  --elevate-2: rgba(0, 0, 0, 0.50);
 }
 
 @layer base {
@@ -280,122 +282,170 @@
     .card-grid-4 { grid-template-columns: repeat(4, 1fr); }
   }
 
-  /* ── Glow effects ─────────────────────────────────────────────────────── */
+  /* ── Subtle glow effects — used sparingly on interactive elements ────── */
   .glow-primary {
-    box-shadow: 0 0 10px 2px hsl(270 95% 76% / 0.35),
-                0 2px 12px -4px hsl(270 95% 76% / 0.25);
+    box-shadow: 0 0 14px 0px rgba(187, 134, 252, 0.30);
   }
   .glow-accent {
-    box-shadow: 0 0 10px 2px hsl(175 98% 43% / 0.35),
-                0 2px 12px -4px hsl(175 98% 43% / 0.25);
+    box-shadow: 0 0 14px 0px rgba(3, 218, 198, 0.28);
   }
   .glow-destructive {
-    box-shadow: 0 0 10px 2px hsl(0 100% 66% / 0.35),
-                0 2px 12px -4px hsl(0 100% 66% / 0.25);
+    box-shadow: 0 0 12px 0px rgba(255, 82, 82, 0.28);
   }
   .glow-warning {
-    box-shadow: 0 0 10px 2px hsl(38 92% 55% / 0.35),
-                0 2px 12px -4px hsl(38 92% 55% / 0.25);
+    box-shadow: 0 0 12px 0px rgba(251, 191, 36, 0.25);
   }
 
-  /* ── Neon status badges ───────────────────────────────────────────────── */
+  /* ── Neon status badges — minimal and clean ───────────────────────────── */
+  /* Paid: neon green */
   .badge-paid {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
-    background: hsl(175 98% 43% / 0.12);
-    color: hsl(175 98% 53%);
-    border: 1px solid hsl(175 98% 43% / 0.35);
-    box-shadow: 0 0 8px hsl(175 98% 43% / 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(3, 218, 198, 0.10);
+    color: #03DAC6;
+    border: 1px solid rgba(3, 218, 198, 0.30);
+    box-shadow: 0 0 8px rgba(3, 218, 198, 0.18);
+    letter-spacing: 0.02em;
   }
+  /* Unpaid: neon red */
   .badge-unpaid {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
-    background: hsl(0 100% 66% / 0.12);
-    color: hsl(0 100% 72%);
-    border: 1px solid hsl(0 100% 66% / 0.35);
-    box-shadow: 0 0 8px hsl(0 100% 66% / 0.20);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(255, 82, 82, 0.10);
+    color: #FF6B6B;
+    border: 1px solid rgba(255, 82, 82, 0.30);
+    box-shadow: 0 0 8px rgba(255, 82, 82, 0.15);
+    letter-spacing: 0.02em;
   }
+  /* Pending: amber */
   .badge-pending {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
-    background: hsl(38 92% 55% / 0.12);
-    color: hsl(38 92% 65%);
-    border: 1px solid hsl(38 92% 55% / 0.35);
-    box-shadow: 0 0 8px hsl(38 92% 55% / 0.20);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(251, 191, 36, 0.10);
+    color: #FBB824;
+    border: 1px solid rgba(251, 191, 36, 0.28);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.12);
+    letter-spacing: 0.02em;
   }
+  /* Active / Purple */
   .badge-primary {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold;
-    background: hsl(270 95% 76% / 0.12);
-    color: hsl(270 95% 82%);
-    border: 1px solid hsl(270 95% 76% / 0.35);
-    box-shadow: 0 0 8px hsl(270 95% 76% / 0.20);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(187, 134, 252, 0.10);
+    color: #BB86FC;
+    border: 1px solid rgba(187, 134, 252, 0.28);
+    box-shadow: 0 0 8px rgba(187, 134, 252, 0.12);
+    letter-spacing: 0.02em;
   }
 
   /* ── NoeHost button styles ────────────────────────────────────────────── */
+  /* Primary: solid neon purple */
   .btn-noe-primary {
-    background: hsl(270 95% 76%);
-    color: hsl(232 73% 8%);
+    background: #BB86FC;
+    color: #07091A;
     border: none;
-    @apply font-semibold rounded-xl shadow-sm transition-all;
+    font-weight: 600;
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
   }
   .btn-noe-primary:hover {
-    background: hsl(270 95% 70%);
-    box-shadow: 0 0 16px hsl(270 95% 76% / 0.40);
+    background: #C99BFF;
+    box-shadow: 0 0 18px rgba(187, 134, 252, 0.38);
   }
 
+  /* Outline: transparent with purple border — glow on hover */
   .btn-noe-outline {
     background: transparent;
-    color: hsl(270 95% 76%);
-    border: 1px solid hsl(270 95% 76% / 0.50);
-    @apply font-semibold rounded-xl transition-all;
+    color: #BB86FC;
+    border: 1px solid rgba(187, 134, 252, 0.45);
+    font-weight: 600;
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
   }
   .btn-noe-outline:hover {
-    background: hsl(270 95% 76% / 0.10);
-    border-color: hsl(270 95% 76%);
-    box-shadow: 0 0 12px hsl(270 95% 76% / 0.25);
+    background: rgba(187, 134, 252, 0.08);
+    border-color: #BB86FC;
+    box-shadow: 0 0 14px rgba(187, 134, 252, 0.25);
   }
 
+  /* Teal / success action */
   .btn-noe-teal {
-    background: hsl(175 98% 43%);
-    color: hsl(232 73% 8%);
+    background: #03DAC6;
+    color: #07091A;
     border: none;
-    @apply font-semibold rounded-xl shadow-sm transition-all;
+    font-weight: 600;
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
   }
   .btn-noe-teal:hover {
-    background: hsl(175 98% 38%);
-    box-shadow: 0 0 16px hsl(175 98% 43% / 0.40);
+    background: #02C4B2;
+    box-shadow: 0 0 18px rgba(3, 218, 198, 0.35);
   }
 
-  /* ── Card with purple border ─────────────────────────────────────────── */
+  /* ── Cards ───────────────────────────────────────────────────────────── */
   .glass-card {
-    @apply bg-card border border-card-border shadow-lg rounded-xl;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--card-border));
+    @apply rounded-xl shadow-md;
   }
+  /* Card with a subtle purple border line */
   .card-noe {
     background: hsl(var(--card));
-    border: 1px solid hsl(270 50% 30% / 0.45);
+    border: 1px solid rgba(187, 134, 252, 0.18);
     @apply rounded-xl shadow-md;
   }
 
-  /* ── Gradient text ───────────────────────────────────────────────────── */
+  /* ── Gradient text (logo / headings only) ────────────────────────────── */
   .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #BB86FC, #9C4DFF);
+    background: linear-gradient(135deg, #BB86FC, #9C4DFF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   .text-gradient-primary {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, #BB86FC, #03DAC6);
+    background: linear-gradient(135deg, #BB86FC, #03DAC6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  /* ── NoeHost gradient background ─────────────────────────────────────── */
+  /* ── Primary action gradient button ─────────────────────────────────── */
   .btn-gradient {
-    background: linear-gradient(135deg, #BB86FC, #9C4DFF);
-    @apply text-white border-0 shadow-sm font-semibold;
+    background: linear-gradient(135deg, #BB86FC, #9455EF);
+    color: #07091A;
+    border: none;
+    font-weight: 600;
+    box-shadow: 0 1px 6px rgba(187, 134, 252, 0.20);
+    transition: all 0.15s ease;
   }
   .btn-gradient:hover {
-    background: linear-gradient(135deg, #C99BFF, #AA62FF);
-    box-shadow: 0 0 16px rgba(187, 134, 252, 0.40);
+    background: linear-gradient(135deg, #C99BFF, #A36BF3);
+    box-shadow: 0 0 20px rgba(187, 134, 252, 0.38);
   }
 
-  /* Table row hover in dark mode — neon accent */
-  .dark tr:hover td {
-    background: hsl(270 60% 20% / 0.18) !important;
+  /* Table row hover — very subtle, no over-coloring */
+  .dark tbody tr:hover td {
+    background: rgba(187, 134, 252, 0.06) !important;
   }
 }
 

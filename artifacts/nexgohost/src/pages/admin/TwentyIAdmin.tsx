@@ -38,12 +38,12 @@ function Spinner({ size = 16 }: { size?: number }) {
 
 function Badge({ label, color }: { label: string; color: string }) {
   const map: Record<string, string> = {
-    active: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+    active: "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]",
     suspended: "bg-amber-500/10 text-amber-500 border-amber-500/20",
     terminated: "bg-red-500/10 text-red-500 border-red-500/20",
     open: "bg-blue-500/10 text-blue-500 border-blue-500/20",
     in_progress: "bg-primary/10 text-primary border-primary/20",
-    completed: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+    completed: "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]",
     pending: "bg-amber-500/10 text-amber-500 border-amber-500/20",
     failed: "bg-red-500/10 text-red-500 border-red-500/20",
     closed: "bg-gray-500/10 text-gray-400 border-gray-500/20",
