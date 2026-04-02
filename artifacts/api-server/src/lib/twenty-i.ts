@@ -83,34 +83,32 @@ export function getProxyConfig(): { enabled: boolean; url?: string } {
 
 // ─── API key sanitisation ─────────────────────────────────────────────────────
 
-// Strip only true invisible/zero-width characters that silently corrupt the Bearer token.
-// We intentionally do NOT strip printable ASCII — Combined Keys can be longer and use
-// characters like +, /, =, :, which must be preserved.
+// STEP 1 — Sanitise: strip ONLY invisible/control chars.
+// Preserves ALL printable ASCII including +, /, =, : used in Combined Keys.
+// Combined Key format: generalApiKey+oauthClientKey  (e.g. "cb574b954e850f7f5+c6e95e89ebd7ea3c0")
+// The + separator MUST survive this function intact.
 export function sanitiseKey(key: string): string {
   return key
     .trim()
-    .replace(/[\u200B-\u200D\uFEFF\u00AD\u007F]/g, "")   // zero-width + DEL
-    .replace(/[\r\n\t]/g, "");                             // carriage-return, newline, tab (pasting artefacts)
+    .replace(/[\u200B-\u200D\uFEFF\u00AD\u007F]/g, "")  // zero-width + DEL (copy-paste artefacts)
+    .replace(/[\r\n\t]/g, "");                            // carriage-return, newline, tab
 }
 
-// Per 20i official docs: BOTH General and Combined API keys must be
-// Base64-encoded before use as the Bearer token value.
-// General Key:  Authorization: Bearer base64(generalKey)
-// Combined Key: Authorization: Bearer base64(combinedKey)   ← same encoding, key is just longer
-// There is NO length restriction — Combined Keys are longer than General Keys and are fully supported.
-function buildBearerToken(raw: string): string {
-  const clean = sanitiseKey(raw);
-  // Exact encoding per 20i docs: base64(apiKey)
-  // This is the token value only — "Bearer " is NOT included here.
-  // The caller sets: Authorization: "Bearer " + buildBearerToken(key)
-  // Result: ONE "Bearer " prefix in the final header. Always.
-  return Buffer.from(clean).toString("base64");
+// STEP 2 — Encode: base64(cleanKey).
+// Input:  a pre-sanitised key string (full length, + preserved for Combined Keys).
+// Output: the base64 token value — NO "Bearer" prefix is included here.
+// The caller adds the single "Bearer " prefix when building the Authorization header.
+function encodeKeyToBase64(cleanKey: string): string {
+  return Buffer.from(cleanKey).toString("base64");
 }
 
-// Exported helper for any route that constructs the Authorization header directly.
-// Always use this instead of a raw `Bearer ${apiToken}` string.
+// Build the full Authorization header value.
+// Result is always exactly: "Bearer " + base64(sanitise(apiKey))
+// ONE "Bearer " prefix. Always. No exceptions.
 export function buildAuthHeader(apiKey: string): string {
-  return `Bearer ${buildBearerToken(apiKey)}`;
+  const clean = sanitiseKey(apiKey);
+  const base64 = encodeKeyToBase64(clean);
+  return `Bearer ${base64}`;
 }
 
 // ─── Outbound IP detection ────────────────────────────────────────────────────
@@ -141,19 +139,30 @@ async function request<T = any>(
   path: string,
   body?: unknown,
 ): Promise<T> {
+  // ── Auth header construction (explicit 3-step process) ───────────────────────
+  // Step 1: Sanitise — strip invisible chars only, PRESERVE + and all printable ASCII
   const cleanKey = sanitiseKey(apiKey);
-  const token = buildBearerToken(cleanKey);   // base64(cleanKey) — NO "Bearer" prefix inside this string
+  // Step 2: Encode — base64(fullCleanKey). No length limit. No truncation.
+  const base64Token = encodeKeyToBase64(cleanKey);
+  // Step 3: Build header — exactly ONE "Bearer " prefix before the base64 token
+  const authorizationHeader = `Bearer ${base64Token}`;
+
   const url = `${BASE_URL}${path}`;
   const proxyUrl = resolveProxyUrl();
 
-  // Explicit log: Authorization header = "Bearer " + base64(key). Only ONE "Bearer " prefix.
-  console.log(`[20i] -> ${method} ${url}  [auth: Bearer <base64(${cleanKey.length}-char-key)>]`);
+  // Console log: raw_len=input length, clean_len=after strip, b64_len=encoded length
+  // The "+" in a Combined Key is counted and preserved in clean_len.
+  console.log(
+    `[20i] ${method} ${url}` +
+    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} b64_len=${base64Token.length}` +
+    ` | Authorization: "Bearer <${base64Token.length}-char-base64>"  (single "Bearer" prefix)`
+  );
 
   const cfg: AxiosRequestConfig = {
     method: method as any,
     url,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: authorizationHeader,   // "Bearer " + base64(cleanKey) — single prefix
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -315,21 +324,25 @@ export interface TwentyIDebugInfo {
 }
 
 export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo> {
+  // Step 1: sanitise (strip invisible chars only — preserves + in Combined Keys)
   const rawKey = apiKey;
-  const cleanKey = sanitiseKey(apiKey);
-  const keyHasHiddenChars = cleanKey !== rawKey;
+  const cleanKey = sanitiseKey(rawKey);
+  const keyHasHiddenChars = cleanKey.length !== rawKey.trim().length;
   const keyLen = cleanKey.length;
-  const token = buildBearerToken(apiKey);   // base64(cleanKey)
-  const tokenLen = token.length;            // bytes sent in the Authorization header
-  const keyMask = keyLen > 8
-    ? `Bearer ${"*".repeat(Math.max(0, keyLen - 4))}${cleanKey.slice(-4)}`
-    : `Bearer ${"*".repeat(keyLen)}`;
 
-  // ── Diagnostic log (visible in server console) ─────────────────────────────
+  // Step 2: base64-encode the FULL clean key (no truncation, no length limit)
+  const base64Token = encodeKeyToBase64(cleanKey);
+  const tokenLen = base64Token.length;
+
+  // Step 3: Authorization header value = "Bearer " + base64Token (single prefix)
+  const authHeaderValue = `Bearer ${base64Token}`;
+
+  // ── Full diagnostic log ─────────────────────────────────────────────────────
   console.log(
-    `[20i-DEBUG] raw_key_len=${rawKey.length}  clean_key_len=${keyLen}` +
-    `  token_b64_len=${tokenLen}  stripped=${keyHasHiddenChars}` +
-    `  first4=${cleanKey.substring(0, 4)}  last4=${cleanKey.slice(-4)}`
+    `[20i-DEBUG] raw_len=${rawKey.length} clean_len=${keyLen} b64_len=${tokenLen}` +
+    ` stripped=${keyHasHiddenChars}` +
+    ` key_first4=${cleanKey.substring(0, 4)} key_last4=${cleanKey.slice(-4)}` +
+    ` header="Bearer <${tokenLen}-char-base64>"  (SINGLE Bearer prefix)`
   );
 
   const url = `${BASE_URL}/reseller/*/packageCount`;
@@ -347,7 +360,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
       method: "GET",
       url,
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: authHeaderValue,   // = "Bearer " + base64(cleanKey) — single prefix
         "Content-Type": "application/json",
         Accept: "application/json",
       },
