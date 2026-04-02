@@ -26,14 +26,14 @@ interface ServerRecord {
 }
 interface TwentyIPkg { id: string; label: string; name?: string; }
 
-// For 20i servers the key is split into two visible fields (General + OAuth Client).
-// They are joined with "+" before being sent to the backend as apiToken.
+// For 20i servers: the combinedKey field holds the full key string exactly as pasted.
+// Format: "GeneralKey+OAuthClientKey"  (e.g. "cb574b954e850f7f5+c6e95e89ebd7ea3c0")
+// This string is stored as-is in the database (TEXT column, no length limit, + preserved).
 const EMPTY_SERVER = {
   name: "", hostname: "", ipAddress: "", type: "cpanel",
   apiUsername: "", apiToken: "",
-  // 20i dual-key fields — General Key (cb57…) and OAuth Client Key (c6e9…)
-  generalKey: "", oauthKey: "",
-  keyType: "combined",           // always "combined" for dual-key; "general" if only generalKey supplied
+  combinedKey: "",  // 20i: paste the FULL key here (GeneralKey+OAuthKey or just GeneralKey)
+  keyType: "combined",
   proxyUrl: "", apiPort: "2087", ns1: "", ns2: "", maxAccounts: "500", groupId: "",
 };
 const EMPTY_GROUP = { name: "", description: "" };
@@ -151,24 +151,20 @@ export default function Servers() {
 
   // ── In-form 20i connection test ──────────────────────────────────────────
   const handleFormTest = async () => {
-    // Build the combined key: generalKey + "+" + oauthKey
-    const gk = serverForm.generalKey.trim();
-    const ok = serverForm.oauthKey.trim();
-    const combinedKey = gk && ok ? `${gk}+${ok}` : gk || ok;
-    if (!combinedKey) {
-      toast({ title: "Enter at least your General API Key first" });
+    // Use the combinedKey field directly — the user pastes the full string (GeneralKey+OAuthKey)
+    const keyToTest = serverForm.combinedKey.trim();
+    if (!keyToTest) {
+      toast({ title: "Paste your 20i API key first" });
       return;
     }
-    // Decide key type: if both keys provided it's always combined; if only general key, it's general
-    const resolvedKeyType = (gk && ok) ? "combined" : "general";
     setTestingForm(true); setFormTestResult(null); setDebugInfo(null); setShowDebug(false); setTwentyiPkgs([]);
     try {
       const result = await apiFetch("/api/admin/servers/test-api-key", {
         method: "POST",
         body: JSON.stringify({
-          apiKey: combinedKey,
+          apiKey: keyToTest,        // full string, no modification — e.g. "cb57…+c6e9…"
           type: "20i",
-          keyType: resolvedKeyType,
+          keyType: "combined",
           proxyUrl: serverForm.ipAddress || undefined,
         }),
       });
@@ -193,20 +189,19 @@ export default function Servers() {
     e.preventDefault();
     if (!serverForm.name) { toast({ title: "Server name is required", variant: "destructive" }); return; }
 
-    // For 20i: combine the two key fields into a single stored token
+    // For 20i: use the combinedKey field directly as the stored token
+    // The user pastes the full string: "GeneralKey+OAuthKey" or just "GeneralKey"
+    // It goes into the database as-is (TEXT column, no limit, + preserved)
     let resolvedApiToken = serverForm.apiToken;
     let resolvedKeyType = serverForm.keyType;
     if (is20i) {
-      const gk = serverForm.generalKey.trim();
-      const ok = serverForm.oauthKey.trim();
-      if (gk || ok) {
-        // Both provided → Combined Key format: generalKey+oauthKey
-        resolvedApiToken = gk && ok ? `${gk}+${ok}` : (gk || ok);
-        resolvedKeyType = gk && ok ? "combined" : "general";
+      const key = serverForm.combinedKey.trim();
+      if (key) {
+        resolvedApiToken = key;
+        resolvedKeyType = "combined";
       }
-      // If neither field has a value, resolvedApiToken stays "" → backend keeps existing key
       if (!resolvedApiToken && !apiTokenSaved) {
-        toast({ title: "API Key is required", description: "Enter your General API Key (and OAuth Client Key for full access).", variant: "destructive" });
+        toast({ title: "API Key is required", description: "Paste your full 20i key (GeneralKey+OAuthKey).", variant: "destructive" });
         return;
       }
     } else {
@@ -428,58 +423,38 @@ export default function Servers() {
                         <AutoWhitelistBtn serverId={editServerId} />
                       )}
                     </div>
-                    {/* ── Dual Key fields: General Key + OAuth Client Key ── */}
-                    <div className="space-y-3">
-                      <div className="rounded-lg border border-primary/15 bg-card px-3.5 py-2.5 text-xs text-muted-foreground leading-relaxed">
-                        <span className="font-semibold text-foreground/70">Combined Key format:</span>{" "}
-                        20i uses two separate keys. Enter each below — the panel joins them automatically as{" "}
-                        <code className="font-mono text-primary text-[11px]">GeneralKey+OAuthClientKey</code> before encoding.
-                        Find both at{" "}
-                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">
-                          my.20i.com → Reseller API
-                        </a>.
-                      </div>
-
-                      {/* Field 1: General API Key */}
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium text-foreground/80">
-                          General API Key <span className="text-primary">*</span>
-                        </label>
-                        <Input
-                          type="password"
-                          value={serverForm.generalKey}
-                          onChange={e => { setServerForm(s => ({ ...s, generalKey: e.target.value })); setFormTestResult(null); }}
-                          placeholder={apiTokenSaved ? "Saved — paste new key to replace" : "e.g. cb574b954e850f7f5"}
-                          className="font-mono"
-                        />
-                        <p className="text-xs text-muted-foreground">Short key from <strong>my.20i.com → Reseller API → General Key</strong></p>
-                      </div>
-
-                      {/* Field 2: OAuth Client Key */}
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium text-foreground/80">
-                          OAuth Client Key <span className="text-muted-foreground text-xs">(for full reseller access)</span>
-                        </label>
-                        <Input
-                          type="password"
-                          value={serverForm.oauthKey}
-                          onChange={e => { setServerForm(s => ({ ...s, oauthKey: e.target.value })); setFormTestResult(null); }}
-                          placeholder={apiTokenSaved ? "Saved — paste new key to replace" : "e.g. c6e95e89ebd7ea3c0"}
-                          className="font-mono"
-                        />
-                        <p className="text-xs text-muted-foreground">From <strong>my.20i.com → Reseller API → Combined Key</strong> (the part after the +)</p>
-                      </div>
-
-                      {editServerId && apiTokenSaved && !serverForm.generalKey && !serverForm.oauthKey && (
-                        <p className="text-xs text-emerald-600">✓ Keys are saved — leave both blank to keep existing, or enter new keys to update</p>
+                    {/* ── Single API Key field ── */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground/80">
+                        20i API Key <span className="text-primary">*</span>
+                      </label>
+                      <Input
+                        type="password"
+                        value={serverForm.combinedKey}
+                        onChange={e => { setServerForm(s => ({ ...s, combinedKey: e.target.value })); setFormTestResult(null); }}
+                        placeholder={apiTokenSaved ? "Key saved — paste new to replace" : "Paste your full 20i key here"}
+                        className="font-mono"
+                      />
+                      {editServerId && apiTokenSaved && !serverForm.combinedKey && (
+                        <p className="text-xs text-emerald-600">✓ Key saved — leave blank to keep existing</p>
                       )}
+                      <div className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-1">
+                        <p className="font-semibold text-foreground/70">Where to find your key:</p>
+                        <ul className="space-y-0.5 ml-2 list-disc">
+                          <li><strong>General Key only</strong>: paste it as-is (e.g. <code className="font-mono text-primary">cb574b954e850f7f5</code>)</li>
+                          <li><strong>Combined Key</strong>: paste the full string including the + (e.g. <code className="font-mono text-primary">cb574b954e850f7f5+c6e95e89ebd7ea3c0</code>)</li>
+                        </ul>
+                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline inline-block mt-1">
+                          Open my.20i.com → Reseller API →
+                        </a>
+                      </div>
                     </div>
                     <Button
                       type="button"
                       variant="outline"
                       className="border-primary/30 text-primary hover:bg-primary/10"
                       onClick={handleFormTest}
-                      disabled={testingForm || (!serverForm.generalKey && !serverForm.oauthKey && apiTokenSaved)}
+                      disabled={testingForm || (!serverForm.combinedKey && apiTokenSaved)}
                     >
                       {testingForm ? <Loader2 size={14} className="animate-spin mr-2" /> : <Wifi size={14} className="mr-2" />}
                       {testingForm ? "Testing…" : "Test Connection"}
@@ -524,12 +499,12 @@ export default function Servers() {
                             {/* Wrong API key banner */}
                             {debugInfo.diagnosis === "wrong_key" && (
                               <div className="px-3.5 py-3 bg-red-500/8 border-b border-red-500/20">
-                                <p className="text-red-600 font-semibold text-[11px] mb-1">KEY NOT RECOGNISED — 20i rejected this API key</p>
-                                <p className="text-[10px] text-muted-foreground mb-2">20i returned a "User ID" error — the key combination was not recognised. Verify you copied both keys correctly from my.20i.com.</p>
+                                <p className="text-red-600 font-semibold text-[11px] mb-1">KEY NOT RECOGNISED — 20i rejected this key</p>
+                                <p className="text-[10px] text-muted-foreground mb-2">20i returned a 401 with type "User ID". The key was not matched to any reseller account.</p>
                                 <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal ml-3">
                                   <li>Go to <strong>my.20i.com → Reseller API</strong></li>
-                                  <li>Copy your <strong>General Key</strong> into the first field</li>
-                                  <li>Copy your <strong>OAuth Client Key</strong> (Combined Key) into the second field</li>
+                                  <li>Copy the full Combined Key (format: <code className="font-mono">GeneralKey+OAuthKey</code>)</li>
+                                  <li>Paste it into the "20i API Key" field above</li>
                                   <li>Click <strong>Test Connection</strong> again</li>
                                 </ol>
                               </div>
@@ -566,15 +541,14 @@ export default function Servers() {
                             )}
                             {/* Summary rows */}
                             {[
-                              ["URL", `${debugInfo.method} ${debugInfo.url}`],
-                              ["Raw Key", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : " (no stripping)"}`],
-                              ["Bearer Token", `${debugInfo.tokenLength ?? "?"} chars (= base64 of ${debugInfo.keyLength}-char key) → Authorization: Bearer ${debugInfo.attempts?.[0]?.authHeaderPreview ?? "***"}`],
-                              ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy: ${debugInfo.proxyUrl ?? "active"})` : " (direct — must be whitelisted in 20i)")],
-                              ["Result", debugInfo.workingFormat !== "none" ? `✓ Connected — Bearer base64(key) accepted` : debugInfo.diagnosis === "wrong_key" ? "✗ 401 — key not recognised (wrong key pasted or wrong key type selected)" : debugInfo.diagnosis === "ip_blocked" ? "✗ 401 — IP not yet whitelisted in 20i" : `✗ HTTP ${debugInfo.responseStatus ?? "ERR"} — see response body below`],
-                              ["Total Time", `${debugInfo.durationMs}ms`],
+                              ["Endpoint", `${debugInfo.method} ${debugInfo.url}`],
+                              ["Key length", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
+                              ["Auth header", `Bearer <base64(${debugInfo.keyLength}-char key)>  →  ${debugInfo.tokenLength ?? "?"} chars total`],
+                              ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy)` : " (direct — whitelist this IP in 20i)")],
+                              ["HTTP status", `${debugInfo.responseStatus ?? "ERR"} in ${debugInfo.durationMs}ms`],
                             ].map(([label, value]) => (
                               <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">
-                                <span className="text-muted-foreground w-32 shrink-0">{label}</span>
+                                <span className="text-muted-foreground w-28 shrink-0 font-sans">{label}</span>
                                 <span className="text-foreground/80 break-all">{value}</span>
                               </div>
                             ))}
@@ -590,9 +564,14 @@ export default function Servers() {
                                 </div>
                               </div>
                             ))}
-                            <div className="px-3.5 py-2">
-                              <span className="text-muted-foreground block mb-1">Raw Response (best attempt)</span>
-                              <pre className="text-foreground/70 whitespace-pre-wrap break-all leading-relaxed">{debugInfo.responseBody}</pre>
+                            {/* Full raw 20i response body — shown always so the user can see exactly what 20i says */}
+                            <div className={`px-3.5 py-2.5 ${debugInfo.workingFormat === "none" ? "bg-red-500/5 border-t border-red-500/15" : ""}`}>
+                              <span className={`font-sans text-[11px] font-semibold block mb-1.5 ${debugInfo.workingFormat === "none" ? "text-red-600" : "text-muted-foreground"}`}>
+                                {debugInfo.workingFormat === "none" ? "Full Raw Error from 20i:" : "Raw 20i Response:"}
+                              </span>
+                              <pre className="text-foreground/80 whitespace-pre-wrap break-all leading-relaxed text-[11px] bg-background border border-border rounded-lg px-3 py-2">
+                                {debugInfo.responseBody || "No response body received"}
+                              </pre>
                             </div>
                           </div>
                         )}
@@ -831,9 +810,8 @@ export default function Servers() {
                           type: s.type,
                           apiUsername: s.apiUsername || "root",
                           apiToken: "",
-                          // 20i dual key fields — cleared on edit (keys are stored server-side)
-                          generalKey: "",
-                          oauthKey: "",
+                          // 20i key field — cleared on edit (key is stored server-side)
+                          combinedKey: "",
                           keyType: s.keyType || "combined",
                           proxyUrl: s.ipAddress || "",
                           apiPort: String(s.apiPort || 2087),
