@@ -65,7 +65,7 @@ function fileToBase64(file: File): Promise<string> {
 const STATUS_COLORS: Record<string, string> = {
   open: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   answered: "bg-green-500/10 text-green-400 border-green-500/20",
-  customer_reply: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  customer_reply: "bg-amber-50 text-amber-700 border-amber-200",
   closed: "bg-secondary text-muted-foreground border-border",
 };
 const PRIORITY_COLORS: Record<string, string> = {

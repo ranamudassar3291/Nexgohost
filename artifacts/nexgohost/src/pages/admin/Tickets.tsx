@@ -10,14 +10,14 @@ import { Link } from "wouter";
 
 const priorityColors: Record<string, string> = {
   low: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  medium: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
-  high: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
-  urgent: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  medium: "bg-amber-50 text-amber-700 border-amber-200",
+  high: "bg-amber-50 text-amber-700 border-amber-200",
+  urgent: "bg-red-50 text-red-600 border-red-200",
 };
 
 const statusColors: Record<string, string> = {
   open: "bg-green-500/10 text-green-400 border-green-500/20",
-  pending: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
   answered: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   closed: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };

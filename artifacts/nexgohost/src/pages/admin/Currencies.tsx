@@ -197,7 +197,7 @@ export default function Currencies() {
                 <td className="p-4 text-sm">{Number(c.exchangeRate).toFixed(4)}</td>
                 <td className="p-4">
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                    c.isActive ? "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]" : "bg-secondary text-muted-foreground border-border"
+                    c.isActive ? "bg-green-50 text-green-700 border-green-200" : "bg-secondary text-muted-foreground border-border"
                   }`}>{c.isActive ? "Active" : "Inactive"}</span>
                 </td>
                 <td className="p-4">

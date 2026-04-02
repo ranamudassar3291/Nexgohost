@@ -35,13 +35,13 @@ async function apiFetch(url: string, opts?: RequestInit) {
 type BillingTab = "invoices" | "transactions" | "refunds";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  paid:            { label: "Paid",           color: "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)] [box-shadow:0_0_8px_rgba(3,218,198,0.20)]",     icon: CheckCircle },
-  unpaid:          { label: "Unpaid",         color: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.32)] [box-shadow:0_0_8px_rgba(255,82,82,0.18)]",     icon: AlertCircle },
-  overdue:         { label: "Overdue",        color: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.32)] [box-shadow:0_0_8px_rgba(255,82,82,0.18)]",     icon: AlertCircle },
-  payment_pending: { label: "Pending Review", color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.30)] [box-shadow:0_0_8px_rgba(251,191,36,0.15)]",  icon: Clock },
+  paid:            { label: "Paid",           color: "bg-green-50 text-green-700 border-green-200",     icon: CheckCircle },
+  unpaid:          { label: "Unpaid",         color: "bg-red-50 text-red-600 border-red-200",     icon: AlertCircle },
+  overdue:         { label: "Overdue",        color: "bg-red-50 text-red-600 border-red-200",     icon: AlertCircle },
+  payment_pending: { label: "Pending Review", color: "bg-amber-50 text-amber-700 border-amber-200",  icon: Clock },
   cancelled:       { label: "Cancelled",      color: "bg-secondary/60 text-muted-foreground border-border",                                                                   icon: FileText },
-  refunded:        { label: "Refunded",       color: "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.30)] [box-shadow:0_0_8px_rgba(187,134,252,0.15)]", icon: RotateCcw },
-  refund_pending:  { label: "Refund Pending", color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.30)] [box-shadow:0_0_8px_rgba(251,191,36,0.15)]",  icon: RefreshCcw },
+  refunded:        { label: "Refunded",       color: "bg-purple-50 text-purple-700 border-purple-200", icon: RotateCcw },
+  refund_pending:  { label: "Refund Pending", color: "bg-amber-50 text-amber-700 border-amber-200",  icon: RefreshCcw },
 };
 
 const METHOD_LABELS: Record<string, string> = {
@@ -56,10 +56,10 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 const TX_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  success: { color: "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)] [box-shadow:0_0_8px_rgba(3,218,198,0.18)]",    label: "Success" },
-  failed:  { color: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)] [box-shadow:0_0_8px_rgba(255,82,82,0.15)]",      label: "Failed" },
-  pending: { color: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)] [box-shadow:0_0_8px_rgba(251,191,36,0.12)]",   label: "Pending" },
-  refunded:{ color: "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)] [box-shadow:0_0_8px_rgba(187,134,252,0.12)]", label: "Refunded" },
+  success: { color: "bg-green-50 text-green-700 border-green-200",    label: "Success" },
+  failed:  { color: "bg-red-50 text-red-600 border-red-200",      label: "Failed" },
+  pending: { color: "bg-amber-50 text-amber-700 border-amber-200",   label: "Pending" },
+  refunded:{ color: "bg-purple-50 text-purple-700 border-purple-200", label: "Refunded" },
 };
 
 function InvAmount({ inv }: { inv: Invoice }) {

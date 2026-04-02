@@ -2,14 +2,13 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus, Sun, Moon } from "lucide-react";
+import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useQuery } from "@tanstack/react-query";
-import { useTheme } from "@/context/ThemeProvider";
 
 interface LayoutProps {
   children: ReactNode;
@@ -57,7 +56,6 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -316,15 +314,6 @@ export function AppLayout({ children, role }: LayoutProps) {
             </button>
           )}
 
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
-          </button>
-
           {/* Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -373,15 +362,6 @@ export function AppLayout({ children, role }: LayoutProps) {
             {pageTitle}
           </h2>
           <div className="flex items-center gap-3">
-            {/* Dark/Light mode toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
-            >
-              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
             {role === "admin" && (
               <div className="px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-2 text-xs text-primary font-semibold">
                 <ShieldAlert size={14} /> Admin Access

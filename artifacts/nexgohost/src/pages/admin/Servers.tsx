@@ -77,7 +77,7 @@ function AutoWhitelistBtn({ serverId }: { serverId: string }) {
 
 const TYPE_LABELS: Record<string, string> = { cpanel: "cPanel", directadmin: "DirectAdmin", plesk: "Plesk", "20i": "20i", none: "None" };
 const STATUS_COLORS: Record<string, string> = {
-  active: "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]",
+  active: "bg-green-50 text-green-700 border-green-200",
   inactive: "bg-secondary text-muted-foreground border-border",
   maintenance: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
 };

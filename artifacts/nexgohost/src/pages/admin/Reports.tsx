@@ -133,8 +133,8 @@ export default function AdminReports() {
                     <span className="text-sm font-semibold">{formatPrice(Number(order.amount))}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full border ${
                       order.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/20" :
-                      order.status === "pending" ? "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]" :
-                      "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]"
+                      order.status === "pending" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                      "bg-red-50 text-red-600 border-red-200"
                     }`}>{order.status}</span>
                   </div>
                 </div>

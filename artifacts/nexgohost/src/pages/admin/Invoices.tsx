@@ -33,13 +33,13 @@ function fmtShort(iso: string): string {
 }
 
 const statusColors: Record<string, string> = {
-  unpaid:          "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  unpaid:          "bg-amber-50 text-amber-700 border-amber-200",
   payment_pending: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   paid:            "bg-green-500/10 text-green-400 border-green-500/20",
-  cancelled:       "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
-  overdue:         "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  cancelled:       "bg-red-50 text-red-600 border-red-200",
+  overdue:         "bg-red-50 text-red-600 border-red-200",
   refunded:        "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  collections:     "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]",
+  collections:     "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 const ALL_STATUSES = ["unpaid", "payment_pending", "paid", "cancelled", "overdue", "refunded", "collections"];

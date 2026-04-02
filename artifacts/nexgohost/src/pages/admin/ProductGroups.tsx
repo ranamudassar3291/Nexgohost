@@ -170,7 +170,7 @@ export default function ProductGroups() {
                 <td className="p-4 text-sm text-muted-foreground max-w-xs truncate">{g.description || "—"}</td>
                 <td className="p-4">
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                    g.isActive ? "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]" : "bg-secondary text-muted-foreground border-border"
+                    g.isActive ? "bg-green-50 text-green-700 border-green-200" : "bg-secondary text-muted-foreground border-border"
                   }`}>{g.isActive ? "Active" : "Inactive"}</span>
                 </td>
                 <td className="p-4">

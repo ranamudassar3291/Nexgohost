@@ -31,17 +31,17 @@ async function apiFetch(url: string, opts?: RequestInit) {
 
 const STATUS_BADGE: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
-  suspended: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
-  pending: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
-  terminated: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  suspended: "bg-amber-50 text-amber-700 border-amber-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  terminated: "bg-red-50 text-red-600 border-red-200",
   paid: "bg-green-500/10 text-green-400 border-green-500/20",
-  unpaid: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
-  overdue: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  unpaid: "bg-amber-50 text-amber-700 border-amber-200",
+  overdue: "bg-red-50 text-red-600 border-red-200",
   cancelled: "bg-secondary text-muted-foreground border-border",
   open: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   answered: "bg-green-500/10 text-green-400 border-green-500/20",
   closed: "bg-secondary text-muted-foreground border-border",
-  expired: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
+  expired: "bg-red-50 text-red-600 border-red-200",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -1264,9 +1264,9 @@ function ServicePanel({ svc, clientId, onBack, onAction, onEdit }: {
         <div className="flex flex-wrap gap-2">
           {svc.status === "pending" && btn("Create Account", Zap, "bg-blue-500/10 text-blue-400 border-blue-500/20", () => onAction(`/api/admin/hosting/${svc.id}/provision`, "POST"))}
           {btn("Resend Verification Email", Mail, "bg-teal-500/10 text-teal-400 border-teal-500/20", () => onAction(`/api/admin/clients/${clientId}/resend-verification`, "POST"))}
-          {svc.status !== "suspended" && svc.status !== "terminated" && btn("Suspend", PauseCircle, "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]", () => { if (confirm("Suspend this account?")) onAction(`/api/admin/hosting/${svc.id}/suspend`, "POST"); })}
+          {svc.status !== "suspended" && svc.status !== "terminated" && btn("Suspend", PauseCircle, "bg-amber-50 text-amber-700 border-amber-200", () => { if (confirm("Suspend this account?")) onAction(`/api/admin/hosting/${svc.id}/suspend`, "POST"); })}
           {svc.status === "suspended" && btn("Unsuspend", PlayCircle, "bg-green-500/10 text-green-400 border-green-500/20", () => onAction(`/api/admin/hosting/${svc.id}/unsuspend`, "POST"))}
-          {svc.status !== "terminated" && btn("Terminate", XCircle, "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]", () => { if (confirm("Terminate this account? Irreversible.")) onAction(`/api/admin/hosting/${svc.id}/terminate`, "POST"); })}
+          {svc.status !== "terminated" && btn("Terminate", XCircle, "bg-red-50 text-red-600 border-red-200", () => { if (confirm("Terminate this account? Irreversible.")) onAction(`/api/admin/hosting/${svc.id}/terminate`, "POST"); })}
         </div>
       </div>
 
@@ -1275,7 +1275,7 @@ function ServicePanel({ svc, clientId, onBack, onAction, onEdit }: {
         <div className="flex flex-wrap gap-2">
           {btn("Upgrade Plan", TrendingUp, "bg-secondary text-foreground border-border", () => toast({ title: "Upgrade", description: "Go to Packages to change the plan." }))}
           {btn("Downgrade Plan", TrendingDown, "bg-secondary text-foreground border-border", () => toast({ title: "Downgrade", description: "Go to Packages to change the plan." }))}
-          {svc.cancelRequested && btn("Approve Cancel", CheckCircle, "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]", () => { if (confirm("Approve cancellation?")) onAction(`/api/admin/hosting/${svc.id}/cancel`, "POST"); })}
+          {svc.cancelRequested && btn("Approve Cancel", CheckCircle, "bg-red-50 text-red-600 border-red-200", () => { if (confirm("Approve cancellation?")) onAction(`/api/admin/hosting/${svc.id}/cancel`, "POST"); })}
         </div>
       </div>
     </div>

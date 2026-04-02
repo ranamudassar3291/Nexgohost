@@ -190,7 +190,7 @@ export default function AdminClients() {
                   <td className="px-5 py-3.5">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
                       client.status === 'active'
-                        ? 'bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]'
+                        ? 'bg-green-50 text-green-700 border-green-200'
                         : 'bg-red-500/10 text-red-500 border-red-500/20'
                     }`}>
                       {client.status === 'active' ? <UserCheck size={11}/> : <UserX size={11}/>}

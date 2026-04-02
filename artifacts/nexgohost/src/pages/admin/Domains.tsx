@@ -49,12 +49,12 @@ interface UpcomingRenewal {
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
-  expired: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
-  pending: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  expired: "bg-red-50 text-red-600 border-red-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
   transferred: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  suspended: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  suspended: "bg-amber-50 text-amber-700 border-amber-200",
   cancelled: "bg-red-800/10 text-red-600 border-red-800/20",
-  grace_period: "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]",
+  grace_period: "bg-purple-50 text-purple-700 border-purple-200",
   redemption_period: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   pending_delete: "bg-red-700/10 text-red-500 border-red-700/20",
   client_hold: "bg-slate-500/10 text-slate-400 border-slate-500/20",
@@ -459,8 +459,8 @@ export default function AdminDomains() {
                           effLock === "unlocked"
                             ? "bg-green-500/10 text-green-400 border-green-500/20"
                             : effIn60Day
-                              ? "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]"
-                              : "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-red-50 text-red-600 border-red-200"
                         }`}>
                           {effLock === "unlocked"
                             ? <><ShieldCheck className="w-3 h-3" /> Unlocked</>

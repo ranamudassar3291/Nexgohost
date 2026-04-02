@@ -383,7 +383,7 @@ export default function WhatsAppSettings() {
                     </span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
                       log.status === "sent"
-                        ? "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]"
+                        ? "bg-green-50 text-green-700 border-green-200"
                         : "bg-red-500/10 text-red-500 border-red-500/20"
                     }`}>{log.status}</span>
                   </div>

@@ -120,12 +120,12 @@ function TldIcon({ tld }: { tld: string }) {
 
 const statusColors: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
-  expired: "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
-  pending: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  expired: "bg-red-50 text-red-600 border-red-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
   transferred: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  suspended: "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+  suspended: "bg-amber-50 text-amber-700 border-amber-200",
   cancelled: "bg-secondary text-muted-foreground border-border",
-  pending_transfer: "bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]",
+  pending_transfer: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 const statusLabels: Record<string, string> = {
@@ -855,11 +855,11 @@ export default function ClientDomains() {
               const sMap = {
                 active:      { label: 'Active',      cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
                 expired:     { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
-                pending:     { label: 'Pending',     cls: 'bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]' },
-                suspended:   { label: 'Suspended',   cls: 'bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]' },
+                pending:     { label: 'Pending',     cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                suspended:   { label: 'Suspended',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
                 transferred: { label: 'Transferred', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
                 cancelled:   { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
-                pending_transfer: { label: 'Pending Transfer', cls: 'bg-[rgba(187,134,252,0.10)] text-[#BB86FC] border-[rgba(187,134,252,0.28)]' },
+                pending_transfer: { label: 'Pending Transfer', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
               };
 
               return (
@@ -967,11 +967,11 @@ export default function ClientDomains() {
           ) : (
             myTransfers.map(transfer => {
               const statusColors: Record<string, string> = {
-                pending:    "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]",
+                pending:    "bg-amber-50 text-amber-700 border-amber-200",
                 validating: "bg-blue-500/10 text-blue-400 border-blue-500/20",
                 approved:   "bg-green-500/10 text-green-400 border-green-500/20",
-                rejected:   "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]",
-                completed:  "bg-[rgba(3,218,198,0.10)] text-[#03DAC6] border-[rgba(3,218,198,0.30)]",
+                rejected:   "bg-red-50 text-red-600 border-red-200",
+                completed:  "bg-green-50 text-green-700 border-green-200",
                 cancelled:  "bg-secondary text-muted-foreground border-border",
               };
               const statusLabels: Record<string, string> = {

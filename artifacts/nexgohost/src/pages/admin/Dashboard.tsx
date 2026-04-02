@@ -273,8 +273,8 @@ export default function AdminDashboard() {
                     <span className="text-sm font-bold text-foreground">{formatPrice(Number(order.amount))}</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                       order.status === "approved" ? "bg-green-500/10 text-green-400 border-green-500/20"
-                      : order.status === "pending" ? "bg-[rgba(251,191,36,0.10)] text-[#FBB824] border-[rgba(251,191,36,0.28)]"
-                      : order.status === "fraud" ? "bg-[rgba(255,82,82,0.10)] text-[#FF6B6B] border-[rgba(255,82,82,0.30)]"
+                      : order.status === "pending" ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : order.status === "fraud" ? "bg-red-50 text-red-600 border-red-200"
                       : "bg-secondary text-muted-foreground border-border"
                     }`}>{order.status}</span>
                   </div>
