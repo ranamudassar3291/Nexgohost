@@ -47,9 +47,10 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Technical",
     items: [
-      { name: "Servers",    href: "/admin/servers",    icon: (() => null) as any },
-      { name: "Analytics",  href: "/admin/analytics",  icon: (() => null) as any },
-      { name: "System",     href: "/admin/system",     icon: (() => null) as any },
+      { name: "Servers",      href: "/admin/servers",       icon: (() => null) as any },
+      { name: "Analytics",    href: "/admin/analytics",     icon: (() => null) as any },
+      { name: "System",       href: "/admin/system",        icon: (() => null) as any },
+      { name: "IP Unblocker", href: "/admin/ip-unblocker",  icon: (() => null) as any },
     ],
   },
 ];
@@ -108,7 +109,7 @@ export function AppLayout({ children, role }: LayoutProps) {
     "/admin/finance":   ["/admin/promo-codes", "/admin/payment-methods", "/admin/currencies", "/admin/product-groups", "/admin/affiliates", "/admin/credits"],
     "/admin/servers":   ["/admin/twenty-i", "/admin/modules", "/admin/server-nodes"],
     "/admin/analytics": ["/admin/reports", "/admin/transactions", "/admin/fraud-logs", "/admin/cron-logs", "/admin/server-logs", "/admin/backups", "/admin/whatsapp", "/admin/email-marketing", "/admin/whmcs-import"],
-    "/admin/system":    ["/admin/settings", "/admin/admin-users", "/admin/email-templates", "/admin/api-settings", "/admin/api-docs", "/admin/security", "/admin/firewall"],
+    "/admin/system":    ["/admin/settings", "/admin/admin-users", "/admin/email-templates", "/admin/api-settings", "/admin/api-docs", "/admin/security", "/admin/firewall", "/admin/ip-unblocker"],
   };
 
   const isActive = (href: string) => {

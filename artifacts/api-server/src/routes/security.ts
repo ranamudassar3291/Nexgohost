@@ -288,4 +288,57 @@ router.get("/admin/migrate/export", authenticate, requireAdmin, async (req, res)
   }
 });
 
+// ── POST /admin/ip-unblocker/whitelist ────────────────────────────────────────
+// Proxy-calls an external API endpoint to whitelist one or more IPs.
+// Accepts: { endpoint, apiKey, ips: string[] }
+// Returns: { results: { ip, success, message }[] }
+router.post("/admin/ip-unblocker/whitelist", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { endpoint, apiKey, ips } = req.body;
+    if (!endpoint || !apiKey || !Array.isArray(ips) || ips.length === 0) {
+      res.status(400).json({ error: "endpoint, apiKey, and ips[] are required" });
+      return;
+    }
+
+    const ipv4Re = /^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)(\/\d{1,2})?$/;
+    const results: { ip: string; success: boolean; message: string }[] = [];
+
+    for (const rawIp of ips as string[]) {
+      const ip = rawIp.trim();
+      if (!ip) continue;
+      if (!ipv4Re.test(ip)) {
+        results.push({ ip, success: false, message: "Invalid IP format" });
+        continue;
+      }
+      try {
+        const r = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "X-Api-Key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ip }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const text = await r.text().catch(() => "");
+        let message = r.ok ? "Whitelisted successfully" : `HTTP ${r.status}`;
+        try {
+          const json = text ? JSON.parse(text) : null;
+          if (json?.message) message = json.message;
+          else if (json?.error) message = json.error;
+        } catch { if (text) message = text.slice(0, 150); }
+        results.push({ ip, success: r.ok, message });
+      } catch (e: any) {
+        results.push({ ip, success: false, message: e.message ?? "Request failed" });
+      }
+    }
+
+    res.json({ results });
+  } catch (err: any) {
+    console.error("[IP Unblocker]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
