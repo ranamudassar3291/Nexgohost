@@ -100,9 +100,11 @@ export function sanitiseKey(key: string): string {
 // There is NO length restriction — Combined Keys are longer than General Keys and are fully supported.
 function buildBearerToken(raw: string): string {
   const clean = sanitiseKey(raw);
-  // ↓ This is the exact encoding line — works for BOTH General and Combined keys
-  const token = Buffer.from(clean).toString("base64");
-  return token;
+  // Exact encoding per 20i docs: base64(apiKey)
+  // This is the token value only — "Bearer " is NOT included here.
+  // The caller sets: Authorization: "Bearer " + buildBearerToken(key)
+  // Result: ONE "Bearer " prefix in the final header. Always.
+  return Buffer.from(clean).toString("base64");
 }
 
 // Exported helper for any route that constructs the Authorization header directly.
@@ -139,11 +141,13 @@ async function request<T = any>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const token = buildBearerToken(apiKey);
+  const cleanKey = sanitiseKey(apiKey);
+  const token = buildBearerToken(cleanKey);   // base64(cleanKey) — NO "Bearer" prefix inside this string
   const url = `${BASE_URL}${path}`;
   const proxyUrl = resolveProxyUrl();
 
-  console.log(`[20i] -> ${method} ${url}`);
+  // Explicit log: Authorization header = "Bearer " + base64(key). Only ONE "Bearer " prefix.
+  console.log(`[20i] -> ${method} ${url}  [auth: Bearer <base64(${cleanKey.length}-char-key)>]`);
 
   const cfg: AxiosRequestConfig = {
     method: method as any,
@@ -386,14 +390,16 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
     diagnosis = "unknown_401";
   }
 
-  // Build what the actual Authorization header value looks like (one "Bearer " only)
-  const authHeaderPreview = `Authorization: Bearer <base64(${keyLen}-char-key)>`;
+  // The exact Authorization header VALUE that is sent over the wire — single "Bearer " prefix only.
+  // Format: Bearer <base64(rawKey)>
+  // The "Authorization:" header name is NOT included here — it is added by the HTTP layer separately.
+  const headerValue = `Bearer <base64(${keyLen}-char key)>`;
   return {
     url,
     method: "GET",
     authFormat: workingFormat === "raw"
-      ? `${authHeaderPreview} ✓ accepted`
-      : `${authHeaderPreview} ✗ rejected (HTTP ${status})`,
+      ? `${headerValue} ✓ accepted`
+      : `${headerValue} ✗ rejected (HTTP ${status})`,
     keyLength: keyLen,
     tokenLength: tokenLen,
     keyFirst4: cleanKey.substring(0, 4),
@@ -410,8 +416,8 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
     diagnosis,
     attempts: [{
       format: "raw",
-      // Shows exactly what the Authorization header value looks like — one "Bearer " only
-      authHeaderPreview: `Bearer <base64(${keyLen}-char-key, first4=${cleanKey.substring(0, 4)}, last4=${cleanKey.slice(-4)})>`,
+      // The exact value of the Authorization header sent in the HTTP request — single "Bearer " prefix
+      authHeaderPreview: `Bearer <base64(${keyLen}-char key · first=${cleanKey.substring(0, 4)} · last=${cleanKey.slice(-4)})>`,
       status,
       body,
       durationMs,
