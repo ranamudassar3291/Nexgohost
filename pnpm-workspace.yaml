@@ -33,8 +33,10 @@ minimumReleaseAge: 1440
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - '@whiskeysockets/baileys'
   - esbuild
   - msw
+  - protobufjs
   - unrs-resolver
 
 overrides:

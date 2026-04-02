@@ -10,7 +10,7 @@ name = "react-vite"
 version = "1.0.0"
 
 [[services]]
-localPort = 23274
+localPort = 3000
 name = "web"
 paths = ["/"]
 
@@ -18,7 +18,7 @@ paths = ["/"]
 run = "pnpm --filter @workspace/nexgohost run dev"
 
 [services.env]
-PORT = "23274"
+PORT = "3000"
 BASE_PATH = "/"
 
 [services.production]
