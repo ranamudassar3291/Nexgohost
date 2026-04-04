@@ -224,13 +224,19 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const [pwShow, setPwShow] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
 
-  const { data: users = [], isLoading, refetch } = useQuery({
+  const { data: usersRaw, isLoading, refetch } = useQuery({
     queryKey: ["20i-stack-users"],
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
     refetchInterval: 5 * 60 * 1000,
   });
 
-  const filtered = (users as any[]).filter((u: any) =>
+  const usersApiError: string | null =
+    usersRaw && !Array.isArray(usersRaw) && (usersRaw as any).error
+      ? ((usersRaw as any).error as string)
+      : null;
+  const users: any[] = Array.isArray(usersRaw) ? usersRaw : [];
+
+  const filtered = users.filter((u: any) =>
     !search ||
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
     u.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -301,6 +307,21 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
 
   return (
     <div className="space-y-4">
+      {usersApiError && (
+        <div className={`flex items-start gap-3 px-4 py-3 rounded-2xl border shadow-sm ${usersApiError === "ip_not_whitelisted" ? "border-amber-400/40 bg-amber-50" : "border-red-400/40 bg-red-50"}`}>
+          {usersApiError === "ip_not_whitelisted"
+            ? <AlertTriangle size={15} className="shrink-0 text-amber-500 mt-0.5" />
+            : <AlertCircle size={15} className="shrink-0 text-red-500 mt-0.5" />}
+          <div>
+            <p className="text-sm font-semibold text-amber-700">{usersApiError === "ip_not_whitelisted" ? "IP not whitelisted" : "Could not load StackUsers"}</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              {usersApiError === "ip_not_whitelisted"
+                ? "Your server's outbound IP is not in 20i's whitelist. Click \"Fix Now\" in the banner above or go to my.20i.com → Reseller API → IP Whitelist to add your IP, then refresh."
+                : (usersRaw as any)?.message ?? "Unknown error."}
+            </p>
+          </div>
+        </div>
+      )}
       {confirm && (
         <ConfirmModal
           title="Delete StackUser"
@@ -499,16 +520,17 @@ function SitesTab() {
 
   useEffect(() => { setPage(0); }, [search]);
 
-  const { data: sites = [], isLoading, isError: sitesError, error: sitesErr, refetch } = useQuery({
+  const { data: sitesRaw, isLoading, isError: sitesError, error: sitesErr, refetch } = useQuery({
     queryKey: ["20i-sites"],
-    queryFn: async () => {
-      const data = await apiFetch("/api/admin/twenty-i/sites");
-      if (data?.error === "auth_failed") throw new Error(data.message);
-      return Array.isArray(data) ? data : [];
-    },
+    queryFn: () => apiFetch("/api/admin/twenty-i/sites"),
     refetchInterval: 5 * 60 * 1000,
     retry: false,
   });
+  const sitesApiError: string | null =
+    sitesRaw && !Array.isArray(sitesRaw) && (sitesRaw as any).error
+      ? ((sitesRaw as any).error as string)
+      : null;
+  const sites: any[] = Array.isArray(sitesRaw) ? sitesRaw : [];
   const { data: stackUsers = [] } = useQuery({
     queryKey: ["20i-stack-users"],
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
@@ -572,10 +594,21 @@ function SitesTab() {
 
   return (
     <div className="space-y-4">
-      {sitesError && (
-        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-primary/20 bg-primary/5 text-xs text-primary">
-          <AlertCircle size={13} className="shrink-0" />
-          <span>Could not load sites — verify the API key and IP whitelist under <strong>Admin → Servers</strong>. Error: {(sitesErr as any)?.message ?? "unknown"}</span>
+      {(sitesError || sitesApiError) && (
+        <div className={`flex items-start gap-3 px-4 py-3 rounded-2xl border shadow-sm ${sitesApiError === "ip_not_whitelisted" ? "border-amber-400/40 bg-amber-50" : "border-red-400/40 bg-red-50"}`}>
+          {sitesApiError === "ip_not_whitelisted"
+            ? <AlertTriangle size={15} className="shrink-0 text-amber-500 mt-0.5" />
+            : <AlertCircle size={15} className="shrink-0 text-red-500 mt-0.5" />}
+          <div>
+            <p className="text-sm font-semibold text-amber-700">
+              {sitesApiError === "ip_not_whitelisted" ? "IP not whitelisted" : "Could not load sites"}
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              {sitesApiError === "ip_not_whitelisted"
+                ? "Your server's outbound IP is not in 20i's whitelist. Click \"Fix Now\" in the banner above or go to my.20i.com → Reseller API → IP Whitelist to add your IP, then refresh."
+                : ((sitesRaw as any)?.message ?? (sitesErr as any)?.message ?? "Unknown error — verify the API key and IP whitelist under Admin → Servers.")}
+            </p>
+          </div>
         </div>
       )}
       {confirm && (
@@ -1495,6 +1528,26 @@ export default function TwentyIAdmin() {
   const [wlData, setWlData] = useState<any | null>(null);
   const [wlSyncing, setWlSyncing] = useState(false);
   const [showWl, setShowWl] = useState(false);
+  const [ipNotWhitelisted, setIpNotWhitelisted] = useState<{ ip: string; message: string } | null>(null);
+
+  // Auto-check IP whitelist on page load (silent — shows banner if not whitelisted)
+  useEffect(() => {
+    let cancelled = false;
+    async function checkIp() {
+      try {
+        const data = await apiFetch("/api/admin/twenty-i/whitelist");
+        if (cancelled) return;
+        setWlData(data);
+        if (data?.serverConfigured && !data?.isWhitelisted && data?.outboundIp) {
+          setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
+        } else {
+          setIpNotWhitelisted(null);
+        }
+      } catch { /* silent fail */ }
+    }
+    checkIp();
+    return () => { cancelled = true; };
+  }, [selectedServerId]);
 
   async function loadWhitelist() {
     setWlLoading(true);
@@ -1502,6 +1555,11 @@ export default function TwentyIAdmin() {
       const data = await apiFetch("/api/admin/twenty-i/whitelist");
       setWlData(data);
       setShowWl(true);
+      if (data?.serverConfigured && !data?.isWhitelisted && data?.outboundIp) {
+        setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
+      } else {
+        setIpNotWhitelisted(null);
+      }
     } catch (e: any) {
       toast({ title: "Could not load whitelist", description: e.message, variant: "destructive" });
     } finally {
@@ -1518,7 +1576,11 @@ export default function TwentyIAdmin() {
         toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist — API is now connected` });
         const fresh = await apiFetch("/api/admin/twenty-i/whitelist");
         setWlData(fresh);
+        // IP is now whitelisted — dismiss the banner and refresh all data
+        setIpNotWhitelisted(null);
         qc.invalidateQueries({ queryKey: ["20i-sites"] });
+        qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
+        qc.invalidateQueries({ queryKey: ["20i-packages"] });
         qc.invalidateQueries({ queryKey: ["20i-migrations"] });
       } else if (data.error === "chicken_and_egg") {
         // 20i blocks all API calls (including whitelist management) until the IP is added manually once
@@ -1612,6 +1674,44 @@ export default function TwentyIAdmin() {
           </button>
         </div>
       </div>
+
+      {/* IP Not Whitelisted Banner — auto-shown when 20i returns 404 on reseller endpoints */}
+      {ipNotWhitelisted && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-2xl border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 shadow-sm">
+          <AlertTriangle size={17} className="shrink-0 text-amber-500 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Server IP not whitelisted at 20i</p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+              Your server's outbound IP <strong className="font-mono">{ipNotWhitelisted.ip}</strong> is not in 20i's API whitelist. All reseller API calls will fail until you add it.
+              Click <strong>Update 20i Whitelist</strong> below to auto-add it.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              setWlLoading(true);
+              try {
+                const data = await apiFetch("/api/admin/twenty-i/whitelist");
+                setWlData(data);
+                setShowWl(true);
+                if (data?.serverConfigured && !data?.isWhitelisted && data?.outboundIp) {
+                  setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
+                } else {
+                  setIpNotWhitelisted(null);
+                }
+              } catch (e: any) {
+                toast({ title: "Could not load whitelist", description: e.message, variant: "destructive" });
+              } finally {
+                setWlLoading(false);
+              }
+            }}
+            disabled={wlLoading}
+            className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors shadow-sm disabled:opacity-60"
+          >
+            {wlLoading ? <Loader2 size={11} className="animate-spin" /> : <Shield size={11} />}
+            Fix Now
+          </button>
+        </div>
+      )}
 
       {/* Live Diagnostic Panel */}
       {showDiag && diagResult && (

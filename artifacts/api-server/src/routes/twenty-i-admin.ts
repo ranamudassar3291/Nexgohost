@@ -81,6 +81,42 @@ function requireApiKey(server: any, res: any): boolean {
   return true;
 }
 
+// Classify any error thrown by 20i library functions into a human-readable response.
+// Returns true if the error was handled (response already sent), false otherwise.
+function handle20iError(e: any, res: any, emptyFallback?: any): boolean {
+  const msg: string = e?.message ?? String(e);
+  const code: string = e?.code ?? "";
+
+  // IP not whitelisted — 20i returns 404 on reseller/* when IP is not in the whitelist
+  if (code === "IP_NOT_WHITELISTED" || msg.includes("IP_NOT_WHITELISTED") || msg.includes("ip_not_whitelisted")) {
+    res.status(200).json({
+      error: "ip_not_whitelisted",
+      message: "Your server's outbound IP is not whitelisted at 20i. Go to my.20i.com → Reseller API → IP Whitelist and add your IP, then refresh.",
+      ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
+    });
+    return true;
+  }
+  // Authentication failed — wrong key
+  if (msg.includes("KEY NOT RECOGNISED") || msg.includes("User ID") || msg.includes("Authentication failed")) {
+    res.status(200).json({
+      error: "auth_failed",
+      message: "20i API key is invalid. Edit the server in Admin → Servers and re-enter the correct key.",
+      ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
+    });
+    return true;
+  }
+  // IP blocked (403 from 20i)
+  if (msg.includes("403") || msg.includes("Forbidden") || msg.includes("IpMatch")) {
+    res.status(200).json({
+      error: "ip_not_whitelisted",
+      message: "Your server's outbound IP is not whitelisted at 20i (403 Forbidden). Go to my.20i.com → Reseller API → IP Whitelist and add your IP.",
+      ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
+    });
+    return true;
+  }
+  return false;
+}
+
 /**
  * Run `fn` in the context of a 20i server record.
  * Threads the server's keyType (general vs combined) and proxyUrl (per-server static IP proxy)
@@ -278,7 +314,9 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
     res.json(users);
   } catch (e: any) {
     console.warn(`[20i] stack-users fetch failed: ${e.message}`);
-    res.json([]);
+    if (!handle20iError(e, res, [])) {
+      res.status(200).json({ error: "fetch_failed", message: e.message, data: [] });
+    }
   }
 });
 
@@ -368,11 +406,10 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (req: Auth
     const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
     res.json(sites);
   } catch (e: any) {
-    const msg: string = e.message ?? "";
-    if (msg.includes("401") || msg.includes("Authentication failed") || msg.includes("403")) {
-      return res.status(200).json({ error: "auth_failed", message: "20i API key is invalid or the server IP is not whitelisted. Verify your API key in Admin → Servers.", sites: [] });
+    console.warn(`[20i] sites fetch failed: ${e.message}`);
+    if (!handle20iError(e, res, [])) {
+      res.status(200).json({ error: "fetch_failed", message: e.message, data: [] });
     }
-    res.status(500).json({ error: e.message });
   }
 });
 
@@ -449,10 +486,13 @@ router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (req: A
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const packages = await twentyiGetPackages(server!.apiToken!);
+    const packages = await runWith20i(server, () => twentyiGetPackages(server!.apiToken!));
     res.json(packages);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    console.warn(`[20i] packages fetch failed: ${e.message}`);
+    if (!handle20iError(e, res, [])) {
+      res.status(200).json({ error: "fetch_failed", message: e.message, data: [] });
+    }
   }
 });
 

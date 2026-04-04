@@ -232,7 +232,23 @@ async function request<T = any>(
     );
   }
   if (res.status === 404) {
-    throw new Error(`20i Endpoint not found (404): ${path}`);
+    // For reseller/* endpoints, 404 almost always means IP not whitelisted.
+    // 20i silently returns 404 (instead of 403) for unwhitelisted IPs on some account types.
+    // Throw a distinctly identifiable error so routes can surface the right message.
+    if (path.startsWith("/reseller/")) {
+      throw Object.assign(
+        new Error(
+          `20i IP_NOT_WHITELISTED — reseller endpoint returned 404. ` +
+          `Your server's outbound IP is not yet whitelisted at my.20i.com → Reseller API → IP Whitelist. ` +
+          `Endpoint: ${path}`,
+        ),
+        { code: "IP_NOT_WHITELISTED", status: 404 },
+      );
+    }
+    throw Object.assign(
+      new Error(`20i Not Found (404): ${path}`),
+      { code: "NOT_FOUND_404", status: 404 },
+    );
   }
   if (res.status === 429) {
     throw new Error("20i Rate limit exceeded (429). Please wait before retrying.");
