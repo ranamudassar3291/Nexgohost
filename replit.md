@@ -1,5 +1,22 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 46 — 20i Auth Root Cause Fix)
+
+### Fix: 20i API Authentication — Proven Auth Matrix Applied
+- **Root cause**: The combined key (35 chars) was being used for `/package` endpoints but 20i rejects it with HTTP 401. The `before_plus` key (17 chars) WITHOUT `\n` in base64 encoding is the only working combination for `/package` endpoints.
+- **Proven auth matrix** (probed 2026-04-04 against live account):
+  - `/package` endpoints → `before_plus` WITHOUT `\n` → HTTP 200 ✓ (1,595 packages returned)
+  - `/reseller/*` endpoints → `before_plus` WITH `\n` → HTTP 200/404 (authenticates, but no sub-resellers configured)
+  - Full combined key (35 chars) → always HTTP 401 "User ID"
+- `artifacts/api-server/src/lib/twenty-i.ts`:
+  - `selectKeyForPath(cleanKey)` — now takes 1 arg, always returns `before_plus`
+  - `useNewlineForPath(path)` — new helper: `true` for `/reseller/*`, `false` for all other paths
+  - `selectAlternativeKeyForPath(cleanKey, primaryKey)` — updated to 2-arg signature
+  - `request()` — updated to call `selectKeyForPath(cleanKey)` and `encodeKeyToBase64(selectedKey, addNl)`
+  - All per-site endpoints reverted from `/reseller/*/web/${siteId}/...` back to `/package/${siteId}/...`
+  - List endpoint reverted from `/reseller/*/web` back to `/package`
+- **Result**: 1,595 packages synced (1,339 active + 256 suspended)
+
 ## Recent Changes (Phase 1 — Security, Branding, Dark Mode)
 
 ### Security: Brute-force threshold tightened to 3 attempts

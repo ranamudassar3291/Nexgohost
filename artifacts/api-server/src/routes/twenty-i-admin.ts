@@ -227,6 +227,93 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (req:
   }
 });
 
+// ─── Endpoint Probe ───────────────────────────────────────────────────────────
+
+/**
+ * GET /admin/twenty-i/probe
+ * Tests a set of 20i API endpoint patterns using the stored key and reports
+ * the HTTP status and body snippet for each. Useful for diagnosing which
+ * endpoints are accessible for this account type.
+ */
+router.get("/admin/twenty-i/probe", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const server = await get20iServer(req.query?.serverId as string | undefined);
+    if (!requireApiKey(server, res)) return;
+
+    const apiKey = server!.apiToken!.trim();
+    const axios = (await import("axios")).default;
+    const { sanitiseKey } = await import("../lib/twenty-i.js");
+    const cleanKey = sanitiseKey(apiKey);
+    const plusIdx = cleanKey.indexOf("+");
+    const beforePlus = plusIdx > 0 ? cleanKey.substring(0, plusIdx) : cleanKey;
+    const afterPlus = plusIdx > 0 ? cleanKey.substring(plusIdx + 1) : cleanKey;
+
+    const encodeKey = (k: string) => Buffer.from(k + "\n").toString("base64");
+
+    // Also probe the full key (no split) with and without \n
+    const fullKey = cleanKey;
+    const encodeFullKey = (k: string) => Buffer.from(k + "\n").toString("base64");
+    const encodeFullKeyNoNl = (k: string) => Buffer.from(k).toString("base64");
+
+    const endpointsToProbe = [
+      { label: "GET /reseller (before)",              method: "GET", path: "/reseller",               key: "before" },
+      { label: "GET /reseller (after)",               method: "GET", path: "/reseller",               key: "after"  },
+      { label: "GET /reseller/*/web",                 method: "GET", path: "/reseller/*/web",         key: "before" },
+      { label: "GET /reseller/*/package",             method: "GET", path: "/reseller/*/package",     key: "before" },
+      { label: "GET /reseller/*/packageTypes",        method: "GET", path: "/reseller/*/packageTypes",key: "before" },
+      { label: "GET /reseller/*/susers",              method: "GET", path: "/reseller/*/susers",      key: "before" },
+      { label: "GET /package (after_plus)",           method: "GET", path: "/package",                key: "after"  },
+      { label: "GET /package (before_plus)",          method: "GET", path: "/package",                key: "before" },
+      { label: "GET /web (before)",                   method: "GET", path: "/web",                    key: "before" },
+      { label: "GET /reseller/1/web",                 method: "GET", path: "/reseller/1/web",         key: "before" },
+      { label: "GET /reseller/1/package",             method: "GET", path: "/reseller/1/package",     key: "before" },
+    ];
+
+    // Also test full (un-split) key on key-sensitive endpoints
+    const fullKeyProbes = [
+      { label: "GET /reseller [full+newline]",  path: "/reseller",         auth: `Bearer ${encodeFullKey(fullKey)}` },
+      { label: "GET /reseller [full, no-nl]",   path: "/reseller",         auth: `Bearer ${encodeFullKeyNoNl(fullKey)}` },
+      { label: "GET /reseller/*/web [full+nl]", path: "/reseller/*/web",   auth: `Bearer ${encodeFullKey(fullKey)}` },
+      { label: "GET /package [full+nl]",        path: "/package",          auth: `Bearer ${encodeFullKey(fullKey)}` },
+      { label: "GET /package [before, no-nl]",  path: "/package",          auth: `Bearer ${encodeFullKeyNoNl(beforePlus)}` },
+      { label: "GET /package [after, no-nl]",   path: "/package",          auth: `Bearer ${encodeFullKeyNoNl(afterPlus)}` },
+    ];
+
+    const makeCall = async (label: string, method: string, path: string, auth: string) => {
+      try {
+        const r = await axios({
+          method: method as any,
+          url: `https://api.20i.com${path}`,
+          headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json" },
+          timeout: 8_000,
+          validateStatus: () => true,
+        });
+        const rawBody = typeof r.data === "string" ? r.data : JSON.stringify(r.data);
+        return { label, status: r.status, body: rawBody.substring(0, 300) };
+      } catch (e: any) {
+        return { label, status: null, body: `Error: ${e.message}` };
+      }
+    };
+
+    const [standardResults, fullKeyResults] = await Promise.all([
+      Promise.all(endpointsToProbe.map(ep => {
+        const k = ep.key === "before" ? beforePlus : afterPlus;
+        return makeCall(ep.label, ep.method, ep.path, `Bearer ${encodeKey(k)}`);
+      })),
+      Promise.all(fullKeyProbes.map(fp => makeCall(fp.label, "GET", fp.path, fp.auth))),
+    ]);
+
+    const results = [...standardResults, ...fullKeyResults];
+    results.forEach(r => {
+      console.log(`[20i-PROBE] ${r.label} → HTTP ${r.status ?? "ERR"}  ${r.body.substring(0, 150)}`);
+    });
+
+    return res.json({ ok: true, results });
+  } catch (e: any) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ─── IP Whitelist ─────────────────────────────────────────────────────────────
 
 /**

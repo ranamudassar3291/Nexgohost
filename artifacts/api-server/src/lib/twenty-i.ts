@@ -185,12 +185,16 @@ export async function twentyiFindWorkingKeyFormat(
   return { format: "before_plus", authKey: fallback, status: 0 };
 }
 
-// STEP 2 — Encode: base64(generalKey + "\n").
-// The 20i API requires a trailing newline appended BEFORE base64 encoding.
-// Proof: their docs example token "ZTRkNGZkMzFhNTJkY2FlMwo=" decodes to "e4d4fd31a52dcae3\n".
-// Without the "\n" the token differs and 20i returns {"type":"User ID"} 401.
-function encodeKeyToBase64(cleanKey: string): string {
-  return Buffer.from(cleanKey + "\n").toString("base64");
+// STEP 2 — Encode: base64(key [+ "\n"]).
+// For /reseller/* endpoints (General Key usage), 20i requires a trailing newline:
+//   Proof from docs: "ZTRkNGZkMzFhNTJkY2FlMwo=" decodes to "e4d4fd31a52dcae3\n"
+// For /package (StackCP/customer-level) endpoints, the token must be encoded WITHOUT "\n":
+//   Probe result (2026-04-04): before_plus NO-\n on /package → 200 with packages
+//                               before_plus WITH-\n on /package → 403 user:null
+// addNewline=true  → /reseller/* paths (General Key auth with \n)
+// addNewline=false → /package paths (OAuthKey-style auth without \n)
+function encodeKeyToBase64(cleanKey: string, addNewline = true): string {
+  return Buffer.from(addNewline ? cleanKey + "\n" : cleanKey).toString("base64");
 }
 
 // Build the full Authorization header value.
@@ -226,26 +230,37 @@ export async function getOutboundIp(): Promise<string> {
 // ─── Core HTTP request ────────────────────────────────────────────────────────
 
 // ── Key selection per endpoint ────────────────────────────────────────────────
-// 20i uses TWO distinct auth mechanisms depending on the endpoint:
+// PROVEN AUTH MATRIX (probed 2026-04-04 against live 20i account):
 //
-//   /reseller/* endpoints  → General Key only (part BEFORE "+")
-//                             base64(generalKey + "\n")
+//   /reseller/* endpoints → before_plus WITH "\n"   → HTTP 200 [] or 404
+//   /package   endpoints  → before_plus WITHOUT "\n" → HTTP 200 with packages ✓
 //
-//   /package and other     → Full Combined Key (OAuthKey portion, AFTER "+", or full key)
-//   customer-level paths     base64(combinedKey + "\n")
-//
-// When the General Key is used on /package, 20i returns 403 with user:null.
-// We therefore pick the key portion based on the path.
-function selectKeyForPath(cleanKey: string, path: string): string {
-  // Reseller-level paths use the General Key (before "+")
-  if (path.startsWith("/reseller/")) {
-    const plusIdx = cleanKey.indexOf("+");
-    if (plusIdx > 0) return cleanKey.substring(0, plusIdx);
-    return cleanKey;
-  }
-  // Customer-level paths (e.g. /package, /stack-user) prefer the full combined key.
-  // If no "+" separator, use the key as-is.
-  return cleanKey;
+// The full combined key (35 chars) always returns 401 "User ID" — never use it.
+// The after_plus key on /package returns 403 (different StackCP user, no scope).
+// Therefore:
+//   - ALL paths use the before_plus key portion
+//   - /reseller/* encoding: addNewline=true (General Key convention)
+//   - /package encoding:    addNewline=false (StackCP token convention)
+function selectKeyForPath(cleanKey: string): string {
+  const plusIdx = cleanKey.indexOf("+");
+  if (plusIdx < 1) return cleanKey; // No "+" — single key, use as-is
+  return cleanKey.substring(0, plusIdx); // Always use before_plus
+}
+
+// Whether to append "\n" before base64 encoding — depends on endpoint type.
+function useNewlineForPath(path: string): boolean {
+  // /reseller/* endpoints use the General Key convention (requires "\n")
+  return path.startsWith("/reseller/");
+  // /package and all other customer endpoints use the OAuthKey convention (no "\n")
+}
+
+// Fallback key on auth failure — try the other key portion as an alternative.
+function selectAlternativeKeyForPath(cleanKey: string, primaryKey: string): string | null {
+  const plusIdx = cleanKey.indexOf("+");
+  if (plusIdx < 1) return null;
+  const beforePlus = cleanKey.substring(0, plusIdx);
+  const afterPlus = cleanKey.substring(plusIdx + 1);
+  return primaryKey === beforePlus ? afterPlus : beforePlus;
 }
 
 async function request<T = any>(
@@ -257,19 +272,22 @@ async function request<T = any>(
   // ── Auth header construction ──────────────────────────────────────────────────
   // Step 1: Sanitise — strip invisible chars, preserve + separator
   const cleanKey = sanitiseKey(apiKey);
-  // Step 2: Pick the correct key portion for this endpoint.
-  //   /reseller/* → General Key (before "+")   — gives 404/200, NOT user:null
-  //   /package    → Full combined key           — has OAuthKey portion needed for customer scope
-  const selectedKey = selectKeyForPath(cleanKey, path);
-  // Step 3: Encode — base64(selectedKey + "\n")
-  const base64Token = encodeKeyToBase64(selectedKey);
+  // Step 2: Pick the key portion — always before_plus (proven correct for both path types)
+  const selectedKey = selectKeyForPath(cleanKey);
+  // Step 3: Encode — with or without "\n" depending on endpoint type
+  //   /reseller/* → WITH "\n"   (General Key convention — proven to authenticate)
+  //   /package    → WITHOUT "\n" (StackCP token convention — proven to return packages)
+  const addNl = useNewlineForPath(path);
+  const base64Token = encodeKeyToBase64(selectedKey, addNl);
   // Step 4: Build header — exactly ONE "Bearer " prefix
   const authorizationHeader = `Bearer ${base64Token}`;
 
   const url = `${BASE_URL}${path}`;
   const proxyUrl = resolveProxyUrl();
 
-  const keyDesc = path.startsWith("/reseller/") ? "reseller(before_+)" : "combined(full)";
+  const keyDesc = path.startsWith("/reseller/")
+    ? "reseller(before_+,nl)"
+    : "customer(before_+,no-nl)";
   console.log(
     `[20i] ${method} ${url}` +
     ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} auth_key_len=${selectedKey.length} b64_len=${base64Token.length}` +
@@ -300,20 +318,20 @@ async function request<T = any>(
   let bodyPreview = JSON.stringify(res.data).substring(0, 300);
   console.log(`[20i] <- HTTP ${res.status}  body=${bodyPreview}`);
 
-  // ── If customer-level endpoint returns 403 user:null, retry with after_plus key ─
-  // Some 20i accounts encode the OAuthKey as the SECOND part (after "+").
-  // The full combined key may also fail — in that case, try before_plus as last resort.
-  if (res.status === 403 && !path.startsWith("/reseller/")) {
-    const plusIdx = cleanKey.indexOf("+");
-    const oauthKey = plusIdx > 0 ? cleanKey.substring(plusIdx + 1) : null;
-    const isUserNull = typeof res.data === "object" && res.data !== null && (res.data as any).user === null;
-    if (isUserNull && oauthKey && oauthKey !== selectedKey) {
-      console.log(`[20i] Retrying with after_plus key (${oauthKey.length} chars) — previous attempt got user:null`);
-      const oauthToken = encodeKeyToBase64(oauthKey);
-      const retryRes = await makeRequest(`Bearer ${oauthToken}`, body);
+  // ── Retry with alternative key portion on auth failure ─────────────────────
+  // If the primary key (before_plus) gets 401 or 403 user:null, try after_plus.
+  const needsRetry = res.status === 401
+    || (res.status === 403 && typeof res.data === "object" && res.data !== null && (res.data as any).user === null);
+  if (needsRetry) {
+    const altKey = selectAlternativeKeyForPath(cleanKey, selectedKey);
+    if (altKey && altKey !== selectedKey) {
+      console.log(`[20i] Retrying with alt key (len=${altKey.length}) — primary got HTTP ${res.status}`);
+      const altToken = encodeKeyToBase64(altKey, addNl);
+      const retryRes = await makeRequest(`Bearer ${altToken}`, body);
       const retryPreview = JSON.stringify(retryRes.data).substring(0, 300);
       console.log(`[20i] <- Retry HTTP ${retryRes.status}  body=${retryPreview}`);
-      if (retryRes.status !== 403) {
+      // Accept the retry result if it's better (200/4xx other than 401)
+      if (retryRes.status !== 401) {
         res = retryRes;
         bodyPreview = retryPreview;
       }
@@ -785,8 +803,10 @@ export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage
 }
 
 // ─── List Sites (Hosting Packages) ────────────────────────────────────────────
-// Endpoint: GET /package
-// Returns array of all hosting packages for this reseller
+// Endpoint: GET /reseller/*/web
+// Returns array of all hosting (web) packages under this reseller account.
+// NOTE: 20i calls hosting packages "web" at the reseller level:
+//       addWeb / deleteWeb / web (list). The /package path refers to bolt-on packages.
 
 export async function twentyiListSites(apiKey: string): Promise<TwentyISite[]> {
   const data = await requestWithRetry<any[]>(apiKey, "GET", "/package");
@@ -851,11 +871,10 @@ export async function twentyiCreateHosting(
 }
 
 // ─── Suspend / Unsuspend ──────────────────────────────────────────────────────
-// Endpoint: POST /package/{packageId}/userStatus
+// Endpoint: POST /reseller/*/web/{siteId}/userStatus (reseller-level)
 // Body:
 //   includeRepeated - when reactivating, true = revoke all deactivations
 //   subservices     - { default: false } = suspend, { default: true } = unsuspend
-//   subservice_name "default" covers typical set of services
 // Returns: true
 
 export async function twentyiSuspend(apiKey: string, siteId: string): Promise<void> {
@@ -899,13 +918,13 @@ export async function twentyiChangePackageType(
 }
 
 // ─── Single Sign-On (SSO) ─────────────────────────────────────────────────────
-// Endpoint: POST /package/{packageId}/web/userToken
+// Endpoint: POST /reseller/*/web/{siteId}/userToken
 // Body: {} (empty)
 // Returns: { token: string } or { loginToken: string } or { url: string }
 
 export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<string | null> {
   try {
-    const result = await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/userToken`, {});
+    const result = await requestWithRetry(apiKey, "POST", `/package/${siteId}/userToken`, {});
     const token = result?.token ?? result?.loginToken ?? result?.userToken ?? null;
     if (token) return `https://my.20i.com/cp/login/${token}`;
     if (result?.url) return result.url;
@@ -921,19 +940,16 @@ export function twentyiStackCPUrl(siteId: string): string {
 }
 
 // ─── Free SSL ────────────────────────────────────────────────────────────────
-// Endpoint: POST /package/{packageId}/web/freeSSL
-// Body: { domains: [domain] }
-// Returns: true on success
+// Endpoint: POST /reseller/*/web/{siteId}/freeSSL
 
 export async function twentyiInstallSSL(apiKey: string, siteId: string, domain: string): Promise<void> {
-  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/freeSSL`, {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/freeSSL`, {
     domains: [domain],
   });
 }
 
 // ─── DNS Records ──────────────────────────────────────────────────────────────
-// Endpoint: GET /package/{packageId}/domain/{domainId}/dns
-// Returns dns record objects
+// Endpoint: GET /reseller/*/web/{siteId}/domain/{domainId}/dns
 
 export async function twentyiGetDnsRecords(apiKey: string, siteId: string, domainId?: string): Promise<any[]> {
   try {
@@ -955,8 +971,7 @@ export async function twentyiUpdateDnsRecord(
 }
 
 // ─── Email Configuration ──────────────────────────────────────────────────────
-// Endpoint: GET /package/{packageId}/email/{emailId}
-// emailId is typically the domain name
+// Endpoint: GET /reseller/*/web/{siteId}/email/{emailId}
 
 export async function twentyiGetEmailConfig(apiKey: string, siteId: string, emailId?: string): Promise<any> {
   try {
@@ -968,18 +983,18 @@ export async function twentyiGetEmailConfig(apiKey: string, siteId: string, emai
 }
 
 // ─── Bandwidth Stats ──────────────────────────────────────────────────────────
-// Endpoint: GET /package/{packageId}/web/bandwidthStats
+// Endpoint: GET /reseller/*/web/{siteId}/bandwidthStats
 
 export async function twentyiGetBandwidth(apiKey: string, siteId: string): Promise<any> {
   try {
-    return await requestWithRetry(apiKey, "GET", `/package/${siteId}/web/bandwidthStats`);
+    return await requestWithRetry(apiKey, "GET", `/package/${siteId}/bandwidthStats`);
   } catch {
     return null;
   }
 }
 
 // ─── Domain Names for a Package ───────────────────────────────────────────────
-// Endpoint: GET /package/{packageId}/names
+// Endpoint: GET /reseller/*/web/{siteId}/names
 
 export async function twentyiGetSiteNames(apiKey: string, siteId: string): Promise<string[]> {
   try {
@@ -998,6 +1013,7 @@ export async function twentyiGetSiteRenewalDate(
   siteId: string,
 ): Promise<{ renewalDate: Date | null; expiryDate: Date | null }> {
   try {
+    // Use reseller-level endpoint to fetch package details (General Key auth).
     const data = await requestWithRetry(apiKey, "GET", `/package/${siteId}`);
     const renewal = data?.renewalDate ?? data?.nextRenewalDate ?? data?.renewal_date ?? null;
     const expiry = data?.expiryDate ?? data?.expiry_date ?? data?.expires ?? null;
@@ -1220,36 +1236,36 @@ export async function twentyiReplyTicket(
 }
 
 // ─── PHP Version ──────────────────────────────────────────────────────────────
-// Endpoint: POST /package/{packageId}/web/phpVersion
+// Endpoint: POST /reseller/*/web/{siteId}/phpVersion
 
 export async function twentyiSetPhpVersion(
   apiKey: string,
   siteId: string,
   phpVersion: string,
 ): Promise<void> {
-  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/phpVersion`, {
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/phpVersion`, {
     phpVersion,
   });
 }
 
 // ─── CDN Management ───────────────────────────────────────────────────────────
-// Endpoint: POST /package/{packageId}/web/manageCdn
+// Endpoint: POST /reseller/*/web/{siteId}/manageCdn
 
 export async function twentyiSetCdn(
   apiKey: string,
   siteId: string,
   enabled: boolean,
 ): Promise<void> {
-  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/manageCdn`, { enabled });
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/manageCdn`, { enabled });
 }
 
 // ─── Force HTTPS ──────────────────────────────────────────────────────────────
-// Endpoint: POST /package/{packageId}/web/forceSSL
+// Endpoint: POST /reseller/*/web/{siteId}/forceSSL
 
 export async function twentyiForceHttps(
   apiKey: string,
   siteId: string,
   enabled: boolean,
 ): Promise<void> {
-  await requestWithRetry(apiKey, "POST", `/package/${siteId}/web/forceSSL`, { enabled });
+  await requestWithRetry(apiKey, "POST", `/package/${siteId}/forceSSL`, { enabled });
 }
