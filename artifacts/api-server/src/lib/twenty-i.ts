@@ -163,22 +163,23 @@ async function request<T = any>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  // ── Auth header construction (explicit 3-step process) ───────────────────────
-  // Step 1: Sanitise — strip invisible chars only, PRESERVE + and all printable ASCII
+  // ── Auth header construction ──────────────────────────────────────────────────
+  // Step 1: Sanitise — strip invisible chars, preserve + separator
   const cleanKey = sanitiseKey(apiKey);
-  // Step 2: Encode — base64(fullCleanKey). No length limit. No truncation.
-  const base64Token = encodeKeyToBase64(cleanKey);
-  // Step 3: Build header — exactly ONE "Bearer " prefix before the base64 token
+  // Step 2: Extract General Key — "GeneralKey+OAuthKey" → "GeneralKey" only
+  //         20i only accepts the General Key for Bearer auth, NOT the full combined key.
+  const generalKey = extractGeneralKey(cleanKey);
+  // Step 3: Encode — base64(generalKey + "\n")
+  const base64Token = encodeKeyToBase64(generalKey);
+  // Step 4: Build header — exactly ONE "Bearer " prefix
   const authorizationHeader = `Bearer ${base64Token}`;
 
   const url = `${BASE_URL}${path}`;
   const proxyUrl = resolveProxyUrl();
 
-  // Console log: raw_len=input length, clean_len=after strip, b64_len=encoded length
-  // The "+" in a Combined Key is counted and preserved in clean_len.
   console.log(
     `[20i] ${method} ${url}` +
-    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} b64_len=${base64Token.length}` +
+    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} general_len=${generalKey.length} b64_len=${base64Token.length}` +
     ` | Authorization: "Bearer <${base64Token.length}-char-base64>"  (single "Bearer" prefix)`
   );
 
@@ -186,7 +187,7 @@ async function request<T = any>(
     method: method as any,
     url,
     headers: {
-      Authorization: authorizationHeader,   // "Bearer " + base64(cleanKey) — single prefix
+      Authorization: authorizationHeader,   // "Bearer " + base64(generalKey) — single prefix
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -535,24 +536,96 @@ export async function twentyiAutoWhitelist(
 
 export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConnectionResult> {
   const cleanKey = sanitiseKey(apiKey);
-  if (cleanKey.length < 8) {
-    return { success: false, message: "API key is too short. Minimum 8 characters required." };
+  if (cleanKey.length < 4) {
+    return { success: false, message: "API key is too short." };
   }
 
-  try {
-    const data = await request<{ linux?: number; windows?: number; wordpress?: number }>(
-      cleanKey, "GET", "/reseller/*/packageCount",
-    );
-    const total = Number(data?.linux ?? 0) + Number(data?.windows ?? 0) + Number(data?.wordpress ?? 0);
-    console.log("[20i] Connection test OK — package counts:", data);
-    return {
-      success: true,
-      message: `Connected to 20i API. ${total} package(s) available.`,
-      packageCount: total,
-    };
-  } catch (err: any) {
-    return { success: false, message: err.message ?? "Connection failed" };
+  // Extract General Key — only the part before "+" is used for Bearer auth.
+  // 20i Combined Key format: "GeneralKey+OAuthKey". The full combined string fails with 401.
+  const generalKey = extractGeneralKey(cleanKey);
+  const base64Token = encodeKeyToBase64(generalKey);
+  const authHeader = `Bearer ${base64Token}`;
+
+  const proxyUrl = resolveProxyUrl();
+
+  // Try /reseller/*/packageTypes — a reliable test endpoint.
+  // 200 = fully connected and working.
+  // 404 = authentication PASSED but account has no data (key is valid).
+  // 403 = IP not whitelisted.
+  // 401 = key is invalid (wrong_key or ip_blocked depending on {"type":...}).
+  const testEndpoints = [
+    "/reseller/*/packageTypes",
+    "/reseller/*/packageCount",
+    "/reseller/*",
+  ];
+
+  for (const path of testEndpoints) {
+    try {
+      const url = `${BASE_URL}${path}`;
+      const cfg: AxiosRequestConfig = {
+        method: "GET",
+        url,
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: DEFAULT_TIMEOUT_MS,
+        validateStatus: () => true,
+      };
+      if (proxyUrl) {
+        const proxy = buildAxiosProxy(proxyUrl);
+        if (proxy) cfg.proxy = proxy;
+      }
+
+      const res = await axios(cfg);
+      console.log(`[20i] testConnection ${path} → HTTP ${res.status}`);
+
+      if (res.status >= 200 && res.status < 300) {
+        // 2xx — connected and data returned
+        const data = res.data as any;
+        // If it's packageTypes we can count them
+        const pkgCount = Array.isArray(data) ? data.length
+          : typeof data === "object" && data !== null ? Object.keys(data).length
+          : 0;
+        return {
+          success: true,
+          message: `Connected to 20i — ${pkgCount > 0 ? `${pkgCount} package type(s) available` : "API access confirmed"}`,
+          packageCount: pkgCount,
+        };
+      }
+
+      if (res.status === 404) {
+        // 404 = authentication PASSED. 20i returned "Not Found" for the resource.
+        // This happens with new/empty reseller accounts. The key IS valid.
+        return {
+          success: true,
+          message: "Connected to 20i — API key is valid (account has no packages yet)",
+          packageCount: 0,
+        };
+      }
+
+      if (res.status === 403) {
+        return { success: false, message: `IP NOT WHITELISTED — add your outbound IP to my.20i.com → Reseller API → IP Whitelist` };
+      }
+
+      if (res.status === 401) {
+        const parsed = typeof res.data === "object" ? res.data : {};
+        const errType = (parsed as any)?.type ?? null;
+        if (errType === "User ID") {
+          return { success: false, message: `KEY NOT RECOGNISED — 20i rejected this key as invalid. {"type":"User ID"}` };
+        }
+        return { success: false, message: `Authentication failed (HTTP 401) — check your key and IP whitelist` };
+      }
+
+      // Any other non-2xx: try next endpoint
+      console.warn(`[20i] testConnection ${path} → unexpected HTTP ${res.status}, trying next endpoint`);
+    } catch (err: any) {
+      console.warn(`[20i] testConnection ${path} → network error: ${err.message}`);
+    }
   }
+
+  return { success: false, message: "Could not connect to 20i API — network error or all endpoints failed" };
 }
 
 // ─── Package Types ────────────────────────────────────────────────────────────
