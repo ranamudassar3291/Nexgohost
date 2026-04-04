@@ -583,30 +583,42 @@ export default function Servers() {
                               </div>
                             )}
                             {/* Summary rows */}
-                            {[
-                              ["Endpoint", `${debugInfo.method} ${debugInfo.url}`],
-                              ["Key length", `${debugInfo.keyLength} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`],
-                              ["Auth header", `Bearer <base64(${debugInfo.keyLength}-char key)>  →  ${debugInfo.tokenLength ?? "?"} chars total`],
-                              ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy)` : " (direct — whitelist this IP in 20i)")],
-                              ["HTTP status", `${debugInfo.responseStatus ?? "ERR"} in ${debugInfo.durationMs}ms`],
-                            ].map(([label, value]) => (
-                              <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">
-                                <span className="text-muted-foreground w-28 shrink-0 font-sans">{label}</span>
-                                <span className="text-foreground/80 break-all">{value}</span>
-                              </div>
-                            ))}
-                            {/* Per-attempt breakdown */}
-                            {Array.isArray(debugInfo.attempts) && debugInfo.attempts.map((a: any) => (
-                              <div key={a.format} className={`border-b border-primary/10 ${a.status === 200 ? "bg-emerald-500/5" : "bg-red-500/5"}`}>
-                                <div className="flex gap-3 px-3.5 py-1.5">
-                                  <span className="text-muted-foreground w-32 shrink-0">Attempt ({a.format})</span>
-                                  <span className={`break-all ${a.status === 200 ? "text-emerald-600" : "text-red-500"}`}>
-                                    {a.authHeaderPreview} → HTTP {a.status ?? "ERR"} · {a.durationMs}ms
-                                    {a.status === 200 ? " ✓ SUCCESS" : " ✗ FAILED"}
-                                  </span>
+                            {(() => {
+                              const gkLen = debugInfo.generalKeyLength ?? debugInfo.keyLength;
+                              const combined = debugInfo.isCombined;
+                              const keyLabel = combined
+                                ? `${debugInfo.keyLength} chars total · General Key: ${gkLen} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`
+                                : `${gkLen} chars · first: ${debugInfo.keyFirst4}… last: …${debugInfo.keyLast4}${debugInfo.keyHasHiddenChars ? " ⚠ hidden chars stripped" : ""}`;
+                              const authLabel = `Bearer <base64(${gkLen}-char ${combined ? "general key, extracted from combined" : "key"})>  →  ${debugInfo.tokenLength ?? "?"} chars total`;
+                              return [
+                                ["Endpoint", `${debugInfo.method} ${debugInfo.url}`],
+                                ["Key length", keyLabel],
+                                ["Auth header", authLabel],
+                                ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy)` : " (direct — whitelist this IP in 20i)")],
+                                ["HTTP status", `${debugInfo.responseStatus ?? "ERR"} in ${debugInfo.durationMs}ms`],
+                              ].map(([label, value]) => (
+                                <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">
+                                  <span className="text-muted-foreground w-28 shrink-0 font-sans">{label}</span>
+                                  <span className="text-foreground/80 break-all">{value}</span>
                                 </div>
-                              </div>
-                            ))}
+                              ));
+                            })()}
+                            {/* Per-attempt breakdown */}
+                            {Array.isArray(debugInfo.attempts) && debugInfo.attempts.map((a: any) => {
+                              // 200 = success. 404 = auth passed (no data). Both are "connected".
+                              const authPassed = a.status === 200 || a.status === 404;
+                              return (
+                                <div key={a.format} className={`border-b border-primary/10 ${authPassed ? "bg-emerald-500/5" : "bg-red-500/5"}`}>
+                                  <div className="flex gap-3 px-3.5 py-1.5">
+                                    <span className="text-muted-foreground w-32 shrink-0">Attempt ({a.format})</span>
+                                    <span className={`break-all ${authPassed ? "text-emerald-600" : "text-red-500"}`}>
+                                      {a.authHeaderPreview} → HTTP {a.status ?? "ERR"} · {a.durationMs}ms
+                                      {a.status === 200 ? " ✓ CONNECTED" : a.status === 404 ? " ✓ AUTH OK (no packages yet)" : " ✗ FAILED"}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                             {/* Full raw 20i response body — shown always so the user can see exactly what 20i says */}
                             <div className={`px-3.5 py-2.5 ${debugInfo.workingFormat === "none" ? "bg-red-500/5 border-t border-red-500/15" : ""}`}>
                               <span className={`font-sans text-[11px] font-semibold block mb-1.5 ${debugInfo.workingFormat === "none" ? "text-red-600" : "text-muted-foreground"}`}>

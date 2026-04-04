@@ -329,10 +329,12 @@ export interface TwentyIDebugInfo {
   url: string;
   method: string;
   authFormat: string;
-  keyLength: number;
-  tokenLength: number;   // length of base64-encoded Bearer token — the actual bytes sent over the wire
-  keyFirst4: string;
-  keyLast4: string;
+  keyLength: number;          // length of the full pasted key (combined or general)
+  generalKeyLength: number;   // length of the General Key used for Bearer auth (before "+")
+  isCombined: boolean;        // true if the pasted key contained "+" (Combined Key format)
+  tokenLength: number;        // length of base64-encoded Bearer token sent over the wire
+  keyFirst4: string;          // first 4 chars of the General Key
+  keyLast4: string;           // last 4 chars of the General Key
   keyHasHiddenChars: boolean;
   outboundIp: string;
   proxyActive: boolean;
@@ -342,9 +344,7 @@ export interface TwentyIDebugInfo {
   durationMs: number;
   attempts: TwentyIDebugAttempt[];
   workingFormat: "raw" | "none";
-  // Parsed from the 20i error JSON: "User ID" = wrong key, "GeneralApiKey" = IP blocked, etc.
   twentyiErrorType: string | null;
-  // Human-readable diagnosis
   diagnosis: "connected" | "wrong_key" | "ip_blocked" | "unknown_401" | "error";
 }
 
@@ -462,6 +462,8 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
       ? `${headerValue} ✓ accepted`
       : `${headerValue} ✗ rejected (HTTP ${status})`,
     keyLength: keyLen,
+    generalKeyLength: generalKey.length,
+    isCombined,
     tokenLength: tokenLen,
     keyFirst4: generalKey.substring(0, 4),
     keyLast4: generalKey.slice(-4),
