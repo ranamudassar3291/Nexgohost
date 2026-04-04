@@ -72,12 +72,16 @@ function AutoWhitelistBtn({ serverId }: { serverId: string }) {
         {syncing ? "Syncing IP to 20i Whitelist…" : "Auto-Add Current IP to 20i Whitelist"}
       </button>
       {result && (
-        <div className={`text-xs rounded-lg px-3 py-2 border ${result.success ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : "bg-primary/5 border-primary/20 text-primary"}`}>
+        <div className={`text-xs rounded-lg px-3 py-2 border ${result.success ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : result.error === "auth_failed" ? "bg-amber-500/5 border-amber-500/20 text-amber-700" : "bg-primary/5 border-primary/20 text-primary"}`}>
           {result.success
-            ? `✓ IP ${result.outboundIp} added. Reload the 20i Management page to confirm.`
+            ? result.alreadyPresent
+              ? `✓ IP ${result.outboundIp} is already in 20i's whitelist — no action needed.`
+              : `✓ IP ${result.outboundIp} added to 20i whitelist.`
             : result.error === "chicken_and_egg"
-              ? `IP ${result.outboundIp} is blocked by 20i — add it manually once at my.20i.com → Reseller API → IP Whitelist, then retry.`
-              : `Failed: ${result.error ?? result.message}`}
+              ? `IP ${result.outboundIp} is blocked — add it manually once at my.20i.com → Reseller API → IP Whitelist, then retry.`
+              : result.error === "auth_failed"
+                ? `API key authentication failed. Re-check the key in Admin → Servers.`
+                : `Failed: ${result.error ?? result.message}`}
         </div>
       )}
     </div>

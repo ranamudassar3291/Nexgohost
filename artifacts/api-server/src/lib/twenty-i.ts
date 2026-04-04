@@ -99,22 +99,90 @@ export function sanitiseKey(key: string): string {
 //
 // 20i uses the General Key for Bearer token auth.
 // The Combined Key format is "GeneralKey+OAuthKey" — when pasted as-is, only
-// the GENERAL KEY (the part before "+") must be encoded into the Bearer token.
+// the GENERAL KEY must be encoded into the Bearer token.
 //
-// Proof from logs:
-//   17-char key (General Key alone)  → HTTP 404  (authentication PASSED)
-//   35-char combined key             → HTTP 401  (authentication FAILED — User ID)
+// IMPORTANT: The separator format can vary. We try three variants:
+//   A) Part before "+"  (classic Combined Key: "GeneralKey+OAuthKey")
+//   B) Part after "+"   (some account types: "OAuthKey+GeneralKey")
+//   C) Full key as-is   (standalone General Key without "+" separator)
 //
-// 20i's PHP SDK also uses only the general key for REST auth:
-//   base64_encode($generalApiKey . "\n")
-//
-// This function extracts the correct auth portion:
-//   "cb574b954e850f7f5+c6e95e89ebd7ea3c0"  →  "cb574b954e850f7f5"
-//   "cb574b954e850f7f5"                     →  "cb574b954e850f7f5"  (unchanged)
+// Use twentyiFindWorkingKeyFormat() to auto-detect which format works.
+// Once detected, store it so every request uses the correct format.
 export function extractGeneralKey(cleanKey: string): string {
   const plusIdx = cleanKey.indexOf("+");
   if (plusIdx > 0) return cleanKey.substring(0, plusIdx);
   return cleanKey;
+}
+
+// Returns the key that should be used given a specific format label.
+export function getKeyForFormat(cleanKey: string, fmt: "before_plus" | "after_plus" | "full"): string {
+  if (fmt === "full") return cleanKey;
+  const plusIdx = cleanKey.indexOf("+");
+  if (plusIdx < 0) return cleanKey; // No "+" — only one option
+  if (fmt === "before_plus") return cleanKey.substring(0, plusIdx);
+  return cleanKey.substring(plusIdx + 1);
+}
+
+// Module-level cache: the detected working key format per API key (keyed by last4 chars).
+const _workingKeyFormatCache: Record<string, "before_plus" | "after_plus" | "full"> = {};
+
+export function getCachedKeyFormat(cleanKey: string): "before_plus" | "after_plus" | "full" {
+  const last4 = cleanKey.slice(-4);
+  return _workingKeyFormatCache[last4] ?? "before_plus";
+}
+
+export function setCachedKeyFormat(cleanKey: string, fmt: "before_plus" | "after_plus" | "full") {
+  const last4 = cleanKey.slice(-4);
+  _workingKeyFormatCache[last4] = fmt;
+}
+
+// Try to auto-detect the correct key format by attempting a real API call with each variant.
+// Returns { format, authKey } for the first format that gives a non-401 response.
+// A 404 from a reseller/* endpoint still counts as "auth passed" because 401 = definitely rejected.
+export async function twentyiFindWorkingKeyFormat(
+  rawKey: string,
+  proxyUrl?: string | null,
+): Promise<{ format: "before_plus" | "after_plus" | "full"; authKey: string; status: number }> {
+  const cleanKey = sanitiseKey(rawKey);
+  const formats: Array<"before_plus" | "after_plus" | "full"> = ["before_plus", "after_plus", "full"];
+  const testPath = "/reseller/*/packageTypes";
+
+  for (const fmt of formats) {
+    const keyVariant = getKeyForFormat(cleanKey, fmt);
+    const token = encodeKeyToBase64(keyVariant);
+    const authHeader = `Bearer ${token}`;
+
+    try {
+      const cfg: AxiosRequestConfig = {
+        method: "GET",
+        url: `${BASE_URL}${testPath}`,
+        headers: { Authorization: authHeader, "Content-Type": "application/json", Accept: "application/json" },
+        timeout: DEFAULT_TIMEOUT_MS,
+        validateStatus: () => true,
+      };
+      if (proxyUrl) {
+        const proxy = buildAxiosProxy(proxyUrl);
+        if (proxy) cfg.proxy = proxy;
+      }
+      const res = await axios(cfg);
+      console.log(`[20i-KEY-DETECT] format=${fmt} keyLen=${keyVariant.length} → HTTP ${res.status}`);
+
+      // 200 = fully working; 404 from reseller/* = auth passed (account might have no packages);
+      // 403 = IP not yet whitelisted or permission denied but key might be correct;
+      // 401 = key format definitively WRONG — skip this format.
+      if (res.status !== 401) {
+        console.log(`[20i-KEY-DETECT] ✓ Working format: "${fmt}" (HTTP ${res.status})`);
+        return { format: fmt, authKey: keyVariant, status: res.status };
+      }
+      console.log(`[20i-KEY-DETECT] ✗ Format "${fmt}" rejected (401 — wrong key)`);
+    } catch (err: any) {
+      console.warn(`[20i-KEY-DETECT] format=${fmt} network error: ${err.message}`);
+    }
+  }
+
+  // Fallback: before_plus (original behavior)
+  const fallback = getKeyForFormat(cleanKey, "before_plus");
+  return { format: "before_plus", authKey: fallback, status: 0 };
 }
 
 // STEP 2 — Encode: base64(generalKey + "\n").
@@ -157,6 +225,29 @@ export async function getOutboundIp(): Promise<string> {
 
 // ─── Core HTTP request ────────────────────────────────────────────────────────
 
+// ── Key selection per endpoint ────────────────────────────────────────────────
+// 20i uses TWO distinct auth mechanisms depending on the endpoint:
+//
+//   /reseller/* endpoints  → General Key only (part BEFORE "+")
+//                             base64(generalKey + "\n")
+//
+//   /package and other     → Full Combined Key (OAuthKey portion, AFTER "+", or full key)
+//   customer-level paths     base64(combinedKey + "\n")
+//
+// When the General Key is used on /package, 20i returns 403 with user:null.
+// We therefore pick the key portion based on the path.
+function selectKeyForPath(cleanKey: string, path: string): string {
+  // Reseller-level paths use the General Key (before "+")
+  if (path.startsWith("/reseller/")) {
+    const plusIdx = cleanKey.indexOf("+");
+    if (plusIdx > 0) return cleanKey.substring(0, plusIdx);
+    return cleanKey;
+  }
+  // Customer-level paths (e.g. /package, /stack-user) prefer the full combined key.
+  // If no "+" separator, use the key as-is.
+  return cleanKey;
+}
+
 async function request<T = any>(
   apiKey: string,
   method: string,
@@ -166,44 +257,68 @@ async function request<T = any>(
   // ── Auth header construction ──────────────────────────────────────────────────
   // Step 1: Sanitise — strip invisible chars, preserve + separator
   const cleanKey = sanitiseKey(apiKey);
-  // Step 2: Extract General Key — "GeneralKey+OAuthKey" → "GeneralKey" only
-  //         20i only accepts the General Key for Bearer auth, NOT the full combined key.
-  const generalKey = extractGeneralKey(cleanKey);
-  // Step 3: Encode — base64(generalKey + "\n")
-  const base64Token = encodeKeyToBase64(generalKey);
+  // Step 2: Pick the correct key portion for this endpoint.
+  //   /reseller/* → General Key (before "+")   — gives 404/200, NOT user:null
+  //   /package    → Full combined key           — has OAuthKey portion needed for customer scope
+  const selectedKey = selectKeyForPath(cleanKey, path);
+  // Step 3: Encode — base64(selectedKey + "\n")
+  const base64Token = encodeKeyToBase64(selectedKey);
   // Step 4: Build header — exactly ONE "Bearer " prefix
   const authorizationHeader = `Bearer ${base64Token}`;
 
   const url = `${BASE_URL}${path}`;
   const proxyUrl = resolveProxyUrl();
 
+  const keyDesc = path.startsWith("/reseller/") ? "reseller(before_+)" : "combined(full)";
   console.log(
     `[20i] ${method} ${url}` +
-    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} general_len=${generalKey.length} b64_len=${base64Token.length}` +
-    ` | Authorization: "Bearer <${base64Token.length}-char-base64>"  (single "Bearer" prefix)`
+    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} auth_key_len=${selectedKey.length} b64_len=${base64Token.length}` +
+    ` | key_mode=${keyDesc}`
   );
 
-  const cfg: AxiosRequestConfig = {
-    method: method as any,
-    url,
-    headers: {
-      Authorization: authorizationHeader,   // "Bearer " + base64(generalKey) — single prefix
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    ...(body !== undefined ? { data: body } : {}),
-    timeout: DEFAULT_TIMEOUT_MS,
-    validateStatus: () => true,
+  const makeRequest = async (authHeader: string, reqBody?: unknown) => {
+    const cfg: AxiosRequestConfig = {
+      method: method as any,
+      url,
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      ...(reqBody !== undefined ? { data: reqBody } : {}),
+      timeout: DEFAULT_TIMEOUT_MS,
+      validateStatus: () => true,
+    };
+    if (proxyUrl) {
+      const proxy = buildAxiosProxy(proxyUrl);
+      if (proxy) cfg.proxy = proxy;
+    }
+    return axios(cfg);
   };
 
-  if (proxyUrl) {
-    const proxy = buildAxiosProxy(proxyUrl);
-    if (proxy) cfg.proxy = proxy;
-  }
-
-  const res = await axios(cfg);
-  const bodyPreview = JSON.stringify(res.data).substring(0, 300);
+  let res = await makeRequest(authorizationHeader, body);
+  let bodyPreview = JSON.stringify(res.data).substring(0, 300);
   console.log(`[20i] <- HTTP ${res.status}  body=${bodyPreview}`);
+
+  // ── If customer-level endpoint returns 403 user:null, retry with after_plus key ─
+  // Some 20i accounts encode the OAuthKey as the SECOND part (after "+").
+  // The full combined key may also fail — in that case, try before_plus as last resort.
+  if (res.status === 403 && !path.startsWith("/reseller/")) {
+    const plusIdx = cleanKey.indexOf("+");
+    const oauthKey = plusIdx > 0 ? cleanKey.substring(plusIdx + 1) : null;
+    const isUserNull = typeof res.data === "object" && res.data !== null && (res.data as any).user === null;
+    if (isUserNull && oauthKey && oauthKey !== selectedKey) {
+      console.log(`[20i] Retrying with after_plus key (${oauthKey.length} chars) — previous attempt got user:null`);
+      const oauthToken = encodeKeyToBase64(oauthKey);
+      const retryRes = await makeRequest(`Bearer ${oauthToken}`, body);
+      const retryPreview = JSON.stringify(retryRes.data).substring(0, 300);
+      console.log(`[20i] <- Retry HTTP ${retryRes.status}  body=${retryPreview}`);
+      if (retryRes.status !== 403) {
+        res = retryRes;
+        bodyPreview = retryPreview;
+      }
+    }
+  }
 
   if (res.status >= 200 && res.status < 300) return res.data as T;
 
@@ -226,20 +341,25 @@ async function request<T = any>(
     );
   }
   if (res.status === 403) {
+    const scopeInfo = typeof res.data === "object" && res.data !== null
+      ? ` Scope: ${(res.data as any).scope ?? "unknown"}. User: ${(res.data as any).user ?? "null"}.`
+      : "";
     throw new Error(
-      `20i Forbidden (403). Make sure you are using a Reseller Combined API key. ` +
+      `20i Forbidden (403).${scopeInfo} If using a Reseller Combined API Key, make sure the key has the required permissions. ` +
       `Response: ${raw.substring(0, 200)}`,
     );
   }
   if (res.status === 404) {
-    // For reseller/* endpoints, 404 almost always means IP not whitelisted.
-    // 20i silently returns 404 (instead of 403) for unwhitelisted IPs on some account types.
-    // Throw a distinctly identifiable error so routes can surface the right message.
+    // For reseller/* endpoints, 404 can mean:
+    //   a) IP not whitelisted (20i returns 404 for unwhitelisted IPs on some account types)
+    //   b) The endpoint simply doesn't exist for this account type
+    // We throw IP_NOT_WHITELISTED so the route layer can surface the right message.
     if (path.startsWith("/reseller/")) {
       throw Object.assign(
         new Error(
-          `20i IP_NOT_WHITELISTED — reseller endpoint returned 404. ` +
-          `Your server's outbound IP is not yet whitelisted at my.20i.com → Reseller API → IP Whitelist. ` +
+          `20i reseller endpoint returned 404. ` +
+          `This may mean: (a) IP not yet whitelisted at my.20i.com → Reseller API → IP Whitelist, ` +
+          `or (b) this endpoint is not available for your account type. ` +
           `Endpoint: ${path}`,
         ),
         { code: "IP_NOT_WHITELISTED", status: 404 },
@@ -365,141 +485,117 @@ export interface TwentyIDebugInfo {
 }
 
 export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo> {
-  // Step 1: sanitise (strip invisible chars only — preserves + in Combined Keys)
   const rawKey = apiKey;
   const cleanKey = sanitiseKey(rawKey);
   const keyHasHiddenChars = cleanKey.length !== rawKey.trim().length;
   const keyLen = cleanKey.length;
+  const isCombined = cleanKey.includes("+");
 
-  // Step 2: extract the General Key (part before "+") for Bearer auth.
-  // 20i Combined Key format is "GeneralKey+OAuthKey". Only the General Key
-  // must be base64-encoded for the Bearer token — the full combined key fails with 401.
-  const generalKey = extractGeneralKey(cleanKey);
-  const isCombined = generalKey.length < keyLen;
-
-  // Step 3: base64-encode the General Key (NOT the full combined key)
-  const base64Token = encodeKeyToBase64(generalKey);
-  const tokenLen = base64Token.length;
-
-  // Step 4: Authorization header value = "Bearer " + base64Token (single prefix)
-  const authHeaderValue = `Bearer ${base64Token}`;
-
-  // ── Full diagnostic log ─────────────────────────────────────────────────────
-  console.log(
-    `[20i-DEBUG] raw_len=${rawKey.length} clean_len=${keyLen} general_key_len=${generalKey.length}` +
-    ` combined=${isCombined} b64_len=${tokenLen}` +
-    ` stripped=${keyHasHiddenChars}` +
-    ` key_first4=${generalKey.substring(0, 4)} key_last4=${generalKey.slice(-4)}` +
-    ` header="Bearer <${tokenLen}-char-base64>"  (using General Key${isCombined ? " extracted from Combined Key" : ""})`
-  );
-
-  // Use /reseller/*/packageTypes — more reliable than /packageCount for detecting valid auth.
-  // A 404 here means authentication PASSED (key valid) but account has no data yet.
-  // A 401 here means authentication FAILED (wrong key or IP blocked).
-  const url = `${BASE_URL}/reseller/*/packageTypes`;
   const proxyUrl = resolveProxyUrl();
   const proxyConfig = getProxyConfig();
   const outboundIp = await getOutboundIp();
+  const testPath = "/reseller/*/packageTypes";
+  const url = `${BASE_URL}${testPath}`;
 
-  const t0 = Date.now();
-  let status: number | null = null;
-  let body = "";
-  let workingFormat: "raw" | "none" = "none";
+  // Try all three key formats and report each attempt
+  const fmts: Array<"before_plus" | "after_plus" | "full"> = ["before_plus", "after_plus", "full"];
+  const attempts: TwentyIDebugInfo["attempts"] = [];
+  let detectedFmt: "before_plus" | "after_plus" | "full" = "before_plus";
+  let firstPassingStatus: number | null = null;
+  let firstPassingBody = "";
 
-  try {
-    const cfg: AxiosRequestConfig = {
-      method: "GET",
-      url,
-      headers: {
-        Authorization: authHeaderValue,   // = "Bearer " + base64(cleanKey) — single prefix
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      timeout: DEFAULT_TIMEOUT_MS,
-      validateStatus: () => true,
-    };
-    if (proxyUrl) {
-      const proxy = buildAxiosProxy(proxyUrl);
-      if (proxy) cfg.proxy = proxy;
-    }
-    const res = await axios(cfg);
-    status = res.status;
-    const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-    body = raw.length > 600 ? raw.substring(0, 600) + "..." : raw;
-    if (res.status >= 200 && res.status < 300) workingFormat = "raw";
-  } catch (e: any) {
-    body = `Network error: ${e.message}`;
-  }
-
-  const durationMs = Date.now() - t0;
-
-  // Parse 20i error type from response body to distinguish key-invalid vs IP-blocked
-  let twentyiErrorType: string | null = null;
-  let diagnosis: TwentyIDebugInfo["diagnosis"] = "error";
-  if (workingFormat === "raw") {
-    // 2xx — fully connected
-    diagnosis = "connected";
-  } else if (status !== null && status >= 200 && status < 300) {
-    // Extra guard — 2xx that wasn't caught above
-    diagnosis = "connected";
-  } else if (status === 404) {
-    // 404 means authentication PASSED. 20i returned "Not Found" for the resource,
-    // not an auth error. This happens when the account has no packages yet.
-    // Treat as connected — the key is valid.
-    workingFormat = "raw";
-    diagnosis = "connected";
-  } else if (status === 403) {
-    // 403 = IP not whitelisted (key decoded correctly, IP rejected)
-    diagnosis = "ip_blocked";
-  } else if (status === 401) {
+  for (const fmt of fmts) {
+    const keyVariant = getKeyForFormat(cleanKey, fmt);
+    const token = encodeKeyToBase64(keyVariant);
+    const t0 = Date.now();
+    let status: number | null = null;
+    let body = "";
     try {
-      const parsed = JSON.parse(body);
-      twentyiErrorType = parsed?.type ?? null;
-    } catch { /* not JSON */ }
-    // "User ID" type means the key is not recognised at all (wrong key)
-    // Any other type on 401 means the key decoded fine but IP is blocked
-    if (twentyiErrorType === "User ID") {
-      diagnosis = "wrong_key";
-    } else {
-      diagnosis = "ip_blocked";
+      const cfg: AxiosRequestConfig = {
+        method: "GET",
+        url,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: DEFAULT_TIMEOUT_MS,
+        validateStatus: () => true,
+      };
+      if (proxyUrl) { const p = buildAxiosProxy(proxyUrl); if (p) cfg.proxy = p; }
+      const res = await axios(cfg);
+      status = res.status;
+      const raw = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+      body = raw.length > 400 ? raw.substring(0, 400) + "..." : raw;
+    } catch (e: any) {
+      body = `Network error: ${e.message}`;
     }
-  } else {
-    diagnosis = "unknown_401";
+    const durationMs = Date.now() - t0;
+    const passed = status !== null && status !== 401;
+    attempts.push({
+      format: fmt,
+      authHeaderPreview: `Bearer <base64(${keyVariant.length}-char · ${fmt}) · first4=${keyVariant.substring(0, 4)} last4=${keyVariant.slice(-4)}>`,
+      status,
+      body,
+      durationMs,
+    });
+    if (passed && firstPassingStatus === null) {
+      detectedFmt = fmt;
+      firstPassingStatus = status;
+      firstPassingBody = body;
+    }
   }
 
-  // The exact Authorization header VALUE that is sent over the wire — single "Bearer " prefix only.
-  // Format: Bearer <base64(rawKey)>
-  // The "Authorization:" header name is NOT included here — it is added by the HTTP layer separately.
-  const headerValue = `Bearer <base64(${generalKey.length}-char general key)>`;
+  // Cache the working format so subsequent request() calls use the right key portion
+  setCachedKeyFormat(cleanKey, detectedFmt);
+
+  // Determine diagnosis from the winning status
+  let diagnosis: TwentyIDebugInfo["diagnosis"] = "error";
+  let twentyiErrorType: string | null = null;
+  const ws = firstPassingStatus;
+  if (ws !== null && ws >= 200 && ws < 300) {
+    diagnosis = "connected";
+  } else if (ws === 404) {
+    diagnosis = "connected"; // auth passed, no data
+  } else if (ws === 403) {
+    diagnosis = "ip_blocked";
+  } else if (ws === 401 || ws === null) {
+    try { twentyiErrorType = JSON.parse(firstPassingBody)?.type ?? null; } catch { /* ignore */ }
+    diagnosis = twentyiErrorType === "User ID" ? "wrong_key" : "unknown_401";
+  }
+
+  const generalKey = getKeyForFormat(cleanKey, detectedFmt);
+  const base64Token = encodeKeyToBase64(generalKey);
+  const workingFmt = (ws !== null && ws !== 401) ? detectedFmt : "none";
+
+  console.log(
+    `[20i-DEBUG] raw_len=${rawKey.length} clean_len=${keyLen} detected_format=${detectedFmt}` +
+    ` best_status=${ws} diagnosis=${diagnosis} combined=${isCombined} hidden_chars=${keyHasHiddenChars}`
+  );
+
   return {
     url,
     method: "GET",
-    authFormat: workingFormat === "raw"
-      ? `${headerValue} ✓ accepted`
-      : `${headerValue} ✗ rejected (HTTP ${status})`,
+    authFormat: workingFmt !== "none"
+      ? `Bearer <base64(${generalKey.length}-char ${detectedFmt})> ✓ accepted (HTTP ${ws})`
+      : `All 3 key formats rejected (401)`,
     keyLength: keyLen,
     generalKeyLength: generalKey.length,
     isCombined,
-    tokenLength: tokenLen,
-    keyFirst4: generalKey.substring(0, 4),
-    keyLast4: generalKey.slice(-4),
+    tokenLength: base64Token.length,
+    keyFirst4: cleanKey.substring(0, 4),
+    keyLast4: cleanKey.slice(-4),
     keyHasHiddenChars,
     outboundIp,
     proxyActive: proxyConfig.enabled,
     proxyUrl: proxyConfig.url,
-    responseStatus: status,
-    responseBody: body,
-    durationMs,
-    workingFormat,
+    responseStatus: ws,
+    responseBody: firstPassingBody,
+    durationMs: attempts.reduce((a, x) => a + x.durationMs, 0),
+    workingFormat: workingFmt as any,
     twentyiErrorType,
     diagnosis,
-    attempts: [{
-      format: "raw",
-      authHeaderPreview: `Bearer <base64(${generalKey.length}-char general key · first=${generalKey.substring(0, 4)} · last=${generalKey.slice(-4)}${isCombined ? " · extracted from combined key" : ""})>`,
-      status,
-      body,
-      durationMs,
-    }],
+    attempts,
   };
 }
 
@@ -522,29 +618,77 @@ export async function twentyiRemoveFromWhitelist(apiKey: string, ip: string): Pr
   await requestWithRetry(apiKey, "DELETE", `/reseller/*/apiWhitelist/${ip}`);
 }
 
-// Try to auto-add IP to whitelist. Returns { added: boolean, reason: string }.
+// Try to auto-add IP to whitelist. Returns { added: boolean, reason: string, alreadyPresent?: boolean }.
+// First checks if the IP is already in the whitelist to avoid double-add errors.
+// Returns `alreadyPresent: true` when the IP is already whitelisted (not an error).
 export async function twentyiAutoWhitelist(
   apiKey: string,
   ip: string,
-): Promise<{ added: boolean; reason: string }> {
+): Promise<{ added: boolean; reason: string; alreadyPresent?: boolean }> {
+  // Step 1 — try to read the current whitelist. If we can read it we know for sure.
   try {
+    const currentList = await twentyiGetWhitelist(apiKey);
+    if (currentList.includes(ip)) {
+      console.log(`[20i-WL] Auto-whitelist: ${ip} is already in 20i whitelist — no action needed`);
+      return { added: false, reason: "already_present", alreadyPresent: true };
+    }
+    // IP not in list — add it
     await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
       apiWhitelist: { [ip]: {} },
     });
-    console.log(`[20i-WL] Auto-whitelist: added ${ip}`);
+    console.log(`[20i-WL] Auto-whitelist: ✓ added ${ip}`);
     return { added: true, reason: "ok" };
-  } catch (e: any) {
-    const msg = String(e.message ?? "");
-    const reason = msg.includes("403") ? "ip_blocked"
-      : msg.includes("401") ? "auth_failed"
-      : msg.includes("404") ? "not_supported"
-      : "error";
-    if (reason === "ip_blocked") {
-      console.warn(`[20i-WL] Auto-whitelist: IP ${ip} must be added manually at my.20i.com → Reseller API → IP Whitelist`);
-    } else if (reason !== "not_supported") {
-      console.warn(`[20i-WL] Auto-whitelist: could not add ${ip} (${reason}): ${msg.substring(0, 120)}`);
+  } catch (firstErr: any) {
+    const firstMsg = String(firstErr?.message ?? "");
+    const firstCode = String(firstErr?.code ?? "");
+    const isWhitelistEndpointMissing = (firstCode === "IP_NOT_WHITELISTED" || firstMsg.includes("IP_NOT_WHITELISTED"))
+      && firstMsg.includes("/reseller/*/apiWhitelist");
+
+    // If the whitelist GET returned 404, this could mean:
+    //   a) IP is NOT in the whitelist (classic chicken-and-egg — common scenario)
+    //   b) The whitelist management endpoint doesn't exist for this account type
+    // We distinguish by checking if OTHER reseller/* endpoints already respond non-401
+    // (i.e., the IP itself is accessible). If yes, case (b) is more likely.
+    // Either way, attempt the POST — if it gives 404 too, conclude endpoint-not-available.
+
+    // Try the POST anyway
+    try {
+      await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
+        apiWhitelist: { [ip]: {} },
+      });
+      console.log(`[20i-WL] Auto-whitelist: ✓ added ${ip} (read-list failed but POST succeeded)`);
+      return { added: true, reason: "ok" };
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      const code = String(e?.code ?? "");
+
+      // Both GET and POST returned 404 → the whitelist endpoint is not available for this account.
+      // Do not treat this as "ip_blocked" — it is an account limitation.
+      if (isWhitelistEndpointMissing && (code === "IP_NOT_WHITELISTED" || msg.includes("IP_NOT_WHITELISTED"))) {
+        console.warn(`[20i-WL] Auto-whitelist: the apiWhitelist endpoint returned 404 for both GET and POST.`);
+        console.warn(`[20i-WL] This usually means the IP whitelist API is not enabled for this account type.`);
+        console.warn(`[20i-WL] The IP (${ip}) must be added manually at my.20i.com → Reseller API → IP Whitelist.`);
+        return { added: false, reason: "endpoint_unavailable" };
+      }
+
+      // 403 from POST = chicken-and-egg (IP not yet in whitelist at all)
+      const isChickenEgg = msg.includes("Forbidden (403)") || msg.includes("403");
+
+      // 401 / KEY NOT RECOGNISED = auth failure
+      const isAuthFail = msg.includes("KEY NOT RECOGNISED") || msg.includes("401")
+        || msg.includes("Authentication failed");
+
+      if (isChickenEgg) {
+        console.warn(`[20i-WL] Auto-whitelist: ${ip} must be added manually at my.20i.com → Reseller API → IP Whitelist`);
+        return { added: false, reason: "ip_blocked" };
+      }
+      if (isAuthFail) {
+        console.warn(`[20i-WL] Auto-whitelist: API key authentication failed — check key format`);
+        return { added: false, reason: "auth_failed" };
+      }
+      console.warn(`[20i-WL] Auto-whitelist: could not add ${ip}: ${msg.substring(0, 120)}`);
+      return { added: false, reason: "error" };
     }
-    return { added: false, reason };
   }
 }
 
@@ -558,92 +702,65 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
     return { success: false, message: "API key is too short." };
   }
 
-  // Extract General Key — only the part before "+" is used for Bearer auth.
-  // 20i Combined Key format: "GeneralKey+OAuthKey". The full combined string fails with 401.
-  const generalKey = extractGeneralKey(cleanKey);
-  const base64Token = encodeKeyToBase64(generalKey);
-  const authHeader = `Bearer ${base64Token}`;
-
   const proxyUrl = resolveProxyUrl();
 
-  // Try /reseller/*/packageTypes — a reliable test endpoint.
-  // 200 = fully connected and working.
-  // 404 = authentication PASSED but account has no data (key is valid).
-  // 403 = IP not whitelisted.
-  // 401 = key is invalid (wrong_key or ip_blocked depending on {"type":...}).
-  const testEndpoints = [
-    "/reseller/*/packageTypes",
-    "/reseller/*/packageCount",
-    "/reseller/*",
-  ];
+  // Auto-detect the correct key format (before_plus / after_plus / full).
+  // This probes the API with each variant and finds which one does NOT give 401.
+  const detected = await twentyiFindWorkingKeyFormat(apiKey, proxyUrl);
+  console.log(`[20i] testConnection: detected key format="${detected.format}" (HTTP ${detected.status})`);
 
-  for (const path of testEndpoints) {
-    try {
-      const url = `${BASE_URL}${path}`;
-      const cfg: AxiosRequestConfig = {
-        method: "GET",
-        url,
-        headers: {
-          Authorization: authHeader,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        timeout: DEFAULT_TIMEOUT_MS,
-        validateStatus: () => true,
-      };
-      if (proxyUrl) {
-        const proxy = buildAxiosProxy(proxyUrl);
-        if (proxy) cfg.proxy = proxy;
-      }
-
-      const res = await axios(cfg);
-      console.log(`[20i] testConnection ${path} → HTTP ${res.status}`);
-
-      if (res.status >= 200 && res.status < 300) {
-        // 2xx — connected and data returned
-        const data = res.data as any;
-        // If it's packageTypes we can count them
-        const pkgCount = Array.isArray(data) ? data.length
-          : typeof data === "object" && data !== null ? Object.keys(data).length
-          : 0;
-        return {
-          success: true,
-          message: `Connected to 20i — ${pkgCount > 0 ? `${pkgCount} package type(s) available` : "API access confirmed"}`,
-          packageCount: pkgCount,
-        };
-      }
-
-      if (res.status === 404) {
-        // 404 = authentication PASSED. 20i returned "Not Found" for the resource.
-        // This happens with new/empty reseller accounts. The key IS valid.
-        return {
-          success: true,
-          message: "Connected to 20i — API key is valid (account has no packages yet)",
-          packageCount: 0,
-        };
-      }
-
-      if (res.status === 403) {
-        return { success: false, message: `IP NOT WHITELISTED — add your outbound IP to my.20i.com → Reseller API → IP Whitelist` };
-      }
-
-      if (res.status === 401) {
-        const parsed = typeof res.data === "object" ? res.data : {};
-        const errType = (parsed as any)?.type ?? null;
-        if (errType === "User ID") {
-          return { success: false, message: `KEY NOT RECOGNISED — 20i rejected this key as invalid. {"type":"User ID"}` };
-        }
-        return { success: false, message: `Authentication failed (HTTP 401) — check your key and IP whitelist` };
-      }
-
-      // Any other non-2xx: try next endpoint
-      console.warn(`[20i] testConnection ${path} → unexpected HTTP ${res.status}, trying next endpoint`);
-    } catch (err: any) {
-      console.warn(`[20i] testConnection ${path} → network error: ${err.message}`);
-    }
+  if (detected.status === 0) {
+    // Network or all-formats-401 failure
+    return { success: false, message: "Could not connect to 20i API — all key formats rejected (401). Verify the key at my.20i.com → Reseller API." };
   }
 
-  return { success: false, message: "Could not connect to 20i API — network error or all endpoints failed" };
+  // Cache the working format so all subsequent request() calls use it
+  setCachedKeyFormat(cleanKey, detected.format);
+
+  if (detected.status >= 200 && detected.status < 300) {
+    // Probe again with the correct key to get package count
+    const url = `${BASE_URL}/reseller/*/packageTypes`;
+    const cfg: AxiosRequestConfig = {
+      method: "GET",
+      url,
+      headers: {
+        Authorization: `Bearer ${encodeKeyToBase64(detected.authKey)}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      timeout: DEFAULT_TIMEOUT_MS,
+      validateStatus: () => true,
+    };
+    if (proxyUrl) { const p = buildAxiosProxy(proxyUrl); if (p) cfg.proxy = p; }
+    const res = await axios(cfg);
+    const data = res.data as any;
+    const pkgCount = Array.isArray(data) ? data.length
+      : typeof data === "object" && data !== null ? Object.keys(data).length : 0;
+    return {
+      success: true,
+      message: `Connected to 20i — ${pkgCount > 0 ? `${pkgCount} package type(s) available` : "API access confirmed"} [key format: ${detected.format}]`,
+      packageCount: pkgCount,
+    };
+  }
+
+  if (detected.status === 404) {
+    // 404 from /reseller/* means auth passed but no data found — key IS valid.
+    return {
+      success: true,
+      message: `Connected to 20i — key is valid [format: ${detected.format}] (IP must be whitelisted for full access)`,
+      packageCount: 0,
+    };
+  }
+
+  if (detected.status === 403) {
+    // 403 means auth passed but IP not whitelisted (or scope missing)
+    return {
+      success: false,
+      message: `Key format "${detected.format}" accepted, but access denied (403) — add your outbound IP to my.20i.com → Reseller API → IP Whitelist`,
+    };
+  }
+
+  return { success: false, message: `Unexpected HTTP ${detected.status} from 20i — check your key and IP whitelist` };
 }
 
 // ─── Package Types ────────────────────────────────────────────────────────────

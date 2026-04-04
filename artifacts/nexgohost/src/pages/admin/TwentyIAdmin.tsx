@@ -1530,7 +1530,7 @@ export default function TwentyIAdmin() {
   const [showWl, setShowWl] = useState(false);
   const [ipNotWhitelisted, setIpNotWhitelisted] = useState<{ ip: string; message: string } | null>(null);
 
-  // Auto-check IP whitelist on page load (silent — shows banner if not whitelisted)
+  // Auto-check IP whitelist on page load (silent — shows banner ONLY when confirmed NOT whitelisted)
   useEffect(() => {
     let cancelled = false;
     async function checkIp() {
@@ -1538,7 +1538,9 @@ export default function TwentyIAdmin() {
         const data = await apiFetch("/api/admin/twenty-i/whitelist");
         if (cancelled) return;
         setWlData(data);
-        if (data?.serverConfigured && !data?.isWhitelisted && data?.outboundIp) {
+        // Only show the banner if we CONFIRMED the IP is not in the list (isWhitelisted === false).
+        // If isWhitelisted === null (cannot verify — API inaccessible), do not show the banner.
+        if (data?.serverConfigured && data?.isWhitelisted === false && data?.outboundIp) {
           setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
         } else {
           setIpNotWhitelisted(null);
@@ -1555,7 +1557,8 @@ export default function TwentyIAdmin() {
       const data = await apiFetch("/api/admin/twenty-i/whitelist");
       setWlData(data);
       setShowWl(true);
-      if (data?.serverConfigured && !data?.isWhitelisted && data?.outboundIp) {
+      // Only show the banner when isWhitelisted === false (confirmed not in list)
+      if (data?.serverConfigured && data?.isWhitelisted === false && data?.outboundIp) {
         setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
       } else {
         setIpNotWhitelisted(null);
@@ -1573,15 +1576,31 @@ export default function TwentyIAdmin() {
       const data = await apiFetch("/api/admin/twenty-i/whitelist/sync", { method: "POST" });
       setWlData((prev: any) => prev ? { ...prev, ...data } : data);
       if (data.success) {
-        toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist — API is now connected` });
+        if (data.alreadyPresent) {
+          toast({ title: `✓ IP ${data.outboundIp} already in 20i whitelist`, description: data.message });
+        } else {
+          toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist — API is now connected` });
+        }
         const fresh = await apiFetch("/api/admin/twenty-i/whitelist");
         setWlData(fresh);
-        // IP is now whitelisted — dismiss the banner and refresh all data
+        // Dismiss banner and refresh all data
         setIpNotWhitelisted(null);
         qc.invalidateQueries({ queryKey: ["20i-sites"] });
         qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
         qc.invalidateQueries({ queryKey: ["20i-packages"] });
         qc.invalidateQueries({ queryKey: ["20i-migrations"] });
+      } else if (data.error === "endpoint_unavailable") {
+        toast({
+          title: "Whitelist API not available for this account",
+          description: data.message ?? `Add ${data.outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. This is a one-time setup step.`,
+          duration: 18000,
+        });
+      } else if (data.error === "auth_failed") {
+        toast({
+          title: "API Key Authentication Failed",
+          description: data.message ?? "The 20i whitelist API could not authenticate with your current key. Re-check your key in Admin → Servers.",
+          duration: 15000,
+        });
       } else if (data.error === "chicken_and_egg") {
         // 20i blocks all API calls (including whitelist management) until the IP is added manually once
         toast({
@@ -1687,23 +1706,7 @@ export default function TwentyIAdmin() {
             </p>
           </div>
           <button
-            onClick={async () => {
-              setWlLoading(true);
-              try {
-                const data = await apiFetch("/api/admin/twenty-i/whitelist");
-                setWlData(data);
-                setShowWl(true);
-                if (data?.serverConfigured && !data?.isWhitelisted && data?.outboundIp) {
-                  setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
-                } else {
-                  setIpNotWhitelisted(null);
-                }
-              } catch (e: any) {
-                toast({ title: "Could not load whitelist", description: e.message, variant: "destructive" });
-              } finally {
-                setWlLoading(false);
-              }
-            }}
+            onClick={() => loadWhitelist()}
             disabled={wlLoading}
             className="shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors shadow-sm disabled:opacity-60"
           >
@@ -1786,15 +1789,22 @@ export default function TwentyIAdmin() {
                 {wlData.serverConfigured && (
                   wlData.isWhitelisted
                     ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Whitelisted</span>
-                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">Not whitelisted — add manually once</span>
+                    : wlData.isWhitelisted === false
+                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">Not whitelisted — add manually once</span>
+                      : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary/60 text-muted-foreground border border-border/40">Status unknown — use button below to sync</span>
                 )}
                 {wlData.proxy?.enabled && (
                   <span className="text-[10px] text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5">via proxy</span>
                 )}
               </div>
-              {wlData.fetchError && (
+              {wlData.fetchError && wlData.isWhitelisted === false && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Could not read whitelist from 20i (IP blocked) — the IP above needs to be added manually first.
+                  Could not read whitelist from 20i — add the IP above manually at my.20i.com → Reseller API → IP Whitelist.
+                </p>
+              )}
+              {wlData.fetchError && wlData.isWhitelisted === null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Whitelist status could not be verified (the whitelist management API returned an error). If you have already added this IP manually, click <strong>Add Current IP to Whitelist</strong> to confirm.
                 </p>
               )}
             </div>
@@ -1825,8 +1835,8 @@ export default function TwentyIAdmin() {
             </div>
           )}
 
-          {/* Step-by-step setup guide when IP not yet whitelisted */}
-          {!wlData.isWhitelisted && wlData.serverConfigured && (
+          {/* Step-by-step setup guide — only shown when IP is confirmed NOT in whitelist */}
+          {wlData.isWhitelisted === false && wlData.serverConfigured && (
             <div className="px-4 py-4 border-t border-amber-500/20 bg-amber-500/5">
               <p className="text-xs font-semibold text-amber-700 mb-2.5">One-time manual step required:</p>
               <ol className="text-xs text-foreground/70 space-y-1.5 list-decimal ml-4 mb-3">

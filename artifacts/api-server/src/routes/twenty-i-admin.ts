@@ -241,23 +241,36 @@ router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (req: 
     const proxy = getProxyConfig();
 
     if (!server || !server.apiToken) {
-      return res.json({ outboundIp, proxy, currentList: [], serverConfigured: false });
+      return res.json({ outboundIp, proxy, currentList: [], serverConfigured: false, isWhitelisted: null });
     }
 
     let currentList: string[] = [];
     let fetchError: string | null = null;
+    let canVerify = false;
+
     try {
       currentList = await runWith20i(server, () => twentyiGetWhitelist(server!.apiToken!));
+      canVerify = true; // Successfully read the list — we know for sure
     } catch (e: any) {
-      fetchError = e.message; // Will be 401 if IP not yet whitelisted — that's ok
+      fetchError = e.message;
+      canVerify = false;
+      // Could not read whitelist — may be a permission issue or IP blocked.
+      // Do NOT assume isWhitelisted=false here; it could be already whitelisted.
     }
+
+    // isWhitelisted is:
+    //   true  — confirmed in whitelist
+    //   false — confirmed NOT in whitelist (we read the list and it's not there)
+    //   null  — cannot verify (list endpoint inaccessible)
+    const isWhitelisted: boolean | null = canVerify ? currentList.includes(outboundIp) : null;
 
     return res.json({
       outboundIp,
       proxy,
       currentList,
       fetchError,
-      isWhitelisted: currentList.includes(outboundIp),
+      canVerify,
+      isWhitelisted,
       serverConfigured: true,
     });
   } catch (e: any) {
@@ -283,7 +296,18 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
 
     if (wlResult.added) {
       console.log(`[20i-WHITELIST] ✓ Added ${outboundIp} to whitelist`);
-      return res.json({ success: true, outboundIp });
+      return res.json({ success: true, outboundIp, message: `IP ${outboundIp} successfully added to 20i whitelist.` });
+    }
+
+    // IP was already in the whitelist — treat as success
+    if (wlResult.alreadyPresent || wlResult.reason === "already_present") {
+      console.log(`[20i-WHITELIST] ✓ ${outboundIp} is already in the 20i whitelist`);
+      return res.json({
+        success: true,
+        outboundIp,
+        alreadyPresent: true,
+        message: `IP ${outboundIp} is already in 20i's whitelist — no action needed.`,
+      });
     }
 
     if (wlResult.reason === "ip_blocked") {
@@ -293,7 +317,27 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
         success: false,
         error: "chicken_and_egg",
         outboundIp,
-        message: `The 20i API requires your server IP to already be whitelisted. You must add ${outboundIp} manually once at my.20i.com → Reseller API → IP Whitelist. After that, this button will keep it up to date automatically.`,
+        message: `The 20i API requires your IP to be whitelisted first. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. After that, this button will keep it updated automatically.`,
+      });
+    }
+
+    if (wlResult.reason === "endpoint_unavailable") {
+      console.warn(`[20i-WHITELIST] ✗ Whitelist API endpoint not available for this 20i account type`);
+      return res.json({
+        success: false,
+        error: "endpoint_unavailable",
+        outboundIp,
+        message: `The IP whitelist management API is not available for your 20i account. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. This is a one-time step — the IP does not need to be managed programmatically.`,
+      });
+    }
+
+    if (wlResult.reason === "auth_failed") {
+      console.warn(`[20i-WHITELIST] ✗ API key authentication failed for whitelist sync`);
+      return res.json({
+        success: false,
+        error: "auth_failed",
+        outboundIp,
+        message: `The 20i API key could not be authenticated. Please re-check your API key in Admin → Servers. The IP whitelist API may require a reseller-level Combined Key.`,
       });
     }
 
