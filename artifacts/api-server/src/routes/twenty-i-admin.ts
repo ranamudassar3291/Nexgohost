@@ -336,14 +336,40 @@ router.get("/admin/twenty-i/probe", authenticate, requireAdmin, async (req: Auth
  * Returns current outbound IP + current 20i whitelist entries.
  * Works even if NOT whitelisted (outbound IP from ipify.org is always available).
  */
+// Derive the stable server hostname for display in the whitelist manager.
+// Priority:
+//   1. SERVER_HOSTNAME env var (user-configured custom domain like "noehost.com")
+//   2. A *.replit.app domain from REPLIT_DOMAINS (stable deployment hostname)
+//   3. Any other custom domain in REPLIT_DOMAINS (not *.replit.dev which is ephemeral)
+// Ephemeral *.replit.dev and *.kirk.replit.dev dev-only domains are excluded.
+function getServerHostname(): string | null {
+  // Prefer explicitly configured custom hostname
+  if (process.env.SERVER_HOSTNAME?.trim()) return process.env.SERVER_HOSTNAME.trim();
+
+  const replitDomains = (process.env.REPLIT_DOMAINS ?? "").split(",").map(d => d.trim()).filter(Boolean);
+  if (!replitDomains.length) return null;
+
+  // Prefer *.replit.app (stable, assigned at deployment time)
+  const deployDomain = replitDomains.find(d => d.endsWith(".replit.app"));
+  if (deployDomain) return deployDomain;
+
+  // Prefer any truly custom domain (not *.replit.* or *.repl.co)
+  const custom = replitDomains.find(d => !d.includes(".replit.") && !d.endsWith(".repl.co"));
+  if (custom) return custom;
+
+  // *.replit.dev / *.kirk.replit.dev are ephemeral dev domains — do not show them
+  return null;
+}
+
 router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     const outboundIp = await getOutboundIp();
     const proxy = getProxyConfig();
+    const serverHostname = getServerHostname();
 
     if (!server || !server.apiToken) {
-      return res.json({ outboundIp, proxy, currentList: [], serverConfigured: false, isWhitelisted: null });
+      return res.json({ outboundIp, serverHostname, proxy, currentList: [], serverConfigured: false, isWhitelisted: null });
     }
 
     let currentList: string[] = [];
@@ -362,12 +388,31 @@ router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (req: 
 
     // isWhitelisted is:
     //   true  — confirmed in whitelist
-    //   false — confirmed NOT in whitelist (we read the list and it's not there)
-    //   null  — cannot verify (list endpoint inaccessible)
-    const isWhitelisted: boolean | null = canVerify ? currentList.includes(outboundIp) : null;
+    //   false — confirmed NOT in whitelist
+    //   null  — cannot verify
+    let isWhitelisted: boolean | null = canVerify ? currentList.includes(outboundIp) : null;
+
+    // Secondary check: if whitelist API is unavailable (isWhitelisted still null),
+    // probe GET /package to detect the IpMatch 403 — a definitive signal the IP is NOT whitelisted.
+    // Uses the 60-second in-memory cache so subsequent calls within the same minute are free.
+    if (isWhitelisted === null) {
+      try {
+        await getCachedSites(server);
+        // /package succeeded — IP is in the whitelist
+        isWhitelisted = true;
+      } catch (probeErr: any) {
+        const msg = String(probeErr?.message ?? "");
+        if (msg.includes("IpMatch")) {
+          // Confirmed: 403 IpMatch → IP not in 20i whitelist
+          isWhitelisted = false;
+        }
+        // Any other error (auth failure, network, etc.) — leave isWhitelisted as null
+      }
+    }
 
     return res.json({
       outboundIp,
+      serverHostname,
       proxy,
       currentList,
       fetchError,
@@ -391,14 +436,14 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
     if (!server) return res.status(400).json({ error: "No active 20i server configured." });
     if (!server.apiToken) return res.status(400).json({ error: "20i API key missing." });
 
-    const outboundIp = await getOutboundIp();
+    const [outboundIp, serverHostname] = await Promise.all([getOutboundIp(), Promise.resolve(getServerHostname())]);
     const apiKey = server.apiToken;
 
     const wlResult = await runWith20i(server, () => twentyiAutoWhitelist(apiKey, outboundIp));
 
     if (wlResult.added) {
       console.log(`[20i-WHITELIST] ✓ Added ${outboundIp} to whitelist`);
-      return res.json({ success: true, outboundIp, message: `IP ${outboundIp} successfully added to 20i whitelist.` });
+      return res.json({ success: true, outboundIp, serverHostname, message: `IP ${outboundIp} successfully added to 20i whitelist.` });
     }
 
     // IP was already in the whitelist — treat as success
@@ -407,19 +452,20 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
       return res.json({
         success: true,
         outboundIp,
+        serverHostname,
         alreadyPresent: true,
         message: `IP ${outboundIp} is already in 20i's whitelist — no action needed.`,
       });
     }
 
     if (wlResult.reason === "ip_blocked") {
-      // Chicken-and-egg: 20i blocks all API calls including whitelist management until IP is added manually
       console.warn(`[20i-WHITELIST] ✗ IP ${outboundIp} must be whitelisted manually at my.20i.com first`);
       return res.json({
         success: false,
         error: "chicken_and_egg",
         outboundIp,
-        message: `The 20i API requires your IP to be whitelisted first. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. After that, this button will keep it updated automatically.`,
+        serverHostname,
+        message: `The 20i API requires your IP to be whitelisted first. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. After that, this button will auto-update the whitelist whenever the IP changes.`,
       });
     }
 
@@ -429,7 +475,8 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
         success: false,
         error: "endpoint_unavailable",
         outboundIp,
-        message: `The IP whitelist management API is not available for your 20i account. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. This is a one-time step — the IP does not need to be managed programmatically.`,
+        serverHostname,
+        message: `The IP whitelist API is not available for your 20i account. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. This is a one-time step — if the IP changes, just click this button again to see the new IP.`,
       });
     }
 
@@ -439,12 +486,13 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
         success: false,
         error: "auth_failed",
         outboundIp,
-        message: `The 20i API key could not be authenticated. Please re-check your API key in Admin → Servers. The IP whitelist API may require a reseller-level Combined Key.`,
+        serverHostname,
+        message: `The 20i API key could not be authenticated. Please re-check your API key in Admin → Servers.`,
       });
     }
 
     console.warn(`[20i-WHITELIST] ✗ Failed to add ${outboundIp}: ${wlResult.reason}`);
-    return res.json({ success: false, error: wlResult.reason, outboundIp });
+    return res.json({ success: false, error: wlResult.reason, outboundIp, serverHostname });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

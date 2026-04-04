@@ -1624,24 +1624,42 @@ export default function TwentyIAdmin() {
   const [showWl, setShowWl] = useState(false);
   const [ipNotWhitelisted, setIpNotWhitelisted] = useState<{ ip: string; message: string } | null>(null);
 
-  // Auto-check IP whitelist on page load (silent — shows banner ONLY when confirmed NOT whitelisted)
+  // Auto-check IP whitelist on page load.
+  // If the API server is configured and the IP is not confirmed whitelisted,
+  // auto-attempt to sync (silently) so admins never need to click the button manually.
   useEffect(() => {
     let cancelled = false;
-    async function checkIp() {
+    async function checkAndAutoSync() {
       try {
         const data = await apiFetch("/api/admin/twenty-i/whitelist");
         if (cancelled) return;
         setWlData(data);
-        // Only show the banner if we CONFIRMED the IP is not in the list (isWhitelisted === false).
-        // If isWhitelisted === null (cannot verify — API inaccessible), do not show the banner.
         if (data?.serverConfigured && data?.isWhitelisted === false && data?.outboundIp) {
           setIpNotWhitelisted({ ip: data.outboundIp, message: data.fetchError ?? "" });
         } else {
           setIpNotWhitelisted(null);
         }
+        // Auto-sync: if server is configured and IP status is not confirmed whitelisted,
+        // silently attempt to add the current IP so it updates automatically on restart.
+        if (data?.serverConfigured && data?.isWhitelisted !== true) {
+          try {
+            const syncResult = await apiFetch("/api/admin/twenty-i/whitelist/sync", { method: "POST" });
+            if (cancelled) return;
+            if (syncResult?.success) {
+              // Successfully added — refresh data and dismiss banner
+              const fresh = await apiFetch("/api/admin/twenty-i/whitelist");
+              if (!cancelled) {
+                setWlData(fresh);
+                setIpNotWhitelisted(null);
+                qc.invalidateQueries({ queryKey: ["20i-sites"] });
+                qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
+              }
+            }
+          } catch { /* silent — auto-sync failure is non-critical */ }
+        }
       } catch { /* silent fail */ }
     }
-    checkIp();
+    checkAndAutoSync();
     return () => { cancelled = true; };
   }, [selectedServerId]);
 
@@ -1867,10 +1885,22 @@ export default function TwentyIAdmin() {
             <button onClick={() => setShowWl(false)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
           </div>
 
+          {/* Server hostname row — stable identifier that never changes */}
+          {wlData.serverHostname && (
+            <div className="px-4 py-2.5 flex items-center gap-3 border-b border-primary/10 bg-primary/5">
+              <Globe size={12} className="text-primary shrink-0" />
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className="text-xs text-muted-foreground shrink-0">Server hostname</span>
+                <span className="font-mono text-sm font-semibold text-primary">{wlData.serverHostname}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-medium">permanent — never changes</span>
+              </div>
+            </div>
+          )}
+
           {/* Current IP status */}
           <div className="px-4 py-3.5 flex items-center justify-between flex-wrap gap-3 border-b border-primary/10">
             <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">Current Outbound IP (this server)</p>
+              <p className="text-xs text-muted-foreground">{wlData.serverHostname ? "Current outbound IP (auto-detected for this hostname)" : "Current Outbound IP (this server)"}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono text-sm font-semibold text-foreground">{wlData.outboundIp}</span>
                 <button
@@ -1884,18 +1914,13 @@ export default function TwentyIAdmin() {
                   wlData.isWhitelisted
                     ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Whitelisted</span>
                     : wlData.isWhitelisted === false
-                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">Not whitelisted — add manually once</span>
+                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">Not whitelisted — add manually</span>
                       : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary/60 text-muted-foreground border border-border/40">Status unknown — use button below to sync</span>
                 )}
                 {wlData.proxy?.enabled && (
                   <span className="text-[10px] text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5">via proxy</span>
                 )}
               </div>
-              {wlData.fetchError && wlData.isWhitelisted === false && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Could not read whitelist from 20i — add the IP above manually at my.20i.com → Reseller API → IP Whitelist.
-                </p>
-              )}
               {wlData.fetchError && wlData.isWhitelisted === null && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Whitelist status could not be verified (the whitelist management API returned an error). If you have already added this IP manually, click <strong>Add Current IP to Whitelist</strong> to confirm.
@@ -1932,7 +1957,7 @@ export default function TwentyIAdmin() {
           {/* Step-by-step setup guide — only shown when IP is confirmed NOT in whitelist */}
           {wlData.isWhitelisted === false && wlData.serverConfigured && (
             <div className="px-4 py-4 border-t border-amber-500/20 bg-amber-500/5">
-              <p className="text-xs font-semibold text-amber-700 mb-2.5">One-time manual step required:</p>
+              <p className="text-xs font-semibold text-amber-700 mb-2.5">Manual step required (one-time per IP change):</p>
               <ol className="text-xs text-foreground/70 space-y-1.5 list-decimal ml-4 mb-3">
                 <li>Open <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline font-medium">my.20i.com → Reseller API → IP Whitelist</a></li>
                 <li>
@@ -1946,9 +1971,13 @@ export default function TwentyIAdmin() {
                     Copy
                   </button>
                 </li>
-                <li>Click Save in 20i, then click <strong>Add Current IP to Whitelist</strong> above</li>
+                <li>Click Save in 20i, then click <strong>Add Current IP to Whitelist</strong> above to confirm</li>
               </ol>
-              <p className="text-[10px] text-muted-foreground">After the first manual setup, this button will auto-update the whitelist whenever the server IP changes on restart.</p>
+              <p className="text-[10px] text-muted-foreground">
+                {wlData.serverHostname
+                  ? `The hostname (${wlData.serverHostname}) is stable. Only the outbound IP may change across server restarts — if it does, just click the button above to see the new IP and add it once.`
+                  : "After the first manual setup, click this button whenever the server IP changes to see the new IP and add it."}
+              </p>
             </div>
           )}
         </div>
