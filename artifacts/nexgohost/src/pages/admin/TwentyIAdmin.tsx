@@ -674,6 +674,7 @@ function SitesTab() {
                 <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Site ID</th>
                 <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Status</th>
                 <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Package</th>
+                <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">StackUser</th>
                 <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
               </tr>
             </thead>
@@ -688,6 +689,11 @@ function SitesTab() {
                     <td className="px-4 py-3 text-muted-foreground text-xs">
                       <div>{s.packageTypeName || "—"}</div>
                       {s.names?.length > 1 && <div className="text-[10px] text-muted-foreground/60">{s.names.length} domains</div>}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs font-mono">
+                      {s.stackUsers?.length > 0
+                        ? s.stackUsers.map((su: string) => su.replace(/^stack-user:/, "")).join(", ")
+                        : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5 justify-end flex-wrap">

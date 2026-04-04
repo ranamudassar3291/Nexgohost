@@ -213,13 +213,15 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (req:
     console.log("=".repeat(60));
 
     return res.json({
-      ok: debug.responseStatus === 200,
+      ok: debug.diagnosis === "connected",
       keySource: source,
       outboundIp: ip,
       proxy,
       debug,
-      hint: debug.responseStatus === 401
+      hint: debug.diagnosis === "ip_blocked" || debug.responseStatus === 401
         ? `Whitelist ${debug.outboundIp} in my.20i.com → Reseller API → IP Whitelist, then retry.`
+        : debug.diagnosis === "connected" && debug.responseStatus !== 200
+        ? `API connected — some reseller endpoints return 404/403 for this account type. Core hosting management works correctly.`
         : undefined,
     });
   } catch (e: any) {
@@ -442,7 +444,24 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const users = await runWith20i(server, () => twentyiListStackUsers(server!.apiToken!));
-    res.json(users);
+    if (users.length > 0) return res.json(users);
+
+    // Fallback: /reseller/*/susers not available for this account — derive unique StackUser IDs
+    // from the stackUsers field already present on each hosting package in /package
+    const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
+    const suserMap = new Map<string, { id: string; name: string; email: string | null; type: string; masterFtp: boolean; siteCount: number }>();
+    for (const site of sites) {
+      for (const su of (site.stackUsers ?? [])) {
+        const raw = String(su);
+        const numericId = raw.replace(/^stack-user:/, "");
+        const key = raw.startsWith("stack-user:") ? raw : `stack-user:${raw}`;
+        if (!suserMap.has(key)) {
+          suserMap.set(key, { id: key, name: `StackUser ${numericId}`, email: null, type: "stack-user", masterFtp: false, siteCount: 0 });
+        }
+        suserMap.get(key)!.siteCount++;
+      }
+    }
+    return res.json(Array.from(suserMap.values()));
   } catch (e: any) {
     console.warn(`[20i] stack-users fetch failed: ${e.message}`);
     if (!handle20iError(e, res, [])) {
@@ -618,7 +637,21 @@ router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (req: A
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const packages = await runWith20i(server, () => twentyiGetPackages(server!.apiToken!));
-    res.json(packages);
+    if (packages.length > 0) return res.json(packages);
+
+    // Fallback: /reseller/*/packageTypes not available — derive unique package types
+    // from the packageTypeName + typeRef fields on each synced hosting package
+    const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
+    const typeMap = new Map<string, { id: string; label: string; platform: string }>();
+    for (const site of sites) {
+      const typeId = String(site.typeRef ?? site.packageTypeName ?? "default");
+      const label = site.packageTypeName ?? typeId;
+      const platform = site.platform ?? "linux";
+      if (!typeMap.has(typeId)) {
+        typeMap.set(typeId, { id: typeId, label, platform });
+      }
+    }
+    return res.json(Array.from(typeMap.values()));
   } catch (e: any) {
     console.warn(`[20i] packages fetch failed: ${e.message}`);
     if (!handle20iError(e, res, [])) {
