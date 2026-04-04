@@ -207,7 +207,7 @@ function OverviewTab({ server, lastSync, onSync, syncing }: {
 
 // ─── StackUsers Tab ───────────────────────────────────────────────────────────
 
-const PAGE_SIZE_USERS = 25;
+const PAGE_SIZE_USERS = 50;
 
 function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const { toast } = useToast();
@@ -215,7 +215,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ email: "", name: "", createPanelUser: false });
+  const [createForm, setCreateForm] = useState({ email: "", name: "", password: "", createPanelUser: false });
   const [confirm, setConfirm] = useState<{ userId: string; name: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -255,15 +255,15 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
       const endpoint = createForm.createPanelUser
         ? "/api/admin/twenty-i/stack-users/with-panel-user"
         : "/api/admin/twenty-i/stack-users";
-      const body = createForm.createPanelUser
-        ? { email: createForm.email, name: createForm.name, createPanelUser: true }
-        : { email: createForm.email, name: createForm.name };
+      const body: Record<string, any> = { email: createForm.email, name: createForm.name };
+      if (createForm.password) body.password = createForm.password;
+      if (createForm.createPanelUser) body.createPanelUser = true;
       const result = await apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
       const panelMsg = result.panelUserId ? ` Panel user also created (ID: ${result.panelUserId}).` : "";
       toast({ title: "StackUser created successfully", description: panelMsg || undefined });
       qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
       setShowCreate(false);
-      setCreateForm({ email: "", name: "", createPanelUser: false });
+      setCreateForm({ email: "", name: "", password: "", createPanelUser: false });
     } catch (e: any) {
       toast({ title: "Failed to create", description: e.message, variant: "destructive" });
     } finally {
@@ -405,6 +405,14 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
               onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))}
             />
           </div>
+          <div className="mb-3">
+            <InputField
+              type="password"
+              placeholder="StackCP password (min 8 chars)"
+              value={createForm.password}
+              onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))}
+            />
+          </div>
           <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer mb-4 select-none">
             <input
               type="checkbox"
@@ -436,33 +444,41 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/20">
-                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Name</th>
-                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Email</th>
-                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">User ID</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">StackUser ID</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Name / Email</th>
                   <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Sites</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Domains</th>
                   <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.map((u: any) => (
                   <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                    <td className="px-4 py-3 font-medium text-foreground">{u.name || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.email || <span className="text-muted-foreground/40 italic text-xs">—</span>}</td>
-                    <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{u.id}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{u.id}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {u.email
+                        ? <div><span className="font-medium">{u.name}</span><br/><span className="text-xs text-muted-foreground">{u.email}</span></div>
+                        : u.name && u.name !== u.id?.replace("stack-user:","")
+                          ? <span className="font-medium">{u.name}</span>
+                          : <span className="text-muted-foreground/40 italic text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       {u.siteCount > 0
                         ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">{u.siteCount}</span>
                         : <span className="text-muted-foreground/40 text-xs">0</span>}
                     </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">
+                      {u.domains?.length ? u.domains.join(", ") : <span className="opacity-40">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1.5 flex-wrap">
-                        <PrimaryBtn small onClick={() => { setPwModal({ userId: u.id, name: u.name || u.email }); setPwValue(""); setPwShow(false); }}>
+                        <PrimaryBtn small onClick={() => { setPwModal({ userId: u.id, name: u.name || u.id }); setPwValue(""); setPwShow(false); }}>
                           <KeyRound size={12} />
                           Password
                         </PrimaryBtn>
                         <button
                           className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 transition-colors"
-                          onClick={() => setConfirm({ userId: u.id, name: u.name || u.email })}
+                          onClick={() => setConfirm({ userId: u.id, name: u.name || u.id })}
                         >
                           <Trash2 size={12} />
                           Delete
@@ -506,7 +522,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
 
 // ─── Hosting Sites Tab ────────────────────────────────────────────────────────
 
-const PAGE_SIZE_SITES = 25;
+const PAGE_SIZE_SITES = 50;
 
 function SitesTab() {
   const { toast } = useToast();
@@ -771,6 +787,83 @@ const PROVISION_STEPS = [
   { id: "saving",  label: "Saving to NoePanel",  desc: "Registering service, syncing DNS & credentials",    icon: Database },
 ];
 
+// Searchable combobox for StackUser selection — avoids rendering 1,591 <option> elements.
+function StackUserCombobox({ stackUsers, value, onChange, disabled }: {
+  stackUsers: any[];
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const MAX_OPTS = 50;
+  const q = search.toLowerCase();
+  const filtered = q
+    ? stackUsers.filter(u =>
+        String(u.id).toLowerCase().includes(q) ||
+        (u.domains ?? []).some((d: string) => d.toLowerCase().includes(q))
+      ).slice(0, MAX_OPTS)
+    : stackUsers.slice(0, MAX_OPTS);
+
+  const selectedUser = stackUsers.find(u => u.id === value);
+  const displayLabel = selectedUser
+    ? `${selectedUser.id}${selectedUser.domains?.length ? ` (${selectedUser.domains[0]})` : ""}`
+    : "";
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-muted-foreground font-medium">Assign to StackUser (optional)</label>
+      <div className="relative">
+        <input
+          type="text"
+          className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          placeholder={value ? displayLabel : "Search by StackUser ID or domain…"}
+          value={open ? search : displayLabel}
+          disabled={disabled}
+          onFocus={() => { setOpen(true); setSearch(""); }}
+          onChange={e => { setSearch(e.target.value); setOpen(true); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        {value && (
+          <button
+            type="button"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground text-xs"
+            onMouseDown={e => { e.preventDefault(); onChange(""); setSearch(""); }}
+          >✕</button>
+        )}
+        {open && (
+          <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-lg text-sm">
+            <li
+              className="px-3 py-2 text-muted-foreground hover:bg-secondary/60 cursor-pointer"
+              onMouseDown={() => { onChange(""); setOpen(false); }}
+            >— No StackUser —</li>
+            {filtered.map(u => (
+              <li
+                key={u.id}
+                className={`px-3 py-2 cursor-pointer hover:bg-secondary/60 ${u.id === value ? "bg-primary/10 text-primary font-medium" : ""}`}
+                onMouseDown={() => { onChange(u.id); setOpen(false); }}
+              >
+                <span className="font-mono text-xs">{u.id}</span>
+                {u.domains?.length ? <span className="ml-2 text-muted-foreground text-xs">({u.domains[0]})</span> : null}
+                {u.siteCount > 1 ? <span className="ml-1 text-muted-foreground text-xs">+{u.siteCount - (u.domains?.length ?? 0)} more</span> : null}
+              </li>
+            ))}
+            {filtered.length === 0 && (
+              <li className="px-3 py-2 text-muted-foreground/50 italic text-xs">No match found</li>
+            )}
+            {!search && stackUsers.length > MAX_OPTS && (
+              <li className="px-3 py-2 text-muted-foreground/40 text-xs border-t border-border">
+                +{stackUsers.length - MAX_OPTS} more — type to search
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProvisionTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -860,7 +953,7 @@ function ProvisionTab() {
           >
             <option value="">— Default package —</option>
             {(packages as any[]).map((pkg: any) => (
-              <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+              <option key={pkg.id} value={pkg.id}>{pkg.label ?? pkg.name ?? pkg.id}</option>
             ))}
           </SelectField>
           <SelectField
@@ -874,17 +967,12 @@ function ProvisionTab() {
               <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>
             ))}
           </SelectField>
-          <SelectField
-            label="Assign to StackUser (optional)"
+          <StackUserCombobox
+            stackUsers={stackUsers as any[]}
             value={form.stackUserId}
-            onChange={e => setForm(p => ({ ...p, stackUserId: e.target.value }))}
+            onChange={v => setForm(p => ({ ...p, stackUserId: v }))}
             disabled={isSubmitting}
-          >
-            <option value="">— No StackUser —</option>
-            {(stackUsers as any[]).map((u: any) => (
-              <option key={u.id} value={u.id}>{u.name}{u.email ? ` (${u.email})` : ""} — {u.id}</option>
-            ))}
-          </SelectField>
+          />
           <PrimaryBtn onClick={handleSubmit} disabled={isSubmitting || !form.domain || !form.clientId}>
             {isSubmitting ? <Spinner size={14} /> : <Zap size={14} />}
             {isSubmitting ? "Provisioning…" : "Create Account"}

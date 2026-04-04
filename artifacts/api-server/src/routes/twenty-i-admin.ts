@@ -40,6 +40,19 @@ import { runWithCtx,
 
 const router = Router();
 
+// ─── In-memory site list cache ─────────────────────────────────────────────────
+// Shared across StackUsers + Packages routes to avoid redundant /package calls.
+// Keyed by API token; TTL = 60 seconds.
+const _sitesCache = new Map<string, { sites: Awaited<ReturnType<typeof twentyiListSites>>; expiry: number }>();
+async function getCachedSites(server: any): Promise<Awaited<ReturnType<typeof twentyiListSites>>> {
+  const key = String(server?.apiToken ?? "");
+  const cached = _sitesCache.get(key);
+  if (cached && Date.now() < cached.expiry) return cached.sites;
+  const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
+  _sitesCache.set(key, { sites, expiry: Date.now() + 60_000 });
+  return sites;
+}
+
 // ─── Helper: get 20i server ───────────────────────────────────────────────────
 
 // Get the active 20i server record from the database.
@@ -443,25 +456,33 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
+
+    // Try the real susers endpoint first (requires stackUsersRead scope).
+    // If it returns data, use it — full name/email included.
+    // If empty (403/404 for this account type), fall through to site-derived list.
     const users = await runWith20i(server, () => twentyiListStackUsers(server!.apiToken!));
     if (users.length > 0) return res.json(users);
 
-    // Fallback: /reseller/*/susers not available for this account — derive unique StackUser IDs
-    // from the stackUsers field already present on each hosting package in /package
-    const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
-    const suserMap = new Map<string, { id: string; name: string; email: string | null; type: string; masterFtp: boolean; siteCount: number }>();
+    // Derive from cached site list — extract every unique stack-user ID that is
+    // assigned to at least one hosting package via the stackUsers field on GET /package.
+    const sites = await getCachedSites(server);
+    const suserMap = new Map<string, { id: string; name: string; email: string | null; type: string; masterFtp: boolean; siteCount: number; domains: string[] }>();
     for (const site of sites) {
       for (const su of (site.stackUsers ?? [])) {
         const raw = String(su);
         const numericId = raw.replace(/^stack-user:/, "");
         const key = raw.startsWith("stack-user:") ? raw : `stack-user:${raw}`;
         if (!suserMap.has(key)) {
-          suserMap.set(key, { id: key, name: `StackUser ${numericId}`, email: null, type: "stack-user", masterFtp: false, siteCount: 0 });
+          suserMap.set(key, { id: key, name: numericId, email: null, type: "stack-user", masterFtp: false, siteCount: 0, domains: [] });
         }
-        suserMap.get(key)!.siteCount++;
+        const entry = suserMap.get(key)!;
+        entry.siteCount++;
+        if (site.domain && entry.domains.length < 3) entry.domains.push(site.domain);
       }
     }
-    return res.json(Array.from(suserMap.values()));
+    // Sort by siteCount desc so most-used users appear first
+    const result = Array.from(suserMap.values()).sort((a, b) => b.siteCount - a.siteCount);
+    return res.json(result);
   } catch (e: any) {
     console.warn(`[20i] stack-users fetch failed: ${e.message}`);
     if (!handle20iError(e, res, [])) {
@@ -636,12 +657,14 @@ router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (req: A
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
+
+    // Try /reseller/*/packageTypes first (may 404 on this account type — use site-derived fallback).
     const packages = await runWith20i(server, () => twentyiGetPackages(server!.apiToken!));
     if (packages.length > 0) return res.json(packages);
 
-    // Fallback: /reseller/*/packageTypes not available — derive unique package types
-    // from the packageTypeName + typeRef fields on each synced hosting package
-    const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
+    // Derive unique package types from cached site list — each site has packageTypeName + typeRef.
+    // Returns { id, label, platform } — same shape as TwentyIPackageType.
+    const sites = await getCachedSites(server);
     const typeMap = new Map<string, { id: string; label: string; platform: string }>();
     for (const site of sites) {
       const typeId = String(site.typeRef ?? site.packageTypeName ?? "default");
@@ -651,7 +674,9 @@ router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (req: A
         typeMap.set(typeId, { id: typeId, label, platform });
       }
     }
-    return res.json(Array.from(typeMap.values()));
+    // Sort alphabetically by label for a clean dropdown
+    const result = Array.from(typeMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+    return res.json(result);
   } catch (e: any) {
     console.warn(`[20i] packages fetch failed: ${e.message}`);
     if (!handle20iError(e, res, [])) {
