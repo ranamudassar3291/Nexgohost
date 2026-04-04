@@ -6,7 +6,7 @@ import { Router } from "express";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
 import { db } from "@workspace/db";
 import { serversTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { runWithCtx,
   twentyiListStackUsers,
   twentyiCreateStackUser,
@@ -514,20 +514,51 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
     // Derive from cached site list — extract every unique stack-user ID that is
     // assigned to at least one hosting package via the stackUsers field on GET /package.
     const sites = await getCachedSites(server);
-    const suserMap = new Map<string, { id: string; name: string; email: string | null; type: string; masterFtp: boolean; siteCount: number; domains: string[] }>();
+    const suserMap = new Map<string, { id: string; name: string; email: string | null; type: string; masterFtp: boolean; siteCount: number; domains: string[]; clientId: string | null; clientName: string | null; clientEmail: string | null }>();
     for (const site of sites) {
       for (const su of (site.stackUsers ?? [])) {
         const raw = String(su);
         const numericId = raw.replace(/^stack-user:/, "");
         const key = raw.startsWith("stack-user:") ? raw : `stack-user:${raw}`;
         if (!suserMap.has(key)) {
-          suserMap.set(key, { id: key, name: numericId, email: null, type: "stack-user", masterFtp: false, siteCount: 0, domains: [] });
+          suserMap.set(key, { id: key, name: numericId, email: null, type: "stack-user", masterFtp: false, siteCount: 0, domains: [], clientId: null, clientName: null, clientEmail: null });
         }
         const entry = suserMap.get(key)!;
         entry.siteCount++;
         if (site.domain && entry.domains.length < 3) entry.domains.push(site.domain);
       }
     }
+
+    // Cross-reference with our local usersTable to get real client names/emails.
+    // usersTable.stackUserId stores the 20i StackUser ID for provisioned clients.
+    const panelUsers = await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, stackUserId: usersTable.stackUserId })
+      .from(usersTable)
+      .where(isNotNull(usersTable.stackUserId));
+
+    for (const pu of panelUsers) {
+      const suId = pu.stackUserId as string | null;
+      if (!suId) continue;
+      // Normalize to stack-user:XXXX format for lookup
+      const key = suId.startsWith("stack-user:") ? suId : `stack-user:${suId}`;
+      const entry = suserMap.get(key);
+      if (entry) {
+        entry.clientId = String(pu.id);
+        entry.clientName = pu.name ?? null;
+        entry.clientEmail = pu.email ?? null;
+        // Use real client name/email as the display identity
+        if (pu.name) entry.name = pu.name;
+        if (pu.email) entry.email = pu.email;
+      }
+    }
+
+    // For StackUsers without a linked panel client, use first domain as display name
+    for (const entry of suserMap.values()) {
+      if (!entry.clientId && entry.domains.length > 0) {
+        entry.name = entry.domains[0];
+      }
+    }
+
     // Sort by siteCount desc so most-used users appear first
     const result = Array.from(suserMap.values()).sort((a, b) => b.siteCount - a.siteCount);
     return res.json(result);
@@ -623,7 +654,35 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (req: Auth
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
-    res.json(sites);
+
+    // Enrich each site with panel client info (name, email, clientId) by cross-referencing usersTable.stackUserId
+    const panelUsers = await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, stackUserId: usersTable.stackUserId })
+      .from(usersTable)
+      .where(isNotNull(usersTable.stackUserId));
+
+    // Build stackUserId → client lookup map
+    const suToClient = new Map<string, { clientId: string; clientName: string | null; clientEmail: string | null }>();
+    for (const pu of panelUsers) {
+      if (!pu.stackUserId) continue;
+      const key = pu.stackUserId.startsWith("stack-user:") ? pu.stackUserId : `stack-user:${pu.stackUserId}`;
+      suToClient.set(key, { clientId: String(pu.id), clientName: pu.name ?? null, clientEmail: pu.email ?? null });
+    }
+
+    // Enrich sites — attach client info from the first StackUser assigned to the site
+    const enriched = sites.map((site: any) => {
+      let clientId: string | null = null;
+      let clientName: string | null = null;
+      let clientEmail: string | null = null;
+      for (const su of (site.stackUsers ?? [])) {
+        const key = String(su).startsWith("stack-user:") ? String(su) : `stack-user:${su}`;
+        const client = suToClient.get(key);
+        if (client) { clientId = client.clientId; clientName = client.clientName; clientEmail = client.clientEmail; break; }
+      }
+      return { ...site, clientId, clientName, clientEmail };
+    });
+
+    res.json(enriched);
   } catch (e: any) {
     console.warn(`[20i] sites fetch failed: ${e.message}`);
     if (!handle20iError(e, res, [])) {
@@ -692,8 +751,23 @@ router.get("/admin/twenty-i/sites/:siteId/sso", authenticate, requireAdmin, asyn
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const url = await twentyiGetSSOUrl(server!.apiToken!, req.params.siteId);
-    res.json({ url });
+    const result = await twentyiGetSSOUrl(server!.apiToken!, req.params.siteId);
+
+    if (result.url) {
+      // SSO token obtained — send direct login URL
+      return res.json({ url: result.url, ssoAvailable: true });
+    }
+
+    // SSO not available — return helpful info for the frontend to show a login modal
+    return res.json({
+      url: null,
+      ssoAvailable: false,
+      stackcpUrl: "https://stackcp.com",
+      manageUrl: "https://my.20i.com/managed-vps/",
+      stackUsers: result.stackUsers ?? [],
+      domain: result.domain ?? null,
+      message: "SSO login is not available for this 20i account. Use StackCP with StackUser credentials.",
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

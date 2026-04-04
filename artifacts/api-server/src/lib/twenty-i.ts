@@ -918,25 +918,37 @@ export async function twentyiChangePackageType(
 }
 
 // ─── Single Sign-On (SSO) ─────────────────────────────────────────────────────
-// Endpoint: POST /reseller/*/web/{siteId}/userToken
+// Endpoint: POST /package/{siteId}/userToken
 // Body: {} (empty)
 // Returns: { token: string } or { loginToken: string } or { url: string }
+// NOTE: Returns 404 for some 20i account types — SSO is not universally available.
 
-export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<string | null> {
+export interface TwentyiSSOResult {
+  url: string | null;
+  ssoAvailable: boolean;
+  stackUsers?: string[];
+  domain?: string | null;
+}
+
+export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<TwentyiSSOResult> {
   try {
     const result = await requestWithRetry(apiKey, "POST", `/package/${siteId}/userToken`, {});
     const token = result?.token ?? result?.loginToken ?? result?.userToken ?? null;
-    if (token) return `https://my.20i.com/cp/login/${token}`;
-    if (result?.url) return result.url;
-    return `https://my.20i.com/cp/${siteId}`;
+    if (token) {
+      return { url: `https://stackcp.com/?loginToken=${token}`, ssoAvailable: true };
+    }
+    if (result?.url) return { url: result.url, ssoAvailable: true };
+    // Response received but no token — SSO not supported for this account type
+    return { url: null, ssoAvailable: false };
   } catch {
-    return `https://my.20i.com/cp/${siteId}`;
+    // 404 or other error — SSO not available
+    return { url: null, ssoAvailable: false };
   }
 }
 
-// Get a static StackCP URL without an SSO token -- always works regardless of auth.
-export function twentyiStackCPUrl(siteId: string): string {
-  return `https://my.20i.com/cp/${siteId}`;
+// Get a static StackCP URL without an SSO token (for use in admin links).
+export function twentyiStackCPUrl(): string {
+  return "https://stackcp.com";
 }
 
 // ─── Free SSL ────────────────────────────────────────────────────────────────

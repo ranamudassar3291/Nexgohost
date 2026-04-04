@@ -456,11 +456,17 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
                   <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{u.id}</td>
                     <td className="px-4 py-3 text-sm">
-                      {u.email
-                        ? <div><span className="font-medium">{u.name}</span><br/><span className="text-xs text-muted-foreground">{u.email}</span></div>
-                        : u.name && u.name !== u.id?.replace("stack-user:","")
-                          ? <span className="font-medium">{u.name}</span>
-                          : <span className="text-muted-foreground/40 italic text-xs">—</span>}
+                      {u.clientId
+                        ? <div>
+                            <a href={`/admin/clients/${u.clientId}`} className="font-medium text-primary hover:underline">{u.clientName || u.name}</a>
+                            {(u.clientEmail || u.email) && <span className="block text-xs text-muted-foreground">{u.clientEmail || u.email}</span>}
+                            <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 mt-0.5">Panel Client</span>
+                          </div>
+                        : u.email
+                          ? <div><span className="font-medium">{u.name}</span><br/><span className="text-xs text-muted-foreground">{u.email}</span></div>
+                          : u.name && u.name !== u.id?.replace("stack-user:","")
+                            ? <span className="font-medium text-muted-foreground">{u.name}</span>
+                            : <span className="text-muted-foreground/40 italic text-xs">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       {u.siteCount > 0
@@ -476,6 +482,18 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
                           <KeyRound size={12} />
                           Password
                         </PrimaryBtn>
+                        <a href="https://stackcp.com" target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-border bg-secondary/40 text-foreground hover:bg-secondary/70 transition-colors">
+                          <ExternalLink size={12} />
+                          StackCP
+                        </a>
+                        {u.clientId && (
+                          <a href={`/admin/clients/${u.clientId}`}
+                            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-colors">
+                            <Users size={12} />
+                            Client
+                          </a>
+                        )}
                         <button
                           className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-red-500/20 bg-red-500/5 text-red-500 hover:bg-red-500/10 transition-colors"
                           onClick={() => setConfirm({ userId: u.id, name: u.name || u.id })}
@@ -533,6 +551,7 @@ function SitesTab() {
   const [actioning, setActioning] = useState<string | null>(null);
   const [assignModal, setAssignModal] = useState<{ siteId: string; domain: string } | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
+  const [stackcpModal, setStackcpModal] = useState<{ domain: string; stackUsers: string[]; stackcpUrl: string; manageUrl: string } | null>(null);
 
   useEffect(() => { setPage(0); }, [search]);
 
@@ -577,13 +596,23 @@ function SitesTab() {
     }
   }
 
-  async function handleSSO(siteId: string) {
+  async function handleSSO(siteId: string, domain?: string, siteStackUsers?: string[]) {
     setActioning(siteId + "sso");
     try {
       const data = await apiFetch(`/api/admin/twenty-i/sites/${siteId}/sso`);
-      if (data.url) window.open(data.url, "_blank");
+      if (data.ssoAvailable && data.url) {
+        window.open(data.url, "_blank");
+      } else {
+        // SSO not available — show StackCP login info modal
+        setStackcpModal({
+          domain: domain || data.domain || siteId,
+          stackUsers: siteStackUsers || data.stackUsers || [],
+          stackcpUrl: data.stackcpUrl || "https://stackcp.com",
+          manageUrl: data.manageUrl || "https://my.20i.com/managed-vps/",
+        });
+      }
     } catch (e: any) {
-      toast({ title: "SSO Failed", description: e.message, variant: "destructive" });
+      toast({ title: "StackCP Failed", description: e.message, variant: "destructive" });
     } finally {
       setActioning(null);
     }
@@ -660,6 +689,49 @@ function SitesTab() {
         </div>
       )}
 
+      {stackcpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <ExternalLink size={16} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">StackCP Login</h3>
+                <p className="text-xs text-muted-foreground">{stackcpModal.domain}</p>
+              </div>
+            </div>
+            <div className="bg-secondary/30 rounded-xl p-3 mb-4 space-y-1.5">
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Login Details</p>
+              {stackcpModal.stackUsers.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-foreground">StackUser ID</span>
+                  <div className="flex items-center gap-1.5">
+                    <code className="text-xs font-mono bg-secondary px-2 py-0.5 rounded">{stackcpModal.stackUsers[0]}</code>
+                    <button className="text-xs text-primary hover:underline" onClick={() => { navigator.clipboard.writeText(stackcpModal.stackUsers[0]); }}>Copy</button>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Use the StackUser ID as the username and the StackCP password you set (or click Password to reset it).</p>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">Direct SSO login is not available for this 20i account. Open StackCP and log in manually with the credentials above.</p>
+            <div className="flex flex-col gap-2">
+              <a href={stackcpModal.stackcpUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">
+                <ExternalLink size={14} />
+                Open StackCP
+              </a>
+              <a href={stackcpModal.manageUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-secondary/60 transition-colors">
+                <Server size={14} />
+                Open Admin Panel (my.20i.com)
+              </a>
+              <button onClick={() => setStackcpModal(null)} className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -706,14 +778,19 @@ function SitesTab() {
                       <div>{s.packageTypeName || "—"}</div>
                       {s.names?.length > 1 && <div className="text-[10px] text-muted-foreground/60">{s.names.length} domains</div>}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs font-mono">
-                      {s.stackUsers?.length > 0
-                        ? s.stackUsers.map((su: string) => su.replace(/^stack-user:/, "")).join(", ")
-                        : <span className="text-muted-foreground/40">—</span>}
+                    <td className="px-4 py-3 text-xs">
+                      {s.clientId
+                        ? <div>
+                            <a href={`/admin/clients/${s.clientId}`} className="font-medium text-primary hover:underline">{s.clientName || "Client"}</a>
+                            {s.clientEmail && <span className="block text-muted-foreground">{s.clientEmail}</span>}
+                          </div>
+                        : s.stackUsers?.length > 0
+                          ? <span className="font-mono text-muted-foreground">{s.stackUsers.map((su: string) => su.replace(/^stack-user:/, "")).join(", ")}</span>
+                          : <span className="text-muted-foreground/40">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5 justify-end flex-wrap">
-                        <PrimaryBtn small onClick={() => handleSSO(s.id)} disabled={actioning === s.id + "sso"}>
+                        <PrimaryBtn small onClick={() => handleSSO(s.id, s.domain, s.stackUsers)} disabled={actioning === s.id + "sso"}>
                           {actioning === s.id + "sso" ? <Spinner size={12} /> : <ExternalLink size={12} />}
                           StackCP
                         </PrimaryBtn>
