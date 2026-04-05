@@ -1082,7 +1082,7 @@ function ProvisionTab() {
             disabled={isSubmitting}
           >
             <option value="">— Default package —</option>
-            {(packages as any[]).map((pkg: any) => (
+            {(Array.isArray(packages) ? packages : []).map((pkg: any) => (
               <option key={pkg.id} value={pkg.id}>{pkg.label ?? pkg.name ?? pkg.id}</option>
             ))}
           </SelectField>
@@ -1988,13 +1988,18 @@ echo $response;
               <li>Restart the API server — all 20i calls will now route through noehost.com</li>
               <li>Click <strong>Run Diagnostic</strong> to confirm the proxy is working</li>
             </ol>
-            <div className="flex items-center gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2.5">
-              <AlertTriangle size={12} className="text-amber-500 shrink-0" />
-              <p className="text-[11px] text-amber-700">
-                Make sure <span className="font-mono font-semibold">noehost.com</span> is in your 20i whitelist at{" "}
-                <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="underline font-semibold">my.20i.com → Reseller API → IP Whitelist</a>.
-                Once set, the IP never needs to be updated again.
-              </p>
+            <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-amber-700 space-y-1">
+                <p>
+                  Make sure <span className="font-mono font-semibold bg-amber-100 px-1 rounded">noehost.com</span> (domain only — no https://, no path) is added in your 20i whitelist at{" "}
+                  <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="underline font-semibold">my.20i.com → Reseller API → IP Whitelist</a>.
+                </p>
+                <p className="text-amber-600">
+                  ⚠ Do <strong>not</strong> add the full URL — add only:{" "}
+                  <span className="font-mono font-bold bg-amber-100 px-1 rounded">noehost.com</span>
+                </p>
+              </div>
             </div>
           </div>
         </div>

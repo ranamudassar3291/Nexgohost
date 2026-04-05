@@ -100,11 +100,11 @@ function handle20iError(e: any, res: any, emptyFallback?: any): boolean {
   const msg: string = e?.message ?? String(e);
   const code: string = e?.code ?? "";
 
-  // IP not whitelisted — 20i returns 404 on reseller/* when IP is not in the whitelist
+  // IP not whitelisted — 20i blocks the request when the calling IP is not in the whitelist
   if (code === "IP_NOT_WHITELISTED" || msg.includes("IP_NOT_WHITELISTED") || msg.includes("ip_not_whitelisted")) {
     res.status(200).json({
-      error: "ip_not_whitelisted",
-      message: "Your server's outbound IP is not whitelisted at 20i. Go to my.20i.com → Reseller API → IP Whitelist and add your IP, then refresh.",
+      error: "access_blocked",
+      message: "20i API access blocked — the server's outbound IP is not in the 20i whitelist. Set up the domain proxy (Admin → 20i Management → Domain Proxy Setup) to route calls through noehost.com permanently.",
       ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
     });
     return true;
@@ -118,11 +118,11 @@ function handle20iError(e: any, res: any, emptyFallback?: any): boolean {
     });
     return true;
   }
-  // IP blocked (403 from 20i)
+  // IP blocked (403 from 20i) — server IP not in the whitelist
   if (msg.includes("403") || msg.includes("Forbidden") || msg.includes("IpMatch")) {
     res.status(200).json({
-      error: "ip_not_whitelisted",
-      message: "Your server's outbound IP is not whitelisted at 20i (403 Forbidden). Go to my.20i.com → Reseller API → IP Whitelist and add your IP.",
+      error: "access_blocked",
+      message: "20i API returned 403 — the server's IP is not whitelisted. Use Domain Proxy Setup to route all calls through noehost.com (Admin → 20i Management → Domain Proxy Setup), then set TWENTYI_BASE_URL in Replit Secrets and restart.",
       ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
     });
     return true;
