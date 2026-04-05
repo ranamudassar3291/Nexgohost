@@ -23,7 +23,10 @@ import { AsyncLocalStorage } from "async_hooks";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BASE_URL = "https://api.20i.com";
+// If TWENTYI_BASE_URL is set (e.g. a reverse proxy on noehost.com), all API
+// calls go through that URL instead of hitting api.20i.com directly.
+// This avoids the need to whitelist Replit's dynamic outbound IP in 20i.
+const BASE_URL = (process.env.TWENTYI_BASE_URL ?? "https://api.20i.com").replace(/\/$/, "");
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_RETRIES = 3;
 

@@ -7,7 +7,7 @@ import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
 import { autoFixSafepayKeys } from "./routes/safepay.js";
 import { getSystemApiKey } from "./lib/systemApiKey.js";
-import { getOutboundIp, getProxyConfig, twentyiAutoWhitelist, twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey } from "./lib/twenty-i.js";
+import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey } from "./lib/twenty-i.js";
 import { db } from "@workspace/db";
 import { serversTable } from "@workspace/db/schema";
 import { and, eq, desc } from "drizzle-orm";
@@ -29,53 +29,27 @@ if (Number.isNaN(port) || port <= 0) {
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
 
-  // Detect outbound IP and attempt auto-whitelist in 20i on every startup
-  getOutboundIp().then(async (ip) => {
-    const proxy = getProxyConfig();
-    if (proxy.enabled) {
-      console.log(`[20i] Outbound IP (via proxy ${proxy.url}): ${ip}`);
-    } else {
-      console.log(`[20i] Outbound IP (direct — no proxy): ${ip}  ← whitelist THIS in 20i, or set TWENTYI_PROXY for a static IP`);
-    }
-    // Try to auto-add this IP to the 20i whitelist
+  // Detect the correct 20i key format on startup and cache it for the session.
+  // All API calls then use the right key portion without re-detecting each time.
+  (async () => {
     try {
       const [server] = await db.select().from(serversTable)
         .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
         .orderBy(desc(serversTable.updatedAt)).limit(1);
       if (server?.apiToken) {
-        // Detect the correct key format (before_plus / after_plus / full) and cache it.
-        // This runs before any reseller API calls so request() uses the right key portion.
         const detected = await twentyiFindWorkingKeyFormat(server.apiToken);
         if (detected.status !== 0) {
           const cleanKey = sanitiseKey(server.apiToken);
           setCachedKeyFormat(cleanKey, detected.format);
-          console.log(`[20i] Startup: key format detected as "${detected.format}" (HTTP ${detected.status}) — cached for this session`);
+          console.log(`[20i] Key format: "${detected.format}" (HTTP ${detected.status}) — cached for session`);
         } else {
-          console.warn(`[20i] Startup: all key formats rejected (401) — check key at Admin → Servers`);
-        }
-
-        const wl = await twentyiAutoWhitelist(server.apiToken, ip);
-        if (wl.added) {
-          console.log(`[20i] Auto-whitelist: ✓ ${ip} added successfully`);
-        } else if (wl.alreadyPresent || wl.reason === "already_present") {
-          console.log(`[20i] Auto-whitelist: ${ip} is already in the 20i whitelist — no action needed`);
-        } else if (wl.reason === "endpoint_unavailable") {
-          console.warn(`[20i] Auto-whitelist: the /reseller/*/apiWhitelist endpoint is not available for this account.`);
-          console.warn(`[20i] Add IP ${ip} manually at my.20i.com → Reseller API → IP Whitelist (one-time step).`);
-        } else if (wl.reason === "ip_blocked") {
-          console.warn(`[20i] Auto-whitelist: IP ${ip} must be added manually at my.20i.com → Reseller API → IP Whitelist`);
-        } else if (wl.reason === "auth_failed") {
-          console.warn(`[20i] Auto-whitelist: API key authentication failed — cannot auto-add IP. Check key at Admin → Servers.`);
-        } else if (wl.reason === "error") {
-          console.warn(`[20i] Auto-whitelist: unexpected error — will retry on next startup`);
+          console.warn(`[20i] All key formats rejected (401) — check key at Admin → Servers`);
         }
       }
     } catch (e: any) {
-      console.warn(`[20i] Auto-whitelist startup: ${e.message}`);
+      console.warn(`[20i] Key format detection failed: ${e.message}`);
     }
-  }).catch(() => {
-    console.warn("[20i] Could not detect outbound IP at startup");
-  });
+  })();
 
   // Auto-refresh exchange rates on startup and every hour
   const runRefresh = async () => {
