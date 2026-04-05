@@ -520,10 +520,25 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
 
     // Derive from cached site list — extract every unique stack-user ID that is
     // assigned to at least one hosting package via the stackUsers field on GET /package.
-    const sites = await getCachedSites(server);
-    const suserMap = new Map<string, { id: string; name: string; email: string | null; type: string; masterFtp: boolean; siteCount: number; domains: string[]; clientId: string | null; clientName: string | null; clientEmail: string | null }>();
-    for (const site of sites) {
-      for (const su of (site.stackUsers ?? [])) {
+    // Wrap in its own try/catch so an IP-block or API error is properly classified.
+    let sites: Awaited<ReturnType<typeof twentyiListSites>> = [];
+    try {
+      sites = await getCachedSites(server);
+    } catch (siteErr: any) {
+      console.warn(`[20i] stack-users: getCachedSites failed (${siteErr.message}) — falling back to empty site list`);
+      // If IP is blocked surface the whitelist error; otherwise continue with empty list
+      if (handle20iError(siteErr, res, [])) return;
+      sites = [];
+    }
+
+    const suserMap = new Map<string, {
+      id: string; name: string; email: string | null; type: string;
+      masterFtp: boolean; siteCount: number; domains: string[];
+      clientId: string | null; clientName: string | null; clientEmail: string | null;
+    }>();
+
+    for (const site of (Array.isArray(sites) ? sites : [])) {
+      for (const su of (Array.isArray(site?.stackUsers) ? site.stackUsers : [])) {
         const raw = String(su);
         const numericId = raw.replace(/^stack-user:/, "");
         const key = raw.startsWith("stack-user:") ? raw : `stack-user:${raw}`;
@@ -537,26 +552,28 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
     }
 
     // Cross-reference with our local usersTable to get real client names/emails.
-    // usersTable.stackUserId stores the 20i StackUser ID for provisioned clients.
-    const panelUsers = await db
-      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, stackUserId: usersTable.stackUserId })
-      .from(usersTable)
-      .where(isNotNull(usersTable.stackUserId));
+    // Wrap in try/catch — a missing column or DB failure must not crash the route.
+    try {
+      const panelUsers = await db
+        .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, stackUserId: usersTable.stackUserId })
+        .from(usersTable)
+        .where(isNotNull(usersTable.stackUserId));
 
-    for (const pu of panelUsers) {
-      const suId = pu.stackUserId as string | null;
-      if (!suId) continue;
-      // Normalize to stack-user:XXXX format for lookup
-      const key = suId.startsWith("stack-user:") ? suId : `stack-user:${suId}`;
-      const entry = suserMap.get(key);
-      if (entry) {
-        entry.clientId = String(pu.id);
-        entry.clientName = pu.name ?? null;
-        entry.clientEmail = pu.email ?? null;
-        // Use real client name/email as the display identity
-        if (pu.name) entry.name = pu.name;
-        if (pu.email) entry.email = pu.email;
+      for (const pu of panelUsers) {
+        const suId = pu.stackUserId as string | null;
+        if (!suId) continue;
+        const key = suId.startsWith("stack-user:") ? suId : `stack-user:${suId}`;
+        const entry = suserMap.get(key);
+        if (entry) {
+          entry.clientId = String(pu.id);
+          entry.clientName = pu.name ?? null;
+          entry.clientEmail = pu.email ?? null;
+          if (pu.name) entry.name = pu.name;
+          if (pu.email) entry.email = pu.email;
+        }
       }
+    } catch (dbErr: any) {
+      console.warn(`[20i] stack-users: DB enrichment failed (${dbErr.message}) — skipping client cross-reference`);
     }
 
     // For StackUsers without a linked panel client, use first domain as display name
@@ -566,7 +583,6 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
       }
     }
 
-    // Sort by siteCount desc so most-used users appear first
     const result = Array.from(suserMap.values()).sort((a, b) => b.siteCount - a.siteCount);
     return res.json(result);
   } catch (e: any) {

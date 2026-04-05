@@ -223,6 +223,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const [pwValue, setPwValue] = useState("");
   const [pwShow, setPwShow] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+  const [stackcpInfoModal, setStackcpInfoModal] = useState<{ userId: string; name: string } | null>(null);
 
   const { data: usersRaw, isLoading, refetch } = useQuery({
     queryKey: ["20i-stack-users"],
@@ -330,6 +331,56 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
           onCancel={() => setConfirm(null)}
           loading={deleting}
         />
+      )}
+
+      {stackcpInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <ExternalLink size={16} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Open StackCP</h3>
+                <p className="text-xs text-muted-foreground">{stackcpInfoModal.name}</p>
+              </div>
+            </div>
+            <div className="bg-secondary/30 rounded-xl p-3 mb-4 space-y-2">
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Login Credentials</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground">Username</span>
+                <div className="flex items-center gap-1.5">
+                  <code className="text-xs font-mono bg-secondary px-2 py-0.5 rounded">
+                    {stackcpInfoModal.userId.replace(/^stack-user:/, "")}
+                  </code>
+                  <button
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => navigator.clipboard.writeText(stackcpInfoModal.userId.replace(/^stack-user:/, ""))}
+                  >Copy</button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Password: use the password set via the Password button. If not set, click Close and use the Password button first.</p>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Direct SSO is not available for this 20i account. Log in manually at StackCP using the numeric ID above as your username.
+            </p>
+            <div className="flex flex-col gap-2">
+              <a
+                href="https://stackcp.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                <ExternalLink size={14} />
+                Open StackCP
+              </a>
+              <button
+                onClick={() => setStackcpInfoModal(null)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
+              >Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pwModal && (
@@ -482,11 +533,13 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
                           <KeyRound size={12} />
                           Password
                         </PrimaryBtn>
-                        <a href="https://stackcp.com" target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-border bg-secondary/40 text-foreground hover:bg-secondary/70 transition-colors">
+                        <button
+                          onClick={() => setStackcpInfoModal({ userId: u.id, name: u.name || u.id })}
+                          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-border bg-secondary/40 text-foreground hover:bg-secondary/70 transition-colors"
+                        >
                           <ExternalLink size={12} />
                           StackCP
-                        </a>
+                        </button>
                         {u.clientId && (
                           <a href={`/admin/clients/${u.clientId}`}
                             className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-colors">
@@ -566,10 +619,11 @@ function SitesTab() {
       ? ((sitesRaw as any).error as string)
       : null;
   const sites: any[] = Array.isArray(sitesRaw) ? sitesRaw : [];
-  const { data: stackUsers = [] } = useQuery({
+  const { data: stackUsersRaw2 } = useQuery({
     queryKey: ["20i-stack-users"],
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
   });
+  const stackUsers: any[] = Array.isArray(stackUsersRaw2) ? stackUsersRaw2 : [];
 
   const filtered = (sites as any[]).filter((s: any) =>
     !search ||
@@ -874,16 +928,17 @@ function StackUserCombobox({ stackUsers, value, onChange, disabled }: {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
 
+  const safeUsers = Array.isArray(stackUsers) ? stackUsers : [];
   const MAX_OPTS = 50;
   const q = search.toLowerCase();
   const filtered = q
-    ? stackUsers.filter(u =>
+    ? safeUsers.filter(u =>
         String(u.id).toLowerCase().includes(q) ||
         (u.domains ?? []).some((d: string) => d.toLowerCase().includes(q))
       ).slice(0, MAX_OPTS)
-    : stackUsers.slice(0, MAX_OPTS);
+    : safeUsers.slice(0, MAX_OPTS);
 
-  const selectedUser = stackUsers.find(u => u.id === value);
+  const selectedUser = safeUsers.find(u => u.id === value);
   const displayLabel = selectedUser
     ? `${selectedUser.id}${selectedUser.domains?.length ? ` (${selectedUser.domains[0]})` : ""}`
     : "";
@@ -929,9 +984,9 @@ function StackUserCombobox({ stackUsers, value, onChange, disabled }: {
             {filtered.length === 0 && (
               <li className="px-3 py-2 text-muted-foreground/50 italic text-xs">No match found</li>
             )}
-            {!search && stackUsers.length > MAX_OPTS && (
+            {!search && safeUsers.length > MAX_OPTS && (
               <li className="px-3 py-2 text-muted-foreground/40 text-xs border-t border-border">
-                +{stackUsers.length - MAX_OPTS} more — type to search
+                +{safeUsers.length - MAX_OPTS} more — type to search
               </li>
             )}
           </ul>
@@ -959,10 +1014,11 @@ function ProvisionTab() {
     queryKey: ["20i-clients"],
     queryFn: () => apiFetch("/api/admin/twenty-i/clients"),
   });
-  const { data: stackUsers = [] } = useQuery({
+  const { data: stackUsersRaw } = useQuery({
     queryKey: ["20i-stack-users"],
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
   });
+  const stackUsers: any[] = Array.isArray(stackUsersRaw) ? stackUsersRaw : [];
 
   function clearTimers() {
     stepTimersRef.current.forEach(t => clearTimeout(t));
