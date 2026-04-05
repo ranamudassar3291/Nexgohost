@@ -423,7 +423,7 @@ async function requestWithRetry<T = any>(
     } catch (err: any) {
       lastErr = err;
       const msg: string = err.message ?? "";
-      if (msg.includes("401") || msg.includes("403") || msg.includes("404")) throw err;
+      if (msg.includes("401") || msg.includes("403") || msg.includes("404") || msg.includes("405")) throw err;
       if (attempt < MAX_RETRIES) {
         const delay = attempt * 1_200;
         console.warn(`[20i] attempt ${attempt} failed (${msg.substring(0, 80)}), retrying in ${delay}ms`);
@@ -914,9 +914,9 @@ export async function twentyiDelete(apiKey: string, siteId: string): Promise<voi
 }
 
 // ─── File Management ──────────────────────────────────────────────────────────
-// Endpoint: PUT /package/{id}/web/vhostFiles/{base64path}
+// Endpoint: POST /package/{id}/web/vhostFiles
 // Uploads (creates or overwrites) a file in the package's web root.
-// {base64path} = base64-encoded relative path, e.g. "public_html/proxy/index.php"
+// Body: { name: "relative/path/to/file", content: "file_content_as_string" }
 
 export async function twentyiUploadFile(
   apiKey: string,
@@ -924,8 +924,10 @@ export async function twentyiUploadFile(
   relativePath: string,
   content: string,
 ): Promise<void> {
-  const encoded = Buffer.from(relativePath).toString("base64url");
-  await requestWithRetry(apiKey, "PUT", `/package/${packageId}/web/vhostFiles/${encoded}`, {
+  // 20i file write: POST /package/{id}/web/vhostFiles
+  // Body: { name: "relative/path/to/file", content: "file_content_as_string" }
+  await requestWithRetry(apiKey, "POST", `/package/${packageId}/web/vhostFiles`, {
+    name: relativePath,
     content,
   });
 }
