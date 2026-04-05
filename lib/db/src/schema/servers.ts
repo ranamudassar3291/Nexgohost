@@ -16,6 +16,7 @@ export const serversTable = pgTable("servers", {
   keyType: text("key_type").default("general"),
   apiPort: integer("api_port").default(2087),
   proxyUrl: text("proxy_url"),
+  twentyiBaseUrl: text("twentyi_base_url"),
   ns1: text("ns1"),
   ns2: text("ns2"),
   maxAccounts: integer("max_accounts").default(500),

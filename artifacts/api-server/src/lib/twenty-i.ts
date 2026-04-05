@@ -35,6 +35,7 @@ const MAX_RETRIES = 3;
 interface RequestCtx {
   proxyUrl?: string;
   keyType?: string;
+  baseUrl?: string;
 }
 
 const _ctxStore = new AsyncLocalStorage<RequestCtx>();
@@ -62,6 +63,13 @@ function resolveProxyUrl(): string | undefined {
 
 function resolveKeyType(): string {
   return _ctxStore.getStore()?.keyType ?? "general";
+}
+
+// Resolve the effective base URL: per-request context overrides the module default.
+// Allows routing all 20i API calls through a reverse proxy (e.g. noehost.com/20i-proxy)
+// without changing the module-level BASE_URL.
+function resolveBaseUrl(): string {
+  return _ctxStore.getStore()?.baseUrl?.replace(/\/$/, "") ?? BASE_URL;
 }
 
 function buildAxiosProxy(raw: string): AxiosRequestConfig["proxy"] | undefined {
@@ -285,7 +293,7 @@ async function request<T = any>(
   // Step 4: Build header — exactly ONE "Bearer " prefix
   const authorizationHeader = `Bearer ${base64Token}`;
 
-  const url = `${BASE_URL}${path}`;
+  const url = `${resolveBaseUrl()}${path}`;
   const proxyUrl = resolveProxyUrl();
 
   const keyDesc = path.startsWith("/reseller/")
@@ -902,6 +910,46 @@ export async function twentyiUnsuspend(apiKey: string, siteId: string): Promise<
 export async function twentyiDelete(apiKey: string, siteId: string): Promise<void> {
   await requestWithRetry(apiKey, "POST", "/reseller/*/deleteWeb", {
     "delete-id": [siteId],
+  });
+}
+
+// ─── File Management ──────────────────────────────────────────────────────────
+// Endpoint: PUT /package/{id}/web/vhostFiles/{base64path}
+// Uploads (creates or overwrites) a file in the package's web root.
+// {base64path} = base64-encoded relative path, e.g. "public_html/proxy/index.php"
+
+export async function twentyiUploadFile(
+  apiKey: string,
+  packageId: string,
+  relativePath: string,
+  content: string,
+): Promise<void> {
+  const encoded = Buffer.from(relativePath).toString("base64url");
+  await requestWithRetry(apiKey, "PUT", `/package/${packageId}/web/vhostFiles/${encoded}`, {
+    content,
+  });
+}
+
+// List files in a package directory.
+// Endpoint: GET /package/{id}/web/vhostFiles  (returns tree of all files)
+export async function twentyiListFiles(
+  apiKey: string,
+  packageId: string,
+): Promise<any[]> {
+  return requestWithRetry<any[]>(apiKey, "GET", `/package/${packageId}/web/vhostFiles`);
+}
+
+// Find the 20i package whose domains include the given domain name.
+// Searches the full domain list including aliases.
+export async function twentyiFindPackageByDomain(
+  apiKey: string,
+  domain: string,
+): Promise<TwentyISite | undefined> {
+  const sites = await twentyiListSites(apiKey);
+  const target = domain.toLowerCase().replace(/^www\./, "");
+  return sites.find(s => {
+    const allDomains = [s.domain, ...(s.names ?? [])].map(d => d.toLowerCase().replace(/^www\./, ""));
+    return allDomains.includes(target);
   });
 }
 

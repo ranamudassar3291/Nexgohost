@@ -1749,6 +1749,48 @@ export default function TwentyIAdmin() {
 
   // Proxy setup panel state
   const [showProxySetup, setShowProxySetup] = useState(false);
+  const [deployDomain, setDeployDomain] = useState("noehost.com");
+  const [deployPath, setDeployPath] = useState("20i-proxy");
+  const [deploying, setDeploying] = useState(false);
+  const [deployResult, setDeployResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const { data: proxyCfg, refetch: refetchProxyCfg } = useQuery({
+    queryKey: ["20i-proxy-config", selectedServerId],
+    queryFn: () => apiFetch("/api/admin/twenty-i/proxy-config"),
+    refetchInterval: showProxySetup ? 10000 : false,
+    enabled: showProxySetup,
+  });
+
+  async function doDeployProxy() {
+    setDeploying(true);
+    setDeployResult(null);
+    try {
+      const result = await apiFetch("/api/admin/twenty-i/proxy-deploy", {
+        method: "POST",
+        body: JSON.stringify({ domain: deployDomain, path: deployPath }),
+      });
+      setDeployResult({ ok: true, message: result.message ?? "Proxy deployed successfully!" });
+      refetchProxyCfg();
+      qc.invalidateQueries({ queryKey: ["20i-server"] });
+      toast({ title: "Proxy deployed!", description: `All 20i API calls now route through ${result.proxyBaseUrl}` });
+    } catch (e: any) {
+      setDeployResult({ ok: false, message: e.message });
+    } finally {
+      setDeploying(false);
+    }
+  }
+
+  async function doClearProxy() {
+    try {
+      await apiFetch("/api/admin/twenty-i/proxy-config", { method: "DELETE" });
+      setDeployResult(null);
+      refetchProxyCfg();
+      qc.invalidateQueries({ queryKey: ["20i-server"] });
+      toast({ title: "Proxy cleared", description: "API calls now go directly to api.20i.com" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  }
 
   const { data: server } = useQuery({
     queryKey: ["20i-server"],
@@ -1874,79 +1916,130 @@ export default function TwentyIAdmin() {
       {/* Domain Proxy Setup Panel */}
       {showProxySetup && (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 overflow-hidden">
+          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
             <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
               <Globe size={14} className="text-primary" />
-              Domain Proxy Setup — route 20i API through noehost.com
+              Domain Proxy Setup
             </div>
             <button onClick={() => setShowProxySetup(false)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
           </div>
 
-          <div className="px-4 py-3 border-b border-primary/10 bg-emerald-500/5">
-            <p className="text-xs text-emerald-700 leading-relaxed">
-              <strong>How it works:</strong> Instead of NoePanel calling 20i directly (with a changing Replit IP),
-              all API calls go through <span className="font-mono font-semibold">noehost.com</span> — which is already permanently
-              whitelisted in 20i. No more IP management needed.
+          {/* Current status */}
+          <div className={`px-4 py-3 border-b border-primary/10 flex items-center gap-3 ${proxyCfg?.twentyiBaseUrl ? "bg-emerald-500/5" : "bg-amber-500/5"}`}>
+            <span className={`w-2 h-2 rounded-full shrink-0 ${proxyCfg?.twentyiBaseUrl ? "bg-emerald-500" : "bg-amber-400"}`} />
+            <div className="flex-1 min-w-0">
+              {proxyCfg?.twentyiBaseUrl ? (
+                <p className="text-xs text-emerald-700 leading-relaxed">
+                  <strong>Proxy active</strong> — all 20i API calls are routing through{" "}
+                  <span className="font-mono font-semibold">{proxyCfg.twentyiBaseUrl}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  <strong>No proxy configured</strong> — 20i API calls go directly from Replit (dynamic IP).
+                  Deploy a proxy to noehost.com to fix IP blocking permanently.
+                </p>
+              )}
+            </div>
+            {proxyCfg?.twentyiBaseUrl && (
+              <button
+                onClick={doClearProxy}
+                className="text-[11px] px-2 py-1 rounded-lg border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium shrink-0"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Outbound IP info */}
+          <div className="px-4 py-3 border-b border-primary/10">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Current Outbound IP</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-secondary/60 border border-border/60 rounded-lg px-3 py-2 text-foreground">
+                {proxyCfg?.outboundIp ?? "Loading…"}
+              </code>
+              {proxyCfg?.outboundIp && (
+                <button
+                  onClick={() => { navigator.clipboard.writeText(proxyCfg.outboundIp); toast({ title: "IP copied" }); }}
+                  className="text-[11px] px-2 py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                >
+                  Copy
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+              To auto-deploy the proxy, add this IP temporarily to your{" "}
+              <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="underline text-primary">20i whitelist</a>.
+              You can remove it once the proxy is deployed.
             </p>
           </div>
 
-          {/* Step 1 */}
+          {/* Auto-deploy section */}
           <div className="px-4 py-4 border-b border-primary/10">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Step 1 — Upload proxy file to noehost.com</p>
-            <ol className="text-xs text-foreground/80 space-y-1.5 list-decimal ml-4 mb-3">
-              <li>Download the two proxy files below</li>
-              <li>Log in to your noehost.com cPanel / File Manager</li>
-              <li>Create a folder: <span className="font-mono bg-secondary/60 px-1 rounded">public_html/20i-proxy/</span></li>
-              <li>Upload <span className="font-mono bg-secondary/60 px-1 rounded">index.php</span> and <span className="font-mono bg-secondary/60 px-1 rounded">.htaccess</span> into that folder</li>
-              <li>Test it: open <span className="font-mono text-primary">https://noehost.com/20i-proxy/</span> — you should see a JSON response from 20i</li>
-            </ol>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-3">Auto-Deploy Proxy</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+                <label className="text-[10px] text-muted-foreground font-medium">Target Domain</label>
+                <input
+                  value={deployDomain}
+                  onChange={e => setDeployDomain(e.target.value)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 font-mono"
+                  placeholder="noehost.com"
+                />
+              </div>
+              <div className="flex flex-col gap-1 flex-1 min-w-[120px]">
+                <label className="text-[10px] text-muted-foreground font-medium">Proxy Path</label>
+                <input
+                  value={deployPath}
+                  onChange={e => setDeployPath(e.target.value)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 font-mono"
+                  placeholder="20i-proxy"
+                />
+              </div>
+            </div>
+            <div className="text-[11px] text-muted-foreground bg-secondary/40 rounded-lg px-3 py-2 mb-3 font-mono">
+              Will deploy to: <span className="text-foreground font-semibold">https://{deployDomain}/{deployPath}/</span>
+            </div>
+            <button
+              onClick={doDeployProxy}
+              disabled={deploying}
+              className="flex items-center gap-2 text-xs px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-60 shadow-sm"
+            >
+              {deploying ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+              {deploying ? "Deploying…" : "Auto-Deploy Now"}
+            </button>
+
+            {deployResult && (
+              <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 border text-xs ${deployResult.ok ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-700" : "bg-red-500/5 border-red-500/20 text-red-600"}`}>
+                {deployResult.ok ? <CheckCircle size={13} className="shrink-0 mt-0.5" /> : <XCircle size={13} className="shrink-0 mt-0.5" />}
+                <span>{deployResult.message}</span>
+              </div>
+            )}
+
+            <div className="mt-3 flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-amber-700 space-y-0.5">
+                <p>
+                  Make sure <span className="font-mono font-semibold bg-amber-100 px-1 rounded">noehost.com</span> (domain only — no https://) is in your{" "}
+                  <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="underline font-semibold">20i IP Whitelist</a>.
+                </p>
+                <p>If the current IP above is NOT whitelisted, add it temporarily, deploy, then remove it.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Manual fallback */}
+          <div className="px-4 py-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Manual Upload (fallback)</p>
+            <p className="text-[11px] text-muted-foreground mb-2">If auto-deploy fails, download these files and upload them to{" "}
+              <span className="font-mono">public_html/{deployPath}/</span> via your cPanel File Manager.
+            </p>
             <div className="flex gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => {
-                  const blob = new Blob([`<?php
-/**
- * NoePanel 20i API Reverse Proxy
- * Upload to: noehost.com/public_html/20i-proxy/index.php
- */
-$request_uri = $_SERVER['REQUEST_URI'] ?? '/';
-$uri_parts = explode('?', $request_uri, 2);
-$path = $uri_parts[0];
-$query = isset($uri_parts[1]) ? '?' . $uri_parts[1] : '';
-$script_dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-if ($script_dir !== '' && strpos($path, $script_dir) === 0) {
-    $path = substr($path, strlen($script_dir));
-}
-if (empty($path)) $path = '/';
-$target = 'https://api.20i.com' . $path . $query;
-$forward_headers = [];
-foreach (getallheaders() as $name => $value) {
-    $lower = strtolower($name);
-    if ($lower === 'authorization') $forward_headers[] = "Authorization: $value";
-    elseif ($lower === 'content-type') $forward_headers[] = "Content-Type: $value";
-    elseif ($lower === 'accept') $forward_headers[] = "Accept: $value";
-}
-if (!array_filter($forward_headers, fn($h) => stripos($h, 'Content-Type') === 0))
-    $forward_headers[] = 'Content-Type: application/json';
-$method = $_SERVER['REQUEST_METHOD'];
-$body = file_get_contents('php://input');
-if ($method === 'OPTIONS') { http_response_code(204); header('Access-Control-Allow-Origin: *'); header('Access-Control-Allow-Headers: Authorization, Content-Type, Accept'); header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS'); exit; }
-$ch = curl_init($target);
-curl_setopt_array($ch, [ CURLOPT_RETURNTRANSFER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $forward_headers, CURLOPT_FOLLOWLOCATION => false, CURLOPT_TIMEOUT => 30, CURLOPT_SSL_VERIFYPEER => true ]);
-if (!empty($body)) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-$curl_error = curl_error($ch);
-curl_close($ch);
-if ($response === false) { http_response_code(502); header('Content-Type: application/json'); echo json_encode(['error' => 'Proxy connection failed', 'detail' => $curl_error]); exit; }
-http_response_code($http_code);
-header('Content-Type: ' . ($content_type ?: 'application/json'));
-header('Access-Control-Allow-Origin: *');
-echo $response;
-`], { type: "application/octet-stream" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a"); a.href = url; a.download = "index.php"; a.click(); URL.revokeObjectURL(url);
+                  const c = `<?php\n$u=$_SERVER['REQUEST_URI']??'/';$ps=explode('?',$u,2);$p=$ps[0];$q=isset($ps[1])?'?'.$ps[1]:'';\n$d=rtrim(dirname($_SERVER['SCRIPT_NAME']),'/');if($d!==''&&strpos($p,$d)===0)$p=substr($p,strlen($d));\nif($p===''||$p===false)$p='/';\n$t='https://api.20i.com'.$p.$q;$h=[];\nforeach(getallheaders()as$n=>$v){$l=strtolower($n);if($l==='authorization')$h[]="Authorization: $v";elseif($l==='content-type')$h[]="Content-Type: $v";elseif($l==='accept')$h[]="Accept: $v";}\nif(!array_filter($h,fn($x)=>stripos($x,'Content-Type:')===0))$h[]='Content-Type: application/json';\n$m=$_SERVER['REQUEST_METHOD'];\nif($m==='OPTIONS'){http_response_code(204);header('Access-Control-Allow-Origin: *');header('Access-Control-Allow-Headers: Authorization, Content-Type, Accept');header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');exit;}\n$b=file_get_contents('php://input');$ch=curl_init($t);\ncurl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_CUSTOMREQUEST=>$m,CURLOPT_HTTPHEADER=>$h,CURLOPT_TIMEOUT=>30,CURLOPT_SSL_VERIFYPEER=>true]);\nif($b)curl_setopt($ch,CURLOPT_POSTFIELDS,$b);\n$r=curl_exec($ch);$code=curl_getinfo($ch,CURLINFO_HTTP_CODE);$ct=curl_getinfo($ch,CURLINFO_CONTENT_TYPE);$e=curl_error($ch);curl_close($ch);\nif($r===false){http_response_code(502);echo json_encode(['error'=>'Proxy failed','detail'=>$e]);exit;}\nhttp_response_code($code);header('Content-Type: '.($ct?:'application/json'));header('Access-Control-Allow-Origin: *');echo $r;`;
+                  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([c], { type: "application/octet-stream" })); a.download = "index.php"; a.click();
                 }}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/15 text-primary font-semibold transition-colors"
               >
@@ -1956,50 +2049,13 @@ echo $response;
               <button
                 type="button"
                 onClick={() => {
-                  const blob = new Blob(["RewriteEngine On\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteRule ^(.*)$ index.php [L,QSA]\n"], { type: "application/octet-stream" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a"); a.href = url; a.download = ".htaccess"; a.click(); URL.revokeObjectURL(url);
+                  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["RewriteEngine On\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteRule ^(.*)$ index.php [QSA,L]\n"], { type: "application/octet-stream" })); a.download = ".htaccess"; a.click();
                 }}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground font-medium transition-colors"
               >
                 <FileText size={11} />
                 Download .htaccess
               </button>
-            </div>
-          </div>
-
-          {/* Step 2 */}
-          <div className="px-4 py-4">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Step 2 — Set environment variable in NoePanel (Replit)</p>
-            <ol className="text-xs text-foreground/80 space-y-1.5 list-decimal ml-4 mb-3">
-              <li>Open your Replit project → <strong>Secrets</strong> (lock icon in left sidebar)</li>
-              <li>Add a new secret:
-                <div className="mt-1.5 flex items-center gap-2 bg-secondary/60 border border-border/60 rounded-lg px-3 py-2 font-mono">
-                  <span className="text-primary font-semibold text-[11px]">TWENTYI_BASE_URL</span>
-                  <span className="text-muted-foreground text-[11px]">=</span>
-                  <span className="text-foreground text-[11px]">https://noehost.com/20i-proxy</span>
-                  <button
-                    type="button"
-                    onClick={() => { navigator.clipboard.writeText("https://noehost.com/20i-proxy"); toast({ title: "Value copied" }); }}
-                    className="ml-auto text-[10px] px-1.5 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  >Copy</button>
-                </div>
-              </li>
-              <li>Restart the API server — all 20i calls will now route through noehost.com</li>
-              <li>Click <strong>Run Diagnostic</strong> to confirm the proxy is working</li>
-            </ol>
-            <div className="flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2.5">
-              <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
-              <div className="text-[11px] text-amber-700 space-y-1">
-                <p>
-                  Make sure <span className="font-mono font-semibold bg-amber-100 px-1 rounded">noehost.com</span> (domain only — no https://, no path) is added in your 20i whitelist at{" "}
-                  <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="underline font-semibold">my.20i.com → Reseller API → IP Whitelist</a>.
-                </p>
-                <p className="text-amber-600">
-                  ⚠ Do <strong>not</strong> add the full URL — add only:{" "}
-                  <span className="font-mono font-bold bg-amber-100 px-1 rounded">noehost.com</span>
-                </p>
-              </div>
             </div>
           </div>
         </div>

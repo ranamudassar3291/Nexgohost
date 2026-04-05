@@ -36,6 +36,8 @@ import { runWithCtx,
   twentyiAddToWhitelist,
   twentyiAutoWhitelist,
   twentyiGetSiteRenewalDate,
+  twentyiUploadFile,
+  twentyiFindPackageByDomain,
 } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -137,7 +139,11 @@ function handle20iError(e: any, res: any, emptyFallback?: any): boolean {
  */
 async function runWith20i<T>(server: any, fn: () => Promise<T>): Promise<T> {
   return runWithCtx(
-    { keyType: server?.keyType ?? "general", proxyUrl: server?.proxyUrl ?? undefined },
+    {
+      keyType: server?.keyType ?? "general",
+      proxyUrl: server?.proxyUrl ?? undefined,
+      baseUrl: server?.twentyiBaseUrl ?? undefined,
+    },
     fn,
   );
 }
@@ -178,7 +184,160 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (req: Aut
       apiTokenMasked: server.apiToken ? `••••${server.apiToken.slice(-6)}` : null,
       ns1: server.ns1 ?? "ns1.20i.com",
       ns2: server.ns2 ?? "ns2.20i.com",
+      twentyiBaseUrl: server.twentyiBaseUrl ?? null,
     });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Proxy config ──────────────────────────────────────────────────────────────
+// Returns the current outbound IP, proxy status, and the server's twentyiBaseUrl
+
+router.get("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const serverId = req.query.serverId as string | undefined;
+    const server = await get20iServer(serverId);
+    const [ip, proxyCfg] = await Promise.all([
+      getOutboundIp(),
+      Promise.resolve(getProxyConfig()),
+    ]);
+    res.json({
+      outboundIp: ip,
+      proxy: proxyCfg,
+      twentyiBaseUrl: server?.twentyiBaseUrl ?? null,
+      serverId: server?.id ?? null,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Auto-deploy proxy ─────────────────────────────────────────────────────────
+// Uploads the PHP reverse proxy to the specified domain's package via 20i file API,
+// then saves the resulting base URL to the server record.
+//
+// Body: { domain?: string; path?: string; serverId?: string }
+//   domain  — the hosting domain to deploy to (default: "noehost.com")
+//   path    — the subdirectory in public_html (default: "20i-proxy")
+
+router.post("/admin/twenty-i/proxy-deploy", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  const { domain = "noehost.com", path: proxyPath = "20i-proxy", serverId } = req.body as {
+    domain?: string;
+    path?: string;
+    serverId?: string;
+  };
+
+  try {
+    const server = await get20iServer(serverId as string | undefined);
+    if (!server?.apiToken) {
+      return res.status(400).json({ error: "No 20i API key configured. Add a 20i server first." });
+    }
+
+    // Step 1: find the package containing the target domain
+    const pkg = await runWith20i(server, () => twentyiFindPackageByDomain(server!.apiToken!, domain));
+    if (!pkg) {
+      return res.status(404).json({
+        error: `Domain "${domain}" not found in your 20i packages.`,
+        hint: "Make sure the domain is added to your 20i account and try again.",
+      });
+    }
+
+    // Step 2: build file contents
+    const phpContent = `<?php
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+$parts = explode('?', $uri, 2);
+$p = $parts[0];
+$q = isset($parts[1]) ? '?' . $parts[1] : '';
+$dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+if ($dir !== '' && strpos($p, $dir) === 0) $p = substr($p, strlen($dir));
+if ($p === '' || $p === false) $p = '/';
+$target = 'https://api.20i.com' . $p . $q;
+$hdrs = [];
+foreach (getallheaders() as $n => $v) {
+  $l = strtolower($n);
+  if ($l === 'authorization') $hdrs[] = "Authorization: $v";
+  elseif ($l === 'content-type') $hdrs[] = "Content-Type: $v";
+  elseif ($l === 'accept') $hdrs[] = "Accept: $v";
+}
+if (!array_filter($hdrs, fn($h) => stripos($h, 'Content-Type:') === 0)) $hdrs[] = 'Content-Type: application/json';
+$method = $_SERVER['REQUEST_METHOD'];
+if ($method === 'OPTIONS') {
+  http_response_code(204);
+  header('Access-Control-Allow-Origin: *');
+  header('Access-Control-Allow-Headers: Authorization, Content-Type, Accept');
+  header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  exit;
+}
+$body = file_get_contents('php://input');
+$ch = curl_init($target);
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_CUSTOMREQUEST=>$method, CURLOPT_HTTPHEADER=>$hdrs, CURLOPT_TIMEOUT=>30, CURLOPT_SSL_VERIFYPEER=>true]);
+if ($body) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+$resp = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$ct = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+$err = curl_error($ch);
+curl_close($ch);
+if ($resp === false) { http_response_code(502); echo json_encode(['error'=>'Proxy failed','detail'=>$err]); exit; }
+http_response_code($code);
+header('Content-Type: ' . ($ct ?: 'application/json'));
+header('Access-Control-Allow-Origin: *');
+echo $resp;`;
+
+    const htaccessContent = `RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ index.php [QSA,L]`;
+
+    // Step 3: upload both files via 20i file management API
+    const phpFilePath = `public_html/${proxyPath}/index.php`;
+    const htaccessFilePath = `public_html/${proxyPath}/.htaccess`;
+
+    await runWith20i(server, async () => {
+      await twentyiUploadFile(server!.apiToken!, pkg.id, phpFilePath, phpContent);
+      await twentyiUploadFile(server!.apiToken!, pkg.id, htaccessFilePath, htaccessContent);
+    });
+
+    // Step 4: save the base URL to the server record
+    const proxyBaseUrl = `https://${domain}/${proxyPath}`;
+    await db
+      .update(serversTable)
+      .set({ twentyiBaseUrl: proxyBaseUrl, updatedAt: new Date() })
+      .where(eq(serversTable.id, server.id));
+
+    res.json({
+      ok: true,
+      packageId: pkg.id,
+      domain,
+      proxyPath,
+      proxyBaseUrl,
+      message: `Proxy deployed to ${proxyBaseUrl}. All 20i API calls will now route through this proxy.`,
+    });
+  } catch (e: any) {
+    const msg: string = e.message ?? "";
+    if (msg.includes("403") && msg.includes("IpMatch")) {
+      return res.status(403).json({
+        error: "IP blocked by 20i",
+        hint: "Your current outbound IP is not whitelisted in 20i. Add it temporarily to deploy the proxy, then remove it.",
+        detail: msg.substring(0, 200),
+      });
+    }
+    res.status(500).json({ error: msg.substring(0, 300) });
+  }
+});
+
+// ─── Clear proxy base URL ──────────────────────────────────────────────────────
+// Removes the stored twentyiBaseUrl so calls go directly to api.20i.com again.
+
+router.delete("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const serverId = req.query.serverId as string | undefined;
+    const server = await get20iServer(serverId);
+    if (!server) return res.status(404).json({ error: "Server not found." });
+    await db
+      .update(serversTable)
+      .set({ twentyiBaseUrl: null, updatedAt: new Date() })
+      .where(eq(serversTable.id, server.id));
+    res.json({ ok: true, message: "Proxy base URL cleared. API calls now go directly to api.20i.com." });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
