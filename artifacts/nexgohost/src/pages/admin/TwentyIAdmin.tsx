@@ -1764,15 +1764,15 @@ export default function TwentyIAdmin() {
     try {
       const data = await apiFetch("/api/admin/twenty-i/whitelist/sync", { method: "POST" });
       setWlData((prev: any) => prev ? { ...prev, ...data } : data);
+      const hostnameOrIp = data.serverHostname || data.outboundIp;
       if (data.success) {
         if (data.alreadyPresent) {
-          toast({ title: `✓ IP ${data.outboundIp} already in 20i whitelist`, description: data.message });
+          toast({ title: `✓ ${hostnameOrIp} is in 20i whitelist`, description: data.message });
         } else {
-          toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist — API is now connected` });
+          toast({ title: `✓ ${hostnameOrIp} added to 20i whitelist — API is now connected` });
         }
         const fresh = await apiFetch("/api/admin/twenty-i/whitelist");
         setWlData(fresh);
-        // Dismiss banner and refresh all data
         setIpNotWhitelisted(null);
         qc.invalidateQueries({ queryKey: ["20i-sites"] });
         qc.invalidateQueries({ queryKey: ["20i-stack-users"] });
@@ -1780,8 +1780,8 @@ export default function TwentyIAdmin() {
         qc.invalidateQueries({ queryKey: ["20i-migrations"] });
       } else if (data.error === "endpoint_unavailable") {
         toast({
-          title: "Whitelist API not available for this account",
-          description: data.message ?? `Add ${data.outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. This is a one-time setup step.`,
+          title: "Add your domain to 20i manually (one-time)",
+          description: `Go to my.20i.com → Reseller API → IP Whitelist and add: ${data.serverHostname || data.outboundIp}`,
           duration: 18000,
         });
       } else if (data.error === "auth_failed") {
@@ -1791,14 +1791,13 @@ export default function TwentyIAdmin() {
           duration: 15000,
         });
       } else if (data.error === "chicken_and_egg") {
-        // 20i blocks all API calls (including whitelist management) until the IP is added manually once
         toast({
-          title: "Manual whitelist required — one-time setup",
-          description: data.message ?? `Add ${data.outboundIp} at my.20i.com → Reseller API → IP Whitelist, then click this button again`,
+          title: "Add your domain to 20i whitelist",
+          description: `Go to my.20i.com → Reseller API → IP Whitelist and add: ${data.serverHostname || data.outboundIp}`,
           duration: 12000,
         });
       } else {
-        toast({ title: "Whitelist sync failed", description: data.error ?? data.message, variant: "destructive" });
+        toast({ title: "Whitelist check failed", description: data.error ?? data.message, variant: "destructive" });
       }
     } catch (e: any) {
       toast({ title: "Whitelist sync error", description: e.message, variant: "destructive" });
@@ -1883,15 +1882,17 @@ export default function TwentyIAdmin() {
         </div>
       </div>
 
-      {/* IP Not Whitelisted Banner — auto-shown when 20i returns 404 on reseller endpoints */}
+      {/* Not Whitelisted Banner — auto-shown when 20i returns IpMatch */}
       {ipNotWhitelisted && (
         <div className="flex items-start gap-3 px-4 py-3 rounded-2xl border border-amber-400/40 bg-amber-50 dark:bg-amber-950/30 shadow-sm">
           <AlertTriangle size={17} className="shrink-0 text-amber-500 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Server IP not whitelisted at 20i</p>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Server not whitelisted at 20i</p>
             <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
-              Your server's outbound IP <strong className="font-mono">{ipNotWhitelisted.ip}</strong> is not in 20i's API whitelist. All reseller API calls will fail until you add it.
-              Click <strong>Update 20i Whitelist</strong> below to auto-add it.
+              20i's API is blocking requests from this server. Add your domain{" "}
+              <strong className="font-mono">{wlData?.serverHostname || "noehost.com"}</strong> (or outbound IP{" "}
+              <strong className="font-mono">{ipNotWhitelisted.ip}</strong>) to 20i's API whitelist.
+              Click <strong>Update 20i Whitelist</strong> for instructions.
             </p>
           </div>
           <button
@@ -1957,151 +1958,132 @@ export default function TwentyIAdmin() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
             <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
               <Shield size={14} className="text-primary" />
-              20i IP Whitelist Manager
+              20i Whitelist Manager
             </div>
             <button onClick={() => setShowWl(false)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
           </div>
 
-          {/* Server hostname row — stable identifier that never changes */}
+          {/* PRIMARY: Domain/hostname — this is what to add to 20i whitelist */}
           {wlData.serverHostname && (
-            <div className="px-4 py-2.5 flex items-center gap-3 border-b border-primary/10 bg-primary/5">
-              <Globe size={12} className="text-primary shrink-0" />
-              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <span className="text-xs text-muted-foreground shrink-0">Server hostname</span>
-                <span className="font-mono text-sm font-semibold text-primary">{wlData.serverHostname}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-medium">permanent — never changes</span>
-              </div>
-            </div>
-          )}
-
-          {/* Current IP status */}
-          <div className="px-4 py-3.5 flex items-center justify-between flex-wrap gap-3 border-b border-primary/10">
-            <div className="space-y-0.5">
-              <p className="text-xs text-muted-foreground">{wlData.serverHostname ? "Current outbound IP (auto-detected for this hostname)" : "Current Outbound IP (this server)"}</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-sm font-semibold text-foreground">{wlData.outboundIp}</span>
-                <button
-                  type="button"
-                  onClick={() => { navigator.clipboard.writeText(wlData.outboundIp ?? ""); toast({ title: "IP copied" }); }}
-                  className="text-[10px] px-2 py-0.5 rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-                >
-                  Copy
-                </button>
-                {wlData.serverConfigured && (
-                  wlData.isWhitelisted
-                    ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">✓ Whitelisted</span>
-                    : wlData.isWhitelisted === false
-                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">Not whitelisted — add manually</span>
-                      : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary/60 text-muted-foreground border border-border/40">Status unknown — use button below to sync</span>
-                )}
-                {wlData.proxy?.enabled && (
-                  <span className="text-[10px] text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5">via proxy</span>
-                )}
-              </div>
-              {wlData.fetchError && wlData.isWhitelisted === null && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Whitelist status could not be verified (the whitelist management API returned an error). If you have already added this IP manually, click <strong>Add Current IP to Whitelist</strong> to confirm.
-                </p>
-              )}
-            </div>
-            <button
-              onClick={syncWhitelist}
-              disabled={wlSyncing}
-              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 shadow-sm"
-            >
-              {wlSyncing ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
-              {wlSyncing ? "Adding to whitelist…" : "Add Current IP to Whitelist"}
-            </button>
-          </div>
-
-          {/* Existing whitelist entries */}
-          {wlData.currentList?.length > 0 && (
-            <div className="px-4 py-3">
-              <p className="text-xs text-muted-foreground mb-2 font-medium">Currently Whitelisted IPs ({wlData.currentList.length})</p>
-              <div className="flex flex-wrap gap-1.5">
-                {wlData.currentList.map((ip: string) => (
-                  <span
-                    key={ip}
-                    className={`font-mono text-xs px-2.5 py-1 rounded-lg border ${ip === wlData.outboundIp ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 font-semibold" : "bg-secondary/50 border-border/50 text-muted-foreground"}`}
-                  >
-                    {ip}{ip === wlData.outboundIp && " ← current"}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step-by-step setup guide — only shown when IP is confirmed NOT in whitelist */}
-          {wlData.isWhitelisted === false && wlData.serverConfigured && (
-            <div className="px-4 py-4 border-t border-amber-500/20 bg-amber-500/5">
-              <p className="text-xs font-semibold text-amber-700 mb-2.5">Manual step required (one-time per IP change):</p>
-              <ol className="text-xs text-foreground/70 space-y-1.5 list-decimal ml-4 mb-3">
-                <li>Open <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline font-medium">my.20i.com → Reseller API → IP Whitelist</a></li>
-                <li>
-                  Add this IP address:{" "}
-                  <span className="font-mono font-bold text-foreground">{wlData.outboundIp}</span>{" "}
+            <div className="px-4 py-4 border-b border-primary/10">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-2">Add this to 20i Whitelist (domain — permanent, never changes)</p>
+              <div className="flex items-center justify-between gap-3 bg-card border border-emerald-500/25 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Globe size={16} className="text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-mono text-base font-bold text-foreground">{wlData.serverHostname}</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-medium">permanent — never changes</span>
+                      {wlData.isWhitelisted === true && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/25 font-semibold">✓ Whitelisted</span>
+                      )}
+                      {wlData.isWhitelisted === false && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20 font-semibold">Not yet added to 20i</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => { navigator.clipboard.writeText(wlData.outboundIp ?? ""); toast({ title: "IP copied" }); }}
+                    onClick={() => { navigator.clipboard.writeText(wlData.serverHostname ?? ""); toast({ title: "Domain copied" }); }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-border bg-secondary/60 hover:bg-secondary transition-colors text-muted-foreground font-medium"
+                  >
+                    Copy
+                  </button>
+                  <a
+                    href="https://my.20i.com/reseller/api"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-primary font-semibold"
+                  >
+                    <ExternalLink size={11} />
+                    Add in 20i
+                  </a>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Go to <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline font-medium">my.20i.com → Reseller API → IP Whitelist</a>,
+                enter <strong className="font-mono">{wlData.serverHostname}</strong> in the field, and click Save.
+                This is a one-time setup — the domain never changes.
+              </p>
+            </div>
+          )}
+
+          {/* SECONDARY: Outbound IP — shown as reference only */}
+          <div className="px-4 py-3 border-b border-primary/10 bg-secondary/20">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5">
+              Current outbound IP (changes on restarts — use domain above instead)
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-sm text-muted-foreground">{wlData.outboundIp}</span>
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard.writeText(wlData.outboundIp ?? ""); toast({ title: "IP copied" }); }}
+                className="text-[10px] px-2 py-0.5 rounded border border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+              >
+                Copy
+              </button>
+              {wlData.proxy?.enabled && (
+                <span className="text-[10px] text-muted-foreground bg-secondary/60 border border-border/40 rounded px-1.5">via proxy</span>
+              )}
+            </div>
+          </div>
+
+          {/* Setup guide — show when not yet confirmed whitelisted */}
+          {wlData.isWhitelisted === false && wlData.serverConfigured && (
+            <div className="px-4 py-4 border-t border-amber-500/20 bg-amber-500/5">
+              <p className="text-xs font-semibold text-amber-700 mb-2.5">One-time setup required:</p>
+              <ol className="text-xs text-foreground/70 space-y-1.5 list-decimal ml-4 mb-2">
+                <li>Open <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer" className="text-primary underline font-medium">my.20i.com → Reseller API → IP Whitelist</a></li>
+                <li>
+                  In the whitelist field enter:{" "}
+                  <span className="font-mono font-bold text-foreground">{wlData.serverHostname || wlData.outboundIp}</span>{" "}
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(wlData.serverHostname || wlData.outboundIp || ""); toast({ title: "Copied" }); }}
                     className="text-[10px] px-1.5 py-0.5 ml-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                   >
                     Copy
                   </button>
                 </li>
-                <li>Click Save in 20i, then click <strong>Add Current IP to Whitelist</strong> above to confirm</li>
+                <li>Click Save in 20i, then click <strong>Verify Whitelist</strong> below to confirm</li>
               </ol>
-              <p className="text-[10px] text-muted-foreground">
-                {wlData.serverHostname
-                  ? `The hostname (${wlData.serverHostname}) is stable. Only the outbound IP may change across server restarts — if it does, just click the button above to see the new IP and add it once.`
-                  : "After the first manual setup, click this button whenever the server IP changes to see the new IP and add it."}
-              </p>
+              <button
+                onClick={syncWhitelist}
+                disabled={wlSyncing}
+                className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl border border-primary/30 text-primary hover:bg-primary/10 transition-colors font-semibold disabled:opacity-50 mt-1"
+              >
+                {wlSyncing ? <Loader2 size={11} className="animate-spin" /> : <Zap size={11} />}
+                {wlSyncing ? "Verifying…" : "Verify Whitelist"}
+              </button>
             </div>
           )}
 
-          {/* Permanent fix: proxy via noehost.com */}
-          {!wlData.proxy?.enabled && wlData.serverConfigured && (
-            <div className="px-4 py-4 border-t border-emerald-500/20 bg-emerald-500/5">
-              <div className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-md bg-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-emerald-600 text-xs font-bold">&#10003;</span>
-                </div>
-                <div className="space-y-1.5 min-w-0">
-                  <p className="text-xs font-semibold text-emerald-700">Permanent fix — route via noehost.com (no more IP changes)</p>
-                  <p className="text-xs text-foreground/70">
-                    Since <strong>{wlData.serverHostname || "noehost.com"}</strong> is already whitelisted in 20i, install an HTTP proxy on your server and configure NoePanel to route all 20i API calls through it.
-                    20i will always see your server's stable IP — the Replit IP won't matter.
-                  </p>
-                  <div className="rounded-lg bg-card border border-emerald-500/20 px-3 py-2 text-xs space-y-1.5">
-                    <p className="font-semibold text-foreground/80">Setup steps (one-time):</p>
-                    <ol className="text-foreground/70 space-y-1 list-decimal ml-3">
-                      <li>SSH into your server at <strong>{wlData.serverHostname || "noehost.com"}</strong></li>
-                      <li>Install Squid: <code className="font-mono bg-secondary/60 px-1 rounded">apt install squid -y</code></li>
-                      <li>Allow connections in <code className="font-mono bg-secondary/60 px-1 rounded">/etc/squid/squid.conf</code>: add <code className="font-mono bg-secondary/60 px-1 rounded">http_access allow all</code></li>
-                      <li>Restart: <code className="font-mono bg-secondary/60 px-1 rounded">systemctl restart squid</code></li>
-                      <li>
-                        Go to <a href="/admin/servers" className="text-primary underline font-medium">Admin → Servers</a>,
-                        edit your 20i server, and set <strong>Static IP Proxy URL</strong> to{" "}
-                        <code className="font-mono bg-secondary/60 px-1 rounded">
-                          http://{wlData.serverHostname || "noehost.com"}:3128
-                        </code>
-                      </li>
-                    </ol>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">After saving, all 20i API calls route through your server. The IP that 20i sees will always be your server's static IP.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Proxy active confirmation */}
+          {/* Proxy active info */}
           {wlData.proxy?.enabled && (
             <div className="px-4 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center gap-2">
-              <span className="text-emerald-600 text-sm font-bold">&#10003;</span>
+              <span className="text-emerald-600 text-sm">&#10003;</span>
               <p className="text-xs text-emerald-700 font-medium">
-                Proxy active — API calls are routed via{" "}
-                <span className="font-mono font-semibold">{wlData.proxy.url ?? "configured proxy"}</span>.
-                20i sees your server's stable IP. No manual whitelisting needed.
+                Proxy active — routing via <span className="font-mono">{wlData.proxy.url ?? "configured proxy"}</span>
               </p>
+            </div>
+          )}
+
+          {/* Existing whitelist entries (if readable) */}
+          {wlData.currentList?.length > 0 && (
+            <div className="px-4 py-3 border-t border-border/40">
+              <p className="text-xs text-muted-foreground mb-2 font-medium">Currently whitelisted entries ({wlData.currentList.length})</p>
+              <div className="flex flex-wrap gap-1.5">
+                {wlData.currentList.map((entry: string) => (
+                  <span
+                    key={entry}
+                    className={`font-mono text-xs px-2.5 py-1 rounded-lg border ${entry === wlData.outboundIp || entry === wlData.serverHostname ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-700 font-semibold" : "bg-secondary/50 border-border/50 text-muted-foreground"}`}
+                  >
+                    {entry}{(entry === wlData.outboundIp || entry === wlData.serverHostname) && " ✓"}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
