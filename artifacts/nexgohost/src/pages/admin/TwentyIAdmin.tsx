@@ -2057,6 +2057,53 @@ export default function TwentyIAdmin() {
               </p>
             </div>
           )}
+
+          {/* Permanent fix: proxy via noehost.com */}
+          {!wlData.proxy?.enabled && wlData.serverConfigured && (
+            <div className="px-4 py-4 border-t border-emerald-500/20 bg-emerald-500/5">
+              <div className="flex items-start gap-2.5">
+                <div className="w-5 h-5 rounded-md bg-emerald-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-emerald-600 text-xs font-bold">&#10003;</span>
+                </div>
+                <div className="space-y-1.5 min-w-0">
+                  <p className="text-xs font-semibold text-emerald-700">Permanent fix — route via noehost.com (no more IP changes)</p>
+                  <p className="text-xs text-foreground/70">
+                    Since <strong>{wlData.serverHostname || "noehost.com"}</strong> is already whitelisted in 20i, install an HTTP proxy on your server and configure NoePanel to route all 20i API calls through it.
+                    20i will always see your server's stable IP — the Replit IP won't matter.
+                  </p>
+                  <div className="rounded-lg bg-card border border-emerald-500/20 px-3 py-2 text-xs space-y-1.5">
+                    <p className="font-semibold text-foreground/80">Setup steps (one-time):</p>
+                    <ol className="text-foreground/70 space-y-1 list-decimal ml-3">
+                      <li>SSH into your server at <strong>{wlData.serverHostname || "noehost.com"}</strong></li>
+                      <li>Install Squid: <code className="font-mono bg-secondary/60 px-1 rounded">apt install squid -y</code></li>
+                      <li>Allow connections in <code className="font-mono bg-secondary/60 px-1 rounded">/etc/squid/squid.conf</code>: add <code className="font-mono bg-secondary/60 px-1 rounded">http_access allow all</code></li>
+                      <li>Restart: <code className="font-mono bg-secondary/60 px-1 rounded">systemctl restart squid</code></li>
+                      <li>
+                        Go to <a href="/admin/servers" className="text-primary underline font-medium">Admin → Servers</a>,
+                        edit your 20i server, and set <strong>Static IP Proxy URL</strong> to{" "}
+                        <code className="font-mono bg-secondary/60 px-1 rounded">
+                          http://{wlData.serverHostname || "noehost.com"}:3128
+                        </code>
+                      </li>
+                    </ol>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">After saving, all 20i API calls route through your server. The IP that 20i sees will always be your server's static IP.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Proxy active confirmation */}
+          {wlData.proxy?.enabled && (
+            <div className="px-4 py-3 border-t border-emerald-500/20 bg-emerald-500/5 flex items-center gap-2">
+              <span className="text-emerald-600 text-sm font-bold">&#10003;</span>
+              <p className="text-xs text-emerald-700 font-medium">
+                Proxy active — API calls are routed via{" "}
+                <span className="font-mono font-semibold">{wlData.proxy.url ?? "configured proxy"}</span>.
+                20i sees your server's stable IP. No manual whitelisting needed.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

@@ -364,9 +364,16 @@ function getServerHostname(): string | null {
 router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
-    const outboundIp = await getOutboundIp();
-    const proxy = getProxyConfig();
     const serverHostname = getServerHostname();
+    // If the server has a proxy configured, detect outbound IP through it so
+    // the panel shows the proxy's stable IP (not the ephemeral Replit IP)
+    const serverProxyUrl = server?.proxyUrl ?? undefined;
+    const outboundIp = serverProxyUrl
+      ? await runWithProxy(serverProxyUrl, () => getOutboundIp())
+      : await getOutboundIp();
+    const proxy: { enabled: boolean; url?: string } = serverProxyUrl
+      ? { enabled: true, url: serverProxyUrl }
+      : getProxyConfig();
 
     if (!server || !server.apiToken) {
       return res.json({ outboundIp, serverHostname, proxy, currentList: [], serverConfigured: false, isWhitelisted: null });

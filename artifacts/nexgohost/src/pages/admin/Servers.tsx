@@ -427,6 +427,29 @@ export default function Servers() {
                         <AutoWhitelistBtn serverId={editServerId} />
                       )}
                     </div>
+
+                    {/* ── Proxy URL field — optional, for stable IP routing ── */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-foreground/80">Static IP Proxy URL</label>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-medium">Recommended — fixes IP changes</span>
+                      </div>
+                      <Input
+                        value={serverForm.proxyUrl}
+                        onChange={setS("proxyUrl")}
+                        placeholder="http://noehost.com:3128"
+                        className="font-mono text-sm"
+                      />
+                      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1.5">
+                        <p className="font-semibold text-emerald-700">Permanent fix for changing IPs</p>
+                        <p>
+                          If your server at <strong>noehost.com</strong> is already whitelisted in 20i, route all API calls through it as a proxy.
+                          Install <strong>Squid</strong> or <strong>Tinyproxy</strong> on your server and enter the URL here (e.g. <code className="font-mono text-primary">http://noehost.com:3128</code>).
+                        </p>
+                        <p>Once set, 20i will always see your server's stable IP — no more manual whitelisting.</p>
+                      </div>
+                    </div>
+
                     {/* ── Single API Key field ── */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground/80">
@@ -872,7 +895,7 @@ export default function Servers() {
                           // 20i key field — cleared on edit (key is stored server-side)
                           combinedKey: "",
                           keyType: s.keyType || "combined",
-                          proxyUrl: s.ipAddress || "",
+                          proxyUrl: s.proxyUrl || "",
                           apiPort: String(s.apiPort || 2087),
                           ns1: s.ns1 || "",
                           ns2: s.ns2 || "",
