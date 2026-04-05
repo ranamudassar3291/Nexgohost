@@ -228,7 +228,8 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
   const { data: usersRaw, isLoading, refetch } = useQuery({
     queryKey: ["20i-stack-users"],
     queryFn: () => apiFetch("/api/admin/twenty-i/stack-users"),
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
   });
 
   const usersApiError: string | null =
@@ -496,7 +497,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
               <thead>
                 <tr className="border-b border-border bg-secondary/20">
                   <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">StackUser ID</th>
-                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Name / Email</th>
+                  <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Panel Client</th>
                   <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Sites</th>
                   <th className="px-4 py-3 text-left text-xs text-muted-foreground font-semibold">Domains</th>
                   <th className="px-4 py-3 text-right text-xs text-muted-foreground font-semibold">Actions</th>
@@ -505,7 +506,10 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
               <tbody>
                 {paginated.map((u: any) => (
                   <tr key={u.id} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{u.id}</td>
+                    <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">
+                      {u.id.replace(/^stack-user:/, "")}
+                      <span className="block text-[10px] text-muted-foreground/50 font-normal">{u.id}</span>
+                    </td>
                     <td className="px-4 py-3 text-sm">
                       {u.clientId
                         ? <div>
@@ -515,9 +519,7 @@ function StackUsersTab({ apiKey }: { apiKey?: boolean }) {
                           </div>
                         : u.email
                           ? <div><span className="font-medium">{u.name}</span><br/><span className="text-xs text-muted-foreground">{u.email}</span></div>
-                          : u.name && u.name !== u.id?.replace("stack-user:","")
-                            ? <span className="font-medium text-muted-foreground">{u.name}</span>
-                            : <span className="text-muted-foreground/40 italic text-xs">—</span>}
+                          : <span className="text-muted-foreground/40 italic text-xs">Not linked</span>}
                     </td>
                     <td className="px-4 py-3">
                       {u.siteCount > 0
@@ -759,14 +761,19 @@ function SitesTab() {
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Login Details</p>
               {stackcpModal.stackUsers.length > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-foreground">StackUser ID</span>
+                  <span className="text-xs text-foreground">Username</span>
                   <div className="flex items-center gap-1.5">
-                    <code className="text-xs font-mono bg-secondary px-2 py-0.5 rounded">{stackcpModal.stackUsers[0]}</code>
-                    <button className="text-xs text-primary hover:underline" onClick={() => { navigator.clipboard.writeText(stackcpModal.stackUsers[0]); }}>Copy</button>
+                    <code className="text-xs font-mono bg-secondary px-2 py-0.5 rounded">
+                      {stackcpModal.stackUsers[0].replace(/^stack-user:/, "")}
+                    </code>
+                    <button
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => navigator.clipboard.writeText(stackcpModal.stackUsers[0].replace(/^stack-user:/, ""))}
+                    >Copy</button>
                   </div>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">Use the StackUser ID as the username and the StackCP password you set (or click Password to reset it).</p>
+              <p className="text-xs text-muted-foreground">Enter the numeric username above at StackCP. Use the password you set via the Password button (or reset it first).</p>
             </div>
             <p className="text-xs text-muted-foreground mb-4">Direct SSO login is not available for this 20i account. Open StackCP and log in manually with the credentials above.</p>
             <div className="flex flex-col gap-2">

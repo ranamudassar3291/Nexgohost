@@ -512,21 +512,27 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
 
-    // Try the real susers endpoint first (requires stackUsersRead scope).
-    // If it returns data, use it — full name/email included.
-    // If empty (403/404 for this account type), fall through to site-derived list.
-    const users = await runWith20i(server, () => twentyiListStackUsers(server!.apiToken!));
+    // Fire both calls in parallel:
+    // (1) /reseller/*/susers — full name/email if the account has stackUsersRead scope
+    // (2) /package — site list for site-derived StackUser IDs (uses the in-memory cache when warm)
+    const [susersResult, sitesResult] = await Promise.allSettled([
+      runWith20i(server, () => twentyiListStackUsers(server!.apiToken!)),
+      getCachedSites(server),
+    ]);
+
+    const users: Awaited<ReturnType<typeof twentyiListStackUsers>> =
+      susersResult.status === "fulfilled" ? susersResult.value : [];
+
+    // If the real susers endpoint returned data, use it — names/emails included.
     if (users.length > 0) return res.json(users);
 
-    // Derive from cached site list — extract every unique stack-user ID that is
-    // assigned to at least one hosting package via the stackUsers field on GET /package.
-    // Wrap in its own try/catch so an IP-block or API error is properly classified.
+    // Site-derived fallback — extract every unique stack-user ID from /package results.
     let sites: Awaited<ReturnType<typeof twentyiListSites>> = [];
-    try {
-      sites = await getCachedSites(server);
-    } catch (siteErr: any) {
+    if (sitesResult.status === "fulfilled") {
+      sites = sitesResult.value;
+    } else {
+      const siteErr = sitesResult.reason as Error;
       console.warn(`[20i] stack-users: getCachedSites failed (${siteErr.message}) — falling back to empty site list`);
-      // If IP is blocked surface the whitelist error; otherwise continue with empty list
       if (handle20iError(siteErr, res, [])) return;
       sites = [];
     }
