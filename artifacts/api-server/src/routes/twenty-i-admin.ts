@@ -662,32 +662,37 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (req: Auth
     if (!requireApiKey(server, res)) return;
     const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
 
-    // Enrich each site with panel client info (name, email, clientId) by cross-referencing usersTable.stackUserId
-    const panelUsers = await db
-      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, stackUserId: usersTable.stackUserId })
-      .from(usersTable)
-      .where(isNotNull(usersTable.stackUserId));
+    // Enrich sites with panel client info — wrapped in try/catch so DB issues never break the list
+    let enriched: any[] = sites as any[];
+    try {
+      const panelUsers = await db
+        .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, stackUserId: usersTable.stackUserId })
+        .from(usersTable)
+        .where(isNotNull(usersTable.stackUserId));
 
-    // Build stackUserId → client lookup map
-    const suToClient = new Map<string, { clientId: string; clientName: string | null; clientEmail: string | null }>();
-    for (const pu of panelUsers) {
-      if (!pu.stackUserId) continue;
-      const key = pu.stackUserId.startsWith("stack-user:") ? pu.stackUserId : `stack-user:${pu.stackUserId}`;
-      suToClient.set(key, { clientId: String(pu.id), clientName: pu.name ?? null, clientEmail: pu.email ?? null });
-    }
-
-    // Enrich sites — attach client info from the first StackUser assigned to the site
-    const enriched = sites.map((site: any) => {
-      let clientId: string | null = null;
-      let clientName: string | null = null;
-      let clientEmail: string | null = null;
-      for (const su of (site.stackUsers ?? [])) {
-        const key = String(su).startsWith("stack-user:") ? String(su) : `stack-user:${su}`;
-        const client = suToClient.get(key);
-        if (client) { clientId = client.clientId; clientName = client.clientName; clientEmail = client.clientEmail; break; }
+      const suToClient = new Map<string, { clientId: string; clientName: string | null; clientEmail: string | null }>();
+      for (const pu of panelUsers) {
+        if (!pu.stackUserId) continue;
+        const rawKey = String(pu.stackUserId);
+        const key = rawKey.startsWith("stack-user:") ? rawKey : `stack-user:${rawKey}`;
+        suToClient.set(key, { clientId: String(pu.id), clientName: pu.name ?? null, clientEmail: pu.email ?? null });
       }
-      return { ...site, clientId, clientName, clientEmail };
-    });
+
+      enriched = (sites as any[]).map((site: any) => {
+        let clientId: string | null = null;
+        let clientName: string | null = null;
+        let clientEmail: string | null = null;
+        for (const su of (Array.isArray(site?.stackUsers) ? site.stackUsers : [])) {
+          const rawSu = String(su ?? "");
+          const key = rawSu.startsWith("stack-user:") ? rawSu : `stack-user:${rawSu}`;
+          const client = suToClient.get(key);
+          if (client) { clientId = client.clientId; clientName = client.clientName; clientEmail = client.clientEmail; break; }
+        }
+        return { ...(site ?? {}), clientId, clientName, clientEmail };
+      });
+    } catch (dbErr: any) {
+      console.warn(`[20i-SITES] DB enrichment failed (sites still returned): ${dbErr?.message}`);
+    }
 
     res.json(enriched);
   } catch (e: any) {

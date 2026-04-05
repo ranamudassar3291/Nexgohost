@@ -5,7 +5,7 @@ import { serversTable, serverGroupsTable, hostingServicesTable } from "@workspac
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq, sql, and } from "drizzle-orm";
 import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
-import { twentyiTestConnection, twentyiGetPackages, twentyiRawDebug, runWithProxy, sanitiseKey, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
+import { twentyiTestConnection, twentyiGetPackages, twentyiListSites, twentyiRawDebug, runWithProxy, sanitiseKey, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
@@ -365,6 +365,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
       return;
     }
     try {
+      // Try /reseller/*/packageTypes first (returns 404 on some account types)
       const pkgs = await twentyiGetPackages(resolvedKey);
       if (pkgs.length > 0) {
         const plans: Plan[] = pkgs.map(p => ({
@@ -375,10 +376,34 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
         }));
         res.json({ plans, from20i: true }); return;
       }
-      // No packages returned — return empty with info
+
+      // Fallback: derive unique package types from the site list.
+      // Works when /reseller/*/packageTypes returns 404 for this account type.
+      try {
+        const sites = await twentyiListSites(resolvedKey);
+        const typeMap = new Map<string, string>();
+        for (const site of sites) {
+          const typeId = String(site.typeRef ?? site.packageTypeName ?? "default");
+          const label = site.packageTypeName ?? typeId;
+          if (!typeMap.has(typeId)) typeMap.set(typeId, label);
+        }
+        if (typeMap.size > 0) {
+          const plans: Plan[] = Array.from(typeMap.entries())
+            .sort(([, a], [, b]) => a.localeCompare(b))
+            .map(([id, name]) => ({ id, name, monthlyPrice: 0, yearlyPrice: 0 }));
+          res.json({ plans, from20i: true }); return;
+        }
+      } catch { /* falls through to empty message below */ }
+
+      // No packages found anywhere
       res.json({ plans: [], from20i: true, error: "No packages found on this 20i account — create packages in your 20i reseller portal first" });
     } catch (err: any) {
-      res.json({ plans: [], from20i: false, error: `20i API error: ${err.message}` });
+      const msg = String(err?.message ?? err);
+      if (msg.includes("IpMatch") || msg.includes("403") || msg.includes("Forbidden")) {
+        res.json({ plans: [], error: "20i IP not whitelisted — add your server's outbound IP at my.20i.com → Reseller API → IP Whitelist, then refresh" });
+      } else {
+        res.json({ plans: [], from20i: false, error: `20i API error: ${msg}` });
+      }
     }
     return;
   }
