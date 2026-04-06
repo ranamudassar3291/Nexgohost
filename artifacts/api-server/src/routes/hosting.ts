@@ -2,7 +2,7 @@ import path from "path";
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable, promoCodesTable } from "@workspace/db/schema";
-import { eq, sql, and, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, sql, and, isNull, isNotNull, inArray, ilike, desc, count, or } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
@@ -270,17 +270,55 @@ router.delete("/hosting/plans/:id", authenticate, requireAdmin, async (req: Auth
 });
 
 // Admin: get all hosting services
-router.get("/admin/hosting", authenticate, requireAdmin, async (_req, res) => {
+router.get("/admin/hosting", authenticate, requireAdmin, async (req, res) => {
   try {
-    const services = await db.select().from(hostingServicesTable);
-    const result = await Promise.all(services.map(async (s) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, s.clientId)).limit(1);
+    const page    = Math.max(1, parseInt(String((req as any).query.page  || "1"), 10));
+    const limit   = Math.min(200, Math.max(1, parseInt(String((req as any).query.limit || "50"), 10)));
+    const offset  = (page - 1) * limit;
+    const search  = String((req as any).query.search || "").trim();
+    const status  = String((req as any).query.status || "all").trim();
+
+    // Build where conditions in raw SQL for cross-table search without a JOIN
+    const whereConditions: any[] = [];
+    if (status !== "all") whereConditions.push(eq(hostingServicesTable.status, status));
+    if (search) {
+      whereConditions.push(
+        or(
+          ilike(hostingServicesTable.domain, `%${search}%`),
+          ilike(hostingServicesTable.planName, `%${search}%`),
+        )
+      );
+    }
+
+    const where = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+    const [rows, totalResult] = await Promise.all([
+      db.select().from(hostingServicesTable)
+        .where(where)
+        .orderBy(desc(hostingServicesTable.createdAt))
+        .limit(limit).offset(offset),
+      db.select({ cnt: count() }).from(hostingServicesTable).where(where),
+    ]);
+
+    const total = Number(totalResult[0]?.cnt ?? 0);
+    const totalPages = Math.ceil(total / limit);
+
+    // Batch-load users for this page only
+    const clientIds = [...new Set(rows.map(r => r.clientId).filter(Boolean))];
+    const users = clientIds.length
+      ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds as string[]))
+      : [];
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const data = rows.map(s => {
+      const user = userMap.get(s.clientId ?? "");
       return {
         ...formatService(s, user ? `${user.firstName} ${user.lastName}` : ""),
         stackUserId: user?.stackUserId ?? null,
       };
-    }));
-    res.json(result);
+    });
+
+    res.json({ data, total, page, limit, totalPages });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -821,11 +859,23 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
 
     // 20i: StackCP uses direct URLs — no SSO token needed
     if (server.type === "20i") {
-      const stackCPUrl = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
-      const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
-      const url = service_name === "webmaild" ? webmailUrl : stackCPUrl;
-      if (!url) return res.status(400).json({ error: "No 20i control panel URL found for this service." });
-      return res.json({ url });
+      if (service_name === "webmaild") {
+        const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
+        if (!webmailUrl) return res.status(400).json({ error: "No webmail URL for this service." });
+        return res.json({ url: webmailUrl });
+      }
+      if (!server.apiToken) {
+        const fallback = service.cpanelUrl || twentyiStackCPUrl();
+        return res.json({ url: fallback });
+      }
+      // Fetch stackUserId for SSO — prefer per-user loginToken
+      const [svcUser] = await db.select({ stackUserId: usersTable.stackUserId })
+        .from(usersTable).where(eq(usersTable.id, service.clientId ?? "")).limit(1);
+      const stackUserId = svcUser?.stackUserId ?? null;
+      const ssoResult = await twentyiGetSSOUrl(server.apiToken, service.username, stackUserId);
+      if (ssoResult.ssoAvailable && ssoResult.url) return res.json({ url: ssoResult.url });
+      const fallback = service.cpanelUrl || twentyiStackCPUrl();
+      return res.json({ url: fallback, ssoAvailable: false });
     }
 
     const serverCfg = {
@@ -897,7 +947,7 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
       return res.status(400).json({ error: "No server found. Contact support or add an active server in Admin → Servers." });
     }
 
-    // 20i (StackCP): generate a temporary one-click SSO login URL
+    // 20i (StackCP): generate a temporary one-click SSO autologin URL
     if (server.type === "20i") {
       if (link.service === "webmaild") {
         const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
@@ -905,14 +955,22 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
         return res.json({ url: webmailUrl });
       }
       if (!service.username || !server.apiToken) {
-        const fallback = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
+        const fallback = service.cpanelUrl || twentyiStackCPUrl();
         if (fallback) return res.json({ url: fallback });
         return res.status(400).json({ error: "No 20i site ID linked to this service. Please contact support." });
       }
-      // Generate a real temporary login link via 20i API
-      const ssoUrl = await twentyiGetSSOUrl(server.apiToken, service.username);
-      console.log(`[SSO-LAUNCH] 20i SSO for siteId=${service.username} → ${ssoUrl}`);
-      return res.json({ url: ssoUrl });
+      // Fetch the client's stackUserId (preferred SSO method — per-user loginToken)
+      const [svcUser] = await db.select({ stackUserId: usersTable.stackUserId })
+        .from(usersTable).where(eq(usersTable.id, service.clientId ?? "")).limit(1);
+      const stackUserId = svcUser?.stackUserId ?? null;
+      // Generate a fresh autologin URL — tries stackUser loginToken first, falls back to package userToken
+      const ssoResult = await twentyiGetSSOUrl(server.apiToken, service.username, stackUserId);
+      console.log(`[SSO-LAUNCH] 20i SSO siteId=${service.username} stackUser=${stackUserId ?? "none"} → ${JSON.stringify(ssoResult)}`);
+      if (ssoResult.ssoAvailable && ssoResult.url) {
+        return res.json({ url: ssoResult.url });
+      }
+      const fallback = service.cpanelUrl || twentyiStackCPUrl();
+      return res.json({ url: fallback, ssoAvailable: false });
     }
 
     const serverCfg = {
@@ -972,11 +1030,23 @@ async function adminSsoLogin(req: AuthRequest, res: any, service_name: "cpaneld"
     }
 
     if (server.type === "20i") {
-      const stackCPUrl = service.cpanelUrl || (service.username ? twentyiStackCPUrl(service.username) : null);
-      const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
-      const url = service_name === "webmaild" ? webmailUrl : stackCPUrl;
-      if (!url) return res.status(400).json({ error: "No 20i control panel URL found for this service." });
-      return res.json({ url });
+      if (service_name === "webmaild") {
+        const webmailUrl = service.webmailUrl || (service.domain ? `https://webmail.${service.domain}` : null);
+        if (!webmailUrl) return res.status(400).json({ error: "No webmail URL for this service." });
+        return res.json({ url: webmailUrl });
+      }
+      if (!server.apiToken) {
+        const fallback = service.cpanelUrl || twentyiStackCPUrl();
+        return res.json({ url: fallback });
+      }
+      // Fetch stackUserId for SSO — prefer per-user loginToken
+      const [svcUser] = await db.select({ stackUserId: usersTable.stackUserId })
+        .from(usersTable).where(eq(usersTable.id, service.clientId ?? "")).limit(1);
+      const stackUserId = svcUser?.stackUserId ?? null;
+      const ssoResult = await twentyiGetSSOUrl(server.apiToken, service.username, stackUserId);
+      if (ssoResult.ssoAvailable && ssoResult.url) return res.json({ url: ssoResult.url });
+      const fallback = service.cpanelUrl || twentyiStackCPUrl();
+      return res.json({ url: fallback, ssoAvailable: false });
     }
 
     const serverCfg = {

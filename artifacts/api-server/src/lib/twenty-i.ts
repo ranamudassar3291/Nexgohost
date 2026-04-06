@@ -1220,10 +1220,10 @@ export async function twentyiChangePackageType(
 }
 
 // ─── Single Sign-On (SSO) ─────────────────────────────────────────────────────
-// Endpoint: POST /package/{siteId}/userToken
-// Body: {} (empty)
-// Returns: { token: string } or { loginToken: string } or { url: string }
-// NOTE: Returns 404 for some 20i account types — SSO is not universally available.
+// Primary:  POST /reseller/*/stackUser/{stackUserId}/loginToken  → { loginToken: string }
+// Fallback: POST /package/{siteId}/userToken                    → { token|loginToken|url }
+// Redirect: https://stackcp.com/login/autologin?token={token}
+// NOTE: The stackUser loginToken endpoint may not be available for all account types.
 
 export interface TwentyiSSOResult {
   url: string | null;
@@ -1232,18 +1232,44 @@ export interface TwentyiSSOResult {
   domain?: string | null;
 }
 
-export async function twentyiGetSSOUrl(apiKey: string, siteId: string): Promise<TwentyiSSOResult> {
+// Build the autologin redirect URL from a raw token string.
+function buildAutologinUrl(token: string): string {
+  return `https://stackcp.com/login/autologin?token=${encodeURIComponent(token)}`;
+}
+
+// Try the stackUser-scoped loginToken endpoint first (preferred — gives per-user SSO).
+// Falls back to the package-scoped userToken endpoint if the first returns 404/error.
+export async function twentyiGetSSOUrl(
+  apiKey: string,
+  siteId: string,
+  stackUserId?: string | null,
+): Promise<TwentyiSSOResult> {
+  // Attempt 1 — stackUser loginToken (POST /reseller/*/stackUser/{id}/loginToken)
+  if (stackUserId) {
+    const suId = stackUserId.startsWith("stack-user:") ? stackUserId.replace("stack-user:", "") : stackUserId;
+    try {
+      const result = await requestWithRetry(apiKey, "POST", `/reseller/*/stackUser/${suId}/loginToken`, {});
+      const token = result?.loginToken ?? result?.token ?? result?.userToken ?? null;
+      if (token) {
+        console.log(`[SSO] stackUser loginToken ✓ for stackUser=${suId}`);
+        return { url: buildAutologinUrl(String(token)), ssoAvailable: true };
+      }
+    } catch (e: any) {
+      console.log(`[SSO] stackUser loginToken unavailable (${String(e?.message ?? "").substring(0, 60)}) — falling back`);
+    }
+  }
+
+  // Attempt 2 — package userToken (POST /package/{siteId}/userToken)
   try {
     const result = await requestWithRetry(apiKey, "POST", `/package/${siteId}/userToken`, {});
     const token = result?.token ?? result?.loginToken ?? result?.userToken ?? null;
     if (token) {
-      return { url: `https://stackcp.com/?loginToken=${token}`, ssoAvailable: true };
+      console.log(`[SSO] package userToken ✓ for siteId=${siteId}`);
+      return { url: buildAutologinUrl(String(token)), ssoAvailable: true };
     }
     if (result?.url) return { url: result.url, ssoAvailable: true };
-    // Response received but no token — SSO not supported for this account type
     return { url: null, ssoAvailable: false };
   } catch {
-    // 404 or other error — SSO not available
     return { url: null, ssoAvailable: false };
   }
 }
