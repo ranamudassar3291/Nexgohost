@@ -84,6 +84,100 @@ function ConfirmModal({ title, description, onConfirm, onCancel, loading }: {
   );
 }
 
+// ─── ManualProxyUrlSetter ─────────────────────────────────────────────────────
+// Lets the admin set the proxy URL manually after uploading files via FTP.
+function ManualProxyUrlSetter({ deployDomain, deployPath, currentBaseUrl, onSaved }: {
+  deployDomain: string;
+  deployPath: string;
+  currentBaseUrl: string | null;
+  onSaved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const { toast } = useToast();
+  const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : "";
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      let apiUrl = `/api/admin/twenty-i/proxy-config`;
+      if (_activeServerId) apiUrl += `?serverId=${encodeURIComponent(_activeServerId)}`;
+      const res = await fetch(apiUrl, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ proxyBaseUrl: url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ ok: false, text: data.error ?? `Error (${res.status})` });
+        return;
+      }
+      setMsg({ ok: true, text: data.message ?? "Proxy URL saved." });
+      toast({ title: "Proxy URL saved", description: data.twentyiBaseUrl });
+      onSaved();
+    } catch (e: any) {
+      setMsg({ ok: false, text: e.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const suggested = `https://${deployDomain}/${deployPath}`;
+
+  return (
+    <div className="px-4 py-3">
+      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Set Proxy URL Manually</p>
+      {currentBaseUrl && (
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">
+          <CheckCircle size={11} className="shrink-0" />
+          <span>Current proxy: <span className="font-mono font-semibold">{currentBaseUrl}</span></span>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground mb-2">
+        After uploading files via FTP or StackCP File Manager, enter the proxy base URL here to activate it.
+      </p>
+      {!open ? (
+        <button
+          onClick={() => { setUrl(suggested); setOpen(true); }}
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary font-semibold transition-colors"
+        >
+          <Link2 size={11} />
+          Set Proxy URL Manually
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <input
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder={suggested}
+            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 font-mono"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={saving || !url.startsWith("https://")}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-semibold disabled:opacity-60 transition-colors"
+            >
+              {saving ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+              Save & Activate
+            </button>
+            <button onClick={() => setOpen(false)} className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-secondary/60 transition-colors">Cancel</button>
+          </div>
+          {msg && (
+            <div className={`flex items-start gap-1.5 text-[11px] rounded-lg px-2.5 py-2 border ${msg.ok ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-600"}`}>
+              {msg.ok ? <CheckCircle size={11} className="shrink-0 mt-0.5" /> : <XCircle size={11} className="shrink-0 mt-0.5" />}
+              <span>{msg.text}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PrimaryBtn({ onClick, disabled, children, small, type = "button" }: {
   onClick?: () => void; disabled?: boolean; children: React.ReactNode; small?: boolean; type?: "button" | "submit";
 }) {
@@ -1752,7 +1846,13 @@ export default function TwentyIAdmin() {
   const [deployDomain, setDeployDomain] = useState("noehost.com");
   const [deployPath, setDeployPath] = useState("20i-proxy");
   const [deploying, setDeploying] = useState(false);
-  const [deployResult, setDeployResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [deployResult, setDeployResult] = useState<{
+    ok: boolean;
+    message: string;
+    manualNeeded?: boolean;
+    uploadPath?: string;
+    action?: string;
+  } | null>(null);
 
   const { data: proxyCfg, refetch: refetchProxyCfg } = useQuery({
     queryKey: ["20i-proxy-config", selectedServerId],
@@ -1765,14 +1865,38 @@ export default function TwentyIAdmin() {
     setDeploying(true);
     setDeployResult(null);
     try {
-      const result = await apiFetch("/api/admin/twenty-i/proxy-deploy", {
+      const token = localStorage.getItem("token");
+      let url = `/api/admin/twenty-i/proxy-deploy`;
+      if (_activeServerId) url += `?serverId=${encodeURIComponent(_activeServerId)}`;
+      const res = await fetch(url, {
         method: "POST",
-        body: JSON.stringify({ domain: deployDomain, path: deployPath }),
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: deployDomain, proxyPath: deployPath }),
       });
-      setDeployResult({ ok: true, message: result.message ?? "Proxy deployed successfully!" });
-      refetchProxyCfg();
-      qc.invalidateQueries({ queryKey: ["20i-server"] });
-      toast({ title: "Proxy deployed!", description: `All 20i API calls now route through ${result.proxyBaseUrl}` });
+      const result = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setDeployResult({ ok: true, message: result.message ?? "Proxy deployed successfully!" });
+        refetchProxyCfg();
+        qc.invalidateQueries({ queryKey: ["20i-server"] });
+        toast({ title: "Proxy deployed!", description: `All 20i API calls now route through ${result.proxyBaseUrl}` });
+        return;
+      }
+
+      // 422 = file upload API not available for this account — guide user to manual upload
+      if (res.status === 422) {
+        setDeployResult({
+          ok: false,
+          message: result.reason ?? "Auto-deploy is not supported for this account type.",
+          manualNeeded: true,
+          uploadPath: result.uploadPath ?? `public_html/${deployPath}/`,
+          action: result.action,
+        });
+        return;
+      }
+
+      // Other error
+      setDeployResult({ ok: false, message: result.error ?? result.message ?? `Request failed (${res.status})` });
     } catch (e: any) {
       setDeployResult({ ok: false, message: e.message });
     } finally {
@@ -2010,10 +2134,43 @@ export default function TwentyIAdmin() {
             </button>
 
             {deployResult && (
-              <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 border text-xs ${deployResult.ok ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-700" : "bg-red-500/5 border-red-500/20 text-red-600"}`}>
-                {deployResult.ok ? <CheckCircle size={13} className="shrink-0 mt-0.5" /> : <XCircle size={13} className="shrink-0 mt-0.5" />}
-                <span>{deployResult.message}</span>
-              </div>
+              deployResult.manualNeeded ? (
+                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold text-amber-700">Auto-deploy not available for this 20i account type</p>
+                  </div>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">{deployResult.message}</p>
+                  <div className="bg-white/60 rounded-lg px-3 py-2 border border-amber-500/20">
+                    <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5">Manual Upload Steps</p>
+                    <ol className="text-[11px] text-amber-700 space-y-1 list-decimal list-inside">
+                      <li>Download the <span className="font-semibold">index.php</span> and <span className="font-semibold">.htaccess</span> files below</li>
+                      <li>
+                        Log in to{" "}
+                        <a href="https://my.20i.com" target="_blank" rel="noopener noreferrer" className="underline font-semibold">my.20i.com</a>{" "}
+                        → StackCP → File Manager
+                      </li>
+                      <li>
+                        Navigate to{" "}
+                        <span className="font-mono bg-amber-100 px-1 rounded text-[10px]">{deployResult.uploadPath ?? `public_html/${deployPath}/`}</span>
+                        {" "}(create the folder if it doesn't exist)
+                      </li>
+                      <li>Upload both files into that folder</li>
+                      <li>
+                        Come back here and click{" "}
+                        <span className="font-semibold">Set Proxy URL Manually</span>{" "}
+                        and enter:{" "}
+                        <span className="font-mono bg-amber-100 px-1 rounded text-[10px]">https://{deployDomain}/{deployPath}</span>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+              ) : (
+                <div className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 border text-xs ${deployResult.ok ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-700" : "bg-red-500/5 border-red-500/20 text-red-600"}`}>
+                  {deployResult.ok ? <CheckCircle size={13} className="shrink-0 mt-0.5" /> : <XCircle size={13} className="shrink-0 mt-0.5" />}
+                  <span>{deployResult.message}</span>
+                </div>
+              )
             )}
 
             <div className="mt-3 flex items-start gap-2 bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2.5">
@@ -2029,10 +2186,10 @@ export default function TwentyIAdmin() {
           </div>
 
           {/* Manual fallback */}
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 border-b border-primary/10">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Manual Upload (fallback)</p>
             <p className="text-[11px] text-muted-foreground mb-2">If auto-deploy fails, download these files and upload them to{" "}
-              <span className="font-mono">public_html/{deployPath}/</span> via your cPanel File Manager.
+              <span className="font-mono">public_html/{deployPath}/</span> via StackCP File Manager or FTP.
             </p>
             <div className="flex gap-2 flex-wrap">
               <button
@@ -2058,6 +2215,14 @@ export default function TwentyIAdmin() {
               </button>
             </div>
           </div>
+
+          {/* Set proxy URL manually after manual upload */}
+          <ManualProxyUrlSetter
+            deployDomain={deployDomain}
+            deployPath={deployPath}
+            currentBaseUrl={proxyCfg?.twentyiBaseUrl ?? null}
+            onSaved={() => { refetchProxyCfg(); qc.invalidateQueries({ queryKey: ["20i-server"] }); }}
+          />
         </div>
       )}
 

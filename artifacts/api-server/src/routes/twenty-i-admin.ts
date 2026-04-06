@@ -37,6 +37,7 @@ import { runWithCtx,
   twentyiAutoWhitelist,
   twentyiGetSiteRenewalDate,
   twentyiUploadFile,
+  twentyiMkdir,
   twentyiFindPackageByDomain,
 } from "../lib/twenty-i.js";
 
@@ -288,40 +289,63 @@ echo $resp;`;
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^(.*)$ index.php [QSA,L]`;
 
-    // Step 3: upload both files via 20i file management API
-    const phpFilePath = `public_html/${proxyPath}/index.php`;
-    const htaccessFilePath = `public_html/${proxyPath}/.htaccess`;
+    // Step 3: create directory + upload both files via 20i file management API
+    const dirPath = `public_html/${proxyPath}`;
+    const phpFilePath = `${dirPath}/index.php`;
+    const htaccessFilePath = `${dirPath}/.htaccess`;
 
+    console.log(`[PROXY-DEPLOY] Uploading to package ${pkg.id} (${domain}): ${phpFilePath}, ${htaccessFilePath}`);
     await runWith20i(server, async () => {
+      // Best-effort directory creation (not fatal if endpoint not available)
+      await twentyiMkdir(server!.apiToken!, pkg.id, dirPath);
+      // Upload PHP proxy script
       await twentyiUploadFile(server!.apiToken!, pkg.id, phpFilePath, phpContent);
+      // Upload .htaccess rewrite rules
       await twentyiUploadFile(server!.apiToken!, pkg.id, htaccessFilePath, htaccessContent);
     });
 
-    // Step 4: save the base URL to the server record
+    // Step 4: save the base URL to the server record (no env var needed)
     const proxyBaseUrl = `https://${domain}/${proxyPath}`;
     await db
       .update(serversTable)
       .set({ twentyiBaseUrl: proxyBaseUrl, updatedAt: new Date() })
       .where(eq(serversTable.id, server.id));
 
+    console.log(`[PROXY-DEPLOY] ✓ Proxy deployed to ${proxyBaseUrl} for server ${server.id}`);
     res.json({
       ok: true,
       packageId: pkg.id,
       domain,
       proxyPath,
       proxyBaseUrl,
-      message: `Proxy deployed to ${proxyBaseUrl}. All 20i API calls will now route through this proxy.`,
+      message: `Proxy deployed to ${proxyBaseUrl}. All 20i API calls now permanently route through noehost.com — IP changes no longer matter.`,
     });
   } catch (e: any) {
     const msg: string = e.message ?? "";
-    if (msg.includes("403") && msg.includes("IpMatch")) {
+    console.error(`[PROXY-DEPLOY] Failed: ${msg.substring(0, 400)}`);
+
+    // IP whitelist block
+    if (msg.includes("IpMatch")) {
       return res.status(403).json({
         error: "IP blocked by 20i",
         hint: "Your current outbound IP is not whitelisted in 20i. Add it temporarily to deploy the proxy, then remove it.",
-        detail: msg.substring(0, 200),
+        detail: msg.substring(0, 300),
       });
     }
-    res.status(500).json({ error: msg.substring(0, 300) });
+
+    // File upload API not available — tell the user to upload manually
+    if (msg.includes("file upload API is not available") || msg.includes("vhostFiles")) {
+      return res.status(422).json({
+        error: "Auto-deploy not supported",
+        reason: "The 20i file management API (vhostFilesCreate / vhostFiles) returned 404 for all upload variants. This is a known limitation for some reseller account types.",
+        action: "Please upload the proxy files manually using one of these methods:\n1. StackCP File Manager → public_html/api-proxy/\n2. FTP to the noehost.com hosting account\n3. Use the 'Download Proxy Files' button below to get the files, then upload them.",
+        packageId: domain !== "" ? undefined : "unknown",
+        uploadPath: `public_html/${proxyPath}/`,
+        detail: msg.substring(0, 400),
+      });
+    }
+
+    res.status(500).json({ error: msg.substring(0, 500) });
   }
 });
 
@@ -340,6 +364,40 @@ router.delete("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async 
     res.json({ ok: true, message: "Proxy base URL cleared. API calls now go directly to api.20i.com." });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Set proxy URL manually (no file upload — for use after manual FTP upload) ─
+// PATCH /admin/twenty-i/proxy-config  { proxyBaseUrl: "https://..." }
+// Saves the given URL directly to the DB without uploading any files.
+// Use this after manually uploading index.php + .htaccess via FTP or StackCP.
+
+router.patch("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const serverId = req.query.serverId as string | undefined;
+    const server = await get20iServer(serverId);
+    if (!server) return res.status(404).json({ error: "Server not found." });
+
+    const { proxyBaseUrl } = req.body as { proxyBaseUrl?: string };
+    if (!proxyBaseUrl || typeof proxyBaseUrl !== "string") {
+      return res.status(400).json({ error: "proxyBaseUrl is required (e.g. https://noehost.com/20i-proxy)" });
+    }
+
+    // Normalise: strip trailing slash
+    const normalised = proxyBaseUrl.replace(/\/+$/, "");
+    if (!normalised.startsWith("https://")) {
+      return res.status(400).json({ error: "proxyBaseUrl must start with https://" });
+    }
+
+    await db
+      .update(serversTable)
+      .set({ twentyiBaseUrl: normalised, updatedAt: new Date() })
+      .where(eq(serversTable.id, server.id));
+
+    console.log(`[PROXY-MANUAL] Admin manually set proxy URL: ${normalised} for server ${server.id}`);
+    res.json({ ok: true, twentyiBaseUrl: normalised, message: `Proxy URL set to ${normalised}. All 20i API calls will now route through this URL.` });
+  } catch (e: any) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 

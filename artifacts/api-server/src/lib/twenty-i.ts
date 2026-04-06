@@ -313,6 +313,10 @@ async function request<T = any>(
         Authorization: authHeader,
         "Content-Type": "application/json",
         Accept: "application/json",
+        // Identify as noehost.com so 20i sees consistent origin in all requests.
+        // This helps when 20i supports domain-based access in addition to IP whitelist.
+        Origin: "https://noehost.com",
+        Referer: "https://noehost.com/",
       },
       ...(reqBody !== undefined ? { data: reqBody } : {}),
       timeout: DEFAULT_TIMEOUT_MS,
@@ -370,9 +374,17 @@ async function request<T = any>(
     );
   }
   if (res.status === 403) {
-    const scopeInfo = typeof res.data === "object" && res.data !== null
-      ? ` Scope: ${(res.data as any).scope ?? "unknown"}. User: ${(res.data as any).user ?? "null"}.`
-      : "";
+    const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
+    const perm403 = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
+    if (perm403 === "IpMatch") {
+      const ip403 = d403?.user ?? d403?.error?.data?.user ?? "unknown";
+      throw new Error(
+        `20i Forbidden (403) — IpMatch: IP "${ip403}" is not whitelisted. ` +
+        `Add this IP at my.20i.com → Reseller API → IP Whitelist, OR deploy the Domain Proxy Setup. ` +
+        `Response: ${raw.substring(0, 200)}`,
+      );
+    }
+    const scopeInfo = ` Scope: ${d403?.scope ?? "unknown"}. User: ${d403?.user ?? "null"}.`;
     throw new Error(
       `20i Forbidden (403).${scopeInfo} If using a Reseller Combined API Key, make sure the key has the required permissions. ` +
       `Response: ${raw.substring(0, 200)}`,
@@ -409,7 +421,24 @@ async function request<T = any>(
   throw new Error(`20i API error ${res.status}: ${raw.substring(0, 300)}`);
 }
 
+// ─── IpMatch detection ─────────────────────────────────────────────────────────
+// Returns true when a 403 response body indicates an IP whitelist rejection.
+// 20i returns: { permission: "IpMatch" } or { error: { data: { permission: "IpMatch" } } }
+function isIpMatchError(data: any): boolean {
+  if (typeof data !== "object" || data === null) return false;
+  const perm = (data as any)?.permission
+    ?? (data as any)?.error?.data?.permission
+    ?? (data as any)?.data?.permission;
+  return perm === "IpMatch";
+}
+
+// Short-lived cache: track when we last tried to auto-whitelist (per key-last4) to avoid spam.
+const _wlAttemptedAt = new Map<string, number>();
+const WL_COOLDOWN_MS = 60_000;
+
 // Retry up to MAX_RETRIES times using exponential backoff. Skips retry on auth/not-found errors.
+// Special case: on first 403 IpMatch, attempts self-healing by auto-whitelisting the current IP,
+// then retries the original request ONCE. If self-healing also fails, throws the original error.
 async function requestWithRetry<T = any>(
   apiKey: string,
   method: string,
@@ -417,13 +446,47 @@ async function requestWithRetry<T = any>(
   body?: unknown,
 ): Promise<T> {
   let lastErr!: Error;
+  let selfHealAttempted = false;
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       return await request<T>(apiKey, method, path, body);
     } catch (err: any) {
       lastErr = err;
       const msg: string = err.message ?? "";
+
+      // ── IpMatch self-healing ──────────────────────────────────────────────────
+      // When 403 IpMatch is detected and we haven't tried self-healing yet,
+      // attempt to auto-add current IP to 20i whitelist, then loop back for a retry.
+      if (!selfHealAttempted && msg.includes("403") && msg.includes("IpMatch")) {
+        selfHealAttempted = true;
+        const cleanKey = sanitiseKey(apiKey);
+        const keyId = cleanKey.slice(-4);
+        const lastAttempt = _wlAttemptedAt.get(keyId) ?? 0;
+        if (Date.now() - lastAttempt > WL_COOLDOWN_MS) {
+          _wlAttemptedAt.set(keyId, Date.now());
+          try {
+            const { default: axiosInner } = await import("axios");
+            const ipRes = await axiosInner.get("https://api.ipify.org?format=json", { timeout: 5000 });
+            const currentIp: string = ipRes.data?.ip ?? "";
+            if (currentIp) {
+              console.log(`[20i-SH] IpMatch — attempting auto-whitelist for ${currentIp}…`);
+              await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
+                apiWhitelist: { [currentIp]: {} },
+              });
+              console.log(`[20i-SH] Auto-whitelist succeeded for ${currentIp} — retrying original request`);
+              continue;
+            }
+          } catch (shErr: any) {
+            console.warn(`[20i-SH] Auto-whitelist failed: ${String(shErr?.message ?? "").substring(0, 120)}`);
+          }
+        }
+        throw err;
+      }
+
+      // Do not retry on clear client errors.
       if (msg.includes("401") || msg.includes("403") || msg.includes("404") || msg.includes("405")) throw err;
+
       if (attempt < MAX_RETRIES) {
         const delay = attempt * 1_200;
         console.warn(`[20i] attempt ${attempt} failed (${msg.substring(0, 80)}), retrying in ${delay}ms`);
@@ -914,22 +977,82 @@ export async function twentyiDelete(apiKey: string, siteId: string): Promise<voi
 }
 
 // ─── File Management ──────────────────────────────────────────────────────────
-// Endpoint: POST /package/{id}/web/vhostFiles
-// Uploads (creates or overwrites) a file in the package's web root.
-// Body: { name: "relative/path/to/file", content: "file_content_as_string" }
+// 20i StackCP web file API. Tries endpoints in priority order since the exact
+// available endpoint name varies by account type and 20i API version.
 
+// Try to create a directory (best-effort — not all accounts support this).
+export async function twentyiMkdir(
+  apiKey: string,
+  packageId: string,
+  relativePath: string,
+): Promise<void> {
+  try {
+    await requestWithRetry(apiKey, "POST", `/package/${packageId}/web/vhostFilesMkdir`, {
+      name: relativePath,
+    });
+  } catch {
+    // Directory may already exist or endpoint may not be available — not fatal.
+  }
+}
+
+// Upload (create or overwrite) a file in the package's web root.
+// Tries multiple endpoint/encoding combinations in order since the exact
+// variant available depends on account type and 20i API version.
 export async function twentyiUploadFile(
   apiKey: string,
   packageId: string,
   relativePath: string,
   content: string,
 ): Promise<void> {
-  // 20i file write: POST /package/{id}/web/vhostFiles
-  // Body: { name: "relative/path/to/file", content: "file_content_as_string" }
-  await requestWithRetry(apiKey, "POST", `/package/${packageId}/web/vhostFiles`, {
-    name: relativePath,
-    content,
-  });
+  const b64Content = Buffer.from(content).toString("base64");
+
+  // The 20i StackCP file write API is tried across three variants:
+  //   1. POST vhostFilesCreate with base64 content  (most common in reseller plans)
+  //   2. POST vhostFilesCreate with raw text content
+  //   3. POST vhostFiles       with base64 content  (older endpoint name)
+  //
+  // The 404/405 guard means we skip unavailable endpoints; any other error throws.
+
+  const attempts: Array<{ path: string; body: object; label: string }> = [
+    {
+      path: `/package/${packageId}/web/vhostFilesCreate`,
+      body: { name: relativePath, content: b64Content, encoding: "base64" },
+      label: "vhostFilesCreate+b64",
+    },
+    {
+      path: `/package/${packageId}/web/vhostFilesCreate`,
+      body: { name: relativePath, content },
+      label: "vhostFilesCreate+raw",
+    },
+    {
+      path: `/package/${packageId}/web/vhostFiles`,
+      body: { name: relativePath, content: b64Content },
+      label: "vhostFiles+b64",
+    },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      await requestWithRetry(apiKey, "POST", attempt.path, attempt.body);
+      console.log(`[20i-FILE] ✓ Uploaded via ${attempt.label}: ${relativePath}`);
+      return;
+    } catch (err: any) {
+      const msg = String(err?.message ?? "");
+      if (msg.includes("404") || msg.includes("405")) {
+        console.warn(`[20i-FILE] ${attempt.label} → ${msg.substring(0, 60)}, trying next…`);
+        continue;
+      }
+      // Any other error (403, 500, network) — stop and throw immediately
+      throw err;
+    }
+  }
+
+  // All attempts exhausted — this account does not support file upload via API
+  throw new Error(
+    `20i file upload API is not available for package ${packageId}. ` +
+    `All endpoints (vhostFilesCreate, vhostFiles) returned 404/405. ` +
+    `Please upload the proxy files manually via FTP or the StackCP File Manager.`,
+  );
 }
 
 // List files in a package directory.
