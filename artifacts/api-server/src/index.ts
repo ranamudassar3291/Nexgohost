@@ -7,7 +7,7 @@ import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
 import { autoFixSafepayKeys } from "./routes/safepay.js";
 import { getSystemApiKey } from "./lib/systemApiKey.js";
-import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey, twentyiAutoWhitelist, getOutboundIp } from "./lib/twenty-i.js";
+import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey, twentyiAutoWhitelist, getOutboundIp, startIpMonitor } from "./lib/twenty-i.js";
 import { db } from "@workspace/db";
 import { serversTable } from "@workspace/db/schema";
 import { and, eq, desc } from "drizzle-orm";
@@ -71,6 +71,18 @@ app.listen(port, async () => {
       console.warn(`[20i] Key format detection failed: ${e.message}`);
     }
   })();
+
+  // Periodic IP monitoring: detect outbound IP changes every 5 minutes and auto-whitelist.
+  startIpMonitor(async () => {
+    try {
+      const [srv] = await db.select().from(serversTable)
+        .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
+        .orderBy(desc(serversTable.updatedAt)).limit(1);
+      return srv?.apiToken ?? null;
+    } catch {
+      return null;
+    }
+  }, 5 * 60 * 1000);
 
   // Auto-refresh exchange rates on startup and every hour
   const runRefresh = async () => {

@@ -1,5 +1,19 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 47 — Aggressive Whitelist + Periodic IP Monitor)
+
+### 20i: Exhaustive multi-format whitelist + periodic IP change detection
+- **Definitive proof (2026-04-06)**: `/reseller/*/apiWhitelist` returns 404 for ALL 4 authenticated key variants (before_plus ±"\n", after_plus ±"\n"). Full-key variants return 401 as expected. The endpoint is NOT available for this 20i account type.
+- **`buildWhitelistKeyVariants()`** — new helper: generates all 6 combinations (3 key portions × 2 newline flags) with deduplication. Tries every variant before giving up.
+- **`rawWhitelistCall()`** — new helper: bypasses `request()` key-selection logic; makes direct axios call per variant.
+- **`twentyiGetWhitelist()`**, **`twentyiAddToWhitelist()`**, **`twentyiAutoWhitelist()`** — all rewritten to iterate `buildWhitelistKeyVariants()`.
+- **`twentyiAutoWhitelist()` result logic** — counts `auth404Count` vs `auth401Count` separately; returns `endpoint_unavailable` when authenticated variants get 404 (not generic `error`).
+- **`startIpMonitor()`** — new export: detects outbound IP changes every 5 minutes, auto-whitelists if IP changes, logs `MANUAL ACTION REQUIRED` if whitelist fails.
+- **`requestWithRetry()` self-healing** — updated to call `twentyiAutoWhitelist()` (all 6 variants) instead of raw `request()` when IpMatch 403 is caught.
+- **`index.ts`** — imports `startIpMonitor` and starts it after startup; polls DB for active 20i key every 5 min.
+- **Light mode** — already forced in `ThemeProvider.tsx` (removes `dark` class, clears localStorage key). No changes needed.
+- **Auth/key integrity** — confirmed: `apiToken` is PostgreSQL `TEXT` (no length limit), no double Bearer, `before_plus` without `\n` correctly used for `/package`, `before_plus` with `\n` for `/reseller/*`.
+
 ## Recent Changes (Session 46 — 20i Auth Root Cause Fix)
 
 ### Fix: 20i API Authentication — Proven Auth Matrix Applied

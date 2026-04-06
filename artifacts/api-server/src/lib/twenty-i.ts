@@ -470,12 +470,14 @@ async function requestWithRetry<T = any>(
             const ipRes = await axiosInner.get("https://api.ipify.org?format=json", { timeout: 5000 });
             const currentIp: string = ipRes.data?.ip ?? "";
             if (currentIp) {
-              console.log(`[20i-SH] IpMatch — attempting auto-whitelist for ${currentIp}…`);
-              await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
-                apiWhitelist: { [currentIp]: {} },
-              });
-              console.log(`[20i-SH] Auto-whitelist succeeded for ${currentIp} — retrying original request`);
-              continue;
+              console.log(`[20i-SH] IpMatch — attempting multi-format auto-whitelist for ${currentIp}…`);
+              // Use aggressive multi-format whitelist (tries all 6 key variants)
+              const wlResult = await twentyiAutoWhitelist(sanitiseKey(apiKey), currentIp);
+              if (wlResult.added || wlResult.alreadyPresent) {
+                console.log(`[20i-SH] Auto-whitelist ${wlResult.alreadyPresent ? "confirmed" : "succeeded"} for ${currentIp} — retrying`);
+                continue;
+              }
+              console.warn(`[20i-SH] Auto-whitelist returned: ${wlResult.reason}`);
             }
           } catch (shErr: any) {
             console.warn(`[20i-SH] Auto-whitelist failed: ${String(shErr?.message ?? "").substring(0, 120)}`);
@@ -693,17 +695,87 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
 
 // ─── IP Whitelist ─────────────────────────────────────────────────────────────
 // Endpoint: GET/POST /reseller/*/apiWhitelist
+//
+// The exact key format required by the whitelist endpoint is undocumented.
+// We therefore try ALL valid key permutations (3 extraction modes × 2 newline modes)
+// so we have the best chance of hitting the right combination.
+
+function buildWhitelistKeyVariants(cleanKey: string): Array<{ key: string; nl: boolean; label: string }> {
+  const plusIdx = cleanKey.indexOf("+");
+  const beforePlus = plusIdx > 0 ? cleanKey.substring(0, plusIdx) : cleanKey;
+  const afterPlus  = plusIdx > 0 ? cleanKey.substring(plusIdx + 1) : cleanKey;
+  const out: Array<{ key: string; nl: boolean; label: string }> = [];
+  const seen = new Set<string>();
+  for (const [k, lbl] of [[beforePlus, "before_plus"], [afterPlus, "after_plus"], [cleanKey, "full"]] as const) {
+    for (const nl of [true, false]) {
+      const uid = `${k}:${nl}`;
+      if (seen.has(uid)) continue;
+      seen.add(uid);
+      out.push({ key: k, nl, label: `${lbl}+${nl ? "nl" : "no-nl"}` });
+    }
+  }
+  return out;
+}
+
+// Direct axios call for whitelist — bypasses key-selection logic so each variant can be tested.
+async function rawWhitelistCall(
+  method: "GET" | "POST" | "DELETE",
+  path: string,
+  authHeader: string,
+  body?: unknown,
+): Promise<{ status: number; data: any }> {
+  const url = `${resolveBaseUrl()}${path}`;
+  const proxyUrl = resolveProxyUrl();
+  const cfg: AxiosRequestConfig = {
+    method,
+    url,
+    headers: {
+      Authorization: authHeader,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Origin: "https://noehost.com",
+      Referer: "https://noehost.com/",
+    },
+    ...(body !== undefined ? { data: body } : {}),
+    timeout: DEFAULT_TIMEOUT_MS,
+    validateStatus: () => true,
+  };
+  if (proxyUrl) {
+    const proxy = buildAxiosProxy(proxyUrl);
+    if (proxy) cfg.proxy = proxy;
+  }
+  const res = await axios(cfg);
+  return { status: res.status, data: res.data };
+}
 
 export async function twentyiGetWhitelist(apiKey: string): Promise<string[]> {
-  const data = await requestWithRetry<Record<string, any>>(apiKey, "GET", "/reseller/*/apiWhitelist");
-  if (data && typeof data === "object") return Object.keys(data);
+  const variants = buildWhitelistKeyVariants(sanitiseKey(apiKey));
+  for (const v of variants) {
+    const authHeader = `Bearer ${encodeKeyToBase64(v.key, v.nl)}`;
+    const { status, data } = await rawWhitelistCall("GET", "/reseller/*/apiWhitelist", authHeader);
+    console.log(`[20i-WL] GET apiWhitelist key=${v.label} → HTTP ${status}`);
+    if (status === 200 && data && typeof data === "object") {
+      console.log(`[20i-WL] GET apiWhitelist: success via key=${v.label}`);
+      return Object.keys(data);
+    }
+  }
   return [];
 }
 
 export async function twentyiAddToWhitelist(apiKey: string, ip: string): Promise<void> {
-  await requestWithRetry(apiKey, "POST", "/reseller/*/apiWhitelist", {
-    apiWhitelist: { [ip]: {} },
-  });
+  const variants = buildWhitelistKeyVariants(sanitiseKey(apiKey));
+  for (const v of variants) {
+    const authHeader = `Bearer ${encodeKeyToBase64(v.key, v.nl)}`;
+    const { status } = await rawWhitelistCall("POST", "/reseller/*/apiWhitelist", authHeader, {
+      apiWhitelist: { [ip]: {} },
+    });
+    console.log(`[20i-WL] POST apiWhitelist key=${v.label} → HTTP ${status}`);
+    if (status >= 200 && status < 300) {
+      console.log(`[20i-WL] POST apiWhitelist: success via key=${v.label}`);
+      return;
+    }
+  }
+  throw new Error(`Failed to add ${ip} to 20i whitelist — all ${variants.length} key variants returned non-2xx`);
 }
 
 export async function twentyiRemoveFromWhitelist(apiKey: string, ip: string): Promise<void> {
@@ -711,77 +783,131 @@ export async function twentyiRemoveFromWhitelist(apiKey: string, ip: string): Pr
 }
 
 // Try to auto-add IP to whitelist. Returns { added: boolean, reason: string, alreadyPresent?: boolean }.
-// First checks if the IP is already in the whitelist to avoid double-add errors.
-// Returns `alreadyPresent: true` when the IP is already whitelisted (not an error).
+// Exhaustively tries every key format combination for maximum compatibility.
 export async function twentyiAutoWhitelist(
   apiKey: string,
   ip: string,
 ): Promise<{ added: boolean; reason: string; alreadyPresent?: boolean }> {
-  // Step 1 — try to read the current whitelist. If we can read it we know for sure.
-  try {
-    const currentList = await twentyiGetWhitelist(apiKey);
-    if (currentList.includes(ip)) {
-      console.log(`[20i-WL] Auto-whitelist: ${ip} is already in 20i whitelist — no action needed`);
-      return { added: false, reason: "already_present", alreadyPresent: true };
-    }
-    // IP not in list — add it
-    await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
-      apiWhitelist: { [ip]: {} },
-    });
-    console.log(`[20i-WL] Auto-whitelist: ✓ added ${ip}`);
-    return { added: true, reason: "ok" };
-  } catch (firstErr: any) {
-    const firstMsg = String(firstErr?.message ?? "");
-    const firstCode = String(firstErr?.code ?? "");
-    const isWhitelistEndpointMissing = (firstCode === "IP_NOT_WHITELISTED" || firstMsg.includes("IP_NOT_WHITELISTED"))
-      && firstMsg.includes("/reseller/*/apiWhitelist");
+  const cleanKey = sanitiseKey(apiKey);
+  const variants = buildWhitelistKeyVariants(cleanKey);
+  console.log(`[20i-WL] Auto-whitelist ${ip} — trying ${variants.length} key variants on GET+POST`);
 
-    // If the whitelist GET returned 404, this could mean:
-    //   a) IP is NOT in the whitelist (classic chicken-and-egg — common scenario)
-    //   b) The whitelist management endpoint doesn't exist for this account type
-    // We distinguish by checking if OTHER reseller/* endpoints already respond non-401
-    // (i.e., the IP itself is accessible). If yes, case (b) is more likely.
-    // Either way, attempt the POST — if it gives 404 too, conclude endpoint-not-available.
-
-    // Try the POST anyway
+  // Step 1 — attempt GET with each variant: if one succeeds we get the live list.
+  for (const v of variants) {
+    const authHeader = `Bearer ${encodeKeyToBase64(v.key, v.nl)}`;
     try {
-      await request(apiKey, "POST", "/reseller/*/apiWhitelist", {
-        apiWhitelist: { [ip]: {} },
-      });
-      console.log(`[20i-WL] Auto-whitelist: ✓ added ${ip} (read-list failed but POST succeeded)`);
-      return { added: true, reason: "ok" };
-    } catch (e: any) {
-      const msg = String(e?.message ?? "");
-      const code = String(e?.code ?? "");
-
-      // Both GET and POST returned 404 → the whitelist endpoint is not available for this account.
-      // Do not treat this as "ip_blocked" — it is an account limitation.
-      if (isWhitelistEndpointMissing && (code === "IP_NOT_WHITELISTED" || msg.includes("IP_NOT_WHITELISTED"))) {
-        console.warn(`[20i-WL] Auto-whitelist: the apiWhitelist endpoint returned 404 for both GET and POST.`);
-        console.warn(`[20i-WL] This usually means the IP whitelist API is not enabled for this account type.`);
-        console.warn(`[20i-WL] The IP (${ip}) must be added manually at my.20i.com → Reseller API → IP Whitelist.`);
-        return { added: false, reason: "endpoint_unavailable" };
+      const { status, data } = await rawWhitelistCall("GET", "/reseller/*/apiWhitelist", authHeader);
+      console.log(`[20i-WL] GET key=${v.label} → HTTP ${status}`);
+      if (status === 200 && data && typeof data === "object") {
+        if (Object.keys(data).includes(ip)) {
+          console.log(`[20i-WL] ${ip} already present (GET key=${v.label})`);
+          return { added: false, reason: "already_present", alreadyPresent: true };
+        }
+        // IP missing — add it with the same variant that just worked for GET.
+        const { status: ps } = await rawWhitelistCall("POST", "/reseller/*/apiWhitelist", authHeader, {
+          apiWhitelist: { [ip]: {} },
+        });
+        console.log(`[20i-WL] POST key=${v.label} → HTTP ${ps}`);
+        if (ps >= 200 && ps < 300) {
+          console.log(`[20i-WL] ✓ Added ${ip} via key=${v.label}`);
+          return { added: true, reason: "ok" };
+        }
       }
-
-      // 403 from POST = chicken-and-egg (IP not yet in whitelist at all)
-      const isChickenEgg = msg.includes("Forbidden (403)") || msg.includes("403");
-
-      // 401 / KEY NOT RECOGNISED = auth failure
-      const isAuthFail = msg.includes("KEY NOT RECOGNISED") || msg.includes("401")
-        || msg.includes("Authentication failed");
-
-      if (isChickenEgg) {
-        console.warn(`[20i-WL] Auto-whitelist: ${ip} must be added manually at my.20i.com → Reseller API → IP Whitelist`);
-        return { added: false, reason: "ip_blocked" };
-      }
-      if (isAuthFail) {
-        console.warn(`[20i-WL] Auto-whitelist: API key authentication failed — check key format`);
-        return { added: false, reason: "auth_failed" };
-      }
-      console.warn(`[20i-WL] Auto-whitelist: could not add ${ip}: ${msg.substring(0, 120)}`);
-      return { added: false, reason: "error" };
+    } catch (err: any) {
+      console.warn(`[20i-WL] GET key=${v.label}: ${String(err?.message ?? "").substring(0, 80)}`);
     }
   }
+
+  // Step 2 — GET didn't yield a 200 for any variant; try POST directly with all variants.
+  // Track authenticated 404s separately from 401s (401 = wrong key format, expected for "full").
+  // If every authenticated attempt gets 404, the endpoint is absent for this account.
+  let auth404Count = 0;
+  let auth401Count = 0;
+  for (const v of variants) {
+    const authHeader = `Bearer ${encodeKeyToBase64(v.key, v.nl)}`;
+    try {
+      const { status } = await rawWhitelistCall("POST", "/reseller/*/apiWhitelist", authHeader, {
+        apiWhitelist: { [ip]: {} },
+      });
+      console.log(`[20i-WL] POST(blind) key=${v.label} → HTTP ${status}`);
+      if (status >= 200 && status < 300) {
+        console.log(`[20i-WL] ✓ Added ${ip} via blind POST key=${v.label}`);
+        return { added: true, reason: "ok" };
+      }
+      if (status === 404) auth404Count++;
+      else if (status === 401) auth401Count++;
+    } catch (err: any) {
+      console.warn(`[20i-WL] POST(blind) key=${v.label}: ${String(err?.message ?? "").substring(0, 80)}`);
+    }
+  }
+
+  // "endpoint_unavailable": authenticated variants got 404 (auth ok, route missing).
+  // 401s from "full" key are expected — that key is always rejected by 20i.
+  if (auth404Count > 0 && auth404Count + auth401Count === variants.length) {
+    console.warn(`[20i-WL] ${auth404Count} authenticated variants → 404 (route absent), ${auth401Count} → 401 (expected for full key).`);
+    console.warn(`[20i-WL] The apiWhitelist endpoint is NOT available for this 20i account type.`);
+    console.warn(`[20i-WL] Manual action required: add ${ip} at my.20i.com → Reseller API → IP Whitelist.`);
+    return { added: false, reason: "endpoint_unavailable" };
+  }
+
+  console.warn(`[20i-WL] All ${variants.length} variants failed to whitelist ${ip}.`);
+  return { added: false, reason: "error" };
+}
+
+// ─── Periodic IP monitoring ────────────────────────────────────────────────────
+// Detects outbound IP changes (Replit can change NAT IP on restart/redeploy)
+// and automatically attempts to re-whitelist the new IP with 20i.
+
+let _lastKnownIp: string | null = null;
+let _ipMonitorTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startIpMonitor(
+  getApiKey: () => Promise<string | null>,
+  intervalMs = 5 * 60 * 1000,
+): () => void {
+  if (_ipMonitorTimer !== null) {
+    clearInterval(_ipMonitorTimer);
+    _ipMonitorTimer = null;
+  }
+
+  const check = async () => {
+    try {
+      const currentIp = await getOutboundIp();
+      if (!currentIp || currentIp === "unknown") return;
+
+      if (_lastKnownIp && _lastKnownIp !== currentIp) {
+        console.warn(`[20i-IPMON] ⚠ Outbound IP changed: ${_lastKnownIp} → ${currentIp}`);
+        const apiKey = await getApiKey();
+        if (apiKey) {
+          const result = await twentyiAutoWhitelist(apiKey, currentIp);
+          if (result.added) {
+            console.log(`[20i-IPMON] ✓ New IP ${currentIp} whitelisted automatically`);
+          } else if (result.alreadyPresent) {
+            console.log(`[20i-IPMON] ${currentIp} already in whitelist — OK`);
+          } else {
+            console.warn(`[20i-IPMON] ✗ Could not auto-whitelist ${currentIp} (${result.reason})`);
+            console.warn(`[20i-IPMON] MANUAL ACTION REQUIRED: add ${currentIp} at my.20i.com → Reseller API → IP Whitelist`);
+          }
+        }
+      } else if (!_lastKnownIp) {
+        console.log(`[20i-IPMON] IP monitor started — current outbound IP: ${currentIp}`);
+      }
+
+      _lastKnownIp = currentIp;
+    } catch (err: any) {
+      console.warn(`[20i-IPMON] Check failed: ${String(err?.message ?? "").substring(0, 80)}`);
+    }
+  };
+
+  check();
+  _ipMonitorTimer = setInterval(check, intervalMs);
+
+  return () => {
+    if (_ipMonitorTimer !== null) {
+      clearInterval(_ipMonitorTimer);
+      _ipMonitorTimer = null;
+    }
+  };
 }
 
 // ─── Connection test ──────────────────────────────────────────────────────────
