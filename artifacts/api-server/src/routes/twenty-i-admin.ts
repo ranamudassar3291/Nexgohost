@@ -1094,7 +1094,7 @@ router.post("/admin/twenty-i/provision", authenticate, requireAdmin, async (req:
       try {
         const pkgs = await twentyiGetPackages(server!.apiToken!);
         const pkg = pkgs.find(p => p.id === packageId);
-        if (pkg) planName = pkg.name;
+        if (pkg) planName = pkg.label;
       } catch { /* ignore */ }
     }
 

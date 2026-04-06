@@ -982,22 +982,87 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
 }
 
 // ─── Package Types ────────────────────────────────────────────────────────────
-// Endpoint: GET /reseller/*/packageTypes
-// Returns array of package type objects
+// Primary:  GET /reseller/*/packageTypes → array of package type template objects
+// Fallback: GET /package               → infer package types from existing packages
+//
+// The /packageTypes endpoint returns 404 for some 20i account types (e.g. StackCP
+// resellers). In that case we derive the available types from the existing packages'
+// typeRef + packageTypeName + packageTypePlatform fields, which are the exact same
+// IDs used when calling POST /reseller/*/addWeb { type: typeRef }.
+//
+// Authorization is the same for both:
+//   - /reseller/* → before_plus key WITH "\n"
+//   - /package    → before_plus key WITHOUT "\n"
+
+function normalisePackageTypeArray(arr: any[]): TwentyIPackageType[] {
+  return (arr as any[])
+    .filter((p) => p && (p.id || p.typeRef))
+    .map((p: any) => ({
+      id:          String(p.id   ?? p.typeRef ?? ""),
+      label:       String(p.label ?? p.name ?? p.packageTypeName ?? p.id ?? p.typeRef ?? "Unknown"),
+      platform:    String(p.platform ?? p.packageTypePlatform ?? "linux"),
+      limits:      p.limits   ?? undefined,
+      installApps: p.installApps ?? undefined,
+      extraData:   p.extraData   ?? undefined,
+    }));
+}
 
 export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackageType[]> {
+  // ── Strategy A: official packageTypes endpoint ─────────────────────────────
   try {
     const data = await requestWithRetry<any[]>(apiKey, "GET", "/reseller/*/packageTypes");
-    const arr = Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data) : []);
-    return (arr as any[]).map((p: any) => ({
-      id: String(p.id ?? ""),
-      label: String(p.label ?? p.name ?? p.id ?? "Unknown"),
-      platform: String(p.platform ?? "linux"),
-      limits: p.limits,
-      installApps: p.installApps,
-      extraData: p.extraData,
-    }));
-  } catch {
+    const arr = Array.isArray(data)
+      ? data
+      : data && typeof data === "object"
+        ? Object.values(data)
+        : [];
+    if (arr.length > 0) {
+      console.log(`[20i-PKG] packageTypes returned ${arr.length} types via /reseller/*/packageTypes`);
+      return normalisePackageTypeArray(arr);
+    }
+    // Empty array — fall through to Strategy B
+    console.log("[20i-PKG] /reseller/*/packageTypes returned empty array — falling back to /package");
+  } catch (errA: any) {
+    // 404 means the endpoint doesn't exist for this account type — expected for some 20i plans.
+    // 403 IpMatch means IP not whitelisted — we still fall back to /package.
+    console.log(`[20i-PKG] /reseller/*/packageTypes failed (${errA?.message?.substring(0, 80)}) — falling back to /package`);
+  }
+
+  // ── Strategy B: infer types from existing packages (GET /package) ───────────
+  // GET /package returns all hosting packages with typeRef + packageTypeName.
+  // These typeRef values are the exact IDs accepted by POST /reseller/*/addWeb { type }.
+  try {
+    const pkgs = await requestWithRetry<any[]>(apiKey, "GET", "/package");
+    const arr = Array.isArray(pkgs)
+      ? pkgs
+      : pkgs && typeof pkgs === "object"
+        ? Object.values(pkgs)
+        : [];
+
+    // Extract unique (typeRef, packageTypeName, packageTypePlatform) tuples
+    const seen = new Set<string>();
+    const types: TwentyIPackageType[] = [];
+    for (const p of arr) {
+      const typeRef = p.typeRef ? String(p.typeRef) : null;
+      if (!typeRef) continue;
+      if (seen.has(typeRef)) continue;
+      seen.add(typeRef);
+      types.push({
+        id:       typeRef,
+        label:    String(p.packageTypeName ?? typeRef),
+        platform: String(p.packageTypePlatform ?? "linux"),
+      });
+    }
+    console.log(`[20i-PKG] Inferred ${types.length} package type(s) from ${arr.length} existing packages via /package`);
+    return types;
+  } catch (errB: any) {
+    const errMsg = String(errB?.message ?? "");
+    // Re-throw IP whitelist errors so callers can show the correct "whitelist your IP" message.
+    // Do NOT swallow them — otherwise the user sees "No packages found" instead of the real cause.
+    if (errMsg.includes("IpMatch") || errMsg.includes("Forbidden") || errMsg.includes("403")) {
+      throw errB;
+    }
+    console.warn(`[20i-PKG] /package fallback also failed: ${errMsg.substring(0, 80)}`);
     return [];
   }
 }
