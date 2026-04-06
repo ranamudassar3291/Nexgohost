@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Package, ArrowLeft, Loader2, Plus, X, Server, ChevronDown,
-  DollarSign, AlertCircle, CheckCircle, Zap, RefreshCw, Globe, Gift,
+  DollarSign, AlertCircle, CheckCircle, Zap, RefreshCw, Globe, Gift, Copy, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,7 @@ export default function AddPackage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [plansError, setPlansError] = useState("");
+  const [plansOutboundIp, setPlansOutboundIp] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [modulePlanId, setModulePlanId] = useState("");
   const [modulePlanName, setModulePlanName] = useState("");
@@ -106,13 +107,13 @@ export default function AddPackage() {
 
   // Fetch plans when server changes
   const fetchPlans = async (serverId: string) => {
-    if (!serverId) { setPlans([]); setSelectedPlan(null); return; }
-    setLoadingPlans(true); setPlansError(""); setSelectedPlan(null);
+    if (!serverId) { setPlans([]); setSelectedPlan(null); setPlansOutboundIp(""); return; }
+    setLoadingPlans(true); setPlansError(""); setPlansOutboundIp(""); setSelectedPlan(null);
     try {
       const data = await apiFetch(`/api/admin/servers/${serverId}/plans`);
       const planList: Plan[] = data.plans || [];
       setPlans(planList);
-      // Use API-level error message (e.g. WHM not reachable, no packages found)
+      if (data.outboundIp) setPlansOutboundIp(data.outboundIp);
       if (data.error) {
         setPlansError(data.error);
       } else if (planList.length === 0) {
@@ -351,9 +352,59 @@ export default function AddPackage() {
                       </div>
 
                       {plansError && plans.length === 0 ? (
-                        <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
-                          <AlertCircle size={14} className="mt-0.5 shrink-0" /> {plansError}
-                        </div>
+                        plansOutboundIp ? (
+                          // IP whitelist error — show full actionable card
+                          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle size={15} className="text-amber-500 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-sm font-semibold text-amber-600">20i IP Not Whitelisted</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Your server's outbound IP is not allowed by 20i. Add it to the whitelist to load packages.
+                                </p>
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-foreground/70 mb-1">Whitelist this IP:</p>
+                              <div className="flex items-center gap-2">
+                                <code className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm font-mono font-semibold text-primary select-all">
+                                  {plansOutboundIp}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => { navigator.clipboard.writeText(plansOutboundIp); toast({ title: "IP copied!" }); }}
+                                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium hover:bg-secondary transition-colors"
+                                >
+                                  <Copy size={12} /> Copy
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <a
+                                href="https://my.20i.com/reseller/api"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+                              >
+                                <ExternalLink size={11} /> Open 20i Whitelist Page
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => fetchPlans(selectedServerId)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium hover:bg-secondary transition-colors"
+                              >
+                                <RefreshCw size={11} /> Check Again
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Steps: Go to my.20i.com → Reseller API → IP Whitelist → Add the IP above → Save → Click "Check Again"
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
+                            <AlertCircle size={14} className="mt-0.5 shrink-0" /> {plansError}
+                          </div>
+                        )
                       ) : plans.length === 0 && !loadingPlans ? (
                         <div className="px-3 py-2.5 bg-secondary/50 border border-border rounded-xl text-sm text-muted-foreground text-center">
                           No packages available on this server

@@ -388,9 +388,13 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
     } catch (err: any) {
       const msg = String(err?.message ?? err);
       if (msg.includes("IpMatch") || msg.includes("403") || msg.includes("Forbidden")) {
+        // Fetch current IP so user knows exactly what to whitelist — don't make them dig through logs.
+        let currentIp = "unknown";
+        try { currentIp = await getOutboundIp(); } catch { /* ignore */ }
         res.json({
           plans: [],
-          error: `20i IP not whitelisted — add your current outbound IP at my.20i.com → Reseller API → IP Whitelist, then click Refresh. Current IP shown in server logs.`,
+          outboundIp: currentIp,
+          error: `20i IP not whitelisted. Go to my.20i.com → Reseller API → IP Whitelist and add: ${currentIp} — then click Refresh here.`,
         });
       } else {
         res.json({ plans: [], from20i: false, error: `20i API error: ${msg}` });
