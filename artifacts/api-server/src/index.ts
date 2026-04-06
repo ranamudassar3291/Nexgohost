@@ -1,4 +1,5 @@
 import app from "./app";
+import { decryptField } from "./lib/fieldCrypto.js";
 import { refreshExchangeRates } from "./routes/currencies.js";
 import { runAllCronTasks } from "./lib/cron.js";
 import { seedMissingTemplates } from "./routes/email-templates.js";
@@ -37,9 +38,10 @@ app.listen(port, async () => {
         .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
         .orderBy(desc(serversTable.updatedAt)).limit(1);
       if (server?.apiToken) {
-        const detected = await twentyiFindWorkingKeyFormat(server.apiToken);
+        const plainToken = decryptField(server.apiToken);
+        const detected = await twentyiFindWorkingKeyFormat(plainToken);
         if (detected.status !== 0) {
-          const cleanKey = sanitiseKey(server.apiToken);
+          const cleanKey = sanitiseKey(plainToken);
           setCachedKeyFormat(cleanKey, detected.format);
           console.log(`[20i] Key format: "${detected.format}" (HTTP ${detected.status}) — cached for session`);
         } else {
@@ -52,7 +54,7 @@ app.listen(port, async () => {
         if (!server.twentyiBaseUrl) {
           try {
             const currentIp = await getOutboundIp();
-            const wlResult = await twentyiAutoWhitelist(server.apiToken, currentIp);
+            const wlResult = await twentyiAutoWhitelist(plainToken, currentIp);
             if (wlResult.alreadyPresent) {
               console.log(`[20i-STARTUP] Outbound IP ${currentIp} already whitelisted — no action needed`);
             } else if (wlResult.added) {

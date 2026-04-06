@@ -7,12 +7,17 @@
  */
 
 import https from "node:https";
+import { decryptField } from "./fieldCrypto.js";
 
 interface ServerConfig {
   hostname: string;
   port: number;
   username: string;
   apiToken: string;
+}
+
+function resolveToken(cfg: ServerConfig): string {
+  return decryptField(cfg.apiToken ?? "");
 }
 
 interface CpanelAccount {
@@ -206,7 +211,7 @@ async function whmRequest(
   // WHM GET requests must NOT include Content-Type: application/json —
   // WHM interprets that header as an API v0 JSON body request and returns
   // "WHM API 0 does not support JSON input". Only Authorization is required.
-  const headers = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const headers = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
 
   let lastErr: Error = new Error("Unknown WHM error");
 
@@ -334,7 +339,7 @@ export async function cpanelCheckDomainExists(
     const port = server.port || 2087;
     const url = `https://${server.hostname}:${port}/json-api/domainuserdata?${query}`;
     const authUser = server.username || "root";
-    const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+    const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` });
     const data = JSON.parse(body);
     // WHM returns metadata.result=1 and data.userdata.user when domain exists
     const username: string | null = data?.data?.userdata?.user || data?.userdata?.user || null;
@@ -370,7 +375,7 @@ export interface DnsRecord {
 export async function cpanelGetDnsZone(server: ServerConfig, domain: string, username: string): Promise<DnsRecord[]> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
-  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const authHeader = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
 
   // ── Primary: UAPI ZoneEdit::fetch_zone_record (unlimited records) ───────────
   // paginate=0 disables any server-side pagination — returns ALL records at once.
@@ -478,7 +483,7 @@ export async function cpanelAddDnsRecord(server: ServerConfig, username: string,
     ...(record.preference && { preference: String(record.preference) }),
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${params.toString()}`;
-  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` });
   const data = JSON.parse(body);
   if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
 }
@@ -497,7 +502,7 @@ export async function cpanelEditDnsRecord(server: ServerConfig, username: string
     ...(record.preference && { preference: String(record.preference) }),
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${params.toString()}`;
-  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` });
   const data = JSON.parse(body);
   if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
 }
@@ -511,7 +516,7 @@ export async function cpanelDeleteDnsRecord(server: ServerConfig, username: stri
     domain, Line: String(line),
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${params.toString()}`;
-  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` });
+  const body = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` });
   const data = JSON.parse(body);
   if (data?.cpanelresult?.error) throw new Error(data.cpanelresult.error);
 }
@@ -551,7 +556,7 @@ export async function cpanelUapi(
     ...params,
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${query}`;
-  const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${server.apiToken}` }, 60_000);
+  const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` }, 60_000);
 
   let data: any;
   try { data = JSON.parse(raw); } catch {
@@ -1292,7 +1297,7 @@ export async function cpanelCreateUserSession(
   if (gotoUri) params.goto_uri = gotoUri;
   const bodyParams = new URLSearchParams(params).toString();
 
-  const rawBody = await httpsPost(url, { "Authorization": `whm ${authUser}:${server.apiToken}` }, bodyParams, 30000);
+  const rawBody = await httpsPost(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` }, bodyParams, 30000);
 
   let data: any;
   try {
@@ -1336,7 +1341,7 @@ export async function cpanelFullBackup(
 ): Promise<{ status: string; message: string }> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
-  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const authHeader = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
 
   // ── Strategy 1: UAPI Backup::fullbackup_to_homedir via WHM proxy ──────────
   // cPanel UAPI is the modern backup endpoint. When called through the WHM
@@ -1489,7 +1494,7 @@ export async function cpanelDbDump(
 ): Promise<{ status: string; filename: string; message: string }> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
-  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const authHeader = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
   const ts = Date.now();
   const filename = `db_${database}_${ts}.sql.gz`;
 
@@ -1723,7 +1728,7 @@ export async function cpanelGetAllDnsRecords(
 ): Promise<DnsRecord[]> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
-  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const authHeader = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
 
   // ── Primary: WHM dumpzone (returns full raw zone) ─────────────────────────
   try {
@@ -1786,7 +1791,7 @@ export async function cpanelTestPermissions(
 ): Promise<{ overall: boolean; results: PermissionResult[] }> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
-  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const authHeader = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
   const h = server.hostname;
 
   async function probe(name: string, api: string, url: string): Promise<PermissionResult> {
@@ -1885,7 +1890,7 @@ export async function cpanelCsfWhitelistIp(
 ): Promise<{ ok: boolean; message: string }> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
-  const authHeader = { "Authorization": `whm ${authUser}:${server.apiToken}` };
+  const authHeader = { "Authorization": `whm ${authUser}:${resolveToken(server)}` };
 
   // ── Method 1: WHM ConfigServer Firewall plugin CGI ──────────────────────────
   // CSF exposes its actions through /cgi-bin/addon_csf.cgi as form POST.

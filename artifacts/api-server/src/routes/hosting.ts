@@ -1,5 +1,6 @@
 import path from "path";
 import { Router } from "express";
+import { decryptField } from "../lib/fieldCrypto.js";
 import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable, promoCodesTable } from "@workspace/db/schema";
 import { eq, sql, and, isNull, isNotNull, inArray, ilike, desc, count, or } from "drizzle-orm";
@@ -349,7 +350,7 @@ router.post("/admin/hosting/:id/suspend", authenticate, requireAdmin, async (req
       const reason = (req.body?.reason as string) || "Suspended by admin";
       try {
         if (server.type === "20i") {
-          await twentyiSuspend(server.apiToken!, service.username);
+          await twentyiSuspend(decryptField(server.apiToken ?? ""), service.username);
         } else {
           await cpanelSuspend(toServerCfg(server), service.username, reason);
         }
@@ -411,7 +412,7 @@ router.post("/admin/hosting/:id/unsuspend", authenticate, requireAdmin, async (r
     if (server && service.username) {
       try {
         if (server.type === "20i") {
-          await twentyiUnsuspend(server.apiToken!, service.username);
+          await twentyiUnsuspend(decryptField(server.apiToken ?? ""), service.username);
         } else {
           await cpanelUnsuspend(toServerCfg(server), service.username);
         }
@@ -459,7 +460,7 @@ router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (r
     if (server && service.username) {
       try {
         if (server.type === "20i") {
-          await twentyiDelete(server.apiToken!, service.username);
+          await twentyiDelete(decryptField(server.apiToken ?? ""), service.username);
         } else {
           await cpanelTerminate(toServerCfg(server), service.username);
         }
@@ -647,7 +648,7 @@ router.post("/admin/hosting/:id/cancel", authenticate, requireAdmin, async (req:
     if (server && service.username) {
       try {
         if (server.type === "20i") {
-          await twentyiDelete(server.apiToken!, service.username);
+          await twentyiDelete(decryptField(server.apiToken ?? ""), service.username);
         } else {
           await cpanelTerminate(toServerCfg(server), service.username);
         }
@@ -696,7 +697,7 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
   const server = await resolveServerForService(service);
   if (server?.type === "20i" && server.apiToken && service.username && service.domain) {
     try {
-      await twentyiInstallSSL(server.apiToken, service.username, service.domain);
+      await twentyiInstallSSL(decryptField(server.apiToken ?? ""), service.username, service.domain);
       await db.update(hostingServicesTable)
         .set({ sslStatus: "installed", updatedAt: new Date() })
         .where(eq(hostingServicesTable.id, id));
@@ -738,7 +739,7 @@ router.post("/admin/hosting/:id/activate-ssl", authenticate, requireAdmin, async
     if (server && service.username) {
       try {
         if (server.type === "20i") {
-          await twentyiInstallSSL(server.apiToken!, service.username, service.domain);
+          await twentyiInstallSSL(decryptField(server.apiToken ?? ""), service.username, service.domain);
         } else {
           await cpanelInstallSSL(toServerCfg(server), service.domain);
         }
@@ -872,7 +873,7 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
       const [svcUser] = await db.select({ stackUserId: usersTable.stackUserId })
         .from(usersTable).where(eq(usersTable.id, service.clientId ?? "")).limit(1);
       const stackUserId = svcUser?.stackUserId ?? null;
-      const ssoResult = await twentyiGetSSOUrl(server.apiToken, service.username, stackUserId);
+      const ssoResult = await twentyiGetSSOUrl(decryptField(server.apiToken ?? ""), service.username, stackUserId);
       if (ssoResult.ssoAvailable && ssoResult.url) return res.json({ url: ssoResult.url });
       const fallback = service.cpanelUrl || twentyiStackCPUrl();
       return res.json({ url: fallback, ssoAvailable: false });
@@ -964,7 +965,7 @@ router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequ
         .from(usersTable).where(eq(usersTable.id, service.clientId ?? "")).limit(1);
       const stackUserId = svcUser?.stackUserId ?? null;
       // Generate a fresh autologin URL — tries stackUser loginToken first, falls back to package userToken
-      const ssoResult = await twentyiGetSSOUrl(server.apiToken, service.username, stackUserId);
+      const ssoResult = await twentyiGetSSOUrl(decryptField(server.apiToken ?? ""), service.username, stackUserId);
       console.log(`[SSO-LAUNCH] 20i SSO siteId=${service.username} stackUser=${stackUserId ?? "none"} → ${JSON.stringify(ssoResult)}`);
       if (ssoResult.ssoAvailable && ssoResult.url) {
         return res.json({ url: ssoResult.url });
@@ -1043,7 +1044,7 @@ async function adminSsoLogin(req: AuthRequest, res: any, service_name: "cpaneld"
       const [svcUser] = await db.select({ stackUserId: usersTable.stackUserId })
         .from(usersTable).where(eq(usersTable.id, service.clientId ?? "")).limit(1);
       const stackUserId = svcUser?.stackUserId ?? null;
-      const ssoResult = await twentyiGetSSOUrl(server.apiToken, service.username, stackUserId);
+      const ssoResult = await twentyiGetSSOUrl(decryptField(server.apiToken ?? ""), service.username, stackUserId);
       if (ssoResult.ssoAvailable && ssoResult.url) return res.json({ url: ssoResult.url });
       const fallback = service.cpanelUrl || twentyiStackCPUrl();
       return res.json({ url: fallback, ssoAvailable: false });
@@ -1082,7 +1083,7 @@ router.get("/admin/servers/:id/twentyi-packages", authenticate, requireAdmin, as
     if (server.type !== "20i") return res.status(400).json({ error: "Server is not a 20i server" });
     if (!server.apiToken) return res.status(400).json({ error: "Server has no API key configured" });
 
-    const packages = await twentyiGetPackages(server.apiToken);
+    const packages = await twentyiGetPackages(decryptField(server.apiToken ?? ""));
     return res.json({ packages });
   } catch (err: any) {
     console.error("[20i] fetch packages error:", err.message);
@@ -1098,7 +1099,7 @@ router.post("/admin/servers/:id/twentyi-test", authenticate, requireAdmin, async
     if (!server) return res.status(404).json({ error: "Server not found" });
     if (server.type !== "20i") return res.status(400).json({ error: "Server is not a 20i server" });
 
-    const apiKey = (req.body?.apiKey as string) || server.apiToken;
+    const apiKey = (req.body?.apiKey as string) || decryptField(server.apiToken ?? "");
     if (!apiKey) return res.status(400).json({ error: "No API key provided" });
 
     const { twentyiTestConnection } = await import("../lib/twenty-i.js");

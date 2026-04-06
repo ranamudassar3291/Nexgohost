@@ -22,9 +22,9 @@ interface AttemptBucket {
   windowStart: number;
 }
 const ipAttempts = new Map<string, AttemptBucket>();
-const WINDOW_MS = 60_000;        // 1 minute sliding window
-const MAX_ATTEMPTS = 3;           // before block (brute-force threshold)
-const BLOCK_MINUTES = 30;         // block duration
+const WINDOW_MS = 5 * 60_000;   // 5 minute sliding window
+const MAX_ATTEMPTS = 5;           // block after 5 failed attempts
+const BLOCK_MINUTES = 30;         // block duration: 30 minutes
 
 export function getClientIp(req: Request): string {
   return (

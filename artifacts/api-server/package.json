@@ -23,6 +23,7 @@
     "express": "^5",
     "google-auth-library": "^10.6.1",
     "googleapis": "^171.4.0",
+    "helmet": "^8.1.0",
     "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
@@ -32,7 +33,8 @@
     "otplib": "^13.3.0",
     "pdfkit": "^0.18.0",
     "qrcode": "^1.5.4",
-    "undici": "^7.24.6"
+    "undici": "^7.24.6",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",

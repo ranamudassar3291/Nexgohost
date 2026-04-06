@@ -4,7 +4,7 @@ import { useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ArrowRight, ShieldCheck, AlertCircle, User, Smartphone, Eye, EyeOff } from "lucide-react";
+import { Loader2, ArrowRight, ShieldCheck, AlertCircle, User, Smartphone, Eye, EyeOff, KeyRound } from "lucide-react";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
@@ -17,6 +17,8 @@ async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   return data;
 }
 
+type Step = "password" | "2fa" | "2fa-setup";
+
 export default function AdminLogin() {
   const { user, login } = useAuth();
   const [, setLocation] = useLocation();
@@ -24,12 +26,17 @@ export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
-  const [step, setStep] = useState<"password" | "2fa">("password");
+  const [step, setStep] = useState<Step>("password");
   const [tempToken, setTempToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
+
+  // 2FA setup state
+  const [setupQr, setSetupQr] = useState("");
+  const [setupSecret, setSetupSecret] = useState("");
+  const [setupLoading, setSetupLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/google/config")
@@ -46,11 +53,24 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const data = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
-      if (data.user?.role !== "admin") {
+      if (data.user?.role !== "admin" && !data.requires2FASetup && !data.requires2FA) {
         setInlineError("This portal is for administrators only. Please use the Client Portal to sign in.");
         return;
       }
-      if (data.requires2FA) {
+      if (data.requires2FASetup) {
+        setTempToken(data.tempToken);
+        setSetupLoading(true);
+        try {
+          const setup = await apiFetch("/api/auth/2fa/setup", data.tempToken);
+          setSetupQr(setup.qrCode);
+          setSetupSecret(setup.secret);
+          setStep("2fa-setup");
+        } catch {
+          setInlineError("Could not load 2FA setup. Please try again.");
+        } finally {
+          setSetupLoading(false);
+        }
+      } else if (data.requires2FA) {
         setTempToken(data.tempToken);
         setStep("2fa");
       } else {
@@ -70,6 +90,25 @@ export default function AdminLogin() {
       const data = await apiFetch("/api/auth/2fa/verify", tempToken, { method: "POST", body: JSON.stringify({ totp }) });
       login(data.token);
       setLocation("/admin/dashboard");
+    } catch (err: any) {
+      setInlineError(err.message || "Invalid code. Please try again.");
+    } finally { setLoading(false); }
+  };
+
+  const handle2FASetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInlineError(null);
+    setLoading(true);
+    try {
+      const data = await apiFetch("/api/auth/2fa/enable", tempToken, { method: "POST", body: JSON.stringify({ totp }) });
+      if (data.token) {
+        login(data.token);
+        setLocation("/admin/dashboard");
+      } else {
+        setInlineError("2FA was enabled but login failed. Please log in again.");
+        setStep("password");
+        setTotp("");
+      }
     } catch (err: any) {
       setInlineError(err.message || "Invalid code. Please try again.");
     } finally { setLoading(false); }
@@ -106,7 +145,9 @@ export default function AdminLogin() {
               </div>
             </div>
             <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin Noehost</h1>
-            <p className="text-muted-foreground text-center mt-1 text-sm">Sign in with your administrator credentials</p>
+            <p className="text-muted-foreground text-center mt-1 text-sm">
+              {step === "2fa-setup" ? "Set up two-factor authentication" : "Sign in with your administrator credentials"}
+            </p>
             <div className="mt-3 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 flex items-center gap-1.5 text-xs text-primary font-medium">
               <ShieldCheck size={12} /> Administrator Access
             </div>
@@ -152,12 +193,43 @@ export default function AdminLogin() {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" disabled={loading}
+                  <Button type="submit" disabled={loading || setupLoading}
                     className="w-full h-12 text-base font-semibold rounded-xl bg-primary hover:bg-primary/90 shadow-sm">
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In to Admin Panel <ArrowRight className="w-4 h-4" /></span>}
+                    {loading || setupLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="flex items-center gap-2">Sign In to Admin Panel <ArrowRight className="w-4 h-4" /></span>}
                   </Button>
                 </form>
               </motion.div>
+
+            ) : step === "2fa-setup" ? (
+              <motion.form key="2fa-setup" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                onSubmit={handle2FASetup} className="relative z-10 space-y-5">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <KeyRound size={22} className="text-amber-500" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">Two-Factor Authentication Required</p>
+                  <p className="text-xs text-muted-foreground mt-1">Admin accounts must have 2FA enabled. Scan the QR code with your authenticator app.</p>
+                </div>
+                {setupQr && (
+                  <div className="flex flex-col items-center gap-3">
+                    <img src={setupQr} alt="2FA QR Code" className="w-40 h-40 rounded-xl border border-border bg-white p-1" />
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Or enter this key manually:</p>
+                      <code className="text-xs font-mono bg-muted px-2 py-1 rounded break-all">{setupSecret}</code>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground/80 ml-1">Verification Code</label>
+                  <Input value={totp} onChange={e => { setTotp(e.target.value.replace(/\D/g, "").slice(0, 6)); setInlineError(null); }}
+                    placeholder="000000" maxLength={6}
+                    className="bg-background/50 border-white/10 h-14 text-center text-2xl font-mono tracking-[0.5em]" />
+                </div>
+                <Button type="submit" disabled={loading || totp.length !== 6} className="w-full h-12 font-semibold bg-primary hover:bg-primary/90">
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : "Enable 2FA & Continue"}
+                </Button>
+              </motion.form>
+
             ) : (
               <motion.form key="2fa" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                 onSubmit={handle2FA} className="relative z-10 space-y-5">

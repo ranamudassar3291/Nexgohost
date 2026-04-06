@@ -1,6 +1,7 @@
 import { getAppUrl } from "./lib/app-url.js";
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import router from "./routes";
 import { db } from "@workspace/db";
 import { kbArticlesTable, kbCategoriesTable } from "@workspace/db/schema";
@@ -9,6 +10,29 @@ import { badBotMiddleware, ipBlockMiddleware } from "./lib/security.js";
 import { safepayWebhookHandler } from "./routes/safepay.js";
 
 const app: Express = express();
+
+// ── Helmet — secure HTTP response headers ─────────────────────────────────────
+// Sets X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, HSTS,
+// Content-Security-Policy, Referrer-Policy, and more.
+// crossOriginResourcePolicy is relaxed to "cross-origin" so the React frontend
+// (served on a different port/domain) can load API responses freely.
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://challenges.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:"],
+      frameSrc: ["'self'", "https://challenges.cloudflare.com"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+}));
 
 // ── CORS: allow noehost.com subdomains + Replit dev domains ───────────────────
 const ALLOWED_ORIGINS = [

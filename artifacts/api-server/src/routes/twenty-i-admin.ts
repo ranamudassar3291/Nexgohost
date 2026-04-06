@@ -3,6 +3,7 @@
  * All routes require admin authentication.
  */
 import { Router } from "express";
+import { decryptField } from "../lib/fieldCrypto.js";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
 import { db } from "@workspace/db";
 import { serversTable, hostingServicesTable, usersTable } from "@workspace/db/schema";
@@ -83,7 +84,7 @@ async function get20iServer(serverId?: string | null) {
 async function get20iApiKey(serverId?: string | null): Promise<{ key: string | null; source: "server" | "none" }> {
   const server = await get20iServer(serverId);
   if (server?.apiToken) {
-    const key = server.apiToken.trim();
+    const key = decryptField(server.apiToken).trim();
     console.log(`[20i-KEY] Using key from server "${server.name}" (${key.length} chars, last4: ${key.slice(-4)})`);
     return { key, source: "server" };
   }
@@ -182,7 +183,7 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (req: Aut
       id: server.id,
       name: server.name,
       hasApiToken: !!server.apiToken,
-      apiTokenMasked: server.apiToken ? `••••${server.apiToken.slice(-6)}` : null,
+      apiTokenMasked: server.apiToken ? `••••${decryptField(server.apiToken).slice(-6)}` : null,
       ns1: server.ns1 ?? "ns1.20i.com",
       ns2: server.ns2 ?? "ns2.20i.com",
       twentyiBaseUrl: server.twentyiBaseUrl ?? null,
@@ -661,7 +662,7 @@ router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async 
     if (!server.apiToken) return res.status(400).json({ error: "20i API key missing." });
 
     const [outboundIp, serverHostname] = await Promise.all([getOutboundIp(), Promise.resolve(getServerHostname())]);
-    const apiKey = server.apiToken;
+    const apiKey = decryptField(server.apiToken);
 
     const wlResult = await runWith20i(server, () => twentyiAutoWhitelist(apiKey, outboundIp));
 

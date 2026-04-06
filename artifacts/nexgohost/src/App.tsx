@@ -90,7 +90,7 @@ function AdminPage({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
   if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
-  if (!user) return <Redirect to="/admin/login" />;
+  if (!user) return <Redirect to="/admin/noe" />;
   if (user.role !== "admin") return <Forbidden requiredRole="admin" attemptedPath={location} />;
   return <AppLayout role="admin">{children}</AppLayout>;
 }
@@ -190,7 +190,8 @@ function RouterRoot() {
   return (
     <Switch>
       {/* ── Auth pages ── */}
-      <Route path="/admin/login"      component={AdminLogin}      />
+      <Route path="/admin/noe"        component={AdminLogin}      />
+      <Route path="/admin/login"><Redirect to="/admin/noe" /></Route>
       <Route path="/client/login"     component={ClientLogin}     />
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />

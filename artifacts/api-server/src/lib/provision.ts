@@ -1,3 +1,4 @@
+import { decryptField } from "./fieldCrypto.js";
 import { getAppUrl } from "./app-url.js";
 import { db as _db } from "@workspace/db";
 import { serversTable as _serversTable } from "@workspace/db/schema";
@@ -430,7 +431,7 @@ export async function provisionHostingService(
 
         if (!stackUserId) {
           try {
-            const stackUser = await twentyiGetOrCreateStackUser(server.apiToken, user.email, clientName);
+            const stackUser = await twentyiGetOrCreateStackUser(decryptField(server.apiToken ?? ""), user.email, clientName);
             stackUserId = stackUser.id;
             // Persist stackUserId on the user record for future services
             await db.update(usersTable).set({ stackUserId, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
@@ -442,7 +443,7 @@ export async function provisionHostingService(
 
         // Step B — Create the hosting package
         const twentyiResult: TwentyICreateResult = await twentyiCreateHosting(
-          server.apiToken,
+          decryptField(server.apiToken ?? ""),
           domain,
           user.email,
           plan?.modulePlanId ?? undefined,
@@ -457,7 +458,7 @@ export async function provisionHostingService(
         // Step C — Assign the site to the StackUser so they can manage it from StackCP
         if (stackUserId && twentyiResult.siteId) {
           try {
-            await twentyiAssignSiteToUser(server.apiToken, twentyiResult.siteId, stackUserId);
+            await twentyiAssignSiteToUser(decryptField(server.apiToken ?? ""), twentyiResult.siteId, stackUserId);
             console.log(`[PROVISION] 20i site ${twentyiResult.siteId} assigned to StackUser ${stackUserId}`);
           } catch (assignErr: any) {
             console.warn(`[PROVISION] 20i site assignment failed (non-fatal): ${assignErr.message}`);

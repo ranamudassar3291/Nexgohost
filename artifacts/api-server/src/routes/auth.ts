@@ -236,7 +236,12 @@ router.post("/auth/login", async (req, res) => {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 
-    // 2FA check
+    // 2FA check — admins MUST have 2FA enabled (mandatory)
+    if (user.role === "admin" && !user.twoFactorEnabled) {
+      const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
+      res.json({ requires2FASetup: true, tempToken }); return;
+    }
+
     if (user.twoFactorEnabled && user.twoFactorSecret) {
       if (!totp) {
         const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
@@ -304,7 +309,8 @@ router.post("/auth/2fa/enable", authenticate, async (req: AuthRequest, res) => {
     const valid = await _otpVerify(totp, user.twoFactorSecret!);
     if (!valid) { res.status(400).json({ error: "Invalid authenticator code" }); return; }
     const [updated] = await db.update(usersTable).set({ twoFactorEnabled: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id)).returning();
-    res.json({ success: true, user: formatUser(updated) });
+    const token = signToken({ userId: updated.id, role: updated.role, email: updated.email, adminPermission: updated.adminPermission ?? undefined });
+    res.json({ success: true, user: formatUser(updated), token });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 

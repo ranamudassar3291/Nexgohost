@@ -6,6 +6,7 @@ import { authenticate, requireAdmin } from "../lib/auth.js";
 import { eq, sql, and } from "drizzle-orm";
 import { cpanelTestConnection, cpanelTestPermissions, cpanelCsfWhitelistIp } from "../lib/cpanel.js";
 import { twentyiTestConnection, twentyiGetPackages, twentyiListSites, twentyiRawDebug, runWithProxy, sanitiseKey, getOutboundIp, getProxyConfig } from "../lib/twenty-i.js";
+import { encryptField, decryptField } from "../lib/fieldCrypto.js";
 
 /** HTTPS GET with self-signed cert bypass — needed for WHM servers */
 function whmGet(url: string, authHeader: string, timeoutMs = 10000): Promise<any> {
@@ -171,7 +172,8 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
   if (type !== "20i" && !hostname) { res.status(400).json({ error: "hostname is required" }); return; }
 
-  const cleanToken = apiToken ? sanitiseKey(apiToken) : null;
+  const rawCleanToken = apiToken ? sanitiseKey(apiToken) : null;
+  const cleanToken = rawCleanToken;
 
   // ── Step 1: Test API before saving (20i only) ─────────────────────────────
   if (type === "20i" && cleanToken && !skipTest) {
@@ -209,7 +211,7 @@ router.post("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     ipAddress: ipAddress || null,
     type: type || "cpanel",
     apiUsername: (type === "20i") ? null : (apiUsername || null),
-    apiToken: cleanToken,
+    apiToken: cleanToken ? encryptField(cleanToken) : null,
     keyType: keyType || "general",
     proxyUrl: proxyUrl || null,
     apiPort: (type === "20i") ? null : (apiPort ? parseInt(apiPort) : 2087),
@@ -238,7 +240,7 @@ router.put("/admin/servers/:id", authenticate, requireAdmin, async (req, res) =>
   if (apiToken !== undefined && apiToken !== "") {
     const cleaned = sanitiseKey(apiToken);
     console.log(`[SAVE-SERVER] New API token received — raw_len=${String(apiToken).length}  clean_len=${cleaned.length}  keyType=${keyType ?? "unchanged"}  last4=${cleaned.slice(-4)}`);
-    updates.apiToken = cleaned;
+    updates.apiToken = encryptField(cleaned);
   }
   if (keyType !== undefined) updates.keyType = keyType;
   if (proxyUrl !== undefined) updates.proxyUrl = proxyUrl || null;
@@ -279,7 +281,7 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
     hostname: server.hostname,
     port: server.apiPort || 2087,
     username: server.apiUsername || "root",   // WHM API token auth uses root by default
-    apiToken: server.apiToken,
+    apiToken: decryptField(server.apiToken ?? ""),
   };
 
   if (server.type === "cpanel") {
@@ -331,7 +333,7 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
   }
 
   if (server.type === "20i") {
-    const effectiveKey = server.apiToken;
+    const effectiveKey = decryptField(server.apiToken ?? "");
     if (!effectiveKey) {
       res.json({ success: false, connected: false, message: "No 20i API key found. Edit this server to add the API key.", packages: [] });
       return;
@@ -362,7 +364,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
   // Strategy B: GET /package → infer types from existing packages' typeRef field
   // Both strategies are handled inside twentyiGetPackages() automatically.
   if (server.type === "20i") {
-    const resolvedKey = server.apiToken;
+    const resolvedKey = decryptField(server.apiToken ?? "");
     if (!resolvedKey) {
       res.json({ plans: [], error: "No API key configured for this 20i server" });
       return;
@@ -413,7 +415,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
       const port = server.apiPort || 2087;
       const url = `https://${server.hostname}:${port}/json-api/listpkgs?api.version=1`;
       const authUser = server.apiUsername || "root";
-      const data: any = await whmGet(url, `whm ${authUser}:${server.apiToken}`);
+      const data: any = await whmGet(url, `whm ${authUser}:${decryptField(server.apiToken ?? "")}`);
       const pkgs: any[] = data?.data?.pkg ?? data?.pkg ?? [];
       if (pkgs.length === 0) {
         res.json({ plans: [], fromWHM: true, error: "No WHM packages found on this server — create packages in WHM first" });
@@ -473,7 +475,7 @@ router.post("/admin/servers/:id/whitelist-self", authenticate, requireAdmin, asy
 
     const authUser = server.username || "root";
     const port = server.port || 2087;
-    const authHeader = `whm ${authUser}:${server.apiToken}`;
+    const authHeader = `whm ${authUser}:${decryptField(server.apiToken ?? "")}`;
 
     // Step 1: Detect our outbound IP by asking an external IP service
     let myIp: string | null = null;
@@ -568,7 +570,7 @@ router.post("/admin/servers/:id/verify", authenticate, requireAdmin, async (req,
 
     const port = server.apiPort || 2087;
     const authUser = server.apiUsername || "root";
-    const authHeader = `whm ${authUser}:${server.apiToken}`;
+    const authHeader = `whm ${authUser}:${decryptField(server.apiToken ?? "")}`;
     const base = `https://${server.hostname}:${port}`;
 
     // ── Step 1: listaccts — proves credentials work ──────────────────────────

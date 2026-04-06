@@ -46,8 +46,10 @@ export interface TokenPayload {
   adminPermission?: string;
 }
 
-export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+export function signToken(payload: TokenPayload, expiresIn?: string): string {
+  // Admin sessions expire in 2 hours; client sessions last 7 days.
+  const expiry = expiresIn ?? (payload.role === "admin" ? "2h" : "7d");
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: expiry } as any);
 }
 
 export function verifyToken(token: string): TokenPayload {

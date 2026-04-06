@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { decryptField } from "../lib/fieldCrypto.js";
 import { db } from "@workspace/db";
 import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
 import { eq, sql, and, asc, desc, inArray } from "drizzle-orm";
@@ -813,7 +814,7 @@ router.post("/admin/domains/:id/sync-module", authenticate, requireAdmin, async 
         const { buildAuthHeader } = await import("../lib/twenty-i.js");
         const fullDomain = `${domain.name}${domain.tld}`;
         const resp = await (fetch as any)(`https://api.20i.com/domain/${fullDomain}`, {
-          headers: { Authorization: buildAuthHeader(server.apiToken), Accept: "application/json" },
+          headers: { Authorization: buildAuthHeader(decryptField(server.apiToken ?? "")), Accept: "application/json" },
           signal: AbortSignal.timeout(8000),
         });
         if (resp.ok) {
