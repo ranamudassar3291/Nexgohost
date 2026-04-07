@@ -1,5 +1,37 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 51 — WhatsApp Command & Alert Engine)
+
+### New: Remote Admin Command Engine
+- Incoming message listener added to `whatsapp.ts` — listens on `messages.upsert` Baileys event
+- Only processes `!` commands from the configured admin WhatsApp number (all others silently ignored)
+- Commands: `!help`, `!status`, `!suspend [domain/id]`, `!unsuspend [domain/id]`, `!terminate [domain/id]`, `!terminate confirm [domain/id]`, `!info [name/email]`
+- `!suspend`/`!unsuspend` immediately calls cPanel/20i provision API + updates DB
+- `!terminate` requires a two-step confirmation (stored in-memory, 5-min expiry)
+- `!info` searches users by email/firstName/lastName, shows services + unpaid invoices
+- All command results logged to `whatsapp_logs` table with `admin_command` event type
+
+### New: Pakistan Phone Auto-Formatting
+- `formatPKPhone(raw)` helper in `whatsapp.ts` normalises Pakistani numbers:
+  - `0300XXXXXXX` (11 digits starting with 0) → `92300XXXXXXX`
+  - `300XXXXXXX` (10 digits, no country code) → `92300XXXXXXX`
+  - Numbers already having country code → unchanged
+- `sendToClientPhone` now calls `formatPKPhone` before building the WhatsApp JID
+
+### New: Client WA Alerts (Automated)
+- **New Order → Client**: After admin alert, also sends WA to client's phone confirming order ID + service
+- **Service Suspended → Client**: Added to `runSuspendOverdueCron` — sends WA after email on suspension
+- **1-day Pre-Suspension Warning → Client**: New `runSuspensionWarningCron` cron — finds unpaid invoices due TODAY and sends warning that service suspends tomorrow. Registered in `runAllCronTasks`.
+
+### Database Schema Update
+- Added new enum values to `wa_event_type` PostgreSQL enum: `refund_request`, `invoice_paid`, `client_notification`, `admin_command`, `suspension_warning`
+- Schema pushed to DB via `db:push`
+
+### WhatsApp Settings UI Enhancements
+- Alert Triggers section expanded to 7 cards (admin + client alerts with colour coding: violet=admin, emerald=paid, amber=warning, red=suspension)
+- New "Remote Admin Commands" reference card listing all 7 commands with icons and descriptions
+- Updated EVENT_ICONS and EVENT_LABELS to include all new event types in the live log view
+
 ## Recent Changes (Session 50 — Speed & Search Overhaul)
 
 ### Pagination — All 4 views

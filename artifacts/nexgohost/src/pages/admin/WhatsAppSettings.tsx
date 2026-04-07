@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   MessageCircle, Smartphone, Wifi, WifiOff, RefreshCw,
-  CheckCircle, AlertCircle, Send, Zap, X, Phone, Bell,
-  Clock, ShoppingCart, Ticket, CreditCard,
+  CheckCircle, AlertCircle, Send, Zap, Phone, Bell,
+  Clock, ShoppingCart, Ticket, CreditCard, Terminal,
+  UserSearch, Ban, RotateCcw, Trash2, BarChart3, Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,11 @@ const EVENT_ICONS: Record<string, JSX.Element> = {
   new_order: <ShoppingCart size={12} />,
   new_ticket: <Ticket size={12} />,
   payment_proof: <CreditCard size={12} />,
+  refund_request: <RotateCcw size={12} />,
+  invoice_paid: <CreditCard size={12} />,
+  client_notification: <MessageCircle size={12} />,
+  admin_command: <Terminal size={12} />,
+  suspension_warning: <Ban size={12} />,
   test: <Zap size={12} />,
   other: <Bell size={12} />,
 };
@@ -55,6 +61,11 @@ const EVENT_LABELS: Record<string, string> = {
   new_order: "New Order",
   new_ticket: "New Ticket",
   payment_proof: "Payment Proof",
+  refund_request: "Refund Request",
+  invoice_paid: "Invoice Paid",
+  client_notification: "Client Notification",
+  admin_command: "Admin Command",
+  suspension_warning: "Suspension Warning",
   test: "Test",
   other: "Alert",
 };
@@ -330,27 +341,88 @@ export default function WhatsAppSettings() {
       {/* Notification triggers */}
       <div className="bg-card border border-border rounded-2xl p-5">
         <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-          <Bell size={15} style={{ color: BRAND }} /> Alert Triggers
+          <Bell size={15} style={{ color: BRAND }} /> Automated Alert Triggers
         </h3>
-        <div className="grid sm:grid-cols-3 gap-3">
+        <p className="text-xs text-muted-foreground mb-3">Admin alerts go to your WhatsApp. Client alerts go directly to the client's registered phone.</p>
+        <div className="grid sm:grid-cols-2 gap-3">
           {[
-            { icon: ShoppingCart, label: "New Order", desc: "Client name + service + amount when a new order is placed" },
-            { icon: Ticket, label: "New Support Ticket", desc: "Ticket subject + priority + client name on ticket creation" },
-            { icon: CreditCard, label: "Payment Proof Submitted", desc: "Invoice ID + transaction ID when a client submits payment proof" },
-          ].map(({ icon: Icon, label, desc }) => (
-            <div key={label} className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-950/10 border border-emerald-500/15">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-500/10">
-                <Icon size={13} className="text-emerald-500" />
+            { icon: ShoppingCart, label: "New Order → Admin", desc: "Notifies you instantly with client name, service, and amount", color: "violet" },
+            { icon: Package, label: "New Order → Client", desc: "Confirms the order to the client with order ID and service details", color: "violet" },
+            { icon: Ticket, label: "New Support Ticket → Admin", desc: "Ticket subject, priority, and client name sent to you", color: "violet" },
+            { icon: CreditCard, label: "Payment Proof → Admin", desc: "Invoice ID + transaction reference when client submits proof", color: "violet" },
+            { icon: CreditCard, label: "Invoice Paid → Client", desc: "Payment confirmation sent to client's phone once invoice is marked paid", color: "emerald" },
+            { icon: Ban, label: "Suspension Warning → Client", desc: "1-day warning to client when invoice is due today (suspended tomorrow)", color: "amber" },
+            { icon: Ban, label: "Service Suspended → Client", desc: "Immediate alert to client's phone when service is actually suspended", color: "red" },
+          ].map(({ icon: Icon, label, desc, color }) => (
+            <div key={label} className={`flex items-start gap-2.5 p-3 rounded-xl border ${
+              color === "emerald" ? "bg-emerald-950/10 border-emerald-500/15" :
+              color === "amber" ? "bg-amber-950/10 border-amber-500/15" :
+              color === "red" ? "bg-red-950/10 border-red-500/15" :
+              "bg-violet-950/10 border-violet-500/15"
+            }`}>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                color === "emerald" ? "bg-emerald-500/10" :
+                color === "amber" ? "bg-amber-500/10" :
+                color === "red" ? "bg-red-500/10" :
+                "bg-violet-500/10"
+              }`}>
+                <Icon size={13} className={
+                  color === "emerald" ? "text-emerald-500" :
+                  color === "amber" ? "text-amber-500" :
+                  color === "red" ? "text-red-500" :
+                  "text-violet-400"
+                } />
               </div>
               <div>
                 <p className="font-semibold text-foreground text-xs flex items-center gap-1">
-                  <CheckCircle size={10} className="text-emerald-500" /> {label}
+                  <CheckCircle size={10} className={
+                    color === "emerald" ? "text-emerald-500" :
+                    color === "amber" ? "text-amber-500" :
+                    color === "red" ? "text-red-500" :
+                    "text-violet-400"
+                  } /> {label}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Remote Admin Commands */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold text-foreground mb-1 flex items-center gap-2">
+          <Terminal size={15} style={{ color: BRAND }} /> Remote Admin Commands
+        </h3>
+        <p className="text-xs text-muted-foreground mb-4">
+          Send these commands from your registered admin WhatsApp number to control Noehost remotely.
+          The system replies instantly with the result.
+        </p>
+        <div className="space-y-2">
+          {[
+            { cmd: "!status", desc: "Get live system stats — active services, suspended services, unpaid invoices, client count", icon: BarChart3 },
+            { cmd: "!suspend [domain/id]", desc: "Immediately suspend a hosting service (triggers 20i/cPanel API + updates DB)", icon: Ban },
+            { cmd: "!unsuspend [domain/id]", desc: "Reactivate a suspended service and restore access", icon: RotateCcw },
+            { cmd: "!terminate [domain/id]", desc: "Request service termination — sends a confirmation prompt (5-minute timeout)", icon: Trash2 },
+            { cmd: "!terminate confirm [domain/id]", desc: "Confirm and execute permanent termination after the initial request", icon: Trash2 },
+            { cmd: "!info [name/email]", desc: "Look up a client by name or email — shows services, unpaid invoices, and phone", icon: UserSearch },
+            { cmd: "!help", desc: "List all available commands", icon: Terminal },
+          ].map(({ cmd, desc, icon: Icon }) => (
+            <div key={cmd} className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-muted/50">
+                <Icon size={13} style={{ color: BRAND }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <code className="text-xs font-bold text-violet-400 bg-violet-950/30 px-1.5 py-0.5 rounded">{cmd}</code>
+                <p className="text-[11px] text-muted-foreground mt-1">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-3 flex items-center gap-1.5">
+          <AlertCircle size={11} className="text-amber-500 flex-shrink-0" />
+          Commands are only accepted from your registered admin WhatsApp number. All other messages are silently ignored.
+        </p>
       </div>
 
       {/* Live log */}

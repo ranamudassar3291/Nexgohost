@@ -23,7 +23,7 @@ import {
 import { serversTable } from "@workspace/db/schema";
 import { twentyiListSites, runWithCtx } from "./twenty-i.js";
 import { decryptField } from "./fieldCrypto.js";
-import { sendWhatsAppAlert } from "./whatsapp.js";
+import { sendWhatsAppAlert, sendToClientPhone, formatPKPhone } from "./whatsapp.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
   try {
@@ -212,6 +212,22 @@ export async function runSuspendOverdueCron(): Promise<void> {
             invoiceId: invoice.id,
           }, { clientId: service.clientId, referenceId: service.id });
         } catch { /* non-fatal */ }
+
+        // WhatsApp suspension alert to client
+        if (user.phone) {
+          const clientName = user.firstName ? user.firstName.trim() : "there";
+          sendToClientPhone(
+            user.phone,
+            `⚠️ *Service Suspended — Noehost*\n\n` +
+            `Hi ${clientName},\n\n` +
+            `Your service *${service.domain || service.planName}* has been suspended due to an overdue invoice.\n\n` +
+            `💳 Please pay your outstanding invoice to restore your service immediately.\n\n` +
+            `🌐 Login at noehost.com to pay\n` +
+            `📧 Help: support@noehost.com\n\n` +
+            `_Noehost Team_`,
+            "suspension_warning"
+          ).catch(() => {});
+        }
       }
 
       suspended++;
@@ -1447,6 +1463,59 @@ export async function runDomainLifecycleCron(): Promise<void> {
   }
 }
 
+// ─── WhatsApp: 1-day pre-suspension warning to clients ───────────────────────
+// Fires for unpaid invoices whose due date is TODAY — they'll be suspended tomorrow.
+export async function runSuspensionWarningCron(): Promise<void> {
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+  try {
+    const dueTodayInvoices = await db.select().from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.status, "unpaid"),
+        gte(invoicesTable.dueDate, todayStart),
+        lte(invoicesTable.dueDate, todayEnd),
+      ));
+
+    let warned = 0;
+
+    for (const invoice of dueTodayInvoices) {
+      if (!invoice.serviceId) continue;
+
+      const [service] = await db.select().from(hostingServicesTable)
+        .where(and(
+          eq(hostingServicesTable.id, invoice.serviceId),
+          eq(hostingServicesTable.status, "active"),
+        )).limit(1);
+      if (!service) continue;
+
+      const [user] = await db.select().from(usersTable)
+        .where(eq(usersTable.id, service.clientId)).limit(1);
+      if (!user?.phone) continue;
+
+      const clientName = user.firstName ? user.firstName.trim() : "there";
+      sendToClientPhone(
+        user.phone,
+        `🔔 *Payment Due Today — Noehost*\n\n` +
+        `Hi ${clientName},\n\n` +
+        `Your invoice for *${service.domain || service.planName}* is due today.\n\n` +
+        `⚠️ If payment is not received by end of day, your service will be *suspended tomorrow*.\n\n` +
+        `💳 Pay now at noehost.com to avoid interruption.\n` +
+        `📧 Questions? support@noehost.com\n\n` +
+        `_Noehost Team_`,
+        "suspension_warning"
+      ).catch(() => {});
+
+      warned++;
+    }
+
+    await logCron("wa:suspension_warning", "success", `Sent ${warned} suspension warning(s)`);
+  } catch (err: any) {
+    await logCron("wa:suspension_warning", "failed", err.message);
+    console.error("[CRON] wa:suspension_warning error:", err.message);
+  }
+}
+
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
@@ -1465,6 +1534,7 @@ export async function runAllCronTasks(): Promise<void> {
     runCartAbandonmentCron(),
     runDomainLifecycleCron(),
     runTwentyiStatusSyncCron(),
+    runSuspensionWarningCron(),
   ]);
   console.log("[CRON] All tasks completed.");
 }

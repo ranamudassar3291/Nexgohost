@@ -6,6 +6,11 @@ export const waEventEnum = pgEnum("wa_event_type", [
   "payment_proof",
   "test",
   "other",
+  "refund_request",
+  "invoice_paid",
+  "client_notification",
+  "admin_command",
+  "suspension_warning",
 ]);
 
 export const whatsappLogsTable = pgTable("whatsapp_logs", {

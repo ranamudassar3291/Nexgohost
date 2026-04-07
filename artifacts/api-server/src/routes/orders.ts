@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { sendWhatsAppAlert } from "../lib/whatsapp.js";
+import { sendWhatsAppAlert, sendToClientPhone } from "../lib/whatsapp.js";
 import {
   ordersTable, usersTable, hostingPlansTable, hostingServicesTable,
   invoicesTable, serversTable, domainsTable,
@@ -139,7 +139,7 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
 
     res.status(201).json(formatOrder(order, `${user.firstName} ${user.lastName}`));
 
-    // WhatsApp alert (non-blocking)
+    // WhatsApp alert to admin (non-blocking)
     const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
     sendWhatsAppAlert("new_order",
       `📦 *New Order Received — Noehost*\n\n` +
@@ -151,6 +151,23 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
       `🔗 View Order:\n${adminUrl}/admin/orders/${order.id}\n\n` +
       `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
     ).catch(() => {});
+
+    // WhatsApp confirmation to client (non-blocking)
+    if (user.phone) {
+      const clientName = user.firstName ? user.firstName.trim() : "there";
+      sendToClientPhone(
+        user.phone,
+        `🎉 *Order Received — Noehost*\n\n` +
+        `Hi ${clientName}!\n\n` +
+        `Your order *#${order.id.slice(0, 8).toUpperCase()}* has been received successfully!\n\n` +
+        `📦 Service: ${itemName}\n` +
+        `💰 Amount: PKR ${Number(amount).toLocaleString()}\n\n` +
+        `Our team is processing your order and will activate your service shortly.\n\n` +
+        `📧 Questions? support@noehost.com\n\n` +
+        `_Noehost Team_ 🚀`,
+        "client_notification"
+      ).catch(() => {});
+    }
 
   } catch (err) {
     console.error(err);
