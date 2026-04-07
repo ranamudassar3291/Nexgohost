@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown, Bell, Clock } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown, Bell, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -79,11 +79,31 @@ async function apiFetch(url: string, opts?: RequestInit) {
 
 const EMPTY_FORM = { clientId: "", name: "", tld: ".com", registrar: "", registrationDate: "", expiryDate: "", nextDueDate: "", status: "active", autoRenew: true, moduleServerId: "", nameservers: "ns1.noehost.com\nns2.noehost.com" };
 
+const DOMAIN_LIMIT = 50;
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+interface PaginatedDomains {
+  data: Domain[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export default function AdminDomains() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editDomain, setEditDomain] = useState<Domain | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -96,10 +116,25 @@ export default function AdminDomains() {
   const [activeTab, setActiveTab] = useState<"all" | "upcoming">("all");
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
-  const { data: domains = [], isLoading } = useQuery<Domain[]>({
-    queryKey: ["admin-domains"],
-    queryFn: () => apiFetch("/api/admin/domains"),
+  const search = useDebounce(searchInput, 400);
+
+  const handleSearchChange = useCallback((val: string) => { setSearchInput(val); setPage(1); }, []);
+  const handleStatusChange = useCallback((val: string) => { setStatusFilter(val); setPage(1); }, []);
+
+  const domainsQueryKey = ["admin-domains", page, search, statusFilter];
+  const { data: domainsResp, isLoading } = useQuery<PaginatedDomains>({
+    queryKey: domainsQueryKey,
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(page), limit: String(DOMAIN_LIMIT), status: statusFilter, ...(search ? { search } : {}) });
+      return apiFetch(`/api/admin/domains?${params}`);
+    },
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
   });
+
+  const domains: Domain[] = domainsResp?.data ?? [];
+  const total = domainsResp?.total ?? 0;
+  const totalPages = domainsResp?.totalPages ?? 1;
 
   const { data: upcomingData, isLoading: upcomingLoading, refetch: refetchUpcoming } = useQuery<{ domains: UpcomingRenewal[] }>({
     queryKey: ["admin-upcoming-renewals"],
@@ -123,12 +158,6 @@ export default function AdminDomains() {
     queryFn: () => apiFetch("/api/admin/clients?limit=100").then((r: any) => r.clients || r),
   });
 
-  const filtered = domains.filter(d => {
-    const matchSearch = (d.name + d.tld).toLowerCase().includes(search.toLowerCase()) ||
-      d.clientName?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "all" || d.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
 
   const parseNs = (raw: string) => raw.split("\n").map(s => s.trim().toLowerCase()).filter(Boolean);
 
@@ -390,11 +419,11 @@ export default function AdminDomains() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input className="pl-9 bg-card border-border" placeholder="Search domains or clients..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="pl-9 bg-card border-border" placeholder="Search domains or clients..." value={searchInput} onChange={e => handleSearchChange(e.target.value)} />
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {["all", ...STATUS_OPTIONS].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
+            <button key={s} onClick={() => handleStatusChange(s)}
               className={`px-3 py-1.5 text-xs rounded-lg border capitalize transition-all ${statusFilter === s ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
               {s}
             </button>
@@ -419,7 +448,7 @@ export default function AdminDomains() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(domain => (
+            {domains.map(domain => (
               <tr key={domain.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                 <td className="px-6 py-4 text-sm font-semibold text-foreground">{domain.name}{domain.tld}</td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">{domain.clientName}</td>
@@ -547,12 +576,60 @@ export default function AdminDomains() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {domains.length === 0 && !isLoading && (
               <tr><td colSpan={10} className="px-6 py-12 text-center text-muted-foreground">No domains found</td></tr>
+            )}
+            {isLoading && domains.length === 0 && (
+              <tr><td colSpan={10} className="px-6 py-12 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs text-muted-foreground">
+            Showing {(page - 1) * DOMAIN_LIMIT + 1}–{Math.min(page * DOMAIN_LIMIT, total)} of {total} domains
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+            >
+              <ChevronLeft size={13} /> Prev
+            </button>
+            {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+              let p: number;
+              if (totalPages <= 7) p = i + 1;
+              else if (page <= 4) p = i + 1;
+              else if (page >= totalPages - 3) p = totalPages - 6 + i;
+              else p = page - 3 + i;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+                  style={p === page ? { background: "linear-gradient(135deg, #BB86FC, #7C3AED)" } : {}}
+                >
+                  {p}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+            >
+              Next <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+      {total > 0 && totalPages === 1 && (
+        <p className="text-xs text-muted-foreground px-1">{total} domain{total !== 1 ? "s" : ""}</p>
+      )}
       </>}
 
       {activeTab === "upcoming" && (

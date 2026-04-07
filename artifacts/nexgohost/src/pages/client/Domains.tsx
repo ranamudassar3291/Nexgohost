@@ -209,7 +209,7 @@ export default function ClientDomains() {
   const [cardTab, setCardTab] = useState<Record<string, "overview" | "security">>({});
   const [portfolioSearch, setPortfolioSearch] = useState("");
   const [portfolioPage, setPortfolioPage] = useState(1);
-  const DOMAINS_PER_PAGE = 10;
+  const DOMAINS_PER_PAGE = 50;
   const inputRef = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();

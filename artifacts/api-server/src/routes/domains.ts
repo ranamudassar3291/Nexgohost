@@ -2,7 +2,7 @@ import { Router } from "express";
 import { decryptField } from "../lib/fieldCrypto.js";
 import { db } from "@workspace/db";
 import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
-import { eq, sql, and, asc, desc, inArray } from "drizzle-orm";
+import { eq, sql, and, asc, desc, inArray, ilike, or, count } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
 // ── Restoration fee for redemption period domains ────────────────────────────
@@ -645,14 +645,48 @@ router.get("/domains/:id", authenticate, async (req: AuthRequest, res) => {
 });
 
 // Admin: get all domains
-router.get("/admin/domains", authenticate, requireAdmin, async (_req, res) => {
+router.get("/admin/domains", authenticate, requireAdmin, async (req, res) => {
   try {
-    const domains = await db.select().from(domainsTable);
-    const result = await Promise.all(domains.map(async (d) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, d.clientId)).limit(1);
+    const page   = Math.max(1, parseInt(String((req as any).query.page  || "1"), 10));
+    const limit  = Math.min(200, Math.max(1, parseInt(String((req as any).query.limit || "50"), 10)));
+    const offset = (page - 1) * limit;
+    const search = String((req as any).query.search || "").trim();
+    const status = String((req as any).query.status || "all").trim();
+
+    const whereConditions: any[] = [];
+    if (status !== "all") whereConditions.push(eq(domainsTable.status, status as any));
+    if (search) {
+      whereConditions.push(
+        or(
+          ilike(domainsTable.name, `%${search}%`),
+          ilike(domainsTable.tld,  `%${search}%`),
+          sql`(${domainsTable.name} || ${domainsTable.tld}) ILIKE ${"%" + search + "%"}`,
+        )
+      );
+    }
+
+    const where = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+    const [rows, totalResult] = await Promise.all([
+      db.select().from(domainsTable).where(where).orderBy(desc(domainsTable.createdAt)).limit(limit).offset(offset),
+      db.select({ cnt: count() }).from(domainsTable).where(where),
+    ]);
+
+    const total = Number(totalResult[0]?.cnt ?? 0);
+    const totalPages = Math.ceil(total / limit);
+
+    const clientIds = [...new Set(rows.map(r => r.clientId).filter(Boolean))];
+    const users = clientIds.length
+      ? await db.select().from(usersTable).where(inArray(usersTable.id, clientIds as string[]))
+      : [];
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    const data = rows.map(d => {
+      const user = userMap.get(d.clientId);
       return formatDomain(d, user ? `${user.firstName} ${user.lastName}` : "");
-    }));
-    res.json(result);
+    });
+
+    res.json({ data, total, page, limit, totalPages });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

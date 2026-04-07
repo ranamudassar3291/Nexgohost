@@ -1,5 +1,28 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 50 — Speed & Search Overhaul)
+
+### Pagination — All 4 views
+- **Admin Domains** (NEW): Server-side pagination — 50 per page, `page`/`limit`/`search`/`status` params. Sliding 7-button page number bar + Prev/Next + count label
+- **Admin Hosting** (was already done): Server-side pagination, 50 per page, full search by domain/planName/username
+- **Client Domains**: `DOMAINS_PER_PAGE` raised from 10 → 50 (already had client-side pagination + search UI)
+- **Client Hosting** (NEW): Search bar + client-side pagination (50 per page). Searches by plan name or domain. Separate VPS / Hosting section pagination bars
+
+### Server-Side Search — SQL LIKE
+- **Admin Domains API** (`GET /admin/domains`): Full rewrite from `db.select().from(domainsTable)` (loads ALL) → paginated `LIMIT/OFFSET` with `ilike` on `name+tld` combined, status enum filter, parallel count query
+- **Admin Hosting API** (`GET /admin/hosting`): Added `ilike` on `username` in addition to existing `domain` + `planName` search
+- Both use 400ms debounce on the search input to avoid hammering the DB
+
+### Database Indexes
+9 PostgreSQL indexes created on `heliumdb` for fast lookups:
+- `idx_domains_name`, `idx_domains_tld`, `idx_domains_client_id`, `idx_domains_status`
+- `idx_hosting_services_domain`, `idx_hosting_services_username`, `idx_hosting_services_client_id`, `idx_hosting_services_status`
+- `idx_users_email`
+
+### In-Memory API Cache
+- New `artifacts/api-server/src/lib/cache.ts` — lightweight Map-based TTL cache with `cacheGet`, `cacheSet`, `cacheDelete`, `cacheClear`, `cachedFetch`
+- 20i package listing (`GET /admin/servers/:id/twentyi-packages`) now uses 10-minute in-memory cache — no more repeated API round-trips when switching packages in the UI
+
 ## Recent Changes (Session 49b — Invoice Professionalism Overhaul + Branding Tab Fix)
 
 ### Invoice PDF — Professional Cleanup

@@ -3,13 +3,14 @@ import { motion } from "framer-motion";
 import {
   Server, Globe, Calendar, Settings, Cpu, Zap, ExternalLink, Loader2, Mail,
   ChevronRight, Wifi, HardDrive, ShieldCheck, Sparkles, RefreshCw, Clock, Lock,
+  Search, ChevronLeft,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface HostingService {
   id: string;
@@ -65,11 +66,53 @@ function getDaysUntilRenewal(dateStr: string | null): number | null {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+const HOSTING_PER_PAGE = 50;
+
+function PaginationBar({ page, totalPages, total, setPage }: { page: number; totalPages: number; total: number; setPage: (p: number) => void }) {
+  return (
+    <div className="flex items-center justify-between mt-4 px-1">
+      <p className="text-xs text-muted-foreground">
+        Showing {(page - 1) * HOSTING_PER_PAGE + 1}–{Math.min(page * HOSTING_PER_PAGE, total)} of {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
+          <ChevronLeft size={13} /> Prev
+        </button>
+        {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+          const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i;
+          return (
+            <button key={p} onClick={() => setPage(p)}
+              className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+              style={p === page ? { background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" } : {}}>
+              {p}
+            </button>
+          );
+        })}
+        <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors">
+          Next <ChevronRight size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function useHostingDebounce(value: string, delay: number) {
+  const [deb, setDeb] = useState(value);
+  useEffect(() => { const id = setTimeout(() => setDeb(value), delay); return () => clearTimeout(id); }, [value, delay]);
+  return deb;
+}
+
 export default function ClientHosting() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
   const [ssoLoading, setSsoLoading] = useState<Record<string, "cpanel" | "webmail" | null>>({});
+  const [searchInput, setSearchInput] = useState("");
+  const [hostingPage, setHostingPage] = useState(1);
+  const [vpsPage, setVpsPage] = useState(1);
+  const searchQ = useHostingDebounce(searchInput, 300);
 
   const { data: services = [], isLoading } = useQuery<HostingService[]>({
     queryKey: ["client-hosting"],
@@ -104,8 +147,24 @@ export default function ClientHosting() {
     }
   }
 
-  const vpsServices     = services.filter(s => isVpsService(s.planName));
-  const hostingServices = services.filter(s => !isVpsService(s.planName));
+  const allVps     = services.filter(s => isVpsService(s.planName));
+  const allHosting = services.filter(s => !isVpsService(s.planName));
+
+  const filterFn = (s: HostingService) =>
+    !searchQ ||
+    s.planName.toLowerCase().includes(searchQ.toLowerCase()) ||
+    (s.domain ?? "").toLowerCase().includes(searchQ.toLowerCase());
+
+  const filteredVps     = allVps.filter(filterFn);
+  const filteredHosting = allHosting.filter(filterFn);
+
+  const vpsTotalPages     = Math.max(1, Math.ceil(filteredVps.length / HOSTING_PER_PAGE));
+  const hostingTotalPages = Math.max(1, Math.ceil(filteredHosting.length / HOSTING_PER_PAGE));
+  const vpsPageClamped     = Math.min(vpsPage, vpsTotalPages);
+  const hostingPageClamped = Math.min(hostingPage, hostingTotalPages);
+
+  const vpsServices     = filteredVps.slice((vpsPageClamped - 1) * HOSTING_PER_PAGE, vpsPageClamped * HOSTING_PER_PAGE);
+  const hostingServices = filteredHosting.slice((hostingPageClamped - 1) * HOSTING_PER_PAGE, hostingPageClamped * HOSTING_PER_PAGE);
 
   function ServiceCard({ service }: { service: HostingService }) {
     const isVps = isVpsService(service.planName);
@@ -290,6 +349,19 @@ export default function ClientHosting() {
         )}
       </div>
 
+      {/* Search bar — only show when services exist */}
+      {services.length > 0 && (
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-9 bg-card border-border"
+            placeholder="Search by plan or domain..."
+            value={searchInput}
+            onChange={e => { setSearchInput(e.target.value); setHostingPage(1); setVpsPage(1); }}
+          />
+        </div>
+      )}
+
       {services.length === 0 ? (
         /* ── Empty state: Start Your Journey ────────────────────────────────── */
         <div className="space-y-6">
@@ -373,30 +445,40 @@ export default function ClientHosting() {
       ) : (
         /* ── Service Cards ─────────────────────────────────────────────── */
         <div className="space-y-8">
-          {vpsServices.length > 0 && (
+          {filteredVps.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Cpu size={15} className="text-primary" />
                 <h3 className="text-[14px] font-bold text-foreground">VPS Servers</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">{vpsServices.length}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">{filteredVps.length}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {vpsServices.map(s => <ServiceCard key={s.id} service={s} />)}
               </div>
+              {vpsTotalPages > 1 && <PaginationBar page={vpsPageClamped} totalPages={vpsTotalPages} total={filteredVps.length} setPage={setVpsPage} />}
             </section>
           )}
 
-          {hostingServices.length > 0 && (
+          {filteredHosting.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Server size={15} className="text-primary" />
                 <h3 className="text-[14px] font-bold text-foreground">Web Hosting</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">{hostingServices.length}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">{filteredHosting.length}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {hostingServices.map(s => <ServiceCard key={s.id} service={s} />)}
               </div>
+              {hostingTotalPages > 1 && <PaginationBar page={hostingPageClamped} totalPages={hostingTotalPages} total={filteredHosting.length} setPage={setHostingPage} />}
             </section>
+          )}
+
+          {services.length > 0 && searchQ && filteredVps.length === 0 && filteredHosting.length === 0 && (
+            <div className="py-12 text-center text-muted-foreground">
+              <Search size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="font-semibold">No services match "{searchQ}"</p>
+              <p className="text-sm mt-1">Try a different search term.</p>
+            </div>
           )}
         </div>
       )}

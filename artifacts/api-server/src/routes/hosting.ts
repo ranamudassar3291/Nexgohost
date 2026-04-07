@@ -1,5 +1,6 @@
 import path from "path";
 import { Router } from "express";
+import { cachedFetch, cacheClear } from "../lib/cache.js";
 import { decryptField } from "../lib/fieldCrypto.js";
 import { db } from "@workspace/db";
 import { hostingPlansTable, hostingServicesTable, usersTable, domainsTable, invoicesTable, ticketsTable, serversTable, serverLogsTable, ordersTable, promoCodesTable } from "@workspace/db/schema";
@@ -287,6 +288,7 @@ router.get("/admin/hosting", authenticate, requireAdmin, async (req, res) => {
         or(
           ilike(hostingServicesTable.domain, `%${search}%`),
           ilike(hostingServicesTable.planName, `%${search}%`),
+          ilike(hostingServicesTable.username, `%${search}%`),
         )
       );
     }
@@ -1083,7 +1085,9 @@ router.get("/admin/servers/:id/twentyi-packages", authenticate, requireAdmin, as
     if (server.type !== "20i") return res.status(400).json({ error: "Server is not a 20i server" });
     if (!server.apiToken) return res.status(400).json({ error: "Server has no API key configured" });
 
-    const packages = await twentyiGetPackages(decryptField(server.apiToken ?? ""));
+    const apiKey = decryptField(server.apiToken ?? "");
+    const cacheKey = `20i:packages:${server.id}`;
+    const packages = await cachedFetch(cacheKey, () => twentyiGetPackages(apiKey), 10 * 60 * 1000);
     return res.json({ packages });
   } catch (err: any) {
     console.error("[20i] fetch packages error:", err.message);
