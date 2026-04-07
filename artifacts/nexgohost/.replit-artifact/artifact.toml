@@ -1,31 +1,32 @@
 kind = "web"
-previewPath = "/"
-title = "Nexgohost - Hosting Management Platform"
-version = "1.0.0"
-id = "artifacts/nexgohost"
-router = "path"
+  previewPath = "/"
+  title = "Nexgohost - Hosting Management Platform"
+  version = "1.0.0"
+  id = "artifacts/nexgohost"
+  router = "path"
 
-[[integratedSkills]]
-name = "react-vite"
-version = "1.0.0"
+  [[integratedSkills]]
+  name = "react-vite"
+  version = "1.0.0"
 
-[[services]]
-name = "web"
-paths = [ "/" ]
-localPort = 23274
+  [[services]]
+  name = "web"
+  paths = [ "/" ]
+  localPort = 5173
 
-[services.development]
-run = "pnpm --filter @workspace/nexgohost run dev"
+  [services.development]
+  run = "pnpm --filter @workspace/nexgohost run dev"
 
-[services.production]
-build = [ "pnpm", "--filter", "@workspace/nexgohost", "run", "build" ]
-publicDir = "artifacts/nexgohost/dist/public"
-serve = "static"
+  [services.production]
+  build = [ "pnpm", "--filter", "@workspace/nexgohost", "run", "build" ]
+  publicDir = "artifacts/nexgohost/dist/public"
+  serve = "static"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+  [[services.production.rewrites]]
+  from = "/*"
+  to = "/index.html"
 
-[services.env]
-PORT = "23274"
-BASE_PATH = "/"
+  [services.env]
+  PORT = "5173"
+  BASE_PATH = "/"
+  
