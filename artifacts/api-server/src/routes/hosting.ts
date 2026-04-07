@@ -1209,8 +1209,8 @@ router.get("/client/hosting/:id", authenticate, async (req: AuthRequest, res) =>
   }
 });
 
-// Client: mark free domain as claimed (sets freeDomainAvailable = false)
-router.post("/client/hosting/:id/claim-free-domain", authenticate, async (req: AuthRequest, res) => {
+// Client: get free domain info for a service (allowed TLDs, plan name)
+router.get("/client/hosting/:id/free-domain-info", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const [service] = await db.select().from(hostingServicesTable)
@@ -1218,11 +1218,112 @@ router.post("/client/hosting/:id/claim-free-domain", authenticate, async (req: A
       .limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
     if (!service.freeDomainAvailable) return res.status(400).json({ error: "No free domain available for this service" });
-    await db.update(hostingServicesTable).set({ freeDomainAvailable: false, updatedAt: new Date() })
-      .where(eq(hostingServicesTable.id, id));
-    return res.json({ ok: true });
+
+    const [plan] = service.planId
+      ? await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1)
+      : [null];
+
+    const allowedTlds: string[] = (plan?.freeDomainTlds && plan.freeDomainTlds.length > 0)
+      ? plan.freeDomainTlds.map(t => t.startsWith(".") ? t : `.${t}`)
+      : [".com", ".net", ".org"];
+
+    return res.json({
+      serviceId: service.id,
+      planName: service.planName,
+      allowedTlds,
+      freeDomainAvailable: service.freeDomainAvailable,
+    });
   } catch (err) {
     console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Client: register & claim the free domain for a service
+router.post("/client/hosting/:id/claim-free-domain", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { domain } = req.body as { domain: string };
+
+    if (!domain || !domain.includes(".")) {
+      return res.status(400).json({ error: "A valid domain name is required (e.g. mybusiness.com)" });
+    }
+
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, req.user!.userId)))
+      .limit(1);
+    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service.freeDomainAvailable) {
+      return res.status(400).json({ error: "No free domain available for this service" });
+    }
+
+    const dotIdx = domain.indexOf(".");
+    const dName = domain.slice(0, dotIdx).toLowerCase().trim();
+    const dTld  = domain.slice(dotIdx).toLowerCase().trim();
+
+    if (!dName || !dTld) {
+      return res.status(400).json({ error: "Invalid domain format" });
+    }
+
+    // Validate TLD is in the plan's allowed list
+    const [plan] = service.planId
+      ? await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1)
+      : [null];
+
+    const allowedTlds: string[] = (plan?.freeDomainTlds && plan.freeDomainTlds.length > 0)
+      ? plan.freeDomainTlds.map(t => (t.startsWith(".") ? t : `.${t}`).toLowerCase())
+      : [".com", ".net", ".org"];
+
+    if (!allowedTlds.includes(dTld)) {
+      return res.status(400).json({ error: `TLD "${dTld}" is not eligible for a free domain on this plan. Allowed: ${allowedTlds.join(", ")}` });
+    }
+
+    // Ensure domain isn't already registered in our system
+    const [existing] = await db.select({ id: domainsTable.id })
+      .from(domainsTable)
+      .where(and(eq(domainsTable.name, dName), eq(domainsTable.tld, dTld)))
+      .limit(1);
+    if (existing) {
+      return res.status(409).json({ error: "This domain is already registered in our system." });
+    }
+
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
+    // Create domain record
+    const [newDomain] = await db.insert(domainsTable).values({
+      clientId: req.user!.userId,
+      name: dName,
+      tld: dTld,
+      registrar: service.twentyIPackageId ? "20i" : "pending",
+      registrationDate: new Date(),
+      expiryDate,
+      nextDueDate: expiryDate,
+      status: "pending_activation",
+      lockStatus: "unlocked",
+      autoRenew: true,
+      isFreeDomain: true,
+      nameservers: [],
+    }).returning();
+
+    // Link domain to service + clear free domain flag
+    await db.update(hostingServicesTable)
+      .set({
+        freeDomainAvailable: false,
+        freeDomainId: newDomain.id,
+        ...(service.domain ? {} : { domain: `${dName}${dTld}` }),
+        updatedAt: new Date(),
+      })
+      .where(eq(hostingServicesTable.id, id));
+
+    return res.json({
+      ok: true,
+      domainId: newDomain.id,
+      domain: `${dName}${dTld}`,
+      message: "Domain successfully claimed! It will be activated within a few minutes.",
+    });
+  } catch (err) {
+    console.error("[CLAIM-FREE-DOMAIN]", err);
     return res.status(500).json({ error: "Server error" });
   }
 });

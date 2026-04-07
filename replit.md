@@ -1,5 +1,19 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 48 — Free Domain Claim System + Dynamic Logo Engine)
+
+### Feature: Free Domain Claim System (Hostinger-style)
+- **DB Schema**: Added `free_domain_id text` field to `hosting_services` table to track the linked domain after claiming
+- **Backend API — `GET /api/client/hosting/:id/free-domain-info`**: Returns service info and allowed TLDs from the plan; defaults to `.com, .net, .org` if plan has no TLDs configured
+- **Backend API — `POST /api/client/hosting/:id/claim-free-domain`** (rewritten): Full registration flow — validates TLD eligibility, creates a domain record (`is_free_domain=true`, `status=pending_activation`), links it to the service via `free_domain_id`, and sets `free_domain_available=false`; no invoice created
+- **New page `artifacts/nexgohost/src/pages/client/RegisterDomain.tsx`**: Route `/client/register-domain?claim_token=<serviceId>` — fetches allowed TLDs, shows domain search with FREE price for eligible TLDs, "Claim Free" CTA, confetti + success screen on completion
+- **`Dashboard.tsx`**: Banner upgraded to full purple gradient with radial glow (Hostinger-style); `handleClaimFreeDomain` now navigates to `/client/register-domain?claim_token=<id>` (no premature API call)
+- **`App.tsx`**: Route `/client/register-domain` registered with `ClientPage` wrapper (auth-protected)
+
+### Feature: Dynamic Logo Engine (Session 47 continuation)
+- Dynamic branding (logo, favicon, site name) propagates to: sidebar, admin login, client login, register page, all email templates
+- `email.ts`: `getBrandingVars()` with 60-second TTL cache injects `{{logo_url}}` and `{{company_name}}` automatically into every templated email; `clearBrandingCache()` called on upload/delete
+
 ## Recent Changes (Session 47 — Aggressive Whitelist + Periodic IP Monitor)
 
 ### 20i: Exhaustive multi-format whitelist + periodic IP change detection

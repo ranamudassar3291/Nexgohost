@@ -221,15 +221,9 @@ export default function ClientDashboard() {
   const expiryAlerts = [...expiringServices, ...expiringDomains].sort((a, b) => a.daysLeft - b.daysLeft);
   const freeDomainService = allServices.find(s => s.freeDomainAvailable);
 
-  async function handleClaimFreeDomain() {
+  function handleClaimFreeDomain() {
     if (!freeDomainService) return;
-    try {
-      await apiFetch(`/api/client/hosting/${freeDomainService.id}/claim-free-domain`, { method: "POST" });
-      queryClient.invalidateQueries({ queryKey: ["client-services-dashboard"] });
-      navigate("/client/orders/new?freeDomain=1");
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+    navigate(`/client/register-domain?claim_token=${freeDomainService.id}`);
   }
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
@@ -639,23 +633,44 @@ export default function ClientDashboard() {
         </Link>
       )}
 
-      {/* Free Domain Notification */}
+      {/* ── Free Domain Claim Banner ── */}
       {freeDomainService && (
-        <div className="rounded-2xl p-5 flex items-center gap-4 border"
-          style={{ background: "linear-gradient(135deg, #f3ebff 0%, #ede0ff 100%)", borderColor: "#818CF8" }}>
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border"
-            style={{ background: "#4F46E515", borderColor: "#4F46E540" }}>
-            <Gift size={22} style={{ color: "#4F46E5" }} />
+        <div className="relative rounded-2xl overflow-hidden border border-violet-400/40"
+          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #7C3AED 100%)" }}>
+          {/* Radial glow */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ backgroundImage: "radial-gradient(circle at 90% 50%, rgba(255,255,255,0.12) 0%, transparent 55%)" }} />
+          <div className="relative px-5 py-5 flex items-center gap-4">
+            {/* Icon */}
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border border-white/20"
+              style={{ background: "rgba(255,255,255,0.12)" }}>
+              <Gift size={26} className="text-white" />
+            </div>
+            {/* Text */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <p className="text-sm font-black text-white tracking-tight">
+                  🎁 You have 1 Free Domain to claim!
+                </p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-400/25 border border-yellow-400/30 text-yellow-300 whitespace-nowrap">
+                  INCLUDED FREE
+                </span>
+              </div>
+              <p className="text-white/75 text-xs leading-relaxed">
+                Your <span className="font-semibold text-white">{freeDomainService.planName}</span> yearly plan includes a free domain for the 1st year.
+                Claim it now — it will be automatically linked to your hosting.
+              </p>
+            </div>
+            {/* CTA */}
+            <button
+              onClick={handleClaimFreeDomain}
+              className="shrink-0 flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold rounded-xl transition-all border border-white/20 hover:bg-white/10"
+              style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}
+            >
+              <Sparkles size={14} />
+              Claim Now →
+            </button>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: "#4F46E5" }}>You have 1 Free Domain waiting to be claimed!</p>
-            <p className="text-xs text-purple-700 mt-0.5">Your <span className="font-semibold">{freeDomainService.planName}</span> yearly plan includes a free domain registration. Claim it now before it expires.</p>
-          </div>
-          <button onClick={handleClaimFreeDomain}
-            className="shrink-0 px-4 py-2 text-[13px] font-bold text-white rounded-xl shadow transition-all hover:opacity-90"
-            style={{ background: "#4F46E5", boxShadow: "0 4px 14px rgba(112,26,254,0.28)" }}>
-            Claim Now
-          </button>
         </div>
       )}
 

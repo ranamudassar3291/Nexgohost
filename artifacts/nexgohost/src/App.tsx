@@ -69,6 +69,7 @@ import Security from "@/pages/client/Security";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import DomainDns from "@/pages/client/DomainDns";
 import DomainSearch from "@/pages/client/DomainSearch";
+import RegisterDomain from "@/pages/client/RegisterDomain";
 import VpsManage from "@/pages/client/VpsManage";
 import HelpCenter from "@/pages/client/HelpCenter";
 import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
@@ -494,6 +495,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/domain-search">
         <ClientPage><DomainSearch /></ClientPage>
+      </Route>
+      <Route path="/client/register-domain">
+        <ClientPage><RegisterDomain /></ClientPage>
       </Route>
       <Route path="/client/domains/transfer">
         <ClientPage><DomainTransfer /></ClientPage>
