@@ -128,7 +128,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       } catch { /* try next */ }
     }
 
-    const targetCode = countryCode ? (COUNTRY_TO_CURRENCY[countryCode] ?? "PKR") : "PKR";
+    // Pakistan → PKR, UK → GBP, all other unknown countries → USD
+    const targetCode = countryCode ? (COUNTRY_TO_CURRENCY[countryCode] ?? "USD") : "USD";
     const found = currencies.find(c => c.code === targetCode)
       ?? currencies.find(c => c.code === "PKR")
       ?? currencies[0];

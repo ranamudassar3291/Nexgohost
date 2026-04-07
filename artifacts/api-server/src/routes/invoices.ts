@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sendWhatsAppAlert, sendToClientPhone } from "../lib/whatsapp.js";
-import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable, affiliateCommissionsTable, affiliatesTable } from "@workspace/db/schema";
+import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable, affiliateCommissionsTable, affiliatesTable, hostingPlansTable } from "@workspace/db/schema";
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { emailInvoicePaid } from "../lib/email.js";
@@ -327,6 +327,7 @@ router.post("/admin/invoices", authenticate, requireAdmin, async (req: AuthReque
       amount: String(amount),
       tax: String(tax),
       total: String(total),
+      baseCurrencyAmount: String(amount),
       status: "unpaid",
       dueDate: new Date(dueDate),
       items: items,
@@ -767,6 +768,63 @@ router.put("/admin/invoices/:id", authenticate, requireAdmin, async (req: AuthRe
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
     res.json(formatInvoice(updated, user ? `${user.firstName} ${user.lastName}` : ""));
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+});
+
+// Admin: recalculate zero-amount invoices from linked service plan prices
+// POST /api/admin/invoices/recalculate-zero
+router.post("/admin/invoices/recalculate-zero", authenticate, requireAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const zeroInvoices = await db.select().from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.status, "unpaid"),
+        sql`CAST(${invoicesTable.amount} AS numeric) = 0`,
+      ));
+
+    let fixed = 0;
+    let skipped = 0;
+    const details: { invoiceId: string; invoiceNumber: string; serviceId: string | null; newAmount: string }[] = [];
+
+    for (const invoice of zeroInvoices) {
+      if (!invoice.serviceId) { skipped++; continue; }
+
+      const [service] = await db.select().from(hostingServicesTable)
+        .where(eq(hostingServicesTable.id, invoice.serviceId)).limit(1);
+      if (!service) { skipped++; continue; }
+
+      // Resolve the correct price from the plan
+      let newAmount = "0.00";
+      if (service.planId) {
+        const [plan] = await db.select().from(hostingPlansTable)
+          .where(eq(hostingPlansTable.id, service.planId)).limit(1);
+        if (plan) {
+          newAmount = service.billingCycle === "yearly"
+            ? (plan.yearlyPrice ?? plan.price ?? service.amount ?? "0.00")
+            : (plan.price ?? service.amount ?? "0.00");
+        }
+      }
+      if ((!newAmount || newAmount === "0.00") && service.amount && service.amount !== "0.00") {
+        newAmount = service.amount;
+      }
+      if (!newAmount || newAmount === "0.00") { skipped++; continue; }
+
+      await db.update(invoicesTable)
+        .set({
+          amount: newAmount,
+          total: newAmount,
+          baseCurrencyAmount: newAmount,
+          updatedAt: new Date(),
+        })
+        .where(eq(invoicesTable.id, invoice.id));
+
+      details.push({ invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, serviceId: invoice.serviceId, newAmount });
+      fixed++;
+    }
+
+    res.json({ success: true, fixed, skipped, total: zeroInvoices.length, details });
+  } catch (err: any) {
+    console.error("[INVOICES] recalculate-zero error:", err.message);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
 });
 
 // Admin: delete invoice

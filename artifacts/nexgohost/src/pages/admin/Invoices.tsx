@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Search, CheckCircle, Plus, FileText, TrendingUp, Clock,
-  Trash2, Edit2, Eye, ChevronLeft, ChevronRight, X, Loader2, XCircle, FileDown, Calendar,
+  Trash2, Edit2, Eye, ChevronLeft, ChevronRight, X, Loader2, XCircle, FileDown, Calendar, Wrench,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
@@ -103,6 +103,29 @@ export default function AdminInvoices() {
   const [editModal, setEditModal] = useState<EditModal | null>(null);
   const [viewModal, setViewModal] = useState<ViewModal | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [recalcFixing, setRecalcFixing] = useState(false);
+
+  const handleRecalcZero = async () => {
+    setRecalcFixing(true);
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch("/api/admin/invoices/recalculate-zero", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      toast({
+        title: `Fixed ${data.fixed} invoice${data.fixed !== 1 ? "s" : ""}`,
+        description: `${data.skipped} skipped (no linked service). ${data.total} zero-amount invoices checked.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-invoices"] });
+    } catch (err: any) {
+      toast({ title: "Recalculation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRecalcFixing(false);
+    }
+  };
 
   const handleDownloadPdf = async (invoiceId: string, invoiceNumber: string) => {
     setDownloadingPdf(true);
@@ -446,9 +469,21 @@ export default function AdminInvoices() {
             {paged ? `${paged.total.toLocaleString()} total invoices` : "Manage all billing and invoice records"}
           </p>
         </div>
-        <Button onClick={() => setLocation("/admin/invoices/add")} className="bg-primary hover:bg-primary/90 h-10 rounded-xl">
-          <Plus size={16} className="mr-2" /> Create Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalcZero}
+            disabled={recalcFixing}
+            className="h-10 rounded-xl border-orange-500/40 text-orange-500 hover:bg-orange-500/10 hover:border-orange-500/60 text-sm"
+            title="Re-calculate amounts for any invoices showing 0.00 from the linked service plan price"
+          >
+            {recalcFixing ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Wrench size={14} className="mr-1.5" />}
+            Fix 0.00 Invoices
+          </Button>
+          <Button onClick={() => setLocation("/admin/invoices/add")} className="bg-primary hover:bg-primary/90 h-10 rounded-xl">
+            <Plus size={16} className="mr-2" /> Create Invoice
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

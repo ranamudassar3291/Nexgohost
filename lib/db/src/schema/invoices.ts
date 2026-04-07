@@ -27,6 +27,8 @@ export const invoicesTable = pgTable("invoices", {
   currencyCode: text("currency_code").default("PKR"),
   currencySymbol: text("currency_symbol").default("Rs."),
   currencyRate: numeric("currency_rate", { precision: 12, scale: 6 }).default("1"),
+  // Safety anchor: base PKR amount is always preserved here regardless of display currency
+  baseCurrencyAmount: numeric("base_currency_amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

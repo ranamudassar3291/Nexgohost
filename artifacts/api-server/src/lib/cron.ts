@@ -122,6 +122,7 @@ export async function runBillingCron(): Promise<void> {
         amount,
         tax: "0",
         total: amount,
+        baseCurrencyAmount: amount,
         status: "unpaid",
         dueDate,
         items: [{ description: `${service.planName} - Renewal (${service.billingCycle ?? "monthly"})`, amount: Number(amount), total: Number(amount) }],
@@ -159,17 +160,18 @@ export async function runBillingCron(): Promise<void> {
   }
 }
 
-// ─── Task 2: Auto-suspend overdue hosting (3+ days unpaid) ───────────────────
+// ─── Task 2: Auto-suspend overdue hosting (1+ day unpaid) ────────────────────
+// STRICT: Suspension only. Termination requires manual admin action.
 export async function runSuspendOverdueCron(): Promise<void> {
-  const threeDaysAgo = new Date();
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-  threeDaysAgo.setHours(23, 59, 59, 999);
+  const oneDayAgo = new Date();
+  oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+  oneDayAgo.setHours(23, 59, 59, 999);
 
   try {
     const overdueInvoices = await db.select().from(invoicesTable)
       .where(and(
         eq(invoicesTable.status, "unpaid"),
-        lte(invoicesTable.dueDate, threeDaysAgo),
+        lte(invoicesTable.dueDate, oneDayAgo),
       ));
 
     let suspended = 0;

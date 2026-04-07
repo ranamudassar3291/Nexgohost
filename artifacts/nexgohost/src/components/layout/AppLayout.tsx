@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBranding } from "@/hooks/use-branding";
+import { useCurrency } from "@/context/CurrencyProvider";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus } from "lucide-react";
@@ -58,6 +59,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
   const { logoUrl, faviconUrl, siteName } = useBranding();
+  const { currency, setCurrency, allCurrencies } = useCurrency();
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -272,6 +274,22 @@ export function AppLayout({ children, role }: LayoutProps) {
             <p className="text-sm font-semibold text-foreground truncate">{user?.firstName} {user?.lastName}</p>
             <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
           </div>
+        </div>
+        {/* Currency Switcher */}
+        <div className="flex items-center gap-2 px-1 mb-1">
+          <span className="text-[11px] text-muted-foreground shrink-0">Currency:</span>
+          <select
+            value={currency.code}
+            onChange={e => {
+              const found = allCurrencies.find(c => c.code === e.target.value);
+              if (found) setCurrency(found);
+            }}
+            className="flex-1 bg-secondary/50 border border-border/50 text-foreground text-xs rounded-lg px-2 py-1 cursor-pointer hover:border-primary/40 transition-colors focus:outline-none focus:ring-1 focus:ring-primary/30"
+          >
+            {allCurrencies.map(c => (
+              <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+            ))}
+          </select>
         </div>
         <Button
           variant="ghost"
