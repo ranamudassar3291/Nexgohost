@@ -36,7 +36,7 @@ import { db } from "@workspace/db";
 import { hostingServicesTable, hostingPlansTable, serversTable, usersTable, serverLogsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { cpanelCreateAccount, cpanelCheckDomainExists } from "./cpanel.js";
-import { twentyiCreateHosting, twentyiGetOrCreateStackUser, twentyiAssignSiteToUser } from "./twenty-i.js";
+import { twentyiCreateHosting, twentyiGetOrCreateStackUser, twentyiAssignSiteToUser, twentyiEnsureIpWhitelisted } from "./twenty-i.js";
 import type { TwentyICreateResult } from "./twenty-i.js";
 import { emailHostingCreated, emailResellerHostingCreated, emailVerificationCode } from "./email.js";
 
@@ -425,15 +425,21 @@ export async function provisionHostingService(
       }
     } else if (module === "20i" && server.apiToken) {
       try {
+        const rawApiKey = decryptField(server.apiToken ?? "");
+
+        // Step 0 — Proactively verify & sync current outbound IP before activation.
+        // If the IP changed since the last request (Replit NAT changes on restart),
+        // this will auto-whitelist the new IP BEFORE we attempt to create the package.
+        await twentyiEnsureIpWhitelisted(rawApiKey);
+
         // Step A — Get or create a StackUser for this client (idempotent)
         const clientName = `${user.firstName} ${user.lastName}`.trim() || user.email;
         let stackUserId: string | null = user.stackUserId ?? null;
 
         if (!stackUserId) {
           try {
-            const stackUser = await twentyiGetOrCreateStackUser(decryptField(server.apiToken ?? ""), user.email, clientName);
+            const stackUser = await twentyiGetOrCreateStackUser(rawApiKey, user.email, clientName);
             stackUserId = stackUser.id;
-            // Persist stackUserId on the user record for future services
             await db.update(usersTable).set({ stackUserId, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
             console.log(`[PROVISION] 20i StackUser created/found: userId=${stackUserId} email=${user.email}`);
           } catch (suErr: any) {
@@ -441,16 +447,26 @@ export async function provisionHostingService(
           }
         }
 
-        // Step B — Create the hosting package
-        const twentyiResult: TwentyICreateResult = await twentyiCreateHosting(
-          decryptField(server.apiToken ?? ""),
-          domain,
-          user.email,
-          plan?.modulePlanId ?? undefined,
-        );
-        if (twentyiResult.siteId) {
-          username = twentyiResult.siteId;
+        // Step B — Create the hosting package (with automatic IpMatch retry)
+        // requestWithRetry inside twentyiCreateHosting will auto-whitelist on IpMatch
+        // and retry once. Here we add a second-level retry at the provision layer for
+        // the rare case where the first attempt races against IP propagation.
+        let twentyiResult: TwentyICreateResult;
+        try {
+          twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, plan?.modulePlanId ?? undefined);
+        } catch (firstErr: any) {
+          const firstMsg: string = firstErr.message ?? "";
+          if (firstMsg.includes("IpMatch") || firstMsg.includes("not whitelisted")) {
+            console.warn(`[PROVISION] 20i IpMatch on first attempt — re-syncing IP and retrying in 3s…`);
+            await twentyiEnsureIpWhitelisted(rawApiKey);
+            await new Promise(r => setTimeout(r, 3000));
+            twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, plan?.modulePlanId ?? undefined);
+          } else {
+            throw firstErr;
+          }
         }
+
+        if (twentyiResult.siteId) username = twentyiResult.siteId;
         if (twentyiResult.cpanelUrl) cpanelUrl = twentyiResult.cpanelUrl;
         if (twentyiResult.webmailUrl) webmailUrl = twentyiResult.webmailUrl;
         console.log(`[PROVISION] 20i hosting created: siteId=${twentyiResult.siteId} domain=${domain}`);
@@ -458,7 +474,7 @@ export async function provisionHostingService(
         // Step C — Assign the site to the StackUser so they can manage it from StackCP
         if (stackUserId && twentyiResult.siteId) {
           try {
-            await twentyiAssignSiteToUser(decryptField(server.apiToken ?? ""), twentyiResult.siteId, stackUserId);
+            await twentyiAssignSiteToUser(rawApiKey, twentyiResult.siteId, stackUserId);
             console.log(`[PROVISION] 20i site ${twentyiResult.siteId} assigned to StackUser ${stackUserId}`);
           } catch (assignErr: any) {
             console.warn(`[PROVISION] 20i site assignment failed (non-fatal): ${assignErr.message}`);
