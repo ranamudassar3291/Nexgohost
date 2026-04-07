@@ -1,5 +1,17 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 49b — Invoice Professionalism Overhaul + Branding Tab Fix)
+
+### Invoice PDF — Professional Cleanup
+- **No more Replit URLs**: Added `getPublicHostname()` to `app-url.ts` — deliberately skips `REPLIT_DEV_DOMAIN`, only uses `APP_URL` env var → deployed `REPLIT_DOMAINS` → falls back to `noehost.com`. All invoice text (PAY TO emails, footer, T&C, header tagline) now shows `billing@noehost.com` / `support@noehost.com` / `noehost.com` instead of `*.replit.dev`
+- **Logo with white backdrop**: Added white rounded-rect pill (`216×50pt`, radius 8) behind the logo image in the purple header band, so dark-text PNG logo is perfectly readable. Logo sized at `height: 36, fit: [200, 36]`
+- **Premium totals layout**: Subtotals block now has a `SLATE50` background, row height increased to 16pt, separator line added before TOTAL DUE, TOTAL DUE pill height 30pt, amount text enlarged to 13pt bold, label text at 8.5pt with 70% white opacity — WHMCS/Hostinger style
+
+### Branding Tab — Three Fixes
+- **Wide logo thumbnail**: "Custom logo active" thumbnail changed from fixed 64×64 square → `120-180px wide × 48px tall` white background container with `object-contain`, so combined wide logos display correctly without distortion
+- **Wide upload preview**: File-selected preview thumbnail changed from `48×48px` → `maxHeight: 40, maxWidth: 160` with `object-contain`
+- **Dual white previews**: "Live Preview" now has two panels — "Sidebar header" (shows logo on white background matching the real sidebar) and "White background" (centered on pure white for clarity) — previously had dark/card backgrounds that obscured how the logo actually looks
+
 ## Recent Changes (Session 49 — Logo Standardization + Combined Logo Engine)
 
 ### Logo Standardization — COMPLETE

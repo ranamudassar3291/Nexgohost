@@ -137,35 +137,31 @@ export default function Branding() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Sidebar preview — matches AppLayout sidebar header exactly */}
+          {/* Sidebar preview — white bg matches real sidebar */}
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Sidebar</p>
-            <div className="rounded-lg bg-card border border-border/50 overflow-hidden">
-              <div className="px-5 py-4 flex items-center gap-3 border-b border-border/50" style={{ minHeight: 64 }}>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Sidebar header</p>
+            <div className="rounded-lg bg-white border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 flex items-center gap-3" style={{ minHeight: 60 }}>
                 {isLoading ? (
-                  <div className="w-10 h-10 rounded-xl bg-muted animate-pulse shrink-0" />
+                  <div className="h-9 w-32 rounded-lg bg-gray-100 animate-pulse" />
                 ) : activeLogoUrl ? (
-                  <div className="flex items-center min-w-0 max-w-full">
-                    <img
-                      src={activeLogoUrl}
-                      alt={siteName}
-                      className="brand-logo-img"
-                      style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
-                    />
-                  </div>
+                  <img
+                    src={activeLogoUrl}
+                    alt={siteName}
+                    className="brand-logo-img"
+                    style={{ maxHeight: 40, width: "auto", maxWidth: "100%" }}
+                  />
                 ) : (
                   <>
                     <div
-                      className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
-                      style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+                      className="brand-logo-container w-9 h-9 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
+                      style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}
                     >
                       {siteName[0]}
                     </div>
                     <div className="flex flex-col justify-center min-w-0">
-                      <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                        {siteName}
-                      </h1>
-                      <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>NoePanel</p>
+                      <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">{siteName}</h1>
+                      <p className="text-[9px] font-semibold tracking-widest uppercase mt-0.5 text-purple-500">NoePanel</p>
                     </div>
                   </>
                 )}
@@ -173,35 +169,28 @@ export default function Branding() {
             </div>
           </div>
 
-          {/* Login page preview */}
+          {/* White background — pure white preview */}
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Login page (light)</p>
-            <div className="p-4 rounded-lg bg-white border border-gray-200">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">White background</p>
+            <div className="p-5 rounded-lg bg-white border border-gray-100 flex items-center justify-center" style={{ minHeight: 60 }}>
               {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-gray-200 animate-pulse" />
-                  <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
-                </div>
+                <div className="h-9 w-32 rounded-lg bg-gray-100 animate-pulse" />
               ) : activeLogoUrl ? (
-                <div className="flex items-center">
-                  <img
-                    src={activeLogoUrl}
-                    alt={siteName}
-                    className="brand-logo-img"
-                    style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
-                  />
-                </div>
+                <img
+                  src={activeLogoUrl}
+                  alt={siteName}
+                  className="brand-logo-img"
+                  style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
+                />
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <div
-                    className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
-                    style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+                    className="brand-logo-container w-9 h-9 rounded-xl font-bold text-white text-sm"
+                    style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}
                   >
                     {siteName[0]}
                   </div>
-                  <div className="flex flex-col justify-center">
-                    <h1 className="font-display font-bold text-xl tracking-tight leading-none text-gray-900">{siteName}</h1>
-                  </div>
+                  <span className="font-bold text-lg text-gray-900 tracking-tight">{siteName}</span>
                 </div>
               )}
             </div>
@@ -218,16 +207,16 @@ export default function Branding() {
 
         {/* Current logo */}
         <div className="flex items-center gap-4 p-4 rounded-xl bg-secondary/40 border border-border/50">
-          <div className="w-16 h-16 rounded-xl bg-background border border-border flex items-center justify-center overflow-hidden shrink-0">
+          <div className="h-12 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden shrink-0 px-3" style={{ minWidth: 120, maxWidth: 180 }}>
             {branding?.logoUrl ? (
               <img
                 src={branding.logoUrl}
                 alt="Current logo"
-                className="brand-logo-img rounded-xl"
-                style={{ width: "100%", height: "100%", padding: "4px" }}
+                className="brand-logo-img"
+                style={{ maxHeight: 40, width: "auto", maxWidth: "100%", objectFit: "contain" }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center rounded-xl font-bold text-white text-xl"
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl font-bold text-white text-xl"
                 style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
                 {branding?.siteName?.[0] ?? "N"}
               </div>
@@ -267,7 +256,7 @@ export default function Branding() {
           {logoPreview ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
-                <img src={logoPreview} alt="Preview" className="w-12 h-12 object-contain rounded-lg border border-border bg-white p-1 brand-logo-img" style={{ width: 48, height: 48 }} />
+                <img src={logoPreview} alt="Preview" className="object-contain rounded-lg border border-border bg-white brand-logo-img" style={{ maxHeight: 40, width: "auto", maxWidth: 160, padding: "4px" }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">{logoFile?.name}</p>
                   <p className="text-xs text-muted-foreground">{logoFile ? `${(logoFile.size / 1024).toFixed(1)} KB` : ""}</p>

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getAppUrl } from "./app-url.js";
+import { getPublicHostname } from "./app-url.js";
 /**
  * Noehost — Professional Single-Page Invoice PDF
  *
@@ -172,27 +172,30 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
     // ── 1. HEADER BAND (0–90) ─────────────────────────────────────────────────
     doc.rect(0, 0, PW, 90).fill(BRAND);
+    const host = getPublicHostname();
 
-    // Logo — use uploaded brand image when available, else text fallback
+    // Logo — white pill backdrop so dark-text logo is readable on purple header
     const logoBuf = loadLogoBuf();
     if (logoBuf) {
       try {
-        doc.image(logoBuf, L, 18, { height: 40, fit: [200, 44] });
+        doc.roundedRect(L - 6, 13, 216, 50, 8).fill(WHITE);
+        doc.image(logoBuf, L, 20, { height: 36, fit: [200, 36] });
       } catch {
         doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
         doc.text("N", L, 20, { continued: true, lineBreak: false });
         doc.font("Helvetica").fillColor("rgba(255,255,255,0.90)").text("oehost", { lineBreak: false });
       }
-      doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.52)");
-      doc.text(`billing@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}`, L, 64, { lineBreak: false });
+      doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.55)");
+      doc.text(`billing@${host}  ·  ${host}`, L, 68, { lineBreak: false });
     } else {
       doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
       doc.text("N", L, 20, { continued: true, lineBreak: false });
       doc.font("Helvetica").fillColor("rgba(255,255,255,0.90)").text("oehost", { lineBreak: false });
 
-      doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.58)");
+      doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.65)");
       doc.text("Professional Hosting Solutions", L, 46, { lineBreak: false });
-      doc.text(`billing@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}`, L, 57, { lineBreak: false });
+      doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.48)");
+      doc.text(`billing@${host}  ·  ${host}`, L, 57, { lineBreak: false });
     }
 
     // Invoice number (right-aligned)
@@ -237,8 +240,8 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.font("Helvetica-Bold").fontSize(10.5).fillColor(DARK);
     doc.text("Noehost", L, y + 9, { lineBreak: false });
     doc.font("Helvetica").fontSize(7.5).fillColor(DARK_G);
-    doc.text(`billing@${new URL(getAppUrl()).hostname}`, L, y + 22, { lineBreak: false });
-    doc.text(`support@${new URL(getAppUrl()).hostname}`, L, y + 31, { lineBreak: false });
+    doc.text(`billing@${host}`, L, y + 22, { lineBreak: false });
+    doc.text(`support@${host}`, L, y + 31, { lineBreak: false });
 
     // BILL TO
     doc.font("Helvetica-Bold").fontSize(6).fillColor(BRAND);
@@ -305,10 +308,11 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     y += 10;
 
     // ── 5. TOTALS (right-aligned block) ───────────────────────────────────────
-    const tX  = L + W * 0.56;
-    const tW  = W * 0.44;
-    const lW  = tW * 0.56;
-    const vW  = tW * 0.44;
+    const tX  = L + W * 0.54;
+    const tW  = W * 0.46;
+    const lW  = tW * 0.54;
+    const vW  = tW * 0.46;
+    const ROW_T = 16;
 
     const totals: { label: string; value: string; green?: boolean; bold?: boolean }[] = [
       { label: "Subtotal",       value: fmt(Number(data.amount)) },
@@ -318,23 +322,32 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
       totals.push({ label: "Account Credit Applied", value: `− ${fmt(credit)}`, green: true, bold: true });
     }
 
+    // Subtotals block — light grey background
+    const subtotalBlockH = totals.length * ROW_T + 8;
+    doc.rect(tX - 8, y - 4, tW + 16, subtotalBlockH).fill(SLATE50);
+
     totals.forEach(row => {
       const fc = row.green ? PAID_C : DARK_G;
       doc.font(row.bold ? "Helvetica-Bold" : "Helvetica").fontSize(8).fillColor(fc);
       doc.text(row.label, tX, y, { width: lW, lineBreak: false });
       doc.fillColor(row.green ? PAID_C : DARK).font(row.bold ? "Helvetica-Bold" : "Helvetica");
       doc.text(row.value, tX + lW, y, { width: vW, align: "right", lineBreak: false });
-      y += 13;
+      y += ROW_T;
     });
 
-    // Total Due pill
+    // Separator before total
     y += 2;
-    doc.rect(tX - 6, y - 2, tW + 12, 26).fill(BRAND);
-    doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE);
-    doc.text("TOTAL DUE", tX, y + 6, { width: lW, lineBreak: false });
+    doc.rect(tX - 8, y - 1, tW + 16, 0.75).fill(SLATE200);
+    y += 4;
+
+    // Total Due pill — taller, larger text
+    doc.rect(tX - 8, y, tW + 16, 30).fill(BRAND);
+    doc.font("Helvetica-Bold").fontSize(8.5).fillColor("rgba(255,255,255,0.70)");
+    doc.text("TOTAL DUE", tX, y + 7, { width: lW, lineBreak: false });
+    doc.font("Helvetica-Bold").fontSize(13).fillColor(WHITE);
     doc.text(fmt(credit > 0 ? totalAfterCred : Number(data.total)),
-      tX + lW, y + 6, { width: vW, align: "right", lineBreak: false });
-    y += 32;
+      tX + lW, y + 5, { width: vW, align: "right", lineBreak: false });
+    y += 38;
 
     // Payment ref (compact, single line)
     if (data.paymentRef) {
@@ -383,9 +396,9 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
 
     doc.font("Helvetica").fontSize(6.5).fillColor(GREY);
     doc.text(
-      `All services are governed by Terms of Service (${new URL(getAppUrl()).hostname}/tos). `
+      `All services are governed by Terms of Service (${host}/tos). `
       + "Invoices must be paid by the due date to avoid service interruption. "
-      + `For billing queries, contact billing@${new URL(getAppUrl()).hostname}.`,
+      + `For billing queries, contact billing@${host}.`,
       L, y + 16,
       { width: termsW, lineBreak: false, ellipsis: true }
     );
@@ -397,7 +410,7 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     doc.text("Thank you for choosing Noehost!",
       0, FY + 10, { width: PW, align: "center", lineBreak: false });
     doc.font("Helvetica").fontSize(7).fillColor("rgba(255,255,255,0.58)");
-    doc.text(`support@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}  ·  billing@${new URL(getAppUrl()).hostname}`,
+    doc.text(`support@${host}  ·  ${host}  ·  billing@${host}`,
       0, FY + 24, { width: PW, align: "center", lineBreak: false });
     doc.font("Helvetica").fontSize(6.5).fillColor("rgba(255,255,255,0.35)");
     doc.text(

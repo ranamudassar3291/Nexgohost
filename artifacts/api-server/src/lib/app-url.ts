@@ -19,6 +19,27 @@ export function getAppUrl(): string {
   return "https://noehost.com";
 }
 
+/**
+ * Returns a clean, public-facing hostname for use in customer-visible text
+ * (invoices, emails, PDFs).  Deliberately skips REPLIT_DEV_DOMAIN so that
+ * development environments never expose *.replit.dev URLs to customers.
+ *
+ * Priority:
+ *  1. APP_URL env var
+ *  2. REPLIT_DOMAINS (deployed domain, not dev tunnel)
+ *  3. "noehost.com"
+ */
+export function getPublicHostname(): string {
+  if (process.env.APP_URL) {
+    try { return new URL(process.env.APP_URL.replace(/\/$/, "")).hostname; } catch { /* fall through */ }
+  }
+  if (process.env.REPLIT_DOMAINS) {
+    const first = process.env.REPLIT_DOMAINS.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return "noehost.com";
+}
+
 export function getClientUrl(): string {
   return `${getAppUrl()}/client`;
 }
