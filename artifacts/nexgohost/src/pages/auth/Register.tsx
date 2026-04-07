@@ -321,7 +321,7 @@ export default function Register() {
         {/* Logo & heading */}
         <div className="flex flex-col items-center mb-7">
           {logoUrl ? (
-            <img src={logoUrl} alt={siteName} className="w-12 h-12 object-contain rounded-2xl mb-3 shadow-xl shadow-violet-500/30" />
+            <img src={logoUrl} alt={siteName} className="brand-logo-img w-12 h-12 rounded-2xl mb-3 shadow-xl shadow-violet-500/30" />
           ) : (
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-violet-500/30 font-bold text-white text-xl"
               style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>

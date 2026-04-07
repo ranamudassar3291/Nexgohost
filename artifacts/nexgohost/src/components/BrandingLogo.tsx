@@ -7,34 +7,35 @@ interface BrandingLogoProps {
   textClassName?: string;
 }
 
+const sizeMap = {
+  sm: { container: "w-8 h-8",  text: "text-lg",  fallbackText: "text-sm"  },
+  md: { container: "w-10 h-10", text: "text-xl",  fallbackText: "text-base" },
+  lg: { container: "w-16 h-16", text: "text-2xl", fallbackText: "text-xl"  },
+};
+
 export function BrandingLogo({ size = "md", showText = true, subtext, textClassName }: BrandingLogoProps) {
   const { logoUrl, siteName } = useBranding();
-
-  const sizeMap = {
-    sm: { box: "w-8 h-8", text: "text-lg", img: "w-8 h-8" },
-    md: { box: "w-9 h-9", text: "text-xl", img: "w-9 h-9" },
-    lg: { box: "w-16 h-16", text: "text-2xl", img: "w-16 h-16" },
-  };
-
   const s = sizeMap[size];
 
   return (
     <div className="flex items-center gap-3">
       {logoUrl ? (
-        <img
-          src={logoUrl}
-          alt={siteName}
-          className={`${s.img} object-contain rounded-xl`}
-          onError={e => {
-            const img = e.target as HTMLImageElement;
-            img.style.display = "none";
-            const next = img.nextElementSibling as HTMLElement | null;
-            if (next) next.style.display = "flex";
-          }}
-        />
+        <div className={`brand-logo-container ${s.container} rounded-xl`}>
+          <img
+            src={logoUrl}
+            alt={siteName}
+            className="brand-logo-img rounded-xl"
+            onError={e => {
+              const img = e.target as HTMLImageElement;
+              img.style.display = "none";
+              const fallback = img.parentElement?.nextElementSibling as HTMLElement | null;
+              if (fallback) fallback.style.display = "flex";
+            }}
+          />
+        </div>
       ) : null}
       <div
-        className={`${s.box} rounded-xl items-center justify-center font-bold text-white shadow-lg shrink-0`}
+        className={`${s.container} rounded-xl items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
         style={{
           background: "linear-gradient(135deg, #BB86FC, #7C3AED)",
           boxShadow: "0 0 14px rgba(187,134,252,0.40)",
@@ -44,15 +45,15 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
         {siteName?.[0] ?? "N"}
       </div>
       {showText && (
-        <div>
+        <div className="flex flex-col justify-center">
           <h1
-            className={`font-display font-bold tracking-tight ${s.text} ${textClassName ?? ""}`}
+            className={`font-display font-bold tracking-tight leading-none ${s.text} ${textClassName ?? ""}`}
             style={!textClassName ? { background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } : undefined}
           >
             {siteName}
           </h1>
           {subtext && (
-            <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "#BB86FC" }}>
+            <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>
               {subtext}
             </p>
           )}
@@ -64,34 +65,23 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
 
 export function BrandingLogoIcon({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const { logoUrl, siteName } = useBranding();
-
-  const sizeMap = {
-    sm: "w-8 h-8",
-    md: "w-9 h-9",
-    lg: "w-16 h-16",
-  };
-
-  const cls = sizeMap[size];
+  const s = sizeMap[size];
 
   if (logoUrl) {
     return (
-      <img
-        src={logoUrl}
-        alt={siteName}
-        className={`${cls} object-contain rounded-xl`}
-        onError={e => {
-          const img = e.target as HTMLImageElement;
-          img.style.display = "none";
-          const next = img.nextElementSibling as HTMLElement | null;
-          if (next) next.style.display = "flex";
-        }}
-      />
+      <div className={`brand-logo-container ${s.container} rounded-xl`}>
+        <img
+          src={logoUrl}
+          alt={siteName}
+          className="brand-logo-img rounded-xl"
+        />
+      </div>
     );
   }
 
   return (
     <div
-      className={`${cls} rounded-xl flex items-center justify-center font-bold text-white shadow-lg`}
+      className={`${s.container} rounded-xl flex items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
       style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
     >
       {siteName?.[0] ?? "N"}

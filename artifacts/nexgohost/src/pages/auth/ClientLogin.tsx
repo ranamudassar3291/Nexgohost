@@ -159,7 +159,7 @@ export default function ClientLogin() {
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt={siteName} className="w-9 h-9 object-contain rounded-lg" />
+            <img src={logoUrl} alt={siteName} className="brand-logo-img w-9 h-9 rounded-lg" />
           ) : (
             <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-base"
               style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
@@ -211,7 +211,7 @@ export default function ClientLogin() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
             {logoUrl ? (
-              <img src={logoUrl} alt={siteName} className="w-8 h-8 object-contain rounded-lg" />
+              <img src={logoUrl} alt={siteName} className="brand-logo-img w-8 h-8 rounded-lg" />
             ) : (
               <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
                 style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>

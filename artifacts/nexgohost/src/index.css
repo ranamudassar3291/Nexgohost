@@ -317,6 +317,24 @@
     @apply rounded-xl shadow-sm;
   }
 
+  /* ── Brand logo — standardized container & image rendering ─────────── */
+  .brand-logo-container {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .brand-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
   /* ── Gradient text (logo / headings only) ────────────────────────────── */
   .text-gradient {
     background: linear-gradient(135deg, #6A1B9A, #9C27B0);

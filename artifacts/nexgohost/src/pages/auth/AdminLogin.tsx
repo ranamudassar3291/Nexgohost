@@ -82,7 +82,7 @@ export default function AdminLogin() {
           <div className="relative z-10 flex flex-col items-center mb-8">
             <div className="relative mb-4">
               {logoUrl ? (
-                <img src={logoUrl} alt={siteName} className="w-16 h-16 object-contain rounded-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+                <img src={logoUrl} alt={siteName} className="brand-logo-img w-16 h-16 rounded-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
               ) : (
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]"
                   style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>

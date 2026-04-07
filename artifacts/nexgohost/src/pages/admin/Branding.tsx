@@ -1,8 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, Trash2, Image, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BrandingLogo, BrandingLogoIcon } from "@/components/BrandingLogo";
 
 interface BrandingSettings {
   logoUrl: string | null;
@@ -34,6 +33,16 @@ export default function Branding() {
     },
     staleTime: 0,
   });
+
+  const activeFaviconUrl = faviconPreview ?? branding?.faviconUrl ?? null;
+  const activeLogoUrl = logoPreview ?? branding?.logoUrl ?? null;
+  const siteName = branding?.siteName ?? "NoeHost";
+
+  useEffect(() => {
+    if (!activeFaviconUrl) return;
+    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (link) link.href = activeFaviconUrl;
+  }, [activeFaviconUrl]);
 
   const showToast = (type: "success" | "error", msg: string) => {
     setToast({ type, msg });
@@ -118,33 +127,76 @@ export default function Branding() {
       {/* Live Preview */}
       <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-foreground">Live Preview</h3>
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Live Preview</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Exactly how it appears in the sidebar and login pages</p>
+          </div>
           <button onClick={invalidate} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
             <RefreshCw size={13} /> Refresh
           </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Dark sidebar preview */}
+          {/* Sidebar preview — matches AppLayout sidebar header exactly */}
           <div className="rounded-xl border border-border bg-card p-4">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Sidebar (dark)</p>
-            <div className="p-4 rounded-lg bg-background border border-border/50">
-              {isLoading ? (
-                <div className="flex items-center gap-2"><div className="w-9 h-9 rounded-xl bg-muted animate-pulse" /><div className="h-5 w-20 bg-muted rounded animate-pulse" /></div>
-              ) : (
-                <BrandingLogo size="md" subtext="NoePanel" />
-              )}
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Sidebar</p>
+            <div className="rounded-lg bg-card border border-border/50 overflow-hidden">
+              <div className="px-5 py-4 flex items-center gap-3 border-b border-border/50" style={{ minHeight: 64 }}>
+                {isLoading ? (
+                  <div className="w-10 h-10 rounded-xl bg-muted animate-pulse shrink-0" />
+                ) : activeLogoUrl ? (
+                  <div className="brand-logo-container w-10 h-10 rounded-xl">
+                    <img src={activeLogoUrl} alt={siteName} className="brand-logo-img rounded-xl" />
+                  </div>
+                ) : (
+                  <div
+                    className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
+                    style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+                  >
+                    {siteName[0]}
+                  </div>
+                )}
+                {isLoading ? (
+                  <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+                ) : (
+                  <div className="flex flex-col justify-center min-w-0">
+                    <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                      {siteName}
+                    </h1>
+                    <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>NoePanel</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* White auth preview */}
+          {/* Login page preview */}
           <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Login page (light)</p>
             <div className="p-4 rounded-lg bg-white border border-gray-200">
               {isLoading ? (
-                <div className="flex items-center gap-2"><div className="w-9 h-9 rounded-xl bg-gray-200 animate-pulse" /><div className="h-5 w-20 bg-gray-200 rounded animate-pulse" /></div>
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-gray-200 animate-pulse" />
+                  <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
+                </div>
               ) : (
-                <BrandingLogo size="md" textClassName="text-gray-900 font-bold" />
+                <div className="flex items-center gap-3">
+                  {activeLogoUrl ? (
+                    <div className="brand-logo-container w-10 h-10 rounded-xl">
+                      <img src={activeLogoUrl} alt={siteName} className="brand-logo-img rounded-xl" />
+                    </div>
+                  ) : (
+                    <div
+                      className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
+                      style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+                    >
+                      {siteName[0]}
+                    </div>
+                  )}
+                  <div className="flex flex-col justify-center">
+                    <h1 className="font-display font-bold text-xl tracking-tight leading-none text-gray-900">{siteName}</h1>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -158,11 +210,16 @@ export default function Branding() {
           <p className="text-sm text-muted-foreground mt-1">Shown in the sidebar, login pages, and email headers. Recommended: PNG or SVG, square aspect ratio, min 128×128px.</p>
         </div>
 
-        {/* Current */}
+        {/* Current logo */}
         <div className="flex items-center gap-4 p-4 rounded-xl bg-secondary/40 border border-border/50">
-          <div className="w-16 h-16 rounded-xl bg-background border border-border flex items-center justify-center overflow-hidden">
+          <div className="w-16 h-16 rounded-xl bg-background border border-border flex items-center justify-center overflow-hidden shrink-0">
             {branding?.logoUrl ? (
-              <img src={branding.logoUrl} alt="Current logo" className="w-full h-full object-contain p-1" />
+              <img
+                src={branding.logoUrl}
+                alt="Current logo"
+                className="brand-logo-img rounded-xl"
+                style={{ width: "100%", height: "100%", padding: "4px" }}
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center rounded-xl font-bold text-white text-xl"
                 style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
@@ -174,7 +231,7 @@ export default function Branding() {
             <p className="text-sm font-medium text-foreground">
               {branding?.logoUrl ? "Custom logo active" : "Default (gradient icon)"}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {branding?.logoUrl ? branding.logoUrl.split("/").pop() : "No custom logo uploaded"}
             </p>
           </div>
@@ -204,7 +261,7 @@ export default function Branding() {
           {logoPreview ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
-                <img src={logoPreview} alt="Preview" className="w-12 h-12 object-contain rounded-lg border border-border bg-white p-1" />
+                <img src={logoPreview} alt="Preview" className="w-12 h-12 object-contain rounded-lg border border-border bg-white p-1 brand-logo-img" style={{ width: 48, height: 48 }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">{logoFile?.name}</p>
                   <p className="text-xs text-muted-foreground">{logoFile ? `${(logoFile.size / 1024).toFixed(1)} KB` : ""}</p>
@@ -245,9 +302,9 @@ export default function Branding() {
         </div>
 
         <div className="flex items-center gap-4 p-4 rounded-xl bg-secondary/40 border border-border/50">
-          <div className="w-12 h-12 rounded-lg bg-background border border-border flex items-center justify-center overflow-hidden">
+          <div className="w-12 h-12 rounded-lg bg-background border border-border flex items-center justify-center overflow-hidden shrink-0">
             {branding?.faviconUrl ? (
-              <img src={branding.faviconUrl} alt="Current favicon" className="w-8 h-8 object-contain" />
+              <img src={branding.faviconUrl} alt="Current favicon" className="brand-logo-img" style={{ width: 32, height: 32 }} />
             ) : (
               <Image size={20} className="text-muted-foreground" />
             )}
@@ -256,7 +313,7 @@ export default function Branding() {
             <p className="text-sm font-medium text-foreground">
               {branding?.faviconUrl ? "Custom favicon active" : "Default (favicon.svg)"}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {branding?.faviconUrl ? branding.faviconUrl.split("/").pop() : "Using the default favicon"}
             </p>
           </div>
@@ -285,7 +342,7 @@ export default function Branding() {
           {faviconPreview ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
-                <img src={faviconPreview} alt="Preview" className="w-10 h-10 object-contain rounded-lg border border-border bg-white p-1" />
+                <img src={faviconPreview} alt="Preview" className="brand-logo-img rounded-lg border border-border bg-white p-1" style={{ width: 40, height: 40 }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">{faviconFile?.name}</p>
                   <p className="text-xs text-muted-foreground">{faviconFile ? `${(faviconFile.size / 1024).toFixed(1)} KB` : ""}</p>
