@@ -151,13 +151,13 @@ export function AppLayout({ children, role }: LayoutProps) {
           <>
             <div
               className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
-              style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+              style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 14px rgba(91,95,239,0.35)" }}
             >
               {siteName?.[0] ?? "N"}
             </div>
             <div className="flex flex-col justify-center min-w-0">
-              <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
-              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>
+              <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
+              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#5B5FEF" }}>
                 {role === "admin" ? "NoePanel" : "Client Portal"}
               </p>
             </div>
@@ -237,7 +237,7 @@ export function AppLayout({ children, role }: LayoutProps) {
               <div
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl mb-3 cursor-pointer text-white font-bold text-sm shadow-md transition-opacity hover:opacity-90"
-                style={{ background: "linear-gradient(135deg, #BB86FC 0%, #7C3AED 100%)", boxShadow: "0 0 14px rgba(187,134,252,0.35)" }}
+                style={{ background: "linear-gradient(135deg, #5B5FEF 0%, #7A6BFF 100%)", boxShadow: "0 0 14px rgba(91,95,239,0.30)" }}
               >
                 <Plus size={16} />
                 Order Now
@@ -324,11 +324,11 @@ export function AppLayout({ children, role }: LayoutProps) {
             <>
               <div
                 className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow shrink-0"
-                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.40)" }}
+                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 12px rgba(91,95,239,0.35)" }}
               >
                 {siteName?.[0] ?? "N"}
               </div>
-              <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</span>
+              <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</span>
             </>
           )}
         </div>
@@ -340,7 +340,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             <Link href="/client/orders/new">
               <button
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow transition-opacity hover:opacity-90 mr-1"
-                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.35)" }}
+                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 12px rgba(91,95,239,0.30)" }}
               >
                 <Plus size={13} />
                 Order
@@ -423,7 +423,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                 <Link href="/client/orders/new">
                   <button
                     className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow transition-opacity hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg, #673ab7, #9c27b0)" }}
+                    style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 14px rgba(91,95,239,0.30)" }}
                   >
                     <Plus size={15} /> Order Now
                   </button>

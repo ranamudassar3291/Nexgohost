@@ -168,7 +168,7 @@ export default function ClientLogin() {
           ) : (
             <>
               <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-base"
-                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>
                 {siteName?.[0] ?? "N"}
               </div>
               <span className="text-white text-xl font-bold tracking-tight">{siteName}</span>
@@ -227,10 +227,10 @@ export default function ClientLogin() {
             ) : (
               <>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
-                  style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                  style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>
                   {siteName?.[0] ?? "N"}
                 </div>
-                <span className="text-[#4F46E5] text-lg font-bold">{siteName}</span>
+                <span className="text-[#5B5FEF] text-lg font-bold">{siteName}</span>
               </>
             )}
           </div>

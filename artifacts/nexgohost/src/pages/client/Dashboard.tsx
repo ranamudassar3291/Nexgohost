@@ -635,7 +635,7 @@ export default function ClientDashboard() {
       {/* ── Free Domain Claim Banners — one per eligible active service ── */}
       {freeDomainServices.map(svc => (
         <div key={svc.id} className="relative rounded-2xl overflow-hidden border border-violet-400/40"
-          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #7C3AED 100%)" }}>
+          style={{ background: "linear-gradient(135deg, #5B5FEF 0%, #7A6BFF 100%)" }}>
           <div className="absolute inset-0 pointer-events-none"
             style={{ backgroundImage: "radial-gradient(circle at 90% 50%, rgba(255,255,255,0.12) 0%, transparent 55%)" }} />
           <div className="relative px-5 py-5 flex items-center gap-4">

@@ -89,8 +89,8 @@ export default function AdminLogin() {
                   style={{ maxHeight: 56, width: "auto" }}
                 />
               ) : (
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]"
-                  style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl drop-shadow-[0_0_15px_rgba(91,95,239,0.5)]"
+                  style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>
                   {siteName?.[0] ?? "N"}
                 </div>
               )}

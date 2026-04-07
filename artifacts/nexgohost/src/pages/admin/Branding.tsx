@@ -155,13 +155,13 @@ export default function Branding() {
                   <>
                     <div
                       className="brand-logo-container w-9 h-9 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
-                      style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}
+                      style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}
                     >
                       {siteName[0]}
                     </div>
                     <div className="flex flex-col justify-center min-w-0">
                       <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">{siteName}</h1>
-                      <p className="text-[9px] font-semibold tracking-widest uppercase mt-0.5 text-purple-500">NoePanel</p>
+                      <p className="text-[9px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#5B5FEF" }}>NoePanel</p>
                     </div>
                   </>
                 )}
@@ -186,7 +186,7 @@ export default function Branding() {
                 <div className="flex items-center gap-2">
                   <div
                     className="brand-logo-container w-9 h-9 rounded-xl font-bold text-white text-sm"
-                    style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}
+                    style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}
                   >
                     {siteName[0]}
                   </div>
@@ -217,7 +217,7 @@ export default function Branding() {
               />
             ) : (
               <div className="w-10 h-10 flex items-center justify-center rounded-xl font-bold text-white text-xl"
-                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>
                 {branding?.siteName?.[0] ?? "N"}
               </div>
             )}

@@ -611,7 +611,7 @@ export default function AdminDomains() {
                   key={p}
                   onClick={() => setPage(p)}
                   className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
-                  style={p === page ? { background: "linear-gradient(135deg, #BB86FC, #7C3AED)" } : {}}
+                  style={p === page ? { background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" } : {}}
                 >
                   {p}
                 </button>
