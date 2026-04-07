@@ -1,0 +1,203 @@
+I want you to redesign my entire Node.js + Express billing panel to match my main website exactly.
+
+Main Website:
+https://www.noehost.com
+
+Goal:
+Make the billing panel look like it is part of the same website — like Hostinger, 20i, or Stripe dashboards.
+
+GLOBAL DESIGN REQUIREMENTS
+
+1. Analyze noehost.com completely:
+- Colors
+- Gradients
+- Typography
+- Button styles
+- Hover effects
+- Shadows
+- Card styles
+- Navbar
+- Footer
+- Spacing
+- Border radius
+- Icons style
+
+2. Create Global Design System
+
+Create files:
+
+/public/css/theme.css  
+/public/css/components.css  
+/public/css/dashboard.css  
+
+Create global CSS variables:
+
+:root {
+--primary: #5B5FEF;
+--primary-light: #7A6BFF;
+--secondary: #6366F1;
+--background: #F8F9FD;
+--card-bg: #FFFFFF;
+--text-dark: #1A1A2E;
+--text-light: #6B7280;
+--border-radius: 12px;
+--shadow-soft: 0 10px 30px rgba(0,0,0,0.05);
+--gradient: linear-gradient(135deg,#5B5FEF,#7A6BFF);
+}
+
+3. Apply to ALL Pages
+
+Apply same UI to:
+
+Client Dashboard  
+Admin Dashboard  
+Login Page  
+Register Page  
+Order Page  
+Hosting Page  
+Domains Page  
+Invoices Page  
+Tickets Page  
+Affiliate Page  
+Support Page  
+Settings Page  
+Migration Page  
+SSL Page  
+Email Hosting Page  
+Product Page  
+
+4. Make Same Navbar
+
+- Same header style as noehost.com
+- Same logo placement
+- Same hover effect
+- Same dropdown styling
+
+5. Make Same Buttons
+
+Primary Buttons
+
+Gradient background
+Rounded corners
+Smooth hover
+Shadow on hover
+
+Secondary Buttons
+
+Soft border
+Light hover
+
+6. Same Cards
+
+White background
+Soft shadow
+Rounded corners
+Spacing consistent
+
+7. Same Tables
+
+Modern SaaS table design
+Hover row highlight
+Rounded container
+
+8. Same Forms
+
+Inputs:
+
+Rounded
+Soft border
+Focus glow purple
+
+Dropdowns:
+
+Same theme color
+
+9. Same Sidebar (Dashboard)
+
+Modern sidebar like Hostinger:
+
+- Icon + text
+- Active highlight
+- Hover effect
+- Smooth animation
+
+10. Typography
+
+Use same fonts as noehost.com:
+
+Google Font:
+Poppins
+
+Headings:
+
+H1 bold  
+H2 medium  
+H3 clean  
+
+11. Add Animations
+
+Hover effects  
+Button animation  
+Card hover lift  
+Smooth transitions  
+
+12. Make Responsive
+
+Desktop  
+Tablet  
+Mobile  
+
+13. Same Footer
+
+Apply same footer design as main website
+
+14. Same Icons
+
+Use:
+
+Lucide Icons
+or Heroicons
+
+15. Make Professional SaaS UI
+
+Like:
+
+Hostinger
+Stripe
+20i
+Cloudflare
+
+16. Make Consistent Spacing
+
+Use:
+
+Padding 20px
+Cards spacing 25px
+Section spacing 40px
+
+17. Create Reusable Components
+
+Create:
+
+Button Component
+Card Component
+Table Component
+Form Component
+Alert Component
+Modal Component
+
+18. Apply Dark Mode Ready Structure
+
+Prepare for future dark mode
+
+19. Fix Old UI
+
+Remove all old styles
+Remove bootstrap conflicts
+Remove inconsistent colors
+
+20. Final Goal
+
+User should never feel they left noehost.com
+Billing panel should look native to website
+Make UI premium international SaaS level
