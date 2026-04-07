@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 
 const COMPANY   = "Noehost";
 const EMAIL     = "support@noehost.com";
@@ -38,7 +39,7 @@ export default function Contact() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <PublicLayout>
       {/* Header */}
       <div style={{ background: "linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%)" }} className="py-14 px-4 text-white text-center">
         <div className="max-w-3xl mx-auto">
@@ -230,6 +231,6 @@ export default function Contact() {
           </div>
         </div>
       </div>
-    </div>
+    </PublicLayout>
   );
 }

@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Server, Shield, Zap, Lock, Cpu, MemoryStick, HardDrive, Wifi,
-  Check, ChevronDown, Globe, Key, ArrowRight, Star, Menu, X, Cloud,
+  Check, ChevronDown, Globe, Key, ArrowRight, Star, Cloud,
 } from "lucide-react";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 
 const P        = "#4F46E5";
 const PSHADOW  = "0 4px 20px rgba(112,26,254,0.28)";
@@ -73,7 +74,6 @@ export default function VpsHosting() {
   const { formatPrice }  = useCurrency();
   const [cycle, setCycle]     = useState<"monthly" | "yearly">("yearly");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: plans = [], isLoading } = useQuery<VpsPlan[]>({
     queryKey: ["vps-plans-public"],
@@ -101,60 +101,7 @@ export default function VpsHosting() {
   }, 0);
 
   return (
-    <div className="min-h-screen bg-white font-sans">
-      {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <Link href="/client/login">
-            <span className="flex items-center gap-2 cursor-pointer">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: P }}>
-                <Server size={16} className="text-white"/>
-              </div>
-              <span className="text-[15px] font-extrabold text-gray-900">Noehost</span>
-            </span>
-          </Link>
-          <div className="hidden md:flex items-center gap-6 text-[13px] font-medium text-gray-600">
-            <Link href="/client/dashboard" className="hover:text-gray-900 transition-colors">Dashboard</Link>
-            <Link href="/vps" className="font-bold transition-colors" style={{ color: P }}>VPS Hosting</Link>
-            <Link href="/order" className="hover:text-gray-900 transition-colors">Order</Link>
-          </div>
-          <div className="hidden md:flex items-center gap-3">
-            <Link href="/client/login">
-              <button className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
-                Login
-              </button>
-            </Link>
-            <Link href="/client/orders/new">
-              <button className="px-4 py-2 rounded-lg text-[13px] font-bold text-white transition-all"
-                style={{ background: P, boxShadow: PSHADOW }}>
-                Get Started
-              </button>
-            </Link>
-          </div>
-          <button className="md:hidden p-2" onClick={() => setMobileMenuOpen(v => !v)}>
-            {mobileMenuOpen ? <X size={20}/> : <Menu size={20}/>}
-          </button>
-        </div>
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div key="mobile-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              className="md:hidden border-t border-gray-100 bg-white px-4 py-4 space-y-3">
-              <Link href="/client/dashboard" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-medium text-gray-700">Dashboard</Link>
-              <Link href="/vps" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-bold" style={{ color: P }}>VPS Hosting</Link>
-              <Link href="/order" onClick={() => setMobileMenuOpen(false)} className="block text-[14px] font-medium text-gray-700">Order</Link>
-              <div className="flex gap-2 pt-2">
-                <Link href="/client/login" className="flex-1">
-                  <button className="w-full py-2 rounded-lg text-[13px] font-semibold border border-gray-200 text-gray-700">Login</button>
-                </Link>
-                <Link href="/client/orders/new" className="flex-1">
-                  <button className="w-full py-2 rounded-lg text-[13px] font-bold text-white" style={{ background: P }}>Get Started</button>
-                </Link>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
-
+    <PublicLayout>
       {/* ── Hero Section ── */}
       <section className="relative overflow-hidden pt-20 pb-24"
         style={{ background: "linear-gradient(160deg, #0A001F 0%, #1A0060 40%, #2C007A 70%, #0A001F 100%)" }}>
@@ -529,16 +476,6 @@ export default function VpsHosting() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="bg-gray-950 py-10 px-4 sm:px-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: P }}>
-            <Server size={14} className="text-white"/>
-          </div>
-          <span className="text-[14px] font-bold text-white">Noehost</span>
-        </div>
-        <p className="text-gray-500 text-[12px]">© {new Date().getFullYear()} Noehost. All rights reserved.</p>
-      </footer>
-    </div>
+    </PublicLayout>
   );
 }
