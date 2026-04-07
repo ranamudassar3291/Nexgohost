@@ -73,6 +73,7 @@ import RegisterDomain from "@/pages/client/RegisterDomain";
 import VpsManage from "@/pages/client/VpsManage";
 import HelpCenter from "@/pages/client/HelpCenter";
 import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
+import Homepage from "@/pages/public/Homepage";
 import VpsHosting from "@/pages/public/VpsHosting";
 import OrderFlow from "@/pages/public/OrderFlow";
 import TermsOfService from "@/pages/public/TermsOfService";
@@ -546,7 +547,7 @@ function RouterRoot() {
       {/* ── OAuth callback — public ── */}
       <Route path="/google-callback" component={GoogleCallback} />
 
-      {/* Root: redirect guests to client login, logged-in users to their dashboard */}
+      {/* Root: show homepage to guests, redirect logged-in users to dashboard */}
       <Route path="/">
         {isLoading ? (
           <div className="min-h-screen bg-background flex items-center justify-center">
@@ -555,7 +556,7 @@ function RouterRoot() {
         ) : user ? (
           <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
         ) : (
-          <Redirect to="/client/login" />
+          <Homepage />
         )}
       </Route>
 

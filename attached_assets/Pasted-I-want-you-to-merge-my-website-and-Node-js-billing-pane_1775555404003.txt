@@ -1,0 +1,165 @@
+I want you to merge my website and Node.js billing panel into one unified professional SaaS platform.
+
+I will attach two folders:
+
+1. Website Frontend Files
+2. Billing Panel Node.js Files
+
+Your tasks:
+
+STEP 1 — Analyze Both Projects
+
+* Analyze website UI
+* Analyze billing panel structure
+* Detect colors, fonts, layout
+* Detect routing system
+
+STEP 2 — Merge Into One Project
+
+Create one unified structure:
+
+/project
+/frontend
+/backend
+/public
+/views
+/routes
+/components
+
+Merge both projects into single Node.js Express app.
+
+STEP 3 — Same Theme Everywhere
+
+Extract theme from website:
+
+* Colors
+* Buttons
+* Typography
+* Cards
+* Spacing
+
+Apply same theme to:
+
+* Dashboard
+* Cart
+* Checkout
+* Client Area
+* Domain Page
+* Hosting Page
+* Orders Page
+
+User should not feel separate panel.
+
+STEP 4 — Create International Level Cart System
+
+Create step-based cart:
+
+Step 1 Hosting Selection
+Step 2 Domain Search
+Step 3 Configure
+Step 4 Addons
+Step 5 Review
+Step 6 Checkout
+
+Cart features:
+
+* Right sidebar cart summary
+* Live price update
+* Coupon support
+* Domain checker
+* Billing cycle switch
+
+STEP 5 — Header Cart Icon
+
+Add cart icon in website header:
+
+* Cart icon top right
+* Show item count
+* Dropdown preview
+
+STEP 6 — Domain Search Integration
+
+Create domain search system:
+
+* Search .com .net .org .pk
+* Show availability
+* Add to cart
+* Pricing display
+
+Connect domain search to cart.
+
+STEP 7 — Same Login System
+
+Single login:
+
+* Website login
+* Client dashboard login
+* Cart login
+
+Use sessions:
+
+req.session.user
+
+STEP 8 — Same URL Structure
+
+Use same domain:
+
+/cart
+/client
+/dashboard
+/checkout
+/login
+
+Everything on same domain.
+
+STEP 9 — Create Professional Dashboard
+
+Create modern dashboard:
+
+* Services
+* Domains
+* Tickets
+* Invoices
+* Orders
+
+STEP 10 — Database Merge
+
+Merge database:
+
+Users
+Orders
+Domains
+Products
+Tickets
+Invoices
+
+STEP 11 — Make Professional UI
+
+Like:
+
+Hostinger
+Namecheap
+20i
+Cloudflare
+
+STEP 12 — Make Fully Responsive
+
+Mobile
+Tablet
+Desktop
+
+STEP 13 — Save Everything
+
+Ensure:
+
+* Cart saved in session
+* Orders saved in database
+* Login saved
+
+Final Goal:
+
+Create fully integrated hosting platform with:
+
+Website + Cart + Dashboard + Billing
+
+Everything unified under one professional SaaS platform.
