@@ -6,6 +6,7 @@ export interface CurrencyInfo {
   symbol: string;
   rate: number;
   name: string;
+  flag: string;
 }
 
 const COUNTRY_TO_CURRENCY: Record<string, string> = {
@@ -18,33 +19,47 @@ const COUNTRY_TO_CURRENCY: Record<string, string> = {
   SA: "AED", QA: "AED", KW: "AED", BH: "AED", OM: "AED",
 };
 
+const CURRENCY_FLAGS: Record<string, string> = {
+  PKR: "🇵🇰", USD: "🇺🇸", GBP: "🇬🇧", EUR: "🇪🇺",
+  AED: "🇦🇪", AUD: "🇦🇺", CAD: "🇨🇦", INR: "🇮🇳",
+};
+
 const FALLBACK_CURRENCIES: Record<string, CurrencyInfo> = {
-  PKR: { code: "PKR", symbol: "Rs.", rate: 1,    name: "Pakistani Rupee" },
-  USD: { code: "USD", symbol: "$",   rate: 0.0036, name: "US Dollar" },
-  GBP: { code: "GBP", symbol: "£",   rate: 0.0028, name: "British Pound" },
-  EUR: { code: "EUR", symbol: "€",   rate: 0.0033, name: "Euro" },
-  AED: { code: "AED", symbol: "AED", rate: 0.013,  name: "UAE Dirham" },
-  AUD: { code: "AUD", symbol: "A$",  rate: 0.0055, name: "Australian Dollar" },
-  CAD: { code: "CAD", symbol: "C$",  rate: 0.0049, name: "Canadian Dollar" },
-  INR: { code: "INR", symbol: "₹",   rate: 0.30,   name: "Indian Rupee" },
+  PKR: { code: "PKR", symbol: "Rs.", rate: 1,      name: "Pakistani Rupee",  flag: "🇵🇰" },
+  USD: { code: "USD", symbol: "$",   rate: 0.0036,  name: "US Dollar",       flag: "🇺🇸" },
+  GBP: { code: "GBP", symbol: "£",   rate: 0.0028,  name: "British Pound",   flag: "🇬🇧" },
+  EUR: { code: "EUR", symbol: "€",   rate: 0.0033,  name: "Euro",            flag: "🇪🇺" },
+  AED: { code: "AED", symbol: "AED", rate: 0.013,   name: "UAE Dirham",      flag: "🇦🇪" },
+  AUD: { code: "AUD", symbol: "A$",  rate: 0.0055,  name: "Australian Dollar",flag: "🇦🇺" },
+  CAD: { code: "CAD", symbol: "C$",  rate: 0.0049,  name: "Canadian Dollar", flag: "🇨🇦" },
+  INR: { code: "INR", symbol: "₹",   rate: 0.30,    name: "Indian Rupee",    flag: "🇮🇳" },
 };
 
 const CurrencyContext = createContext<{
   currency: CurrencyInfo;
   setCurrency: (c: CurrencyInfo) => void;
   allCurrencies: CurrencyInfo[];
+  currencies: CurrencyInfo[];
+  loading: boolean;
   formatPrice: (pkrAmount: number) => string;
+  convert: (usdAmount: number) => string;
 }>({
   currency: FALLBACK_CURRENCIES.PKR,
   setCurrency: () => {},
   allCurrencies: Object.values(FALLBACK_CURRENCIES),
+  currencies: Object.values(FALLBACK_CURRENCIES),
+  loading: false,
   formatPrice: (a) => {
     const n = isNaN(a) || a == null ? 0 : a;
     return formatCurrency(n, "PKR", "Rs.");
   },
+  convert: (u) => {
+    const pkr = u / 0.0036;
+    const n = isNaN(pkr) || pkr == null ? 0 : pkr;
+    return formatCurrency(n, "PKR", "Rs.");
+  },
 });
 
-// IP geolocation providers tried in order until one returns a country code
 const GEO_PROVIDERS = [
   () => fetch("https://ipapi.co/json/").then(r => r.ok ? r.json() : null)
     .then((d: any) => d?.country_code ?? null),
@@ -57,25 +72,28 @@ const GEO_PROVIDERS = [
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [allCurrencies, setAllCurrencies] = useState<CurrencyInfo[]>(Object.values(FALLBACK_CURRENCIES));
   const [currency, setCurrencyState] = useState<CurrencyInfo>(FALLBACK_CURRENCIES.PKR);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Apply stored currency immediately so the UI doesn't flash
     const stored = localStorage.getItem("currency");
     if (stored) {
       try { setCurrencyState(JSON.parse(stored)); } catch {}
     }
 
-    // 2. Fetch live rates from server
+    setLoading(true);
     fetch("/api/currencies")
       .then(r => r.ok ? r.json() : null)
       .then(async (data: any[] | null) => {
         if (!data?.length) return;
         const mapped: CurrencyInfo[] = data.map(c => ({
-          code: c.code, symbol: c.symbol, rate: Number(c.exchangeRate), name: c.name,
+          code: c.code,
+          symbol: c.symbol,
+          rate: Number(c.exchangeRate),
+          name: c.name,
+          flag: CURRENCY_FLAGS[c.code] ?? "🌐",
         }));
         setAllCurrencies(mapped);
 
-        // 3. If user is logged in, use their server-saved billingCurrency (session lock)
         const token = localStorage.getItem("token");
         if (token) {
           try {
@@ -90,14 +108,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
                 return;
               }
             }
-          } catch { /* non-fatal — fall through to stored/IP */ }
+          } catch { /* non-fatal */ }
         }
 
         if (!stored) {
-          // 4. No stored preference — detect via IP
           detectCountryCurrency(mapped);
         } else {
-          // 5. Refresh rate for the stored currency (keeps rate in sync after daily cache refresh)
           try {
             const storedObj: CurrencyInfo = JSON.parse(stored);
             const serverVersion = mapped.find(c => c.code === storedObj.code);
@@ -109,26 +125,20 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        // Currency API unreachable — stay on stored / fallback rates
-        if (!stored) {
-          detectCountryCurrency(Object.values(FALLBACK_CURRENCIES));
-        }
-      });
+        if (!stored) detectCountryCurrency(Object.values(FALLBACK_CURRENCIES));
+      })
+      .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function detectCountryCurrency(currencies: CurrencyInfo[]) {
     let countryCode: string | null = null;
-
-    // Try each geolocation provider in sequence until one succeeds
     for (const provider of GEO_PROVIDERS) {
       try {
         countryCode = await provider();
         if (countryCode) break;
       } catch { /* try next */ }
     }
-
-    // Pakistan → PKR, UK → GBP, all other unknown countries → USD
     const targetCode = countryCode ? (COUNTRY_TO_CURRENCY[countryCode] ?? "USD") : "USD";
     const found = currencies.find(c => c.code === targetCode)
       ?? currencies.find(c => c.code === "PKR")
@@ -146,13 +156,24 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }
 
   function formatPrice(pkrAmount: number): string {
-    const safe      = isNaN(pkrAmount) || pkrAmount == null ? 0 : pkrAmount;
+    const safe = isNaN(pkrAmount) || pkrAmount == null ? 0 : pkrAmount;
     const converted = safe * currency.rate;
     return formatCurrency(converted, currency.code, currency.symbol);
   }
 
+  function convert(usdAmount: number): string {
+    const safe = isNaN(usdAmount) || usdAmount == null ? 0 : usdAmount;
+    const usdCurrency = allCurrencies.find(c => c.code === "USD") ?? FALLBACK_CURRENCIES.USD;
+    const pkrAmount = safe / usdCurrency.rate;
+    return formatPrice(pkrAmount);
+  }
+
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, allCurrencies, formatPrice }}>
+    <CurrencyContext.Provider value={{
+      currency, setCurrency,
+      allCurrencies, currencies: allCurrencies,
+      loading, formatPrice, convert,
+    }}>
       {children}
     </CurrencyContext.Provider>
   );

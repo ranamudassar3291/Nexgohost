@@ -64,6 +64,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --color-dark: #020617;
+  --color-primary-400: #8A7FFE;
+  --color-primary-600: #5452D3;
+  --color-primary-950: #1a1866;
+  --color-accent-gold: #FFD700;
 }
 
 /* ── NoeHost Design System — noehost.com Brand Colors ───────────────────────
