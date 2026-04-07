@@ -224,10 +224,10 @@ export default function Branding() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground">
-              {branding?.logoUrl ? "Custom logo active" : "Default (gradient icon)"}
+              {branding?.logoUrl ? "Logo uploaded" : "Default (gradient icon)"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {branding?.logoUrl ? branding.logoUrl.split("/").pop() : "No custom logo uploaded"}
+              {branding?.logoUrl ? branding.logoUrl.split("/").pop() : "Upload a PNG, SVG, or JPEG logo"}
             </p>
           </div>
           {branding?.logoUrl && (

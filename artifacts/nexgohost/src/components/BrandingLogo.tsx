@@ -8,9 +8,9 @@ interface BrandingLogoProps {
 }
 
 const sizeMap = {
-  sm: { container: "w-8 h-8",  text: "text-lg",  fallbackText: "text-sm"  },
-  md: { container: "w-10 h-10", text: "text-xl",  fallbackText: "text-base" },
-  lg: { container: "w-16 h-16", text: "text-2xl", fallbackText: "text-xl"  },
+  sm: { logoH: "h-8",  maxW: "max-w-[100px]", icon: "w-8 h-8",   text: "text-lg",  fallbackText: "text-sm"   },
+  md: { logoH: "h-10", maxW: "max-w-[160px]", icon: "w-10 h-10", text: "text-xl",  fallbackText: "text-base" },
+  lg: { logoH: "h-14", maxW: "max-w-[200px]", icon: "w-16 h-16", text: "text-2xl", fallbackText: "text-xl"   },
 };
 
 export function BrandingLogo({ size = "md", showText = true, subtext, textClassName }: BrandingLogoProps) {
@@ -20,11 +20,12 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
   return (
     <div className="flex items-center gap-3">
       {logoUrl ? (
-        <div className={`brand-logo-container ${s.container} rounded-xl`}>
+        <div className={`brand-logo-container ${s.logoH} ${s.maxW} shrink-0`}>
           <img
             src={logoUrl}
             alt={siteName}
-            className="brand-logo-img rounded-xl"
+            className="brand-logo-img"
+            style={{ height: "100%", width: "auto", maxWidth: "100%", objectFit: "contain" }}
             onError={e => {
               const img = e.target as HTMLImageElement;
               img.style.display = "none";
@@ -35,7 +36,7 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
         </div>
       ) : null}
       <div
-        className={`${s.container} rounded-xl items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
+        className={`${s.icon} rounded-xl items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
         style={{
           background: "linear-gradient(135deg, #BB86FC, #7C3AED)",
           boxShadow: "0 0 14px rgba(187,134,252,0.40)",
@@ -44,7 +45,7 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
       >
         {siteName?.[0] ?? "N"}
       </div>
-      {showText && (
+      {showText && !logoUrl && (
         <div className="flex flex-col justify-center">
           <h1
             className={`font-display font-bold tracking-tight leading-none ${s.text} ${textClassName ?? ""}`}
@@ -69,11 +70,12 @@ export function BrandingLogoIcon({ size = "md" }: { size?: "sm" | "md" | "lg" })
 
   if (logoUrl) {
     return (
-      <div className={`brand-logo-container ${s.container} rounded-xl`}>
+      <div className={`brand-logo-container ${s.logoH} ${s.maxW} shrink-0`}>
         <img
           src={logoUrl}
           alt={siteName}
-          className="brand-logo-img rounded-xl"
+          className="brand-logo-img"
+          style={{ height: "100%", width: "auto", maxWidth: "100%", objectFit: "contain" }}
         />
       </div>
     );
@@ -81,7 +83,7 @@ export function BrandingLogoIcon({ size = "md" }: { size?: "sm" | "md" | "lg" })
 
   return (
     <div
-      className={`${s.container} rounded-xl flex items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
+      className={`${s.icon} rounded-xl flex items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
       style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
     >
       {siteName?.[0] ?? "N"}

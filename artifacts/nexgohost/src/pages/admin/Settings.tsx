@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Bell, Shield, Globe, Mail, Smartphone, CheckCircle, Loader2, QrCode, Eye, EyeOff, ChevronRight, MailCheck, Wallet, Megaphone } from "lucide-react";
+import { Settings as SettingsIcon, Bell, ShieldOff, Globe, Mail, Loader2, ChevronRight, MailCheck, Wallet, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +16,6 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return data;
 }
 
-interface Me { twoFactorEnabled: boolean; emailVerified: boolean; email: string; }
 interface PlatformSettings {
   email_verification_enabled: boolean;
   wallet_min_deposit: number;
@@ -57,53 +56,6 @@ export default function AdminSettings() {
       toast({ title: "Failed to save", description: err.message, variant: "destructive" });
     } finally { setSavingVerification(false); }
   };
-
-  // ── 2FA ──────────────────────────────────────────────────────────────────
-  const [twoFAStep, setTwoFAStep] = useState<"idle" | "setup" | "verify" | "enabled">("idle");
-  const [qrCode, setQrCode] = useState("");
-  const [secret, setSecret] = useState("");
-  const [totpInput, setTotpInput] = useState("");
-  const [showSecret, setShowSecret] = useState(false);
-  const [loading2FA, setLoading2FA] = useState(false);
-
-  const { data: me, refetch: refetchMe } = useQuery<Me>({
-    queryKey: ["auth-me"],
-    queryFn: () => apiFetch("/api/auth/me"),
-  });
-
-  // ── 2FA handlers ─────────────────────────────────────────────────────────
-  const handle2FASetup = async () => {
-    setLoading2FA(true);
-    try {
-      const data = await apiFetch("/api/auth/2fa/setup");
-      setQrCode(data.qrCode); setSecret(data.secret); setTwoFAStep("setup");
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-    finally { setLoading2FA(false); }
-  };
-
-  const handle2FAEnable = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading2FA(true);
-    try {
-      await apiFetch("/api/auth/2fa/enable", { method: "POST", body: JSON.stringify({ totp: totpInput }) });
-      toast({ title: "2FA enabled", description: "Your account is now protected with Google Authenticator." });
-      setTwoFAStep("enabled"); refetchMe();
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-    finally { setLoading2FA(false); }
-  };
-
-  const handle2FADisable = async () => {
-    if (!confirm("Are you sure you want to disable 2FA? This will reduce your account security.")) return;
-    setLoading2FA(true);
-    try {
-      await apiFetch("/api/auth/2fa/disable", { method: "POST" });
-      toast({ title: "2FA disabled" });
-      setTwoFAStep("idle"); setQrCode(""); setSecret(""); setTotpInput(""); refetchMe();
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-    finally { setLoading2FA(false); }
-  };
-
-  const is2FAEnabled = me?.twoFactorEnabled;
 
   // ── Wallet Settings ───────────────────────────────────────────────────────
   const [walletMin, setWalletMin] = useState<string>("");
@@ -224,73 +176,19 @@ export default function AdminSettings() {
           </div>
         </div>
 
-        {/* 2FA Security */}
+        {/* 2FA — bypassed for admin accounts */}
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 bg-green-500/10 rounded-lg"><Shield className="w-5 h-5 text-green-400" /></div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-amber-500/10 rounded-lg"><ShieldOff className="w-5 h-5 text-amber-400" /></div>
             <div>
               <h3 className="font-semibold text-foreground">Two-Factor Authentication</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Add an extra layer of security with Google Authenticator</p>
+              <p className="text-xs text-muted-foreground mt-0.5">2FA status for this admin account</p>
             </div>
-            {is2FAEnabled && (
-              <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-green-400 bg-green-500/10 border border-green-500/20 rounded-full px-2.5 py-1">
-                <CheckCircle size={12} /> Enabled
-              </span>
-            )}
           </div>
-
-          {is2FAEnabled ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-green-500/5 border border-green-500/20 rounded-xl">
-                <Smartphone size={20} className="text-green-400 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">Google Authenticator is active</p>
-                  <p className="text-xs text-muted-foreground">Your account requires a 6-digit code on every login</p>
-                </div>
-              </div>
-              <Button variant="outline" onClick={handle2FADisable} disabled={loading2FA} className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5">
-                {loading2FA ? <Loader2 size={15} className="animate-spin mr-2" /> : null}
-                Disable 2FA
-              </Button>
-            </div>
-          ) : twoFAStep === "idle" ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Protect your account by enabling two-factor authentication using Google Authenticator or any TOTP app.</p>
-              <Button onClick={handle2FASetup} disabled={loading2FA} className="gap-2 bg-primary">
-                {loading2FA ? <Loader2 size={15} className="animate-spin" /> : <QrCode size={15} />}
-                Set Up Google Authenticator
-              </Button>
-            </div>
-          ) : twoFAStep === "setup" ? (
-            <div className="space-y-5">
-              <div className="flex flex-col sm:flex-row gap-6 items-start">
-                {qrCode && <img src={qrCode} alt="QR Code" className="w-40 h-40 rounded-xl border border-border bg-white p-1 shrink-0" />}
-                <div className="space-y-3">
-                  <p className="text-sm text-foreground font-medium">Step 1: Scan QR Code</p>
-                  <p className="text-sm text-muted-foreground">Open Google Authenticator (or any TOTP app) and scan the QR code, or enter the secret key manually.</p>
-                  <div className="bg-secondary/50 border border-border rounded-lg px-3 py-2 flex items-center gap-2">
-                    <code className="text-xs font-mono text-foreground/80 flex-1 break-all">{showSecret ? secret : "•".repeat(secret.length)}</code>
-                    <button onClick={() => setShowSecret(s => !s)} className="text-muted-foreground hover:text-foreground">
-                      {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <form onSubmit={handle2FAEnable} className="space-y-3">
-                <p className="text-sm text-foreground font-medium">Step 2: Enter the 6-digit code</p>
-                <Input value={totpInput} onChange={e => setTotpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000" maxLength={6}
-                  className="w-40 text-center font-mono text-xl tracking-[0.4em] bg-background" />
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={loading2FA || totpInput.length !== 6} className="bg-primary gap-2">
-                    {loading2FA ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                    Verify & Enable 2FA
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => { setTwoFAStep("idle"); setTotpInput(""); }}>Cancel</Button>
-                </div>
-              </form>
-            </div>
-          ) : null}
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 text-sm text-amber-700">
+            <ShieldOff size={16} className="shrink-0 mt-0.5" />
+            <p>2FA is <strong>bypassed for all admin accounts</strong>. Admin logins use password authentication only — no authenticator code is ever required, regardless of whether 2FA is configured on the account.</p>
+          </div>
         </div>
 
         {/* Email Verification (OTP) */}
