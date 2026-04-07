@@ -2,6 +2,20 @@
 
 A production-ready SaaS hosting and domain management platform (similar to WHMCS). Provides full-stack client and admin panels for managing hosting services, domains, billing, support tickets, and more.
 
+## Theme & Design
+
+- **Dark theme by default** — ThemeProvider (`src/context/ThemeProvider.tsx`) defaults to "dark", stores preference in localStorage as `noehost-theme`.
+- **Color palette** matches user's noehost.com website exactly:
+  - Background: `#020617` (deep navy)
+  - Cards/Nav/Footer: `#0F172A` (dark navy)
+  - Primary/Brand: `#6A62FE` (indigo, HSL 244 98% 68%)
+  - Text: slate-300/slate-400
+  - Font: "Plus Jakarta Sans" (loaded in index.html + index.css)
+- **Homepage** (`src/pages/public/Homepage.tsx`) — fully ported from user's website. Uses `SiteNavbar`, `SiteFooter`.
+- **SiteNavbar** (`src/components/layout/SiteNavbar.tsx`) — ported from user's Navbar.tsx. Uses wouter (not react-router-dom), useAuth, useCart.
+- **SiteFooter** (`src/components/layout/SiteFooter.tsx`) — dark navy footer with payment icons, 4-column links.
+- Dark CSS variables in `src/index.css` under `.dark {}` block.
+
 ## Architecture
 
 This is a **pnpm monorepo** with the following structure:

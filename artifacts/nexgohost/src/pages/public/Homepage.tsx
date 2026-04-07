@@ -1,16 +1,15 @@
-import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Server, Globe, Shield, Zap, Clock, HeadphonesIcon,
-  Search, CheckCircle, XCircle, Loader2, ChevronRight, ChevronDown,
-  Star, ArrowRight, Menu, X, Database, Lock, Cpu, Mail,
-  ShoppingCart, User, LayoutDashboard,
+  Search, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight,
+  Star, ArrowRight, Zap, Globe, Server, Shield, Database, Lock,
+  HeadphonesIcon, Cpu, Mail, Activity, Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/context/CurrencyProvider";
-import { useCart } from "@/context/CartContext";
-import { useAuth } from "@/hooks/use-auth";
+import { SiteNavbar } from "@/components/layout/SiteNavbar";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 
 interface Plan {
   id: string; name: string; description: string | null; price: number; yearlyPrice: number | null;
@@ -50,14 +49,12 @@ const TESTIMONIALS = [
 ];
 
 const FAQS = [
-  { q: "What hosting plans do you offer?",        a: "We offer Shared Hosting, Business Hosting, and Enterprise plans — each suited for different stages of growth. All plans include free SSL, 99.9% uptime SLA, cPanel access, and 24/7 support. You can upgrade or downgrade at any time." },
-  { q: "How do I register a domain name?",        a: "Simply search for your desired domain in our domain checker above. If it's available, add it to your cart and complete checkout. We support .com, .pk, .net, .org, and many more TLDs at competitive prices." },
-  { q: "Is there a money-back guarantee?",        a: "Yes! All hosting plans come with a 30-day money-back guarantee. If you're not satisfied for any reason, contact our support team within 30 days of purchase and we'll issue a full refund — no questions asked." },
-  { q: "Do I get free SSL with my hosting?",      a: "Absolutely. Every hosting account includes a free Let's Encrypt SSL certificate. We also offer premium Comodo/RapidSSL certificates for businesses that need extended validation or wildcard coverage." },
-  { q: "Can I migrate my existing website?",      a: "Yes, we offer free website migration for all new customers. Our technical team will handle the full migration — files, databases, emails — with minimal downtime. Just open a support ticket after signing up." },
-  { q: "What control panel do you use?",          a: "We use cPanel, the industry-standard control panel trusted by millions of websites. It gives you complete control over your files, databases, email accounts, DNS settings, and much more." },
-  { q: "Do you offer VPS hosting?",               a: "Our Business and Enterprise plans are built on cloud infrastructure with dedicated resources. For VPS servers, visit our VPS page or contact our sales team for a custom quote." },
-  { q: "How do I reach support if I need help?",  a: "Our support team is available 24/7 via live chat, ticket system, and email. Average first response time is under 15 minutes. Premium plans also include priority queue access." },
+  { q: "What hosting plans do you offer?",       a: "We offer Shared Hosting, Business Hosting, and Enterprise plans — each suited for different stages of growth. All plans include free SSL, 99.9% uptime SLA, cPanel access, and 24/7 support." },
+  { q: "How do I register a domain name?",       a: "Simply search for your desired domain in our domain checker above. If it's available, add it to your cart and complete checkout. We support .com, .pk, .net, .org, and many more TLDs." },
+  { q: "Is there a money-back guarantee?",       a: "Yes! All hosting plans come with a 30-day money-back guarantee. Contact our support team within 30 days of purchase for a full refund — no questions asked." },
+  { q: "Do I get free SSL with my hosting?",     a: "Absolutely. Every hosting account includes a free Let's Encrypt SSL certificate. We also offer premium certificates for extended validation or wildcard coverage." },
+  { q: "Can I migrate my existing website?",     a: "Yes, we offer free website migration for all new customers. Our technical team handles the full migration — files, databases, emails — with minimal downtime." },
+  { q: "What control panel do you use?",         a: "We use cPanel, the industry-standard control panel trusted by millions of websites. It gives you complete control over files, databases, email accounts, and DNS settings." },
 ];
 
 function FaqAccordion() {
@@ -65,15 +62,15 @@ function FaqAccordion() {
   return (
     <div className="space-y-3">
       {FAQS.map((faq, i) => (
-        <div key={i} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 transition-colors">
+        <div key={i} className="rounded-2xl overflow-hidden transition-all" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <button className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left" onClick={() => setOpen(open === i ? null : i)}>
-            <span className="font-semibold text-foreground text-sm sm:text-base">{faq.q}</span>
-            <ChevronDown size={18} className={`shrink-0 text-muted-foreground transition-transform duration-300 ${open === i ? "rotate-180" : ""}`} />
+            <span className="font-bold text-slate-200 text-sm sm:text-base">{faq.q}</span>
+            <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform duration-300 ${open === i ? "rotate-180" : ""}`} />
           </button>
           <AnimatePresence initial={false}>
             {open === i && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: "easeInOut" }}>
-                <div className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed border-t border-border/50 pt-4">{faq.a}</div>
+                <div className="px-6 pb-5 text-sm text-slate-400 leading-relaxed" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "1rem" }}>{faq.a}</div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -83,26 +80,92 @@ function FaqAccordion() {
   );
 }
 
+function HeroIllustration() {
+  return (
+    <div className="relative w-full max-w-lg mx-auto select-none">
+      <div className="absolute inset-0 bg-primary/20 blur-[80px] rounded-full"></div>
+      <div className="relative rounded-3xl p-6 shadow-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)" }}>
+        <div className="flex items-center gap-2 mb-5">
+          <div className="w-3 h-3 rounded-full bg-red-400"></div>
+          <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+          <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
+          <div className="flex-1 h-5 ml-3 rounded-full flex items-center px-3" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <span className="text-[9px] text-slate-400 font-mono">noehost.com — Secured</span>
+          </div>
+          <Lock size={10} className="text-emerald-400" />
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          {[
+            { label: "Uptime", value: "99.9%", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+            { label: "Speed",  value: "< 1ms", color: "text-primary",     bg: "bg-primary/10" },
+            { label: "Sites",  value: "2M+",   color: "text-purple-400",  bg: "bg-purple-500/10" },
+          ].map((s, i) => (
+            <div key={i} className={`${s.bg} rounded-2xl p-3 text-center`} style={{ border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className={`text-lg font-black ${s.color}`}>{s.value}</div>
+              <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2 mb-4">
+          {[
+            { name: "Web Server", status: "Running", icon: <Server size={14} />,   color: "text-emerald-400" },
+            { name: "Database",   status: "Active",  icon: <Database size={14} />, color: "text-blue-400" },
+            { name: "CDN Network",status: "Optimal", icon: <Wifi size={14} />,     color: "text-purple-400" },
+          ].map((s, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <span className={s.color}>{s.icon}</span>
+              <span className="text-xs font-bold text-slate-300 flex-1">{s.name}</span>
+              <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
+                <div className="h-full w-4/5 bg-gradient-to-r from-primary to-primary/60 rounded-full"></div>
+              </div>
+              <span className="text-[9px] font-black text-emerald-400 uppercase">{s.status}</span>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <Shield size={14} className="text-primary" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Security</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-emerald-500/20 rounded-lg flex items-center justify-center"><Lock size={10} className="text-emerald-400" /></div>
+              <span className="text-[10px] text-slate-300 font-bold">SSL Active</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-blue-500/20 rounded-lg flex items-center justify-center"><Shield size={10} className="text-blue-400" /></div>
+              <span className="text-[10px] text-slate-300 font-bold">DDoS Guard</span>
+            </div>
+          </div>
+          <div className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <Activity size={14} className="text-primary" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Activity</span>
+            </div>
+            {[70, 85, 55].map((w, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className={`h-1.5 rounded-full bg-gradient-to-r from-primary to-primary/60`} style={{ width: `${w}%` }}></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Homepage() {
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
-  const { count: cartCount } = useCart();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
   const [domainQuery, setDomainQuery] = useState("");
   const [domainResults, setDomainResults] = useState<DomainResult[]>([]);
   const [domainLoading, setDomainLoading] = useState(false);
   const [domainSearched, setDomainSearched] = useState("");
-  const [scrolled, setScrolled] = useState(false);
-  const domainInputRef = useRef<HTMLInputElement>(null);
   const { formatPrice } = useCurrency();
 
   useEffect(() => {
     fetchPublicPlans().then(p => { setPlans(p.slice(0, 3)); setPlansLoading(false); });
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const handleDomainSearch = async (e?: React.FormEvent) => {
@@ -117,218 +180,141 @@ export default function Homepage() {
   };
 
   const scrollTo = (id: string) => {
-    setMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const navLinks = [
-    { label: "Home",     action: () => { setMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); } },
-    { label: "Hosting",  action: () => scrollTo("plans") },
-    { label: "Domains",  action: () => scrollTo("domain-search") },
-    { label: "Features", action: () => scrollTo("features") },
-    { label: "VPS",      action: () => { setMenuOpen(false); setLocation("/vps"); } },
-    { label: "Contact",  action: () => { setMenuOpen(false); setLocation("/contact"); } },
-  ];
-
-  const dashboardPath = user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard";
-
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen overflow-x-hidden" style={{ background: "#020617", color: "#cbd5e1" }}>
+
+      {/* ── Announcement bar ── */}
+      <div className="py-2.5 relative z-[110]" style={{ background: "linear-gradient(90deg, #0F172A, #0F172A)", borderBottom: "1px solid rgba(106,98,254,0.4)" }}>
+        <div className="container mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <a href="mailto:support@noehost.com" className="flex items-center gap-2 hover:text-primary transition-all">
+              <Mail size={12} className="text-primary" /> support@noehost.com
+            </a>
+          </div>
+          <div className="hidden lg:flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-yellow-400 animate-pulse">
+            <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full shadow-[0_0_10px_rgba(250,204,21,0.8)]" />
+            Flash Sale: 50% Off all Shared Plans! Use code: NOE50
+          </div>
+        </div>
+      </div>
 
       {/* ── Sticky Header ── */}
-      <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur border-b border-border/40 shadow-lg shadow-black/5" : "bg-transparent"}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-
-          {/* Logo */}
-          <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-lg" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>N</div>
-            <span className="font-display font-bold text-xl text-foreground">Noehost</span>
-          </button>
-
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-6">
-            {navLinks.map(link => (
-              <button key={link.label} onClick={link.action} className="text-sm text-muted-foreground hover:text-foreground transition-colors font-medium">
-                {link.label}
-              </button>
-            ))}
-          </nav>
-
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-2">
-            {/* Cart icon */}
-            <button onClick={() => setLocation(user ? "/client/cart" : "/client/login")} className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted/50">
-              <ShoppingCart size={20} />
-              {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 min-w-[18px] bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none px-1">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-
-            {user ? (
-              <Button size="sm" className="shadow-lg" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }} onClick={() => setLocation(dashboardPath)}>
-                <LayoutDashboard size={14} className="mr-1.5" /> Dashboard
-              </Button>
-            ) : (
-              <>
-                <Button variant="ghost" size="sm" onClick={() => setLocation("/client/login")}>Sign In</Button>
-                <Button size="sm" className="shadow-lg shadow-primary/20" onClick={() => setLocation("/register")} style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>
-                  Get Started
-                </Button>
-              </>
-            )}
-          </div>
-
-          {/* Mobile toggle */}
-          <div className="md:hidden flex items-center gap-2">
-            <button onClick={() => setLocation(user ? "/client/cart" : "/client/login")} className="relative p-2 text-muted-foreground hover:text-foreground transition-colors">
-              <ShoppingCart size={20} />
-              {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 min-w-[18px] bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none px-1">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-            <button className="p-2 text-foreground" onClick={() => setMenuOpen(!menuOpen)}>
-              {menuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="md:hidden bg-card border-b border-border px-4 py-4 space-y-3">
-              {navLinks.map(link => (
-                <button key={link.label} onClick={link.action}
-                  className="block w-full text-left text-sm text-muted-foreground hover:text-foreground py-2 border-b border-border/30 transition-colors">
-                  {link.label}
-                </button>
-              ))}
-              <div className="flex gap-3 pt-2">
-                {user ? (
-                  <Button size="sm" className="flex-1" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }} onClick={() => { setMenuOpen(false); setLocation(dashboardPath); }}>
-                    <LayoutDashboard size={14} className="mr-1.5" /> Dashboard
-                  </Button>
-                ) : (
-                  <>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setMenuOpen(false); setLocation("/client/login"); }}>Sign In</Button>
-                    <Button size="sm" className="flex-1" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }} onClick={() => { setMenuOpen(false); setLocation("/register"); }}>Get Started</Button>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <header className="sticky top-0 z-50">
+        <SiteNavbar />
       </header>
 
-      {/* ── Hero Section ── */}
-      <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 60% 40%, rgba(91,95,239,0.18) 0%, transparent 70%), radial-gradient(ellipse at 20% 80%, rgba(122,107,255,0.12) 0%, transparent 60%)" }} />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-[120px] -z-0" style={{ background: "rgba(91,95,239,0.12)" }} />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full blur-[100px] -z-0" style={{ background: "rgba(122,107,255,0.09)" }} />
+      {/* ── Hero ── */}
+      <section className="relative min-h-screen flex items-center pt-10 overflow-hidden" style={{ background: "#020617" }}>
+        <div className="absolute inset-0 tech-grid opacity-20" />
+        <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(at 0% 0%, hsla(244,98%,63%,0.25) 0px, transparent 50%), radial-gradient(at 100% 0%, hsla(244,98%,63%,0.15) 0px, transparent 50%), radial-gradient(at 50% 100%, hsla(244,98%,63%,0.1) 0px, transparent 50%)" }} />
 
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-6">
-              <Zap size={14} /> Pakistan's #1 Web Hosting Provider
-            </div>
-
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-bold leading-tight mb-6">
-              Fast. Reliable.
-              <span className="block bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #5B5FEF, #7A6BFF, #a78bfa)" }}>
-                Affordable Hosting.
-              </span>
-            </h1>
-
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-              Professional web hosting with cPanel, free SSL, daily backups, and 24/7 expert support.
-              Get your website online in minutes.
-            </p>
-
-            {/* Domain Search */}
-            <form id="domain-search" onSubmit={handleDomainSearch} className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto mb-8">
-              <div className="relative flex-1">
-                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                <input
-                  ref={domainInputRef}
-                  type="text"
-                  value={domainQuery}
-                  onChange={e => setDomainQuery(e.target.value)}
-                  placeholder="Search your domain (e.g. mywebsite)"
-                  className="w-full h-14 pl-12 pr-4 rounded-2xl bg-card/80 backdrop-blur border border-border/60 text-foreground placeholder:text-muted-foreground text-base focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all"
-                />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 w-full py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 text-primary text-xs font-black uppercase tracking-widest" style={{ background: "rgba(106,98,254,0.1)", border: "1px solid rgba(106,98,254,0.2)" }}>
+                <Zap size={12} /> Pakistan's #1 Web Hosting Provider
               </div>
-              <Button type="submit" size="lg"
-                className="h-14 px-8 rounded-2xl text-base font-semibold shadow-lg"
-                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 20px rgba(91,95,239,0.35)" }}
-                disabled={domainLoading || !domainQuery.trim()}>
-                {domainLoading ? <Loader2 size={20} className="animate-spin mr-2" /> : <Search size={20} className="mr-2" />}
-                {domainLoading ? "Searching..." : "Check Availability"}
-              </Button>
-            </form>
 
-            {/* Domain Results */}
-            <AnimatePresence>
-              {domainSearched && !domainLoading && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className="max-w-2xl mx-auto bg-card/90 backdrop-blur border border-border rounded-2xl overflow-hidden shadow-2xl text-left mb-8">
-                  <div className="px-5 py-3 border-b border-border bg-secondary/40">
-                    <p className="text-sm text-muted-foreground">Results for <strong className="text-foreground">{domainSearched}</strong></p>
-                  </div>
-                  {domainResults.length === 0 ? (
-                    <div className="px-5 py-6 text-center text-muted-foreground text-sm">No TLD pricing configured. Contact admin.</div>
-                  ) : (
-                    <div className="divide-y divide-border/50 max-h-64 overflow-y-auto">
-                      {domainResults.slice(0, 8).map(r => (
-                        <div key={r.tld} className="flex items-center justify-between px-5 py-3">
-                          <div className="flex items-center gap-3">
-                            {r.available ? <CheckCircle size={16} className="text-green-400 shrink-0" /> : <XCircle size={16} className="text-red-400 shrink-0" />}
-                            <span className="font-mono font-medium text-foreground">{domainSearched}{r.tld}</span>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            {r.registrationPrice != null && (
-                              <span className="text-sm text-muted-foreground">{formatPrice(Number(r.registrationPrice))}/yr</span>
-                            )}
-                            {r.available ? (
-                              <Button size="sm" className="h-7 px-3 text-xs bg-primary hover:bg-primary/90"
-                                onClick={() => setLocation(`/client/register-domain?name=${encodeURIComponent(domainSearched + r.tld)}`)}>
-                                Register
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-red-400 font-medium">Taken</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <h1 className="text-5xl sm:text-6xl font-black leading-[1.05] mb-6 text-white" style={{ letterSpacing: "-0.03em" }}>
+                The Fastest Web
+                <br />
+                <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(135deg, #6A62FE, #a78bfa)" }}>
+                  Hosting Platform.
+                </span>
+              </h1>
 
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
-              {["Free SSL Certificate", "99.9% Uptime SLA", "24/7 Support", "Easy cPanel"].map(item => (
-                <div key={item} className="flex items-center gap-1.5">
-                  <CheckCircle size={14} className="text-green-400" /> {item}
+              <p className="text-lg text-slate-400 max-w-xl mb-10 leading-relaxed font-medium">
+                Professional web hosting with cPanel, free SSL, daily backups, and 24/7 expert support.
+                Get your website online in minutes with Pakistan's most trusted host.
+              </p>
+
+              {/* Domain Search */}
+              <form onSubmit={handleDomainSearch} className="flex flex-col sm:flex-row gap-3 mb-6">
+                <div className="relative flex-1">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                  <input
+                    type="text"
+                    value={domainQuery}
+                    onChange={e => setDomainQuery(e.target.value)}
+                    placeholder="Search your domain (e.g. mywebsite)"
+                    className="w-full h-14 pl-12 pr-4 rounded-xl text-white text-base focus:outline-none transition-all"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#cbd5e1" }}
+                    onFocus={e => (e.target.style.borderColor = "#6A62FE")}
+                    onBlur={e => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
+                  />
                 </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
+                <button type="submit"
+                  disabled={domainLoading || !domainQuery.trim()}
+                  className="h-14 px-8 rounded-xl text-white font-black text-sm uppercase tracking-widest transition-all disabled:opacity-50 flex items-center gap-2"
+                  style={{ background: "linear-gradient(135deg, #6A62FE, #8B7FFF)", boxShadow: "0 4px 20px rgba(106,98,254,0.4)" }}>
+                  {domainLoading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                  {domainLoading ? "Searching..." : "Check Availability"}
+                </button>
+              </form>
 
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 rounded-full border-2 border-border/50 flex items-start justify-center pt-2">
-            <div className="w-1 h-2 rounded-full bg-primary animate-pulse" />
+              {/* Domain Results */}
+              <AnimatePresence>
+                {domainSearched && !domainLoading && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="rounded-2xl overflow-hidden shadow-2xl text-left mb-6" style={{ background: "#0F172A", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Results for <span className="text-white">{domainSearched}</span></p>
+                    </div>
+                    {domainResults.length === 0 ? (
+                      <div className="px-5 py-6 text-center text-slate-500 text-sm">No TLD pricing configured. Contact admin.</div>
+                    ) : (
+                      <div className="divide-y max-h-64 overflow-y-auto" style={{ "--tw-divide-opacity": "0.05" } as React.CSSProperties}>
+                        {domainResults.slice(0, 8).map(r => (
+                          <div key={r.tld} className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                            <div className="flex items-center gap-3">
+                              {r.available ? <CheckCircle size={16} className="text-emerald-400 shrink-0" /> : <XCircle size={16} className="text-red-400 shrink-0" />}
+                              <span className="font-mono font-bold text-slate-200">{domainSearched}{r.tld}</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              {r.registrationPrice != null && (
+                                <span className="text-sm text-slate-500">{formatPrice(Number(r.registrationPrice))}/yr</span>
+                              )}
+                              {r.available ? (
+                                <button className="h-7 px-3 text-xs font-black text-white rounded-lg uppercase tracking-wide"
+                                  style={{ background: "#6A62FE" }}
+                                  onClick={() => setLocation(`/client/register-domain?name=${encodeURIComponent(domainSearched + r.tld)}`)}>
+                                  Register
+                                </button>
+                              ) : (
+                                <span className="text-xs text-red-400 font-black uppercase">Taken</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="flex flex-wrap items-center gap-6 text-xs text-slate-500 font-bold uppercase tracking-widest">
+                {["Free SSL", "99.9% Uptime", "24/7 Support", "Easy cPanel"].map(item => (
+                  <div key={item} className="flex items-center gap-1.5">
+                    <CheckCircle size={13} className="text-emerald-400" /> {item}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
+              className="hidden lg:block">
+              <HeroIllustration />
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ── Stats Bar ── */}
-      <section className="border-y border-border bg-card/50 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
+      {/* ── Stats ── */}
+      <section style={{ background: "#0F172A", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="max-w-6xl mx-auto px-4 py-10 grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
           {[
             { value: "50,000+", label: "Websites Hosted" },
             { value: "99.9%",   label: "Uptime Guarantee" },
@@ -336,28 +322,28 @@ export default function Homepage() {
             { value: "10+",     label: "Years Experience" },
           ].map(stat => (
             <div key={stat.label}>
-              <div className="text-3xl font-bold text-primary">{stat.value}</div>
-              <div className="text-sm text-muted-foreground mt-1">{stat.label}</div>
+              <div className="text-3xl font-black text-primary mb-1">{stat.value}</div>
+              <div className="text-xs text-slate-500 font-bold uppercase tracking-widest">{stat.label}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── Hosting Plans ── */}
-      <section id="plans" className="py-24 px-4 sm:px-6">
+      <section id="plans" className="py-24 px-4 sm:px-6" style={{ background: "#020617" }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-4">
-              <Server size={14} /> Hosting Plans
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 text-primary text-xs font-black uppercase tracking-widest" style={{ background: "rgba(106,98,254,0.1)", border: "1px solid rgba(106,98,254,0.2)" }}>
+              <Server size={12} /> Hosting Plans
             </div>
-            <h2 className="text-4xl font-display font-bold text-foreground mb-4">Choose Your Perfect Plan</h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">All plans include free SSL, daily backups, 24/7 support, and one-click WordPress installation.</p>
+            <h2 className="text-4xl font-black text-white mb-4" style={{ letterSpacing: "-0.02em" }}>Choose Your Perfect Plan</h2>
+            <p className="text-slate-400 text-lg max-w-xl mx-auto font-medium">All plans include free SSL, daily backups, 24/7 support, and one-click WordPress installation.</p>
           </div>
 
           {plansLoading ? (
             <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-primary" /></div>
           ) : plans.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">No plans available yet.</div>
+            <div className="text-center py-16 text-slate-500">No plans available yet.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {plans.map((plan, i) => {
@@ -366,47 +352,54 @@ export default function Homepage() {
                   <motion.div key={plan.id}
                     initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1 }} viewport={{ once: true }}
-                    className={`relative rounded-3xl border p-8 flex flex-col transition-all hover:-translate-y-1 hover:shadow-xl ${isPopular ? "border-primary/50 shadow-lg" : "border-border bg-card"}`}
-                    style={isPopular ? { background: "linear-gradient(160deg, rgba(91,95,239,0.08), hsl(var(--card)))", boxShadow: "0 8px 32px rgba(91,95,239,0.12)" } : {}}>
+                    className="relative rounded-3xl p-8 flex flex-col transition-all hover:-translate-y-1 hover:shadow-2xl"
+                    style={isPopular ? {
+                      background: "linear-gradient(160deg, rgba(106,98,254,0.12), rgba(15,23,42,1))",
+                      border: "1px solid rgba(106,98,254,0.4)",
+                      boxShadow: "0 8px 40px rgba(106,98,254,0.15)"
+                    } : {
+                      background: "#0F172A",
+                      border: "1px solid rgba(255,255,255,0.06)"
+                    }}>
                     {isPopular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white shadow-lg" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-black text-white uppercase tracking-widest" style={{ background: "linear-gradient(135deg, #6A62FE, #8B7FFF)" }}>
                         MOST POPULAR
                       </div>
                     )}
                     <div className="mb-6">
-                      <h3 className="text-xl font-bold text-foreground mb-1">{plan.name}</h3>
-                      {plan.description && <p className="text-sm text-muted-foreground">{plan.description}</p>}
+                      <h3 className="text-xl font-black text-white mb-1">{plan.name}</h3>
+                      {plan.description && <p className="text-sm text-slate-500 font-medium">{plan.description}</p>}
                     </div>
                     <div className="mb-6">
                       <div className="flex items-end gap-1">
-                        <span className="text-4xl font-bold text-primary">{formatPrice(Number(plan.price))}</span>
-                        <span className="text-muted-foreground mb-1">/{plan.billingCycle === "yearly" ? "yr" : "mo"}</span>
+                        <span className="text-4xl font-black text-primary">{formatPrice(Number(plan.price))}</span>
+                        <span className="text-slate-500 mb-1 font-bold">/{plan.billingCycle === "yearly" ? "yr" : "mo"}</span>
                       </div>
                       {plan.yearlyPrice && plan.billingCycle !== "yearly" && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-slate-500 mt-1">
                           or {formatPrice(Number(plan.yearlyPrice))}/year — save {Math.round((1 - Number(plan.yearlyPrice) / (Number(plan.price) * 12)) * 100)}%
                         </p>
                       )}
                     </div>
                     <ul className="space-y-2.5 mb-8 flex-1 text-sm">
-                      <li className="flex items-center gap-2 text-foreground"><CheckCircle size={15} className="text-green-400 shrink-0" /> {plan.diskSpace} Storage</li>
-                      <li className="flex items-center gap-2 text-foreground"><CheckCircle size={15} className="text-green-400 shrink-0" /> {plan.bandwidth} Bandwidth</li>
-                      {plan.emailAccounts != null && (
-                        <li className="flex items-center gap-2 text-foreground"><CheckCircle size={15} className="text-green-400 shrink-0" /> {plan.emailAccounts === -1 ? "Unlimited" : plan.emailAccounts} Email Accounts</li>
-                      )}
-                      {plan.databases != null && (
-                        <li className="flex items-center gap-2 text-foreground"><CheckCircle size={15} className="text-green-400 shrink-0" /> {plan.databases === -1 ? "Unlimited" : plan.databases} Databases</li>
-                      )}
-                      {(plan.features || []).slice(0, 4).map((f, fi) => (
-                        <li key={fi} className="flex items-center gap-2 text-foreground"><CheckCircle size={15} className="text-green-400 shrink-0" /> {f}</li>
+                      {[
+                        `${plan.diskSpace} Storage`,
+                        `${plan.bandwidth} Bandwidth`,
+                        ...(plan.emailAccounts != null ? [`${plan.emailAccounts === -1 ? "Unlimited" : plan.emailAccounts} Email Accounts`] : []),
+                        ...(plan.databases != null ? [`${plan.databases === -1 ? "Unlimited" : plan.databases} Databases`] : []),
+                        ...(plan.features || []).slice(0, 4),
+                      ].map((f, fi) => (
+                        <li key={fi} className="flex items-center gap-2 text-slate-300">
+                          <CheckCircle size={14} className="text-emerald-400 shrink-0" /> {f}
+                        </li>
                       ))}
                     </ul>
-                    <Button
-                      onClick={() => setLocation(user ? `/order/add/${plan.id}` : `/order/add/${plan.id}`)}
-                      className={`w-full rounded-2xl font-semibold ${isPopular ? "text-white shadow-lg" : "bg-secondary hover:bg-secondary/80 text-foreground"}`}
-                      style={isPopular ? { background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 16px rgba(91,95,239,0.3)" } : {}}>
-                      Order Now <ArrowRight size={16} className="ml-2" />
-                    </Button>
+                    <button
+                      onClick={() => setLocation(`/order/add/${plan.id}`)}
+                      className="w-full rounded-2xl py-3.5 font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all"
+                      style={isPopular ? { background: "linear-gradient(135deg, #6A62FE, #8B7FFF)", color: "#fff", boxShadow: "0 4px 20px rgba(106,98,254,0.35)" } : { background: "rgba(255,255,255,0.06)", color: "#cbd5e1", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      Order Now <ArrowRight size={16} />
+                    </button>
                   </motion.div>
                 );
               })}
@@ -414,25 +407,24 @@ export default function Homepage() {
           )}
 
           <div className="text-center mt-10">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-500 font-medium">
               Need a custom plan?{" "}
-              <Link href="/contact" className="text-primary hover:underline">Contact our sales team</Link>
+              <button onClick={() => setLocation("/contact")} className="text-primary hover:underline font-bold">Contact our sales team</button>
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── Features Grid ── */}
-      <section id="features" className="py-24 px-4 sm:px-6 bg-card/30 border-y border-border">
+      {/* ── Features ── */}
+      <section id="features" className="py-24 px-4 sm:px-6" style={{ background: "#0F172A", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-500 text-sm font-medium mb-4">
-              <Star size={14} /> Why Noehost
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4 text-emerald-400 text-xs font-black uppercase tracking-widest" style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)" }}>
+              <Star size={12} /> Why Noehost
             </div>
-            <h2 className="text-4xl font-display font-bold text-foreground mb-4">Everything You Need to Succeed Online</h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">Enterprise-grade infrastructure at prices that work for everyone.</p>
+            <h2 className="text-4xl font-black text-white mb-4" style={{ letterSpacing: "-0.02em" }}>Everything You Need to Succeed Online</h2>
+            <p className="text-slate-400 text-lg max-w-xl mx-auto font-medium">Enterprise-grade infrastructure at prices that work for everyone.</p>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {FEATURES.map((feat, i) => {
               const Icon = feat.icon;
@@ -440,12 +432,13 @@ export default function Homepage() {
                 <motion.div key={feat.title}
                   initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05 }} viewport={{ once: true }}
-                  className="bg-card border border-border rounded-2xl p-6 hover:border-primary/30 hover:-translate-y-1 transition-all group">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 group-hover:border-primary/40 transition-colors">
+                  className="rounded-2xl p-6 transition-all hover:-translate-y-1 group cursor-default"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all" style={{ background: "rgba(106,98,254,0.12)", border: "1px solid rgba(106,98,254,0.2)" }}>
                     <Icon size={22} className="text-primary" />
                   </div>
-                  <h3 className="font-semibold text-foreground mb-2">{feat.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{feat.desc}</p>
+                  <h3 className="font-black text-white mb-2">{feat.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed font-medium">{feat.desc}</p>
                 </motion.div>
               );
             })}
@@ -454,27 +447,28 @@ export default function Homepage() {
       </section>
 
       {/* ── Testimonials ── */}
-      <section className="py-24 px-4 sm:px-6">
+      <section className="py-24 px-4 sm:px-6" style={{ background: "#020617" }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-4xl font-display font-bold text-foreground mb-4">Trusted by Thousands of Customers</h2>
-            <p className="text-muted-foreground text-lg">Don't just take our word for it.</p>
+            <h2 className="text-4xl font-black text-white mb-4" style={{ letterSpacing: "-0.02em" }}>Trusted by Thousands of Customers</h2>
+            <p className="text-slate-400 text-lg font-medium">Don't just take our word for it.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {TESTIMONIALS.map((t, i) => (
               <motion.div key={t.name}
                 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }} viewport={{ once: true }}
-                className="bg-card border border-border rounded-2xl p-6 hover:border-primary/20 transition-colors">
+                className="rounded-2xl p-6 transition-all"
+                style={{ background: "#0F172A", border: "1px solid rgba(255,255,255,0.06)" }}>
                 <div className="flex gap-1 mb-4">
                   {Array.from({ length: t.rating }).map((_, si) => (
                     <Star key={si} size={14} className="text-yellow-400 fill-yellow-400" />
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4">"{t.text}"</p>
+                <p className="text-sm text-slate-400 leading-relaxed mb-4 font-medium">"{t.text}"</p>
                 <div>
-                  <p className="font-semibold text-foreground text-sm">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.role}</p>
+                  <p className="font-black text-white text-sm">{t.name}</p>
+                  <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">{t.role}</p>
                 </div>
               </motion.div>
             ))}
@@ -483,83 +477,39 @@ export default function Homepage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-20 px-4 sm:px-6">
+      <section className="py-20 px-4 sm:px-6" style={{ background: "#0F172A", borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <span className="inline-block text-xs font-semibold uppercase tracking-widest text-primary bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 mb-4">FAQ</span>
-            <h2 className="text-4xl font-display font-bold text-foreground mb-3">Frequently Asked Questions</h2>
-            <p className="text-muted-foreground">Everything you need to know about our hosting services.</p>
+            <span className="inline-block text-xs font-black uppercase tracking-widest text-primary px-3 py-1.5 rounded-full mb-4" style={{ background: "rgba(106,98,254,0.1)", border: "1px solid rgba(106,98,254,0.2)" }}>FAQ</span>
+            <h2 className="text-4xl font-black text-white mb-3" style={{ letterSpacing: "-0.02em" }}>Frequently Asked Questions</h2>
+            <p className="text-slate-400 font-medium">Everything you need to know about our hosting services.</p>
           </div>
           <FaqAccordion />
         </div>
       </section>
 
-      {/* ── CTA Banner ── */}
-      <section className="py-20 px-4 sm:px-6 border-y border-primary/10" style={{ background: "linear-gradient(135deg, rgba(91,95,239,0.12), rgba(122,107,255,0.08), transparent)" }}>
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl font-display font-bold text-foreground mb-4">Ready to Launch Your Website?</h2>
-          <p className="text-muted-foreground text-lg mb-8">Join 50,000+ customers who trust Noehost for their online presence.</p>
+      {/* ── CTA ── */}
+      <section className="py-24 px-4 sm:px-6 relative overflow-hidden" style={{ background: "#020617" }}>
+        <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(at 50% 50%, rgba(106,98,254,0.15) 0px, transparent 70%)" }} />
+        <div className="relative z-10 max-w-3xl mx-auto text-center">
+          <h2 className="text-4xl font-black text-white mb-4" style={{ letterSpacing: "-0.02em" }}>Ready to Launch Your Website?</h2>
+          <p className="text-slate-400 text-lg mb-10 font-medium">Join 50,000+ customers who trust Noehost for their online presence.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="text-lg px-8 text-white shadow-lg" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 6px 24px rgba(91,95,239,0.35)" }}
-              onClick={() => setLocation("/register")}>
-              Get Started Now <ChevronRight size={20} className="ml-1" />
-            </Button>
-            <Button size="lg" variant="outline" className="text-lg px-8" onClick={() => scrollTo("plans")}>
+            <button onClick={() => setLocation("/register")}
+              className="flex items-center justify-center gap-2 px-10 py-4 rounded-xl text-white font-black text-sm uppercase tracking-widest transition-all shadow-2xl"
+              style={{ background: "linear-gradient(135deg, #6A62FE, #8B7FFF)", boxShadow: "0 6px 30px rgba(106,98,254,0.4)" }}>
+              Get Started Now <ChevronRight size={18} />
+            </button>
+            <button onClick={() => scrollTo("plans")}
+              className="flex items-center justify-center gap-2 px-10 py-4 rounded-xl font-black text-sm uppercase tracking-widest transition-all text-slate-300 hover:text-white"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
               View Plans
-            </Button>
+            </button>
           </div>
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-border bg-card/50">
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm" style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}>N</div>
-                <span className="font-display font-bold text-xl">Noehost</span>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">Pakistan's premier web hosting provider with enterprise-grade infrastructure and 24/7 expert support.</p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Services</h4>
-              <ul className="space-y-2.5">
-                <li><button onClick={() => scrollTo("plans")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Shared Hosting</button></li>
-                <li><Link href="/vps" className="text-sm text-muted-foreground hover:text-foreground transition-colors">VPS Hosting</Link></li>
-                <li><button onClick={() => scrollTo("domain-search")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Domain Registration</button></li>
-                <li><button onClick={() => scrollTo("features")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">SSL Certificates</button></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Company</h4>
-              <ul className="space-y-2.5">
-                <li><Link href="/contact"  className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contact Us</Link></li>
-                <li><Link href="/status"   className="text-sm text-muted-foreground hover:text-foreground transition-colors">Server Status</Link></li>
-                <li><Link href="/help"     className="text-sm text-muted-foreground hover:text-foreground transition-colors">Help Center</Link></li>
-                <li><Link href="/order"    className="text-sm text-muted-foreground hover:text-foreground transition-colors">Order Now</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Legal</h4>
-              <ul className="space-y-2.5">
-                <li><Link href="/legal/terms"   className="text-sm text-muted-foreground hover:text-foreground transition-colors">Terms of Service</Link></li>
-                <li><Link href="/legal/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</Link></li>
-                <li><Link href="/legal/refund"  className="text-sm text-muted-foreground hover:text-foreground transition-colors">Refund Policy</Link></li>
-                <li><Link href="/client/login"  className="text-sm text-muted-foreground hover:text-foreground transition-colors">Client Login</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-border pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Noehost. All rights reserved.</p>
-            <div className="flex gap-6">
-              <Link href="/legal/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <Link href="/legal/terms"   className="hover:text-foreground transition-colors">Terms of Service</Link>
-              <Link href="/legal/refund"  className="hover:text-foreground transition-colors">Refund Policy</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
