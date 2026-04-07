@@ -1,5 +1,6 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useBranding } from "@/hooks/use-branding";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus } from "lucide-react";
@@ -56,8 +57,15 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
+  const { logoUrl, faviconUrl, siteName } = useBranding();
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+    if (faviconUrl && link) link.href = faviconUrl;
+  }, [faviconUrl]);
+
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -128,14 +136,18 @@ export function AppLayout({ children, role }: LayoutProps) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="p-5 flex items-center gap-3 border-b border-border/50">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-lg"
-          style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
-        >
-          N
-        </div>
+        {logoUrl ? (
+          <img src={logoUrl} alt={siteName} className="w-9 h-9 object-contain rounded-xl shrink-0" />
+        ) : (
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-lg shrink-0"
+            style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+          >
+            {siteName?.[0] ?? "N"}
+          </div>
+        )}
         <div>
-          <h1 className="font-display font-bold text-xl tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>NoeHost</h1>
+          <h1 className="font-display font-bold text-xl tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
           <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "#BB86FC" }}>
             {role === "admin" ? "NoePanel" : "Client Portal"}
           </p>
@@ -274,13 +286,17 @@ export function AppLayout({ children, role }: LayoutProps) {
       <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         {/* Logo */}
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow"
-            style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.40)" }}
-          >
-            N
-          </div>
-          <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>NoeHost</span>
+          {logoUrl ? (
+            <img src={logoUrl} alt={siteName} className="w-8 h-8 object-contain rounded-lg shrink-0" />
+          ) : (
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow shrink-0"
+              style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.40)" }}
+            >
+              {siteName?.[0] ?? "N"}
+            </div>
+          )}
+          <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</span>
         </div>
 
         {/* Right action cluster */}

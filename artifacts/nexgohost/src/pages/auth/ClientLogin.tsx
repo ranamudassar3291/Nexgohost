@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useBranding } from "@/hooks/use-branding";
 import { useLocation, Redirect } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,7 +23,7 @@ async function apiFetch(url: string, token?: string, opts?: RequestInit) {
 
 type Step = "password" | "2fa" | "verify";
 
-const FEATURES = [
+const FEATURES_LIST = [
   { icon: Server, text: "Manage unlimited hosting services" },
   { icon: Globe, text: "One-click domain management" },
   { icon: Shield, text: "Free SSL on every domain" },
@@ -31,6 +32,7 @@ const FEATURES = [
 
 export default function ClientLogin() {
   const { user, login } = useAuth();
+  const { logoUrl, siteName } = useBranding();
   const [, setLocation] = useLocation();
 
   const [email,       setEmail]       = useState("");
@@ -156,8 +158,15 @@ export default function ClientLogin() {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-9 h-9" />
-          <span className="text-white text-xl font-bold tracking-tight">Noehost</span>
+          {logoUrl ? (
+            <img src={logoUrl} alt={siteName} className="w-9 h-9 object-contain rounded-lg" />
+          ) : (
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-base"
+              style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+              {siteName?.[0] ?? "N"}
+            </div>
+          )}
+          <span className="text-white text-xl font-bold tracking-tight">{siteName}</span>
         </div>
 
         {/* Headline */}
@@ -169,7 +178,7 @@ export default function ClientLogin() {
             Manage your hosting, domains, emails, and more<br />from one powerful dashboard.
           </p>
           <div className="space-y-4">
-            {FEATURES.map(({ icon: Icon, text }) => (
+            {FEATURES_LIST.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
                   <Icon size={15} className="text-white" />
@@ -201,8 +210,15 @@ export default function ClientLogin() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-8 h-8" />
-            <span className="text-[#4F46E5] text-lg font-bold">Noehost</span>
+            {logoUrl ? (
+              <img src={logoUrl} alt={siteName} className="w-8 h-8 object-contain rounded-lg" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
+                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                {siteName?.[0] ?? "N"}
+              </div>
+            )}
+            <span className="text-[#4F46E5] text-lg font-bold">{siteName}</span>
           </div>
 
           <AnimatePresence mode="wait">

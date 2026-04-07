@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useBranding } from "@/hooks/use-branding";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -132,6 +133,7 @@ function CountryDropdown({
 
 export default function Register() {
   const { login }       = useAuth();
+  const { logoUrl, siteName } = useBranding();
   const [, setLocation] = useLocation();
   const { toast }       = useToast();
   const { currency, setCurrency, allCurrencies } = useCurrency();
@@ -318,11 +320,14 @@ export default function Register() {
 
         {/* Logo & heading */}
         <div className="flex flex-col items-center mb-7">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-violet-500/30"
-            style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
-            <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost"
-              className="w-7 h-7" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt={siteName} className="w-12 h-12 object-contain rounded-2xl mb-3 shadow-xl shadow-violet-500/30" />
+          ) : (
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-xl shadow-violet-500/30 font-bold text-white text-xl"
+              style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+              {siteName?.[0] ?? "N"}
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Create your account</h1>
           <p className="text-gray-500 text-sm mt-1">Professional hosting, globally priced</p>
         </div>

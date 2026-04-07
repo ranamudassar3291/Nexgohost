@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useBranding } from "@/hooks/use-branding";
 import { useLocation, Redirect } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ type Step = "password" | "2fa" | "2fa-setup";
 
 export default function AdminLogin() {
   const { user, login } = useAuth();
+  const { logoUrl, siteName } = useBranding();
   const [, setLocation] = useLocation();
 
   const [email, setEmail] = useState("");
@@ -139,12 +141,19 @@ export default function AdminLogin() {
 
           <div className="relative z-10 flex flex-col items-center mb-8">
             <div className="relative mb-4">
-              <img src={`${import.meta.env.BASE_URL}images/logo-icon.png`} alt="Noehost" className="w-16 h-16 drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+              {logoUrl ? (
+                <img src={logoUrl} alt={siteName} className="w-16 h-16 object-contain rounded-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]"
+                  style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                  {siteName?.[0] ?? "N"}
+                </div>
+              )}
               <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center border-2 border-background">
                 <ShieldCheck size={12} className="text-primary-foreground" />
               </div>
             </div>
-            <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin Noehost</h1>
+            <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin {siteName}</h1>
             <p className="text-muted-foreground text-center mt-1 text-sm">
               {step === "2fa-setup" ? "Set up two-factor authentication" : "Sign in with your administrator credentials"}
             </p>

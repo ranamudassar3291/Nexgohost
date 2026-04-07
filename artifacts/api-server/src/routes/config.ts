@@ -7,7 +7,7 @@ import { authenticate, requireAdmin } from "../lib/auth.js";
 
 const router = Router();
 
-const CONFIG_KEYS = ["panel_url", "cart_url", "admin_panel_url", "site_name", "site_tagline"];
+const CONFIG_KEYS = ["panel_url", "cart_url", "admin_panel_url", "site_name", "site_tagline", "branding_logo", "branding_favicon"];
 
 // GET /api/config — public endpoint (no auth required)
 router.get("/config", async (_req, res) => {
@@ -31,6 +31,8 @@ router.get("/config", async (_req, res) => {
       registerUrl:  `${panel}/register`,
       dashboardUrl: `${panel}/dashboard`,
       checkoutUrl:  cart,
+      logoUrl:      s["branding_logo"]    || null,
+      faviconUrl:   s["branding_favicon"] || null,
     });
   } catch {
     const clientUrl = getClientUrl();
@@ -45,6 +47,8 @@ router.get("/config", async (_req, res) => {
       registerUrl:  `${clientUrl}/register`,
       dashboardUrl: `${clientUrl}/dashboard`,
       checkoutUrl:  `${clientUrl}/orders/new`,
+      logoUrl:      null,
+      faviconUrl:   null,
     });
   }
 });

@@ -240,6 +240,36 @@ export async function sendEmail(opts: {
   return { sent: false, message: lastError, logId: failLogId };
 }
 
+let _brandingCache: { logo: string | null; company: string } | null = null;
+let _brandingCachedAt = 0;
+const BRANDING_TTL_MS = 60_000;
+
+async function getBrandingVars(): Promise<{ logo_url: string; company_name: string }> {
+  const now = Date.now();
+  if (_brandingCache && now - _brandingCachedAt < BRANDING_TTL_MS) {
+    return { logo_url: _brandingCache.logo ?? "", company_name: _brandingCache.company };
+  }
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) if (r.key && r.value) map[r.key] = r.value;
+    const logoPath  = map["branding_logo"] ?? null;
+    const company   = map["site_name"]     ?? map["smtp_from_name"] ?? "Noehost";
+    const baseUrl   = getClientUrl();
+    const logo_url  = logoPath ? `${baseUrl}${logoPath}` : "";
+    _brandingCache    = { logo: logo_url || null, company };
+    _brandingCachedAt = now;
+    return { logo_url, company_name: company };
+  } catch {
+    return { logo_url: "", company_name: "Noehost" };
+  }
+}
+
+export function clearBrandingCache(): void {
+  _brandingCache    = null;
+  _brandingCachedAt = 0;
+}
+
 export async function sendTemplatedEmail(
   slug: string,
   to: string,
@@ -264,10 +294,12 @@ export async function sendTemplatedEmail(
       return { sent: false, message: `Template "${slug}" is disabled` };
     }
 
-    const subject = renderTemplate(template.subject, variables);
-    const body    = renderTemplate(template.body, variables);
+    const branding = await getBrandingVars();
+    const mergedVars = { ...branding, ...variables };
 
-    // Detect if body is HTML (starts with a tag) or plain text
+    const subject = renderTemplate(template.subject, mergedVars);
+    const body    = renderTemplate(template.body, mergedVars);
+
     const isHtml = body.trimStart().startsWith("<");
     const html = isHtml ? body : body.replace(/\n/g, "<br>");
 

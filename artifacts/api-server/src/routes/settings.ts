@@ -1,9 +1,37 @@
 import { Router } from "express";
 import nodemailer from "nodemailer";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import { db } from "@workspace/db";
 import { settingsTable, emailLogsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+
+const BRANDING_DIR = path.join(__dirname, "../../../../nexgohost/public/uploads/branding");
+fs.mkdirSync(BRANDING_DIR, { recursive: true });
+
+const brandingStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, BRANDING_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".png";
+    const name = file.fieldname === "favicon" ? `favicon${ext}` : `logo${ext}`;
+    cb(null, name);
+  },
+});
+
+const brandingUpload = multer({
+  storage: brandingStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/png", "image/jpeg", "image/svg+xml", "image/webp", "image/x-icon", "image/vnd.microsoft.icon"];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
 
 const router = Router();
 
@@ -223,6 +251,71 @@ router.get("/test-mail", authenticate, requireAdmin, async (req: AuthRequest, re
   } catch (err: any) {
     console.error("[TEST-MAIL] Exception:", err.message);
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/admin/branding/upload — upload logo or favicon (admin only)
+router.post(
+  "/admin/branding/upload",
+  authenticate, requireAdmin,
+  brandingUpload.fields([{ name: "logo", maxCount: 1 }, { name: "favicon", maxCount: 1 }]),
+  async (req: AuthRequest, res) => {
+    try {
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const saved: string[] = [];
+
+      if (files?.["logo"]?.[0]) {
+        const f = files["logo"][0];
+        const urlPath = `/uploads/branding/${f.filename}`;
+        await db.insert(settingsTable).values({ key: "branding_logo", value: urlPath })
+          .onConflictDoUpdate({ target: settingsTable.key, set: { value: urlPath, updatedAt: new Date() } });
+        saved.push("logo");
+      }
+
+      if (files?.["favicon"]?.[0]) {
+        const f = files["favicon"][0];
+        const urlPath = `/uploads/branding/${f.filename}`;
+        await db.insert(settingsTable).values({ key: "branding_favicon", value: urlPath })
+          .onConflictDoUpdate({ target: settingsTable.key, set: { value: urlPath, updatedAt: new Date() } });
+        saved.push("favicon");
+      }
+
+      if (saved.length === 0) {
+        res.status(400).json({ error: "No valid file uploaded (logo or favicon field required)" });
+        return;
+      }
+
+      const { clearBrandingCache } = await import("../lib/email.js");
+      clearBrandingCache();
+      res.json({ success: true, saved });
+    } catch (err: any) {
+      console.error("[BRANDING] Upload error:", err);
+      res.status(500).json({ error: err.message || "Upload failed" });
+    }
+  }
+);
+
+// DELETE /api/admin/branding/:type — remove logo or favicon (admin only)
+router.delete("/admin/branding/:type", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  const { type } = req.params;
+  if (type !== "logo" && type !== "favicon") {
+    res.status(400).json({ error: "Type must be 'logo' or 'favicon'" });
+    return;
+  }
+  try {
+    const key = type === "logo" ? "branding_logo" : "branding_favicon";
+    const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, key)).limit(1);
+    if (row?.value) {
+      const filePath = path.join(BRANDING_DIR, path.basename(row.value));
+      try { fs.unlinkSync(filePath); } catch { /* file may already be gone */ }
+    }
+    await db.delete(settingsTable).where(eq(settingsTable.key, key));
+    const { clearBrandingCache } = await import("../lib/email.js");
+    clearBrandingCache();
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[BRANDING] Remove error:", err);
+    res.status(500).json({ error: err.message || "Remove failed" });
   }
 });
 

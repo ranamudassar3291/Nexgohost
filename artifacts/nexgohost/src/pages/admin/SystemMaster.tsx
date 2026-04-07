@@ -1,4 +1,4 @@
-import { Settings, Users, Mail, KeyRound, FileCode, Shield, Flame, Webhook } from "lucide-react";
+import { Settings, Users, Mail, KeyRound, FileCode, Shield, Flame, Webhook, Palette } from "lucide-react";
 import { MasterPage } from "@/components/layout/MasterPage";
 import AdminSettings from "./Settings";
 import AdminUsers from "./AdminUsers";
@@ -9,6 +9,7 @@ import SecuritySettings from "./SecuritySettings";
 import Firewall from "./Firewall";
 import ApiSettings from "./ApiSettings";
 import ApiDocs from "./ApiDocs";
+import Branding from "./Branding";
 
 function EmailSettingsWrapper() {
   return (
@@ -26,6 +27,13 @@ export default function SystemMaster() {
       icon={Settings}
       defaultTab="settings"
       tabs={[
+        {
+          id: "branding",
+          label: "Branding",
+          icon: Palette,
+          desc: "Logo, favicon, and visual identity",
+          component: Branding,
+        },
         {
           id: "settings",
           label: "Settings",
