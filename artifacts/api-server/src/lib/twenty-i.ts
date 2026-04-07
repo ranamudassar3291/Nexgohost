@@ -19,6 +19,7 @@
  */
 
 import axios, { type AxiosRequestConfig } from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { AsyncLocalStorage } from "async_hooks";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -172,8 +173,8 @@ export async function twentyiFindWorkingKeyFormat(
         validateStatus: () => true,
       };
       if (proxyUrl) {
-        const proxy = buildAxiosProxy(proxyUrl);
-        if (proxy) cfg.proxy = proxy;
+        cfg.httpsAgent = new HttpsProxyAgent(proxyUrl);
+        cfg.proxy = false;
       }
       const res = await axios(cfg);
       console.log(`[20i-KEY-DETECT] format=${fmt} keyLen=${keyVariant.length} → HTTP ${res.status}`);
@@ -225,13 +226,16 @@ export async function getOutboundIp(): Promise<string> {
     const proxyUrl = resolveProxyUrl();
     const cfg: AxiosRequestConfig = { timeout: 8_000 };
     if (proxyUrl) {
-      const proxy = buildAxiosProxy(proxyUrl);
-      if (proxy) cfg.proxy = proxy;
+      cfg.httpsAgent = new HttpsProxyAgent(proxyUrl);
+      cfg.proxy = false;
     }
     const res = await axios.get<{ ip: string }>("https://api.ipify.org?format=json", cfg);
     const ip = res.data?.ip ?? "unknown";
-    const via = proxyUrl ? `via proxy` : `direct — no proxy`;
-    console.log(`[20i] Outbound IP (${via}): ${ip}  \u2190 whitelist THIS in 20i, or set TWENTYI_PROXY for a static IP`);
+    if (proxyUrl) {
+      console.log(`[20i] Outbound IP via proxy: ${ip}  \u2190 This is your proxy's static IP — whitelist it once in 20i and it never needs to change`);
+    } else {
+      console.log(`[20i] Outbound IP (direct): ${ip}  \u2190 This IP changes on Replit restart — set a "Static IP Proxy URL" on the 20i server (Admin \u2192 Servers) for a permanent fix`);
+    }
     return ip;
   } catch {
     return "unknown";
@@ -323,8 +327,8 @@ async function request<T = any>(
       validateStatus: () => true,
     };
     if (proxyUrl) {
-      const proxy = buildAxiosProxy(proxyUrl);
-      if (proxy) cfg.proxy = proxy;
+      cfg.httpsAgent = new HttpsProxyAgent(proxyUrl);
+      cfg.proxy = false;
     }
     return axios(cfg);
   };
@@ -1008,7 +1012,7 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
       timeout: DEFAULT_TIMEOUT_MS,
       validateStatus: () => true,
     };
-    if (proxyUrl) { const p = buildAxiosProxy(proxyUrl); if (p) cfg.proxy = p; }
+    if (proxyUrl) { cfg.httpsAgent = new HttpsProxyAgent(proxyUrl); cfg.proxy = false; }
     const res = await axios(cfg);
     const data = res.data as any;
     const pkgCount = Array.isArray(data) ? data.length

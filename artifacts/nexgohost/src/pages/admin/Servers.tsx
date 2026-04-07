@@ -441,12 +441,17 @@ export default function Servers() {
                         className="font-mono text-sm"
                       />
                       <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1.5">
-                        <p className="font-semibold text-emerald-700">Permanent fix for changing IPs</p>
+                        <p className="font-semibold text-emerald-700">Permanent fix — never whitelist an IP again</p>
                         <p>
-                          If your server at <strong>noehost.com</strong> is already whitelisted in 20i, route all API calls through it as a proxy.
-                          Install <strong>Squid</strong> or <strong>Tinyproxy</strong> on your server and enter the URL here (e.g. <code className="font-mono text-primary">http://noehost.com:3128</code>).
+                          Route all 20i API calls through a <strong>static-IP proxy service</strong>. The proxy always exits from the same IP — you whitelist that IP in 20i once, and Replit's dynamic IP no longer matters.
                         </p>
-                        <p>Once set, 20i will always see your server's stable IP — no more manual whitelisting.</p>
+                        <p className="font-medium text-foreground/70">Recommended services (free tiers available):</p>
+                        <ul className="ml-3 space-y-0.5 list-disc">
+                          <li><a href="https://usefixie.com" target="_blank" rel="noreferrer" className="text-primary underline font-semibold">Fixie</a> — <code className="font-mono text-primary">http://fixie:API_KEY@velodrome.usefixie.com:80</code></li>
+                          <li><a href="https://webshare.io" target="_blank" rel="noreferrer" className="text-primary underline font-semibold">Webshare</a> — <code className="font-mono text-primary">http://user:pass@p.webshare.io:80</code></li>
+                          <li>Any Squid/HTTP proxy with a dedicated IP — <code className="font-mono text-primary">http://user:pass@host:port</code></li>
+                        </ul>
+                        <p>After entering the URL, click <strong>Test Connection</strong> — the displayed outbound IP is the proxy's static IP to whitelist in 20i.</p>
                       </div>
                     </div>
 

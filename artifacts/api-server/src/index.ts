@@ -1,7 +1,7 @@
 import app from "./app";
 import { decryptField } from "./lib/fieldCrypto.js";
 import { refreshExchangeRates } from "./routes/currencies.js";
-import { runAllCronTasks } from "./lib/cron.js";
+import { runAllCronTasks, runTwentyiHealthCheck } from "./lib/cron.js";
 import { seedMissingTemplates } from "./routes/email-templates.js";
 import { seedVpsData } from "./lib/seedVps.js";
 import { seedKbContent } from "./routes/kb.js";
@@ -112,6 +112,18 @@ app.listen(port, async () => {
   };
   runCron();
   setInterval(runCron, 5 * 60 * 1000);
+
+  // 20i connection health check — every 15 minutes, WA alert on failure
+  // First check after 3 minutes (let server warm up), then every 15 min.
+  setTimeout(() => {
+    const healthCheck = async () => {
+      try { await runTwentyiHealthCheck(); } catch (err: any) {
+        console.warn("[HEALTH] 20i health check error:", err.message);
+      }
+    };
+    healthCheck();
+    setInterval(healthCheck, 15 * 60 * 1000);
+  }, 3 * 60 * 1000);
 
   // Seed missing email templates (safe upsert — never overwrites admin edits)
   seedMissingTemplates().then(() => {

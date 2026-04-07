@@ -21,7 +21,7 @@ import {
   sendEmail,
 } from "./email.js";
 import { serversTable } from "@workspace/db/schema";
-import { twentyiListSites, runWithCtx } from "./twenty-i.js";
+import { twentyiListSites, runWithCtx, twentyiTestConnection } from "./twenty-i.js";
 import { decryptField } from "./fieldCrypto.js";
 import { sendWhatsAppAlert, sendToClientPhone, formatPKPhone } from "./whatsapp.js";
 
@@ -1513,6 +1513,64 @@ export async function runSuspensionWarningCron(): Promise<void> {
   } catch (err: any) {
     await logCron("wa:suspension_warning", "failed", err.message);
     console.error("[CRON] wa:suspension_warning error:", err.message);
+  }
+}
+
+// ─── 20i Connection Health Check (runs every 15 minutes) ─────────────────────
+// Tests the 20i API connection via the configured proxy (or direct) and sends a
+// WhatsApp alert to the admin if the connection fails.
+let _lastHealthAlertAt: number | null = null;
+const HEALTH_ALERT_COOLDOWN_MS = 30 * 60 * 1000; // Max one WA alert per 30 min
+
+export async function runTwentyiHealthCheck(): Promise<void> {
+  try {
+    const [server] = await db.select().from(serversTable)
+      .where(and(
+        eq(serversTable.type as any, "20i"),
+        eq(serversTable.status, "active"),
+      ))
+      .orderBy(desc(serversTable.updatedAt))
+      .limit(1);
+
+    if (!server?.apiToken) return; // No 20i server configured — silently skip
+
+    const apiKey = decryptField(server.apiToken).trim();
+    if (!apiKey) return;
+
+    const result = await runWithCtx(
+      { keyType: (server as any).keyType ?? "general", proxyUrl: (server as any).proxyUrl ?? undefined },
+      () => twentyiTestConnection(apiKey),
+    );
+
+    if (!result.success) {
+      const now = Date.now();
+      const shouldAlert = !_lastHealthAlertAt || (now - _lastHealthAlertAt) > HEALTH_ALERT_COOLDOWN_MS;
+
+      if (shouldAlert) {
+        _lastHealthAlertAt = now;
+        const proxyActive = !!(server as any).proxyUrl || !!process.env.TWENTYI_PROXY;
+        const proxyLine = proxyActive
+          ? `🔌 Proxy URL is set — the proxy may be down or the proxy's IP was removed from 20i's whitelist.`
+          : `⚠️ No proxy configured — Replit's outbound IP may have changed. Set a Static IP Proxy URL in Admin → Servers to prevent this.`;
+
+        await sendWhatsAppAlert(
+          `🚨 *20i API Health Alert — NoePanel*\n\n` +
+          `The 20i connection check has FAILED.\n\n` +
+          `Error: ${result.message?.substring(0, 200) ?? "Unknown error"}\n\n` +
+          `${proxyLine}\n\n` +
+          `Check Admin → Servers → 20i server and test the connection.\n\n` +
+          `_Auto-check runs every 15 minutes_`,
+          "client_notification",
+        );
+      }
+
+      await logCron("twentyi:health_check", "failed", result.message?.substring(0, 500));
+    } else {
+      await logCron("twentyi:health_check", "success", `OK — ${result.message?.substring(0, 200)}`);
+    }
+  } catch (err: any) {
+    console.warn("[CRON] 20i health check error:", err.message);
+    await logCron("twentyi:health_check", "failed", `Health check threw: ${err.message?.substring(0, 300)}`).catch(() => {});
   }
 }
 

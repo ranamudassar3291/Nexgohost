@@ -397,8 +397,12 @@ export default function AddPackage() {
                               </button>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              Steps: Go to my.20i.com → Reseller API → IP Whitelist → Add the IP above → Save → Click "Check Again"
+                              Quick fix: Go to my.20i.com → Reseller API → IP Whitelist → Add the IP above → Save → Click "Check Again"
                             </p>
+                            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs space-y-1">
+                              <p className="font-semibold text-emerald-700">Permanent fix (recommended)</p>
+                              <p className="text-muted-foreground">Set a <strong>Static IP Proxy URL</strong> on the 20i server so the same IP is always used regardless of Replit restarts — go to <strong>Admin → Servers → Edit 20i server</strong>. Services like <a href="https://usefixie.com" target="_blank" rel="noreferrer" className="underline text-primary">Fixie</a> or <a href="https://webshare.io" target="_blank" rel="noreferrer" className="underline text-primary">Webshare</a> give you a free static exit IP.</p>
+                            </div>
                           </div>
                         ) : (
                           <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
