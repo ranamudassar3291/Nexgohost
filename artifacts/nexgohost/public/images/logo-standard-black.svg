@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 228 56" width="228" height="56">
+  <defs>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#BB86FC"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon: rounded purple rectangle -->
+  <rect x="0" y="4" width="48" height="48" rx="12" fill="url(#iconGrad)"/>
+
+  <!-- Server rack: 3 bar rows -->
+  <rect x="9"  y="13" width="30" height="8"  rx="2.5" fill="white" opacity="0.95"/>
+  <rect x="9"  y="24" width="30" height="8"  rx="2.5" fill="white" opacity="0.80"/>
+  <rect x="9"  y="35" width="30" height="8"  rx="2.5" fill="white" opacity="0.65"/>
+
+  <!-- Status dots on bars -->
+  <circle cx="34" cy="17" r="2.2" fill="#03DAC6"/>
+  <circle cx="34" cy="28" r="2.2" fill="#BB86FC" opacity="0.9"/>
+  <circle cx="34" cy="39" r="2.2" fill="white"   opacity="0.5"/>
+
+  <!-- "NOEHOST" bold black text -->
+  <text
+    x="62" y="38"
+    font-family="'Arial Black', 'Arial Bold', 'Helvetica Neue', Arial, sans-serif"
+    font-weight="900"
+    font-size="24"
+    letter-spacing="2"
+    fill="#0F0F0F"
+  >NOEHOST</text>
+</svg>

@@ -12,7 +12,7 @@ import { desc, eq } from "drizzle-orm";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-const BRANDING_DIR = path.join(__dirname, "../../../../nexgohost/public/uploads/branding");
+const BRANDING_DIR = path.join(__dirname, "../../../nexgohost/public/uploads/branding");
 fs.mkdirSync(BRANDING_DIR, { recursive: true });
 
 const brandingStorage = multer.diskStorage({

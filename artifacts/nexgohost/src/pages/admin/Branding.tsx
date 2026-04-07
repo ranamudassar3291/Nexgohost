@@ -145,26 +145,29 @@ export default function Branding() {
                 {isLoading ? (
                   <div className="w-10 h-10 rounded-xl bg-muted animate-pulse shrink-0" />
                 ) : activeLogoUrl ? (
-                  <div className="brand-logo-container w-10 h-10 rounded-xl">
-                    <img src={activeLogoUrl} alt={siteName} className="brand-logo-img rounded-xl" />
+                  <div className="flex items-center min-w-0 max-w-full">
+                    <img
+                      src={activeLogoUrl}
+                      alt={siteName}
+                      className="brand-logo-img"
+                      style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
+                    />
                   </div>
                 ) : (
-                  <div
-                    className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
-                    style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
-                  >
-                    {siteName[0]}
-                  </div>
-                )}
-                {isLoading ? (
-                  <div className="h-5 w-24 bg-muted rounded animate-pulse" />
-                ) : (
-                  <div className="flex flex-col justify-center min-w-0">
-                    <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                      {siteName}
-                    </h1>
-                    <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>NoePanel</p>
-                  </div>
+                  <>
+                    <div
+                      className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
+                      style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+                    >
+                      {siteName[0]}
+                    </div>
+                    <div className="flex flex-col justify-center min-w-0">
+                      <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                        {siteName}
+                      </h1>
+                      <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>NoePanel</p>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -179,20 +182,23 @@ export default function Branding() {
                   <div className="w-10 h-10 rounded-xl bg-gray-200 animate-pulse" />
                   <div className="h-5 w-20 bg-gray-200 rounded animate-pulse" />
                 </div>
+              ) : activeLogoUrl ? (
+                <div className="flex items-center">
+                  <img
+                    src={activeLogoUrl}
+                    alt={siteName}
+                    className="brand-logo-img"
+                    style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
+                  />
+                </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  {activeLogoUrl ? (
-                    <div className="brand-logo-container w-10 h-10 rounded-xl">
-                      <img src={activeLogoUrl} alt={siteName} className="brand-logo-img rounded-xl" />
-                    </div>
-                  ) : (
-                    <div
-                      className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
-                      style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
-                    >
-                      {siteName[0]}
-                    </div>
-                  )}
+                  <div
+                    className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
+                    style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+                  >
+                    {siteName[0]}
+                  </div>
                   <div className="flex flex-col justify-center">
                     <h1 className="font-display font-bold text-xl tracking-tight leading-none text-gray-900">{siteName}</h1>
                   </div>
@@ -207,7 +213,7 @@ export default function Branding() {
       <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
         <div>
           <h3 className="text-base font-semibold text-foreground">Main Logo</h3>
-          <p className="text-sm text-muted-foreground mt-1">Shown in the sidebar, login pages, and email headers. Recommended: PNG or SVG, square aspect ratio, min 128×128px.</p>
+          <p className="text-sm text-muted-foreground mt-1">Shown in the sidebar, login pages, and PDF invoices. For best results: PNG or SVG, wide/horizontal format (e.g. 400×80px), transparent background.</p>
         </div>
 
         {/* Current logo */}

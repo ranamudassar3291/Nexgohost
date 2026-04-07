@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { getAppUrl } from "./app-url.js";
 /**
  * Noehost — Professional Single-Page Invoice PDF
@@ -105,6 +108,19 @@ function dt(iso: string | null | undefined): string {
   } catch { return "—"; }
 }
 
+// ── Logo loader (falls back to null silently) ─────────────────────────────────
+const __filename_pdf = fileURLToPath(import.meta.url);
+const __dirname_pdf  = path.dirname(__filename_pdf);
+const LOGO_PATH      = path.join(__dirname_pdf, "../../../nexgohost/public/uploads/branding/logo.png");
+const LOGO_FALLBACK  = path.join(__dirname_pdf, "../../../nexgohost/public/images/logo-standard-black.png");
+
+function loadLogoBuf(): Buffer | null {
+  for (const p of [LOGO_PATH, LOGO_FALLBACK]) {
+    try { return fs.readFileSync(p); } catch { /* skip */ }
+  }
+  return null;
+}
+
 // ── Generator ─────────────────────────────────────────────────────────────────
 export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -157,14 +173,27 @@ export function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
     // ── 1. HEADER BAND (0–90) ─────────────────────────────────────────────────
     doc.rect(0, 0, PW, 90).fill(BRAND);
 
-    // Logo
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
-    doc.text("N", L, 20, { continued: true, lineBreak: false });
-    doc.font("Helvetica").fillColor("rgba(255,255,255,0.90)").text("oehost", { lineBreak: false });
+    // Logo — use uploaded brand image when available, else text fallback
+    const logoBuf = loadLogoBuf();
+    if (logoBuf) {
+      try {
+        doc.image(logoBuf, L, 18, { height: 40, fit: [200, 44] });
+      } catch {
+        doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
+        doc.text("N", L, 20, { continued: true, lineBreak: false });
+        doc.font("Helvetica").fillColor("rgba(255,255,255,0.90)").text("oehost", { lineBreak: false });
+      }
+      doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.52)");
+      doc.text(`billing@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}`, L, 64, { lineBreak: false });
+    } else {
+      doc.font("Helvetica-Bold").fontSize(20).fillColor(WHITE);
+      doc.text("N", L, 20, { continued: true, lineBreak: false });
+      doc.font("Helvetica").fillColor("rgba(255,255,255,0.90)").text("oehost", { lineBreak: false });
 
-    doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.58)");
-    doc.text("Professional Hosting Solutions", L, 46, { lineBreak: false });
-    doc.text(`billing@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}`, L, 57, { lineBreak: false });
+      doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.58)");
+      doc.text("Professional Hosting Solutions", L, 46, { lineBreak: false });
+      doc.text(`billing@${new URL(getAppUrl()).hostname}  ·  ${new URL(getAppUrl()).hostname}`, L, 57, { lineBreak: false });
+    }
 
     // Invoice number (right-aligned)
     doc.font("Helvetica").fontSize(7.5).fillColor("rgba(255,255,255,0.52)");

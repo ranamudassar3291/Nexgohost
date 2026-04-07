@@ -139,27 +139,30 @@ export function AppLayout({ children, role }: LayoutProps) {
       {/* Logo */}
       <div className="px-5 py-4 flex items-center gap-3 border-b border-border/50" style={{ minHeight: 64 }}>
         {logoUrl ? (
-          <div className="brand-logo-container w-10 h-10 rounded-xl">
+          <div className="flex items-center min-w-0 max-w-full">
             <img
               src={logoUrl}
               alt={siteName}
-              className="brand-logo-img rounded-xl"
+              className="brand-logo-img"
+              style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
             />
           </div>
         ) : (
-          <div
-            className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg"
-            style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
-          >
-            {siteName?.[0] ?? "N"}
-          </div>
+          <>
+            <div
+              className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
+              style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 14px rgba(187,134,252,0.40)" }}
+            >
+              {siteName?.[0] ?? "N"}
+            </div>
+            <div className="flex flex-col justify-center min-w-0">
+              <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
+              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>
+                {role === "admin" ? "NoePanel" : "Client Portal"}
+              </p>
+            </div>
+          </>
         )}
-        <div className="flex flex-col justify-center min-w-0">
-          <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
-          <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#BB86FC" }}>
-            {role === "admin" ? "NoePanel" : "Client Portal"}
-          </p>
-        </div>
       </div>
 
       {/* Nav */}
@@ -311,18 +314,23 @@ export function AppLayout({ children, role }: LayoutProps) {
         {/* Logo */}
         <div className="flex items-center gap-2.5">
           {logoUrl ? (
-            <div className="brand-logo-container w-9 h-9 rounded-lg">
-              <img src={logoUrl} alt={siteName} className="brand-logo-img rounded-lg" />
-            </div>
+            <img
+              src={logoUrl}
+              alt={siteName}
+              className="brand-logo-img"
+              style={{ maxHeight: 38, width: "auto", maxWidth: 180 }}
+            />
           ) : (
-            <div
-              className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow"
-              style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.40)" }}
-            >
-              {siteName?.[0] ?? "N"}
-            </div>
+            <>
+              <div
+                className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow shrink-0"
+                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)", boxShadow: "0 0 12px rgba(187,134,252,0.40)" }}
+              >
+                {siteName?.[0] ?? "N"}
+              </div>
+              <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</span>
+            </>
           )}
-          <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#BB86FC,#03DAC6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</span>
         </div>
 
         {/* Right action cluster */}

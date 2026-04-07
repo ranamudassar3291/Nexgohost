@@ -159,14 +159,21 @@ export default function ClientLogin() {
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt={siteName} className="brand-logo-img w-9 h-9 rounded-lg" />
+            <img
+              src={logoUrl}
+              alt={siteName}
+              className="brand-logo-img"
+              style={{ maxHeight: 40, width: "auto", filter: "brightness(0) invert(1)" }}
+            />
           ) : (
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-base"
-              style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
-              {siteName?.[0] ?? "N"}
-            </div>
+            <>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-base"
+                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                {siteName?.[0] ?? "N"}
+              </div>
+              <span className="text-white text-xl font-bold tracking-tight">{siteName}</span>
+            </>
           )}
-          <span className="text-white text-xl font-bold tracking-tight">{siteName}</span>
         </div>
 
         {/* Headline */}
@@ -211,14 +218,21 @@ export default function ClientLogin() {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
             {logoUrl ? (
-              <img src={logoUrl} alt={siteName} className="brand-logo-img w-8 h-8 rounded-lg" />
+              <img
+                src={logoUrl}
+                alt={siteName}
+                className="brand-logo-img"
+                style={{ maxHeight: 36, width: "auto" }}
+              />
             ) : (
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
-                style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
-                {siteName?.[0] ?? "N"}
-              </div>
+              <>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm"
+                  style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
+                  {siteName?.[0] ?? "N"}
+                </div>
+                <span className="text-[#4F46E5] text-lg font-bold">{siteName}</span>
+              </>
             )}
-            <span className="text-[#4F46E5] text-lg font-bold">{siteName}</span>
           </div>
 
           <AnimatePresence mode="wait">

@@ -82,7 +82,12 @@ export default function AdminLogin() {
           <div className="relative z-10 flex flex-col items-center mb-8">
             <div className="relative mb-4">
               {logoUrl ? (
-                <img src={logoUrl} alt={siteName} className="brand-logo-img w-16 h-16 rounded-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]" />
+                <img
+                  src={logoUrl}
+                  alt={siteName}
+                  className="brand-logo-img drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]"
+                  style={{ maxHeight: 56, width: "auto" }}
+                />
               ) : (
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl drop-shadow-[0_0_15px_rgba(139,92,246,0.6)]"
                   style={{ background: "linear-gradient(135deg, #BB86FC, #7C3AED)" }}>
@@ -93,7 +98,8 @@ export default function AdminLogin() {
                 <ShieldCheck size={12} className="text-primary-foreground" />
               </div>
             </div>
-            <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin {siteName}</h1>
+            {!logoUrl && <h1 className="text-3xl font-display font-bold text-foreground text-center">Admin {siteName}</h1>}
+            {logoUrl && <p className="text-sm font-semibold text-muted-foreground text-center">Admin Portal</p>}
             <p className="text-muted-foreground text-center mt-1 text-sm">Sign in with your administrator credentials</p>
             <div className="mt-3 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 flex items-center gap-1.5 text-xs text-primary font-medium">
               <ShieldCheck size={12} /> Administrator Access

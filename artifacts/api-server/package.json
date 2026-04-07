@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@sfpy/node-core": "^0.3.5",
     "@types/nodemailer": "^7.0.11",
     "@whiskeysockets/baileys": "7.0.0-rc.9",

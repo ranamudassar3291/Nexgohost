@@ -1,5 +1,22 @@
 # Noehost / NoePanel — Hosting & Client Management Platform
 
+## Recent Changes (Session 49 — Logo Standardization + Combined Logo Engine)
+
+### Logo Standardization — COMPLETE
+- **Combined SVG logo created**: `artifacts/nexgohost/public/images/logo-standard-black.svg` — purple gradient server-rack icon (3 horizontal bar rows + status dots) + "NOEHOST" bold text in one 228×56 SVG
+- **High-res PNG generated**: `logo-standard-black.png` rendered at 2× via `@resvg/resvg-js` WASM renderer — placed in both `public/images/` and `public/uploads/branding/logo.png`
+- **DB activated**: `branding_logo = /uploads/branding/logo.png` inserted into settings — logo now live everywhere
+- **Branding upload path bug fixed**: `settings.ts` BRANDING_DIR corrected from `../../../../nexgohost/` → `../../../nexgohost/` so uploads now land in `artifacts/nexgohost/public/uploads/branding/` (Vite-served path) instead of dead `workspace/nexgohost/`
+- **Sidebar (AppLayout.tsx)**: When `logoUrl` is set → shows combined logo at `max-height: 44px, width: auto` with NO separate site name text; when no logo → keeps initial icon + site name text fallback
+- **Mobile header**: Same pattern — wide logo or icon+text fallback
+- **Admin login**: Logo rendered at `max-height: 56px` (not square); `h1 "Admin {siteName}"` hidden when logo is set; replaced by `"Admin Portal"` subtitle
+- **Client login left panel**: Wide logo with `brightness(0) invert(1)` filter for visibility on dark purple background; no separate site name text beside logo
+- **Client login mobile header**: Wide logo or icon+text fallback
+- **Register page**: Logo at `max-height: 52px` with drop-shadow instead of square
+- **Invoice PDF (invoicePdf.ts)**: Loads logo PNG from disk via `loadLogoBuf()` — tries branding upload path first, then static fallback; renders via `doc.image()` at `height: 40, fit: [200, 44]` inside purple header band; falls back to text logo if file missing
+- **Branding page preview**: Both "Sidebar" and "Login page" previews updated to match new wide-logo format (icon+text only shown when no logo set)
+- **Branding description**: Updated to "wide/horizontal format (e.g. 400×80px), transparent background"
+
 ## Recent Changes (Session 48 — Free Domain Claim System + Dynamic Logo Engine)
 
 ### Feature: Free Domain Claim System (Hostinger-style)
