@@ -17,8 +17,12 @@ import {
   emailServiceTerminated, emailTerminationWarning,
   emailDomainStatusAlert,
   emailDomain30DayReminder, emailDomain15DayDiscount, emailDomain1DayUrgent,
+  emailInvoiceCreated,
   sendEmail,
 } from "./email.js";
+import { serversTable } from "@workspace/db/schema";
+import { twentyiListSites, runWithCtx } from "./twenty-i.js";
+import { decryptField } from "./fieldCrypto.js";
 import { sendWhatsAppAlert } from "./whatsapp.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
@@ -58,24 +62,24 @@ async function logEmail(clientId: string, email: string, emailType: string, subj
   } catch { /* non-fatal */ }
 }
 
-// ─── Task 1: Auto-generate invoices 14 days before service due date ──────────
+// ─── Task 1: Auto-generate invoices 7 days before service due date ───────────
 export async function runBillingCron(): Promise<void> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Window: services due between 14 and 15 days from now
-  const fourteenDays = new Date(today);
-  fourteenDays.setDate(fourteenDays.getDate() + 14);
-  const fifteenDays = new Date(today);
-  fifteenDays.setDate(fifteenDays.getDate() + 15);
+  // Window: services due between 7 and 8 days from now (runs every 5 min — strict window prevents duplicates)
+  const sevenDays = new Date(today);
+  sevenDays.setDate(sevenDays.getDate() + 7);
+  const eightDays = new Date(today);
+  eightDays.setDate(eightDays.getDate() + 8);
 
   try {
     const dueServices = await db.select().from(hostingServicesTable)
       .where(and(
         eq(hostingServicesTable.status, "active"),
         eq(hostingServicesTable.autoRenew, true),
-        gte(hostingServicesTable.nextDueDate, fourteenDays),
-        lte(hostingServicesTable.nextDueDate, fifteenDays),
+        gte(hostingServicesTable.nextDueDate, sevenDays),
+        lte(hostingServicesTable.nextDueDate, eightDays),
       ));
 
     let invoicesCreated = 0;
@@ -89,20 +93,29 @@ export async function runBillingCron(): Promise<void> {
 
       if (existingInvoice.length > 0) continue;
 
-      const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
+      const [plan] = service.planId
+        ? await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1)
+        : [undefined];
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
       if (!user) continue;
 
+      // ── Authoritative price resolution ──────────────────────────────────────
+      // Priority: plan price → service.amount (manually set) → 0.00 (trial/error)
+      let rawAmount: string;
+      if (service.billingCycle === "yearly") {
+        rawAmount = plan?.yearlyPrice ?? plan?.price ?? service.amount ?? "0.00";
+      } else {
+        rawAmount = plan?.price ?? service.amount ?? "0.00";
+      }
+      // Guard against empty string or null coercion
+      const amount = (rawAmount && rawAmount !== "" && rawAmount !== "0" && rawAmount !== "0.00")
+        ? rawAmount.toString()
+        : (service.amount ?? "0.00").toString();
+
       const invoiceNumber = await generateInvoiceNumber();
-      // Due date = the actual service due date (not arbitrary today+7)
       const dueDate = new Date(service.nextDueDate || today);
 
-      // Use actual plan price; fall back to "0.00" only if no plan found
-      const amount = service.billingCycle === "yearly"
-        ? (plan?.yearlyPrice ?? plan?.price ?? "0.00").toString()
-        : (plan?.price ?? "0.00").toString();
-
-      await db.insert(invoicesTable).values({
+      const [newInvoice] = await db.insert(invoicesTable).values({
         invoiceNumber,
         clientId: service.clientId,
         serviceId: service.id,
@@ -111,8 +124,8 @@ export async function runBillingCron(): Promise<void> {
         total: amount,
         status: "unpaid",
         dueDate,
-        items: [{ description: `${service.planName} - Renewal`, amount }],
-      });
+        items: [{ description: `${service.planName} - Renewal (${service.billingCycle ?? "monthly"})`, amount: Number(amount), total: Number(amount) }],
+      }).returning();
 
       // NOTE: nextDueDate is NOT updated here — it is updated when the renewal
       // invoice is actually paid (see activateInvoice.ts), so the new due date
@@ -120,6 +133,21 @@ export async function runBillingCron(): Promise<void> {
 
       await logEmail(service.clientId, user.email, "invoice_generated", `Invoice ${invoiceNumber} – Service Renewal`, service.id);
       notify(service.clientId, "invoice", "Invoice Generated", `Invoice ${invoiceNumber} for ${service.planName} renewal — Rs. ${amount}`, `/client/invoices`).catch(() => {});
+
+      // ── Send invoice-created email immediately ─────────────────────────────
+      if (newInvoice) {
+        const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
+        const dueDateStr = dueDate.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+        try {
+          await emailInvoiceCreated(user.email, {
+            clientName,
+            invoiceId: newInvoice.id,
+            invoiceNumber,
+            amount: Number(amount).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            dueDate: dueDateStr,
+          }, { clientId: service.clientId, referenceId: newInvoice.id });
+        } catch { /* non-fatal — email failure should not abort invoice creation */ }
+      }
 
       invoicesCreated++;
     }
@@ -403,7 +431,7 @@ export async function runDomainRenewalCron(): Promise<void> {
   }
 }
 
-// ─── Task 4: Email invoice reminders ─────────────────────────────────────────
+// ─── Task 4: Email invoice reminders (actually sends emails) ─────────────────
 export async function runInvoiceRemindersCron(): Promise<void> {
   const now = new Date();
 
@@ -436,21 +464,222 @@ export async function runInvoiceRemindersCron(): Promise<void> {
 
       if (alreadySent.length > 0) continue;
 
+      const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
+      const amountStr = `Rs. ${Number(invoice.amount ?? 0).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`;
+      const dueDateStr = invoice.dueDate.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+
       const subjects: Record<string, string> = {
-        invoice_reminder_7d: `Invoice ${invoice.invoiceNumber} due in 7 days`,
-        invoice_reminder_3d: `Invoice ${invoice.invoiceNumber} due in 3 days`,
-        invoice_due_today: `Invoice ${invoice.invoiceNumber} is due today`,
-        invoice_overdue_3d: `OVERDUE: Invoice ${invoice.invoiceNumber} – Action Required`,
+        invoice_reminder_7d:  `Invoice ${invoice.invoiceNumber} — Due in 7 Days`,
+        invoice_reminder_3d:  `Invoice ${invoice.invoiceNumber} — Due in 3 Days`,
+        invoice_due_today:    `⚠️ Invoice ${invoice.invoiceNumber} is Due Today`,
+        invoice_overdue_1d:   `🔴 OVERDUE: Invoice ${invoice.invoiceNumber} — Immediate Action Required`,
+        invoice_overdue_3d:   `🔴 OVERDUE: Invoice ${invoice.invoiceNumber} — Service at Risk`,
       };
 
-      await logEmail(invoice.clientId, user.email, emailType, subjects[emailType] || emailType, invoice.id);
-      sent++;
+      const urgencyColor = emailType.includes("overdue") ? "#dc2626" : "#701AFE";
+      const isOverdue = emailType.includes("overdue");
+      const year = now.getFullYear();
+
+      const emailHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Inter',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:30px 0">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+
+  <!-- HEADER -->
+  <tr>
+    <td style="background:linear-gradient(135deg,#4F46E5,#701AFE);padding:32px 44px;text-align:center">
+      <h1 style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px">Noehost</h1>
+      <p style="margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.75)">Billing & Invoice Management</p>
+    </td>
+  </tr>
+
+  <!-- ALERT BADGE -->
+  <tr>
+    <td style="padding:28px 44px 0;text-align:center">
+      <span style="display:inline-block;background:${urgencyColor}15;border:1px solid ${urgencyColor}40;color:${urgencyColor};font-size:12px;font-weight:700;padding:6px 16px;border-radius:20px;letter-spacing:0.5px">
+        ${isOverdue ? "⚠️ PAYMENT OVERDUE" : "📋 PAYMENT REMINDER"}
+      </span>
+    </td>
+  </tr>
+
+  <!-- BODY -->
+  <tr>
+    <td style="padding:24px 44px">
+      <p style="margin:0 0 16px;font-size:16px;color:#1f2937">Dear <strong>${clientName}</strong>,</p>
+      <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6">
+        ${isOverdue
+          ? `Your invoice <strong>${invoice.invoiceNumber}</strong> is <span style="color:#dc2626;font-weight:700">overdue</span>. Please settle the balance immediately to avoid service interruption.`
+          : `This is a friendly reminder that invoice <strong>${invoice.invoiceNumber}</strong> is due on <strong>${dueDateStr}</strong>. Please ensure timely payment to keep your services running.`
+        }
+      </p>
+
+      <!-- INVOICE BOX -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9ff;border:2px solid ${urgencyColor}30;border-radius:10px;overflow:hidden;margin:0 0 24px">
+        <tr>
+          <td style="padding:20px 24px;border-bottom:1px solid #e5e7eb">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size:13px;color:#6b7280">Invoice Number</td>
+                <td style="font-size:13px;font-weight:700;color:#111827;text-align:right">${invoice.invoiceNumber}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 24px;border-bottom:1px solid #e5e7eb">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size:13px;color:#6b7280">Due Date</td>
+                <td style="font-size:13px;font-weight:700;color:${isOverdue ? "#dc2626" : "#111827"};text-align:right">${dueDateStr}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 24px;background:${urgencyColor}08">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size:14px;font-weight:600;color:#374151">Amount Due</td>
+                <td style="font-size:20px;font-weight:800;color:${urgencyColor};text-align:right">${amountStr}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- CTA BUTTON -->
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="padding:8px 0 24px">
+            <a href="https://panel.noehost.com/client/invoices/${invoice.id}"
+               style="display:inline-block;background:${urgencyColor};color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:700">
+              Pay Invoice Now →
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      ${isOverdue ? `<p style="margin:0 0 16px;font-size:13px;color:#dc2626;text-align:center;font-weight:600">⚠️ Continued non-payment may result in service suspension.</p>` : ""}
+    </td>
+  </tr>
+
+  <!-- FOOTER -->
+  <tr>
+    <td style="background:#1a1a2e;padding:24px 44px;text-align:center">
+      <p style="margin:0 0 8px;font-size:12px;color:rgba(255,255,255,0.5)">© ${year} Noehost. All rights reserved.</p>
+      <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.3)">This is an automated billing notification from Noehost.</p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+      try {
+        const result = await sendEmail({
+          to: user.email,
+          subject: subjects[emailType] ?? `Invoice ${invoice.invoiceNumber} Payment Reminder`,
+          html: emailHtml,
+          emailType,
+          clientId: invoice.clientId,
+          referenceId: invoice.id,
+        });
+
+        if (result.sent) {
+          await logEmail(invoice.clientId, user.email, emailType, subjects[emailType] || emailType, invoice.id);
+          sent++;
+        }
+      } catch { /* non-fatal */ }
     }
 
     await logCron("emails:invoice_reminders", "success", `Sent ${sent} invoice reminder email(s)`);
   } catch (err: any) {
     await logCron("emails:invoice_reminders", "failed", err.message);
     console.error("[CRON] emails:invoice_reminders error:", err.message);
+  }
+}
+
+// ─── Task N: 20i Status Sync ──────────────────────────────────────────────────
+// Fetches all packages from 20i API and syncs status (active/suspended) with
+// local hosting services table. Matches by domain name or 20i package ID.
+export async function runTwentyiStatusSyncCron(): Promise<void> {
+  try {
+    // Find all active 20i servers
+    const twentyiServers = await db.select().from(serversTable)
+      .where(and(
+        eq(serversTable.type as any, "20i"),
+        eq(serversTable.status, "active"),
+      ));
+
+    if (twentyiServers.length === 0) {
+      await logCron("twentyi:status_sync", "skipped", "No active 20i servers configured");
+      return;
+    }
+
+    let updated = 0;
+    let checked = 0;
+
+    for (const server of twentyiServers) {
+      if (!server.apiToken) continue;
+      const apiKey = decryptField(server.apiToken).trim();
+      if (!apiKey) continue;
+
+      let sites: Awaited<ReturnType<typeof twentyiListSites>>;
+      try {
+        sites = await runWithCtx({ proxyUrl: server.proxyUrl ?? undefined }, () => twentyiListSites(apiKey));
+      } catch (apiErr: any) {
+        console.warn(`[CRON] 20i status sync failed for server ${server.name}: ${apiErr.message}`);
+        continue;
+      }
+
+      // Build lookup map: domain → site (lowercase for matching)
+      const siteByDomain = new Map<string, typeof sites[number]>();
+      for (const site of sites) {
+        if (site.domain) siteByDomain.set(site.domain.toLowerCase().replace(/^www\./, ""), site);
+        for (const alias of site.names ?? []) {
+          siteByDomain.set(alias.toLowerCase().replace(/^www\./, ""), site);
+        }
+      }
+
+      // Get all services linked to this server
+      const services = await db.select().from(hostingServicesTable)
+        .where(and(
+          eq(hostingServicesTable.serverId, server.id),
+          sql`${hostingServicesTable.status} NOT IN ('terminated', 'cancelled')`,
+        ));
+
+      for (const service of services) {
+        const domainKey = (service.domain ?? "").toLowerCase().replace(/^www\./, "");
+        const site = domainKey ? siteByDomain.get(domainKey) : undefined;
+
+        if (!site) {
+          checked++;
+          continue; // Not found in 20i — leave unchanged
+        }
+
+        // Determine target status from 20i
+        const twentyiActive = site.enabled && site.status !== "suspended";
+        const targetStatus = twentyiActive ? "active" : "suspended";
+
+        // Only update if status actually differs
+        if (service.status !== targetStatus) {
+          await db.update(hostingServicesTable)
+            .set({ status: targetStatus as any, updatedAt: new Date() })
+            .where(eq(hostingServicesTable.id, service.id));
+          console.log(`[CRON] 20i sync: ${service.domain} → ${service.status} → ${targetStatus}`);
+          updated++;
+        }
+        checked++;
+      }
+    }
+
+    await logCron("twentyi:status_sync", "success", `Checked ${checked} service(s) across ${twentyiServers.length} server(s) — ${updated} status update(s)`);
+  } catch (err: any) {
+    await logCron("twentyi:status_sync", "failed", err.message);
+    console.error("[CRON] twentyi:status_sync error:", err.message);
   }
 }
 
@@ -1233,6 +1462,7 @@ export async function runAllCronTasks(): Promise<void> {
     runGoogleDriveBackupCron(),
     runCartAbandonmentCron(),
     runDomainLifecycleCron(),
+    runTwentyiStatusSyncCron(),
   ]);
   console.log("[CRON] All tasks completed.");
 }
