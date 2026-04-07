@@ -219,11 +219,10 @@ export default function ClientDashboard() {
     })
     .filter(d => d.daysLeft >= 0 && d.daysLeft <= ALERT_DAYS);
   const expiryAlerts = [...expiringServices, ...expiringDomains].sort((a, b) => a.daysLeft - b.daysLeft);
-  const freeDomainService = allServices.find(s => s.freeDomainAvailable);
+  const freeDomainServices = allServices.filter(s => s.freeDomainAvailable && s.status === "active");
 
-  function handleClaimFreeDomain() {
-    if (!freeDomainService) return;
-    navigate(`/client/register-domain?claim_token=${freeDomainService.id}`);
+  function handleClaimFreeDomain(serviceId: string) {
+    navigate(`/client/register-domain?claim_token=${serviceId}`);
   }
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
@@ -633,37 +632,33 @@ export default function ClientDashboard() {
         </Link>
       )}
 
-      {/* ── Free Domain Claim Banner ── */}
-      {freeDomainService && (
-        <div className="relative rounded-2xl overflow-hidden border border-violet-400/40"
+      {/* ── Free Domain Claim Banners — one per eligible active service ── */}
+      {freeDomainServices.map(svc => (
+        <div key={svc.id} className="relative rounded-2xl overflow-hidden border border-violet-400/40"
           style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #7C3AED 100%)" }}>
-          {/* Radial glow */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ backgroundImage: "radial-gradient(circle at 90% 50%, rgba(255,255,255,0.12) 0%, transparent 55%)" }} />
           <div className="relative px-5 py-5 flex items-center gap-4">
-            {/* Icon */}
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border border-white/20"
               style={{ background: "rgba(255,255,255,0.12)" }}>
               <Gift size={26} className="text-white" />
             </div>
-            {/* Text */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                 <p className="text-sm font-black text-white tracking-tight">
-                  🎁 You have 1 Free Domain to claim!
+                  🎁 Free Domain Available for {svc.planName}!
                 </p>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-400/25 border border-yellow-400/30 text-yellow-300 whitespace-nowrap">
                   INCLUDED FREE
                 </span>
               </div>
               <p className="text-white/75 text-xs leading-relaxed">
-                Your <span className="font-semibold text-white">{freeDomainService.planName}</span> yearly plan includes a free domain for the 1st year.
+                Your <span className="font-semibold text-white">{svc.planName}</span> yearly plan includes a free domain for the 1st year.
                 Claim it now — it will be automatically linked to your hosting.
               </p>
             </div>
-            {/* CTA */}
             <button
-              onClick={handleClaimFreeDomain}
+              onClick={() => handleClaimFreeDomain(svc.id)}
               className="shrink-0 flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold rounded-xl transition-all border border-white/20 hover:bg-white/10"
               style={{ background: "rgba(255,255,255,0.15)", color: "#fff" }}
             >
@@ -672,7 +667,7 @@ export default function ClientDashboard() {
             </button>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Active Hosting Services Quick Access */}
       {activeServices.length > 0 && (

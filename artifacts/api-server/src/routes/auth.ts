@@ -236,13 +236,8 @@ router.post("/auth/login", async (req, res) => {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 
-    // 2FA check — admins MUST have 2FA enabled (mandatory)
-    if (user.role === "admin" && !user.twoFactorEnabled) {
-      const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
-      res.json({ requires2FASetup: true, tempToken }); return;
-    }
-
-    if (user.twoFactorEnabled && user.twoFactorSecret) {
+    // 2FA check — only for non-admin users who have 2FA enabled
+    if (user.role !== "admin" && user.twoFactorEnabled && user.twoFactorSecret) {
       if (!totp) {
         const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
         res.json({ requires2FA: true, tempToken }); return;
