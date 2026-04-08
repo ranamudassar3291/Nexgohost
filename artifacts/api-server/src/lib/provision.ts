@@ -525,8 +525,12 @@ export async function provisionHostingService(
   }
 
   // ── Persist service state ──────────────────────────────────────────────────
+  // If provisioning on a real module failed, keep the service "pending" so the
+  // admin can retry. Only mark "active" when no whmError (success) OR when the
+  // module is "none" (manual / no-server hosting — always considered active).
+  const finalStatus = whmError ? "pending" : "active";
   await db.update(hostingServicesTable).set({
-    status: "active",
+    status: finalStatus as any,
     username,
     password,
     domain: service.domain || domain,

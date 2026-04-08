@@ -383,13 +383,9 @@ export default function AdminOrders() {
       setActivateResult({
         orderId: preActivate.orderId,
         service: data.service || null,
-        whmError: data.whmError || null,
+        whmError: null,
       });
-      if (data.whmError) {
-        toast({ title: "Activated (WHM warning)", description: `Saved in DB. WHM: ${data.whmError}`, variant: "destructive" });
-      } else {
-        toast({ title: "Service Activated!", description: `Account provisioned for ${data.service?.domain || "the domain"}` });
-      }
+      toast({ title: "Service Activated!", description: `Account provisioned for ${data.service?.domain || "the domain"}` });
     } catch (err: any) {
       toast({ title: "Activation failed", description: err.message, variant: "destructive" });
     } finally { setLoadingId(null); }
@@ -704,27 +700,14 @@ export default function AdminOrders() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setActivateResult(null)}>
           <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-5">
-              <div className={`w-10 h-10 rounded-full ${activateResult.whmError ? "bg-yellow-500/20" : "bg-green-500/20"} flex items-center justify-center`}>
-                <Zap size={20} className={activateResult.whmError ? "text-yellow-400" : "text-green-400"} />
+              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                <Zap size={20} className="text-green-400" />
               </div>
               <div>
-                <h3 className="font-bold text-foreground text-lg">
-                  {activateResult.whmError ? "Activated (with warnings)" : "Service Activated!"}
-                </h3>
+                <h3 className="font-bold text-foreground text-lg">Service Activated!</h3>
                 <p className="text-sm text-muted-foreground">{activateResult.service?.domain || "Hosting provisioned"}</p>
               </div>
             </div>
-
-            {activateResult.whmError && (
-              <div className="mb-4 flex items-start gap-2 px-3 py-2.5 bg-yellow-500/5 border border-yellow-500/20 rounded-xl text-sm text-yellow-400">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium">WHM API warning</p>
-                  <p className="text-xs text-yellow-400/70 mt-0.5">{activateResult.whmError}</p>
-                  <p className="text-xs text-yellow-400/70">Service saved to database. Check server credentials and try again if needed.</p>
-                </div>
-              </div>
-            )}
 
             {activateResult.service && (
               <div className="space-y-3">

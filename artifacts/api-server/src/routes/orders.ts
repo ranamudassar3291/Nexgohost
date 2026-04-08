@@ -548,9 +548,12 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
           res.status(400).json({ error: provisionResult.message });
           return;
         }
-        // WHM API errors are soft failures — log but continue (service saved in DB)
+        // WHM/module errors are hard failures — service stays "pending", return error to admin
+        // The admin must fix the issue (e.g. IP whitelist) and retry activation
         if (provisionResult.whmError) {
-          console.warn("[ACTIVATE] WHM error (soft failure):", provisionResult.whmError);
+          console.warn("[ACTIVATE] WHM error (hard failure — service stays pending):", provisionResult.whmError);
+          res.status(400).json({ error: `Hosting account could not be created: ${provisionResult.whmError}` });
+          return;
         }
       }
     }
