@@ -380,18 +380,17 @@ async function request<T = any>(
   if (res.status === 403) {
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
     const perm403 = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
-    if (perm403 === "IpMatch") {
-      const ip403 = d403?.user ?? d403?.error?.data?.user ?? "unknown";
+    // user: null on a 403 = IP not whitelisted (20i cannot resolve the key from an unwhitelisted IP)
+    const userNull403 = d403?.user === null || d403?.error?.data?.user === null;
+    if (perm403 === "IpMatch" || userNull403) {
       throw new Error(
-        `20i Forbidden (403) — IpMatch: IP "${ip403}" is not whitelisted. ` +
-        `Add this IP at my.20i.com → Reseller API → IP Whitelist, OR deploy the Domain Proxy Setup. ` +
-        `Response: ${raw.substring(0, 200)}`,
+        `20i Forbidden (403) — IpMatch: IP is not whitelisted. ` +
+        `Add this server's outbound IP at my.20i.com → Reseller API → IP Whitelist, then retry.`,
       );
     }
     const scopeInfo = ` Scope: ${d403?.scope ?? "unknown"}. User: ${d403?.user ?? "null"}.`;
     throw new Error(
-      `20i Forbidden (403).${scopeInfo} If using a Reseller Combined API Key, make sure the key has the required permissions. ` +
-      `Response: ${raw.substring(0, 200)}`,
+      `20i Forbidden (403).${scopeInfo} Check that your Reseller Combined API Key has the required permissions.`,
     );
   }
   if (res.status === 404) {

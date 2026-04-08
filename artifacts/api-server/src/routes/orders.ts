@@ -382,8 +382,14 @@ async function activateDomainOrderLocal(order: any, invoiceDueDate?: Date | null
 // Admin: approve order → create service + invoice if needed
 router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    // Optional: admin pre-selects a server at approval time (stored for use at activation)
+    const { serverId: approveServerId } = req.body || {};
+
+    const updateFields: any = { status: "approved", updatedAt: new Date() };
+    if (approveServerId) updateFields.moduleServerId = approveServerId;
+
     const [updated] = await db.update(ordersTable)
-      .set({ status: "approved", updatedAt: new Date() })
+      .set(updateFields)
       .where(eq(ordersTable.id, req.params.id))
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
@@ -453,6 +459,7 @@ router.post("/admin/orders/:id/approve", authenticate, requireAdmin, async (req:
 
           await db.insert(hostingServicesTable).values({
             clientId: updated.clientId,
+            orderId: updated.id,
             planId: updated.itemId,
             planName: updated.itemName,
             domain: updated.domain || null,
@@ -492,8 +499,8 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, order.clientId)).limit(1);
     const clientName = user ? `${user.firstName} ${user.lastName}` : "";
 
-    // Accept admin-provided credentials and optional server selection
-    const { username: overrideUsername, password: overridePassword, serverId: overrideServerId } = req.body || {};
+    // Accept admin-provided credentials and optional server/plan selection
+    const { username: overrideUsername, password: overridePassword, serverId: overrideServerId, modulePlanId: overrideModulePlanId } = req.body || {};
 
     let provisionResult = null;
     let serviceId: string | null = null;
@@ -533,6 +540,8 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
           username: overrideUsername || undefined,
           password: overridePassword || undefined,
           serverId: overrideServerId || undefined,
+          // Use order's modulePlanId if set (admin override), else provision.ts uses plan's value
+          modulePlanId: overrideModulePlanId || order.modulePlanId || undefined,
         });
         // Hard failures (missing required params, server config incomplete) → stop and surface error
         if (!provisionResult.success && !provisionResult.whmError) {
@@ -543,6 +552,16 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
         if (provisionResult.whmError) {
           console.warn("[ACTIVATE] WHM error (soft failure):", provisionResult.whmError);
         }
+      }
+    }
+
+    // Activate the associated domain record when hosting is provisioned
+    // (covers free-domain bundles and hosting+domain combo orders)
+    if (order.domain && order.type === "hosting") {
+      try {
+        await activateDomainOrderLocal(order);
+      } catch (domErr: any) {
+        console.warn("[ACTIVATE] Domain activation error (non-fatal):", domErr.message);
       }
     }
 

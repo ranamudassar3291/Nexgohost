@@ -163,6 +163,8 @@ export interface ProvisionOverrides {
   password?: string;
   /** Admin-selected server ID — takes priority over plan server and default server */
   serverId?: string;
+  /** Order-level 20i packageTypeId override — takes priority over plan's modulePlanId */
+  modulePlanId?: string;
 }
 
 export interface ProvisionResult {
@@ -451,16 +453,18 @@ export async function provisionHostingService(
         // requestWithRetry inside twentyiCreateHosting will auto-whitelist on IpMatch
         // and retry once. Here we add a second-level retry at the provision layer for
         // the rare case where the first attempt races against IP propagation.
+        // Order-level modulePlanId overrides the plan's default (allows per-order plan selection)
+        const packageTypeId = overrides?.modulePlanId || plan?.modulePlanId || undefined;
         let twentyiResult: TwentyICreateResult;
         try {
-          twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, plan?.modulePlanId ?? undefined);
+          twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, packageTypeId);
         } catch (firstErr: any) {
           const firstMsg: string = firstErr.message ?? "";
           if (firstMsg.includes("IpMatch") || firstMsg.includes("not whitelisted")) {
             console.warn(`[PROVISION] 20i IpMatch on first attempt — re-syncing IP and retrying in 3s…`);
             await twentyiEnsureIpWhitelisted(rawApiKey);
             await new Promise(r => setTimeout(r, 3000));
-            twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, plan?.modulePlanId ?? undefined);
+            twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, packageTypeId);
           } else {
             throw firstErr;
           }

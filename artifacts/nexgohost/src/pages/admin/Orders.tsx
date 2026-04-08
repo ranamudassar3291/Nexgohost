@@ -73,6 +73,7 @@ interface ServerOption {
 interface ActivateResult {
   orderId: string;
   service: {
+    id?: string;
     cpanelUrl: string | null;
     webmailUrl: string | null;
     username: string | null;
@@ -124,6 +125,17 @@ interface DomainActivateModal {
   clientName: string;
 }
 
+interface ApproveModal {
+  orderId: string;
+  domain: string;
+  clientName: string;
+  itemName: string;
+  moduleType: string;
+  moduleServerGroupId: string | null;
+  /** Admin-selected server ID (empty = auto-select) */
+  serverId: string;
+}
+
 interface Registrar {
   id: string;
   name: string;
@@ -154,6 +166,8 @@ export default function AdminOrders() {
   const [domainActivateModal, setDomainActivateModal] = useState<DomainActivateModal | null>(null);
   const [selectedRegistrarId, setSelectedRegistrarId] = useState<string>("");
   const [domainActivating, setDomainActivating] = useState(false);
+  const [approveModal, setApproveModal] = useState<ApproveModal | null>(null);
+  const [approveLoading, setApproveLoading] = useState(false);
 
   const { data: registrars = [] } = useQuery<Registrar[]>({
     queryKey: ["admin-registrars-for-orders"],
@@ -271,6 +285,39 @@ export default function AdminOrders() {
     } catch (err: any) {
       toast({ title: `Failed to ${action} order`, description: err.message, variant: "destructive" });
     } finally { setLoadingId(null); }
+  };
+
+  // Hosting order: open approve modal with server group selection
+  const openApproveModal = (order: Order) => {
+    setOpenMenuId(null);
+    setApproveModal({
+      orderId: order.id,
+      domain: order.domain || "",
+      clientName: order.clientName,
+      itemName: order.itemName,
+      moduleType: order.moduleType || "none",
+      moduleServerGroupId: order.moduleServerGroupId ?? null,
+      serverId: "",
+    });
+  };
+
+  const submitApprove = async () => {
+    if (!approveModal) return;
+    setApproveLoading(true);
+    try {
+      const body: Record<string, string> = {};
+      if (approveModal.serverId) body.serverId = approveModal.serverId;
+      const data = await apiFetch(`/api/admin/orders/${approveModal.orderId}/approve`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      fetchOrders();
+      setApproveModal(null);
+      toast({ title: "Order approved" + (data.invoice ? ` & invoice ${data.invoice.invoiceNumber} generated` : "") });
+    } catch (err: any) {
+      toast({ title: "Failed to approve order", description: err.message, variant: "destructive" });
+    } finally { setApproveLoading(false); }
   };
 
   // Domain order: open registrar selection modal
@@ -495,6 +542,77 @@ export default function AdminOrders() {
                 {editSaving ? "Saving…" : "Save Changes"}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setEditModal(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Modal — server group selection for hosting orders */}
+      {approveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setApproveModal(null)}>
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                <CheckCircle size={20} className="text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground text-lg">Approve Order</h3>
+                <p className="text-sm text-muted-foreground">{approveModal.clientName}</p>
+              </div>
+            </div>
+
+            <div className="bg-secondary/40 border border-border rounded-xl p-3 mb-4 space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Domain</span>
+                <span className="text-foreground font-medium">{approveModal.domain || "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Package</span>
+                <span className="text-foreground">{approveModal.itemName}</span>
+              </div>
+            </div>
+
+            {/* Server Group selection */}
+            {(() => {
+              const groupServers = allServers.filter(s => {
+                if (approveModal.moduleType !== "none" && s.type !== approveModal.moduleType) return false;
+                if (approveModal.moduleServerGroupId && s.groupId !== approveModal.moduleServerGroupId) return false;
+                return true;
+              });
+              return groupServers.length > 1 ? (
+                <div className="space-y-1.5 mb-4">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Server size={12} /> Server Group
+                  </label>
+                  <select
+                    value={approveModal.serverId}
+                    onChange={e => setApproveModal(p => p ? { ...p, serverId: e.target.value } : p)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">Auto-select server</option>
+                    {groupServers.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}{s.isDefault ? " (default)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">Server will be used when activating this order</p>
+                </div>
+              ) : groupServers.length === 1 ? (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <CheckCircle size={14} className="text-green-400 shrink-0" />
+                  <p className="text-xs text-green-600 dark:text-green-400">Server: {groupServers[0].name}</p>
+                </div>
+              ) : null;
+            })()}
+
+            <div className="mt-5 flex gap-3">
+              <Button onClick={submitApprove} disabled={approveLoading}
+                className="flex-1 bg-green-600 hover:bg-green-700">
+                {approveLoading ? <Loader2 size={15} className="animate-spin mr-2" /> : <CheckCircle size={15} className="mr-2" />}
+                {approveLoading ? "Approving…" : "Approve Order"}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setApproveModal(null)}>Cancel</Button>
             </div>
           </div>
         </div>
@@ -806,9 +924,9 @@ export default function AdminOrders() {
                       <>
                         <Button size="sm"
                           className="h-7 px-2.5 text-xs bg-green-600 hover:bg-green-700 whitespace-nowrap"
-                          disabled={loadingId === order.id}
-                          onClick={() => doAction(order.id, "approve")}>
-                          {loadingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
+                          disabled={loadingId === order.id || approveLoading}
+                          onClick={() => order.type === "hosting" ? openApproveModal(order) : doAction(order.id, "approve")}>
+                          {(loadingId === order.id || approveLoading) ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle className="w-3 h-3 mr-1" />}
                           Approve
                         </Button>
                         <Button size="sm" variant="destructive" className="h-7 px-2.5 text-xs" onClick={() => doAction(order.id, "cancel")}>

@@ -740,43 +740,12 @@ async function handleCheckout(req: AuthRequest, res: any) {
             tld: domainTld.toLowerCase(),
             registrationDate: regDate,
             expiryDate,
+            // Free domain stays "pending" until the hosting order is activated
             status: "pending",
             autoRenew: true,
             nameservers: resolvedNs,
           });
-          // If this domain is a free bundle, create a companion domain order (amount=0, paymentStatus=paid)
-          // so it appears in the admin Pending Activations queue with "Bundle: Free" label
-          if (effectiveFreeDomain) {
-            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-            const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const domInvNum = `INV-DOM-${dateStr}-${rand}`;
-            const [domOrder] = await db.insert(ordersTable).values({
-              clientId: req.user!.userId,
-              type: "domain",
-              itemId: null,
-              itemName: domain,
-              domain: domain,
-              amount: "0.00",
-              billingCycle: "yearly",
-              status: "pending",
-              paymentStatus: "paid",
-              notes: `Free domain bundle with hosting order #${order.id.slice(0, 8).toUpperCase()}`,
-            }).returning();
-            const [domInvoice] = await db.insert(invoicesTable).values({
-              invoiceNumber: domInvNum,
-              clientId: req.user!.userId,
-              orderId: domOrder.id,
-              serviceId: null,
-              amount: "0.00",
-              total: "0.00",
-              status: "paid",
-              paidDate: new Date(),
-              dueDate: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d; })(),
-              items: [{ description: `Free Domain: ${domain} (bundle with ${plan.name})`, quantity: 1, unitPrice: 0, total: 0 }],
-            }).returning();
-            await db.update(ordersTable).set({ invoiceId: domInvoice.id, updatedAt: new Date() })
-              .where(eq(ordersTable.id, domOrder.id));
-          }
+          // Free domain is already a line item in the hosting invoice — no separate order or invoice needed
         }
       } catch (err) { console.warn("[CHECKOUT DOMAIN RECORD]", err); }
     }
