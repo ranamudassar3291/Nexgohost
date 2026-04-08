@@ -3,12 +3,14 @@ import { useGetAccount, useUpdateAccount } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { User, Lock, Building, Phone } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { User, Lock, Building, Phone, AtSign, CheckCircle2, Loader2 } from "lucide-react";
 
 export default function ClientAccount() {
   const { data: account, isLoading, refetch } = useGetAccount();
   const updateAccount = useUpdateAccount();
   const { toast } = useToast();
+  const { user, refreshUser } = useAuth() as any;
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -18,12 +20,22 @@ export default function ClientAccount() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameSaved, setUsernameSaved] = useState(false);
+
   if (!isLoading && account && firstName === "") {
     setFirstName(account.firstName);
     setLastName(account.lastName);
     setCompany(account.company || "");
     setPhone(account.phone || "");
   }
+
+  if (!isLoading && account && usernameInput === "" && (account as any).username) {
+    setUsernameInput((account as any).username || "");
+  }
+
+  const currentUsername = (account as any)?.username || (user as any)?.username || "";
 
   const handleSaveProfile = () => {
     updateAccount.mutate({ data: { firstName, lastName, company, phone } }, {
@@ -41,6 +53,33 @@ export default function ClientAccount() {
       onSuccess: () => { toast({ title: "Password changed successfully" }); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); },
       onError: () => toast({ title: "Failed to change password", variant: "destructive" }),
     });
+  };
+
+  const handleSaveUsername = async () => {
+    const val = usernameInput.trim();
+    if (!val || val === currentUsername) return;
+    setUsernameLoading(true);
+    setUsernameSaved(false);
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch("/api/auth/change-username", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username: val }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setUsernameSaved(true);
+      setUsernameInput(data.username);
+      if (refreshUser) refreshUser();
+      refetch();
+      toast({ title: "Username updated!" });
+      setTimeout(() => setUsernameSaved(false), 3000);
+    } catch (err: any) {
+      toast({ title: err.message || "Could not update username", variant: "destructive" });
+    } finally {
+      setUsernameLoading(false);
+    }
   };
 
   if (isLoading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
@@ -84,6 +123,41 @@ export default function ClientAccount() {
         <Button onClick={handleSaveProfile} disabled={updateAccount.isPending} className="bg-primary hover:bg-primary/90">
           {updateAccount.isPending ? "Saving..." : "Save Profile"}
         </Button>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 bg-violet-500/10 rounded-lg"><AtSign className="w-5 h-5 text-violet-500" /></div>
+          <div>
+            <h3 className="font-semibold text-foreground">Username</h3>
+            <p className="text-xs text-muted-foreground">Use your username to log in instead of your email</p>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-muted-foreground">Username</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">@</span>
+              <Input
+                value={usernameInput}
+                onChange={e => { setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "")); setUsernameSaved(false); }}
+                className="bg-background border-border pl-7"
+                placeholder="yourname1234"
+                maxLength={20}
+              />
+            </div>
+            <Button
+              onClick={handleSaveUsername}
+              disabled={usernameLoading || !usernameInput.trim() || usernameInput.trim() === currentUsername}
+              variant="outline"
+              className="shrink-0"
+            >
+              {usernameLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : usernameSaved ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : "Save"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">3–20 characters, letters, numbers, and underscores only</p>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-2xl p-6 space-y-4">

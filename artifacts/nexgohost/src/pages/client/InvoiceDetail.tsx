@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
+import { fmtInvNum } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -353,7 +354,7 @@ export default function InvoiceDetail() {
           <div className="text-right flex flex-col items-end gap-2">
             <div>
               <p className="text-white/60 text-[10px] font-semibold uppercase tracking-widest">Invoice</p>
-              <p className="text-white font-black text-3xl leading-tight">#{invoice.invoiceNumber}</p>
+              <p className="text-white font-black text-3xl leading-tight">{fmtInvNum(invoice.invoiceNumber)}</p>
             </div>
             {/* Status badge — red pill for unpaid/overdue, elegant for others */}
             <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${

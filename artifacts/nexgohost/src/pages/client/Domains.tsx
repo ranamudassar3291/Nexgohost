@@ -751,6 +751,14 @@ export default function ClientDomains() {
                 onChange={e => setPortfolioSearch(e.target.value)}
               />
             </div>
+            <Button
+              variant="outline"
+              className="gap-2 shrink-0 border-primary/30 text-primary hover:bg-primary/5"
+              onClick={() => setActiveTab("transfers")}
+            >
+              <ArrowRightLeft size={15} />
+              Transfer Domain
+            </Button>
           </div>
 
           {/* ── Setup Progress: Hostinger-style launch steps ── */}

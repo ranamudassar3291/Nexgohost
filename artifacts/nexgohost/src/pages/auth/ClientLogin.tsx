@@ -275,12 +275,13 @@ export default function ClientLogin() {
 
                 <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Email or Username</label>
                     <input
-                      type="email"
+                      type="text"
                       value={email}
                       onChange={e => { setEmail(e.target.value); setFieldErrors(p => ({ ...p, email: undefined })); setError(null); }}
-                      placeholder="you@example.com"
+                      placeholder="you@example.com or yourname1234"
+                      autoComplete="username"
                       className={`w-full h-11 px-4 rounded-xl border text-sm text-black placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-[#4F46E5]/30 focus:border-[#4F46E5] ${fieldErrors.email ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"}`}
                     />
                     {fieldErrors.email && <p className="mt-1.5 text-xs text-red-500">{fieldErrors.email}</p>}

@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { fmtInvNum } from "@/lib/utils";
 
 interface Order {
   id: string; itemName: string; amount: number; billingCycle: string;
@@ -796,7 +797,7 @@ export default function ClientDashboard() {
                     <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 cursor-pointer group"
                       onClick={() => navigate(`/client/invoices/${inv.id}`)}>
                       <td className="p-4">
-                        <p className="font-mono font-medium text-sm text-foreground group-hover:text-primary transition-colors">{inv.invoiceNumber}</p>
+                        <p className="font-mono font-medium text-sm text-foreground group-hover:text-primary transition-colors">{fmtInvNum(inv.invoiceNumber)}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{formatPrice(Number(inv.total))}</p>
                       </td>
                       <td className="p-4">

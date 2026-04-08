@@ -35,11 +35,24 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     role: user.role, status: user.status,
     emailVerified: user.emailVerified,
     twoFactorEnabled: user.twoFactorEnabled,
+    username: (user as any).username ?? null,
     country: (user as any).country ?? null,
     billingCurrency: (user as any).billingCurrency ?? null,
     canMigrate: user.canMigrate ?? false,
     createdAt: user.createdAt.toISOString(),
   };
+}
+
+async function generateUsername(firstName: string): Promise<string> {
+  const base = firstName.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 12) || "user";
+  for (let i = 0; i < 10; i++) {
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    const candidate = `${base}${suffix}`;
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(sql`lower(${(usersTable as any).username}) = ${candidate}`).limit(1);
+    if (!existing) return candidate;
+  }
+  return `user${Date.now().toString().slice(-8)}`;
 }
 
 router.post("/auth/register", async (req, res) => {
@@ -73,6 +86,8 @@ router.post("/auth/register", async (req, res) => {
 
     const { refCode } = req.body;
 
+    const autoUsername = await generateUsername(firstName);
+
     const [user] = await db.insert(usersTable).values({
       firstName, lastName, email, passwordHash,
       company: company || null, phone: phone || null,
@@ -80,6 +95,7 @@ router.post("/auth/register", async (req, res) => {
       emailVerified: !verificationRequired,
       verificationCode: code,
       verificationExpiresAt: expiresAt,
+      username: autoUsername,
       ...(country         ? { country }         : {}),
       ...(billingCurrency ? { billingCurrency }  : {}),
     } as any).returning();
@@ -97,6 +113,7 @@ router.post("/auth/register", async (req, res) => {
     emailWelcome(email, {
       clientName: `${firstName} ${lastName}`,
       dashboardUrl: `${getClientUrl()}/dashboard`,
+      username: autoUsername,
     }, { clientId: user.id }).catch(() => {});
 
     // ── Track affiliate referral ────────────────────────────────────────────
@@ -198,11 +215,17 @@ router.post("/auth/login", async (req, res) => {
   try {
     const { email, password, totp, captchaToken } = req.body;
     if (!email || !password) {
-      res.status(400).json({ error: "Validation error", message: "Email and password required" }); return;
+      res.status(400).json({ error: "Validation error", message: "Email/username and password required" }); return;
     }
 
     // ── Fetch user early so admins can bypass IP rate-limiting ──────────────
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    // Support login by email OR username
+    let [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase())).limit(1);
+    if (!user && !email.includes("@")) {
+      [user] = await db.select().from(usersTable)
+        .where(sql`lower(${(usersTable as any).username}) = ${email.toLowerCase().trim()}`)
+        .limit(1);
+    }
 
     // ── Security checks ────────────────────────────────────────────────────────
     const ip = getClientIp(req);
@@ -793,6 +816,28 @@ router.post("/auth/reset-admin", async (req, res) => {
     res.json({ success: true, message: `Password updated for ${email}. Remove ADMIN_RESET_TOKEN env var for security.`, role: user.role });
   } catch (err: any) {
     console.error("[AUTH] reset-admin error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── Client: Change username ───────────────────────────────────────────────────
+router.put("/auth/change-username", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { username } = req.body;
+    if (!username) { res.status(400).json({ error: "Username is required" }); return; }
+    const cleaned = username.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (cleaned.length < 3 || cleaned.length > 20) {
+      res.status(400).json({ error: "Username must be 3–20 characters (letters, numbers, underscores)" }); return;
+    }
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(sql`lower(${(usersTable as any).username}) = ${cleaned} AND id != ${userId}`)
+      .limit(1);
+    if (existing) { res.status(400).json({ error: "Username is already taken" }); return; }
+    await db.update(usersTable).set({ username: cleaned, updatedAt: new Date() } as any).where(eq(usersTable.id, userId));
+    res.json({ success: true, username: cleaned });
+  } catch (err: any) {
+    console.error("[AUTH] change-username error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 });

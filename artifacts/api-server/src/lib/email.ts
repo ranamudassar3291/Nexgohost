@@ -463,13 +463,14 @@ export async function emailCancellationConfirmed(to: string, vars: {
 
 export async function emailWelcome(
   to: string,
-  vars: { clientName: string; dashboardUrl?: string },
+  vars: { clientName: string; dashboardUrl?: string; username?: string },
   meta?: { clientId?: string },
 ) {
   return sendTemplatedEmail("welcome", to, {
     company_name: COMPANY,
     client_name: vars.clientName,
     dashboard_url: vars.dashboardUrl || `${getClientUrl()}/dashboard`,
+    ...(vars.username ? { username: vars.username } : {}),
   }, meta);
 }
 

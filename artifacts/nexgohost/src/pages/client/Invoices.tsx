@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { apiFetch } from "@/lib/api";
+import { fmtInvNum } from "@/lib/utils";
 
 const CreditsTab  = lazy(() => import("@/pages/client/Credits"));
 const AffiliateTab = lazy(() => import("@/pages/client/Affiliate"));
@@ -115,7 +116,7 @@ function RefundModal({ invoice, onClose, onSuccess }: { invoice: Invoice; onClos
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
             <h3 className="font-bold text-foreground">Request Refund</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">{invoice.invoiceNumber}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{fmtInvNum(invoice.invoiceNumber)}</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 transition-colors"><X size={18} /></button>
         </div>
@@ -306,7 +307,7 @@ export default function ClientInvoices() {
                               <Receipt size={14} className="text-primary" />
                             </div>
                             <div>
-                              <p className="font-bold text-foreground text-sm">{inv.invoiceNumber}</p>
+                              <p className="font-bold text-foreground text-sm">{fmtInvNum(inv.invoiceNumber)}</p>
                               <p className="text-[10px] text-muted-foreground capitalize">{(inv.invoiceType || "hosting").replace(/_/g, " ")}</p>
                             </div>
                           </div>
@@ -454,7 +455,7 @@ export default function ClientInvoices() {
                     return (
                       <tr key={inv.id} className="hover:bg-secondary/20 transition-colors">
                         <td className="px-4 py-3.5">
-                          <p className="font-bold text-foreground text-sm">{inv.invoiceNumber}</p>
+                          <p className="font-bold text-foreground text-sm">{fmtInvNum(inv.invoiceNumber)}</p>
                           <p className="text-[10px] text-muted-foreground">{format(new Date(inv.createdAt), "MMM d, yyyy")}</p>
                         </td>
                         <td className="px-4 py-3.5 text-sm text-muted-foreground">{inv.paidDate ? format(new Date(inv.paidDate), "MMM d, yyyy") : "—"}</td>

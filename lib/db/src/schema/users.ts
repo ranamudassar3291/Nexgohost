@@ -22,6 +22,7 @@ export const usersTable = pgTable("users", {
   verificationExpiresAt: timestamp("verification_expires_at"),
   twoFactorSecret: text("two_factor_secret"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  username: text("username").unique(),
   googleId: text("google_id"),
   creditBalance: numeric("credit_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   country: text("country"),

@@ -37,7 +37,7 @@ export function FeedbackWidget() {
     return (
       <button
         onClick={() => setStep("open")}
-        className="fixed bottom-20 left-4 z-50 flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
+        className="fixed bottom-6 right-24 z-50 flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-semibold text-white shadow-lg transition-all hover:scale-105 active:scale-95"
         style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", boxShadow: "0 4px 20px rgba(109,40,217,0.35)" }}
         title="Share your feedback"
       >
@@ -50,7 +50,7 @@ export function FeedbackWidget() {
   if (step === "sent") {
     return (
       <div
-        className="fixed bottom-20 left-4 z-50 w-72 rounded-2xl shadow-2xl border border-primary/20 p-6 flex flex-col items-center gap-3 text-center"
+        className="fixed bottom-6 right-24 z-50 w-72 rounded-2xl shadow-2xl border border-primary/20 p-6 flex flex-col items-center gap-3 text-center"
         style={{ background: "white" }}
       >
         <div className="w-12 h-12 rounded-full bg-green-50 border border-green-200 flex items-center justify-center">
@@ -70,7 +70,7 @@ export function FeedbackWidget() {
 
   return (
     <div
-      className="fixed bottom-20 left-4 z-50 w-76 rounded-2xl shadow-2xl border border-border overflow-hidden"
+      className="fixed bottom-6 right-24 z-50 w-76 rounded-2xl shadow-2xl border border-border overflow-hidden"
       style={{ background: "white", width: "300px" }}
     >
       <div
