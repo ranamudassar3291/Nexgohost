@@ -368,8 +368,24 @@ async function request<T = any>(
   }
   if (res.status === 403) {
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
-    const scopeInfo = ` Scope: ${d403?.scope ?? "unknown"}. Permission: ${d403?.permission ?? d403?.error?.data?.permission ?? "unknown"}.`;
-    throw new Error(`20i Forbidden (403).${scopeInfo} Check your Reseller API key permissions.`);
+    const userNull = d403?.user === null || d403?.error?.data?.user === null;
+    // user: null on a 403 = the outbound IP is not in 20i's Reseller API IP whitelist.
+    // Fetch the current IP so the error message tells the admin exactly which IP to add.
+    if (userNull) {
+      let currentIp = "unknown";
+      try {
+        const { default: axiosIp } = await import("axios");
+        const ipRes = await axiosIp.get<{ ip: string }>("https://api.ipify.org?format=json", { timeout: 5_000 });
+        currentIp = ipRes.data?.ip ?? "unknown";
+      } catch { /* best-effort */ }
+      throw new Error(
+        `20i: IP not whitelisted (current outbound IP: ${currentIp}). ` +
+        `Go to my.20i.com → Reseller API → IP Whitelist and add ${currentIp}, then retry.`,
+      );
+    }
+    const perm = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "unknown";
+    const scope = d403?.scope ?? "unknown";
+    throw new Error(`20i Forbidden (403). Scope: ${scope}. Permission: ${perm}. Check your Reseller API key permissions.`);
   }
   if (res.status === 404) {
     throw Object.assign(

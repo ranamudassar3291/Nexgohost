@@ -168,6 +168,7 @@ export default function AdminOrders() {
   const [domainActivating, setDomainActivating] = useState(false);
   const [approveModal, setApproveModal] = useState<ApproveModal | null>(null);
   const [approveLoading, setApproveLoading] = useState(false);
+  const [ipError, setIpError] = useState<{ ip: string; message: string } | null>(null);
 
   const { data: registrars = [] } = useQuery<Registrar[]>({
     queryKey: ["admin-registrars-for-orders"],
@@ -387,7 +388,13 @@ export default function AdminOrders() {
       });
       toast({ title: "Service Activated!", description: `Account provisioned for ${data.service?.domain || "the domain"}` });
     } catch (err: any) {
-      toast({ title: "Activation failed", description: err.message, variant: "destructive" });
+      const msg: string = err.message ?? "";
+      const ipMatch = msg.match(/current outbound IP:\s*([\d.]+)/);
+      if (ipMatch) {
+        setIpError({ ip: ipMatch[1], message: msg });
+      } else {
+        toast({ title: "Activation failed", description: msg, variant: "destructive" });
+      }
     } finally { setLoadingId(null); }
   };
 
@@ -538,6 +545,42 @@ export default function AdminOrders() {
                 {editSaving ? "Saving…" : "Save Changes"}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setEditModal(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IP Whitelist Error Modal — shown when 20i rejects due to unwhitelisted IP */}
+      {ipError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setIpError(null)}>
+          <div className="bg-card border border-red-500/30 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground">IP Not Whitelisted</h3>
+                <p className="text-xs text-muted-foreground">20i Reseller API rejected the request</p>
+              </div>
+            </div>
+
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-4">
+              <p className="text-xs text-muted-foreground mb-1">Current outbound IP of this server:</p>
+              <p className="font-mono text-lg font-bold text-red-400 tracking-wider">{ipError.ip}</p>
+            </div>
+
+            <ol className="text-sm text-muted-foreground space-y-1.5 mb-4 list-decimal list-inside">
+              <li>Go to <span className="text-primary font-medium">my.20i.com → Reseller API → IP Whitelist</span></li>
+              <li>Add the IP: <span className="font-mono font-bold text-foreground">{ipError.ip}</span></li>
+              <li>Come back and click <span className="font-medium text-foreground">Activate</span> again</li>
+            </ol>
+
+            <div className="flex gap-2">
+              <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+                Open 20i Whitelist →
+              </a>
+              <Button variant="outline" className="flex-1" onClick={() => setIpError(null)}>Close</Button>
             </div>
           </div>
         </div>
