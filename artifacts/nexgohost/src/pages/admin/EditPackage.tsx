@@ -473,62 +473,9 @@ export default function EditPackage() {
                       </div>
 
                       {plansError && plans.length === 0 ? (
-                        plansOutboundIp ? (
-                          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
-                            <div className="flex items-start gap-2">
-                              <AlertCircle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-sm font-semibold text-amber-600">20i IP Not Whitelisted</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  Your server's outbound IP is not allowed by 20i. Add it to the whitelist to load packages.
-                                </p>
-                              </div>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium text-foreground/70 mb-1">Whitelist this IP:</p>
-                              <div className="flex items-center gap-2">
-                                <code className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm font-mono font-semibold text-primary select-all">
-                                  {plansOutboundIp}
-                                </code>
-                                <button
-                                  type="button"
-                                  onClick={() => { navigator.clipboard.writeText(plansOutboundIp); toast({ title: "IP copied!" }); }}
-                                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium hover:bg-secondary transition-colors"
-                                >
-                                  <Copy size={12} /> Copy
-                                </button>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <a
-                                href="https://my.20i.com/reseller/api"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
-                              >
-                                <ExternalLink size={11} /> Open 20i Whitelist Page
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => fetchPlans(selectedServerId)}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-medium hover:bg-secondary transition-colors"
-                              >
-                                <RefreshCw size={11} /> Check Again
-                              </button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Quick fix: Go to my.20i.com → Reseller API → IP Whitelist → Add the IP above → Save → Click "Check Again"
-                            </p>
-                            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs space-y-1">
-                              <p className="font-semibold text-emerald-700">Permanent fix (recommended)</p>
-                              <p className="text-muted-foreground">Set a <strong>Static IP Proxy URL</strong> on the 20i server so the same IP is always used regardless of Replit restarts — go to <strong>Admin → Servers → Edit 20i server</strong>. Services like <a href="https://usefixie.com" target="_blank" rel="noreferrer" className="underline text-primary">Fixie</a> or <a href="https://webshare.io" target="_blank" rel="noreferrer" className="underline text-primary">Webshare</a> give you a free static exit IP.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
-                            <AlertCircle size={14} className="mt-0.5 shrink-0" /> {plansError}
-                          </div>
-                        )
+                        <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
+                          <AlertCircle size={14} className="mt-0.5 shrink-0" /> {plansError}
+                        </div>
                       ) : plans.length === 0 && !loadingPlans ? (
                         <div className="px-3 py-2.5 bg-secondary/50 border border-border rounded-xl text-sm text-muted-foreground text-center">
                           No packages available on this server
