@@ -444,8 +444,11 @@ function RouterRoot() {
       <Route path="/client/invoices/:id">
         <ClientPage><InvoiceDetail /></ClientPage>
       </Route>
-      <Route path="/client/invoices">
+      <Route path="/client/billing">
         <ClientPage><ClientInvoices /></ClientPage>
+      </Route>
+      <Route path="/client/invoices">
+        <Redirect to="/client/billing" />
       </Route>
       <Route path="/client/payment/return">
         <ClientPage><SafepayReturn /></ClientPage>
@@ -486,10 +489,10 @@ function RouterRoot() {
         <ClientPage><ClientAccount /></ClientPage>
       </Route>
       <Route path="/client/affiliate">
-        <ClientPage><Affiliate /></ClientPage>
+        <Redirect to="/client/billing?tab=affiliate" />
       </Route>
       <Route path="/client/credits">
-        <ClientPage><Credits /></ClientPage>
+        <Redirect to="/client/billing?tab=credits" />
       </Route>
       <Route path="/client/security">
         <ClientPage><Security /></ClientPage>

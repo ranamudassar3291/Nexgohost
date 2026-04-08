@@ -4,17 +4,15 @@ A production-ready SaaS hosting and domain management platform (similar to WHMCS
 
 ## Theme & Design
 
-- **Dark theme by default** — ThemeProvider (`src/context/ThemeProvider.tsx`) defaults to "dark", stores preference in localStorage as `noehost-theme`.
-- **Color palette** matches user's noehost.com website exactly:
-  - Background: `#020617` (deep navy)
-  - Cards/Nav/Footer: `#0F172A` (dark navy)
-  - Primary/Brand: `#6A62FE` (indigo, HSL 244 98% 68%)
-  - Text: slate-300/slate-400
-  - Font: "Plus Jakarta Sans" (loaded in index.html + index.css)
-- **Homepage** (`src/pages/public/Homepage.tsx`) — fully ported from user's website. Uses `SiteNavbar`, `SiteFooter`.
-- **SiteNavbar** (`src/components/layout/SiteNavbar.tsx`) — ported from user's Navbar.tsx. Uses wouter (not react-router-dom), useAuth, useCart.
-- **SiteFooter** (`src/components/layout/SiteFooter.tsx`) — dark navy footer with payment icons, 4-column links.
-- Dark CSS variables in `src/index.css` under `.dark {}` block.
+- **Light theme by default** — ThemeProvider (`src/context/ThemeProvider.tsx`) defaults to `"light"`, localStorage key: `noehost-theme-v2`.
+- **Color palette** — white/purple light theme:
+  - Background: `228 60% 98%` (off-white, `--background`)
+  - Primary/Brand: `238 82% 65%` (indigo #5B5FEF)
+  - Cards: white with subtle border
+  - Font: "Plus Jakarta Sans"
+- **Homepage** (`src/pages/public/Homepage.tsx`) — restored original self-contained page with own navbar, hero, domain checker, pricing, features, testimonials, FAQ, and footer. No external layout wrappers.
+- All site components (`SiteNavbar`, `SiteFooter`, `PublicLayout`, `SiteHero`, etc.) were removed from the zip import. Homepage is now fully self-contained.
+- CSS variables defined in `:root` in `src/index.css`.
 
 ## Architecture
 
@@ -75,3 +73,5 @@ pnpm --filter @workspace/db push
 - Cron tasks: renewal reminders, invoice generation, suspension, health checks
 - Multi-currency support with auto-refreshing exchange rates
 - WhatsApp notifications for billing events
+- **Unified Billing hub** at `/client/billing` — 5 tabs: Invoices, Transactions, Refunds, Wallet (Credits), Affiliate. Summary cards at top. Old routes `/client/invoices`, `/client/credits`, `/client/affiliate` redirect here.
+- **AI Chat Widget** — floating widget for clients (`role === "client"`) in AppLayout. Backend: `POST /api/ai/chat` with `authenticate` middleware. Frontend: `AiChatWidget.tsx` with quick questions, minimize/reset/close, unread badge.
