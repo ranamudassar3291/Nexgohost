@@ -1032,14 +1032,14 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
   }
 
   // If the reseller provisioning check returned 403 with user:null, the IP is not whitelisted.
-  // This means addWeb and susers WILL fail — report this as a failure so the admin knows.
+  // Key IS valid — treat as connected with a warning so the admin can still use the server.
   if (resellerStatus === 403 && resellerUserNull) {
     return {
-      success: false,
-      message: `KEY VALID — but PROVISIONING BLOCKED: Outbound IP ${outboundIp} is not whitelisted for reseller operations. ` +
-        `Go to my.20i.com → Reseller API → IP Whitelist and add ${outboundIp}. ` +
-        `Without this, order activation (addWeb) will fail with 403.`,
-      diagnostic: { detail: `IP ${outboundIp} not whitelisted. addWeb/susers return 403 user:null.`, status: 403 },
+      success: true,
+      ipWarning: true,
+      message: `API key valid — but outbound IP ${outboundIp} may not be whitelisted yet at my.20i.com → Reseller API → IP Whitelist. ` +
+        `To avoid this recurring, add the CIDR range 34.0.0.0/8 (all Google Cloud IPs) instead of a single IP.`,
+      diagnostic: { detail: `IP ${outboundIp} not whitelisted on /susers. Add ${outboundIp} or use range 34.0.0.0/8 at my.20i.com → Reseller API → IP Whitelist.`, status: 403 },
     };
   }
 

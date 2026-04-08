@@ -59,7 +59,7 @@ export default function Servers() {
   const [apiTokenSaved, setApiTokenSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string; packages?: string[]; permissions?: { name: string; api: string; ok: boolean; reason: string }[] }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; ipWarning?: boolean; msg: string; packages?: string[]; permissions?: { name: string; api: string; ok: boolean; reason: string }[]; diagnostic?: { detail?: string } | null }>>({});
   const [whitelisting, setWhitelisting] = useState<string | null>(null);
   const [whitelistResults, setWhitelistResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
 
@@ -186,16 +186,19 @@ export default function Servers() {
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
       const isOk = result.success !== false && result.connected !== false;
-      setTestResults(r => ({ ...r, [id]: { ok: isOk, msg: result.message, packages: result.packages || [], permissions: result.permissions || [], diagnostic: result.diagnostic } }));
-      if (isOk) {
+      const ipWarn = isOk && result.ipWarning === true;
+      setTestResults(r => ({ ...r, [id]: { ok: isOk, ipWarning: ipWarn, msg: result.message, packages: result.packages || [], permissions: result.permissions || [], diagnostic: result.diagnostic } }));
+      if (ipWarn) {
+        toast({ title: "API Key Valid — IP Warning", description: result.diagnostic?.detail || result.message });
+      } else if (isOk) {
         const pkgSuffix = result.packages?.length ? ` — ${result.packages.length} package(s) found` : "";
         toast({ title: "Server Connected", description: result.message + pkgSuffix });
       } else {
-        toast({ title: "Connection issue", description: result.diagnostic?.detail || result.message });
+        toast({ title: "Connection issue", description: result.diagnostic?.detail || result.message, variant: "destructive" });
       }
     } catch (err: any) {
       setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [], permissions: [] } }));
-      toast({ title: "Connection failed", description: err.message });
+      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
     } finally { setTesting(null); }
   };
 
@@ -663,9 +666,9 @@ export default function Servers() {
                         )}
                         {testResults[s.id] && (
                           <div className="mt-2 space-y-1.5">
-                            <div className={`flex items-center gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
-                              {testResults[s.id].ok ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                              {testResults[s.id].msg}
+                            <div className={`flex items-start gap-1.5 text-xs ${testResults[s.id].ipWarning ? "text-amber-500" : testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
+                              {testResults[s.id].ipWarning ? <span className="shrink-0 mt-0.5">⚠️</span> : testResults[s.id].ok ? <CheckCircle size={11} className="shrink-0 mt-0.5" /> : <XCircle size={11} className="shrink-0 mt-0.5" />}
+                              <span>{testResults[s.id].ipWarning ? (testResults[s.id].diagnostic?.detail || testResults[s.id].msg) : testResults[s.id].msg}</span>
                             </div>
                             {testResults[s.id].ok && (testResults[s.id].packages?.length ?? 0) > 0 && (
                               <div className="flex flex-wrap gap-1 pt-0.5">
