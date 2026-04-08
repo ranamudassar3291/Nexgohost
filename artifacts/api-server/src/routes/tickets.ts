@@ -246,4 +246,23 @@ router.post("/admin/tickets/:id/close", authenticate, requireAdmin, async (req: 
   }
 });
 
+// Client: submit panel feedback (rating + optional comment)
+router.post("/client/feedback", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { rating, message } = req.body;
+    if (!rating || rating < 1 || rating > 5) { res.status(400).json({ error: "Rating must be 1–5" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    const name = user ? `${user.firstName} ${user.lastName}` : userId;
+    const stars = "★".repeat(Number(rating)) + "☆".repeat(5 - Number(rating));
+    const wa = `⭐ *Client Feedback*\n👤 *${name}*\n${stars} (${rating}/5)${message ? `\n💬 "${message}"` : ""}`;
+    await sendWhatsAppAlert("other", wa, "admin");
+    console.log(`[FEEDBACK] ${name} rated ${rating}/5${message ? `: "${message}"` : ""}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[FEEDBACK]", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 export default router;

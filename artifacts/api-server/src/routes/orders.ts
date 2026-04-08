@@ -13,9 +13,10 @@ import { emailDomainRegistered } from "../lib/email.js";
 const router = Router();
 
 async function generateInvoiceNumber(): Promise<string> {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `INV-${dateStr}-${rand}`;
+  await db.execute(sql`CREATE SEQUENCE IF NOT EXISTS inv_seq START WITH 2001`);
+  const result = await db.execute(sql`SELECT nextval('inv_seq') AS seq`);
+  const seq = Number((result.rows[0] as any).seq);
+  return `NOE-${String(seq).padStart(5, "0")}`;
 }
 
 function formatOrder(

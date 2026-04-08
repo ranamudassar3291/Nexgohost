@@ -89,7 +89,12 @@ async function processRenewalOrder(order: typeof ordersTable.$inferSelect) {
   console.log(`[RENEWAL] Domain ${domain.name}${domain.tld} renewed → new expiry ${extended.toISOString().split("T")[0]}`);
 }
 
-let invoiceCounter = 1000;
+async function genInvoiceNumber(prefix: "NOE" | "DEP" = "NOE"): Promise<string> {
+  await db.execute(sql`CREATE SEQUENCE IF NOT EXISTS inv_seq START WITH 2001`);
+  const result = await db.execute(sql`SELECT nextval('inv_seq') AS seq`);
+  const seq = Number((result.rows[0] as any).seq);
+  return `${prefix}-${String(seq).padStart(5, "0")}`;
+}
 
 function toISO(d: any): string | undefined {
   if (!d) return undefined;
@@ -318,8 +323,7 @@ router.post("/admin/invoices", authenticate, requireAdmin, async (req: AuthReque
     const { clientId, items, dueDate, tax = 0 } = req.body;
     const amount = items.reduce((sum: number, item: { total: number }) => sum + item.total, 0);
     const total = amount + tax;
-    invoiceCounter++;
-    const invoiceNumber = `INV-${Date.now()}-${invoiceCounter}`;
+    const invoiceNumber = await genInvoiceNumber("NOE");
 
     const [invoice] = await db.insert(invoicesTable).values({
       invoiceNumber,
@@ -575,8 +579,7 @@ router.post("/my/invoices/deposit", authenticate, async (req: AuthRequest, res) 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-    invoiceCounter++;
-    const invoiceNumber = `DEP-${Date.now()}-${invoiceCounter}`;
+    const invoiceNumber = await genInvoiceNumber("DEP");
     const due = new Date(); due.setDate(due.getDate() + 7);
     const items = [{ description: "Account Deposit", quantity: 1, unitPrice: amt, total: amt }];
     const [invoice] = await db.insert(invoicesTable).values({

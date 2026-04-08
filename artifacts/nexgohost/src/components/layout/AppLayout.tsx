@@ -11,6 +11,7 @@ import type { LucideIcon } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AiChatWidget } from "@/components/AiChatWidget";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { useQuery } from "@tanstack/react-query";
 
 interface LayoutProps {
@@ -477,6 +478,8 @@ export function AppLayout({ children, role }: LayoutProps) {
 
       {/* AI Chat Widget — floating in bottom-right for client panel */}
       {role === "client" && <AiChatWidget />}
+      {/* Feedback Widget — floating bottom-left for client panel */}
+      {role === "client" && <FeedbackWidget />}
     </div>
   );
 }

@@ -258,11 +258,11 @@ export default function ClientDashboard() {
     <div className="space-y-8">
       {/* Announcements Marquee — Hostinger-style slim bar at the very top */}
       {announcements.length > 0 && (
-        <div className="flex items-center rounded-xl overflow-hidden shadow-md"
-          style={{ background: "linear-gradient(90deg, #1d4ed8 0%, #2563eb 60%, #1e40af 100%)" }}>
+        <div className="flex items-center rounded-xl overflow-hidden shadow-sm border border-primary/20"
+          style={{ background: "linear-gradient(90deg, rgba(109,40,217,0.12) 0%, rgba(124,58,237,0.08) 60%, rgba(109,40,217,0.06) 100%)" }}>
           {/* Label badge */}
-          <div className="flex items-center gap-1.5 shrink-0 px-4 py-2.5 font-bold text-xs uppercase tracking-widest text-white whitespace-nowrap border-r border-white/20"
-            style={{ background: "rgba(0,0,0,0.18)" }}>
+          <div className="flex items-center gap-1.5 shrink-0 px-4 py-2.5 font-bold text-xs uppercase tracking-widest text-primary whitespace-nowrap border-r border-primary/20"
+            style={{ background: "rgba(109,40,217,0.08)" }}>
             <Megaphone className="h-3.5 w-3.5" />
             <span>News</span>
           </div>
@@ -273,7 +273,7 @@ export default function ClientDashboard() {
               style={{ animation: `nexgo-marquee ${Math.max(18, announcements.length * 10)}s linear infinite` }}
             >
               {[...announcements, ...announcements].map((a, i) => (
-                <span key={i} className="text-sm inline-flex items-center gap-2 text-white">
+                <span key={i} className="text-sm inline-flex items-center gap-2 text-foreground">
                   <span className="font-bold">{a.title}</span>
                   <span className="opacity-90">{a.message}</span>
                   <span className="opacity-40 mx-2">•</span>
@@ -286,11 +286,17 @@ export default function ClientDashboard() {
       )}
 
       {/* Hero banner */}
-      <div className="bg-gradient-to-r from-primary/20 via-purple-600/10 to-transparent border border-primary/10 rounded-3xl p-5 sm:p-8 relative overflow-hidden shadow-lg">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px]" />
+      <div className="bg-card border border-border rounded-2xl p-5 sm:p-7 relative overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(109,40,217,0.04) 0%, rgba(255,255,255,0) 60%)" }}>
+        <div className="absolute right-0 top-0 h-full w-1 rounded-r-2xl" style={{ background: "linear-gradient(to bottom, rgba(109,40,217,0.4), rgba(109,40,217,0.05))" }} />
         <div className="relative z-10">
-          <h2 className="text-2xl sm:text-3xl font-display font-bold text-foreground">Welcome back, {user?.firstName}!</h2>
-          <p className="text-muted-foreground mt-2 sm:text-lg">Manage your digital infrastructure securely.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary bg-primary/8 border border-primary/15 rounded-full px-2.5 py-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+              Client Panel
+            </span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-display font-bold text-foreground">Welcome back, {user?.firstName}!</h2>
+          <p className="text-muted-foreground mt-1 text-sm">Manage your hosting, domains, and billing from one place.</p>
           {pendingOrders > 0 && (
             <div className="mt-3 flex items-center gap-2 text-yellow-400 text-sm">
               <Clock size={15} />
