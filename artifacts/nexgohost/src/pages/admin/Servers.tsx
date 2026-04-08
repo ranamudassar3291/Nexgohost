@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe, AlertTriangle, Copy, ExternalLink } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -38,55 +38,6 @@ const EMPTY_SERVER = {
 };
 const EMPTY_GROUP = { name: "", description: "" };
 
-/** One-click "Add current IP to 20i whitelist" — shown in the 20i server edit form */
-function AutoWhitelistBtn({ serverId }: { serverId: string }) {
-  const { toast } = useToast();
-  const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
-
-  const handleSync = async () => {
-    setSyncing(true); setResult(null);
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("/api/admin/twenty-i/whitelist/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      setResult(data);
-      if (data.success) toast({ title: `✓ IP ${data.outboundIp} added to 20i whitelist` });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setSyncing(false); }
-  };
-
-  return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={handleSync}
-        disabled={syncing}
-        className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 shadow-sm w-full justify-center"
-      >
-        {syncing ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
-        {syncing ? "Syncing IP to 20i Whitelist…" : "Auto-Add Current IP to 20i Whitelist"}
-      </button>
-      {result && (
-        <div className={`text-xs rounded-lg px-3 py-2 border ${result.success ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-600" : result.error === "auth_failed" ? "bg-amber-500/5 border-amber-500/20 text-amber-700" : "bg-primary/5 border-primary/20 text-primary"}`}>
-          {result.success
-            ? result.alreadyPresent
-              ? `✓ IP ${result.outboundIp} is already in 20i's whitelist — no action needed.`
-              : `✓ IP ${result.outboundIp} added to 20i whitelist.`
-            : result.error === "chicken_and_egg"
-              ? `IP ${result.outboundIp} is blocked — add it manually once at my.20i.com → Reseller API → IP Whitelist, then retry.`
-              : result.error === "auth_failed"
-                ? `API key authentication failed. Re-check the key in Admin → Servers.`
-                : `Failed: ${result.error ?? result.message}`}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const TYPE_LABELS: Record<string, string> = { cpanel: "cPanel", directadmin: "DirectAdmin", plesk: "Plesk", "20i": "20i", none: "None" };
 const STATUS_COLORS: Record<string, string> = {
@@ -136,15 +87,6 @@ export default function Servers() {
   const setS = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setServerForm(s => ({ ...s, [f]: e.target.value }));
 
   const is20i = serverForm.type === "20i";
-
-  // Outbound IP — fetched lazily when 20i form is shown (must be after is20i is defined)
-  const { data: outboundData, isLoading: loadingIp } = useQuery<{ ip: string; proxy: { enabled: boolean; url?: string } }>({
-    queryKey: ["outbound-ip"],
-    queryFn: () => apiFetch(`/api/admin/servers/outbound-ip?nocache=${Date.now()}`),
-    enabled: showServerForm && is20i,
-    staleTime: 0,
-    retry: false,
-  });
 
   const resetFormState = () => {
     setShowServerForm(false); setEditServerId(null); setServerForm(EMPTY_SERVER);
@@ -376,58 +318,6 @@ export default function Servers() {
                       <p className="text-xs font-semibold text-primary uppercase tracking-wider">20i Reseller API</p>
                     </div>
 
-                    {/* ── IP Whitelist Info ── */}
-                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 space-y-2.5">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle size={13} className="text-amber-500 shrink-0" />
-                        <p className="text-xs font-semibold text-amber-600">IP Whitelist Required</p>
-                      </div>
-
-                      {/* Current outbound IP */}
-                      <div className="flex items-center justify-between gap-2 bg-card/80 border border-border/40 rounded-lg px-3 py-2">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Panel Outbound IP</p>
-                          <p className="font-mono text-sm font-semibold text-foreground">
-                            {loadingIp ? "Detecting…" : (outboundData?.ip ?? "unknown")}
-                          </p>
-                        </div>
-                        <div className="flex gap-1.5">
-                          {!loadingIp && outboundData?.ip && outboundData.ip !== "unknown" && (
-                            <button
-                              type="button"
-                              onClick={() => { navigator.clipboard.writeText(outboundData.ip); toast({ title: "IP copied to clipboard" }); }}
-                              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border bg-secondary/60 hover:bg-secondary transition-colors text-muted-foreground"
-                            >
-                              <Copy size={11} />
-                              Copy
-                            </button>
-                          )}
-                          <a
-                            href="https://my.20i.com/reseller/api-key"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-colors text-primary"
-                          >
-                            <ExternalLink size={11} />
-                            Whitelist
-                          </a>
-                        </div>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground">
-                        Add the IP above to{" "}
-                        <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="underline text-primary">
-                          my.20i.com → Reseller API → IP Whitelist
-                        </a>
-                        . Once whitelisted, click Test Connection.
-                      </p>
-
-                      {/* Auto-whitelist button — only show when we have a saved server */}
-                      {editServerId && (
-                        <AutoWhitelistBtn serverId={editServerId} />
-                      )}
-                    </div>
-
                     {/* ── Proxy URL field — optional, for stable IP routing ── */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -504,34 +394,22 @@ export default function Servers() {
                         ) : (() => {
                           const msg = formTestResult.msg ?? "";
                           const isWrongKey = msg.includes("KEY NOT RECOGNISED") || msg.includes('"type":"User ID"') || msg.includes("User ID");
-                          const isIpBlocked = msg.includes("IP NOT WHITELISTED") || msg.includes("ip_blocked");
                           return (
                             <div className="space-y-2">
                               <div className="flex items-start gap-2 font-semibold text-red-600">
                                 <XCircle size={13} className="mt-0.5 shrink-0" />
-                                <span>
-                                  {isWrongKey
-                                    ? "Invalid API Key — 20i does not recognise this key"
-                                    : isIpBlocked
-                                    ? "IP Not Whitelisted — add this server's IP in 20i"
-                                    : "Connection failed"}
-                                </span>
+                                <span>{isWrongKey ? "Invalid API Key — 20i does not recognise this key" : "Connection failed"}</span>
                               </div>
-                              {isWrongKey && (
+                              {isWrongKey ? (
                                 <div className="ml-5 space-y-1 text-muted-foreground">
-                                  <p>The key you entered was rejected by 20i with error <code className="font-mono text-red-500">&#123;"type":"User ID"&#125;</code> — meaning the key does not match any account on their system.</p>
-                                  <p className="font-medium text-foreground/80 mt-1.5">Steps to fix:</p>
+                                  <p>The key you entered was rejected by 20i. The key does not match any account on their system.</p>
                                   <ol className="ml-3 list-decimal space-y-0.5">
                                     <li>Open <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API → API Keys</a></li>
-                                    <li>Copy your <strong>General API Key</strong> exactly as shown</li>
-                                    <li>Paste it in the field above and click <strong>Test Connection</strong></li>
+                                    <li>Copy your <strong>General API Key</strong> exactly</li>
+                                    <li>Paste it above and click <strong>Test Connection</strong></li>
                                   </ol>
                                 </div>
-                              )}
-                              {isIpBlocked && (
-                                <p className="ml-5 text-muted-foreground">Add this server's outbound IP to the whitelist at my.20i.com → Reseller API → IP Whitelist, then test again.</p>
-                              )}
-                              {!isWrongKey && !isIpBlocked && (
+                              ) : (
                                 <p className="ml-5 text-muted-foreground">{msg}</p>
                               )}
                             </div>
@@ -578,40 +456,6 @@ export default function Servers() {
                                     <li>Paste into the "20i API Key" field above and click <strong>Test Connection</strong></li>
                                   </ol>
                                 </div>
-                                <div className="rounded-lg bg-amber-500/8 border border-amber-400/20 px-3 py-2 text-[10px] font-sans">
-                                  <p className="font-semibold text-amber-700 mb-0.5">Also whitelist your current outbound IP:</p>
-                                  <p className="text-muted-foreground">Your panel's outbound IP is <code className="font-mono font-bold text-foreground">{debugInfo.outboundIp}</code>. Add it at <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API → IP Whitelist</a>, then test again.</p>
-                                </div>
-                              </div>
-                            )}
-                            {/* IP not whitelisted banner */}
-                            {debugInfo.diagnosis === "ip_blocked" && (
-                              <div className="px-3.5 py-3 bg-amber-500/8 border-b border-amber-500/20">
-                                <p className="text-amber-700 font-semibold text-[11px] mb-2">ACTION REQUIRED — Whitelist this IP in 20i:</p>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <code className="font-mono text-sm font-bold text-foreground bg-background border border-border rounded px-2 py-1">{debugInfo.outboundIp}</code>
-                                  <button
-                                    type="button"
-                                    onClick={() => { navigator.clipboard.writeText(debugInfo.outboundIp ?? ""); }}
-                                    className="text-[10px] px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-semibold"
-                                  >
-                                    Copy
-                                  </button>
-                                  <a
-                                    href="https://my.20i.com/reseller/api"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[10px] px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-semibold"
-                                  >
-                                    Open my.20i.com
-                                  </a>
-                                </div>
-                                <ol className="text-[10px] text-muted-foreground space-y-0.5 list-decimal ml-3">
-                                  <li>Go to <strong>my.20i.com → Reseller API</strong></li>
-                                  <li>Find <strong>IP Whitelist</strong> section</li>
-                                  <li>Add <strong>{debugInfo.outboundIp}</strong> and save</li>
-                                  <li>Come back and click <strong>Test Connection</strong> again</li>
-                                </ol>
                               </div>
                             )}
                             {/* Summary rows */}
@@ -626,7 +470,7 @@ export default function Servers() {
                                 ["Endpoint", `${debugInfo.method} ${debugInfo.url}`],
                                 ["Key length", keyLabel],
                                 ["Auth header", authLabel],
-                                ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy)` : " (direct — whitelist this IP in 20i)")],
+                                ["Outbound IP", debugInfo.outboundIp + (debugInfo.proxyActive ? ` (via proxy)` : " (direct)")],
                                 ["HTTP status", `${debugInfo.responseStatus ?? "ERR"} in ${debugInfo.durationMs}ms`],
                               ].map(([label, value]) => (
                                 <div key={label} className="flex gap-3 px-3.5 py-1.5 border-b border-primary/10">

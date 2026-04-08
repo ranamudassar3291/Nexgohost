@@ -902,7 +902,7 @@ export default function Modules() {
                               ) : null
                             )}
                             <p className="text-[10px] text-muted-foreground pt-0.5">
-                              Add this IP to <strong>my.20i.com → Reseller API → IP Whitelist</strong> before testing.
+                              This is the IP address your server uses to connect to 20i.
                             </p>
                           </div>
                         ) : (
@@ -927,7 +927,7 @@ export default function Modules() {
                           ) : ti_testResult?.success ? (
                             <><CheckCircle size={12} /> {ti_testResult.httpStatus ?? 200} OK — Connected!</>
                           ) : ti_testResult ? (
-                            <><AlertCircle size={12} /> {ti_testResult.httpStatus ?? "ERR"} — {ti_testResult.errorType === "ip_not_whitelisted" ? "IP Not Whitelisted" : ti_testResult.httpStatus === 403 ? "Key Rejected" : "Failed"}</>
+                            <><AlertCircle size={12} /> {ti_testResult.httpStatus ?? "ERR"} — {ti_testResult.httpStatus === 403 ? "Key Rejected" : "Connection Failed"}</>
                           ) : (
                             <><Zap size={12} /> Test Connection (api.20i.com)</>
                           )}
@@ -957,45 +957,8 @@ export default function Modules() {
                         </div>
                       )}
 
-                      {/* ── Test Result: IP Not Whitelisted ─────────────── */}
-                      {ti_testResult && !ti_testResult.success && ti_testResult.errorType === "ip_not_whitelisted" && (
-                        <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/25 p-3 space-y-2 text-xs">
-                          <div className="flex items-center gap-2 font-semibold text-amber-800 dark:text-amber-300">
-                            <Shield size={13} /> IP Not Whitelisted (401)
-                          </div>
-                          <p className="text-amber-700 dark:text-amber-400">
-                            20i rejected this server's IP. Add it to the whitelist at{" "}
-                            <a href="https://my.20i.com" target="_blank" rel="noreferrer" className="underline font-semibold">
-                              my.20i.com → Reseller API → IP Whitelist
-                            </a>
-                            , then click <strong>Retry</strong>.
-                          </p>
-                          {(serverIp?.primary || serverIp?.secondary) && (
-                            <div className="flex flex-wrap gap-2">
-                              {[serverIp.primary, serverIp.secondary].filter(Boolean).map(ip => (
-                                <button
-                                  key={ip}
-                                  onClick={() => copyIp(ip!)}
-                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold border border-amber-400 dark:border-amber-600 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 transition-colors"
-                                >
-                                  {copiedIp === ip ? <Check size={11} /> : <Copy size={11} />}
-                                  {ip}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          <button
-                            onClick={handleTest20i}
-                            disabled={ti_testing}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold border border-amber-400 dark:border-amber-600 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 text-amber-900 dark:text-amber-200 disabled:opacity-50 transition-colors"
-                          >
-                            <RefreshCw size={11} className={ti_testing ? "animate-spin" : ""} /> Retry Connection
-                          </button>
-                        </div>
-                      )}
-
-                      {/* ── Test Result: Other Error ─────────────────────── */}
-                      {ti_testResult && !ti_testResult.success && ti_testResult.errorType !== "ip_not_whitelisted" && (
+                      {/* ── Test Result: Error ───────────────────────────── */}
+                      {ti_testResult && !ti_testResult.success && (
                         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 text-xs text-red-800 dark:text-red-300">
                           <AlertCircle size={12} className="shrink-0 mt-0.5" />
                           <div className="space-y-1">
