@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { PublicLayout } from "@/components/layout/PublicLayout";
+
 
 const COMPANY = "Noehost";
 const DOMAIN = "noehost.com";
@@ -8,7 +8,7 @@ const WA = "https://wa.me/923151711821";
 
 export default function TermsOfService() {
   return (
-    <PublicLayout>
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {/* Header */}
       <div style={{ background: "linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%)" }} className="py-14 px-4 text-white text-center">
         <div className="max-w-3xl mx-auto">
@@ -115,6 +115,6 @@ export default function TermsOfService() {
           <Link href="/client/login" className="text-violet-600 hover:underline">Back to Login</Link>
         </div>
       </div>
-    </PublicLayout>
+    </div>
   );
 }

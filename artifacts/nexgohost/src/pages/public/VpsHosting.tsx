@@ -7,7 +7,7 @@ import {
   Check, ChevronDown, Globe, Key, ArrowRight, Star, Cloud,
 } from "lucide-react";
 import { useCurrency } from "@/context/CurrencyProvider";
-import { PublicLayout } from "@/components/layout/PublicLayout";
+
 
 const P        = "#4F46E5";
 const PSHADOW  = "0 4px 20px rgba(112,26,254,0.28)";
@@ -101,7 +101,7 @@ export default function VpsHosting() {
   }, 0);
 
   return (
-    <PublicLayout>
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {/* ── Hero Section ── */}
       <section className="relative overflow-hidden pt-20 pb-24"
         style={{ background: "linear-gradient(160deg, #0A001F 0%, #1A0060 40%, #2C007A 70%, #0A001F 100%)" }}>
@@ -476,6 +476,6 @@ export default function VpsHosting() {
         </div>
       </section>
 
-    </PublicLayout>
+    </div>
   );
 }
