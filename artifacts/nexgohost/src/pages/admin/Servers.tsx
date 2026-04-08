@@ -318,33 +318,6 @@ export default function Servers() {
                       <p className="text-xs font-semibold text-primary uppercase tracking-wider">20i Reseller API</p>
                     </div>
 
-                    {/* ── Proxy URL field — optional, for stable IP routing ── */}
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm font-medium text-foreground/80">Static IP Proxy URL</label>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-medium">Recommended — fixes IP changes</span>
-                      </div>
-                      <Input
-                        value={serverForm.proxyUrl}
-                        onChange={setS("proxyUrl")}
-                        placeholder="http://noehost.com:3128"
-                        className="font-mono text-sm"
-                      />
-                      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-muted-foreground space-y-1.5">
-                        <p className="font-semibold text-emerald-700">Permanent fix — never whitelist an IP again</p>
-                        <p>
-                          Route all 20i API calls through a <strong>static-IP proxy service</strong>. The proxy always exits from the same IP — you whitelist that IP in 20i once, and Replit's dynamic IP no longer matters.
-                        </p>
-                        <p className="font-medium text-foreground/70">Recommended services (free tiers available):</p>
-                        <ul className="ml-3 space-y-0.5 list-disc">
-                          <li><a href="https://usefixie.com" target="_blank" rel="noreferrer" className="text-primary underline font-semibold">Fixie</a> — <code className="font-mono text-primary">http://fixie:API_KEY@velodrome.usefixie.com:80</code></li>
-                          <li><a href="https://webshare.io" target="_blank" rel="noreferrer" className="text-primary underline font-semibold">Webshare</a> — <code className="font-mono text-primary">http://user:pass@p.webshare.io:80</code></li>
-                          <li>Any Squid/HTTP proxy with a dedicated IP — <code className="font-mono text-primary">http://user:pass@host:port</code></li>
-                        </ul>
-                        <p>After entering the URL, click <strong>Test Connection</strong> — the displayed outbound IP is the proxy's static IP to whitelist in 20i.</p>
-                      </div>
-                    </div>
-
                     {/* ── Single API Key field ── */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground/80">
@@ -360,12 +333,8 @@ export default function Servers() {
                       {editServerId && apiTokenSaved && !serverForm.combinedKey && (
                         <p className="text-xs text-emerald-600">✓ Key saved — leave blank to keep existing</p>
                       )}
-                      <div className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-xs text-muted-foreground space-y-1">
-                        <p className="font-semibold text-foreground/70">Where to find your key — <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API</a>:</p>
-                        <ul className="space-y-0.5 ml-2 list-disc">
-                          <li><strong>General Key</strong>: paste it as-is (e.g. <code className="font-mono text-primary">cb574b954e850f7f5</code>)</li>
-                          <li><strong>Combined Key</strong>: paste the full string — the General Key is extracted automatically (e.g. <code className="font-mono text-primary">cb574b954e850f7f5+c6e95e89ebd7ea3c0</code>)</li>
-                        </ul>
+                      <div className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                        <p>Find your <strong>General Key</strong> at <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline">my.20i.com → Reseller API</a> and paste it here.</p>
                       </div>
                     </div>
                     <Button
