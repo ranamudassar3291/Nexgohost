@@ -268,7 +268,7 @@ export async function provisionHostingService(
       .where(
         and(
           sql`${hostingServicesTable.serverId} IS NOT NULL`,
-          sql`${hostingServicesTable.status} NOT IN ('terminated', 'cancelled')`,
+          sql`${hostingServicesTable.status} != 'terminated'`,
         )
       )
       .groupBy(hostingServicesTable.serverId);
@@ -535,9 +535,17 @@ export async function provisionHostingService(
   }).where(eq(hostingServicesTable.id, serviceId));
 
   // ── Send welcome email (type depends on plan group) ───────────────────────
+  // For 20i servers: skip the "hosting is ready" email if the 20i hosting package
+  // was not actually created (addWeb failed). Sending a "ready" email when the
+  // account doesn't exist yet confuses clients and hides the provisioning error.
+  const skip20iEmail = module === "20i" && !!whmError;
   try {
+    if (skip20iEmail) {
+      console.log(`[PROVISION] Skipping welcome email — 20i hosting was not provisioned (whmError: ${whmError})`);
+    }
     const isReseller = plan?.groupSlug === RESELLER_SLUG || plan?.name?.toLowerCase().includes("reseller");
 
+    if (!skip20iEmail) {
     if (isReseller) {
       // Reseller plans get WHM welcome email with WHM URL and account limits
       const whmHost = server?.hostname ? `https://${server.hostname}:2087` : `https://whmserver.${new URL(getAppUrl()).hostname}:2087`;
@@ -572,6 +580,7 @@ export async function provisionHostingService(
         webmailUrl,
       }, { clientId: user.id, referenceId: serviceId });
     }
+    } // end !skip20iEmail
   } catch (emailErr: any) {
     console.warn("[PROVISION] Failed to send welcome email:", emailErr.message);
   }

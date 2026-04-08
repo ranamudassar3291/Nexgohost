@@ -666,7 +666,7 @@ export async function runTwentyiStatusSyncCron(): Promise<void> {
       const services = await db.select().from(hostingServicesTable)
         .where(and(
           eq(hostingServicesTable.serverId, server.id),
-          sql`${hostingServicesTable.status} NOT IN ('terminated', 'cancelled')`,
+          sql`${hostingServicesTable.status} != 'terminated'`,
         ));
 
       for (const service of services) {
@@ -1554,13 +1554,13 @@ export async function runTwentyiHealthCheck(): Promise<void> {
           : `⚠️ No proxy configured — Replit's outbound IP may have changed. Set a Static IP Proxy URL in Admin → Servers to prevent this.`;
 
         await sendWhatsAppAlert(
+          "other",
           `🚨 *20i API Health Alert — NoePanel*\n\n` +
           `The 20i connection check has FAILED.\n\n` +
           `Error: ${result.message?.substring(0, 200) ?? "Unknown error"}\n\n` +
           `${proxyLine}\n\n` +
           `Check Admin → Servers → 20i server and test the connection.\n\n` +
           `_Auto-check runs every 15 minutes_`,
-          "client_notification",
         );
       }
 
