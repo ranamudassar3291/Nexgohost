@@ -492,45 +492,42 @@ export default function ClientDomains() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-display font-bold text-foreground">Domains</h2>
-          <p className="text-muted-foreground mt-1">Register and manage your domain names.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">My Domains</h1>
+          <p className="text-muted-foreground mt-1">Manage, register and transfer your domain names.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {cart.length > 0 && activeTab === "order" && orderView === "search" && (
             <button
               onClick={() => setShowCart(true)}
-              className="relative flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 rounded-xl text-primary hover:bg-primary/20 transition-colors font-medium text-sm"
+              className="relative flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 rounded-xl font-semibold text-sm transition-colors"
             >
-              <ShoppingCart size={16} />
-              Cart
-              <span className="absolute -top-2 -right-2 w-5 h-5 bg-primary rounded-full text-white text-xs flex items-center justify-center font-bold">
-                {cart.length}
-              </span>
+              <ShoppingCart size={15} />
+              Cart ({cart.length})
             </button>
           )}
           <button
             onClick={() => navigate("/client/domains/transfer")}
-            className="flex items-center gap-2 px-4 py-2 bg-card border border-border hover:border-primary/40 text-foreground rounded-xl font-medium text-sm transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 rounded-xl font-semibold text-sm transition-colors"
           >
-            <ArrowRightLeft size={16} /> Transfer Domain
+            <ArrowRightLeft size={15} /> Transfer Domain
           </button>
           <button
             onClick={() => { setActiveTab("order"); setOrderView("search"); setTimeout(() => inputRef.current?.focus(), 100); }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium text-sm shadow-sm transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-semibold text-sm shadow-sm transition-colors"
           >
-            <Globe size={16} /> Order New Domain
+            <Plus size={15} /> Register Domain
           </button>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-secondary/50 border border-border rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-secondary/40 border border-border rounded-xl p-1 w-fit">
         {(["my-domains", "order", "transfers"] as Tab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === tab ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"}`}
           >
-            {tab === "my-domains" ? `My Domains (${myDomains.length})` : tab === "order" ? "Order New Domain" : "Transfers"}
+            {tab === "my-domains" ? `All Domains (${myDomains.length})` : tab === "order" ? "Register New" : "Transfers"}
           </button>
         ))}
       </div>

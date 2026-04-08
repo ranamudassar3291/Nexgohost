@@ -498,10 +498,10 @@ function RouterRoot() {
         <ClientPage><Security /></ClientPage>
       </Route>
       <Route path="/client/domain-search">
-        <ClientPage><DomainSearch /></ClientPage>
+        <Redirect to="/client/domains?tab=order" />
       </Route>
       <Route path="/client/register-domain">
-        <ClientPage><RegisterDomain /></ClientPage>
+        <Redirect to="/client/domains?tab=order" />
       </Route>
       <Route path="/client/domains/transfer">
         <ClientPage><DomainTransfer /></ClientPage>
