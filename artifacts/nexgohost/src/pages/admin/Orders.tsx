@@ -4,8 +4,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   CheckCircle, XCircle, Search, Plus, FileText,
   ChevronDown, Loader2, AlertTriangle, StopCircle,
-  Terminal, Mail, Zap, Eye, EyeOff, User, Lock,
-  Server, Globe, RotateCcw, Trash2, Edit2, X, ChevronLeft, ChevronRight,
+  Terminal, Mail, Zap, Server, Globe, RotateCcw, Trash2, Edit2, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -148,7 +147,6 @@ export default function AdminOrders() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
   const [preActivate, setPreActivate] = useState<PreActivateModal | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [ssoLoadingId, setSsoLoadingId] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<EditOrderModal | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -302,7 +300,6 @@ export default function AdminOrders() {
   // Step 1: open pre-activation modal with auto-generated credentials
   const openActivateModal = (order: Order) => {
     setOpenMenuId(null);
-    setShowPassword(false);
     const domain = order.domain || "";
     setPreActivate({
       orderId: order.id,
@@ -535,65 +532,42 @@ export default function AdminOrders() {
               )}
             </div>
 
-            {/* Server selection */}
-            {allServers.length > 0 && (
-              <div className="space-y-1.5 mb-4">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Server size={12} /> Server
-                </label>
-                <select
-                  value={preActivate.serverId}
-                  onChange={e => setPreActivate(p => p ? { ...p, serverId: e.target.value } : p)}
-                  className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  <option value="">Auto-select (recommended)</option>
-                  {allServers
-                    .filter(s => {
-                      if (preActivate.moduleType !== "none" && s.type !== preActivate.moduleType) return false;
-                      if (preActivate.moduleServerGroupId && s.groupId !== preActivate.moduleServerGroupId) return false;
-                      return true;
-                    })
-                    .map(s => (
+            {/* Server Group selection */}
+            {(() => {
+              const groupServers = allServers.filter(s => {
+                if (preActivate.moduleType !== "none" && s.type !== preActivate.moduleType) return false;
+                if (preActivate.moduleServerGroupId && s.groupId !== preActivate.moduleServerGroupId) return false;
+                return true;
+              });
+              return groupServers.length > 1 ? (
+                <div className="space-y-1.5 mb-4">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Server size={12} /> Server Group
+                  </label>
+                  <select
+                    value={preActivate.serverId}
+                    onChange={e => setPreActivate(p => p ? { ...p, serverId: e.target.value } : p)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">Auto-select from group</option>
+                    {groupServers.map(s => (
                       <option key={s.id} value={s.id}>
-                        {s.name} — {s.hostname}{s.isDefault ? " (default)" : ""}
+                        {s.name}{s.isDefault ? " (default)" : ""}
                       </option>
                     ))}
-                </select>
-                <p className="text-xs text-muted-foreground">Override which server this account is created on</p>
-              </div>
-            )}
-
-            {/* Hosting credentials */}
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hosting Credentials</p>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5"><User size={13} /> Username</label>
-                <Input
-                  value={preActivate.username}
-                  onChange={e => setPreActivate(p => p ? { ...p, username: e.target.value } : p)}
-                  placeholder="Auto-generated from domain"
-                  className="font-mono"
-                />
-                <p className="text-xs text-muted-foreground">Leave blank to auto-generate from domain name</p>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5"><Lock size={13} /> Password</label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={preActivate.password}
-                    onChange={e => setPreActivate(p => p ? { ...p, password: e.target.value } : p)}
-                    placeholder="Auto-generated strong password"
-                    className="font-mono pr-10"
-                  />
-                  <button type="button" onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+                  </select>
+                  <p className="text-xs text-muted-foreground">Username and password will be auto-generated</p>
                 </div>
-                <p className="text-xs text-muted-foreground">Leave blank to auto-generate a strong password</p>
-              </div>
-            </div>
+              ) : (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <CheckCircle size={14} className="text-green-400 shrink-0" />
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    {groupServers.length === 1 ? `Server: ${groupServers[0].name}` : "Server will be auto-selected"}
+                    {" — "}credentials auto-generated
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="mt-5 flex gap-3">
               <Button onClick={submitActivate} disabled={!!loadingId}

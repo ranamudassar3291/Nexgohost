@@ -222,7 +222,7 @@ export default function ServiceDetail() {
   const [creatingBackup, setCreatingBackup] = useState(false);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"overview" | "dns">("overview");
+  const [activeTab, setActiveTab] = useState<"overview">("overview");
 
   // Auto-renew
   const [autoRenewLoading, setAutoRenewLoading] = useState(false);
@@ -982,153 +982,7 @@ export default function ServiceDetail() {
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl border border-border/50 w-fit">
-        {[
-          { id: "overview" as const, label: "Overview", icon: Server },
-          { id: "dns" as const, label: "DNS Manager", icon: Network },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-              if (tab.id === "dns" && dnsRecords.length === 0 && !dnsLoading) fetchDns();
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? "bg-card text-foreground shadow-sm border border-border/50"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <tab.icon size={15} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "dns" && (
-        <div className="space-y-4">
-          {/* DNS Manager */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <div className="p-5 border-b border-border/50 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Network size={18} className="text-primary" />
-                <h3 className="font-semibold text-foreground">DNS Zone Records</h3>
-                {service.domain && <span className="text-sm text-muted-foreground">— {service.domain}</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={fetchDns} disabled={dnsLoading} className="gap-1.5">
-                  {dnsLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                  Refresh
-                </Button>
-                <Button size="sm" onClick={() => { setShowAddDns(true); setEditingRecord(null); setDnsForm({ type: "A", name: "", address: "", ttl: 14400 }); }} className="gap-1.5 bg-primary hover:bg-primary/90">
-                  <Plus size={13} /> Add Record
-                </Button>
-              </div>
-            </div>
-
-            {/* Add/Edit Form */}
-            {(showAddDns || editingRecord) && (
-              <div className="p-5 border-b border-border/50 bg-secondary/20">
-                <p className="text-sm font-semibold text-foreground mb-3">{editingRecord ? "Edit DNS Record" : "Add DNS Record"}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground font-medium">Type</label>
-                    <select
-                      value={dnsForm.type}
-                      onChange={e => setDnsForm(f => ({ ...f, type: e.target.value }))}
-                      className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    >
-                      {["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV"].map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground font-medium">Name</label>
-                    <Input value={dnsForm.name} onChange={e => setDnsForm(f => ({ ...f, name: e.target.value }))} placeholder="@ or subdomain" className="h-8 text-sm" />
-                  </div>
-                  <div className="space-y-1 md:col-span-1">
-                    <label className="text-xs text-muted-foreground font-medium">Address / Value</label>
-                    <Input value={dnsForm.address} onChange={e => setDnsForm(f => ({ ...f, address: e.target.value }))} placeholder="192.168.1.1" className="h-8 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground font-medium">TTL (seconds)</label>
-                    <Input type="number" value={dnsForm.ttl} onChange={e => setDnsForm(f => ({ ...f, ttl: parseInt(e.target.value) || 14400 }))} className="h-8 text-sm" />
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-3">
-                  <Button size="sm" onClick={editingRecord ? handleEditDns : handleAddDns} disabled={dnsSaving || !dnsForm.name || !dnsForm.address} className="gap-1.5">
-                    {dnsSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                    {editingRecord ? "Save Changes" : "Add Record"}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { setShowAddDns(false); setEditingRecord(null); }}>Cancel</Button>
-                </div>
-              </div>
-            )}
-
-            {/* Records Table */}
-            {dnsLoading ? (
-              <div className="flex justify-center p-8"><Loader2 size={24} className="animate-spin text-primary" /></div>
-            ) : dnsError ? (
-              <div className="p-8 text-center">
-                <p className="text-sm text-muted-foreground">{dnsError}</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">DNS management requires a cPanel server to be configured for this service.</p>
-              </div>
-            ) : dnsRecords.length === 0 ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                No DNS records found. Add your first record above.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-secondary/30 text-left">
-                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Type</th>
-                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Name</th>
-                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Address / Value</th>
-                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">TTL</th>
-                      <th className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {dnsRecords.map(rec => (
-                      <tr key={rec.line} className="hover:bg-secondary/20 transition-colors">
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 font-mono">{rec.type}</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-foreground truncate max-w-[160px]">{rec.name}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground truncate max-w-[200px]">{rec.address}</td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">{rec.ttl}s</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center gap-1 justify-end">
-                            <button
-                              onClick={() => { setEditingRecord(rec); setShowAddDns(false); setDnsForm({ type: rec.type, name: rec.name, address: rec.address, ttl: rec.ttl }); }}
-                              className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                              title="Edit"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteDns(rec.line)}
-                              className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "overview" && <>
+      <>
 
       {/* Service Info Grid */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -1525,105 +1379,6 @@ export default function ServiceDetail() {
         )}
       </div>
 
-      {/* ─── Backup System ─── */}
-      {service.status === "active" && (
-        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center justify-center shrink-0">
-                <ArchiveRestore size={18} className="text-blue-400" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">Backups</p>
-                <p className="text-sm text-muted-foreground">
-                  Daily automatic backups run at 2 AM. Create a manual backup at any time.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCreateDbBackup}
-                disabled={creatingBackup || service.status !== "active"}
-                className="gap-1.5 text-xs"
-              >
-                {creatingBackup ? <Loader2 size={12} className="animate-spin" /> : <Database size={12} />}
-                DB Only
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCreateBackup}
-                disabled={creatingBackup || service.status !== "active"}
-                className="gap-1.5"
-              >
-                {creatingBackup ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                {creatingBackup ? "Creating…" : "Full Backup"}
-              </Button>
-            </div>
-          </div>
-
-          {/* Backup list */}
-          {backupsLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 size={13} className="animate-spin" /> Loading backups…
-            </div>
-          ) : backups.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No backups yet. Click "Full Backup" to create your first one.</p>
-          ) : (
-            <div className="space-y-2">
-              {backups.slice(0, 8).map(b => {
-                const isQueued = b.status === "queued_on_server";
-                const isDone = b.status === "completed";
-                const isFailed = b.status === "failed";
-                return (
-                  <div key={b.id} className="py-2 border-b border-border/50 last:border-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${isDone ? "bg-green-400" : isQueued ? "bg-blue-400" : isFailed ? "bg-red-400" : "bg-yellow-400 animate-pulse"}`} />
-                        <div className="min-w-0">
-                          <p className="text-sm text-foreground truncate">
-                            {b.type === "cron" ? "Scheduled" : b.type === "db_only" ? "Database" : "Full"} backup
-                            {b.sizeMb ? ` — ${b.sizeMb} MB` : ""}
-                          </p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock size={10} />
-                            {format(new Date(b.createdAt), "MMM d, yyyy · HH:mm")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
-                          isDone    ? "bg-green-500/10 text-green-400 border-green-500/20" :
-                          isQueued  ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                          isFailed  ? "bg-red-50 text-red-600 border-red-200" :
-                                      "bg-amber-50 text-amber-700 border-amber-200"
-                        }`}>
-                          {isDone ? "Done" : isQueued ? "On Server" : isFailed ? "Failed" : "Running"}
-                        </span>
-                        <button onClick={() => handleDeleteBackup(b.id)} className="text-muted-foreground hover:text-destructive transition-colors" title="Remove">
-                          <XCircle size={14} />
-                        </button>
-                      </div>
-                    </div>
-                    {isQueued && b.filePath && (
-                      <p className="text-xs text-blue-400/80 mt-1 ml-4.5 pl-5">
-                        File queued: <span className="font-mono">{b.filePath}</span> — check cPanel File Manager
-                      </p>
-                    )}
-                    {isFailed && b.errorMessage && (
-                      <p className="text-xs text-red-400/80 mt-1 ml-4.5 pl-5 flex items-center gap-1">
-                        <AlertCircle size={10} /> {b.errorMessage}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Auto-Renew */}
       <div className="bg-card border border-border rounded-2xl p-5">
@@ -1695,7 +1450,7 @@ export default function ServiceDetail() {
         </div>
       </div>
 
-      </>}
+      </>
     </div>
   );
 }

@@ -1053,4 +1053,51 @@ router.get("/domains/:id/epp", authenticate, async (req: AuthRequest, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
+// ─── Admin: Transfer domain ownership to another client ──────────────────────
+router.post("/admin/domains/:id/transfer-ownership", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { targetEmail } = req.body;
+    if (!targetEmail?.trim()) return res.status(400).json({ error: "Target client email is required" });
+
+    const [domain] = await db.select().from(domainsTable).where(eq(domainsTable.id, id)).limit(1);
+    if (!domain) return res.status(404).json({ error: "Domain not found" });
+
+    const [targetUser] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, targetEmail.trim().toLowerCase())).limit(1);
+    if (!targetUser) return res.status(404).json({ error: `No client found with email: ${targetEmail}` });
+
+    if (targetUser.id === domain.clientId) return res.status(400).json({ error: "This domain already belongs to that client" });
+
+    const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, domain.clientId!)).limit(1);
+
+    await db.update(domainsTable)
+      .set({ clientId: targetUser.id, updatedAt: new Date() })
+      .where(eq(domainsTable.id, id));
+
+    // Also transfer linked invoices — find orders whose itemId = domain.id and move those invoices
+    const domainOrders = await db.select({ id: ordersTable.id }).from(ordersTable)
+      .where(eq(ordersTable.itemId, id));
+    if (domainOrders.length > 0) {
+      const orderIds = domainOrders.map(o => o.id);
+      for (const orderId of orderIds) {
+        await db.update(invoicesTable)
+          .set({ clientId: targetUser.id, updatedAt: new Date() })
+          .where(and(eq(invoicesTable.orderId, orderId), eq(invoicesTable.clientId, domain.clientId!)));
+      }
+    }
+
+    console.log(`[ADMIN] Domain ${domain.name}${domain.tld} transferred from ${fromUser?.email ?? domain.clientId} → ${targetUser.email}`);
+    res.json({
+      success: true,
+      message: `Domain transferred to ${targetUser.firstName} ${targetUser.lastName} (${targetUser.email})`,
+      fromClient: fromUser ? `${fromUser.firstName} ${fromUser.lastName} (${fromUser.email})` : domain.clientId,
+      toClient: `${targetUser.firstName} ${targetUser.lastName} (${targetUser.email})`,
+    });
+  } catch (err: any) {
+    console.error("[ADMIN] domain transfer-ownership error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

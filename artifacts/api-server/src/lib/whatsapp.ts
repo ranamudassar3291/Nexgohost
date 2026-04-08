@@ -380,8 +380,14 @@ export async function connectWhatsApp() {
         keys: makeCacheableSignalKeyStore(authState.keys, baileysLogger),
       },
       printQRInTerminal: false,
-      browser: ["Noehost", "Chrome", "1.0"],
+      browser: ["NoePanel", "Chrome", "120.0.6099.109"],
       logger: baileysLogger,
+      keepAliveIntervalMs: 25000,
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      markOnlineOnConnect: false,
+      syncFullHistory: false,
+      fireInitQueries: true,
     });
 
     // QR code + connection events

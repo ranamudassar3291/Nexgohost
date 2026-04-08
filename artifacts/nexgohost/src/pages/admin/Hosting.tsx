@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, LinkIcon, KeyRound, Eye, EyeOff, X, RefreshCw, ArrowUpCircle, CheckCircle, RotateCcw, Loader2, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Server, Database, Activity, Search, HardDrive, XCircle, PauseCircle, PlayCircle, Trash2, AlertTriangle, Zap, LinkIcon, KeyRound, Eye, EyeOff, X, RefreshCw, ArrowUpCircle, CheckCircle, RotateCcw, Loader2, ChevronLeft, ChevronRight, ExternalLink, ArrowRightLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -69,6 +69,9 @@ export default function AdminHosting() {
   const [changePwLoading, setChangePwLoading] = useState(false);
   const [suspendModal, setSuspendModal] = useState<{ id: string; domain: string | null } | null>(null);
   const [suspendReason, setSuspendReason] = useState("Overdue Payment");
+  const [transferModal, setTransferModal] = useState<{ id: string; domain: string | null } | null>(null);
+  const [transferEmail, setTransferEmail] = useState("");
+  const [transferLoading, setTransferLoading] = useState(false);
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
@@ -158,6 +161,21 @@ export default function AdminHosting() {
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     } finally { setChangePwLoading(false); }
+  };
+
+  const handleTransferOwnership = async () => {
+    if (!transferModal || !transferEmail.trim()) return;
+    setTransferLoading(true);
+    try {
+      const result = await apiFetch(`/api/admin/hosting/${transferModal.id}/transfer-ownership`, {
+        method: "POST", body: JSON.stringify({ targetEmail: transferEmail.trim() }),
+      });
+      toast({ title: "Ownership Transferred", description: result.message });
+      queryClient.invalidateQueries({ queryKey: ["admin-hosting"] });
+      setTransferModal(null); setTransferEmail("");
+    } catch (e: any) {
+      toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
+    } finally { setTransferLoading(false); }
   };
 
   const action = async (id: string, endpoint: string, label: string, body?: Record<string, unknown>) => {
@@ -257,6 +275,40 @@ export default function AdminHosting() {
                   Update Password
                 </Button>
                 <Button variant="outline" onClick={() => { setChangePwModal(null); setChangePwValue(""); setShowChangePw(false); }}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Ownership Modal */}
+      {transferModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setTransferModal(null)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="font-semibold flex items-center gap-2 text-foreground"><ArrowRightLeft size={18} className="text-primary" /> Transfer Ownership</h2>
+              <button onClick={() => setTransferModal(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Transfer <strong className="text-foreground">{transferModal.domain || "this service"}</strong> to another client. All invoices linked to this service will also be moved. Dates and settings stay the same.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Target Client Email</label>
+                <Input
+                  type="email"
+                  placeholder="client@example.com"
+                  value={transferEmail}
+                  onChange={e => setTransferEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleTransferOwnership()}
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleTransferOwnership} disabled={transferLoading || !transferEmail.trim()} className="flex-1 gap-2">
+                  {transferLoading ? <Loader2 size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
+                  Transfer
+                </Button>
+                <Button variant="outline" onClick={() => { setTransferModal(null); setTransferEmail(""); }}>Cancel</Button>
               </div>
             </div>
           </div>
@@ -504,6 +556,10 @@ export default function AdminHosting() {
                         <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1"
                           onClick={() => { setChangePwModal({ id: s.id, domain: s.domain }); setChangePwValue(""); }}>
                           <KeyRound size={13} /> Password
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-violet-500 border-violet-500/30 hover:bg-violet-500/10"
+                          onClick={() => { setTransferModal({ id: s.id, domain: s.domain }); setTransferEmail(""); }}>
+                          <ArrowRightLeft size={13} /> Transfer
                         </Button>
                         {s.status === "active" && (
                           <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10"

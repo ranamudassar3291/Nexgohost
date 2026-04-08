@@ -2901,4 +2901,44 @@ router.post("/admin/hosting/:id/sync-usage", authenticate, requireAdmin, async (
   }
 });
 
+// ─── Admin: Transfer hosting service ownership to another client ──────────────
+router.post("/admin/hosting/:id/transfer-ownership", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { targetEmail } = req.body;
+    if (!targetEmail?.trim()) return res.status(400).json({ error: "Target client email is required" });
+
+    const [service] = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service) return res.status(404).json({ error: "Hosting service not found" });
+
+    const [targetUser] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, targetEmail.trim().toLowerCase())).limit(1);
+    if (!targetUser) return res.status(404).json({ error: `No client found with email: ${targetEmail}` });
+
+    if (targetUser.id === service.clientId) return res.status(400).json({ error: "This service already belongs to that client" });
+
+    const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId!)).limit(1);
+
+    await db.update(hostingServicesTable)
+      .set({ clientId: targetUser.id, updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, id));
+
+    // Also update any invoices linked to this service
+    await db.update(invoicesTable)
+      .set({ clientId: targetUser.id, updatedAt: new Date() })
+      .where(and(eq(invoicesTable.serviceId, id), eq(invoicesTable.clientId, service.clientId!)));
+
+    console.log(`[ADMIN] Hosting ${id} (${service.domain}) transferred from ${fromUser?.email ?? service.clientId} → ${targetUser.email}`);
+    res.json({
+      success: true,
+      message: `Service transferred to ${targetUser.firstName} ${targetUser.lastName} (${targetUser.email})`,
+      fromClient: fromUser ? `${fromUser.firstName} ${fromUser.lastName} (${fromUser.email})` : service.clientId,
+      toClient: `${targetUser.firstName} ${targetUser.lastName} (${targetUser.email})`,
+    });
+  } catch (err: any) {
+    console.error("[ADMIN] transfer-ownership error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

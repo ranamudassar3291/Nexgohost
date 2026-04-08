@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown, Bell, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Globe, Search, RefreshCw, Plus, Pencil, Trash2, X, DollarSign, Zap, Loader2, Calendar, Lock, ShieldCheck, AlertTriangle, ChevronDown, Bell, Clock, ChevronLeft, ChevronRight, ArrowRightLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -115,6 +115,9 @@ export default function AdminDomains() {
   const [lifecycleDropdown, setLifecycleDropdown] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "upcoming">("all");
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+  const [transferModal, setTransferModal] = useState<{ id: string; name: string } | null>(null);
+  const [transferEmail, setTransferEmail] = useState("");
+  const [transferLoading, setTransferLoading] = useState(false);
 
   const search = useDebounce(searchInput, 400);
 
@@ -263,6 +266,21 @@ export default function AdminDomains() {
     } finally { setLifecycleOverrideId(null); }
   };
 
+  const handleTransferOwnership = async () => {
+    if (!transferModal || !transferEmail.trim()) return;
+    setTransferLoading(true);
+    try {
+      const result = await apiFetch(`/api/admin/domains/${transferModal.id}/transfer-ownership`, {
+        method: "POST", body: JSON.stringify({ targetEmail: transferEmail.trim() }),
+      });
+      toast({ title: "Ownership Transferred", description: result.message });
+      queryClient.invalidateQueries({ queryKey: ["admin-domains"] });
+      setTransferModal(null); setTransferEmail("");
+    } catch (e: any) {
+      toast({ title: "Transfer Failed", description: e.message, variant: "destructive" });
+    } finally { setTransferLoading(false); }
+  };
+
   const openEdit = (d: Domain) => {
     setEditDomain(d);
     setForm({
@@ -394,6 +412,40 @@ export default function AdminDomains() {
       {editDomain && <DomainForm onSubmit={handleEdit} title={`Edit: ${editDomain.name}${editDomain.tld}`} isEdit />}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Transfer Ownership Modal */}
+      {transferModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setTransferModal(null)}>
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="font-semibold flex items-center gap-2 text-foreground"><ArrowRightLeft size={18} className="text-primary" /> Transfer Domain Ownership</h2>
+              <button onClick={() => setTransferModal(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Move <strong className="text-foreground">{transferModal.name}</strong> to another client account. Registration date, expiry date, and linked invoices will remain unchanged.
+              </p>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Target Client Email</label>
+                <Input
+                  type="email"
+                  placeholder="client@example.com"
+                  value={transferEmail}
+                  onChange={e => setTransferEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleTransferOwnership()}
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button onClick={handleTransferOwnership} disabled={transferLoading || !transferEmail.trim()} className="flex-1 gap-2">
+                  {transferLoading ? <Loader2 size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
+                  Transfer
+                </Button>
+                <Button variant="outline" onClick={() => { setTransferModal(null); setTransferEmail(""); }}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
         <div>
           <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Domain Management</h2>
           <p className="text-muted-foreground mt-1">Manage client domains and registrations</p>
@@ -569,6 +621,10 @@ export default function AdminDomains() {
                         </div>
                       )}
                     </div>
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-violet-500 border-violet-500/30 hover:bg-violet-500/10"
+                      onClick={() => { setTransferModal({ id: domain.id, name: domain.name + domain.tld }); setTransferEmail(""); }}>
+                      <ArrowRightLeft className="w-3 h-3" /> Transfer
+                    </Button>
                     <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(domain.id, domain.name + domain.tld)}>
                       <Trash2 className="w-3 h-3" />
                     </Button>
