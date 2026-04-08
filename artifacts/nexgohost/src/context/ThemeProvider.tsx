@@ -8,14 +8,14 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "dark",
+  theme: "light",
   toggleTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem("noehost-theme");
-    return (stored === "light" || stored === "dark") ? stored : "dark";
+    const stored = localStorage.getItem("noehost-theme-v2");
+    return (stored === "light" || stored === "dark") ? stored : "light";
   });
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       root.classList.remove("dark");
     }
-    localStorage.setItem("noehost-theme", theme);
+    localStorage.setItem("noehost-theme-v2", theme);
   }, [theme]);
 
   const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
