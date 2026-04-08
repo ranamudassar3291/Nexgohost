@@ -8,7 +8,7 @@ import { seedKbContent } from "./routes/kb.js";
 import { initWhatsApp } from "./lib/whatsapp.js";
 import { autoFixSafepayKeys } from "./routes/safepay.js";
 import { getSystemApiKey } from "./lib/systemApiKey.js";
-import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey, twentyiAutoWhitelist, getOutboundIp, startIpMonitor } from "./lib/twenty-i.js";
+import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey } from "./lib/twenty-i.js";
 import { db } from "@workspace/db";
 import { serversTable } from "@workspace/db/schema";
 import { and, eq, desc } from "drizzle-orm";
@@ -48,43 +48,11 @@ app.listen(port, async () => {
           console.warn(`[20i] All key formats rejected (401) — check key at Admin → Servers`);
         }
 
-        // Startup auto-whitelist: if no proxy is configured, try to whitelist the current outbound IP.
-        // This ensures the API works on every restart even if Replit changes the outbound IP.
-        // Once the Domain Proxy is deployed, this step becomes unnecessary (all calls go via noehost.com).
-        if (!server.twentyiBaseUrl) {
-          try {
-            const currentIp = await getOutboundIp();
-            const wlResult = await twentyiAutoWhitelist(plainToken, currentIp);
-            if (wlResult.alreadyPresent) {
-              console.log(`[20i-STARTUP] Outbound IP ${currentIp} already whitelisted — no action needed`);
-            } else if (wlResult.added) {
-              console.log(`[20i-STARTUP] ✓ Auto-whitelisted new outbound IP: ${currentIp}`);
-            } else {
-              console.warn(`[20i-STARTUP] Auto-whitelist skipped: ${wlResult.reason}`);
-            }
-          } catch (wlErr: any) {
-            console.warn(`[20i-STARTUP] Auto-whitelist failed (non-fatal): ${String(wlErr?.message ?? "").substring(0, 120)}`);
-          }
-        } else {
-          console.log(`[20i-STARTUP] Proxy configured (${server.twentyiBaseUrl}) — IP whitelist not needed`);
-        }
       }
     } catch (e: any) {
       console.warn(`[20i] Key format detection failed: ${e.message}`);
     }
   })();
-
-  // Periodic IP monitoring: detect outbound IP changes every 5 minutes and auto-whitelist.
-  startIpMonitor(async () => {
-    try {
-      const [srv] = await db.select().from(serversTable)
-        .where(and(eq(serversTable.type, "20i"), eq(serversTable.status, "active")))
-        .orderBy(desc(serversTable.updatedAt)).limit(1);
-      return srv?.apiToken ?? null;
-    } catch {
-      return null;
-    }
-  }, 5 * 60 * 1000);
 
   // Auto-refresh exchange rates on startup and every hour
   const runRefresh = async () => {

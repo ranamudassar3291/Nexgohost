@@ -231,11 +231,7 @@ export async function getOutboundIp(): Promise<string> {
     }
     const res = await axios.get<{ ip: string }>("https://api.ipify.org?format=json", cfg);
     const ip = res.data?.ip ?? "unknown";
-    if (proxyUrl) {
-      console.log(`[20i] Outbound IP via proxy: ${ip}  \u2190 This is your proxy's static IP — whitelist it once in 20i and it never needs to change`);
-    } else {
-      console.log(`[20i] Outbound IP (direct): ${ip}  \u2190 This IP changes on Replit restart — set a "Static IP Proxy URL" on the 20i server (Admin \u2192 Servers) for a permanent fix`);
-    }
+    console.log(`[20i] Outbound IP: ${ip}${proxyUrl ? " (via proxy)" : ""}`);
     return ip;
   } catch {
     return "unknown";
@@ -364,51 +360,18 @@ async function request<T = any>(
   if (res.status === 401) {
     let errType: string | null = null;
     try { errType = (typeof res.data === "object" ? res.data?.type : JSON.parse(raw)?.type) ?? null; } catch { /* ignore */ }
-    if (errType === "User ID") {
-      throw new Error(
-        `20i Authentication failed (401) — KEY NOT RECOGNISED. ` +
-        `Your API key was rejected by 20i. Verify that you are using a valid General Key or Combined Key from my.20i.com → Reseller API. ` +
-        `Response: ${raw.substring(0, 200)}`,
-      );
-    }
     throw new Error(
-      `20i Authentication failed (401) — IP NOT WHITELISTED or key invalid. ` +
-      `Add this server's outbound IP at my.20i.com → Reseller API → IP Whitelist, then retry. ` +
-      `Response: ${raw.substring(0, 200)}`,
+      errType === "User ID"
+        ? `20i Authentication failed (401) — key not recognised. Verify your API key at my.20i.com → Reseller API.`
+        : `20i Authentication failed (401) — key rejected. Response: ${raw.substring(0, 200)}`,
     );
   }
   if (res.status === 403) {
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
-    const perm403 = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
-    // user: null on a 403 = IP not whitelisted (20i cannot resolve the key from an unwhitelisted IP)
-    const userNull403 = d403?.user === null || d403?.error?.data?.user === null;
-    if (perm403 === "IpMatch" || userNull403) {
-      throw new Error(
-        `20i Forbidden (403) — IpMatch: IP is not whitelisted. ` +
-        `Add this server's outbound IP at my.20i.com → Reseller API → IP Whitelist, then retry.`,
-      );
-    }
-    const scopeInfo = ` Scope: ${d403?.scope ?? "unknown"}. User: ${d403?.user ?? "null"}.`;
-    throw new Error(
-      `20i Forbidden (403).${scopeInfo} Check that your Reseller Combined API Key has the required permissions.`,
-    );
+    const scopeInfo = ` Scope: ${d403?.scope ?? "unknown"}. Permission: ${d403?.permission ?? d403?.error?.data?.permission ?? "unknown"}.`;
+    throw new Error(`20i Forbidden (403).${scopeInfo} Check your Reseller API key permissions.`);
   }
   if (res.status === 404) {
-    // For reseller/* endpoints, 404 can mean:
-    //   a) IP not whitelisted (20i returns 404 for unwhitelisted IPs on some account types)
-    //   b) The endpoint simply doesn't exist for this account type
-    // We throw IP_NOT_WHITELISTED so the route layer can surface the right message.
-    if (path.startsWith("/reseller/")) {
-      throw Object.assign(
-        new Error(
-          `20i reseller endpoint returned 404. ` +
-          `This may mean: (a) IP not yet whitelisted at my.20i.com → Reseller API → IP Whitelist, ` +
-          `or (b) this endpoint is not available for your account type. ` +
-          `Endpoint: ${path}`,
-        ),
-        { code: "IP_NOT_WHITELISTED", status: 404 },
-      );
-    }
     throw Object.assign(
       new Error(`20i Not Found (404): ${path}`),
       { code: "NOT_FOUND_404", status: 404 },
@@ -424,24 +387,7 @@ async function request<T = any>(
   throw new Error(`20i API error ${res.status}: ${raw.substring(0, 300)}`);
 }
 
-// ─── IpMatch detection ─────────────────────────────────────────────────────────
-// Returns true when a 403 response body indicates an IP whitelist rejection.
-// 20i returns: { permission: "IpMatch" } or { error: { data: { permission: "IpMatch" } } }
-function isIpMatchError(data: any): boolean {
-  if (typeof data !== "object" || data === null) return false;
-  const perm = (data as any)?.permission
-    ?? (data as any)?.error?.data?.permission
-    ?? (data as any)?.data?.permission;
-  return perm === "IpMatch";
-}
-
-// Session-level cache: once we confirm the whitelist endpoint is unavailable for a key,
-// skip the multi-format whitelist loop on subsequent IpMatch errors (saves time + log noise).
-const _wlEndpointUnavailable = new Set<string>();
-
 // Retry up to MAX_RETRIES times using exponential backoff. Skips retry on auth/not-found errors.
-// Special case: on first 403 IpMatch, attempts self-healing by auto-whitelisting the current IP,
-// then retries the original request ONCE. If self-healing also fails, throws the original error.
 async function requestWithRetry<T = any>(
   apiKey: string,
   method: string,
@@ -449,7 +395,6 @@ async function requestWithRetry<T = any>(
   body?: unknown,
 ): Promise<T> {
   let lastErr!: Error;
-  let selfHealAttempted = false;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -457,56 +402,6 @@ async function requestWithRetry<T = any>(
     } catch (err: any) {
       lastErr = err;
       const msg: string = err.message ?? "";
-
-      // ── IpMatch self-healing ──────────────────────────────────────────────────
-      // When 403 IpMatch is detected and we haven't tried self-healing yet,
-      // attempt to auto-add current IP to 20i whitelist, then loop back for a retry.
-      // No cooldown — provisioning calls must always get a whitelist attempt.
-      if (!selfHealAttempted && msg.includes("403") && msg.includes("IpMatch")) {
-        selfHealAttempted = true;
-        const keyId = sanitiseKey(apiKey).slice(-4);
-
-        // Fast-path: if we already know the whitelist endpoint is unavailable for this
-        // key, skip the multi-format attempt and throw a clean, actionable error.
-        let currentIp = _lastKnownIp ?? "";
-        try {
-          const { default: axiosInner } = await import("axios");
-          const ipRes = await axiosInner.get("https://api.ipify.org?format=json", { timeout: 5000 });
-          currentIp = ipRes.data?.ip ?? currentIp;
-          _lastKnownIp = currentIp;
-        } catch { /* IP fetch failed — use last known */ }
-
-        if (_wlEndpointUnavailable.has(keyId)) {
-          throw new Error(
-            `20i IpMatch: IP ${currentIp} is not whitelisted. ` +
-            `Auto-whitelist is unavailable for this account — add ${currentIp} manually at ` +
-            `my.20i.com → Reseller API → IP Whitelist, then retry.`,
-          );
-        }
-
-        if (currentIp) {
-          console.log(`[20i-SH] IpMatch — attempting auto-whitelist for ${currentIp}…`);
-          try {
-            const wlResult = await twentyiAutoWhitelist(sanitiseKey(apiKey), currentIp);
-            if (wlResult.added || wlResult.alreadyPresent) {
-              console.log(`[20i-SH] Whitelist ${wlResult.alreadyPresent ? "confirmed" : "succeeded"} for ${currentIp} — waiting 2s then retrying`);
-              await new Promise(r => setTimeout(r, 2000));
-              continue;
-            }
-            if (wlResult.reason === "endpoint_unavailable") {
-              _wlEndpointUnavailable.add(keyId);
-              console.warn(`[20i-SH] Whitelist endpoint unavailable — future IpMatch errors will skip this attempt`);
-            }
-          } catch (shErr: any) {
-            console.warn(`[20i-SH] Auto-whitelist threw: ${String(shErr?.message ?? "").substring(0, 120)}`);
-          }
-          throw new Error(
-            `20i IpMatch: IP ${currentIp} is not whitelisted and auto-whitelist failed. ` +
-            `Add ${currentIp} manually at my.20i.com → Reseller API → IP Whitelist, then retry.`,
-          );
-        }
-        throw err;
-      }
 
       // Do not retry on clear client errors.
       if (msg.includes("401") || msg.includes("403") || msg.includes("404") || msg.includes("405")) throw err;
@@ -521,46 +416,6 @@ async function requestWithRetry<T = any>(
   throw lastErr;
 }
 
-// ─── Pre-activation IP sync ────────────────────────────────────────────────────
-// Call this BEFORE any order activation to proactively whitelist the current IP.
-// Compares the current outbound IP against the last known IP. If they differ (or
-// this is the first call), attempts auto-whitelisting and updates the known IP.
-// Never throws — failures are logged, not surfaced (the actual request handles recovery).
-export async function twentyiEnsureIpWhitelisted(apiKey: string): Promise<void> {
-  try {
-    const currentIp = await getOutboundIp();
-    if (!currentIp || currentIp === "unknown") return;
-
-    const changed = _lastKnownIp !== null && _lastKnownIp !== currentIp;
-    const firstRun = _lastKnownIp === null;
-
-    if (!firstRun && !changed) {
-      console.log(`[20i-PRECHECK] Outbound IP ${currentIp} unchanged — no whitelist needed`);
-      return;
-    }
-
-    if (changed) {
-      console.warn(`[20i-PRECHECK] IP changed: ${_lastKnownIp} → ${currentIp} — proactively whitelisting before activation`);
-    } else {
-      console.log(`[20i-PRECHECK] First run — verifying IP ${currentIp} is whitelisted`);
-    }
-
-    const wlResult = await twentyiAutoWhitelist(sanitiseKey(apiKey), currentIp);
-    if (wlResult.added) {
-      console.log(`[20i-PRECHECK] ✓ IP ${currentIp} whitelisted before activation`);
-    } else if (wlResult.alreadyPresent) {
-      console.log(`[20i-PRECHECK] IP ${currentIp} already in whitelist — OK`);
-    } else {
-      console.warn(`[20i-PRECHECK] Could not auto-whitelist ${currentIp}: ${wlResult.reason}`);
-      if (wlResult.reason === "endpoint_unavailable") {
-        console.warn(`[20i-PRECHECK] Manual action required: add ${currentIp} at my.20i.com → Reseller API → IP Whitelist`);
-      }
-    }
-    _lastKnownIp = currentIp;
-  } catch (err: any) {
-    console.warn(`[20i-PRECHECK] IP pre-check failed (non-fatal): ${String(err?.message ?? "").substring(0, 120)}`);
-  }
-}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -916,61 +771,6 @@ export async function twentyiAutoWhitelist(
   return { added: false, reason: "error" };
 }
 
-// ─── Periodic IP monitoring ────────────────────────────────────────────────────
-// Detects outbound IP changes (Replit can change NAT IP on restart/redeploy)
-// and automatically attempts to re-whitelist the new IP with 20i.
-
-let _lastKnownIp: string | null = null;
-let _ipMonitorTimer: ReturnType<typeof setInterval> | null = null;
-
-export function startIpMonitor(
-  getApiKey: () => Promise<string | null>,
-  intervalMs = 5 * 60 * 1000,
-): () => void {
-  if (_ipMonitorTimer !== null) {
-    clearInterval(_ipMonitorTimer);
-    _ipMonitorTimer = null;
-  }
-
-  const check = async () => {
-    try {
-      const currentIp = await getOutboundIp();
-      if (!currentIp || currentIp === "unknown") return;
-
-      if (_lastKnownIp && _lastKnownIp !== currentIp) {
-        console.warn(`[20i-IPMON] ⚠ Outbound IP changed: ${_lastKnownIp} → ${currentIp}`);
-        const apiKey = await getApiKey();
-        if (apiKey) {
-          const result = await twentyiAutoWhitelist(apiKey, currentIp);
-          if (result.added) {
-            console.log(`[20i-IPMON] ✓ New IP ${currentIp} whitelisted automatically`);
-          } else if (result.alreadyPresent) {
-            console.log(`[20i-IPMON] ${currentIp} already in whitelist — OK`);
-          } else {
-            console.warn(`[20i-IPMON] ✗ Could not auto-whitelist ${currentIp} (${result.reason})`);
-            console.warn(`[20i-IPMON] MANUAL ACTION REQUIRED: add ${currentIp} at my.20i.com → Reseller API → IP Whitelist`);
-          }
-        }
-      } else if (!_lastKnownIp) {
-        console.log(`[20i-IPMON] IP monitor started — current outbound IP: ${currentIp}`);
-      }
-
-      _lastKnownIp = currentIp;
-    } catch (err: any) {
-      console.warn(`[20i-IPMON] Check failed: ${String(err?.message ?? "").substring(0, 80)}`);
-    }
-  };
-
-  check();
-  _ipMonitorTimer = setInterval(check, intervalMs);
-
-  return () => {
-    if (_ipMonitorTimer !== null) {
-      clearInterval(_ipMonitorTimer);
-      _ipMonitorTimer = null;
-    }
-  };
-}
 
 // ─── Connection test ──────────────────────────────────────────────────────────
 // Endpoint: GET /reseller/*/packageCount
