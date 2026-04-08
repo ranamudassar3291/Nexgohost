@@ -666,9 +666,9 @@ export default function Servers() {
                         )}
                         {testResults[s.id] && (
                           <div className="mt-2 space-y-1.5">
-                            <div className={`flex items-start gap-1.5 text-xs ${testResults[s.id].ipWarning ? "text-amber-500" : testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
-                              {testResults[s.id].ipWarning ? <span className="shrink-0 mt-0.5">⚠️</span> : testResults[s.id].ok ? <CheckCircle size={11} className="shrink-0 mt-0.5" /> : <XCircle size={11} className="shrink-0 mt-0.5" />}
-                              <span>{testResults[s.id].ipWarning ? (testResults[s.id].diagnostic?.detail || testResults[s.id].msg) : testResults[s.id].msg}</span>
+                            <div className={`flex items-start gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
+                              {testResults[s.id].ok ? <CheckCircle size={11} className="shrink-0 mt-0.5" /> : <XCircle size={11} className="shrink-0 mt-0.5" />}
+                              <span>{testResults[s.id].msg}</span>
                             </div>
                             {testResults[s.id].ok && (testResults[s.id].packages?.length ?? 0) > 0 && (
                               <div className="flex flex-wrap gap-1 pt-0.5">

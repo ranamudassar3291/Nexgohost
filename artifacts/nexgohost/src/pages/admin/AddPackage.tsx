@@ -70,6 +70,7 @@ export default function AddPackage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [plansError, setPlansError] = useState("");
+  const [plansFrom20i, setPlansFrom20i] = useState(false);
   const [plansOutboundIp, setPlansOutboundIp] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [modulePlanId, setModulePlanId] = useState("");
@@ -107,16 +108,17 @@ export default function AddPackage() {
 
   // Fetch plans when server changes
   const fetchPlans = async (serverId: string) => {
-    if (!serverId) { setPlans([]); setSelectedPlan(null); setPlansOutboundIp(""); return; }
-    setLoadingPlans(true); setPlansError(""); setPlansOutboundIp(""); setSelectedPlan(null);
+    if (!serverId) { setPlans([]); setSelectedPlan(null); setPlansOutboundIp(""); setPlansFrom20i(false); return; }
+    setLoadingPlans(true); setPlansError(""); setPlansOutboundIp(""); setPlansFrom20i(false); setSelectedPlan(null);
     try {
       const data = await apiFetch(`/api/admin/servers/${serverId}/plans`);
       const planList: Plan[] = data.plans || [];
       setPlans(planList);
+      if (data.from20i) setPlansFrom20i(true);
       if (data.outboundIp) setPlansOutboundIp(data.outboundIp);
       if (data.error) {
         setPlansError(data.error);
-      } else if (planList.length === 0) {
+      } else if (planList.length === 0 && !data.from20i) {
         setPlansError("No packages found on this server.");
       }
     } catch (err: any) {
@@ -354,6 +356,10 @@ export default function AddPackage() {
                       {plansError && plans.length === 0 ? (
                         <div className="flex items-start gap-2 px-3 py-3 bg-destructive/5 border border-destructive/20 rounded-xl text-sm text-destructive">
                           <AlertCircle size={14} className="mt-0.5 shrink-0" /> {plansError}
+                        </div>
+                      ) : plans.length === 0 && !loadingPlans && plansFrom20i ? (
+                        <div className="px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 text-center">
+                          No packages synced yet from 20i — add packages in your 20i reseller portal first, then refresh here.
                         </div>
                       ) : plans.length === 0 && !loadingPlans ? (
                         <div className="px-3 py-2.5 bg-secondary/50 border border-border rounded-xl text-sm text-muted-foreground text-center">

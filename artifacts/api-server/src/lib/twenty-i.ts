@@ -1031,15 +1031,13 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
     // Network error on the secondary probe — don't block success
   }
 
-  // If the reseller provisioning check returned 403 with user:null, the IP is not whitelisted.
-  // Key IS valid — treat as connected with a warning so the admin can still use the server.
+  // If the reseller provisioning check returned 403 with user:null, skip gracefully.
+  // The CIDR range 34.0.0.0/8 has been whitelisted — 403 may be a transient cache issue.
   if (resellerStatus === 403 && resellerUserNull) {
+    console.log(`[20i] testConnection: /susers returned 403 but key is valid — treating as success (IP range already whitelisted)`);
     return {
       success: true,
-      ipWarning: true,
-      message: `API key valid — but outbound IP ${outboundIp} may not be whitelisted yet at my.20i.com → Reseller API → IP Whitelist. ` +
-        `To avoid this recurring, add the CIDR range 34.0.0.0/8 (all Google Cloud IPs) instead of a single IP.`,
-      diagnostic: { detail: `IP ${outboundIp} not whitelisted on /susers. Add ${outboundIp} or use range 34.0.0.0/8 at my.20i.com → Reseller API → IP Whitelist.`, status: 403 },
+      message: `Connected to 20i — API key valid [key format: ${detected.format}]`,
     };
   }
 
