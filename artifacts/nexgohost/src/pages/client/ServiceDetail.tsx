@@ -24,7 +24,8 @@ const API = "";
 
 function authFetch(url: string, opts: RequestInit = {}) {
   const token = localStorage.getItem("token");
-  return fetch(url, {
+  const fullUrl = url.startsWith("/api") ? url : `/api${url}`;
+  return fetch(fullUrl, {
     ...opts,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
   });
@@ -889,7 +890,7 @@ function SectionFiles({ service }: { service: Service }) {
     form.append("dir", currentPath);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`/client/hosting/${service.id}/files/upload`, {
+      const res = await fetch(`/api/client/hosting/${service.id}/files/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,
