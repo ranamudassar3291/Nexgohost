@@ -673,6 +673,176 @@ export async function cpanelSaveFile(
   });
 }
 
+export interface FilesystemItem {
+  file: string;
+  type: "file" | "dir";
+  size: number;
+  mtime: number;
+  humansize: string;
+  permissions: string;
+  mime?: string;
+  fullpath: string;
+}
+
+/** List files/folders in a directory via Fileman::list */
+export async function cpanelFilelist(
+  server: ServerConfig,
+  cpanelUser: string,
+  dir: string,
+  limit = 200,
+): Promise<FilesystemItem[]> {
+  const data = await cpanelUapi(server, cpanelUser, "Fileman", "list", {
+    dir,
+    include_mime: "1",
+    limit: String(limit),
+    sort_by: "type",
+    sort_order: "asc",
+  });
+  const items: any[] = Array.isArray(data) ? data : (data?.list ?? data?.files ?? []);
+  return items.map((item: any) => ({
+    file: item.file ?? item.filename ?? "",
+    type: (item.type === "dir" || item.type === "folder") ? "dir" : "file",
+    size: Number(item.size ?? 0),
+    mtime: Number(item.mtime ?? item.modified ?? 0),
+    humansize: item.humansize ?? item.human_size ?? formatBytes(Number(item.size ?? 0)),
+    permissions: item.permissions ?? item.perms ?? "",
+    mime: item.mime ?? item.mimetype ?? undefined,
+    fullpath: `${dir}/${item.file ?? item.filename ?? ""}`.replace(/\/+/g, "/"),
+  }));
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Read a text file via Fileman::get_file_content (returns raw string) */
+export async function cpanelFileGetContent(
+  server: ServerConfig,
+  cpanelUser: string,
+  dir: string,
+  filename: string,
+): Promise<string> {
+  const data = await cpanelUapi(server, cpanelUser, "Fileman", "get_file_content", {
+    dir,
+    file: filename,
+  });
+  const raw = data?.content ?? data?.file_content ?? data;
+  if (typeof raw === "string") {
+    try { return Buffer.from(raw, "base64").toString("utf-8"); } catch { return raw; }
+  }
+  return "";
+}
+
+/** Create a directory via Fileman::mkdir */
+export async function cpanelFileMkdir(
+  server: ServerConfig,
+  cpanelUser: string,
+  parentDir: string,
+  folderName: string,
+): Promise<void> {
+  const fullPath = `${parentDir}/${folderName}`.replace(/\/+/g, "/");
+  await cpanelUapi(server, cpanelUser, "Fileman", "mkdir", { name: fullPath });
+}
+
+/** Delete a file or directory via Fileman::unlink_files */
+export async function cpanelFileDelete(
+  server: ServerConfig,
+  cpanelUser: string,
+  dir: string,
+  filename: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Fileman", "unlink_files", {
+    metadata: JSON.stringify([{ filename, dir }]),
+  });
+}
+
+/**
+ * Upload a file to cPanel via multipart POST to Fileman upload endpoint.
+ * fileBuffer is the raw file bytes. Returns void on success.
+ */
+export async function cpanelFileUpload(
+  server: ServerConfig,
+  cpanelUser: string,
+  targetDir: string,
+  filename: string,
+  fileBuffer: Buffer,
+  mimeType = "application/octet-stream",
+): Promise<void> {
+  // 1. get a cPanel session token
+  const { hostname, whmApiToken } = server as any;
+  const whmBase = `https://${hostname}:2087`;
+  const sessResp = await fetch(
+    `${whmBase}/json-api/create_user_session?api.version=1&user=${encodeURIComponent(cpanelUser)}&service=cpaneld`,
+    { headers: { Authorization: `whm root:${whmApiToken}` }, signal: AbortSignal.timeout(15000) },
+  );
+  if (!sessResp.ok) throw new Error(`WHM create_user_session failed: ${sessResp.status}`);
+  const sessJson = await sessResp.json() as any;
+  const cpanelUrl: string = sessJson?.data?.url ?? sessJson?.result?.data?.url ?? "";
+  if (!cpanelUrl) throw new Error("No cPanel session URL returned");
+  const cpsessMatch = cpanelUrl.match(/\/cpsess(\w+)\//);
+  if (!cpsessMatch) throw new Error("Cannot parse cpsess from URL");
+  const cpsess = `cpsess${cpsessMatch[1]}`;
+
+  // 2. POST multipart to Fileman::upload_files
+  const { FormData, File } = await import("undici");
+  const form = new FormData();
+  form.set("dir", targetDir);
+  form.set("file-0", new File([fileBuffer], filename, { type: mimeType }));
+
+  const uploadUrl = `https://${hostname}:2083/${cpsess}/execute/Fileman/upload_files`;
+  const uploadResp = await fetch(uploadUrl, {
+    method: "POST",
+    headers: { Cookie: `cpsession=${cpsess}` } as any,
+    body: form as any,
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!uploadResp.ok) throw new Error(`Upload failed: ${uploadResp.status}`);
+}
+
+/** Restore a cPanel full backup via WHM restoreaccount API */
+export async function cpanelRestoreFullBackup(
+  server: ServerConfig,
+  cpanelUser: string,
+  backupFilePath: string,
+): Promise<void> {
+  const { hostname, whmApiToken } = server as any;
+  const url = `https://${hostname}:2087/json-api/restoreaccount?api.version=1`;
+  const body = new URLSearchParams({
+    user: cpanelUser,
+    type: "homedir",
+    restore_point: backupFilePath,
+  });
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `whm root:${whmApiToken}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!resp.ok) throw new Error(`Restore failed: ${resp.status} ${await resp.text()}`);
+  const json = await resp.json() as any;
+  if (json?.metadata?.result === 0 || json?.result?.[0]?.status === 0) {
+    throw new Error(json?.metadata?.reason ?? json?.result?.[0]?.statusmsg ?? "Restore failed");
+  }
+}
+
+/** Restore a MySQL DB backup via cPanel Mysql::restore_database */
+export async function cpanelRestoreDatabase(
+  server: ServerConfig,
+  cpanelUser: string,
+  dbName: string,
+  backupFilePath: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Restore", "restore_file", {
+    type: "mysql",
+    target: dbName,
+    restore_point: backupFilePath,
+  });
+}
 
 // ─── Softaculous installer ────────────────────────────────────────────────────
 //

@@ -20,8 +20,34 @@ The client service detail page (`/client/hosting/:id`) is a full Hostinger-style
 | **Node.js** | Create apps, start/stop/restart, delete (WHM NodeJs Selector UAPI) |
 | **Python** | Create apps, restart/stop, delete (WHM Python Selector UAPI) |
 
-Backend routes: `artifacts/api-server/src/routes/hosting.ts` (Email, DB, SSH, Node.js, Python sections)
-Backend helpers: `artifacts/api-server/src/lib/cpanel.ts` (cpanelEmailList/Create/Delete/ChangePassword, cpanelMysqlListDatabases, cpanelSshGetStatus/Enable/Disable, cpanelNodejsList/Create/Action/Delete, cpanelPythonList/Create/Action/Delete)
+Backend routes: `artifacts/api-server/src/routes/hosting.ts` (Email, DB, SSH, Node.js, Python, File Manager, Backup Restore, WP Deep-link sections)
+Backend helpers: `artifacts/api-server/src/lib/cpanel.ts` (cpanelEmailList/Create/Delete/ChangePassword, cpanelMysqlListDatabases, cpanelSshGetStatus/Enable/Disable, cpanelNodejsList/Create/Action/Delete, cpanelPythonList/Create/Action/Delete, cpanelFilelist/FileGetContent/SaveFile/FileMkdir/FileDelete/FileUpload, cpanelRestoreFullBackup/RestoreDatabase)
+
+### File Manager details
+- Full in-browser custom file manager — no dependency on cPanel UI
+- Navigate directories with breadcrumbs, file type icons
+- Click text files to open a full-screen code editor (dark theme textarea)
+- Save file edits back to server via Fileman::save_file_content
+- Create folders via Fileman::mkdir
+- Delete files/folders (hover → trash icon)
+- Upload files up to 100 MB via WHM session → Fileman upload endpoint
+- 20i services show "Not Available" notice (WHM-only feature)
+
+### WordPress Plugin/Theme Manager
+- When WP is installed: Plugin Manager card shows popular plugins (WooCommerce, Yoast, Elementor, etc.)
+- "Manage Plugins in WP Admin" button opens WP Admin /plugins.php via SSO auto-login
+- Theme Manager card shows popular themes with "Manage Themes" SSO button
+- Both use `/client/hosting/:id/wp/sso-deep?target=plugins|themes` API route
+
+### Backup Restore
+- "Restore" button appears on each completed backup
+- Full backups: triggers WHM `restoreaccount` API
+- DB backups: triggers cPanel Restore UAPI
+- Confirmation dialog before restore starts
+
+### SSL Renew
+- When SSL is active: both "Reinstall SSL" and "Renew SSL" buttons available
+- Both call the same Let's Encrypt re-issue endpoint
 
 ## Theme & Design
 

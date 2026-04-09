@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
   Cpu, Code2, Wifi, Terminal, FolderOpen, Settings, LayoutDashboard,
   Globe2, Power, Play, Square, RotateCcw, ChevronRight, Info,
   MoreHorizontal, Boxes, AtSign, Zap, UploadCloud, FileText,
-  Network,
+  Network, FolderPlus, Upload, ArrowUp, Home, Save, X, Plug, Palette,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -345,6 +345,17 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
   const isProvisioning = ["provisioning", "queued"].includes(wpStatus.status ?? "");
   const isInstalled = service.wpInstalled || wpStatus.status === "installed";
 
+  async function openWpDeepLink(target: string) {
+    setLoading(`wp-deep-${target}`);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/wp/sso-deep?target=${target}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      if (d.url) window.open(d.url, "_blank", "noopener");
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(null); }
+  }
+
   if (isInstalled) {
     return (
       <div className="space-y-5">
@@ -362,7 +373,7 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
               <Button variant="outline" size="sm" onClick={() => window.open(service.wpUrl || `https://${service.domain}`, "_blank")} className="gap-1.5">
                 <ExternalLink size={13} /> Visit Site
               </Button>
-              <Button size="sm" onClick={handleWpAdmin} disabled={loading === "wpadmin"} className="gap-1.5 bg-primary hover:bg-primary/90">
+              <Button size="sm" onClick={handleWpAdmin} disabled={!!loading} className="gap-1.5 bg-primary hover:bg-primary/90">
                 {loading === "wpadmin" ? <Loader2 size={13} className="animate-spin" /> : <Settings size={13} />} WP Admin
               </Button>
             </div>
@@ -371,6 +382,51 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
             {service.wpUsername && <div className="bg-muted rounded-lg p-3"><p className="text-muted-foreground text-xs">Admin User</p><p className="font-medium mt-0.5">{service.wpUsername}</p></div>}
             {service.wpEmail && <div className="bg-muted rounded-lg p-3"><p className="text-muted-foreground text-xs">Admin Email</p><p className="font-medium mt-0.5">{service.wpEmail}</p></div>}
           </div>
+        </Card>
+
+        {/* Plugin & Theme Manager */}
+        <Card>
+          <h3 className="font-semibold text-foreground mb-1">Plugin Manager</h3>
+          <p className="text-sm text-muted-foreground mb-4">Install, activate, or remove plugins directly from your WordPress admin.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            {[
+              { name: "WooCommerce", desc: "E-commerce" },
+              { name: "Yoast SEO", desc: "SEO" },
+              { name: "Contact Form 7", desc: "Forms" },
+              { name: "Elementor", desc: "Page Builder" },
+              { name: "WP Rocket", desc: "Caching" },
+              { name: "Akismet", desc: "Anti-spam" },
+              { name: "UpdraftPlus", desc: "Backup" },
+              { name: "Wordfence", desc: "Security" },
+            ].map(p => (
+              <div key={p.name} className="border border-border rounded-lg p-2.5 text-center">
+                <Plug size={14} className="text-muted-foreground mx-auto mb-1" />
+                <p className="text-xs font-medium text-foreground leading-tight">{p.name}</p>
+                <p className="text-xs text-muted-foreground">{p.desc}</p>
+              </div>
+            ))}
+          </div>
+          <Button onClick={() => openWpDeepLink("plugins")} disabled={!!loading} className="gap-2 bg-primary hover:bg-primary/90">
+            {loading === "wp-deep-plugins" ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
+            Manage Plugins in WP Admin
+          </Button>
+        </Card>
+
+        <Card>
+          <h3 className="font-semibold text-foreground mb-1">Theme Manager</h3>
+          <p className="text-sm text-muted-foreground mb-4">Switch your site theme or install a new one.</p>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
+            {["Astra", "OceanWP", "GeneratePress", "Neve", "Hello Elementor", "Kadence"].map(t => (
+              <div key={t} className="border border-border rounded-lg p-2.5 text-center">
+                <Palette size={14} className="text-muted-foreground mx-auto mb-1" />
+                <p className="text-xs font-medium text-foreground leading-tight">{t}</p>
+              </div>
+            ))}
+          </div>
+          <Button onClick={() => openWpDeepLink("themes")} disabled={!!loading} variant="outline" className="gap-2">
+            {loading === "wp-deep-themes" ? <Loader2 size={14} className="animate-spin" /> : <Palette size={14} />}
+            Manage Themes in WP Admin
+          </Button>
         </Card>
       </div>
     );
@@ -718,36 +774,246 @@ function SectionDatabases({ service }: { service: Service }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: FILES
 // ═══════════════════════════════════════════════════════════════════════════════
+type FsItem = { file: string; type: "file" | "dir"; size: number; mtime: number; humansize: string; permissions: string; mime?: string; fullpath: string };
+
+function fileIcon(item: FsItem) {
+  if (item.type === "dir") return <FolderOpen size={16} className="text-yellow-500 shrink-0" />;
+  const ext = item.file.split(".").pop()?.toLowerCase() ?? "";
+  if (["js","ts","jsx","tsx","mjs","cjs"].includes(ext)) return <Code2 size={16} className="text-yellow-400 shrink-0" />;
+  if (["html","htm","css","scss","sass"].includes(ext)) return <Globe2 size={16} className="text-blue-500 shrink-0" />;
+  if (["php","py","rb","go","java","c","cpp","rs"].includes(ext)) return <Terminal size={16} className="text-green-500 shrink-0" />;
+  if (["jpg","jpeg","png","gif","webp","svg","ico"].includes(ext)) return <Zap size={16} className="text-pink-500 shrink-0" />;
+  if (["zip","tar","gz","bz2","7z","rar"].includes(ext)) return <Download size={16} className="text-orange-500 shrink-0" />;
+  if (["sql","db","sqlite"].includes(ext)) return <Database size={16} className="text-purple-500 shrink-0" />;
+  return <FileText size={16} className="text-muted-foreground shrink-0" />;
+}
+
+const TEXT_EXTS = new Set(["txt","html","htm","css","scss","sass","js","ts","jsx","tsx","mjs","cjs","json","xml","svg","php","py","rb","go","java","c","cpp","rs","sh","bash","md","env","ini","conf","yaml","yml","htaccess","log","csv"]);
+
 function SectionFiles({ service }: { service: Service }) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  async function openFileManager() {
-    setLoading(true);
-    try { await ssoLaunch(service.id, "filemanager", toast); }
-    finally { setLoading(false); }
+  const isWHM = !service.twentyIPackageId;
+
+  const [currentPath, setCurrentPath] = useState("public_html");
+  const [items, setItems] = useState<FsItem[]>([]);
+  const [loadingDir, setLoadingDir] = useState(false);
+  const [editFile, setEditFile] = useState<{ path: string; content: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showMkdir, setShowMkdir] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [mkdiring, setMkdiring] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const uploadRef = useRef<HTMLInputElement | null>(null);
+
+  async function loadDir(path: string) {
+    setLoadingDir(true);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/files?path=${encodeURIComponent(path)}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to list directory");
+      setItems(d.items || []);
+      setCurrentPath(path);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoadingDir(false); }
   }
+
+  useEffect(() => { if (isWHM) loadDir("public_html"); }, [service.id]);
+
+  function navigateTo(path: string) { setEditFile(null); loadDir(path); }
+
+  function navigateUp() {
+    const parts = currentPath.split("/").filter(Boolean);
+    if (parts.length <= 1) return;
+    navigateTo(parts.slice(0, -1).join("/"));
+  }
+
+  async function openFile(item: FsItem) {
+    const ext = item.file.split(".").pop()?.toLowerCase() ?? "";
+    if (!TEXT_EXTS.has(ext)) return toast({ description: "Binary files cannot be edited in browser." });
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/files/content?path=${encodeURIComponent(item.fullpath)}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      setEditFile({ path: item.fullpath, content: d.content });
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  async function saveFile() {
+    if (!editFile) return;
+    setSaving(true);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/files/content`, {
+        method: "PUT", body: JSON.stringify({ path: editFile.path, content: editFile.content }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Save failed");
+      toast({ title: "File saved" });
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  }
+
+  async function deleteItem(item: FsItem) {
+    if (!confirm(`Delete "${item.file}"? This cannot be undone.`)) return;
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/files`, {
+        method: "DELETE", body: JSON.stringify({ path: item.fullpath }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Delete failed");
+      toast({ title: `"${item.file}" deleted` });
+      loadDir(currentPath);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  async function createFolder() {
+    if (!newFolderName.trim()) return;
+    setMkdiring(true);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/files/mkdir`, {
+        method: "POST", body: JSON.stringify({ path: currentPath, name: newFolderName.trim() }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      toast({ title: `Folder "${newFolderName}" created` });
+      setNewFolderName(""); setShowMkdir(false); loadDir(currentPath);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setMkdiring(false); }
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("dir", currentPath);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/client/hosting/${service.id}/files/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Upload failed");
+      toast({ title: "File uploaded", description: file.name });
+      loadDir(currentPath);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setUploading(false); e.target.value = ""; }
+  }
+
+  const breadcrumbs = currentPath.split("/").filter(Boolean);
+
+  if (!isWHM) return <NotAvailable reason="File Manager requires a cPanel/WHM server." />;
+
+  if (editFile) {
+    return (
+      <div className="space-y-3">
+        <SectionHeader title="File Manager" description={editFile.path}
+          action={<div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setEditFile(null)} className="gap-1.5"><ArrowLeft size={13} /> Back</Button>
+            <Button size="sm" onClick={saveFile} disabled={saving} className="gap-1.5 bg-primary hover:bg-primary/90">
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save
+            </Button>
+          </div>} />
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b border-border">
+            <span className="text-xs font-mono text-muted-foreground">{editFile.path.split("/").pop()}</span>
+            <span className="text-xs text-muted-foreground">{editFile.content.length.toLocaleString()} chars</span>
+          </div>
+          <textarea
+            className="w-full font-mono text-sm p-4 bg-[#1e1e2e] text-[#cdd6f4] resize-none outline-none"
+            style={{ minHeight: 480 }}
+            value={editFile.content}
+            onChange={e => setEditFile(f => f ? { ...f, content: e.target.value } : null)}
+            spellCheck={false}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <SectionHeader title="File Manager" description="Browse and manage your hosting files" />
-      <Card>
-        <div className="flex flex-col items-center py-10 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-            <FolderOpen size={28} className="text-blue-600" />
-          </div>
-          <h3 className="font-semibold text-foreground mb-1">Open File Manager</h3>
-          <p className="text-sm text-muted-foreground mb-6 max-w-sm">Upload, edit, delete files and folders directly in your hosting account's public_html directory.</p>
-          <Button onClick={openFileManager} disabled={loading} className="gap-2 bg-primary hover:bg-primary/90">
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <FolderOpen size={15} />}
-            Open File Manager
+      <SectionHeader title="File Manager" description={`/${currentPath}`}
+        action={<div className="flex gap-2">
+          <input ref={r => { uploadRef.current = r; }} type="file" className="hidden" onChange={handleUpload} />
+          <Button size="sm" variant="outline" onClick={() => setShowMkdir(s => !s)} className="gap-1.5"><FolderPlus size={13} /> New Folder</Button>
+          <Button size="sm" variant="outline" onClick={() => uploadRef.current?.click()} disabled={uploading} className="gap-1.5">
+            {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Upload
           </Button>
+        </div>} />
+
+      {showMkdir && (
+        <Card className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">New Folder Name</label>
+            <Input placeholder="my-folder" value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setShowMkdir(false); }} autoFocus />
+          </div>
+          <Button onClick={createFolder} disabled={mkdiring || !newFolderName.trim()} className="gap-1.5 bg-primary hover:bg-primary/90">
+            {mkdiring ? <Loader2 size={13} className="animate-spin" /> : <FolderPlus size={13} />} Create
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setShowMkdir(false)}><X size={15} /></Button>
+        </Card>
+      )}
+
+      <Card className="p-0 overflow-hidden">
+        {/* Breadcrumb */}
+        <div className="px-4 py-2.5 bg-muted/30 border-b border-border flex items-center gap-1 text-sm overflow-x-auto">
+          <button onClick={() => navigateTo("public_html")} className="text-primary hover:underline flex items-center gap-1 shrink-0"><Home size={13} /> Home</button>
+          {breadcrumbs.slice(1).map((seg, i) => {
+            const path = breadcrumbs.slice(0, i + 2).join("/");
+            return (
+              <span key={path} className="flex items-center gap-1 shrink-0">
+                <ChevronRight size={12} className="text-muted-foreground" />
+                <button onClick={() => navigateTo(path)} className="text-primary hover:underline">{seg}</button>
+              </span>
+            );
+          })}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 border-t border-border pt-4">
-          {["Upload Files", "Edit Files", "Create Folder", "Delete Files"].map(f => (
-            <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> {f}
+
+        {loadingDir ? (
+          <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : (
+          <>
+            {/* Up dir row */}
+            {breadcrumbs.length > 1 && (
+              <button onClick={navigateUp} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 text-sm text-muted-foreground border-b border-border/50 transition-colors">
+                <ArrowUp size={14} className="shrink-0" /> ../ (parent directory)
+              </button>
+            )}
+            {items.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground">This directory is empty</div>
+            )}
+            <div className="divide-y divide-border/60">
+              {items.map(item => (
+                <div key={item.file} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors group">
+                  <button
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    onClick={() => item.type === "dir" ? navigateTo(item.fullpath) : openFile(item)}
+                  >
+                    {fileIcon(item)}
+                    <span className={`text-sm truncate ${item.type === "dir" ? "font-medium text-foreground" : "text-foreground"}`}>{item.file}</span>
+                  </button>
+                  <span className="text-xs text-muted-foreground shrink-0 ml-auto pr-2 hidden sm:block">
+                    {item.type === "file" ? item.humansize : "—"}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0 hidden md:block w-36">
+                    {item.mtime ? format(new Date(item.mtime * 1000), "MMM d, yyyy HH:mm") : "—"}
+                  </span>
+                  <button
+                    onClick={() => deleteItem(item)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-destructive transition-all"
+                    title="Delete"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </Card>
     </div>
   );
@@ -789,12 +1055,17 @@ function SectionSSL({ service, refetch }: { service: Service; refetch: () => voi
             <Badge className={isActive ? "bg-[#D1FAE5] text-[#065F46]" : "bg-orange-50 text-orange-700"}>{isActive ? "Active" : "Not Installed"}</Badge>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleInstallSSL} disabled={loading} variant={isActive ? "outline" : "default"}
-            className={isActive ? "" : "bg-primary hover:bg-primary/90"}>
-            {loading ? <Loader2 size={14} className="animate-spin mr-2" /> : <ShieldCheck size={14} className="mr-2" />}
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={handleInstallSSL} disabled={loading} className={isActive ? "gap-1.5" : "gap-1.5 bg-primary hover:bg-primary/90"} variant={isActive ? "outline" : "default"}>
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
             {isActive ? "Reinstall SSL" : "Install Free SSL"}
           </Button>
+          {isActive && (
+            <Button onClick={handleInstallSSL} disabled={loading} className="gap-1.5 bg-primary hover:bg-primary/90">
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              Renew SSL
+            </Button>
+          )}
         </div>
       </Card>
       <Card>
@@ -896,10 +1167,11 @@ function SectionSSH({ service }: { service: Service }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function SectionBackup({ service }: { service: Service }) {
   const { toast } = useToast();
-  type Backup = { id: string; domain: string; status: string; type: string; filePath: string | null; sizeMb: string | null; createdAt: string; completedAt: string | null; errorMessage: string | null };
+  type Backup = { id: string; domain: string; status: string; type: string; filePath: string | null; sqlPath: string | null; sizeMb: string | null; createdAt: string; completedAt: string | null; errorMessage: string | null };
   const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   async function loadBackups() {
     setLoading(true);
@@ -926,6 +1198,18 @@ function SectionBackup({ service }: { service: Service }) {
       await authFetch(`/client/hosting/${service.id}/backup/${id}`, { method: "DELETE" });
       loadBackups();
     } catch { /* non-fatal */ }
+  }
+
+  async function handleRestore(b: Backup) {
+    if (!confirm(`Restore "${b.filePath ? b.filePath.split("/").pop() : "this backup"}"? This will overwrite current files. Continue?`)) return;
+    setRestoringId(b.id);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/backup/${b.id}/restore`, { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Restore failed");
+      toast({ title: "Restore job started", description: "This may take several minutes to complete." });
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setRestoringId(null); }
   }
 
   const statusColor: Record<string, string> = {
@@ -957,10 +1241,16 @@ function SectionBackup({ service }: { service: Service }) {
                   <div>
                     <p className="font-medium text-sm text-foreground">{b.filePath ? b.filePath.split("/").pop() : `Backup — ${b.type}`}</p>
                     <p className="text-xs text-muted-foreground">{format(new Date(b.createdAt), "MMM d, yyyy HH:mm")} {b.sizeMb ? `· ${b.sizeMb} MB` : ""}</p>
+                    {b.errorMessage && <p className="text-xs text-destructive mt-0.5">{b.errorMessage}</p>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[b.status] || "text-muted-foreground bg-muted"}`}>{b.status.replace(/_/g, " ")}</span>
+                  {b.status === "completed" && (
+                    <Button variant="outline" size="sm" onClick={() => handleRestore(b)} disabled={restoringId === b.id} className="gap-1 text-xs">
+                      {restoringId === b.id ? <Loader2 size={12} className="animate-spin" /> : <ArchiveRestore size={12} />} Restore
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" onClick={() => handleDelete(b.id)} className="text-destructive hover:text-destructive"><Trash2 size={14} /></Button>
                 </div>
               </div>
@@ -1186,34 +1476,44 @@ function SectionPython({ service }: { service: Service }) {
           <EmptyState icon={Cpu} title="No Python apps" description="Create a Python app with Django, Flask, or any WSGI framework" />
         ) : (
           <div className="divide-y divide-border">
-            {apps.map(app => (
-              <div key={app.app_name} className="py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${app.enabled ? "bg-emerald-500" : "bg-muted-foreground"}`} />
-                    <div>
-                      <p className="font-medium text-sm text-foreground">{app.app_name}</p>
-                      <p className="text-xs text-muted-foreground">{app.app_root} · Python {app.python_version} · URI: {app.app_uri}</p>
+            {apps.map(app => {
+              const venvPath = app.venv_dir ?? app.venv_path ?? (app.app_root ? `${app.app_root}/venv` : null);
+              return (
+                <div key={app.app_name} className="py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${app.enabled ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                      <div>
+                        <p className="font-medium text-sm text-foreground">{app.app_name}</p>
+                        <p className="text-xs text-muted-foreground">{app.app_root} · Python {app.python_version ?? "3.x"} · URI: {app.app_uri}</p>
+                        {venvPath && <p className="text-xs text-muted-foreground mt-0.5 font-mono">venv: {venvPath}</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {(["restart", "stop"] as const).map(action => {
+                        const icons = { restart: RotateCcw, stop: Square };
+                        const Ic = icons[action];
+                        return (
+                          <Button key={action} variant="ghost" size="sm" onClick={() => handleAction(app.app_name, action)}
+                            disabled={!!actioning} className="text-muted-foreground hover:text-foreground w-7 h-7 p-0">
+                            {actioning === `${app.app_name}-${action}` ? <Loader2 size={12} className="animate-spin" /> : <Ic size={12} />}
+                          </Button>
+                        );
+                      })}
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(app.app_name)} className="text-destructive hover:text-destructive w-7 h-7 p-0">
+                        <Trash2 size={12} />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    {(["restart", "stop"] as const).map(action => {
-                      const icons = { restart: RotateCcw, stop: Square };
-                      const Ic = icons[action];
-                      return (
-                        <Button key={action} variant="ghost" size="sm" onClick={() => handleAction(app.app_name, action)}
-                          disabled={!!actioning} className="text-muted-foreground hover:text-foreground w-7 h-7 p-0">
-                          {actioning === `${app.app_name}-${action}` ? <Loader2 size={12} className="animate-spin" /> : <Ic size={12} />}
-                        </Button>
-                      );
-                    })}
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(app.app_name)} className="text-destructive hover:text-destructive w-7 h-7 p-0">
-                      <Trash2 size={12} />
-                    </Button>
-                  </div>
+                  {/* venv activation command */}
+                  {venvPath && (
+                    <div className="mt-2 ml-5 bg-muted/60 rounded-lg px-3 py-2 font-mono text-xs text-muted-foreground">
+                      source {venvPath}/bin/activate
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

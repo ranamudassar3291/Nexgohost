@@ -19,7 +19,10 @@ import {
   cpanelSshGetStatus, cpanelSshEnable, cpanelSshDisable,
   cpanelNodejsList, cpanelNodejsCreate, cpanelNodejsAction, cpanelNodejsDelete,
   cpanelPythonList, cpanelPythonCreate, cpanelPythonAction, cpanelPythonDelete,
+  cpanelFilelist, cpanelFileGetContent, cpanelSaveFile, cpanelFileMkdir, cpanelFileDelete, cpanelFileUpload,
+  cpanelRestoreFullBackup, cpanelRestoreDatabase,
 } from "../lib/cpanel.js";
+import multer from "multer";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl, twentyiGetSSOUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -3207,6 +3210,134 @@ router.delete("/client/hosting/:id/python/:appname", authenticate, async (req: A
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
     await cpanelPythonDelete(serverCfg, service!.username!, req.params.appname);
     res.json({ success: true, message: `Python app "${req.params.appname}" deleted` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── File Manager ─────────────────────────────────────────────────────────────
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+// GET /api/client/hosting/:id/files?path=public_html
+router.get("/client/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const dirPath = (req.query.path as string) || "public_html";
+    const items = await cpanelFilelist(serverCfg, service!.username!, dirPath);
+    res.json({ items, path: dirPath });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/client/hosting/:id/files/content?path=public_html/index.html
+router.get("/client/hosting/:id/files/content", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const filePath = req.query.path as string;
+    if (!filePath) return res.status(400).json({ error: "path is required" });
+    const lastSlash = filePath.lastIndexOf("/");
+    const dir = lastSlash >= 0 ? filePath.substring(0, lastSlash) : ".";
+    const filename = filePath.substring(lastSlash + 1);
+    const content = await cpanelFileGetContent(serverCfg, service!.username!, dir, filename);
+    res.json({ content, path: filePath });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/client/hosting/:id/files/content  { path, content }
+router.put("/client/hosting/:id/files/content", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { path: filePath, content } = req.body as { path: string; content: string };
+    if (!filePath || content === undefined) return res.status(400).json({ error: "path and content are required" });
+    await cpanelSaveFile(serverCfg, service!.username!, filePath, content);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/client/hosting/:id/files/mkdir  { path, name }
+router.post("/client/hosting/:id/files/mkdir", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { path: parentDir, name } = req.body as { path: string; name: string };
+    if (!parentDir || !name?.trim()) return res.status(400).json({ error: "path and name are required" });
+    await cpanelFileMkdir(serverCfg, service!.username!, parentDir, name.trim());
+    res.json({ success: true, message: `Folder "${name}" created` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/client/hosting/:id/files  { path }
+router.delete("/client/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const filePath = (req.body?.path ?? req.query.path) as string;
+    if (!filePath) return res.status(400).json({ error: "path is required" });
+    const lastSlash = filePath.lastIndexOf("/");
+    const dir = lastSlash >= 0 ? filePath.substring(0, lastSlash) : ".";
+    const filename = filePath.substring(lastSlash + 1);
+    await cpanelFileDelete(serverCfg, service!.username!, dir, filename);
+    res.json({ success: true, message: `"${filename}" deleted` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/client/hosting/:id/files/upload  multipart: dir + file
+router.post("/client/hosting/:id/files/upload", authenticate, upload.single("file"), async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    if (!req.file) return res.status(400).json({ error: "No file provided" });
+    const targetDir = (req.body?.dir as string) || "public_html";
+    await cpanelFileUpload(
+      serverCfg, service!.username!, targetDir,
+      req.file.originalname, req.file.buffer, req.file.mimetype,
+    );
+    res.json({ success: true, message: `"${req.file.originalname}" uploaded to ${targetDir}` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Backup Restore ───────────────────────────────────────────────────────────
+
+// POST /api/client/hosting/:id/backup/:backupId/restore
+router.post("/client/hosting/:id/backup/:backupId/restore", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const [backup] = await db.select().from(hostingBackupsTable)
+      .where(and(eq(hostingBackupsTable.id, req.params.backupId), eq(hostingBackupsTable.serviceId, req.params.id))).limit(1);
+    if (!backup) return res.status(404).json({ error: "Backup not found" });
+    if (!backup.filePath) return res.status(400).json({ error: "Backup has no file path" });
+
+    if (backup.sqlPath) {
+      await cpanelRestoreDatabase(serverCfg, service!.username!, service!.username! + "_db", backup.sqlPath);
+    } else {
+      await cpanelRestoreFullBackup(serverCfg, service!.username!, backup.filePath!);
+    }
+    res.json({ success: true, message: "Restore job started. This may take several minutes." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── WordPress Plugins & Themes (SSO deep-link) ───────────────────────────────
+
+// GET /api/client/hosting/:id/wp/sso-deep?target=plugins|themes|dashboard
+router.get("/client/hosting/:id/wp/sso-deep", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const target = (req.query.target as string) || "dashboard";
+    const redirectMap: Record<string, string> = {
+      plugins: "plugins.php",
+      themes: "themes.php",
+      dashboard: "index.php",
+      updates: "update-core.php",
+    };
+    const wpAdminPage = redirectMap[target] ?? "index.php";
+    const domain = service!.domain!;
+    const insid = await cpanelGetSoftaculousInsid(serverCfg, service!.username!, domain);
+    if (!insid) return res.status(404).json({ error: "WordPress installation not found for this domain" });
+    const ssoUrl = await cpanelGetWpAdminUrl(serverCfg, service!.username!, domain, insid, wpAdminPage);
+    res.json({ url: ssoUrl });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
