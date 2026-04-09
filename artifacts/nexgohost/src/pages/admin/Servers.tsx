@@ -65,8 +65,6 @@ export default function Servers() {
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; ipWarning?: boolean; msg: string; packages?: string[]; permissions?: { name: string; api: string; ok: boolean; reason: string }[]; diagnostic?: { detail?: string } | null }>>({});
   const [whitelisting, setWhitelisting] = useState<string | null>(null);
   const [whitelistResults, setWhitelistResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
-  const [serverIpModal, setServerIpModal] = useState<{ serverId: string; ip: string; cidr: string } | null>(null);
-
   // 20i in-form test state
   const [testingForm, setTestingForm] = useState(false);
   const [formTestResult, setFormTestResult] = useState<{ ok: boolean; msg: string; diagnostic?: { step?: string; endpoint?: string; detail?: string } | null } | null>(null);
@@ -190,23 +188,12 @@ export default function Servers() {
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
       const isOk = result.success !== false && result.connected !== false;
-
-      // IP whitelist error — show the dedicated modal with exact IP and CIDR recommendation
-      if (!isOk && result.ipError && result.serverIp) {
-        setServerIpModal({ serverId: id, ip: result.serverIp, cidr: result.cidrRecommendation || `${result.serverIp.split(".").slice(0,2).join(".")}.0.0/16` });
-        qc.invalidateQueries({ queryKey: ["admin-servers"] });
-        setTesting(null);
-        return;
-      }
-
-      const ipWarn = isOk && result.ipWarning === true;
-      setTestResults(r => ({ ...r, [id]: { ok: isOk, ipWarning: ipWarn, msg: result.message, packages: result.packages || [], permissions: result.permissions || [], diagnostic: result.diagnostic } }));
+      setTestResults(r => ({ ...r, [id]: { ok: isOk, msg: result.message, packages: result.packages || [], permissions: result.permissions || [], diagnostic: result.diagnostic } }));
       if (isOk) {
-        const pkgSuffix = result.packages?.length ? ` — ${result.packages.length} package(s) found` : "";
-        toast({ title: "Server Connected ✓", description: result.message + pkgSuffix });
+        toast({ title: "Server Connected ✓", description: result.message });
         qc.invalidateQueries({ queryKey: ["admin-servers"] });
       } else {
-        toast({ title: "Connection issue", description: result.diagnostic?.detail || result.message, variant: "destructive" });
+        toast({ title: "Connection failed", description: result.message, variant: "destructive" });
       }
     } catch (err: any) {
       setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [], permissions: [] } }));
@@ -650,7 +637,7 @@ export default function Servers() {
                           {s.hasApiToken && s.type !== "20i" && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> API key set</span>}
                           {s.type === "20i" && (
                             s.apiConnected
-                              ? <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium"><CheckCircle size={10} /> Connected{s.serverIp ? ` · ${s.serverIp}` : ""}</span>
+                              ? <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium"><CheckCircle size={10} /> Connected</span>
                               : <span className="text-xs text-red-400 flex items-center gap-1 font-medium"><XCircle size={10} /> Not Connected — click Test Connection</span>
                           )}
                         </div>
@@ -836,56 +823,6 @@ export default function Servers() {
             </div>
           )}
         </>
-      )}
-      {/* ── IP Whitelist Modal (20i) ── */}
-      {serverIpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setServerIpModal(null)}>
-          <div className="bg-card border border-red-500/30 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                <Shield size={20} className="text-red-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-foreground">IP Not Whitelisted</h3>
-                <p className="text-xs text-muted-foreground">This server's IP must be added to 20i's Reseller API whitelist</p>
-              </div>
-            </div>
-
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 mb-4">
-              <p className="text-xs text-muted-foreground mb-1">Current outbound IP of this server:</p>
-              <p className="font-mono text-xl font-bold text-red-400 tracking-wider">{serverIpModal.ip}</p>
-            </div>
-
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-4 space-y-1">
-              <p className="text-xs font-semibold text-amber-500">Tip: Add a CIDR range to avoid future issues</p>
-              <p className="text-xs text-muted-foreground">
-                Instead of adding the exact IP each time the server restarts, add the broader range:{" "}
-                <span className="font-mono font-bold text-foreground">{serverIpModal.cidr}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">This covers all IPs in the same subnet — you won't need to whitelist again after restarts.</p>
-            </div>
-
-            <ol className="text-sm text-muted-foreground space-y-2 mb-5 list-decimal list-inside">
-              <li>Open <span className="text-primary font-medium">my.20i.com → Reseller API → IP Whitelist</span></li>
-              <li>Add the exact IP: <span className="font-mono font-bold text-foreground">{serverIpModal.ip}</span></li>
-              <li>
-                <span className="font-medium text-foreground">Recommended:</span> also add the range:{" "}
-                <span className="font-mono font-bold text-amber-500">{serverIpModal.cidr}</span>
-              </li>
-              <li>Click <span className="font-medium text-foreground">Test Connection</span> on this server again</li>
-            </ol>
-
-            <div className="flex gap-2">
-              <a href="https://my.20i.com/reseller/api" target="_blank" rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
-                Open 20i Whitelist →
-              </a>
-              <Button variant="outline" className="flex-1" onClick={() => { setServerIpModal(null); handleTest(serverIpModal!.serverId); }}>
-                Test Again
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
     </motion.div>
   );

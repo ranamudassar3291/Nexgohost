@@ -477,8 +477,6 @@ export interface TwentyIConnectionResult {
   success: boolean;
   message: string;
   packageCount?: number;
-  ipError?: boolean;
-  serverIp?: string;
 }
 
 // ─── Debug test (used by diagnostic endpoint) ─────────────────────────────────
@@ -802,92 +800,90 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
 
   const proxyUrl = resolveProxyUrl();
 
-  // Auto-detect the correct key format (before_plus / after_plus / full).
-  // This probes /reseller/*/packageTypes with each variant and finds which one
-  // does NOT return 401. Note: packageTypes does NOT enforce the IP whitelist,
-  // so even an unwhitelisted IP can pass this check (returning 404 = no data).
+  // ── Step 1: Detect working key format ─────────────────────────────────────
+  // Probes /reseller/*/packageTypes with each key variant (before_plus, after_plus, full).
+  // HTTP 404 = auth passed (no data but key accepted). HTTP 200 = full access.
+  // HTTP 401 = this format is wrong — try next. All 401 → key is invalid.
   const detected = await twentyiFindWorkingKeyFormat(apiKey, proxyUrl);
-  console.log(`[20i] testConnection: detected key format="${detected.format}" (HTTP ${detected.status})`);
+  console.log(`[20i] testConnection: key format="${detected.format}" status=${detected.status}`);
 
   if (detected.status === 0) {
-    return { success: false, message: "Could not connect to 20i API — all key formats rejected (401). Verify the key at my.20i.com → Reseller API." };
+    return { success: false, message: "Cannot reach 20i API. Check your internet connection and try again." };
   }
 
-  // Cache the working format so all subsequent request() calls use it
+  // Cache working format for all subsequent request() calls
   setCachedKeyFormat(cleanKey, detected.format);
 
-  // KEY VALIDITY CONFIRMED — now probe an endpoint that enforces the IP whitelist.
-  // GET /reseller/*/susers returns 403 with user:null if the outbound IP is not
-  // whitelisted, even though GET /reseller/*/packageTypes may return 200/404.
-  // addWeb and susers (used in provisioning) both require a whitelisted IP.
-  const outboundIp = await getOutboundIp();
-  const susersUrl = `${resolveBaseUrl()}/reseller/*/susers`;
-  const susersResellerCfg: AxiosRequestConfig = {
+  // ── Step 2: Confirm connectivity via /package endpoint ────────────────────
+  // /package is proven to return HTTP 200 with real package data when:
+  //   a) the API key is valid, AND b) there is a working connection.
+  // This is MORE reliable than /reseller/*/susers which can return 403 for
+  // account-type reasons unrelated to IP whitelisting.
+  const packageUrl = `${resolveBaseUrl()}/package`;
+  const packageCfg: AxiosRequestConfig = {
     method: "GET",
-    url: susersUrl,
+    url: packageUrl,
     headers: {
-      // Use the reseller key WITH newline — same encoding used by addWeb/susers
-      Authorization: `Bearer ${encodeKeyToBase64(detected.authKey)}`,
+      // /package uses no-newline encoding (OAuthKey/StackCP convention)
+      Authorization: `Bearer ${encodeKeyToBase64(detected.authKey, false)}`,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
     timeout: DEFAULT_TIMEOUT_MS,
     validateStatus: () => true,
   };
-  if (proxyUrl) { susersResellerCfg.httpsAgent = new HttpsProxyAgent(proxyUrl); susersResellerCfg.proxy = false; }
+  if (proxyUrl) { packageCfg.httpsAgent = new HttpsProxyAgent(proxyUrl); packageCfg.proxy = false; }
 
-  let resellerStatus = 0;
-  let resellerUserNull = false;
+  let packageStatus = 0;
+  let packageCount = 0;
   try {
-    const resellerRes = await axios(susersResellerCfg);
-    resellerStatus = resellerRes.status;
-    const rd = resellerRes.data as any;
-    resellerUserNull = resellerStatus === 403 && (rd?.user === null || rd?.error?.data?.user === null);
-    console.log(`[20i] testConnection: reseller provisioning check → HTTP ${resellerStatus}${resellerUserNull ? " (user:null — IP not whitelisted)" : ""}`);
+    const pkgRes = await axios(packageCfg);
+    packageStatus = pkgRes.status;
+    if (packageStatus === 200 && Array.isArray(pkgRes.data)) {
+      packageCount = pkgRes.data.length;
+    }
+    console.log(`[20i] testConnection: /package → HTTP ${packageStatus} (${packageCount} packages)`);
   } catch {
-    // Network error on the secondary probe — don't block success
+    // Network error on package check — fall back to format-detection result
+    console.log(`[20i] testConnection: /package → network error (falling back to format-detection result)`);
   }
 
-  // If the reseller provisioning check returned 403 with user:null, the outbound IP
-  // is NOT in 20i's IP whitelist. Return a structured failure so the admin knows exactly
-  // which IP to add — the UI will surface this as the IP whitelist modal.
-  if (resellerStatus === 403 && resellerUserNull) {
-    console.log(`[20i] testConnection: /susers returned 403 user:null — IP ${outboundIp} is NOT whitelisted`);
+  // /package 200 = fully connected, API key valid, packages accessible
+  if (packageStatus === 200) {
+    return {
+      success: true,
+      message: `Connected to 20i — ${packageCount} hosting package(s) found`,
+      packageCount,
+    };
+  }
+
+  // /package 401/403 = key rejected at package level (likely wrong key or no permission)
+  if (packageStatus === 401 || packageStatus === 403) {
     return {
       success: false,
-      ipError: true,
-      serverIp: outboundIp,
-      message: `20i: IP not whitelisted (current outbound IP: ${outboundIp}). Add this IP at my.20i.com → Reseller API → IP Whitelist, then test again.`,
+      message: `20i API connection failed (HTTP ${packageStatus}). Verify your API key at my.20i.com → Reseller API.`,
     };
   }
 
-  // Reseller provisioning check passed (200/404) OR was inconclusive — report success
-  if (detected.status >= 200 && detected.status < 300) {
-    const pkgData = resellerStatus === 200 ? (detected as any)._pkgData : null;
-    const pkgCount = pkgData ? (Array.isArray(pkgData) ? pkgData.length : Object.keys(pkgData).length) : 0;
+  // Format-detection returned 200 or 404 = key is valid (reseller access confirmed)
+  // even if /package returned an unexpected status or had a network issue
+  if (detected.status === 200 || detected.status === 404) {
     return {
       success: true,
-      message: `Connected to 20i — ${pkgCount > 0 ? `${pkgCount} package type(s) available` : "API access confirmed"} [key format: ${detected.format}]`,
-      packageCount: pkgCount,
-    };
-  }
-
-  if (detected.status === 404) {
-    return {
-      success: true,
-      message: `Connected to 20i — API key is valid [format: ${detected.format}] — reseller provisioning is accessible`,
+      message: `Connected to 20i — API key is valid [format: ${detected.format}]`,
       packageCount: 0,
     };
   }
 
+  // Format-detection 403 = key structure may be right but reseller access denied
   if (detected.status === 403) {
     return {
       success: false,
-      message: `Key format "${detected.format}" accepted, but access denied (403) — add outbound IP ${outboundIp} at my.20i.com → Reseller API → IP Whitelist`,
+      message: `20i API access denied (HTTP 403). Verify your API key at my.20i.com → Reseller API.`,
     };
   }
 
-  return { success: false, message: `Unexpected HTTP ${detected.status} from 20i — check your key and IP whitelist` };
+  return { success: false, message: `20i API connection failed (HTTP ${detected.status}). Check your API key.` };
 }
 
 // ─── Package Types ────────────────────────────────────────────────────────────

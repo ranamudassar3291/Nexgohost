@@ -338,34 +338,40 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
       res.json({ success: false, connected: false, message: "No 20i API key found. Edit this server to add the API key.", packages: [] });
       return;
     }
+
+    // ── Connection cache: if already marked connected within 30 days, skip re-test ──
+    const CACHE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const lastOk = server.lastConnected ? new Date(server.lastConnected).getTime() : 0;
+    const cacheValid = server.apiConnected === true && (Date.now() - lastOk) < CACHE_MS;
+    if (cacheValid) {
+      let pkgs: any[] = [];
+      try { pkgs = await twentyiGetPackages(effectiveKey); } catch { /* ignore */ }
+      const elapsed = Math.round((Date.now() - lastOk) / (1000 * 60 * 60));
+      res.json({
+        success: true, connected: true,
+        message: `Connected to 20i — ${pkgs.length} hosting package(s) found (cached — verified ${elapsed}h ago)`,
+        packages: pkgs,
+      });
+      return;
+    }
+
+    // ── Fresh test ──
     const result = await twentyiTestConnection(effectiveKey);
     if (!result.success) {
-      // IP whitelist error — return structured response so the UI can show the IP modal
-      if (result.ipError && result.serverIp) {
-        const parts = result.serverIp.split(".");
-        const cidrRecommendation = parts.length === 4 ? `${parts[0]}.${parts[1]}.0.0/16` : result.serverIp;
-        // Mark server as not connected
-        await db.update(serversTable)
-          .set({ apiConnected: false, serverIp: result.serverIp, updatedAt: new Date() })
-          .where(eq(serversTable.id, server.id));
-        res.json({
-          success: false, connected: false, ipError: true,
-          serverIp: result.serverIp, cidrRecommendation,
-          message: result.message,
-        });
-        return;
-      }
+      await db.update(serversTable)
+        .set({ apiConnected: false, updatedAt: new Date() })
+        .where(eq(serversTable.id, server.id));
       res.json({ success: false, connected: false, message: result.message, packages: [] });
       return;
     }
-    // Success — save connection state to DB
-    const serverIp = result.serverIp ?? await getOutboundIp().catch(() => undefined);
+
+    // Success — persist connection state (no IP tracking needed)
     await db.update(serversTable)
-      .set({ apiConnected: true, serverIp: serverIp ?? null, lastConnected: new Date(), updatedAt: new Date() })
+      .set({ apiConnected: true, lastConnected: new Date(), updatedAt: new Date() })
       .where(eq(serversTable.id, server.id));
     let pkgs: any[] = [];
     try { pkgs = await twentyiGetPackages(effectiveKey); } catch { /* ignore */ }
-    res.json({ success: true, connected: true, message: result.message, serverIp, packages: pkgs });
+    res.json({ success: true, connected: true, message: result.message, packages: pkgs });
     return;
   }
 
