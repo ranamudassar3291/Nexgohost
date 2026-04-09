@@ -427,7 +427,12 @@ export async function provisionHostingService(
       }
     } else if (module === "20i" && server.apiToken) {
       try {
+        // Pre-flight validation — catch obvious issues before hitting the API
+        if (!domain) throw new Error("Domain is required for 20i hosting provisioning");
+        if (!user.email) throw new Error("Client email is required for 20i account creation");
+
         const rawApiKey = decryptField(server.apiToken ?? "");
+        if (!rawApiKey) throw new Error("20i API key is not configured on this server");
 
         // Step A — Get or create a StackUser for this client (idempotent)
         const clientName = `${user.firstName} ${user.lastName}`.trim() || user.email;

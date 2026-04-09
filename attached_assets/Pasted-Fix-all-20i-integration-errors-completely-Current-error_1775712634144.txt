@@ -1,0 +1,165 @@
+Fix all 20i integration errors completely.
+
+Current errors:
+
+- React crash (object render)
+- API 403 access denied
+- null user error
+- null api scope error
+- order activation failed
+
+Fix everything globally.
+
+--------------------------------
+
+1. Fix 20i Plan Mapping (Backend)
+
+In servers.ts
+
+Return:
+
+return packages.map(pkg => ({
+id: pkg.id,
+label: pkg.name,
+name: pkg.name,
+platform: "20i",
+monthlyPrice: pkg.monthlyPrice || 0,
+yearlyPrice: pkg.yearlyPrice || 0
+}))
+
+Never drop:
+
+label
+platform
+
+--------------------------------
+
+2. Fix React Rendering (Frontend)
+
+Never render object
+
+Replace:
+
+{plan}
+
+With:
+
+{plan.label || plan.name}
+
+--------------------------------
+
+3. Normalize Plans (Orders.tsx)
+
+plans.map(p => ({
+id: String(p.id),
+label: String(p.label || p.name || "Unknown"),
+platform: String(p.platform || "20i")
+}))
+
+--------------------------------
+
+4. Fix 403 Error (20i API)
+
+Use correct endpoint:
+
+POST https://api.20i.com/reseller/accounts
+
+Headers:
+
+Authorization: Bearer API_KEY
+Content-Type: application/json
+
+--------------------------------
+
+5. Fix Account Creation Payload
+
+Send:
+
+{
+domain: domain,
+packageId: packageId,
+stackUser: client.email,
+email: client.email,
+firstName: client.firstName || "Client",
+lastName: client.lastName || "User"
+}
+
+--------------------------------
+
+6. Add Validation Before API
+
+Check:
+
+if (!client.email) throw error
+if (!packageId) throw error
+if (!domain) throw error
+
+--------------------------------
+
+7. Fix Order Activation
+
+Flow:
+
+Admin Activate
+
+↓
+
+Create 20i account
+
+↓
+
+Create service
+
+↓
+
+Assign client
+
+↓
+
+Mark Active
+
+--------------------------------
+
+8. Fix Null Errors
+
+Replace:
+
+activateResult.service.id
+
+With:
+
+const svcId = activateResult?.service?.id || null
+
+--------------------------------
+
+9. Fix StackCP Login
+
+if platform == 20i
+
+Show:
+
+Open StackCP
+
+URL:
+
+https://stackcp.com/
+
+--------------------------------
+
+10. Add Debug Logs
+
+Log:
+
+payload
+response
+error
+
+--------------------------------
+
+Final Result:
+
+No React crash
+No null errors
+No 403 error
+Order activate working
+20i account create working

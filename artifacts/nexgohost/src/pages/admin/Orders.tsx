@@ -387,7 +387,7 @@ export default function AdminOrders() {
             const plans: PackageType[] = raw.map(p => ({
               id: String(p.id ?? ""),
               label: String(p.label ?? p.name ?? p.id ?? "Unknown"),
-              platform: String(p.platform ?? ""),
+              platform: String(p.platform ?? "20i"),
             }));
             setTwentyiPackageTypes(plans);
             // Auto-select first type if order has no modulePlanId
@@ -408,7 +408,7 @@ export default function AdminOrders() {
               const plans: PackageType[] = raw.map(p => ({
                 id: String(p.id ?? ""),
                 label: String(p.label ?? p.name ?? p.id ?? "Unknown"),
-                platform: String(p.platform ?? ""),
+                platform: String(p.platform ?? "20i"),
               }));
               setTwentyiPackageTypes(plans);
               if (!order.modulePlanId && plans.length > 0) {

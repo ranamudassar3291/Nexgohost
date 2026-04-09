@@ -401,7 +401,7 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
         const plans = pkgs.map(p => ({
           id: p.id,
           label: p.label,
-          platform: p.platform ?? "",
+          platform: "20i",
           name: p.label,
           monthlyPrice: 0,
           yearlyPrice: 0,
