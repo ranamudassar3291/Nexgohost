@@ -477,6 +477,8 @@ export interface TwentyIConnectionResult {
   success: boolean;
   message: string;
   packageCount?: number;
+  ipError?: boolean;
+  serverIp?: string;
 }
 
 // ─── Debug test (used by diagnostic endpoint) ─────────────────────────────────
@@ -846,13 +848,16 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
     // Network error on the secondary probe — don't block success
   }
 
-  // If the reseller provisioning check returned 403 with user:null, skip gracefully.
-  // The CIDR range 34.0.0.0/8 has been whitelisted — 403 may be a transient cache issue.
+  // If the reseller provisioning check returned 403 with user:null, the outbound IP
+  // is NOT in 20i's IP whitelist. Return a structured failure so the admin knows exactly
+  // which IP to add — the UI will surface this as the IP whitelist modal.
   if (resellerStatus === 403 && resellerUserNull) {
-    console.log(`[20i] testConnection: /susers returned 403 but key is valid — treating as success (IP range already whitelisted)`);
+    console.log(`[20i] testConnection: /susers returned 403 user:null — IP ${outboundIp} is NOT whitelisted`);
     return {
-      success: true,
-      message: `Connected to 20i — API key valid [key format: ${detected.format}]`,
+      success: false,
+      ipError: true,
+      serverIp: outboundIp,
+      message: `20i: IP not whitelisted (current outbound IP: ${outboundIp}). Add this IP at my.20i.com → Reseller API → IP Whitelist, then test again.`,
     };
   }
 

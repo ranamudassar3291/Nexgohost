@@ -340,12 +340,32 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
     }
     const result = await twentyiTestConnection(effectiveKey);
     if (!result.success) {
-      res.json({ success: false, connected: false, message: result.message, diagnostic: result.diagnostic ?? null, packages: [] });
+      // IP whitelist error — return structured response so the UI can show the IP modal
+      if (result.ipError && result.serverIp) {
+        const parts = result.serverIp.split(".");
+        const cidrRecommendation = parts.length === 4 ? `${parts[0]}.${parts[1]}.0.0/16` : result.serverIp;
+        // Mark server as not connected
+        await db.update(serversTable)
+          .set({ apiConnected: false, serverIp: result.serverIp, updatedAt: new Date() })
+          .where(eq(serversTable.id, server.id));
+        res.json({
+          success: false, connected: false, ipError: true,
+          serverIp: result.serverIp, cidrRecommendation,
+          message: result.message,
+        });
+        return;
+      }
+      res.json({ success: false, connected: false, message: result.message, packages: [] });
       return;
     }
+    // Success — save connection state to DB
+    const serverIp = result.serverIp ?? await getOutboundIp().catch(() => undefined);
+    await db.update(serversTable)
+      .set({ apiConnected: true, serverIp: serverIp ?? null, lastConnected: new Date(), updatedAt: new Date() })
+      .where(eq(serversTable.id, server.id));
     let pkgs: any[] = [];
     try { pkgs = await twentyiGetPackages(effectiveKey); } catch { /* ignore */ }
-    res.json({ success: true, connected: true, message: result.message, diagnostic: result.diagnostic ?? null, packages: pkgs });
+    res.json({ success: true, connected: true, message: result.message, serverIp, packages: pkgs });
     return;
   }
 

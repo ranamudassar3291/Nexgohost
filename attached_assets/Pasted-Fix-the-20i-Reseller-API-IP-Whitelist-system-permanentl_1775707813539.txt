@@ -1,0 +1,129 @@
+Fix the 20i Reseller API IP Whitelist system permanently.
+
+Current Issue:
+- IP whitelist modal appears on order activation
+- IP changes frequently (Replit dynamic IP)
+- Orders fail to activate due to repeated IP whitelist requirement
+- This is incorrect behavior
+
+Goal:
+Implement professional 20i API connection flow like production hosting platforms.
+
+Required Changes:
+
+1. Move IP Whitelist Check to Server Configuration Only
+- IP whitelist should ONLY appear when adding/editing 20i server
+- Remove IP check from:
+  - Order activation
+  - Package selection
+  - Server selection
+  - Client checkout
+
+2. Add Server Connection Status
+Create database fields:
+
+server:
+- apiConnected: boolean
+- ipWhitelisted: boolean
+- serverIP: string
+- lastConnected: datetime
+
+3. One-Time API Connection Flow
+
+When Admin adds 20i server:
+
+Step 1:
+- Admin enters API key
+
+Step 2:
+- System calls 20i API
+
+Step 3:
+- Fetch outbound server IP
+
+Step 4:
+- Show whitelist modal ONCE
+
+Step 5:
+- After success set:
+
+apiConnected = true
+ipWhitelisted = true
+
+Step 6:
+- Never show IP modal again
+
+4. Long Range IP Handling
+
+Instead of exact IP:
+
+If IP starts with:
+34.xx.xx.xx
+
+Whitelist automatically recommend:
+
+34.0.0.0/8
+
+OR
+
+34.24.0.0/16
+
+Display message:
+
+"Add long range IP to avoid future whitelist issues"
+
+5. Remove Blocking from Orders
+
+Orders should:
+
+- Activate normally
+- Ignore whitelist if server already connected
+- Never block activation again
+
+6. Add Auto Connection Cache
+
+Once API works:
+
+Cache connection:
+
+- Cache for 30 days
+- Revalidate silently in background
+- No UI interruption
+
+7. UI Changes
+
+Remove IP modal from:
+
+- Order page
+- Package page
+- Activation page
+
+Only show in:
+
+Admin Panel → Server Settings → 20i Server
+
+8. Error Handling
+
+If API fails:
+
+Show:
+
+"20i Server connection failed. Check API key or whitelist IP."
+
+Do NOT block orders if already connected.
+
+9. Final Expected Behavior
+
+- Admin adds API key
+- One-time IP whitelist
+- Orders activate automatically
+- No repeated whitelist
+- No dynamic IP issues
+- Production-ready hosting panel
+
+Important:
+Do not modify UI design
+Do not change pricing system
+Do not change order workflow
+
+Only fix 20i API IP whitelist logic.

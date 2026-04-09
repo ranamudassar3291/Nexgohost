@@ -1,0 +1,174 @@
+Implement automatic login system based on server type (20i / WHM).
+
+Goal:
+- 20i orders → Auto login to stackcp.com
+- WHM orders → Auto login to cPanel
+- Client clicks "Login to Control Panel" → Direct login
+- No username/password required
+
+System Requirements:
+
+1. Detect Server Type
+
+Each order must store:
+
+- serverType: "20i" or "whm"
+- serviceId
+- username
+- domain
+- serverName
+
+Example:
+
+{
+  serverType: "20i",
+  domain: "clientdomain.com",
+  username: "clientuser"
+}
+
+---
+
+2. 20i StackCP Auto Login
+
+Use 20i API:
+
+Endpoint:
+
+POST /reseller/hosting/{serviceId}/login
+
+System should:
+
+- Get serviceId
+- Call 20i API
+- Get login URL
+- Redirect user to stackcp.com automatically
+
+Client Flow:
+
+Client Dashboard
+→ Click "Login to Control Panel"
+→ Auto redirect to StackCP
+→ Logged in automatically
+
+---
+
+3. WHM / cPanel Auto Login
+
+Use WHM API:
+
+Create SSO Login:
+
+/json-api/create_user_session
+
+System should:
+
+- Get username
+- Get domain
+- Create login token
+- Redirect to cPanel
+
+Client Flow:
+
+Client Dashboard
+→ Click "Login to cPanel"
+→ Auto login
+
+---
+
+4. Client Portal Buttons
+
+Client dashboard should show:
+
+If 20i:
+
+Button:
+"Login to StackCP"
+
+If WHM:
+
+Button:
+"Login to cPanel"
+
+---
+
+5. Service Links
+
+Add buttons:
+
+- Login to Control Panel
+- Webmail Login
+- File Manager
+- PHPMyAdmin
+
+20i:
+
+StackCP links
+
+WHM:
+
+cPanel links
+
+---
+
+6. Order Activation Logic
+
+If order activated from:
+
+20i server:
+
+serverType = "20i"
+
+WHM server:
+
+serverType = "whm"
+
+Save automatically
+
+---
+
+7. Client Dashboard UI
+
+Each service show:
+
+Domain
+Package
+Server Name
+Status
+
+Buttons:
+
+- Login Control Panel
+- View Details
+- Manage Service
+
+---
+
+8. Security
+
+Use:
+
+- Token based login
+- Expire after 30 seconds
+- No password stored
+
+---
+
+9. Expected Final Result
+
+20i Order:
+
+Client click → Login StackCP → Logged in
+
+WHM Order:
+
+Client click → Login cPanel → Logged in
+
+No username/password
+
+---
+
+Important:
+
+Do not change UI design  
+Do not break order system  
+Only add login automation
