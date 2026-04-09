@@ -1,27 +1,141 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Server, Globe, Shield, Calendar, HardDrive, Activity,
   ShieldCheck, ShieldX, ExternalLink, ArrowLeft, RefreshCw,
-  KeyRound, Loader2, LayoutGrid, Eye, EyeOff, CheckCircle2,
-  AlertTriangle, AlertCircle, X, XCircle, ArrowUpCircle, CheckCircle,
-  Lock, ChevronDown, ChevronUp, Network, Plus, Trash2, Pencil,
+  KeyRound, Loader2, Eye, EyeOff, CheckCircle2,
+  AlertTriangle, Lock, Plus, Trash2, Pencil,
   Database, Download, ArchiveRestore, Clock, Rocket, Mail,
-  Cpu, FileText, Code2, Cog, Wifi, MousePointerClick, AtSign,
+  Cpu, Code2, Wifi, Terminal, FolderOpen, Settings, LayoutDashboard,
+  Globe2, Power, Play, Square, RotateCcw, ChevronRight, Info,
+  MoreHorizontal, Boxes, AtSign, Zap, UploadCloud, FileText,
+  Network,
 } from "lucide-react";
+import { format } from "date-fns";
 
-const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
+// ─── Config ───────────────────────────────────────────────────────────────────
+const API = "";
 
-function SvgRing({
-  pct, size = 100, stroke = 8, color, label, used, limit, unlimited, loading,
-}: {
-  pct: number; size?: number; stroke?: number;
-  color: string; label: string; used: string; limit: string; unlimited?: boolean; loading?: boolean;
+function authFetch(url: string, opts: RequestInit = {}) {
+  const token = localStorage.getItem("token");
+  return fetch(url, {
+    ...opts,
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
+  });
+}
+
+async function apiFetch<T = any>(url: string, opts: RequestInit = {}): Promise<T> {
+  const res = await authFetch(url, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data as T;
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Service {
+  id: string; planId: string; planName: string; domain: string | null;
+  status: string; billingCycle: string | null; nextDueDate: string | null;
+  sslStatus: string; username: string | null; serverIp: string | null;
+  cpanelUrl: string | null; webmailUrl: string | null;
+  diskUsed: string | null; bandwidthUsed: string | null;
+  cancelRequested: boolean; serverId: string | null;
+  wpInstalled: boolean; wpUrl: string | null; wpUsername: string | null;
+  wpPassword: string | null; wpEmail: string | null; wpSiteTitle: string | null;
+  wpProvisionStatus: string | null; wpProvisionStep: string | null; wpProvisionError: string | null;
+  autoRenew: boolean; canManage: boolean; manageLockReason: string | null;
+  twentyIPackageId?: string | null;
+}
+
+interface DnsRecord { line: number; type: string; name: string; address: string; ttl: number }
+interface HostingPlan { id: string; name: string; price: number; yearlyPrice?: number | null; diskSpace: string; bandwidth: string }
+type NavSection = "overview" | "wordpress" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python";
+
+// ─── Sidebar Nav ─────────────────────────────────────────────────────────────
+const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string }[] = [
+  { id: "overview",   label: "Overview",       icon: LayoutDashboard, group: "Hosting" },
+  { id: "wordpress",  label: "WordPress",      icon: Boxes,           group: "Hosting" },
+  { id: "domains",    label: "Domains & DNS",  icon: Globe,           group: "Hosting" },
+  { id: "email",      label: "Email",          icon: Mail,            group: "Hosting" },
+  { id: "databases",  label: "Databases",      icon: Database,        group: "Hosting" },
+  { id: "files",      label: "File Manager",   icon: FolderOpen,      group: "Hosting" },
+  { id: "ssl",        label: "SSL",            icon: ShieldCheck,     group: "Security" },
+  { id: "ssh",        label: "SSH Access",     icon: Terminal,        group: "Security" },
+  { id: "backup",     label: "Backups",        icon: ArchiveRestore,  group: "Tools" },
+  { id: "nodejs",     label: "Node.js",        icon: Code2,           group: "Tools" },
+  { id: "python",     label: "Python",         icon: Cpu,             group: "Tools" },
+];
+
+function Sidebar({ active, onChange, service }: { active: NavSection; onChange: (s: NavSection) => void; service: Service | null }) {
+  const groups = Array.from(new Set(NAV_ITEMS.map(n => n.group!)));
+  return (
+    <aside className="w-56 shrink-0 border-r border-border bg-background flex flex-col">
+      <div className="p-4 border-b border-border">
+        <p className="font-semibold text-foreground truncate text-sm">{service?.domain || "Hosting"}</p>
+        <StatusBadge status={service?.status || "pending"} />
+      </div>
+      <nav className="flex-1 overflow-y-auto p-2">
+        {groups.map(group => (
+          <div key={group} className="mb-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 mb-1">{group}</p>
+            {NAV_ITEMS.filter(n => n.group === group).map(item => {
+              const Icon = item.icon;
+              return (
+                <button key={item.id} onClick={() => onChange(item.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
+                    active === item.id
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}>
+                  <Icon size={15} className="shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+// ─── Shared UI Components ─────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const cfg: Record<string, { dot: string; badge: string; label: string }> = {
+    active:    { dot: "bg-emerald-500", badge: "bg-[#D1FAE5] text-[#065F46]", label: "Active" },
+    suspended: { dot: "bg-orange-400",  badge: "bg-orange-50 text-orange-700", label: "Suspended" },
+    terminated:{ dot: "bg-red-400",     badge: "bg-red-50 text-red-700",       label: "Terminated" },
+    pending:   { dot: "bg-yellow-400",  badge: "bg-yellow-50 text-yellow-700", label: "Pending" },
+  };
+  const c = cfg[status] ?? cfg.pending;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${c.badge}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      {c.label}
+    </span>
+  );
+}
+
+function SectionHeader({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between mb-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function SvgRing({ pct, size = 100, stroke = 8, color, label, used, limit, unlimited, loading }: {
+  pct: number; size?: number; stroke?: number; color: string;
+  label: string; used: string; limit: string; unlimited?: boolean; loading?: boolean;
 }) {
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
@@ -32,1427 +146,1274 @@ function SvgRing({
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
           <circle cx={cx} cy={cx} r={r} fill="none" stroke="rgba(var(--border))" strokeWidth={stroke} />
-          {!unlimited && (
-            <circle
-              cx={cx} cy={cx} r={r} fill="none"
-              stroke={color} strokeWidth={stroke}
-              strokeLinecap="round"
-              strokeDasharray={circ}
-              strokeDashoffset={loading ? circ : offset}
-              style={{ transition: "stroke-dashoffset 1s ease" }}
-            />
-          )}
-          {unlimited && (
-            <circle cx={cx} cy={cx} r={r} fill="none" stroke={color} strokeWidth={stroke}
-              strokeLinecap="round" strokeDasharray="6 4" strokeDashoffset={0} opacity={0.4} />
-          )}
+          {!unlimited && <circle cx={cx} cy={cx} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={loading ? circ : offset}
+            style={{ transition: "stroke-dashoffset 1s ease" }} />}
+          {unlimited && <circle cx={cx} cy={cx} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeLinecap="round" strokeDasharray="6 4" opacity={0.4} />}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {loading
-            ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
-            : <span className="text-base font-bold text-foreground leading-none">
-                {unlimited ? "∞" : `${Math.round(pct)}%`}
-              </span>
-          }
+        <div className="absolute inset-0 flex items-center justify-center">
+          {loading ? <Loader2 size={14} className="animate-spin text-muted-foreground" />
+            : <span className="text-base font-bold text-foreground">{unlimited ? "∞" : `${Math.round(pct)}%`}</span>}
         </div>
       </div>
       <div className="text-center">
         <p className="text-xs font-semibold text-foreground">{label}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">
-          {unlimited ? "Unlimited" : `${used} / ${limit}`}
-        </p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">{unlimited ? "Unlimited" : `${used} / ${limit}`}</p>
       </div>
     </div>
   );
 }
-import { format } from "date-fns";
 
-interface Service {
-  id: string;
-  planId: string;
-  planName: string;
-  domain: string | null;
-  status: string;
-  billingCycle: string | null;
-  nextDueDate: string | null;
-  sslStatus: string;
-  username: string | null;
-  serverIp: string | null;
-  cpanelUrl: string | null;
-  webmailUrl: string | null;
-  diskUsed: string | null;
-  bandwidthUsed: string | null;
-  cancelRequested: boolean;
-  serverId: string | null;
-  wpInstalled: boolean;
-  wpUrl: string | null;
-  wpUsername: string | null;
-  wpPassword: string | null;
-  wpEmail: string | null;
-  wpSiteTitle: string | null;
-  wpProvisionStatus: string | null;
-  wpProvisionStep: string | null;
-  wpProvisionError: string | null;
-  autoRenew: boolean;
-  canManage: boolean;
-  manageLockReason: string | null;
-  twentyIPackageId?: string | null;
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`bg-card border border-border rounded-xl p-5 ${className}`}>{children}</div>;
 }
 
-interface DnsRecord {
-  line: number;
-  type: string;
-  name: string;
-  address: string;
-  ttl: number;
+function EmptyState({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-4">
+        <Icon size={22} className="text-muted-foreground" />
+      </div>
+      <p className="font-semibold text-foreground">{title}</p>
+      <p className="text-sm text-muted-foreground mt-1 max-w-xs">{description}</p>
+    </div>
+  );
 }
 
-interface HostingPlan {
-  id: string;
-  name: string;
-  price: number;
-  yearlyPrice?: number | null;
-  diskSpace: string;
-  bandwidth: string;
+function NotAvailable({ reason }: { reason: string }) {
+  return (
+    <Card className="flex items-start gap-3">
+      <Info size={18} className="text-muted-foreground shrink-0 mt-0.5" />
+      <div>
+        <p className="font-medium text-foreground">Not available</p>
+        <p className="text-sm text-muted-foreground mt-0.5">{reason}</p>
+      </div>
+    </Card>
+  );
 }
 
-const statusColors: Record<string, string> = {
-  active: "bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]",
-  suspended: "bg-orange-50 text-orange-700 border-orange-200",
-  terminated: "bg-red-50 text-red-700 border-red-200",
-  pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-};
-
-function parseUsagePercent(used: string | null, limitStr: string): number {
-  if (!used) return 0;
-  const usedGB = parseFloat(used) * (used.toLowerCase().includes("mb") ? 0.001 : 1);
-  const limitGB = parseFloat(limitStr);
-  return isNaN(usedGB) || isNaN(limitGB) ? 0 : Math.min(100, Math.round((usedGB / limitGB) * 100));
+// ─── SSO Launch Helper ────────────────────────────────────────────────────────
+async function ssoLaunch(serviceId: string, target: string, toast: any) {
+  try {
+    const data = await apiFetch(`/client/hosting/${serviceId}/sso-launch`, {
+      method: "POST", body: JSON.stringify({ target }),
+    });
+    if (data.url) window.open(data.url, "_blank", "noopener");
+    else toast({ title: "Error", description: "No URL returned", variant: "destructive" });
+  } catch (err: any) {
+    toast({ title: "Could not open", description: err.message, variant: "destructive" });
+  }
 }
 
-function simulateUsage(serviceId: string, limitStr: string, field: "disk" | "bw"): { display: string; pct: number } {
-  let seed = 0;
-  for (let i = 0; i < serviceId.length; i++) seed = (seed * 31 + serviceId.charCodeAt(i)) & 0xffffffff;
-  const base = field === "disk" ? 0.08 : 0.12;
-  const variation = field === "disk" ? 0.18 : 0.22;
-  const ratio = base + ((Math.abs(seed) % 1000) / 1000) * variation;
-  const limitGB = parseFloat(limitStr) || 10;
-  const usedGB = limitGB * ratio;
-  const pct = Math.round(ratio * 100);
-  let display: string;
-  if (usedGB < 1) display = `${Math.round(usedGB * 1024)} MB`;
-  else display = `${usedGB.toFixed(1)} GB`;
-  return { display, pct };
-}
-
-function authFetch(url: string, opts: RequestInit = {}) {
-  const token = localStorage.getItem("token");
-  return fetch(url, {
-    ...opts,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(opts.headers || {}),
-    },
-  });
-}
-
-export default function ServiceDetail() {
-  const [, params] = useRoute("/client/hosting/:id");
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: OVERVIEW
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionOverview({ service, plan, onSsoLaunch }: { service: Service; plan: HostingPlan | null; onSsoLaunch: (target: string) => void }) {
   const { formatPrice } = useCurrency();
-  const queryClient = useQueryClient();
+  const [usage, setUsage] = useState<any>(null);
 
-  const serviceId = params?.id;
+  useEffect(() => {
+    authFetch(`/client/hosting/${service.id}/usage`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setUsage(d))
+      .catch(() => null);
+  }, [service.id]);
 
-  const [service, setService] = useState<Service | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [ssoLoading, setSsoLoading] = useState<string | null>(null);
+  const diskLimit = plan?.diskSpace ?? "10 GB";
+  const bwLimit = plan?.bandwidth ?? "100 GB";
+  const diskUsed = usage?.diskUsed ?? service.diskUsed ?? "0 MB";
+  const bwUsed = usage?.bwUsed ?? service.bandwidthUsed ?? "0 MB";
+  const diskPct = usage?.diskPct ?? 0;
+  const bwPct = usage?.bwPct ?? 0;
+  const diskUnlimited = usage?.diskUnlimited ?? diskLimit.toLowerCase().includes("unlimited");
+  const bwUnlimited = usage?.bwUnlimited ?? bwLimit.toLowerCase().includes("unlimited");
 
-  // WordPress guided-install state
-  const [wpInstallerLoading, setWpInstallerLoading] = useState(false);
-  const [wpCheckLoading, setWpCheckLoading] = useState(false);
-  const [wpAdminLoading, setWpAdminLoading] = useState(false);
-  const [wpProvisionData, setWpProvisionData] = useState<{
-    status: string;
-    step: string | null;
-    error: string | null;
-  } | null>(null);
-  // Domain list for the WordPress installer / Sitejet domain dropdown
-  const [wpDomains, setWpDomains] = useState<{ domain: string; docroot: string; type: string }[]>([]);
-  const [wpDomainsLoading, setWpDomainsLoading] = useState(false);
-  const [wpSelectedDomain, setWpSelectedDomain] = useState("");
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Hosting Overview" description="Your hosting service at a glance" />
 
-  // Password change state
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [passwordLoading, setPasswordLoading] = useState(false);
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "cPanel", icon: LayoutDashboard, target: "cpanel", color: "text-violet-600 bg-violet-50" },
+          { label: "File Manager", icon: FolderOpen, target: "filemanager", color: "text-blue-600 bg-blue-50" },
+          { label: "Email", icon: Mail, target: "email", color: "text-emerald-600 bg-emerald-50" },
+          { label: "Databases", icon: Database, target: "databases", color: "text-amber-600 bg-amber-50" },
+        ].map(a => (
+          <button key={a.target} onClick={() => onSsoLaunch(a.target)}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-card hover:bg-muted transition-colors cursor-pointer">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.color}`}>
+              <a.icon size={18} />
+            </div>
+            <span className="text-xs font-medium text-foreground">{a.label}</span>
+          </button>
+        ))}
+      </div>
 
-  // Renewal state
-  const [showRenewModal, setShowRenewModal] = useState(false);
-  const [renewing, setRenewing] = useState(false);
-  const [renewSuccess, setRenewSuccess] = useState<{ invoiceNumber: string; amount: number } | null>(null);
+      {/* Resource Usage */}
+      <Card>
+        <h3 className="font-semibold text-foreground mb-5">Resource Usage</h3>
+        <div className="flex gap-8 flex-wrap">
+          <SvgRing pct={diskPct} color="#7C3AED" label="Disk" used={diskUsed} limit={diskLimit} unlimited={diskUnlimited} />
+          <SvgRing pct={bwPct} color="#2563EB" label="Bandwidth" used={bwUsed} limit={bwLimit} unlimited={bwUnlimited} />
+        </div>
+      </Card>
 
-  // Upgrade state
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
-  const [upgrading, setUpgrading] = useState(false);
-  const [upgradeSuccess, setUpgradeSuccess] = useState<{ invoiceNumber: string; newPlanName: string } | null>(null);
+      {/* Service Info */}
+      <Card>
+        <h3 className="font-semibold text-foreground mb-4">Service Details</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          {[
+            { label: "Domain", value: service.domain || "—" },
+            { label: "Plan", value: service.planName },
+            { label: "Status", value: <StatusBadge status={service.status} /> },
+            { label: "Billing Cycle", value: service.billingCycle ?? "—" },
+            { label: "Next Due", value: service.nextDueDate ? format(new Date(service.nextDueDate), "MMM d, yyyy") : "—" },
+            { label: "IP Address", value: service.serverIp ?? "—" },
+            { label: "Username", value: service.username ?? "—" },
+            { label: "SSL", value: ["active", "installed"].includes(service.sslStatus) ? "Active ✓" : "Not installed" },
+          ].map(row => (
+            <div key={row.label} className="flex justify-between border-b border-border pb-2 last:border-0">
+              <span className="text-muted-foreground">{row.label}</span>
+              <span className="font-medium text-foreground">{row.value as any}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
 
-  // Cancel state
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
-  const [cancelling, setCancelling] = useState(false);
-
-  // SSL reinstall state
-  const [reinstallingSSL, setReinstallingSSL] = useState(false);
-
-  // Real cPanel resource usage
-  const [usageData, setUsageData] = useState<{
-    source: string;
-    diskUsed: string | null; diskLimit?: string; diskPct: number; diskUnlimited?: boolean;
-    bwUsed: string | null; bwLimit?: string; bwPct: number; bwUnlimited?: boolean;
-  } | null>(null);
-  const [usageLoading, setUsageLoading] = useState(false);
-
-  // Backup state
-  type Backup = { id: string; domain: string; status: string; type: string; filePath: string | null; sqlPath: string | null; sizeMb: string | null; createdAt: string; completedAt: string | null; errorMessage: string | null };
-  const [backups, setBackups] = useState<Backup[]>([]);
-  const [backupsLoading, setBackupsLoading] = useState(false);
-  const [creatingBackup, setCreatingBackup] = useState(false);
-
-  // Tab state
-  const [activeTab, setActiveTab] = useState<"overview">("overview");
-
-  // Auto-renew
-  const [autoRenewLoading, setAutoRenewLoading] = useState(false);
-
-  // DNS state
-  const [dnsRecords, setDnsRecords] = useState<DnsRecord[]>([]);
-  const [dnsLoading, setDnsLoading] = useState(false);
-  const [dnsError, setDnsError] = useState<string | null>(null);
-  const [showAddDns, setShowAddDns] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<DnsRecord | null>(null);
-  const [dnsForm, setDnsForm] = useState({ type: "A", name: "", address: "", ttl: 14400 });
-  const [dnsSaving, setDnsSaving] = useState(false);
-
-  const { data: plans = [] } = useQuery<HostingPlan[]>({
-    queryKey: ["hosting-plans"],
-    queryFn: async () => {
-      const res = await fetch("/api/hosting/plans");
-      if (!res.ok) throw new Error("Failed to load plans");
-      return res.json();
-    },
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: WORDPRESS
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionWordPress({ service, refetch }: { service: Service; refetch: () => void }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [wpStatus, setWpStatus] = useState({
+    status: service.wpProvisionStatus,
+    step: service.wpProvisionStep,
+    error: service.wpProvisionError,
   });
+  const [checkDomain, setCheckDomain] = useState(service.domain ?? "");
+  const [installForm, setInstallForm] = useState({ siteTitle: "", adminUser: "", adminEmail: service.wpEmail ?? "", domain: service.domain ?? "" });
+  const [showInstallForm, setShowInstallForm] = useState(false);
+  const [domains, setDomains] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!serviceId) return;
-    fetchService();
-  }, [serviceId]);
+    authFetch(`/client/hosting/${service.id}/domains`).then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.domains) setDomains([...(d.domains.mainDomain ? [d.domains.mainDomain] : []), ...(d.domains.addons ?? []), ...(d.domains.subdomains ?? [])]);
+    }).catch(() => null);
+  }, [service.id]);
 
-  // Load backup history when service data arrives
-  useEffect(() => {
-    if (service?.id && service.status === "active") {
-      fetchBackups();
-      fetchUsage();
-    }
-  }, [service?.id]);
+  async function handleInstall() {
+    setLoading("install");
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/install-wordpress`, {
+        method: "POST", body: JSON.stringify({ ...installForm }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Install failed");
+      toast({ title: "WordPress installation started", description: "This may take a few minutes." });
+      setShowInstallForm(false);
+      pollWpStatus();
+    } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
+    finally { setLoading(null); }
+  }
 
-  // Load WordPress status from DB on service load
-  useEffect(() => {
-    if (!service?.id) return;
-    const status = service.wpProvisionStatus;
-    if (status === "active" && service.wpInstalled) {
-      setWpProvisionData({ status: "active", step: "Completed", error: null });
-    } else if (status === "failed") {
-      setWpProvisionData({ status: "failed", step: null, error: service.wpProvisionError });
-    } else {
-      setWpProvisionData({ status: "not_started", step: null, error: null });
-    }
-  }, [service?.id]);
-
-  // Fetch all domains/subdomains for the WordPress installer dropdown
-  useEffect(() => {
-    if (!service?.id || service.status !== "active") return;
-    let cancelled = false;
-    async function fetchDomains() {
-      setWpDomainsLoading(true);
-      try {
-        const res = await authFetch(`/api/client/hosting/${service!.id}/domains`);
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        const list: { domain: string; docroot: string; type: string }[] = data.domains ?? [];
-        if (!cancelled) {
-          setWpDomains(list);
-          // Default selection: prefer main domain, fall back to first item
-          const main = list.find(d => d.type === "main") ?? list[0];
-          if (main) setWpSelectedDomain(main.domain);
-        }
-      } catch { /* non-fatal */ } finally {
-        if (!cancelled) setWpDomainsLoading(false);
+  function pollWpStatus() {
+    const iv = setInterval(async () => {
+      const d = await apiFetch(`/client/hosting/${service.id}/wordpress-status`).catch(() => null);
+      if (d) {
+        setWpStatus({ status: d.status, step: d.step, error: d.error });
+        if (["installed", "failed"].includes(d.status)) { clearInterval(iv); refetch(); }
       }
-    }
-    fetchDomains();
-    return () => { cancelled = true; };
-  }, [service?.id, service?.status]);
-
-  async function fetchService() {
-    try {
-      setLoading(true);
-      const res = await authFetch(`/api/client/hosting/${serviceId}`);
-      if (res.status === 404) { setLocation("/client/hosting"); return; }
-      if (!res.ok) throw new Error("Failed to load service");
-      const data = await res.json();
-      setService(data);
-    } catch {
-      toast({ title: "Error", description: "Failed to load service details.", variant: "destructive" });
-      setLocation("/client/hosting");
-    } finally {
-      setLoading(false);
-    }
+    }, 3000);
   }
 
-  async function handleCpanelLogin() {
-    if (!service) return;
-    setSsoLoading("cpanel");
+  async function handleWpAdmin() {
+    setLoading("wpadmin");
     try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/cpanel-login`, { method: "POST" });
-      const data = await res.json();
-      if (data.url) { window.open(data.url, "_blank"); return; }
-      if (service.cpanelUrl) { window.open(service.cpanelUrl, "_blank"); return; }
-      toast({ title: "Cannot open cPanel", description: data.error || "Service not yet provisioned.", variant: "destructive" });
-    } catch {
-      if (service.cpanelUrl) window.open(service.cpanelUrl, "_blank");
-      else toast({ title: "Error", description: "cPanel login failed", variant: "destructive" });
-    } finally { setSsoLoading(null); }
+      const d = await apiFetch(`/client/hosting/${service.id}/wp-admin-url`, { method: "POST", body: JSON.stringify({ domain: checkDomain }) });
+      if (d.url) window.open(d.url, "_blank", "noopener");
+      else toast({ title: "WordPress Admin", description: `Visit: https://${checkDomain}/wp-admin`, variant: "default" });
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(null); }
   }
 
-  async function handleWebmailLogin() {
-    if (!service) return;
-    setSsoLoading("webmail");
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/webmail-login`, { method: "POST" });
-      const data = await res.json();
-      if (data.url) { window.open(data.url, "_blank"); return; }
-      if (service.webmailUrl) { window.open(service.webmailUrl, "_blank"); return; }
-      toast({ title: "Cannot open Webmail", description: data.error || "Service not yet provisioned.", variant: "destructive" });
-    } catch {
-      if (service.webmailUrl) window.open(service.webmailUrl, "_blank");
-      else toast({ title: "Error", description: "Webmail login failed", variant: "destructive" });
-    } finally { setSsoLoading(null); }
-  }
+  const isProvisioning = ["provisioning", "queued"].includes(wpStatus.status ?? "");
+  const isInstalled = service.wpInstalled || wpStatus.status === "installed";
 
-  // SSO deep-link launcher: requests a fresh WHM session token and opens the specific cPanel section
-  async function handleDeepLaunch(target: string) {
-    if (!service) return;
-    setSsoLoading(target);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/sso-launch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        // Server-side error (server unreachable, no credentials, etc.) — stay on the page
-        const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
-        if (fallback) {
-          window.open(fallback, "_blank");
-          toast({ title: "Using saved link", description: data.error || "Could not generate a fresh session. Opened the stored control panel link.", variant: "destructive" });
-        } else {
-          toast({ title: "Unable to connect to server", description: data.error || "Please try again later.", variant: "destructive" });
-        }
-        return;
-      }
-
-      if (data.url) {
-        window.open(data.url, "_blank");
-        return;
-      }
-
-      // No URL returned — use stored fallbacks
-      const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
-      if (fallback) { window.open(fallback, "_blank"); return; }
-      toast({ title: "Cannot open panel", description: "Service not yet provisioned. Please contact support.", variant: "destructive" });
-    } catch {
-      const fallback = target === "webmail" ? service.webmailUrl : service.cpanelUrl;
-      if (fallback) window.open(fallback, "_blank");
-      else toast({ title: "Unable to connect to server", description: "Please try again later.", variant: "destructive" });
-    } finally { setSsoLoading(null); }
-  }
-
-  // Open the official cPanel Softaculous WordPress installer in a new tab
-  // Passes the selected domain so Softaculous pre-selects it
-  async function handleOpenSoftaculous() {
-    if (!service) return;
-    setWpInstallerLoading(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/wp-softaculous-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: wpSelectedDomain || service.domain }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not generate installer URL");
-      window.open(data.url, "_blank");
-    } catch (e: any) {
-      toast({ title: "Cannot open installer", description: e.message, variant: "destructive" });
-    } finally {
-      setWpInstallerLoading(false);
-    }
-  }
-
-  // Detect WordPress by checking for wp-config.php in the selected domain's directory
-  async function handleDetectWordPress() {
-    if (!service) return;
-    setWpCheckLoading(true);
-    const checkDomain = wpSelectedDomain || service.domain;
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/wp-detect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: checkDomain }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Detection failed");
-      if (data.installed) {
-        setWpProvisionData({ status: "active", step: "Completed", error: null });
-        fetchService();
-        toast({ title: "WordPress Detected", description: `WordPress found on ${checkDomain}.` });
-      } else {
-        toast({
-          title: "Not found yet",
-          description: `wp-config.php was not found in ${data.checkedDir ?? "the selected directory"}. Complete the installation in Softaculous first.`,
-        });
-      }
-    } catch (e: any) {
-      toast({ title: "Detection failed", description: e.message, variant: "destructive" });
-    } finally {
-      setWpCheckLoading(false);
-    }
-  }
-
-  // Open WordPress admin — tries Softaculous SSO first, falls back to direct /wp-admin
-  async function handleOpenWpAdmin() {
-    if (!service) return;
-    setWpAdminLoading(true);
-    const adminDomain = wpSelectedDomain || service.domain;
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/wp-admin-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: adminDomain }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not get admin URL");
-      window.open(data.url, "_blank");
-    } catch (e: any) {
-      // Last resort: open /wp-admin directly on the selected domain
-      window.open(`https://${adminDomain}/wp-admin`, "_blank");
-    } finally {
-      setWpAdminLoading(false);
-    }
-  }
-
-  async function handleChangePassword() {
-    if (!service) return;
-    if (newPassword.length < 8) {
-      toast({ title: "Error", description: "Password must be at least 8 characters", variant: "destructive" });
-      return;
-    }
-    setPasswordLoading(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/change-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Password change failed");
-      toast({ title: "Password Updated", description: "Your cPanel password has been changed successfully." });
-      setNewPassword("");
-      setShowPasswordChange(false);
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setPasswordLoading(false); }
-  }
-
-  async function handleRenew() {
-    if (!service) return;
-    setRenewing(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/renew`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Renewal failed");
-      setRenewSuccess({ invoiceNumber: data.invoiceNumber, amount: data.amount });
-      queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
-    } catch (e: any) {
-      toast({ title: "Renewal Failed", description: e.message, variant: "destructive" });
-      setShowRenewModal(false);
-    } finally { setRenewing(false); }
-  }
-
-  async function handleUpgrade() {
-    if (!service || !selectedPlanId) return;
-    setUpgrading(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/upgrade`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPlanId: selectedPlanId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upgrade request failed");
-      setUpgradeSuccess({ invoiceNumber: data.invoiceNumber, newPlanName: data.newPlanName });
-      queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
-    } catch (e: any) {
-      toast({ title: "Upgrade Failed", description: e.message, variant: "destructive" });
-    } finally { setUpgrading(false); }
-  }
-
-  async function handleCancelRequest() {
-    if (!service) return;
-    setCancelling(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/cancel-request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: cancelReason || "Requested by client" }),
-      });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed"); }
-      queryClient.invalidateQueries({ queryKey: ["client-hosting"] });
-      toast({ title: "Cancellation requested", description: "Our team will process your request." });
-      setShowCancelModal(false);
-      setCancelReason("");
-      await fetchService();
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setCancelling(false); }
-  }
-
-  async function handleReinstallSSL() {
-    if (!service) return;
-    setReinstallingSSL(true);
-    try {
-      await authFetch(`/api/client/hosting/${service.id}/reinstall-ssl`, { method: "POST" });
-      toast({ title: "SSL Reinstall Initiated", description: "This may take a moment." });
-      setTimeout(() => { fetchService(); setReinstallingSSL(false); }, 3000);
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-      setReinstallingSSL(false);
-    }
-  }
-
-  async function fetchBackups() {
-    if (!service) return;
-    setBackupsLoading(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/backups`);
-      if (res.ok) setBackups(await res.json());
-    } catch { /* non-fatal */ } finally { setBackupsLoading(false); }
-  }
-
-  async function handleDeleteBackup(backupId: string) {
-    if (!service || !confirm("Remove this backup record?")) return;
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/backup/${backupId}`, { method: "DELETE" });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Delete failed"); }
-      toast({ title: "Backup removed" });
-      fetchBackups();
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    }
-  }
-
-  async function handleCreateDbBackup() {
-    if (!service) return;
-    setCreatingBackup(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/backup`, { method: "POST", body: JSON.stringify({ backupType: "db_only" }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Backup failed");
-      toast({ title: "Database backup started", description: "Your database backup is being created." });
-      const poll = setInterval(async () => {
-        const r = await authFetch(`/api/client/hosting/${service!.id}/backup/${data.backupId}`);
-        if (!r.ok) { clearInterval(poll); return; }
-        const b = await r.json();
-        if (b.status !== "running") {
-          clearInterval(poll); setCreatingBackup(false); fetchBackups();
-          if (b.status === "queued_on_server") toast({ title: "DB backup queued", description: `File: ${b.filePath || "~/cpanel_backups/"}` });
-          else if (b.status === "completed") toast({ title: "DB backup complete" });
-          else toast({ title: "DB backup failed", description: b.errorMessage || "Unknown error", variant: "destructive" });
-        }
-      }, 3000);
-    } catch (e: any) {
-      toast({ title: "Backup error", description: e.message, variant: "destructive" });
-      setCreatingBackup(false);
-    }
-  }
-
-  async function fetchUsage() {
-    if (!service) return;
-    setUsageLoading(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/usage`);
-      if (res.ok) {
-        const data = await res.json();
-        setUsageData(data);
-      }
-    } catch { /* non-fatal — falls back to simulated */ } finally { setUsageLoading(false); }
-  }
-
-  async function handleCreateBackup() {
-    if (!service) return;
-    setCreatingBackup(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/backup`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Backup failed");
-      toast({ title: "Backup started", description: "Your backup is being created in the background." });
-      // Poll until it transitions from "running"
-      const poll = setInterval(async () => {
-        const r = await authFetch(`/api/client/hosting/${service!.id}/backup/${data.backupId}`);
-        if (!r.ok) { clearInterval(poll); return; }
-        const b = await r.json();
-        if (b.status !== "running") {
-          clearInterval(poll);
-          setCreatingBackup(false);
-          fetchBackups();
-          if (b.status === "completed") toast({ title: "Backup complete", description: `${b.sizeMb ? b.sizeMb + " MB" : "Files"} backed up successfully.` });
-          else if (b.status === "queued_on_server") toast({ title: "Backup queued on server", description: `cPanel accepted the backup. File: ${b.filePath || "~/backup-*.tar.gz"}` });
-          else toast({ title: "Backup failed", description: b.errorMessage || "Unknown error", variant: "destructive" });
-        }
-      }, 3000);
-    } catch (e: any) {
-      toast({ title: "Backup error", description: e.message, variant: "destructive" });
-      setCreatingBackup(false);
-    }
-  }
-
-
-  async function handleToggleAutoRenew() {
-    if (!service) return;
-    setAutoRenewLoading(true);
-    try {
-      const res = await authFetch(`/api/client/hosting/${service.id}/auto-renew`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoRenew: !service.autoRenew }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update");
-      setService(s => s ? { ...s, autoRenew: !s.autoRenew } : s);
-      toast({ title: `Auto-Renew ${!service.autoRenew ? "Enabled" : "Disabled"}`, description: !service.autoRenew ? "Your service will renew automatically." : "Auto-renewal has been disabled." });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setAutoRenewLoading(false); }
-  }
-
-  async function fetchDns() {
-    if (!service) return;
-    setDnsLoading(true);
-    setDnsError(null);
-    try {
-      const res = await authFetch(`/api/hosting/${service.id}/dns`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load DNS");
-      setDnsRecords(data.records ?? []);
-    } catch (e: any) {
-      setDnsError(e.message);
-    } finally { setDnsLoading(false); }
-  }
-
-  async function handleAddDns() {
-    if (!service) return;
-    setDnsSaving(true);
-    try {
-      const res = await authFetch(`/api/hosting/${service.id}/dns`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dnsForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to add record");
-      toast({ title: "DNS Record Added" });
-      setShowAddDns(false);
-      setDnsForm({ type: "A", name: "", address: "", ttl: 14400 });
-      fetchDns();
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setDnsSaving(false); }
-  }
-
-  async function handleEditDns() {
-    if (!service || !editingRecord) return;
-    setDnsSaving(true);
-    try {
-      const res = await authFetch(`/api/hosting/${service.id}/dns/${editingRecord.line}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dnsForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update record");
-      toast({ title: "DNS Record Updated" });
-      setEditingRecord(null);
-      fetchDns();
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    } finally { setDnsSaving(false); }
-  }
-
-  async function handleDeleteDns(line: number) {
-    if (!service) return;
-    try {
-      const res = await authFetch(`/api/hosting/${service.id}/dns/${line}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to delete");
-      toast({ title: "DNS Record Deleted" });
-      fetchDns();
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
-    }
-  }
-
-  if (loading) {
+  if (isInstalled) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-primary" />
+      <div className="space-y-5">
+        <SectionHeader title="WordPress" description="Manage your WordPress installation" />
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Boxes size={18} className="text-blue-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">{service.wpSiteTitle || "WordPress Site"}</p>
+              <p className="text-sm text-muted-foreground">{service.wpUrl || service.domain}</p>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => window.open(service.wpUrl || `https://${service.domain}`, "_blank")} className="gap-1.5">
+                <ExternalLink size={13} /> Visit Site
+              </Button>
+              <Button size="sm" onClick={handleWpAdmin} disabled={loading === "wpadmin"} className="gap-1.5 bg-primary hover:bg-primary/90">
+                {loading === "wpadmin" ? <Loader2 size={13} className="animate-spin" /> : <Settings size={13} />} WP Admin
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {service.wpUsername && <div className="bg-muted rounded-lg p-3"><p className="text-muted-foreground text-xs">Admin User</p><p className="font-medium mt-0.5">{service.wpUsername}</p></div>}
+            {service.wpEmail && <div className="bg-muted rounded-lg p-3"><p className="text-muted-foreground text-xs">Admin Email</p><p className="font-medium mt-0.5">{service.wpEmail}</p></div>}
+          </div>
+        </Card>
       </div>
     );
   }
 
-  if (!service) return null;
-
-  const currentPlan = plans.find(p => p.id === service.planId);
-  const planDiskLimit = currentPlan?.diskSpace || "10 GB";
-  const planBwLimit = currentPlan?.bandwidth || "100 GB";
-  const diskLimitNum = planDiskLimit.replace(/[^0-9.]/g, "");
-  const bwLimitNum = planBwLimit.replace(/[^0-9.]/g, "");
-
-  const diskSim = simulateUsage(service.id, diskLimitNum, "disk");
-  const bwSim = simulateUsage(service.id, bwLimitNum, "bw");
-  const hasRealUsage = (usageData?.source === "cpanel" || usageData?.source === "cached") && (usageData.diskUsed !== null || usageData.bwUsed !== null);
-  const diskUsedDisplay = hasRealUsage ? (usageData!.diskUsed ?? "0 MB") : (service.diskUsed || diskSim.display);
-  const bwUsedDisplay = hasRealUsage ? (usageData!.bwUsed ?? "0 MB") : (service.bandwidthUsed || bwSim.display);
-  const diskPct = hasRealUsage ? usageData!.diskPct : (service.diskUsed ? parseUsagePercent(service.diskUsed, diskLimitNum) : diskSim.pct);
-  const bwPct = hasRealUsage ? usageData!.bwPct : (service.bandwidthUsed ? parseUsagePercent(service.bandwidthUsed, bwLimitNum) : bwSim.pct);
-  // Use live limits from API when available, otherwise fall back to plan limits
-  const diskLimit = (hasRealUsage && usageData?.diskLimit) ? usageData.diskLimit : planDiskLimit;
-  const bwLimit = (hasRealUsage && usageData?.bwLimit) ? usageData.bwLimit : planBwLimit;
-
-  const otherPlans = plans.filter(p => p.id !== service.planId);
-  const selectedPlan = plans.find(p => p.id === selectedPlanId);
-  const is20i = !!(service.twentyIPackageId || service.cpanelUrl?.includes("my.20i.com") || service.cpanelUrl?.includes("stackcp.com"));
+  if (isProvisioning) {
+    return (
+      <div className="space-y-5">
+        <SectionHeader title="WordPress" />
+        <Card className="flex items-center gap-4">
+          <Loader2 size={24} className="animate-spin text-primary shrink-0" />
+          <div>
+            <p className="font-semibold text-foreground">Installing WordPress...</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{wpStatus.step || "This may take a few minutes."}</p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-
-      {/* Management lock banner */}
-      {!service.canManage && service.manageLockReason && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-red-500/30 bg-red-500/8 text-sm">
-          <div className="flex items-center gap-2 text-red-400">
-            <Lock size={15} className="shrink-0" />
-            <span>{service.manageLockReason}</span>
+    <div className="space-y-5">
+      <SectionHeader title="WordPress" description="Install WordPress with one click" />
+      {!showInstallForm ? (
+        <Card>
+          <EmptyState icon={Boxes} title="WordPress not installed" description="Install WordPress to get a full CMS for your website." />
+          <div className="flex justify-center mt-4 gap-3">
+            <Button onClick={() => setShowInstallForm(true)} className="gap-2 bg-primary hover:bg-primary/90">
+              <Plus size={15} /> Install WordPress
+            </Button>
           </div>
-          <button
-            onClick={() => setLocation("/client/invoices")}
-            className="shrink-0 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
-            style={{ background: "hsl(244 76% 59%)" }}
-          >
-            Pay Invoice →
-          </button>
-        </div>
-      )}
-
-      {/* Renewal Modal */}
-      {(showRenewModal || renewSuccess) && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="font-semibold flex items-center gap-2 text-foreground">
-                <RefreshCw size={18} className="text-primary" />
-                {renewSuccess ? "Renewal Invoice Created" : "Renew Hosting Service"}
-              </h2>
-              <Button variant="ghost" size="icon" onClick={() => { setShowRenewModal(false); setRenewSuccess(null); }}>
-                <X size={18} />
-              </Button>
+        </Card>
+      ) : (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-4">Install WordPress</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Domain</label>
+              <select className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
+                value={installForm.domain} onChange={e => setInstallForm(f => ({ ...f, domain: e.target.value }))}>
+                {(domains.length ? domains : [service.domain || ""]).filter(Boolean).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
             </div>
-            <div className="p-5 space-y-4">
-              {renewSuccess ? (
-                <>
-                  <div className="flex flex-col items-center gap-3 py-4 text-center">
-                    <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
-                      <CheckCircle size={28} className="text-green-500" />
-                    </div>
-                    <p className="font-semibold text-foreground">Renewal Invoice Generated!</p>
-                    <p className="text-sm text-muted-foreground">
-                      Invoice <strong>{renewSuccess.invoiceNumber}</strong> for <strong>{formatPrice(renewSuccess.amount)}</strong> has been created.
-                      Once you pay it, an admin will approve and extend your service.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button onClick={() => setLocation("/client/invoices")} className="flex-1 bg-primary hover:bg-primary/90">View & Pay Invoice</Button>
-                    <Button variant="outline" onClick={() => { setShowRenewModal(false); setRenewSuccess(null); }}>Close</Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    A renewal invoice will be created for <strong className="text-foreground">{service.planName}</strong> on a <strong className="text-foreground capitalize">{service.billingCycle || "monthly"}</strong> billing cycle.
-                    After payment, an admin will extend your due date.
-                  </p>
-                  <div className="flex gap-3">
-                    <Button onClick={handleRenew} disabled={renewing} className="flex-1 bg-primary hover:bg-primary/90">
-                      {renewing && <Loader2 size={16} className="animate-spin mr-2" />}
-                      Confirm Renewal
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowRenewModal(false)}>Cancel</Button>
-                  </div>
-                </>
-              )}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Site Title</label>
+              <Input placeholder="My Website" value={installForm.siteTitle} onChange={e => setInstallForm(f => ({ ...f, siteTitle: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Admin Username</label>
+              <Input placeholder="admin" value={installForm.adminUser} onChange={e => setInstallForm(f => ({ ...f, adminUser: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Admin Email</label>
+              <Input placeholder="admin@yourdomain.com" value={installForm.adminEmail} onChange={e => setInstallForm(f => ({ ...f, adminEmail: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleInstall} disabled={loading === "install"} className="gap-2 bg-primary hover:bg-primary/90">
+                {loading === "install" ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />} Install
+              </Button>
+              <Button variant="outline" onClick={() => setShowInstallForm(false)}>Cancel</Button>
             </div>
           </div>
-        </div>
+        </Card>
       )}
+    </div>
+  );
+}
 
-      {/* Upgrade Modal */}
-      {(showUpgradeModal || upgradeSuccess) && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="font-semibold flex items-center gap-2 text-foreground">
-                <ArrowUpCircle size={18} className="text-primary" />
-                {upgradeSuccess ? "Upgrade Request Submitted" : "Change Plan"}
-              </h2>
-              <Button variant="ghost" size="icon" onClick={() => { setShowUpgradeModal(false); setUpgradeSuccess(null); setSelectedPlanId(""); }}>
-                <X size={18} />
-              </Button>
-            </div>
-            <div className="p-5 space-y-4">
-              {upgradeSuccess ? (
-                <>
-                  <div className="flex flex-col items-center gap-3 py-4 text-center">
-                    <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
-                      <CheckCircle size={28} className="text-green-500" />
-                    </div>
-                    <p className="font-semibold text-foreground">Upgrade Invoice Created!</p>
-                    <p className="text-sm text-muted-foreground">
-                      Invoice <strong>{upgradeSuccess.invoiceNumber}</strong> for <strong>{upgradeSuccess.newPlanName}</strong> has been generated. Pay it and an admin will apply the plan change.
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <Button onClick={() => setLocation("/client/invoices")} className="flex-1 bg-primary hover:bg-primary/90">View & Pay Invoice</Button>
-                    <Button variant="outline" onClick={() => { setShowUpgradeModal(false); setUpgradeSuccess(null); setSelectedPlanId(""); }}>Close</Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Current plan: <strong className="text-foreground">{service.planName}</strong>. Select a new plan below.
-                  </p>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {otherPlans.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">No other plans available.</p>
-                    ) : otherPlans.map(plan => (
-                      <button
-                        key={plan.id}
-                        onClick={() => setSelectedPlanId(plan.id)}
-                        className={`w-full text-left p-3 rounded-xl border transition-colors ${selectedPlanId === plan.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-foreground">{plan.name}</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">{plan.diskSpace} disk · {plan.bandwidth} bandwidth</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-semibold text-foreground">{formatPrice(plan.price)}<span className="text-xs text-muted-foreground">/mo</span></div>
-                            {plan.yearlyPrice && (
-                              <div className="text-xs text-muted-foreground">{formatPrice(plan.yearlyPrice)}/yr</div>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  {selectedPlan && (
-                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-sm">
-                      An invoice for <strong className="text-foreground">{formatPrice(service.billingCycle === "yearly" && selectedPlan.yearlyPrice ? selectedPlan.yearlyPrice : selectedPlan.price)}</strong> will be created for <strong className="text-foreground">{selectedPlan.name}</strong>.
-                    </div>
-                  )}
-                  <div className="flex gap-3">
-                    <Button onClick={handleUpgrade} disabled={upgrading || !selectedPlanId} className="flex-1 bg-primary hover:bg-primary/90">
-                      {upgrading && <Loader2 size={16} className="animate-spin mr-2" />}
-                      Request Plan Change
-                    </Button>
-                    <Button variant="outline" onClick={() => { setShowUpgradeModal(false); setSelectedPlanId(""); }}>Cancel</Button>
-                  </div>
-                </>
-              )}
-            </div>
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: EMAIL
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionEmail({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ email: "", password: "", quota: "250" });
+  const [showPwd, setShowPwd] = useState(false);
+  const [changePwd, setChangePwd] = useState<{ email: string; pwd: string } | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const isWHM = !service.twentyIPackageId && service.serverId;
+
+  async function loadAccounts() {
+    setLoadingList(true);
+    try {
+      const d = await apiFetch(`/client/hosting/${service.id}/email`);
+      setAccounts(d.accounts || []);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoadingList(false); }
+  }
+
+  useEffect(() => { if (isWHM) loadAccounts(); else setLoadingList(false); }, [service.id]);
+
+  async function handleCreate() {
+    if (!form.email.includes("@")) return toast({ description: "Include the full email address with @domain", variant: "destructive" });
+    setCreating(true);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/email`, { method: "POST", body: JSON.stringify({ email: form.email, password: form.password, quota: Number(form.quota) }) });
+      toast({ title: "Email account created", description: form.email });
+      setForm({ email: "", password: "", quota: "250" }); setShowCreate(false); loadAccounts();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  }
+
+  async function handleDelete(email: string) {
+    setDeleting(email);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/email`, { method: "DELETE", body: JSON.stringify({ email }) });
+      toast({ title: "Deleted", description: `${email} has been removed` });
+      loadAccounts();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setDeleting(null); }
+  }
+
+  async function handleWebmail() {
+    try {
+      const d = await apiFetch(`/client/hosting/${service.id}/email/webmail`, { method: "POST" });
+      if (d.url) window.open(d.url, "_blank", "noopener");
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  async function handleChangePwd() {
+    if (!changePwd) return;
+    try {
+      await apiFetch(`/client/hosting/${service.id}/email/password`, { method: "PUT", body: JSON.stringify({ email: changePwd.email, password: changePwd.pwd }) });
+      toast({ title: "Password updated" }); setChangePwd(null);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  if (!isWHM) return <NotAvailable reason="Email management via this panel requires a cPanel/WHM server. Use the cPanel button for email management." />;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Email Accounts" description="Create and manage email accounts for your domain"
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleWebmail} className="gap-1.5"><ExternalLink size={13} />Webmail</Button>
+            <Button size="sm" onClick={() => setShowCreate(s => !s)} className="gap-1.5 bg-primary hover:bg-primary/90"><Plus size={13} />Create Email</Button>
           </div>
-        </div>
-      )}
+        } />
 
-      {/* Cancel Modal */}
-      {showCancelModal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="font-semibold flex items-center gap-2 text-destructive">
-                <AlertTriangle size={18} /> Request Cancellation
-              </h2>
-              <Button variant="ghost" size="icon" onClick={() => { setShowCancelModal(false); setCancelReason(""); }}>
-                <X size={18} />
-              </Button>
+      {showCreate && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-4">Create Email Account</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Email Address</label>
+              <Input placeholder={`info@${service.domain || "yourdomain.com"}`} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                You are requesting cancellation for <strong className="text-foreground">{service.domain || service.planName}</strong>.
-                Your service will remain active until an admin processes your request.
-              </p>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground/80">Reason (optional)</label>
-                <textarea
-                  value={cancelReason}
-                  onChange={e => setCancelReason(e.target.value)}
-                  rows={3}
-                  placeholder="Let us know why you're cancelling..."
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                />
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Password</label>
+              <div className="relative">
+                <Input type={showPwd ? "text" : "password"} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+                <button type="button" onClick={() => setShowPwd(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
               </div>
-              <div className="flex gap-3">
-                <Button onClick={handleCancelRequest} disabled={cancelling} className="flex-1 bg-destructive hover:bg-destructive/90">
-                  {cancelling && <Loader2 size={16} className="animate-spin mr-2" />}
-                  Confirm Cancellation Request
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Quota (MB)</label>
+              <Input type="number" value={form.quota} onChange={e => setForm(f => ({ ...f, quota: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleCreate} disabled={creating} className="gap-2 bg-primary hover:bg-primary/90">
+                {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Create
+              </Button>
+              <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        {loadingList ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : accounts.length === 0 ? (
+          <EmptyState icon={Mail} title="No email accounts" description="Create your first email account above" />
+        ) : (
+          <div className="divide-y divide-border">
+            {accounts.map(acc => (
+              <div key={acc.email} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <AtSign size={14} className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-foreground">{acc.email}</p>
+                    <p className="text-xs text-muted-foreground">{acc.diskquota || "Unlimited"} quota</p>
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <Button variant="ghost" size="sm" onClick={() => setChangePwd({ email: acc.email, pwd: "" })}
+                    className="text-muted-foreground hover:text-foreground"><KeyRound size={14} /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(acc.email)} disabled={deleting === acc.email}
+                    className="text-destructive hover:text-destructive">
+                    {deleting === acc.email ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {changePwd && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-3">Change Password — {changePwd.email}</h3>
+          <div className="flex gap-2">
+            <Input type="password" placeholder="New password" value={changePwd.pwd} onChange={e => setChangePwd(c => c ? { ...c, pwd: e.target.value } : null)} className="flex-1" />
+            <Button onClick={handleChangePwd} disabled={!changePwd.pwd} className="bg-primary hover:bg-primary/90">Update</Button>
+            <Button variant="outline" onClick={() => setChangePwd(null)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: DATABASES
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionDatabases({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [dbs, setDbs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ suffix: "", password: "" });
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [pmaLoading, setPmaLoading] = useState(false);
+
+  const isWHM = !service.twentyIPackageId && service.serverId;
+
+  async function loadDbs() {
+    setLoading(true);
+    try { const d = await apiFetch(`/client/hosting/${service.id}/databases`); setDbs(d.databases || []); }
+    catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { if (isWHM) loadDbs(); else setLoading(false); }, [service.id]);
+
+  async function handleCreate() {
+    if (!form.suffix.trim() || !form.password.trim()) return toast({ description: "Database name and password are required", variant: "destructive" });
+    setCreating(true);
+    try {
+      const d = await apiFetch(`/client/hosting/${service.id}/databases`, { method: "POST", body: JSON.stringify(form) });
+      toast({ title: "Database created", description: `${d.database} / user: ${d.dbUser}` });
+      setForm({ suffix: "", password: "" }); setShowCreate(false); loadDbs();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  }
+
+  async function handleDelete(dbname: string) {
+    setDeleting(dbname);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/databases/${encodeURIComponent(dbname)}`, { method: "DELETE" });
+      toast({ title: "Database deleted" }); loadDbs();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setDeleting(null); }
+  }
+
+  async function handlePhpMyAdmin() {
+    setPmaLoading(true);
+    try {
+      const d = await apiFetch(`/client/hosting/${service.id}/databases/phpmyadmin`, { method: "POST" });
+      if (d.url) window.open(d.url, "_blank", "noopener");
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setPmaLoading(false); }
+  }
+
+  if (!isWHM) return <NotAvailable reason="Database management requires a cPanel/WHM server. Use the cPanel button to access databases." />;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Databases" description="MySQL databases for your hosting account"
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handlePhpMyAdmin} disabled={pmaLoading} className="gap-1.5">
+              {pmaLoading ? <Loader2 size={13} className="animate-spin" /> : <ExternalLink size={13} />} phpMyAdmin
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(s => !s)} className="gap-1.5 bg-primary hover:bg-primary/90"><Plus size={13} />Create Database</Button>
+          </div>
+        } />
+
+      {showCreate && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-4">Create Database</h3>
+          <p className="text-xs text-muted-foreground mb-3">Database and user will be named <code className="bg-muted px-1 rounded">{service.username}_{"{name}"}</code></p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Database Name</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground shrink-0">{service.username}_</span>
+                <Input placeholder="mydb" value={form.suffix} onChange={e => setForm(f => ({ ...f, suffix: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">DB User Password</label>
+              <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleCreate} disabled={creating} className="gap-2 bg-primary hover:bg-primary/90">
+                {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Create
+              </Button>
+              <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : dbs.length === 0 ? (
+          <EmptyState icon={Database} title="No databases" description="Create your first MySQL database above" />
+        ) : (
+          <div className="divide-y divide-border">
+            {dbs.map(db => (
+              <div key={db.database} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center">
+                    <Database size={14} className="text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-foreground">{db.database}</p>
+                    <p className="text-xs text-muted-foreground">{db.users?.join(", ") || "No users"}</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(db.database)} disabled={deleting === db.database}
+                  className="text-destructive hover:text-destructive">
+                  {deleting === db.database ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 </Button>
-                <Button variant="outline" onClick={() => { setShowCancelModal(false); setCancelReason(""); }}>Keep Service</Button>
               </div>
-            </div>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </Card>
+    </div>
+  );
+}
 
-      {/* Header */}
-      <div className="flex flex-wrap items-start gap-3">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/client/hosting")} className="shrink-0">
-          <ArrowLeft size={18} />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl sm:text-2xl font-display font-bold text-foreground flex flex-wrap items-center gap-2">
-            {service.planName}
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase tracking-wider ${statusColors[service.status] || "bg-secondary border-border text-muted-foreground"}`}>
-              {service.status}
-            </span>
-            {service.cancelRequested && (
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                Cancel Pending
-              </span>
-            )}
-          </h2>
-          {service.domain && (
-            <div className="flex items-center gap-1.5 text-primary font-medium mt-0.5">
-              <Globe size={14} />
-              <span className="truncate">{service.domain}</span>
-            </div>
-          )}
-        </div>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shrink-0 ${
-          service.sslStatus === "active" || service.sslStatus === "installed"
-            ? "bg-green-500/10 text-green-400 border-green-500/20"
-            : "bg-muted text-muted-foreground border-border"
-        }`}>
-          {service.sslStatus === "active" || service.sslStatus === "installed"
-            ? <ShieldCheck size={14} /> : <ShieldX size={14} />}
-          SSL {service.sslStatus === "active" || service.sslStatus === "installed" ? "Active" : "Not Installed"}
-        </div>
-      </div>
-
-      {/* Pending payment banner */}
-      {service.status === "pending" && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
-          <AlertCircle size={18} className="text-yellow-400 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-yellow-400">Service pending — payment required</p>
-            <p className="text-xs text-muted-foreground mt-0.5">All management features are disabled until payment is complete. View your invoice to pay and activate this service.</p>
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: FILES
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionFiles({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  async function openFileManager() {
+    setLoading(true);
+    try { await ssoLaunch(service.id, "filemanager", toast); }
+    finally { setLoading(false); }
+  }
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="File Manager" description="Browse and manage your hosting files" />
+      <Card>
+        <div className="flex flex-col items-center py-10 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+            <FolderOpen size={28} className="text-blue-600" />
           </div>
-          <button onClick={() => setLocation("/client/invoices")} className="shrink-0 text-xs font-medium text-yellow-400 hover:text-yellow-300 underline underline-offset-2">
-            View invoices
-          </button>
+          <h3 className="font-semibold text-foreground mb-1">Open File Manager</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-sm">Upload, edit, delete files and folders directly in your hosting account's public_html directory.</p>
+          <Button onClick={openFileManager} disabled={loading} className="gap-2 bg-primary hover:bg-primary/90">
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <FolderOpen size={15} />}
+            Open File Manager
+          </Button>
         </div>
-      )}
-
-      <>
-
-      {/* Service Info Grid */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-border/50">
-          <h3 className="font-semibold text-foreground">Service Overview</h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y divide-border/50">
-          {[
-            { label: "Server IP", value: service.serverIp || "Pending", icon: Server },
-            { label: "Username", value: service.username || "—", icon: Shield },
-            { label: "Billing Cycle", value: service.billingCycle ? service.billingCycle.charAt(0).toUpperCase() + service.billingCycle.slice(1) : "Monthly", icon: Calendar },
-            { label: "Next Due Date", value: service.nextDueDate ? format(new Date(service.nextDueDate), "MMM d, yyyy") : "—", icon: Calendar },
-          ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="p-4 text-center">
-              <Icon size={14} className="text-muted-foreground mx-auto mb-1" />
-              <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
-              <div className="text-sm font-medium text-foreground truncate">{value}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 border-t border-border pt-4">
+          {["Upload Files", "Edit Files", "Create Folder", "Delete Files"].map(f => (
+            <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> {f}
             </div>
           ))}
         </div>
-      </div>
+      </Card>
+    </div>
+  );
+}
 
-      {/* ── Resource Visualizer: SVG Circular Progress Rings ── */}
-      <div className="rounded-2xl border border-border overflow-hidden bg-card">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <Activity size={15} className="text-primary" /> Resource Usage
-          </h3>
-          <div className="flex items-center gap-2">
-            {usageLoading ? (
-              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Loader2 size={10} className="animate-spin" /> Fetching live data…
-              </span>
-            ) : hasRealUsage ? (
-              <span className="flex items-center gap-1.5 text-[11px] text-green-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live · {is20i ? "StackCP" : "cPanel"}
-              </span>
-            ) : (
-              <span className="text-[11px] text-muted-foreground/60">Estimated</span>
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: SSL
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionSSL({ service, refetch }: { service: Service; refetch: () => void }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+
+  async function handleInstallSSL() {
+    setLoading(true);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/reinstall-ssl`, { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      toast({ title: "SSL installation initiated", description: "Please wait a moment and then check your site." });
+      setTimeout(() => refetch(), 4000);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  }
+
+  const isActive = ["active", "installed"].includes(service.sslStatus);
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="SSL Certificate" description="Manage SSL/TLS security for your domain" />
+      <Card>
+        <div className="flex items-center gap-4 mb-5">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isActive ? "bg-emerald-50" : "bg-orange-50"}`}>
+            {isActive ? <ShieldCheck size={22} className="text-emerald-600" /> : <ShieldX size={22} className="text-orange-500" />}
+          </div>
+          <div>
+            <p className="font-semibold text-foreground">{isActive ? "SSL Active" : "SSL Not Installed"}</p>
+            <p className="text-sm text-muted-foreground">{isActive ? "Your site is secured with HTTPS" : "Your site is not using HTTPS"}</p>
+          </div>
+          <div className="ml-auto">
+            <Badge className={isActive ? "bg-[#D1FAE5] text-[#065F46]" : "bg-orange-50 text-orange-700"}>{isActive ? "Active" : "Not Installed"}</Badge>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleInstallSSL} disabled={loading} variant={isActive ? "outline" : "default"}
+            className={isActive ? "" : "bg-primary hover:bg-primary/90"}>
+            {loading ? <Loader2 size={14} className="animate-spin mr-2" /> : <ShieldCheck size={14} className="mr-2" />}
+            {isActive ? "Reinstall SSL" : "Install Free SSL"}
+          </Button>
+        </div>
+      </Card>
+      <Card>
+        <h3 className="font-semibold text-foreground mb-3">SSL Features</h3>
+        <div className="space-y-2">
+          {["Free Let's Encrypt SSL certificate", "Auto-renewal before expiry", "HTTPS encryption for all traffic", "Trust indicators in browser"].map(f => (
+            <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> {f}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: SSH
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionSSH({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [status, setStatus] = useState<{ enabled: boolean; shell: string; host?: string; port?: number; user?: string; loginCmd?: string | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState(false);
+
+  const isWHM = !service.twentyIPackageId;
+
+  async function loadStatus() {
+    setLoading(true);
+    try { const d = await apiFetch(`/client/hosting/${service.id}/ssh`); setStatus(d); }
+    catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { if (isWHM) loadStatus(); else setLoading(false); }, [service.id]);
+
+  async function handleToggle() {
+    if (!status) return;
+    setToggling(true);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/ssh/${status.enabled ? "disable" : "enable"}`, { method: "POST" });
+      toast({ title: status.enabled ? "SSH disabled" : "SSH enabled" });
+      loadStatus();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setToggling(false); }
+  }
+
+  if (!isWHM) return <NotAvailable reason="SSH management requires a cPanel/WHM server." />;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="SSH Access" description="Secure Shell access to your hosting account" />
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : (
+          <>
+            <div className="flex items-center gap-4 mb-5">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${status?.enabled ? "bg-emerald-50" : "bg-muted"}`}>
+                <Terminal size={22} className={status?.enabled ? "text-emerald-600" : "text-muted-foreground"} />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">SSH {status?.enabled ? "Enabled" : "Disabled"}</p>
+                <p className="text-sm text-muted-foreground">{status?.shell || "—"}</p>
+              </div>
+              <Button variant={status?.enabled ? "outline" : "default"} onClick={handleToggle} disabled={toggling} className="ml-auto gap-2">
+                {toggling ? <Loader2 size={14} className="animate-spin" /> : status?.enabled ? <Square size={14} /> : <Play size={14} />}
+                {status?.enabled ? "Disable SSH" : "Enable SSH"}
+              </Button>
+            </div>
+            {status?.enabled && status.loginCmd && (
+              <div className="bg-muted rounded-xl p-4 font-mono text-sm text-foreground break-all">
+                {status.loginCmd}
+              </div>
             )}
-            <button
-              className="flex items-center gap-1 h-7 px-2.5 rounded-lg text-xs border border-border bg-card hover:bg-secondary transition-colors text-muted-foreground disabled:opacity-50"
-              disabled={usageLoading}
-              onClick={() => { setUsageData(null); fetchUsage(); }}
-            >
-              <RefreshCw size={10} className={usageLoading ? "animate-spin" : ""} /> Refresh
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center justify-around flex-wrap gap-6 px-6 py-7">
-          <SvgRing
-            pct={diskPct}
-            size={110} stroke={9}
-            color={diskPct > 80 ? "#f87171" : diskPct > 60 ? "#fb923c" : "#4F46E5"}
-            label="Disk Usage"
-            used={diskUsedDisplay}
-            limit={diskLimit}
-            unlimited={usageData?.diskUnlimited}
-            loading={usageLoading}
-          />
-          <SvgRing
-            pct={bwPct}
-            size={110} stroke={9}
-            color={bwPct > 80 ? "#f87171" : bwPct > 60 ? "#fb923c" : "#6366F1"}
-            label="Bandwidth"
-            used={bwUsedDisplay}
-            limit={bwLimit}
-            unlimited={usageData?.bwUnlimited}
-            loading={usageLoading}
-          />
-          <SvgRing
-            pct={0}
-            size={110} stroke={9}
-            color="#818CF8"
-            label="Email Accounts"
-            used="—"
-            limit="Unlimited"
-            unlimited={true}
-            loading={false}
-          />
-        </div>
-      </div>
+            {status?.enabled && (
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                {[
+                  { label: "Host", value: status?.host || service.serverIp || "—" },
+                  { label: "Port", value: String(status?.port ?? 22) },
+                  { label: "Username", value: status?.user || service.username || "—" },
+                ].map(row => (
+                  <div key={row.label} className="bg-background border border-border rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className="font-mono text-sm font-medium mt-0.5 text-foreground">{row.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
 
-      {/* ── Launch Your Site Wizard ── shown when active + domain + no WordPress ── */}
-      {service.status === "active" && service.domain && !service.wpInstalled && (
-        <div className="rounded-2xl overflow-hidden border border-primary/25 shadow-lg shadow-primary/5">
-          <div className="flex items-center gap-3 px-5 py-3.5"
-            style={{ background: BRAND_GRADIENT }}>
-            <Rocket size={16} className="text-white shrink-0" />
-            <p className="text-sm font-bold text-white">Launch Your Site — your hosting is ready!</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/50">
-            {/* Option 1: Install WordPress */}
-            <div className="px-5 py-4 flex flex-col items-start gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <LayoutGrid size={16} className="text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">Install WordPress</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Launch the world's most popular CMS via Softaculous.</p>
-              </div>
-              <button
-                onClick={handleOpenSoftaculous}
-                disabled={wpInstallerLoading || service.status !== "active"}
-                className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-bold text-white shadow disabled:opacity-50"
-                style={{ background: BRAND_GRADIENT }}
-              >
-                {wpInstallerLoading ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                {wpInstallerLoading ? "Opening…" : "Install Now →"}
-              </button>
-            </div>
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: BACKUP
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionBackup({ service }: { service: Service }) {
+  const { toast } = useToast();
+  type Backup = { id: string; domain: string; status: string; type: string; filePath: string | null; sizeMb: string | null; createdAt: string; completedAt: string | null; errorMessage: string | null };
+  const [backups, setBackups] = useState<Backup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
 
-            {/* Option 2: File Manager */}
-            <div className="px-5 py-4 flex flex-col items-start gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <FileText size={16} className="text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">Upload Files</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{is20i ? "Use StackCP File Manager to upload your website files." : "Use cPanel File Manager to upload your website files."}</p>
-              </div>
-              <button
-                onClick={handleCpanelLogin}
-                disabled={!!ssoLoading || service.status !== "active" || !service.canManage}
-                className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
-              >
-                {ssoLoading === "cpanel" ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                {is20i ? "Open StackCP →" : "Open cPanel →"}
-              </button>
-            </div>
+  async function loadBackups() {
+    setLoading(true);
+    try { const d = await authFetch(`/client/hosting/${service.id}/backups`).then(r => r.json()); setBackups(Array.isArray(d) ? d : []); }
+    catch { /* non-fatal */ } finally { setLoading(false); }
+  }
 
-            {/* Option 3: Website Builder (Sitejet) */}
-            <div className="px-5 py-4 flex flex-col items-start gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <MousePointerClick size={16} className="text-primary" />
+  useEffect(() => { loadBackups(); }, [service.id]);
+
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/backup`, { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Backup failed");
+      toast({ title: "Backup started", description: "Your backup is being created." });
+      setTimeout(loadBackups, 4000);
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await authFetch(`/client/hosting/${service.id}/backup/${id}`, { method: "DELETE" });
+      loadBackups();
+    } catch { /* non-fatal */ }
+  }
+
+  const statusColor: Record<string, string> = {
+    completed: "text-emerald-600 bg-emerald-50",
+    failed: "text-red-600 bg-red-50",
+    pending: "text-yellow-600 bg-yellow-50",
+    queued_on_server: "text-blue-600 bg-blue-50",
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Backups" description="Create and restore backups of your hosting account"
+        action={<Button size="sm" onClick={handleCreate} disabled={creating} className="gap-1.5 bg-primary hover:bg-primary/90">
+          {creating ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} />} Create Backup
+        </Button>} />
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : backups.length === 0 ? (
+          <EmptyState icon={ArchiveRestore} title="No backups yet" description="Create your first backup to protect your data" />
+        ) : (
+          <div className="divide-y divide-border">
+            {backups.map(b => (
+              <div key={b.id} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <ArchiveRestore size={14} className="text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-foreground">{b.filePath ? b.filePath.split("/").pop() : `Backup — ${b.type}`}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(b.createdAt), "MMM d, yyyy HH:mm")} {b.sizeMb ? `· ${b.sizeMb} MB` : ""}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[b.status] || "text-muted-foreground bg-muted"}`}>{b.status.replace(/_/g, " ")}</span>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(b.id)} className="text-destructive hover:text-destructive"><Trash2 size={14} /></Button>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">Website Builder</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Drag-and-drop site builder included with your plan.</p>
-              </div>
-              <button
-                onClick={handleCpanelLogin}
-                disabled={!!ssoLoading || service.status !== "active" || !service.canManage}
-                className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-secondary/50 transition-colors text-foreground disabled:opacity-50"
-              >
-                <MousePointerClick size={12} /> Open Builder →
-              </button>
-            </div>
+            ))}
           </div>
-        </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: NODE.JS
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionNodejs({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [apps, setApps] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ app_name: "", app_root: "public_html/myapp", startup_file: "app.js", app_port: "3000", node_version: "" });
+  const [actioning, setActioning] = useState<string | null>(null);
+  const isWHM = !service.twentyIPackageId;
+
+  async function load() {
+    setLoading(true);
+    try { const d = await apiFetch(`/client/hosting/${service.id}/nodejs`); setApps(d.apps || []); }
+    catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { if (isWHM) load(); else setLoading(false); }, [service.id]);
+
+  async function handleCreate() {
+    if (!form.app_name.trim() || !form.app_root.trim()) return toast({ description: "App name and root directory are required", variant: "destructive" });
+    setCreating(true);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/nodejs`, { method: "POST", body: JSON.stringify({ ...form, app_port: Number(form.app_port) || 3000 }) });
+      toast({ title: "Node.js app created", description: form.app_name });
+      setForm({ app_name: "", app_root: "public_html/myapp", startup_file: "app.js", app_port: "3000", node_version: "" });
+      setShowCreate(false); load();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  }
+
+  async function handleAction(appName: string, action: "start" | "stop" | "restart") {
+    setActioning(`${appName}-${action}`);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/nodejs/${encodeURIComponent(appName)}/${action}`, { method: "POST" });
+      toast({ title: `App ${action}ed` }); load();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setActioning(null); }
+  }
+
+  async function handleDelete(appName: string) {
+    try {
+      await apiFetch(`/client/hosting/${service.id}/nodejs/${encodeURIComponent(appName)}`, { method: "DELETE" });
+      toast({ title: "App deleted" }); load();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  if (!isWHM) return <NotAvailable reason="Node.js app management requires a cPanel/WHM server with Node.js Selector enabled." />;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Node.js Apps" description="Manage your Node.js applications"
+        action={<Button size="sm" onClick={() => setShowCreate(s => !s)} className="gap-1.5 bg-primary hover:bg-primary/90"><Plus size={13} />Create App</Button>} />
+
+      {showCreate && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-4">Create Node.js App</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "App Name", key: "app_name", placeholder: "myapp" },
+              { label: "App Root (directory)", key: "app_root", placeholder: "public_html/myapp" },
+              { label: "Startup File", key: "startup_file", placeholder: "app.js" },
+              { label: "Port", key: "app_port", placeholder: "3000" },
+              { label: "Node Version (optional)", key: "node_version", placeholder: "18.x" },
+            ].map(f => (
+              <div key={f.key} className={f.key === "app_name" ? "col-span-2" : ""}>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
+                <Input placeholder={f.placeholder} value={(form as any)[f.key]} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button onClick={handleCreate} disabled={creating} className="gap-2 bg-primary hover:bg-primary/90">
+              {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Create
+            </Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+          </div>
+        </Card>
       )}
 
-      {/* ── Control Grid: 4-column Management Tiles ── */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-border/50">
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <Cog size={15} className="text-primary" /> Control Center
-          </h3>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y divide-border/50">
-          {[
-            {
-              label: "File Manager",
-              desc: "Upload & manage files",
-              icon: FileText,
-              onClick: () => handleDeepLaunch("filemanager"),
-              target: "filemanager",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-            {
-              label: "Databases",
-              desc: "MySQL & phpMyAdmin",
-              icon: Database,
-              onClick: () => handleDeepLaunch("databases"),
-              target: "databases",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-            {
-              label: "PHP Version",
-              desc: "Select PHP runtime",
-              icon: Code2,
-              onClick: () => handleDeepLaunch("php"),
-              target: "php",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-            {
-              label: "SSL Status",
-              desc: service.sslStatus === "active" || service.sslStatus === "installed" ? "Certificate active" : "Reinstall SSL cert",
-              icon: service.sslStatus === "active" || service.sslStatus === "installed" ? ShieldCheck : ShieldX,
-              onClick: handleReinstallSSL,
-              target: "ssl",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-            {
-              label: "Cron Jobs",
-              desc: "Schedule automated tasks",
-              icon: Clock,
-              onClick: () => handleDeepLaunch("cronjobs"),
-              target: "cronjobs",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-            {
-              label: "DNS Editor",
-              desc: "Manage DNS records",
-              icon: Network,
-              onClick: () => { setActiveTab("dns"); if (dnsRecords.length === 0 && !dnsLoading) fetchDns(); },
-              target: "dns",
-              disabled: false,
-            },
-            {
-              label: "Webmail",
-              desc: "Access inbox & email",
-              icon: Mail,
-              onClick: () => handleDeepLaunch("webmail"),
-              target: "webmail",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-            {
-              label: "Email Accounts",
-              desc: "Create & manage emails",
-              icon: AtSign,
-              onClick: () => handleDeepLaunch("email"),
-              target: "email",
-              disabled: service.status !== "active" || !service.canManage,
-            },
-          ].map(({ label, desc, icon: Icon, onClick, target, disabled }) => {
-            const isLoading = ssoLoading === target || (target === "ssl" && reinstallingSSL);
-            return (
-              <button
-                key={label}
-                onClick={onClick}
-                disabled={disabled || isLoading}
-                className="group flex flex-col items-center gap-2.5 p-5 text-center hover:bg-secondary/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center border border-primary/20 bg-primary/5 transition-transform group-hover:scale-110 group-hover:bg-primary/10 group-disabled:scale-100">
-                  {isLoading
-                    ? <Loader2 size={18} className="animate-spin text-primary" />
-                    : <Icon size={18} className="text-primary" />
-                  }
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-foreground">{label}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{desc}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Change Password */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <button
-          className="flex items-center justify-between w-full"
-          onClick={() => setShowPasswordChange(v => !v)}
-          disabled={service.status !== "active"}
-        >
-          <div className="flex items-center gap-2">
-            <KeyRound size={18} className="text-primary" />
-            <h3 className="font-semibold text-foreground">Change cPanel Password</h3>
-          </div>
-          {showPasswordChange ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
-        </button>
-        {showPasswordChange && (
-          <div className="space-y-4 pt-2 border-t border-border/50">
-            <p className="text-sm text-muted-foreground">Enter a new password for your cPanel/hosting account. Minimum 8 characters.</p>
-            <div className="relative max-w-sm">
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="New password (min. 8 characters)"
-                value={newPassword}
-                onChange={e => setNewPassword((e.target as HTMLInputElement).value)}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowPassword(v => !v)}
-              >
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={handleChangePassword} disabled={passwordLoading || newPassword.length < 8 || !service.canManage} className="gap-2">
-                {passwordLoading && <Loader2 size={15} className="animate-spin" />}
-                Update Password
-              </Button>
-              <Button variant="outline" onClick={() => { setShowPasswordChange(false); setNewPassword(""); }}>Cancel</Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* WordPress — Guided Installation via cPanel Softaculous */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <LayoutGrid size={18} className="text-primary" />
-            <h3 className="font-semibold text-foreground">WordPress</h3>
-            {wpProvisionData?.status === "active" ? (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1">
-                <CheckCircle2 size={11} /> Installed
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-muted-foreground border border-border">
-                Not Installed
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Domain selector — shown in all states when multiple domains are available */}
-        {wpDomains.length > 1 && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground/70">Domain / Subdomain</label>
-            <select
-              value={wpSelectedDomain}
-              onChange={e => setWpSelectedDomain(e.target.value)}
-              className="w-full max-w-sm h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground"
-              disabled={wpDomainsLoading}
-            >
-              {wpDomains.map(d => (
-                <option key={d.domain} value={d.domain}>
-                  {d.domain}{d.type === "main" ? " (main)" : d.type === "sub" ? " (subdomain)" : " (addon)"}
-                </option>
-              ))}
-            </select>
-            {wpDomainsLoading && <p className="text-xs text-muted-foreground">Loading domains…</p>}
-          </div>
-        )}
-
-        {/* ─── Installed: show WordPress Admin button ─── */}
-        {wpProvisionData?.status === "active" ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              WordPress is installed. Use the button below for one-click login to your WordPress dashboard
-              {wpSelectedDomain ? <> on <strong className="text-foreground">{wpSelectedDomain}</strong></> : ""}.
-            </p>
-            <Button onClick={handleOpenWpAdmin} disabled={wpAdminLoading} className="gap-2">
-              {wpAdminLoading ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />}
-              {wpAdminLoading ? "Opening…" : "WordPress Admin"}
-            </Button>
-          </div>
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : apps.length === 0 ? (
+          <EmptyState icon={Code2} title="No Node.js apps" description="Create a Node.js application to run server-side JavaScript" />
         ) : (
-          /* ─── Not installed: guided install flow ─── */
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Install WordPress on{" "}
-              <strong className="text-foreground">{wpSelectedDomain || service.domain}</strong>{" "}
-              using the official cPanel Softaculous installer, then click{" "}
-              <strong className="text-foreground">Check if Installed</strong> to confirm.
-            </p>
-
-            {/* Step 1 */}
-            <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2">
-              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Step 1 — Open Softaculous Installer</p>
-              <p className="text-xs text-muted-foreground">
-                Opens the cPanel Softaculous WordPress installer in a new tab
-                {wpSelectedDomain ? <>, pre-selecting <strong>{wpSelectedDomain}</strong></> : ""}.
-                Complete the installation there and return here.
-              </p>
-              <Button
-                onClick={handleOpenSoftaculous}
-                disabled={wpInstallerLoading || service.status !== "active"}
-                className="gap-2 mt-1"
-              >
-                {wpInstallerLoading ? <Loader2 size={15} className="animate-spin" /> : <ExternalLink size={15} />}
-                {wpInstallerLoading ? "Opening…" : "Install WordPress via cPanel"}
-              </Button>
-              {service.status !== "active" && (
-                <p className="text-xs text-orange-400">Service must be active to open the installer.</p>
-              )}
-            </div>
-
-            {/* Step 2 */}
-            <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2">
-              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Step 2 — Confirm Installation</p>
-              <p className="text-xs text-muted-foreground">
-                After finishing the Softaculous installer, click below to verify WordPress is present
-                {wpSelectedDomain ? <> in the <strong>{wpSelectedDomain}</strong> directory</> : ""}.
-              </p>
-              <Button
-                variant="outline"
-                onClick={handleDetectWordPress}
-                disabled={wpCheckLoading || service.status !== "active"}
-                className="gap-2 mt-1"
-              >
-                {wpCheckLoading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-                {wpCheckLoading ? "Checking…" : "Check if Installed"}
-              </Button>
-            </div>
+          <div className="divide-y divide-border">
+            {apps.map(app => (
+              <div key={app.app_name} className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${app.enabled ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{app.app_name}</p>
+                      <p className="text-xs text-muted-foreground">{app.app_root} · Port {app.app_port} · {app.startup_file}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {(["start", "stop", "restart"] as const).map(action => {
+                      const icons = { start: Play, stop: Square, restart: RotateCcw };
+                      const Ic = icons[action];
+                      return (
+                        <Button key={action} variant="ghost" size="sm" onClick={() => handleAction(app.app_name, action)}
+                          disabled={actioning?.startsWith(app.app_name)} className="text-muted-foreground hover:text-foreground w-7 h-7 p-0">
+                          {actioning === `${app.app_name}-${action}` ? <Loader2 size={12} className="animate-spin" /> : <Ic size={12} />}
+                        </Button>
+                      );
+                    })}
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(app.app_name)} className="text-destructive hover:text-destructive w-7 h-7 p-0">
+                      <Trash2 size={12} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-      </div>
+      </Card>
+    </div>
+  );
+}
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: PYTHON
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionPython({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [apps, setApps] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ app_name: "", app_root: "public_html/myapp", app_uri: "/", python_version: "3.9" });
+  const [actioning, setActioning] = useState<string | null>(null);
+  const isWHM = !service.twentyIPackageId;
 
-      {/* Auto-Renew */}
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${service.autoRenew ? "bg-green-500/10 border border-green-500/20" : "bg-secondary/60 border border-border"}`}>
-              <RefreshCw size={18} className={service.autoRenew ? "text-green-400" : "text-muted-foreground"} />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">Auto-Renew</p>
-              <p className="text-sm text-muted-foreground">
-                {service.autoRenew ? "Service will renew automatically before expiry." : "Service will not renew automatically."}
-              </p>
-            </div>
+  async function load() {
+    setLoading(true);
+    try { const d = await apiFetch(`/client/hosting/${service.id}/python`); setApps(d.apps || []); }
+    catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { if (isWHM) load(); else setLoading(false); }, [service.id]);
+
+  async function handleCreate() {
+    if (!form.app_name.trim() || !form.app_root.trim()) return toast({ description: "App name and root directory are required", variant: "destructive" });
+    setCreating(true);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/python`, { method: "POST", body: JSON.stringify(form) });
+      toast({ title: "Python app created", description: form.app_name });
+      setForm({ app_name: "", app_root: "public_html/myapp", app_uri: "/", python_version: "3.9" });
+      setShowCreate(false); load();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setCreating(false); }
+  }
+
+  async function handleAction(appName: string, action: "restart" | "stop") {
+    setActioning(`${appName}-${action}`);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/python/${encodeURIComponent(appName)}/${action}`, { method: "POST" });
+      toast({ title: `App ${action}ed` }); load();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setActioning(null); }
+  }
+
+  async function handleDelete(appName: string) {
+    try {
+      await apiFetch(`/client/hosting/${service.id}/python/${encodeURIComponent(appName)}`, { method: "DELETE" });
+      toast({ title: "App deleted" }); load();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  if (!isWHM) return <NotAvailable reason="Python app management requires a cPanel/WHM server with Python Selector enabled." />;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Python Apps" description="Manage your Python web applications"
+        action={<Button size="sm" onClick={() => setShowCreate(s => !s)} className="gap-1.5 bg-primary hover:bg-primary/90"><Plus size={13} />Create App</Button>} />
+
+      {showCreate && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-4">Create Python App</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "App Name", key: "app_name", placeholder: "myapp", span: true },
+              { label: "App Root", key: "app_root", placeholder: "public_html/myapp" },
+              { label: "App URI", key: "app_uri", placeholder: "/" },
+              { label: "Python Version", key: "python_version", placeholder: "3.9" },
+            ].map(f => (
+              <div key={f.key} className={f.span ? "col-span-2" : ""}>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
+                <Input placeholder={f.placeholder} value={(form as any)[f.key]} onChange={e => setForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
+              </div>
+            ))}
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${service.autoRenew ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-secondary text-muted-foreground border-border"}`}>
-              {service.autoRenew ? "Enabled" : "Disabled"}
-            </span>
-            <Button
-              size="sm"
-              variant={service.autoRenew ? "outline" : "default"}
-              onClick={handleToggleAutoRenew}
-              disabled={autoRenewLoading || service.status === "terminated"}
-              className={service.autoRenew ? "border-red-500/30 text-red-400 hover:bg-red-500/5" : ""}
-            >
-              {autoRenewLoading ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-              {service.autoRenew ? "Disable" : "Enable"}
+          <div className="flex gap-2 mt-4">
+            <Button onClick={handleCreate} disabled={creating} className="gap-2 bg-primary hover:bg-primary/90">
+              {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Create
+            </Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : apps.length === 0 ? (
+          <EmptyState icon={Cpu} title="No Python apps" description="Create a Python app with Django, Flask, or any WSGI framework" />
+        ) : (
+          <div className="divide-y divide-border">
+            {apps.map(app => (
+              <div key={app.app_name} className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${app.enabled ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{app.app_name}</p>
+                      <p className="text-xs text-muted-foreground">{app.app_root} · Python {app.python_version} · URI: {app.app_uri}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {(["restart", "stop"] as const).map(action => {
+                      const icons = { restart: RotateCcw, stop: Square };
+                      const Ic = icons[action];
+                      return (
+                        <Button key={action} variant="ghost" size="sm" onClick={() => handleAction(app.app_name, action)}
+                          disabled={!!actioning} className="text-muted-foreground hover:text-foreground w-7 h-7 p-0">
+                          {actioning === `${app.app_name}-${action}` ? <Loader2 size={12} className="animate-spin" /> : <Ic size={12} />}
+                        </Button>
+                      );
+                    })}
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(app.app_name)} className="text-destructive hover:text-destructive w-7 h-7 p-0">
+                      <Trash2 size={12} />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: DOMAINS / DNS (existing DNS management)
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionDomains({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [records, setRecords] = useState<DnsRecord[]>([]);
+  const [loadingDns, setLoadingDns] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [newRecord, setNewRecord] = useState({ type: "A", name: "", address: "", ttl: "14400" });
+
+  async function loadDns() {
+    setLoadingDns(true);
+    try {
+      const res = await authFetch(`/dns/${service.id}/zone`);
+      if (res.ok) { const d = await res.json(); setRecords(Array.isArray(d) ? d : []); }
+    } catch { /* non-fatal */ } finally { setLoadingDns(false); }
+  }
+
+  useEffect(() => { loadDns(); }, [service.id]);
+
+  async function handleAdd() {
+    setAdding(true);
+    try {
+      const res = await authFetch(`/dns/${service.id}/record`, {
+        method: "POST", body: JSON.stringify({ type: newRecord.type, name: newRecord.name, address: newRecord.address, ttl: Number(newRecord.ttl) }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Failed"); }
+      toast({ title: "DNS record added" }); setNewRecord({ type: "A", name: "", address: "", ttl: "14400" }); loadDns();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setAdding(false); }
+  }
+
+  async function handleDelete(line: number) {
+    try {
+      const res = await authFetch(`/dns/${service.id}/record/${line}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed"); toast({ title: "Record deleted" }); loadDns();
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+  }
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Domains & DNS" description="Manage DNS records for your domain" />
+      <Card>
+        <h3 className="font-semibold text-foreground mb-4">Add DNS Record</h3>
+        <div className="grid grid-cols-4 gap-2">
+          <select value={newRecord.type} onChange={e => setNewRecord(r => ({ ...r, type: e.target.value }))}
+            className="border border-border rounded-lg px-3 py-2 text-sm bg-background">
+            {["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV"].map(t => <option key={t}>{t}</option>)}
+          </select>
+          <Input placeholder="Name (@, www...)" value={newRecord.name} onChange={e => setNewRecord(r => ({ ...r, name: e.target.value }))} />
+          <Input placeholder="Value (IP, hostname...)" value={newRecord.address} onChange={e => setNewRecord(r => ({ ...r, address: e.target.value }))} />
+          <Button onClick={handleAdd} disabled={adding} className="bg-primary hover:bg-primary/90">
+            {adding ? <Loader2 size={14} className="animate-spin" /> : "Add"}
+          </Button>
+        </div>
+      </Card>
+      <Card>
+        {loadingDns ? (
+          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+        ) : records.length === 0 ? (
+          <EmptyState icon={Globe} title="No DNS records" description="Add DNS records above to manage your domain" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">
+                <th className="pb-2 font-medium">Type</th><th className="pb-2 font-medium">Name</th>
+                <th className="pb-2 font-medium">Value</th><th className="pb-2 font-medium">TTL</th><th className="pb-2"></th>
+              </tr></thead>
+              <tbody className="divide-y divide-border">
+                {records.map(r => (
+                  <tr key={r.line}>
+                    <td className="py-2"><Badge variant="outline" className="font-mono text-xs">{r.type}</Badge></td>
+                    <td className="py-2 font-mono text-xs text-foreground max-w-[150px] truncate">{r.name}</td>
+                    <td className="py-2 font-mono text-xs text-muted-foreground max-w-[200px] truncate">{r.address}</td>
+                    <td className="py-2 text-xs text-muted-foreground">{r.ttl}</td>
+                    <td className="py-2"><Button variant="ghost" size="sm" onClick={() => handleDelete(r.line)} className="text-destructive hover:text-destructive w-7 h-7 p-0"><Trash2 size={12} /></Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN: ServiceDetail
+// ═══════════════════════════════════════════════════════════════════════════════
+export default function ServiceDetail() {
+  const [, params] = useRoute("/client/hosting/:id");
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const serviceId = params?.id;
+
+  const [service, setService] = useState<Service | null>(null);
+  const [plan, setPlan] = useState<HostingPlan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [section, setSection] = useState<NavSection>("overview");
+
+  async function fetchService() {
+    try {
+      const res = await authFetch(`/client/hosting/${serviceId}`);
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Not found"); }
+      const d = await res.json();
+      setService(d);
+      // Fetch plan info
+      authFetch(`/hosting/plans`).then(r => r.ok ? r.json() : null).then(data => {
+        const plans: HostingPlan[] = Array.isArray(data) ? data : (data?.plans ?? []);
+        const p = plans.find((pl: HostingPlan) => pl.id === d.planId);
+        if (p) setPlan(p);
+      }).catch(() => null);
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { if (serviceId) fetchService(); }, [serviceId]);
+
+  async function handleSsoLaunch(target: string) {
+    await ssoLaunch(serviceId!, target, toast);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 size={32} className="animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!service) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle size={40} className="text-muted-foreground" />
+        <p className="text-foreground font-medium">Service not found</p>
+        <Button variant="outline" onClick={() => setLocation("/client/hosting")}>Back to Hosting</Button>
+      </div>
+    );
+  }
+
+  const isActive = service.status === "active";
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      {/* Left Sidebar */}
+      <Sidebar active={section} onChange={setSection} service={service} />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Bar */}
+        <div className="border-b border-border bg-background px-6 py-3 flex items-center gap-3 shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/client/hosting")} className="gap-1.5 text-muted-foreground">
+            <ArrowLeft size={15} /> Back
+          </Button>
+          <div className="w-px h-4 bg-border" />
+          <span className="text-sm text-muted-foreground">{service.planName}</span>
+          <span className="text-sm text-muted-foreground">·</span>
+          <span className="text-sm font-medium text-foreground">{service.domain || "Hosting Service"}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleSsoLaunch("cpanel")} className="gap-1.5">
+              <ExternalLink size={13} /> cPanel
+            </Button>
+            <Button variant="ghost" size="sm" onClick={fetchService} className="text-muted-foreground">
+              <RefreshCw size={14} />
             </Button>
           </div>
         </div>
-      </div>
 
-      {/* Service Actions */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <h3 className="font-semibold text-foreground">Service Actions</h3>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setShowRenewModal(true)}
-            className="gap-2 text-primary border-primary/30 hover:bg-primary/10"
-            disabled={service.status === "terminated"}
-          >
-            <RefreshCw size={15} /> Renew Service
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowUpgradeModal(true)}
-            className="gap-2"
-            disabled={service.status !== "active"}
-          >
-            <ArrowUpCircle size={15} /> Change Plan
-          </Button>
-          {!service.cancelRequested && service.status !== "terminated" && (
-            <Button
-              variant="outline"
-              className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 ml-auto"
-              onClick={() => setShowCancelModal(true)}
-            >
-              <XCircle size={15} /> Cancel Service
-            </Button>
-          )}
-          {service.cancelRequested && (
-            <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-              <AlertTriangle size={14} className="text-orange-400" />
-              Cancellation requested — pending admin review
-            </div>
-          )}
+        {/* Service suspended/pending banner */}
+        {!isActive && (
+          <div className={`px-6 py-3 flex items-center gap-2 text-sm font-medium ${service.status === "suspended" ? "bg-orange-50 text-orange-700" : "bg-yellow-50 text-yellow-700"}`}>
+            <AlertTriangle size={15} />
+            Service is <strong>{service.status}</strong> — {service.manageLockReason || "Management features may be limited."}
+          </div>
+        )}
+
+        {/* Section Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {section === "overview"   && <SectionOverview service={service} plan={plan} onSsoLaunch={handleSsoLaunch} />}
+          {section === "wordpress"  && <SectionWordPress service={service} refetch={fetchService} />}
+          {section === "domains"    && <SectionDomains service={service} />}
+          {section === "email"      && <SectionEmail service={service} />}
+          {section === "databases"  && <SectionDatabases service={service} />}
+          {section === "files"      && <SectionFiles service={service} />}
+          {section === "ssl"        && <SectionSSL service={service} refetch={fetchService} />}
+          {section === "ssh"        && <SectionSSH service={service} />}
+          {section === "backup"     && <SectionBackup service={service} />}
+          {section === "nodejs"     && <SectionNodejs service={service} />}
+          {section === "python"     && <SectionPython service={service} />}
         </div>
       </div>
-
-      </>
     </div>
   );
 }

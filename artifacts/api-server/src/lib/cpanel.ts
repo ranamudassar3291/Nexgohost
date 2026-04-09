@@ -1919,3 +1919,237 @@ export async function cpanelCsfWhitelistIp(
     return { ok: false, message: `Could not reach CSF on ${server.hostname}: ${e.message}. Add ${ip} manually via WHM > CSF > Quick Allow.` };
   }
 }
+
+// ─── Email Account Management ─────────────────────────────────────────────────
+
+export interface CpanelEmailAccount {
+  email: string;
+  login: string;
+  domain: string;
+  diskquota: string;
+  diskused: number;
+  diskusedpercent: number;
+}
+
+export async function cpanelEmailList(server: ServerConfig, cpanelUser: string): Promise<CpanelEmailAccount[]> {
+  try {
+    const data = await cpanelUapi(server, cpanelUser, "Email", "list_pops");
+    if (!Array.isArray(data)) return [];
+    return data.map((a: any) => ({
+      email: a.email ?? `${a.login}@${a.domain}`,
+      login: a.login ?? "",
+      domain: a.domain ?? "",
+      diskquota: a._diskquota ?? a.diskquota ?? "Unlimited",
+      diskused: Number(a.diskused ?? 0),
+      diskusedpercent: Number(a.diskusedpercent ?? 0),
+    }));
+  } catch { return []; }
+}
+
+export async function cpanelEmailCreate(
+  server: ServerConfig,
+  cpanelUser: string,
+  email: string,
+  password: string,
+  quotaMb: number = 250,
+): Promise<void> {
+  const at = email.indexOf("@");
+  const login = at >= 0 ? email.substring(0, at) : email;
+  const domain = at >= 0 ? email.substring(at + 1) : cpanelUser;
+  await cpanelUapi(server, cpanelUser, "Email", "add_pop", {
+    email: login,
+    domain,
+    password,
+    quota: String(quotaMb),
+  });
+}
+
+export async function cpanelEmailDelete(
+  server: ServerConfig,
+  cpanelUser: string,
+  email: string,
+): Promise<void> {
+  const at = email.indexOf("@");
+  const login = at >= 0 ? email.substring(0, at) : email;
+  const domain = at >= 0 ? email.substring(at + 1) : cpanelUser;
+  await cpanelUapi(server, cpanelUser, "Email", "delete_pop", { email: login, domain });
+}
+
+export async function cpanelEmailChangePassword(
+  server: ServerConfig,
+  cpanelUser: string,
+  email: string,
+  newPassword: string,
+): Promise<void> {
+  const at = email.indexOf("@");
+  const login = at >= 0 ? email.substring(0, at) : email;
+  const domain = at >= 0 ? email.substring(at + 1) : cpanelUser;
+  await cpanelUapi(server, cpanelUser, "Email", "passwd_pop", {
+    email: login,
+    domain,
+    password: newPassword,
+  });
+}
+
+// ─── Database Listing ─────────────────────────────────────────────────────────
+
+export interface CpanelDatabase {
+  database: string;
+  users: string[];
+  diskusage: number;
+}
+
+export async function cpanelMysqlListDatabases(
+  server: ServerConfig,
+  cpanelUser: string,
+): Promise<CpanelDatabase[]> {
+  try {
+    const data = await cpanelUapi(server, cpanelUser, "Mysql", "list_databases");
+    if (!Array.isArray(data)) return [];
+    return data.map((d: any) => ({
+      database: d.database,
+      users: Array.isArray(d.users) ? d.users : [],
+      diskusage: Number(d.diskusage ?? 0),
+    }));
+  } catch { return []; }
+}
+
+// ─── SSH Access Management ────────────────────────────────────────────────────
+
+export async function cpanelSshGetStatus(
+  server: ServerConfig,
+  username: string,
+): Promise<{ enabled: boolean; shell: string }> {
+  try {
+    const data = await whmRequest(server, "accountsummary", { user: username });
+    const acct = data?.data?.acct?.[0] ?? {};
+    const shell: string = acct.shell ?? "/usr/local/cpanel/bin/noshell";
+    return {
+      enabled: shell.includes("bash") || (shell !== "/usr/local/cpanel/bin/noshell" && shell !== "/sbin/nologin"),
+      shell,
+    };
+  } catch {
+    return { enabled: false, shell: "unknown" };
+  }
+}
+
+export async function cpanelSshEnable(server: ServerConfig, username: string): Promise<void> {
+  await whmRequest(server, "modifyacct", { user: username, shell: "/bin/bash" });
+}
+
+export async function cpanelSshDisable(server: ServerConfig, username: string): Promise<void> {
+  await whmRequest(server, "modifyacct", { user: username, shell: "/usr/local/cpanel/bin/noshell" });
+}
+
+// ─── Node.js Applications (cPanel NodeJs Selector) ───────────────────────────
+
+export interface CpanelNodejsApp {
+  app_name: string;
+  app_root: string;
+  startup_file: string;
+  app_port: number;
+  environment_variables: Record<string, string>;
+  enabled: boolean;
+  domain: string;
+  node_version?: string;
+}
+
+export async function cpanelNodejsList(server: ServerConfig, cpanelUser: string): Promise<CpanelNodejsApp[]> {
+  try {
+    const data = await cpanelUapi(server, cpanelUser, "NodeJs", "list_applications");
+    if (!Array.isArray(data)) return [];
+    return data;
+  } catch { return []; }
+}
+
+export async function cpanelNodejsCreate(
+  server: ServerConfig,
+  cpanelUser: string,
+  opts: { app_name: string; app_root: string; startup_file?: string; app_port?: number; domain?: string; node_version?: string },
+): Promise<void> {
+  const params: Record<string, string> = {
+    app_name: opts.app_name,
+    app_root: opts.app_root,
+    startup_file: opts.startup_file ?? "app.js",
+    app_port: String(opts.app_port ?? 3000),
+  };
+  if (opts.domain) params.domain = opts.domain;
+  if (opts.node_version) params.current_node_version = opts.node_version;
+  await cpanelUapi(server, cpanelUser, "NodeJs", "create_application", params);
+}
+
+export async function cpanelNodejsAction(
+  server: ServerConfig,
+  cpanelUser: string,
+  appName: string,
+  action: "restart" | "start" | "stop",
+): Promise<void> {
+  if (action === "stop") {
+    await cpanelUapi(server, cpanelUser, "NodeJs", "stop_application", { app_name: appName });
+  } else {
+    await cpanelUapi(server, cpanelUser, "NodeJs", "restart_application", { app_name: appName });
+  }
+}
+
+export async function cpanelNodejsDelete(
+  server: ServerConfig,
+  cpanelUser: string,
+  appName: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "NodeJs", "destroy_application", { app_name: appName });
+}
+
+// ─── Python Applications (cPanel Python Selector) ────────────────────────────
+
+export interface CpanelPythonApp {
+  app_name: string;
+  app_root: string;
+  app_uri: string;
+  enabled: boolean;
+  python_version: string;
+  domain?: string;
+}
+
+export async function cpanelPythonList(server: ServerConfig, cpanelUser: string): Promise<CpanelPythonApp[]> {
+  try {
+    const data = await cpanelUapi(server, cpanelUser, "Python", "list_applications");
+    if (!Array.isArray(data)) return [];
+    return data;
+  } catch { return []; }
+}
+
+export async function cpanelPythonCreate(
+  server: ServerConfig,
+  cpanelUser: string,
+  opts: { app_name: string; app_root: string; app_uri: string; python_version?: string; domain?: string },
+): Promise<void> {
+  const params: Record<string, string> = {
+    app_name: opts.app_name,
+    app_root: opts.app_root,
+    app_uri: opts.app_uri,
+    python_version: opts.python_version ?? "3.9",
+  };
+  if (opts.domain) params.domain = opts.domain;
+  await cpanelUapi(server, cpanelUser, "Python", "create_application", params);
+}
+
+export async function cpanelPythonAction(
+  server: ServerConfig,
+  cpanelUser: string,
+  appName: string,
+  action: "restart" | "stop",
+): Promise<void> {
+  if (action === "stop") {
+    await cpanelUapi(server, cpanelUser, "Python", "stop_application", { app_name: appName });
+  } else {
+    await cpanelUapi(server, cpanelUser, "Python", "restart_application", { app_name: appName });
+  }
+}
+
+export async function cpanelPythonDelete(
+  server: ServerConfig,
+  cpanelUser: string,
+  appName: string,
+): Promise<void> {
+  await cpanelUapi(server, cpanelUser, "Python", "destroy_application", { app_name: appName });
+}

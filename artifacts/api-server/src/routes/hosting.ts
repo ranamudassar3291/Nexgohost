@@ -8,7 +8,18 @@ import { eq, sql, and, isNull, isNotNull, inArray, ilike, desc, count, or } from
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailServiceSuspended, emailHostingCreated, emailServiceTerminated } from "../lib/email.js";
-import { cpanelCreateUserSession, probeCpanelPaths, cpanelSuspend, cpanelUnsuspend, cpanelTerminate, cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetLiveUsage, cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid, cpanelFullBackup, cpanelDbDump } from "../lib/cpanel.js";
+import {
+  cpanelCreateUserSession, probeCpanelPaths, cpanelSuspend, cpanelUnsuspend, cpanelTerminate,
+  cpanelInstallSSL, cpanelChangePassword, cpanelUapi, cpanelGetAccountInfo, cpanelGetLiveUsage,
+  cpanelGetSoftaculousInstallUrl, cpanelGetWpAdminUrl, cpanelFileExists, cpanelGetSoftaculousInsid,
+  cpanelFullBackup, cpanelDbDump,
+  cpanelEmailList, cpanelEmailCreate, cpanelEmailDelete, cpanelEmailChangePassword,
+  cpanelMysqlListDatabases, cpanelMysqlCreateDatabase, cpanelMysqlCreateUser, cpanelMysqlSetPrivileges,
+  cpanelMysqlDeleteDatabase, cpanelDbName, cpanelDbUser,
+  cpanelSshGetStatus, cpanelSshEnable, cpanelSshDisable,
+  cpanelNodejsList, cpanelNodejsCreate, cpanelNodejsAction, cpanelNodejsDelete,
+  cpanelPythonList, cpanelPythonCreate, cpanelPythonAction, cpanelPythonDelete,
+} from "../lib/cpanel.js";
 import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl, twentyiGetSSOUrl } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
@@ -2939,6 +2950,264 @@ router.post("/admin/hosting/:id/transfer-ownership", authenticate, requireAdmin,
     console.error("[ADMIN] transfer-ownership error:", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOSTING MANAGEMENT PANEL — Email, Databases, SSH, Node.js, Python
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Build a WHM ServerConfig from a resolved server row */
+function buildServerCfg(server: typeof serversTable.$inferSelect) {
+  return {
+    hostname: server.hostname!,
+    port: server.apiPort || 2087,
+    username: server.apiUsername || "root",
+    apiToken: decryptField(server.apiToken ?? ""),
+  };
+}
+
+/** Resolve + auth-check a service that belongs to the calling client */
+async function resolveClientService(id: string, userId: string) {
+  const [service] = await db.select().from(hostingServicesTable)
+    .where(eq(hostingServicesTable.id, id)).limit(1);
+  if (!service || service.clientId !== userId) return { service: null, server: null, serverCfg: null, error: "Service not found" };
+  if (!["active", "pending"].includes(service.status)) return { service, server: null, serverCfg: null, error: `Service is ${service.status} — management unavailable` };
+  if (!service.username) return { service, server: null, serverCfg: null, error: "No cPanel username linked. Contact support." };
+  if (service.serverId?.length && (await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1))[0]?.type === "20i") {
+    return { service, server: null, serverCfg: null, error: "This feature is not available for 20i hosting services." };
+  }
+  const server = await resolveServerForService(service);
+  if (!server) return { service, server: null, serverCfg: null, error: "No WHM server found. Contact support." };
+  return { service, server, serverCfg: buildServerCfg(server), error: null };
+}
+
+// ─── Email Accounts ───────────────────────────────────────────────────────────
+
+router.get("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const accounts = await cpanelEmailList(serverCfg, service!.username!);
+    res.json({ accounts });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { email, password, quota } = req.body as { email: string; password: string; quota?: number };
+    if (!email?.trim() || !password?.trim()) return res.status(400).json({ error: "Email and password are required" });
+    await cpanelEmailCreate(serverCfg, service!.username!, email.trim().toLowerCase(), password, quota ?? 250);
+    res.json({ success: true, message: `Email account ${email} created successfully` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { email } = req.body as { email: string };
+    if (!email?.trim()) return res.status(400).json({ error: "Email address is required" });
+    await cpanelEmailDelete(serverCfg, service!.username!, email.trim());
+    res.json({ success: true, message: `Email account ${email} deleted` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.put("/client/hosting/:id/email/password", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { email, password } = req.body as { email: string; password: string };
+    if (!email?.trim() || !password?.trim()) return res.status(400).json({ error: "Email and new password are required" });
+    await cpanelEmailChangePassword(serverCfg, service!.username!, email.trim(), password);
+    res.json({ success: true, message: `Password changed for ${email}` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/email/webmail", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, server, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg || !server) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    // Generate a cPanel session then redirect to webmail
+    const sessionUrl = await cpanelCreateUserSession(serverCfg, service!.username!, "webmaild");
+    res.json({ url: sessionUrl });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Databases ────────────────────────────────────────────────────────────────
+
+router.get("/client/hosting/:id/databases", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const databases = await cpanelMysqlListDatabases(serverCfg, service!.username!);
+    res.json({ databases });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/databases", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const cpUser = service!.username!;
+    const { suffix, password } = req.body as { suffix: string; password: string };
+    if (!suffix?.trim() || !password?.trim()) return res.status(400).json({ error: "Database name and password are required" });
+    const dbName = cpanelDbName(cpUser, suffix.trim());
+    const dbUser = cpanelDbUser(cpUser, suffix.trim());
+    await cpanelMysqlCreateDatabase(serverCfg, cpUser, dbName);
+    await cpanelMysqlCreateUser(serverCfg, cpUser, dbUser, password);
+    await cpanelMysqlSetPrivileges(serverCfg, cpUser, dbName, dbUser);
+    res.json({ success: true, database: dbName, dbUser, message: `Database ${dbName} created with user ${dbUser}` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/client/hosting/:id/databases/:dbname", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const cpUser = service!.username!;
+    const { dbname } = req.params;
+    // Safety: only allow deletion of DBs that belong to this cPanel user
+    if (!dbname.startsWith(cpUser + "_")) return res.status(403).json({ error: "You can only delete your own databases" });
+    await cpanelMysqlDeleteDatabase(serverCfg, cpUser, dbname);
+    res.json({ success: true, message: `Database ${dbname} deleted` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/databases/phpmyadmin", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    // Create SSO session and deep-link to phpMyAdmin
+    const sessionUrl = await cpanelCreateUserSession(serverCfg, service!.username!, "cpaneld");
+    const base = sessionUrl.match(/^(https?:\/\/[^\/]+(?::\d+)?\/cpsess[A-Za-z0-9]+)/)?.[1] ?? sessionUrl.replace(/\/+$/, "");
+    res.json({ url: `${base}/frontend/jupiter/phpmyadmin/index.html` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── SSH Access ───────────────────────────────────────────────────────────────
+
+router.get("/client/hosting/:id/ssh", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const status = await cpanelSshGetStatus(serverCfg, service!.username!);
+    const domain = service!.domain ?? "";
+    res.json({
+      ...status,
+      host: service!.serverIp || "",
+      port: 22,
+      user: service!.username,
+      loginCmd: status.enabled ? `ssh ${service!.username}@${service!.serverIp || domain} -p 22` : null,
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/ssh/enable", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    await cpanelSshEnable(serverCfg, service!.username!);
+    res.json({ success: true, message: "SSH access enabled. You can now connect via SSH." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/ssh/disable", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    await cpanelSshDisable(serverCfg, service!.username!);
+    res.json({ success: true, message: "SSH access disabled." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Node.js Applications ─────────────────────────────────────────────────────
+
+router.get("/client/hosting/:id/nodejs", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const apps = await cpanelNodejsList(serverCfg, service!.username!);
+    res.json({ apps });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/nodejs", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { app_name, app_root, startup_file, app_port, domain, node_version } = req.body as {
+      app_name: string; app_root: string; startup_file?: string; app_port?: number; domain?: string; node_version?: string;
+    };
+    if (!app_name?.trim() || !app_root?.trim()) return res.status(400).json({ error: "App name and root directory are required" });
+    await cpanelNodejsCreate(serverCfg, service!.username!, { app_name, app_root, startup_file, app_port, domain, node_version });
+    res.json({ success: true, message: `Node.js app "${app_name}" created` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/nodejs/:appname/:action", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const action = req.params.action as "start" | "stop" | "restart";
+    if (!["start", "stop", "restart"].includes(action)) return res.status(400).json({ error: "Invalid action" });
+    await cpanelNodejsAction(serverCfg, service!.username!, req.params.appname, action);
+    res.json({ success: true, message: `App ${action}ed successfully` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/client/hosting/:id/nodejs/:appname", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    await cpanelNodejsDelete(serverCfg, service!.username!, req.params.appname);
+    res.json({ success: true, message: `Node.js app "${req.params.appname}" deleted` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Python Applications ──────────────────────────────────────────────────────
+
+router.get("/client/hosting/:id/python", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const apps = await cpanelPythonList(serverCfg, service!.username!);
+    res.json({ apps });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/python", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const { app_name, app_root, app_uri, python_version, domain } = req.body as {
+      app_name: string; app_root: string; app_uri: string; python_version?: string; domain?: string;
+    };
+    if (!app_name?.trim() || !app_root?.trim() || !app_uri?.trim()) return res.status(400).json({ error: "App name, root directory, and URI are required" });
+    await cpanelPythonCreate(serverCfg, service!.username!, { app_name, app_root, app_uri, python_version, domain });
+    res.json({ success: true, message: `Python app "${app_name}" created` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/client/hosting/:id/python/:appname/:action", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const action = req.params.action as "restart" | "stop";
+    if (!["restart", "stop"].includes(action)) return res.status(400).json({ error: "Invalid action" });
+    await cpanelPythonAction(serverCfg, service!.username!, req.params.appname, action);
+    res.json({ success: true, message: `App ${action}ed` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/client/hosting/:id/python/:appname", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    await cpanelPythonDelete(serverCfg, service!.username!, req.params.appname);
+    res.json({ success: true, message: `Python app "${req.params.appname}" deleted` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 export default router;

@@ -2,6 +2,27 @@
 
 A production-ready SaaS hosting and domain management platform (similar to WHMCS). Provides full-stack client and admin panels for managing hosting services, domains, billing, support tickets, and more.
 
+## Hosting Management Panel (Hostinger-Style)
+
+The client service detail page (`/client/hosting/:id`) is a full Hostinger-style panel with a left sidebar and these sections:
+
+| Section | Features |
+|---|---|
+| **Overview** | Resource rings (disk/bandwidth), service info, quick-launch cPanel/File Manager/Email/DB |
+| **WordPress** | One-click install, WP Admin auto-login, re-install, status tracking |
+| **Domains & DNS** | Full DNS zone management, add/delete records (A, CNAME, MX, TXT, etc.) |
+| **Email** | Create/delete email accounts, change password, webmail SSO login |
+| **Databases** | List MySQL databases, create (DB + user + privileges), delete, phpMyAdmin SSO |
+| **File Manager** | One-click SSO launch to cPanel File Manager |
+| **SSL** | Install/reinstall Let's Encrypt SSL, status display |
+| **SSH Access** | Enable/disable SSH, show login command and connection details |
+| **Backups** | Create backups, list history, delete |
+| **Node.js** | Create apps, start/stop/restart, delete (WHM NodeJs Selector UAPI) |
+| **Python** | Create apps, restart/stop, delete (WHM Python Selector UAPI) |
+
+Backend routes: `artifacts/api-server/src/routes/hosting.ts` (Email, DB, SSH, Node.js, Python sections)
+Backend helpers: `artifacts/api-server/src/lib/cpanel.ts` (cpanelEmailList/Create/Delete/ChangePassword, cpanelMysqlListDatabases, cpanelSshGetStatus/Enable/Disable, cpanelNodejsList/Create/Action/Delete, cpanelPythonList/Create/Action/Delete)
+
 ## Theme & Design
 
 - **Light theme by default** — ThemeProvider (`src/context/ThemeProvider.tsx`) defaults to `"light"`, localStorage key: `noehost-theme-v2`.
