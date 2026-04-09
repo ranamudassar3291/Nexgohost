@@ -96,6 +96,7 @@ interface Service {
   autoRenew: boolean;
   canManage: boolean;
   manageLockReason: string | null;
+  twentyIPackageId?: string | null;
 }
 
 interface DnsRecord {
@@ -744,6 +745,7 @@ export default function ServiceDetail() {
 
   const otherPlans = plans.filter(p => p.id !== service.planId);
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  const is20i = !!(service.twentyIPackageId || service.cpanelUrl?.includes("my.20i.com") || service.cpanelUrl?.includes("stackcp.com"));
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -1018,7 +1020,7 @@ export default function ServiceDetail() {
               </span>
             ) : hasRealUsage ? (
               <span className="flex items-center gap-1.5 text-[11px] text-green-400">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live · cPanel
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> Live · {is20i ? "StackCP" : "cPanel"}
               </span>
             ) : (
               <span className="text-[11px] text-muted-foreground/60">Estimated</span>
@@ -1102,7 +1104,7 @@ export default function ServiceDetail() {
               </div>
               <div>
                 <p className="font-semibold text-foreground text-sm">Upload Files</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Use cPanel File Manager to upload your website files.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{is20i ? "Use StackCP File Manager to upload your website files." : "Use cPanel File Manager to upload your website files."}</p>
               </div>
               <button
                 onClick={handleCpanelLogin}
@@ -1110,7 +1112,7 @@ export default function ServiceDetail() {
                 className="mt-auto flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
               >
                 {ssoLoading === "cpanel" ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                Open cPanel →
+                {is20i ? "Open StackCP →" : "Open cPanel →"}
               </button>
             </div>
 

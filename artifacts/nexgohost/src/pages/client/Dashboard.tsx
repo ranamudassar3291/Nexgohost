@@ -20,6 +20,7 @@ interface HostingService {
   cpanelUrl: string | null; webmailUrl: string | null; username: string | null;
   nextDueDate: string | null; billingCycle: string; freeDomainAvailable: boolean;
   diskUsed?: string | null; bandwidthUsed?: string | null;
+  twentyIPackageId?: string | null;
 }
 
 interface UsageData {
@@ -692,6 +693,7 @@ export default function ClientDashboard() {
               const cpanelBusy = ssoLoading[svc.id] === "cpanel";
               const webmailBusy = ssoLoading[svc.id] === "webmail";
               const anyBusy = !!ssoLoading[svc.id];
+              const is20i = !!(svc.twentyIPackageId || svc.cpanelUrl?.includes("my.20i.com") || svc.cpanelUrl?.includes("stackcp.com"));
               return (
                 <div key={svc.id} className="bg-secondary/20 border border-border/60 rounded-xl p-4 space-y-3">
                   <div>
@@ -710,7 +712,7 @@ export default function ClientDashboard() {
                         disabled={anyBusy}
                         className="flex-1 h-8 text-xs gap-1.5 border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300">
                         {cpanelBusy ? <Loader2 size={12} className="animate-spin" /> : <Terminal size={12} />}
-                        cPanel
+                        {is20i ? "StackCP" : "cPanel"}
                       </Button>
                     )}
                     {isActive && (
