@@ -65,10 +65,10 @@ const ChatBot: React.FC = () => {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="absolute bottom-20 right-0 w-[400px] h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden"
+            className="absolute bottom-20 right-0 w-[400px] h-[600px] bg-[#0d0d1f] rounded-3xl shadow-2xl border border-white/10 flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="p-6 bg-primary text-white flex items-center justify-between shadow-lg">
+            <div className="p-6 bg-primary/90 backdrop-blur-sm text-white flex items-center justify-between shadow-lg border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
                   <Bot size={24} />
@@ -86,14 +86,14 @@ const ChatBot: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-grow overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+            <div className="flex-grow overflow-y-auto p-6 space-y-6 bg-[#080811]">
               {history.length === 0 && (
                 <div className="text-center py-10">
-                  <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 bg-primary/10 text-primary-300 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/20">
                     <Bot size={32} />
                   </div>
-                  <h4 className="font-bold text-slate-900 mb-2">Hello! I'm your Noehost Guide</h4>
-                  <p className="text-sm text-slate-500">How can I help you with our hosting plans or services today?</p>
+                  <h4 className="font-bold text-white mb-2">Hello! I'm your Noehost Guide</h4>
+                  <p className="text-sm text-slate-400">How can I help you with our hosting plans or services today?</p>
                 </div>
               )}
               
@@ -105,13 +105,13 @@ const ChatBot: React.FC = () => {
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-white/10 border border-white/10 text-slate-300'}`}>
                       {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                     </div>
                     <div className={`p-4 rounded-2xl text-sm leading-relaxed ${
                       msg.role === 'user' 
-                        ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' 
-                        : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none shadow-sm'
+                        ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/20' 
+                        : 'bg-white/5 border border-white/10 text-slate-300 rounded-tl-none'
                     }`}>
                       <div className="markdown-body">
                         <Markdown>{msg.content}</Markdown>
@@ -123,11 +123,11 @@ const ChatBot: React.FC = () => {
               {loading && (
                 <div className="flex justify-start">
                   <div className="flex gap-3 max-w-[85%]">
-                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/10 text-slate-400 flex items-center justify-center">
                       <Bot size={16} />
                     </div>
-                    <div className="p-4 bg-white border border-slate-100 rounded-2xl rounded-tl-none shadow-sm">
-                      <Loader2 size={20} className="animate-spin text-primary" />
+                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl rounded-tl-none">
+                      <Loader2 size={20} className="animate-spin text-primary-300" />
                     </div>
                   </div>
                 </div>
@@ -136,13 +136,13 @@ const ChatBot: React.FC = () => {
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSend} className="p-4 bg-white border-t border-slate-100 flex gap-2">
+            <form onSubmit={handleSend} className="p-4 bg-[#0d0d1f] border-t border-white/10 flex gap-2">
               <input
                 type="text"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Type your message..."
-                className="flex-grow px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                className="flex-grow px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-primary/30 focus:border-primary/40 outline-none transition-all text-sm text-white placeholder:text-slate-500"
               />
               <button
                 type="submit"

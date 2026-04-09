@@ -164,7 +164,7 @@ const VPSHosting: React.FC = () => {
               {plans.map((plan: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} whileHover={{ y: -6 }}
                   className={`relative rounded-2xl p-6 transition-all ${plan.popular ? 'bg-primary border-2 border-primary shadow-2xl shadow-primary/30' : 'bg-white/5 border border-white/10 hover:border-primary/30'}`}>
-                  {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-white rounded-full text-xs font-black text-primary">Most Popular</div>}
+                  {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary rounded-full text-xs font-black text-white">Most Popular</div>}
                   <div className="text-xs font-black text-primary-300 uppercase tracking-widest mb-3">{plan.name}</div>
                   <div className="flex items-baseline gap-1 mb-5">
                     <span className="text-3xl font-black text-white">{convert(plan.price)}</span>

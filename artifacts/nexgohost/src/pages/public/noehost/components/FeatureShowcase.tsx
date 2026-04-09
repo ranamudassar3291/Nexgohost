@@ -176,7 +176,7 @@ const FeatureShowcase: React.FC = () => {
   };
 
   return (
-    <section className="py-16 bg-slate-50 overflow-hidden">
+    <section className="py-16 bg-[#0d0d1f] overflow-hidden">
       <div className="container mx-auto px-6">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-14">
@@ -184,15 +184,15 @@ const FeatureShowcase: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-xs font-black mb-6 uppercase tracking-widest"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black mb-6 uppercase tracking-widest"
           >
-            <Zap size={14} className="fill-primary" />
+            <Zap size={14} className="fill-primary-300" />
             {data.badge}
           </motion.div>
-          <h2 className="text-3xl lg:text-4xl font-black text-slate-900 mb-4 tracking-tight">
+          <h2 className="text-3xl lg:text-4xl font-black text-white mb-4 tracking-tight">
             {data.title}
           </h2>
-          <p className="text-lg text-slate-600 font-medium leading-relaxed">
+          <p className="text-lg text-slate-400 font-medium leading-relaxed">
             {data.description}
           </p>
         </div>
@@ -216,22 +216,22 @@ const FeatureShowcase: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="lg:w-1/2"
           >
-            <h3 className="text-3xl lg:text-4xl font-black text-slate-900 mb-6 leading-tight">
+            <h3 className="text-3xl lg:text-4xl font-black text-white mb-6 leading-tight">
               {data.row1.title}
             </h3>
-            <p className="text-lg text-slate-600 mb-10 font-medium">
+            <p className="text-lg text-slate-400 mb-10 font-medium">
               {data.row1.description}
             </p>
 
             <div className="space-y-8">
               {data.row1.features.map((f: any, i: number) => (
                 <div key={i} className="flex items-start gap-6 group">
-                  <div className="w-14 h-14 rounded-2xl bg-white shadow-xl shadow-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary-300 group-hover:bg-primary group-hover:text-white transition-all duration-300">
                     {IconMap[f.icon] || <Zap size={28} />}
                   </div>
                   <div>
-                    <h4 className="text-xl font-black text-slate-900 mb-2">{f.title}</h4>
-                    <p className="text-slate-500 font-medium leading-relaxed">
+                    <h4 className="text-xl font-black text-white mb-2">{f.title}</h4>
+                    <p className="text-slate-400 font-medium leading-relaxed">
                       {f.description}
                     </p>
                   </div>
@@ -239,7 +239,7 @@ const FeatureShowcase: React.FC = () => {
               ))}
             </div>
 
-            <button className="mt-12 flex items-center gap-2 text-primary font-black text-sm uppercase tracking-widest hover:gap-4 transition-all group">
+            <button className="mt-12 flex items-center gap-2 text-primary-300 font-black text-sm uppercase tracking-widest hover:gap-4 transition-all group">
               Explore All Features <ArrowRight size={18} />
             </button>
           </motion.div>
@@ -264,22 +264,22 @@ const FeatureShowcase: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="lg:w-1/2"
           >
-            <h3 className="text-3xl lg:text-4xl font-black text-slate-900 mb-6 leading-tight">
+            <h3 className="text-3xl lg:text-4xl font-black text-white mb-6 leading-tight">
               {data.row2.title}
             </h3>
-            <p className="text-lg text-slate-600 mb-10 font-medium">
+            <p className="text-lg text-slate-400 mb-10 font-medium">
               {data.row2.description}
             </p>
 
             <div className="space-y-8">
               {data.row2.features.map((f: any, i: number) => (
                 <div key={i} className="flex items-start gap-6 group">
-                  <div className="w-14 h-14 rounded-2xl bg-white shadow-xl shadow-emerald-500/5 flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
                     {IconMap[f.icon] || <Zap size={28} />}
                   </div>
                   <div>
-                    <h4 className="text-xl font-black text-slate-900 mb-2">{f.title}</h4>
-                    <p className="text-slate-500 font-medium leading-relaxed">
+                    <h4 className="text-xl font-black text-white mb-2">{f.title}</h4>
+                    <p className="text-slate-400 font-medium leading-relaxed">
                       {f.description}
                     </p>
                   </div>
@@ -287,7 +287,7 @@ const FeatureShowcase: React.FC = () => {
               ))}
             </div>
 
-            <button className="mt-12 flex items-center gap-2 text-emerald-600 font-black text-sm uppercase tracking-widest hover:gap-4 transition-all group">
+            <button className="mt-12 flex items-center gap-2 text-emerald-400 font-black text-sm uppercase tracking-widest hover:gap-4 transition-all group">
               View Performance Specs <ArrowRight size={18} />
             </button>
           </motion.div>

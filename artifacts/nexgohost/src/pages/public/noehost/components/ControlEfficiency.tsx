@@ -150,12 +150,12 @@ const ControlEfficiency: React.FC = () => {
       ],
     },
     items: [
-      { title: "WordPress Hosting", description: "The most popular hosting available, our plans offer exceptional performance.", icon: 'Layout', color: "bg-slate-100 text-slate-900", iconColor: "text-slate-600" },
-      { title: "VPS Hosting", description: "Upgrade to dedicated resources for increased hosting performance.", icon: 'Cloud', color: "bg-emerald-50 text-emerald-900", iconColor: "text-emerald-600" },
-      { title: "Email Hosting", description: "The most popular hosting available, our plans offer exceptional reliability.", icon: 'Mail', color: "bg-rose-50 text-rose-900", iconColor: "text-rose-600" },
-      { title: "cPanel Hosting", description: "cPanel Hosting is a popular hosting solution that provides a modern control panel.", icon: 'Settings', color: "bg-amber-50 text-amber-900", iconColor: "text-amber-600" },
-      { title: "Web Hosting", description: "Web hosting is a service that enables individuals and organizations to make sites.", icon: 'Server', color: "bg-rose-600 text-white", iconColor: "text-white" },
-      { title: "Reseller Hosting", description: "Reseller Hosting allows individuals or businesses to purchase hosting services.", icon: 'Globe', color: "bg-blue-50 text-blue-900", iconColor: "text-blue-600" }
+      { title: "WordPress Hosting", description: "The most popular hosting available, our plans offer exceptional performance.", icon: 'Layout', color: "bg-white/5 border border-white/10 text-white", iconColor: "text-primary-300" },
+      { title: "VPS Hosting", description: "Upgrade to dedicated resources for increased hosting performance.", icon: 'Cloud', color: "bg-emerald-500/10 border border-emerald-500/20 text-white", iconColor: "text-emerald-400" },
+      { title: "Email Hosting", description: "The most popular hosting available, our plans offer exceptional reliability.", icon: 'Mail', color: "bg-rose-500/10 border border-rose-500/20 text-white", iconColor: "text-rose-400" },
+      { title: "cPanel Hosting", description: "cPanel Hosting is a popular hosting solution that provides a modern control panel.", icon: 'Settings', color: "bg-amber-500/10 border border-amber-500/20 text-white", iconColor: "text-amber-400" },
+      { title: "Web Hosting", description: "Web hosting is a service that enables individuals and organizations to make sites.", icon: 'Server', color: "bg-primary text-white", iconColor: "text-white" },
+      { title: "Reseller Hosting", description: "Reseller Hosting allows individuals or businesses to purchase hosting services.", icon: 'Globe', color: "bg-[#00D1FF]/10 border border-[#00D1FF]/20 text-white", iconColor: "text-[#00D1FF]" }
     ]
   };
 

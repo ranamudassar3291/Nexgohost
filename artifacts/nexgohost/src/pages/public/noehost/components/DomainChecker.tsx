@@ -57,13 +57,13 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
       {/* Search Form */}
       <form onSubmit={handleSearch}>
         {variant === 'hero' ? (
-          <div className="relative bg-white rounded-3xl p-2 shadow-2xl flex flex-col md:flex-row items-stretch gap-3">
+          <div className="relative bg-white/5 border border-white/10 rounded-3xl p-2 shadow-2xl backdrop-blur-sm flex flex-col md:flex-row items-stretch gap-3">
             <div className="flex-grow flex items-center px-8 gap-5">
-              <Globe className="text-primary flex-shrink-0" size={24} />
+              <Globe className="text-primary-300 flex-shrink-0" size={24} />
               <input
                 type="text"
                 placeholder={placeholder}
-                className="w-full py-5 text-xl font-bold text-slate-800 focus:outline-none placeholder:text-slate-300"
+                className="w-full py-5 text-xl font-bold text-white bg-transparent focus:outline-none placeholder:text-slate-500"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
               />
@@ -84,7 +84,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={placeholder}
-              className="flex-1 px-6 py-4 text-base font-semibold bg-white text-slate-800 rounded-l-2xl outline-none placeholder:text-slate-400 border-0"
+              className="flex-1 px-6 py-4 text-base font-semibold bg-white/5 border border-white/10 border-r-0 text-white rounded-l-2xl outline-none placeholder:text-slate-500"
             />
             <button
               type="submit"
@@ -126,38 +126,38 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.3 }}
-            className="mt-6 bg-white rounded-[28px] shadow-2xl overflow-hidden border border-slate-100"
+            className="mt-6 bg-[#0d0d1f] rounded-[28px] shadow-2xl overflow-hidden border border-white/10"
           >
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-6 py-4 bg-white/5 border-b border-white/10 flex items-center justify-between">
               <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
                 Results for "{searched}"
               </span>
               <button
                 onClick={() => { setResults([]); setSearched(''); }}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-slate-500 hover:text-white transition-colors"
               >
                 <XCircle size={20} />
               </button>
             </div>
 
-            <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
+            <div className="divide-y divide-white/5 max-h-[480px] overflow-y-auto">
               {results.map((res, i) => (
                 <motion.div
                   key={res.domain}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
-                  className="px-4 sm:px-6 py-4 flex flex-row items-center justify-between gap-2 hover:bg-slate-50 transition-all"
+                  className="px-4 sm:px-6 py-4 flex flex-row items-center justify-between gap-2 hover:bg-white/5 transition-all"
                 >
                   {/* Domain info */}
                   <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                     <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      res.available ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'
+                      res.available ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
                     }`}>
                       <Globe size={16} />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm sm:text-base font-black text-slate-900 truncate">{res.domain}</div>
+                      <div className="text-sm sm:text-base font-black text-white truncate">{res.domain}</div>
                       <div className="flex items-center gap-1 mt-0.5">
                         {res.available ? (
                           <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">

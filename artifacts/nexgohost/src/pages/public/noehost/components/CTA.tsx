@@ -14,7 +14,7 @@ const CTA: React.FC = () => {
   };
 
   return (
-    <section className="py-14 bg-dark relative overflow-hidden">
+    <section className="py-14 bg-[#0d0d1f] relative overflow-hidden">
       <div className="container mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}

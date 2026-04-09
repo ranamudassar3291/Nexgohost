@@ -228,12 +228,12 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 </button>
 
                 {hostingOpen && (
-                  <div className="absolute top-full left-0 mt-3 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
+                  <div className="absolute top-full left-0 mt-3 bg-[#0d0d1f] rounded-2xl shadow-2xl border border-white/10 z-50 overflow-hidden"
                     style={{ minWidth: '340px' }}
                   >
                     {/* Header */}
                     <div className="px-5 pt-5 pb-2">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Hosting</span>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Hosting</span>
                     </div>
 
                     {/* Items */}
@@ -245,24 +245,24 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                             key={idx}
                             to={link.href}
                             onClick={() => setHostingOpen(false)}
-                            className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-slate-50 transition-all group"
+                            className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
                           >
                             {/* Icon box */}
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 group-hover:bg-primary/10 transition-all ${link.color || 'text-primary'}`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 group-hover:bg-primary/20 transition-all ${link.color || 'text-primary'}`}>
                               {IconMap[link.icon] || <Server size={18} />}
                             </div>
 
                             {/* Text */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-sm font-bold text-slate-800 group-hover:text-primary transition-colors">
+                                <span className="text-sm font-bold text-white group-hover:text-primary-300 transition-colors">
                                   {link.name === 'Shared' ? 'Shared Hosting' :
                                    link.name === 'VPS' ? 'VPS Hosting' :
                                    link.name === 'Reseller' ? 'Reseller Hosting' :
                                    link.name === 'WordPress' ? 'WordPress Hosting' : link.name}
                                 </span>
                                 {meta.badge && (
-                                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor || 'bg-slate-100 text-slate-500'}`}>
+                                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor || 'bg-white/10 text-slate-400'}`}>
                                     {meta.badge}
                                   </span>
                                 )}
@@ -275,12 +275,12 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                     </div>
 
                     {/* Footer CTA */}
-                    <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/60 flex items-center justify-between">
+                    <div className="border-t border-white/10 px-5 py-3.5 bg-white/5 flex items-center justify-between">
                       <span className="text-xs text-slate-500 font-medium">Not sure which plan?</span>
                       <Link
                         to="/#pricing"
                         onClick={() => setHostingOpen(false)}
-                        className="text-xs font-black text-primary hover:underline"
+                        className="text-xs font-black text-primary-300 hover:text-primary transition-colors"
                       >
                         Compare all plans →
                       </Link>
@@ -319,7 +319,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <button
                 onClick={handleLogout}
                 className={`p-3 rounded-xl transition-all border ${
-                  isScrolled ? 'bg-slate-50 border-slate-100 text-slate-400 hover:text-red-500' : 'bg-white/5 border-white/5 text-slate-400 hover:text-red-500'
+                  'bg-white/5 border-white/5 text-slate-400 hover:text-red-500'
                 }`}
               >
                 <LogOut size={20} />
