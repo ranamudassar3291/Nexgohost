@@ -219,6 +219,15 @@
   --destructive-border: hsl(var(--destructive));
 }
 
+/* ── Noehost Public Marketing Pages ─────────────────────────────────────────
+   Override CSS variables so bg-secondary, bg-dark etc resolve correctly
+   on the public marketing pages (which are always dark-themed).
+   ─────────────────────────────────────────────────────────────────────────── */
+.noehost-public {
+  --secondary: 222 47% 8%;        /* #0d1627 — deep dark navy */
+  --secondary-foreground: 214 32% 90%;
+}
+
 @layer base {
   * {
     @apply border-border;

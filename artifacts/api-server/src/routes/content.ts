@@ -15,19 +15,19 @@ const CONTENT_SETTING_KEY = "site_content_v1";
 // Default content served when the DB has no customisations yet
 const DEFAULT_CONTENT = {
   hero: {
-    badge: "Special Offer: Save 75% Today",
-    title: "Everything you need to create a website",
+    badge: "Next-Gen Hosting Infrastructure",
+    title: "Empower Your Digital Future with Noehost",
     description:
-      "Free SSL, one-year free domain, 99.9% uptime, easy WordPress. Explore Our Services.",
+      "Experience next-gen hosting for creators, innovators and builders. The ultimate hosting platform for developers to start, launch, and scale big.",
     startingPrice: 1.99,
     features: [
-      "Free Domain for 1st Year",
-      "Free Website Migration",
-      "24/7 Customer Support",
-      "30-Day Money-Back Guarantee",
+      "Unlimited Storage",
+      "Free SSL Certificates",
+      "24/7 Expert Support",
+      "Daily Rollout Notifications",
     ],
     ctaPrimary: "Get Started",
-    ctaPrimaryHref: "/order",
+    ctaPrimaryHref: "/shared-hosting",
     showCtaPrimary: true,
     showCtaSecondary: false,
   },

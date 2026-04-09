@@ -52,7 +52,7 @@ const Testimonials: React.FC = () => {
               
               <div className="flex gap-1 mb-6">
                 {[...Array(5)].map((_, j) => (
-                  <Star key={j} size={16} className="fill-accent text-accent" />
+                  <Star key={j} size={16} className="fill-amber-400 text-amber-400" />
                 ))}
               </div>
               

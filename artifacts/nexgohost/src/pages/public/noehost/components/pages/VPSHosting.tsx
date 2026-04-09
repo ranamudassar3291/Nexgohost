@@ -103,7 +103,7 @@ const VPSHosting: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark">
+    <div className="noehost-public min-h-screen bg-dark">
 
       {/* HERO */}
       <section className="relative bg-secondary overflow-hidden pt-36 pb-24">

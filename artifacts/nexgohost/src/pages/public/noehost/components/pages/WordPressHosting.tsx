@@ -65,7 +65,7 @@ const WordPressHosting: React.FC = () => {
   const featIcons: any = { 'NVMe SSD Storage': <Zap size={22} />, 'Managed Security': <Shield size={22} />, 'Auto Backups': <RefreshCw size={22} />, 'Expert WP Support': <LifeBuoy size={22} />, 'Global CDN': <Globe size={22} />, 'Staging Environment': <Layers size={22} /> };
 
   return (
-    <div className="min-h-screen bg-dark">
+    <div className="noehost-public min-h-screen bg-dark">
 
       {/* HERO */}
       <section className="relative bg-secondary overflow-hidden pt-36 pb-24">

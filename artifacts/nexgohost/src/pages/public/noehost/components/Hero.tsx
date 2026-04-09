@@ -119,17 +119,19 @@ const Hero: React.FC = () => {
   }, []);
 
   const heroData = content?.hero || {
-    title: 'Everything you need to create a website',
-    description: 'Free SSL, one-year free domain, 99.9% uptime, easy WordPress. Explore Our Services',
+    badge: 'Next-Gen Hosting Infrastructure',
+    title: 'Empower Your Digital Future with Noehost',
+    description: 'Experience next-gen hosting for creators, innovators and builders. The ultimate hosting platform for developers to start, launch, and scale big.',
+    startingPrice: 1.99,
   };
 
   const features = (heroData.features && heroData.features.length > 0)
     ? heroData.features
     : [
-      'Free Domain for 1st Year',
-      'Free Website Migration',
-      '24/7 Customer Support',
-      '30-Day Money-Back Guarantee'
+      'Unlimited Storage',
+      'Free SSL Certificates',
+      '24/7 Expert Support',
+      'Daily Rollout Notifications',
     ];
 
   const FEATURED_EXTS = ['.com', '.net', '.pk'];
@@ -234,7 +236,7 @@ const Hero: React.FC = () => {
                       className="w-10 h-10 rounded-full border-2 border-black object-cover"
                     />
                   ))}
-                  <div className="w-10 h-10 rounded-full border-2 border-black bg-secondary flex items-center justify-center text-[10px] font-black text-white">
+                  <div className="w-10 h-10 rounded-full border-2 border-black bg-slate-800 flex items-center justify-center text-[10px] font-black text-white">
                     +2M
                   </div>
                 </div>
@@ -282,7 +284,7 @@ const Hero: React.FC = () => {
                 {tlds.map(tld => (
                   <div key={tld.name} className="flex items-center gap-3 px-5 py-3 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all">
                     <span className="text-white font-black">{tld.name}</span>
-                    <span className="text-accent font-black">{tld.price}</span>
+                    <span className="text-[#00D1FF] font-black">{tld.price}</span>
                   </div>
                 ))}
               </div>

@@ -12,7 +12,7 @@ const PrivacyPolicy: React.FC = () => {
   const sections = (pg.sections || []).filter((s: any) => s.show !== false);
 
   return (
-    <div className="min-h-screen bg-dark">
+    <div className="noehost-public min-h-screen bg-dark">
       <section className="relative bg-secondary overflow-hidden pt-36 pb-24">
         <div className="tech-grid absolute inset-0 opacity-5" />
         <div className="absolute top-0 left-0 w-[700px] h-[700px] rounded-full blur-[150px]" style={{ background: 'radial-gradient(circle, rgba(103,61,230,0.25) 0%, transparent 70%)' }} />

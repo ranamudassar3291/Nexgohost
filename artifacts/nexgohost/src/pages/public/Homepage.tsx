@@ -16,7 +16,7 @@ import ChatBot from "./noehost/components/ChatBot";
 
 const Homepage = () => {
   return (
-    <div className="min-h-screen flex flex-col bg-black">
+    <div className="noehost-public min-h-screen flex flex-col bg-black">
       <header className="fixed top-0 left-0 right-0 z-[100]">
         <TopBar />
         <Navbar user={null} setUser={() => {}} />
