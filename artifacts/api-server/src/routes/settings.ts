@@ -343,4 +343,55 @@ router.get("/admin/email-logs", authenticate, requireAdmin, async (req: AuthRequ
   }
 });
 
+// ─── Extended Branding Settings ──────────────────────────────────────────────
+
+const EXTENDED_BRANDING_KEYS = [
+  "site_name", "site_tagline",
+  "brand_primary_color", "brand_website", "brand_whatsapp",
+  "brand_address", "brand_support_email",
+  "brand_social_twitter", "brand_social_facebook", "brand_social_linkedin",
+  "invoice_footer_text", "email_footer_text",
+];
+
+// GET /api/admin/branding/settings
+router.get("/admin/branding/settings", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) if (r.key) map[r.key] = r.value ?? "";
+    res.json({
+      site_name:            map["site_name"]            ?? "Noehost",
+      site_tagline:         map["site_tagline"]          ?? "Professional Hosting Solutions",
+      brand_primary_color:  map["brand_primary_color"]   ?? "#701AFE",
+      brand_website:        map["brand_website"]          ?? "",
+      brand_whatsapp:       map["brand_whatsapp"]         ?? "",
+      brand_address:        map["brand_address"]          ?? "",
+      brand_support_email:  map["brand_support_email"]    ?? "",
+      brand_social_twitter: map["brand_social_twitter"]   ?? "",
+      brand_social_facebook:map["brand_social_facebook"]  ?? "",
+      brand_social_linkedin:map["brand_social_linkedin"]  ?? "",
+      invoice_footer_text:  map["invoice_footer_text"]    ?? "",
+      email_footer_text:    map["email_footer_text"]      ?? "",
+      logoUrl:     map["branding_logo"]    ? `/uploads/branding/${path.basename(map["branding_logo"])}` : null,
+      faviconUrl:  map["branding_favicon"] ? `/uploads/branding/${path.basename(map["branding_favicon"])}` : null,
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/admin/branding/settings
+router.put("/admin/branding/settings", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const updates = req.body as Record<string, string>;
+    for (const key of EXTENDED_BRANDING_KEYS) {
+      if (updates[key] !== undefined) {
+        await db.insert(settingsTable).values({ key, value: String(updates[key]) })
+          .onConflictDoUpdate({ target: settingsTable.key, set: { value: String(updates[key]), updatedAt: new Date() } });
+      }
+    }
+    const { clearBrandingCache } = await import("../lib/email.js");
+    clearBrandingCache();
+    res.json({ success: true, message: "Branding settings saved" });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

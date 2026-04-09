@@ -122,3 +122,46 @@ pnpm --filter @workspace/db push
 - WhatsApp notifications for billing events
 - **Unified Billing hub** at `/client/billing` — 5 tabs: Invoices, Transactions, Refunds, Wallet (Credits), Affiliate. Summary cards at top. Old routes `/client/invoices`, `/client/credits`, `/client/affiliate` redirect here.
 - **AI Chat Widget** — floating widget for clients (`role === "client"`) in AppLayout. Backend: `POST /api/ai/chat` with `authenticate` middleware. Frontend: `AiChatWidget.tsx` with quick questions, minimize/reset/close, unread badge.
+
+## Full Branding System (White-Label)
+
+All branding is dynamic — no hardcoded company names, colors, or emails anywhere critical.
+
+### Branding API
+- `GET /api/config` — returns full branding: `siteName`, `logoUrl`, `faviconUrl`, `primaryColor`, `brandWebsite`, `brandWhatsapp`, `brandAddress`, `brandSupportEmail`, `brandSocialTwitter/Facebook/Linkedin`, `invoiceFooterText`
+- `GET/PUT /api/admin/branding/settings` — manage all extended branding settings
+- `POST /api/admin/branding/upload` — upload logo / favicon
+- `DELETE /api/admin/branding/:type` — remove logo or favicon
+
+### Frontend Branding Hook
+`use-branding.ts` — `useBranding()` returns full `BrandingConfig` including `primaryColor`, `brandWebsite`, `brandWhatsapp`, `brandAddress`, `brandSupportEmail`, social links, `invoiceFooterText`.
+
+### Admin Branding Page (`/admin/system?tab=branding`)
+Extended with:
+- Brand color picker (color input + hex field + live swatch)
+- Website URL, Support Email, WhatsApp number, Business Address
+- Social links (Twitter/X, Facebook, LinkedIn)
+- Invoice & Email footer text
+- Save via `PUT /api/admin/branding/settings`
+
+### Email Branding
+- `getBrandingVars()` in `email.ts` returns all fields from DB
+- `layout()` in `email-templates.ts` uses `{{brand_color}}`, `{{company_name}}`, `{{whatsapp_number}}`, `{{support_url}}`, `{{social_*}}`, `{{website_url}}`
+- `renderTemplate` supports Mustache-style `{{#var}}...{{/var}}` and `{{^var}}...{{/var}}` conditionals
+
+### Invoice PDF Branding
+- `generateInvoicePdf(data, brandCfg?)` accepts `InvoiceBrandConfig` (`siteName`, `brandColor`, `website`, `supportEmail`)
+- All 3 PDF generation calls in `invoices.ts` fetch branding via `fetchPdfBrandConfig()` and pass it
+- PDF download filename uses dynamic `siteName` instead of hardcoded "Noehost"
+
+### Invoice Detail Page (`/client/invoices/:id`)
+- Dynamic brand color (from `useBranding().primaryColor`)
+- Logo shown in invoice header band (if uploaded), otherwise uses `siteName`
+- Dynamic "Pay To" section: uses `siteName`, `brandSupportEmail`, `brandAddress`, `brandWebsite`
+- Dynamic terms/footer: uses `siteName`, `brandSupportEmail`, `invoiceFooterText`
+
+### Webmail Page
+- Dedicated branded webmail launcher at `/client/hosting/:id/webmail`
+- Auto-launches webmail in new tab on load for active services
+- Uses `primaryColor` brand color, shows service domain info
+- Calls `POST /api/client/hosting/:id/email/webmail` for SSO login URL

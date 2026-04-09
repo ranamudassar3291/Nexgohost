@@ -10,9 +10,9 @@ const router = Router();
 // ─── Layout & Helpers ─────────────────────────────────────────────────────────
 
 /**
- * Master layout: white-bg card, centered Noehost logo header,
- * purple accent line, body content, Quick Support section, footer.
- * All email-client safe — uses only inline styles and HTML tables.
+ * Master email layout using template variables.
+ * Variables ({{company_name}}, {{brand_color}}, etc.) are injected at send time
+ * by sendTemplatedEmail() via getBrandingVars() — so the layout is fully white-label.
  */
 function layout(content: string): string {
   return `<!DOCTYPE html>
@@ -20,7 +20,7 @@ function layout(content: string): string {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Noehost</title>
+<title>{{company_name}}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f2f2f2;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f2f2;padding:36px 16px">
@@ -28,10 +28,11 @@ function layout(content: string): string {
     <td align="center">
       <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:4px;overflow:hidden;border:1px solid #e5e5e5">
 
-        <!-- ───── HEADER: white bg, centered logo ───── -->
+        <!-- ───── HEADER: white bg, centered logo/name ───── -->
         <tr>
-          <td style="background:#ffffff;padding:32px 40px 20px;text-align:center;border-bottom:3px solid #701AFE">
-            <span style="font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:28px;font-weight:800;color:#701AFE;letter-spacing:-0.5px">Noehost</span>
+          <td style="background:#ffffff;padding:32px 40px 20px;text-align:center;border-bottom:3px solid {{brand_color}}">
+            {{#logo_url}}<img src="{{logo_url}}" alt="{{company_name}}" style="max-height:48px;max-width:200px;object-fit:contain;display:block;margin:0 auto" />{{/logo_url}}
+            {{^logo_url}}<span style="font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:28px;font-weight:800;color:{{brand_color}};letter-spacing:-0.5px">{{company_name}}</span>{{/logo_url}}
           </td>
         </tr>
 
@@ -42,7 +43,7 @@ function layout(content: string): string {
           </td>
         </tr>
 
-        <!-- ───── WHATSAPP SUPPORT ───── -->
+        <!-- ───── SUPPORT SECTION ───── -->
         <tr>
           <td style="background:#f0fff4;border-top:2px solid #25D366;padding:22px 40px;text-align:center">
             <p style="margin:0 0 12px;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#166534">
@@ -51,14 +52,14 @@ function layout(content: string): string {
             <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto">
               <tr>
                 <td style="padding-right:10px">
-                  <a href="https://wa.me/923151711821?text=Hello%20Noehost%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
+                  <a href="https://wa.me/{{whatsapp_number}}?text=Hello%20{{company_name}}%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
                      style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
                     &#128222; Contact Support on WhatsApp
                   </a>
                 </td>
                 <td>
-                  <a href="https://noehost.com/client/tickets/new"
-                     style="display:inline-block;background:#701AFE;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+                  <a href="{{support_url}}"
+                     style="display:inline-block;background:{{brand_color}};color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
                     &#127915; Open a Ticket
                   </a>
                 </td>
@@ -73,23 +74,23 @@ function layout(content: string): string {
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td align="center" style="padding-bottom:14px">
-                  <a href="https://twitter.com/noehost" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:#701AFE;border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:13px;font-weight:700">X</a>
-                  <a href="https://facebook.com/noehost" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:#701AFE;border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:14px;font-weight:700">f</a>
-                  <a href="https://linkedin.com/company/noehost" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:#701AFE;border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:11px;font-weight:700">in</a>
+                  <a href="{{social_twitter}}" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:{{brand_color}};border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:13px;font-weight:700">X</a>
+                  <a href="{{social_facebook}}" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:{{brand_color}};border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:14px;font-weight:700">f</a>
+                  <a href="{{social_linkedin}}" style="display:inline-block;margin:0 4px;width:30px;height:30px;background:{{brand_color}};border-radius:50%;text-align:center;line-height:30px;text-decoration:none;color:#ffffff;font-family:Arial;font-size:11px;font-weight:700">in</a>
                 </td>
               </tr>
               <tr>
                 <td align="center" style="padding-bottom:8px">
-                  <a href="https://noehost.com/kb" style="color:#701AFE;text-decoration:none;font-size:12px;font-family:Inter,Arial,sans-serif;font-weight:500">Knowledge Base</a>
+                  <a href="{{website_url}}/kb" style="color:{{brand_color}};text-decoration:none;font-size:12px;font-family:Inter,Arial,sans-serif;font-weight:500">Knowledge Base</a>
                   <span style="color:#cccccc;margin:0 8px">&middot;</span>
-                  <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none;font-size:12px;font-family:Inter,Arial,sans-serif;font-weight:500">Support</a>
+                  <a href="{{support_url}}" style="color:{{brand_color}};text-decoration:none;font-size:12px;font-family:Inter,Arial,sans-serif;font-weight:500">Support</a>
                   <span style="color:#cccccc;margin:0 8px">&middot;</span>
-                  <a href="https://noehost.com/unsubscribe" style="color:#999999;text-decoration:underline;font-size:12px;font-family:Inter,Arial,sans-serif">Unsubscribe</a>
+                  <a href="{{website_url}}/unsubscribe" style="color:#999999;text-decoration:underline;font-size:12px;font-family:Inter,Arial,sans-serif">Unsubscribe</a>
                 </td>
               </tr>
               <tr>
                 <td align="center">
-                  <span style="color:#aaaaaa;font-size:12px;font-family:Inter,Arial,sans-serif">&copy; 2026 Noehost. All rights reserved.</span>
+                  <span style="color:#aaaaaa;font-size:12px;font-family:Inter,Arial,sans-serif">&copy; ${new Date().getFullYear()} {{company_name}}. All rights reserved.</span>
                 </td>
               </tr>
             </table>

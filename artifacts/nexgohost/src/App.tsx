@@ -50,6 +50,7 @@ import Status from "@/pages/public/Status";
 import ClientDashboard from "@/pages/client/Dashboard";
 import ClientHosting from "@/pages/client/Hosting";
 import ClientServiceDetail from "@/pages/client/ServiceDetail";
+import ClientWebmail from "@/pages/client/Webmail";
 import ClientDomains from "@/pages/client/Domains";
 import DomainManage from "@/pages/client/DomainManage";
 import ClientInvoices from "@/pages/client/Invoices";
@@ -428,6 +429,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/vps/:id">
         <ClientPage><VpsManage /></ClientPage>
+      </Route>
+      <Route path="/client/hosting/:id/webmail">
+        <ClientPage><ClientWebmail /></ClientPage>
       </Route>
       <Route path="/client/hosting/:id">
         <ClientPage><ClientServiceDetail /></ClientPage>

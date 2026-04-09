@@ -13,6 +13,7 @@ import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 import { fmtInvNum } from "@/lib/utils";
+import { useBranding } from "@/hooks/use-branding";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,6 @@ interface PaymentMethod {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BRAND = "#4F46E5";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; bgClass: string; textClass: string; borderClass: string }> = {
   paid:            { label: "Paid",            icon: CheckCircle, bgClass: "bg-emerald-50",  textClass: "text-emerald-700",  borderClass: "border-emerald-300" },
@@ -116,6 +116,8 @@ export default function InvoiceDetail() {
   const paymentRef = useRef<HTMLDivElement>(null);
   const { formatPrice } = useCurrency();
   const { toast } = useToast();
+  const branding = useBranding();
+  const BRAND = branding.primaryColor || "#701AFE";
 
   // ── Legacy protection: always format using the invoice's OWN stored currency.
   // This prevents old PKR invoices from being re-converted to the session currency.
@@ -344,12 +346,18 @@ export default function InvoiceDetail() {
         {/* ── HEADER BAND ─────────────────────────────────────────────────────── */}
         <div style={{ background: BRAND }} className="px-8 py-6 flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <span className="text-white font-black text-2xl tracking-tight leading-none">N</span>
-              <span className="text-white/90 font-semibold text-2xl tracking-tight leading-none">oehost</span>
-            </div>
-            <p className="text-white/65 text-[11px] font-medium">Professional Hosting Solutions</p>
-            <p className="text-white/50 text-[10px] mt-0.5">billing@noehost.com</p>
+            {branding.logoUrl ? (
+              <div className="mb-1.5 bg-white/10 rounded-xl px-3 py-2 inline-block backdrop-blur-sm">
+                <img src={branding.logoUrl} alt={branding.siteName} style={{ maxHeight: 36, width: "auto", maxWidth: 180 }} />
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="text-white font-black text-2xl tracking-tight leading-none">{branding.siteName[0]}</span>
+                <span className="text-white/90 font-semibold text-2xl tracking-tight leading-none">{branding.siteName.slice(1)}</span>
+              </div>
+            )}
+            <p className="text-white/65 text-[11px] font-medium">{branding.siteTagline || "Professional Hosting Solutions"}</p>
+            {branding.brandSupportEmail && <p className="text-white/50 text-[10px] mt-0.5">{branding.brandSupportEmail}</p>}
           </div>
           <div className="text-right flex flex-col items-end gap-2">
             <div>
@@ -386,10 +394,10 @@ export default function InvoiceDetail() {
         <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-200 px-0">
           <div className="px-8 py-5">
             <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: BRAND }}>Pay To</p>
-            <p className="font-bold text-slate-800 text-[15px]">Noehost</p>
-            <p className="text-xs text-slate-500 mt-1">billing@noehost.com</p>
-            <p className="text-xs text-slate-500">support@noehost.com</p>
-            <p className="text-xs text-slate-500 mt-0.5">ns1.noehost.com / ns2.noehost.com</p>
+            <p className="font-bold text-slate-800 text-[15px]">{branding.siteName}</p>
+            {branding.brandSupportEmail && <p className="text-xs text-slate-500 mt-1">{branding.brandSupportEmail}</p>}
+            {branding.brandAddress && <p className="text-xs text-slate-500 mt-0.5">{branding.brandAddress}</p>}
+            {branding.brandWebsite && <p className="text-xs text-slate-500 mt-0.5">{branding.brandWebsite}</p>}
           </div>
           <div className="px-8 py-5">
             <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: BRAND }}>Bill To</p>
@@ -680,19 +688,20 @@ export default function InvoiceDetail() {
           </div>
         )}
 
-        {/* ── CEO SIGNATURE ────────────────────────────────────────────────── */}
+        {/* ── ISSUED BY / BRAND STAMP ────────────────────────────────────────── */}
         <div className="border-t border-slate-100 px-8 py-5">
           <div className="flex items-center gap-4">
-            {/* Signature block */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 flex-1">
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Authorized & Issued by</p>
-              <p className="font-black text-[18px] leading-tight" style={{ color: BRAND }}>Muhammad Arslan</p>
-              <p className="text-[12px] font-semibold text-slate-700 mt-0.5">Founder & CEO, Noehost</p>
-              <p className="text-[11px] italic text-slate-400 mt-1.5">
-                "Empowering your digital journey with premium hosting solutions."
-              </p>
+              {branding.logoUrl ? (
+                <img src={branding.logoUrl} alt={branding.siteName} style={{ maxHeight: 28, width: "auto", maxWidth: 160 }} className="mb-1" />
+              ) : (
+                <p className="font-black text-[18px] leading-tight" style={{ color: BRAND }}>{branding.siteName}</p>
+              )}
+              {branding.invoiceFooterText && (
+                <p className="text-[11px] italic text-slate-400 mt-1.5">"{branding.invoiceFooterText}"</p>
+              )}
             </div>
-            {/* Decorative brand accent */}
             <div className="hidden sm:flex flex-col items-center gap-1 shrink-0 opacity-30">
               <div className="w-0.5 h-10 rounded-full" style={{ background: BRAND }} />
               <div className="w-2 h-2 rounded-full" style={{ background: BRAND }} />
@@ -705,21 +714,22 @@ export default function InvoiceDetail() {
         <div className="border-t border-slate-100 px-8 py-5 bg-slate-50/70">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Terms & Conditions</p>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            All services are governed by the Noehost <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline text-violet-600">Terms of Service</a>. Invoices must be paid by the due date to avoid service interruption. For any billing queries, contact <span className="text-slate-600 font-medium">billing@noehost.com</span>. Thank you for choosing Noehost!
+            All services are governed by the {branding.siteName}{" "}
+            <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline text-violet-600">Terms of Service</a>.
+            {" "}Invoices must be paid by the due date to avoid service interruption.
+            {branding.brandSupportEmail && <> For any billing queries, contact <span className="text-slate-600 font-medium">{branding.brandSupportEmail}</span>.</>}
+            {" "}Thank you for choosing {branding.siteName}!
           </p>
         </div>
 
         {/* ── FOOTER ─────────────────────────────────────────────────────────── */}
-        <div
-          className="px-8 py-5 text-center"
-          style={{ background: BRAND }}
-        >
-          <p className="text-white font-bold text-sm">Thank you for choosing Noehost!</p>
+        <div className="px-8 py-5 text-center" style={{ background: BRAND }}>
+          <p className="text-white font-bold text-sm">Thank you for choosing {branding.siteName}!</p>
           <p className="text-white/65 text-[11px] mt-1">
-            support@noehost.com · https://noehost.com · ns1.noehost.com / ns2.noehost.com
+            {[branding.brandSupportEmail, branding.brandWebsite].filter(Boolean).join(" · ")}
           </p>
           <p className="text-white/40 text-[10px] mt-0.5">
-            Invoice #{invoice.invoiceNumber} — Generated by Noehost Billing System
+            Invoice #{invoice.invoiceNumber} — Generated by {branding.siteName} Billing System
           </p>
         </div>
 

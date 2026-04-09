@@ -7,7 +7,15 @@ import { authenticate, requireAdmin } from "../lib/auth.js";
 
 const router = Router();
 
-const CONFIG_KEYS = ["panel_url", "cart_url", "admin_panel_url", "site_name", "site_tagline", "branding_logo", "branding_favicon"];
+const CONFIG_KEYS = [
+  "panel_url", "cart_url", "admin_panel_url",
+  "site_name", "site_tagline",
+  "branding_logo", "branding_favicon",
+  "brand_primary_color", "brand_website", "brand_whatsapp",
+  "brand_address", "brand_support_email",
+  "brand_social_twitter", "brand_social_facebook", "brand_social_linkedin",
+  "invoice_footer_text",
+];
 
 // GET /api/config — public endpoint (no auth required)
 router.get("/config", async (_req, res) => {
@@ -33,6 +41,15 @@ router.get("/config", async (_req, res) => {
       checkoutUrl:  cart,
       logoUrl:      s["branding_logo"]    || null,
       faviconUrl:   s["branding_favicon"] || null,
+      primaryColor:        s["brand_primary_color"]   || "#701AFE",
+      brandWebsite:        s["brand_website"]          || "",
+      brandWhatsapp:       s["brand_whatsapp"]         || "",
+      brandAddress:        s["brand_address"]          || "",
+      brandSupportEmail:   s["brand_support_email"]    || "",
+      brandSocialTwitter:  s["brand_social_twitter"]   || "",
+      brandSocialFacebook: s["brand_social_facebook"]  || "",
+      brandSocialLinkedin: s["brand_social_linkedin"]  || "",
+      invoiceFooterText:   s["invoice_footer_text"]    || "",
     });
   } catch {
     const clientUrl = getClientUrl();

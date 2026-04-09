@@ -4,9 +4,23 @@ import { sendWhatsAppAlert, sendToClientPhone } from "../lib/whatsapp.js";
 import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable, affiliateCommissionsTable, affiliatesTable, hostingPlansTable } from "@workspace/db/schema";
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
-import { emailInvoicePaid } from "../lib/email.js";
+import { emailInvoicePaid, getPublicBrandingVars } from "../lib/email.js";
 import { provisionHostingService } from "../lib/provision.js";
-import { generateInvoicePdf } from "../lib/invoicePdf.js";
+import { generateInvoicePdf, type InvoiceBrandConfig } from "../lib/invoicePdf.js";
+
+async function fetchPdfBrandConfig(): Promise<InvoiceBrandConfig> {
+  try {
+    const branding = await getPublicBrandingVars();
+    return {
+      siteName:     branding.company_name || "Noehost",
+      brandColor:   branding.brand_color  || "#701AFE",
+      website:      branding.website_url  || "",
+      supportEmail: branding.support_email || "",
+    };
+  } catch {
+    return {};
+  }
+}
 
 const router = Router();
 
@@ -706,6 +720,7 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
         const inv = formatInvoice(updated, `${u.firstName} ${u.lastName}`);
         let pdfBuf: Buffer | undefined;
         try {
+          const pdfBrand = await fetchPdfBrandConfig();
           pdfBuf = await generateInvoicePdf({
             invoiceNumber: inv.invoiceNumber, status: "paid",
             createdAt: inv.createdAt, dueDate: inv.dueDate, paidDate: inv.paidDate,
@@ -715,7 +730,7 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
             currencyCode: (updated as any).currencyCode ?? "PKR",
             currencySymbol: (updated as any).currencySymbol ?? "Rs.",
             currencyRate: Number((updated as any).currencyRate ?? 1),
-          });
+          }, pdfBrand);
         } catch { /* PDF generation failure is non-fatal */ }
         await emailInvoicePaid(u.email, {
           clientName: `${u.firstName} ${u.lastName}`,
@@ -861,6 +876,7 @@ router.get("/my/invoices/:id/pdf", authenticate, async (req: AuthRequest, res) =
     const creditApplied = isUnpaidStatus(invoice.status)
       ? Math.min(parseFloat(user?.creditBalance ?? "0"), Number(invoice.total ?? 0))
       : 0;
+    const pdfBrandCfg = await fetchPdfBrandConfig();
     const pdf = await generateInvoicePdf({
       invoiceNumber: invoice.invoiceNumber ?? invoice.id,
       status: invoice.status ?? "unpaid",
@@ -879,9 +895,10 @@ router.get("/my/invoices/:id/pdf", authenticate, async (req: AuthRequest, res) =
       currencyCode: (invoice as any).currencyCode ?? "PKR",
       currencySymbol: (invoice as any).currencySymbol ?? "Rs.",
       currencyRate: Number((invoice as any).currencyRate ?? 1),
-    });
+    }, pdfBrandCfg);
+    const dlName = pdfBrandCfg.siteName || "Invoice";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="Noehost-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${dlName}-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
     res.setHeader("Content-Length", pdf.length);
     res.end(pdf);
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
@@ -902,6 +919,7 @@ router.get("/admin/invoices/:id/pdf", authenticate, requireAdmin, async (req: Au
       unitPrice: Number(it.unitPrice ?? it.amount ?? invoice.amount ?? 0),
       total: Number(it.total ?? it.amount ?? invoice.amount ?? 0),
     }));
+    const pdfBrandCfg2 = await fetchPdfBrandConfig();
     const pdf = await generateInvoicePdf({
       invoiceNumber: invoice.invoiceNumber ?? invoice.id,
       status: invoice.status ?? "unpaid",
@@ -919,9 +937,10 @@ router.get("/admin/invoices/:id/pdf", authenticate, requireAdmin, async (req: Au
       currencyCode: (invoice as any).currencyCode ?? "PKR",
       currencySymbol: (invoice as any).currencySymbol ?? "Rs.",
       currencyRate: Number((invoice as any).currencyRate ?? 1),
-    });
+    }, pdfBrandCfg2);
+    const dlName2 = pdfBrandCfg2.siteName || "Invoice";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="Noehost-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${dlName2}-Invoice-${invoice.invoiceNumber ?? invoice.id}.pdf"`);
     res.setHeader("Content-Length", pdf.length);
     res.end(pdf);
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }

@@ -1,12 +1,24 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload, Trash2, Image, CheckCircle2, AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { Upload, Trash2, Image, CheckCircle2, AlertCircle, Loader2, RefreshCw, Palette, Globe, Phone, MapPin, Mail, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface BrandingSettings {
   logoUrl: string | null;
   faviconUrl: string | null;
   siteName: string;
+  primaryColor: string;
+  brandWebsite: string;
+  brandWhatsapp: string;
+  brandAddress: string;
+  brandSupportEmail: string;
+  brandSocialTwitter: string;
+  brandSocialFacebook: string;
+  brandSocialLinkedin: string;
+  invoiceFooterText: string;
 }
 
 export default function Branding() {
@@ -20,6 +32,17 @@ export default function Branding() {
   const [saving, setSaving] = useState<"logo" | "favicon" | null>(null);
   const [removing, setRemoving] = useState<"logo" | "favicon" | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
+  const [brandColor, setBrandColor] = useState("#701AFE");
+  const [website, setWebsite] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [address, setAddress] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [socialTwitter, setSocialTwitter] = useState("");
+  const [socialFacebook, setSocialFacebook] = useState("");
+  const [socialLinkedin, setSocialLinkedin] = useState("");
+  const [invoiceFooter, setInvoiceFooter] = useState("");
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +56,19 @@ export default function Branding() {
     },
     staleTime: 0,
   });
+
+  useEffect(() => {
+    if (!branding) return;
+    setBrandColor(branding.primaryColor || "#701AFE");
+    setWebsite(branding.brandWebsite || "");
+    setWhatsapp(branding.brandWhatsapp || "");
+    setAddress(branding.brandAddress || "");
+    setSupportEmail(branding.brandSupportEmail || "");
+    setSocialTwitter(branding.brandSocialTwitter || "");
+    setSocialFacebook(branding.brandSocialFacebook || "");
+    setSocialLinkedin(branding.brandSocialLinkedin || "");
+    setInvoiceFooter(branding.invoiceFooterText || "");
+  }, [branding]);
 
   const activeFaviconUrl = faviconPreview ?? branding?.faviconUrl ?? null;
   const activeLogoUrl = logoPreview ?? branding?.logoUrl ?? null;
@@ -51,6 +87,35 @@ export default function Branding() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["branding-config"] });
+  };
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true);
+    try {
+      const res = await fetch("/api/admin/branding/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          brand_primary_color: brandColor,
+          brand_website: website,
+          brand_whatsapp: whatsapp,
+          brand_address: address,
+          brand_support_email: supportEmail,
+          brand_social_twitter: socialTwitter,
+          brand_social_facebook: socialFacebook,
+          brand_social_linkedin: socialLinkedin,
+          invoice_footer_text: invoiceFooter,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      showToast("success", "Brand settings saved");
+      invalidate();
+    } catch (err: any) {
+      showToast("error", err.message || "Save failed");
+    } finally {
+      setSettingsSaving(false);
+    }
   };
 
   const handleFileChange = (
@@ -367,6 +432,99 @@ export default function Branding() {
               </div>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Brand Settings — color, contact, social, footer */}
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Brand Settings</h3>
+          <p className="text-sm text-muted-foreground mt-1">Used in emails, invoices, and the client portal footer.</p>
+        </div>
+
+        {/* Color */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2 text-sm font-medium">
+            <Palette size={14} className="text-muted-foreground" /> Brand Color
+          </Label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={brandColor}
+              onChange={e => setBrandColor(e.target.value)}
+              className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-background p-0.5"
+            />
+            <Input
+              value={brandColor}
+              onChange={e => setBrandColor(e.target.value)}
+              placeholder="#701AFE"
+              className="font-mono w-36"
+            />
+            <div className="h-9 w-9 rounded-lg shrink-0 border border-border" style={{ background: brandColor }} />
+            <span className="text-xs text-muted-foreground">Used in email headers &amp; invoice banners</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Website */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <Globe size={14} className="text-muted-foreground" /> Website URL
+            </Label>
+            <Input value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://noehost.com" />
+          </div>
+          {/* Support email */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <Mail size={14} className="text-muted-foreground" /> Support Email
+            </Label>
+            <Input value={supportEmail} onChange={e => setSupportEmail(e.target.value)} placeholder="support@noehost.com" type="email" />
+          </div>
+          {/* WhatsApp */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <Phone size={14} className="text-muted-foreground" /> WhatsApp Number
+            </Label>
+            <Input value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="+92 300 0000000" />
+          </div>
+          {/* Address */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <MapPin size={14} className="text-muted-foreground" /> Business Address
+            </Label>
+            <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Street, City, Country" />
+          </div>
+        </div>
+
+        {/* Social links */}
+        <div className="space-y-3">
+          <Label className="flex items-center gap-2 text-sm font-medium">
+            <Share2 size={14} className="text-muted-foreground" /> Social Links
+          </Label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input value={socialTwitter} onChange={e => setSocialTwitter(e.target.value)} placeholder="https://twitter.com/…" />
+            <Input value={socialFacebook} onChange={e => setSocialFacebook(e.target.value)} placeholder="https://facebook.com/…" />
+            <Input value={socialLinkedin} onChange={e => setSocialLinkedin(e.target.value)} placeholder="https://linkedin.com/…" />
+          </div>
+          <p className="text-xs text-muted-foreground">Twitter / X · Facebook · LinkedIn</p>
+        </div>
+
+        {/* Invoice / email footer */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Invoice &amp; Email Footer Text</Label>
+          <Textarea
+            value={invoiceFooter}
+            onChange={e => setInvoiceFooter(e.target.value)}
+            rows={3}
+            placeholder="e.g. All prices are in PKR. Prices are subject to change without notice."
+          />
+          <p className="text-xs text-muted-foreground">Displayed at the bottom of PDF invoices and email footers.</p>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={handleSaveSettings} disabled={settingsSaving}>
+            {settingsSaving ? <><Loader2 size={15} className="animate-spin mr-2" />Saving…</> : "Save Brand Settings"}
+          </Button>
         </div>
       </div>
     </div>

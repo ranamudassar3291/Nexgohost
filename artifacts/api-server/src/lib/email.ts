@@ -25,9 +25,18 @@ import { eq } from "drizzle-orm";
  * Double-brace is checked first to avoid partial matches.
  */
 function renderTemplate(template: string, vars: Record<string, string>): string {
-  return template
+  let result = template;
+  // Mustache-style conditional sections: {{#var}}...{{/var}} shown when var is truthy
+  result = result.replace(/\{\{#([a-z0-9_]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, inner) =>
+    vars[key] ? inner : "");
+  // Inverse sections: {{^var}}...{{/var}} shown when var is falsy
+  result = result.replace(/\{\{\^([a-z0-9_]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, key, inner) =>
+    vars[key] ? "" : inner);
+  // Standard variable replacements (double-brace first)
+  result = result
     .replace(/\{\{([a-z0-9_]+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
     .replace(/\{([a-z0-9_]+)\}/g,     (_, key) => vars[key] ?? `{${key}}`);
+  return result;
 }
 
 /** Strip HTML tags for plain-text fallback */
@@ -240,29 +249,65 @@ export async function sendEmail(opts: {
   return { sent: false, message: lastError, logId: failLogId };
 }
 
-let _brandingCache: { logo: string | null; company: string } | null = null;
+export interface BrandingVars {
+  logo_url: string;
+  company_name: string;
+  brand_color: string;
+  website_url: string;
+  whatsapp_number: string;
+  support_url: string;
+  footer_address: string;
+  support_email: string;
+  social_twitter: string;
+  social_facebook: string;
+  social_linkedin: string;
+}
+
+let _brandingCache: BrandingVars | null = null;
 let _brandingCachedAt = 0;
 const BRANDING_TTL_MS = 60_000;
 
-async function getBrandingVars(): Promise<{ logo_url: string; company_name: string }> {
+async function getBrandingVars(): Promise<BrandingVars> {
   const now = Date.now();
-  if (_brandingCache && now - _brandingCachedAt < BRANDING_TTL_MS) {
-    return { logo_url: _brandingCache.logo ?? "", company_name: _brandingCache.company };
-  }
+  if (_brandingCache && now - _brandingCachedAt < BRANDING_TTL_MS) return _brandingCache;
   try {
     const rows = await db.select().from(settingsTable);
     const map: Record<string, string> = {};
     for (const r of rows) if (r.key && r.value) map[r.key] = r.value;
     const logoPath  = map["branding_logo"] ?? null;
-    const company   = map["site_name"]     ?? map["smtp_from_name"] ?? "Noehost";
+    const company   = map["site_name"]  ?? map["smtp_from_name"] ?? "Noehost";
     const baseUrl   = getClientUrl();
     const logo_url  = logoPath ? `${baseUrl}${logoPath}` : "";
-    _brandingCache    = { logo: logo_url || null, company };
+    const brand_color     = map["brand_primary_color"] ?? "#701AFE";
+    const website_url     = map["brand_website"]       || baseUrl;
+    const whatsapp_raw    = map["brand_whatsapp"]      || "923151711821";
+    const whatsapp_number = whatsapp_raw.replace(/\D/g, "");
+    const support_url     = `${baseUrl}/client/tickets/new`;
+    const footer_address  = map["brand_address"]       || "";
+    const support_email   = map["brand_support_email"] || map["smtp_from"] || "";
+    const social_twitter  = map["brand_social_twitter"]  || "";
+    const social_facebook = map["brand_social_facebook"] || "";
+    const social_linkedin = map["brand_social_linkedin"] || "";
+    _brandingCache = {
+      logo_url, company_name: company, brand_color,
+      website_url, whatsapp_number, support_url,
+      footer_address, support_email,
+      social_twitter, social_facebook, social_linkedin,
+    };
     _brandingCachedAt = now;
-    return { logo_url, company_name: company };
+    return _brandingCache;
   } catch {
-    return { logo_url: "", company_name: "Noehost" };
+    return {
+      logo_url: "", company_name: "Noehost", brand_color: "#701AFE",
+      website_url: "", whatsapp_number: "923151711821",
+      support_url: "/client/tickets/new", footer_address: "",
+      support_email: "", social_twitter: "", social_facebook: "", social_linkedin: "",
+    };
   }
+}
+
+export async function getPublicBrandingVars(): Promise<BrandingVars> {
+  return getBrandingVars();
 }
 
 export function clearBrandingCache(): void {
@@ -319,19 +364,22 @@ export async function sendTemplatedEmail(
 }
 
 // ─── Convenience helpers ──────────────────────────────────────────────────────
-const COMPANY = "Noehost";
 
-/** WhatsApp support footer — appended to all inline client-facing HTML emails */
-const WA_FOOTER = `
+/** Build dynamic WhatsApp support footer for inline HTML emails */
+function buildWaFooter(b: BrandingVars): string {
+  if (!b.whatsapp_number) return "";
+  const msg = encodeURIComponent(`Hello ${b.company_name} Support, I have a query regarding my service.`);
+  return `
 <div style="background:#f0fff4;border-top:2px solid #25D366;padding:20px 32px;text-align:center;margin-top:32px;border-radius:0 0 10px 10px">
   <p style="margin:0 0 10px;color:#166534;font-size:13px;font-weight:600;font-family:Arial,sans-serif">
     &#128640; Need help? We reply within minutes!
   </p>
-  <a href="https://wa.me/923151711821?text=Hello%20Noehost%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
+  <a href="https://wa.me/${b.whatsapp_number}?text=${msg}"
      style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Arial,sans-serif">
     &#128222; Contact Support on WhatsApp
   </a>
 </div>`;
+}
 
 /**
  * Send email verification code.
@@ -346,7 +394,6 @@ export async function emailVerificationCode(
   return sendTemplatedEmail("email-verification", to, {
     client_name: clientName,
     verification_code: code,
-    company_name: COMPANY,
   }, meta);
 }
 
@@ -363,7 +410,6 @@ export async function emailInvoiceCreated(to: string, vars: {
     });
   }
   return sendTemplatedEmail("invoice-created", to, {
-    company_name: COMPANY,
     client_area_url: vars.clientAreaUrl || getClientUrl(),
     client_name: vars.clientName,
     invoice_id: vars.invoiceId,
@@ -387,7 +433,6 @@ export async function emailInvoicePaid(to: string, vars: {
     });
   }
   return sendTemplatedEmail("invoice-paid", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     invoice_id: vars.invoiceId,
     invoice_number: vars.invoiceNumber ?? vars.invoiceId,
@@ -406,7 +451,6 @@ export async function emailHostingCreated(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("hosting-created", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     username: vars.username,
@@ -422,7 +466,6 @@ export async function emailOrderCreated(to: string, vars: {
   clientName: string; serviceName: string; domain: string; orderId: string;
 }) {
   return sendTemplatedEmail("order-created", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     service_name: vars.serviceName,
     domain: vars.domain,
@@ -434,7 +477,6 @@ export async function emailServiceSuspended(to: string, vars: {
   clientName: string; domain: string; reason: string; clientAreaUrl?: string;
 }) {
   return sendTemplatedEmail("service-suspended", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     reason: vars.reason,
@@ -443,8 +485,7 @@ export async function emailServiceSuspended(to: string, vars: {
 }
 
 export async function emailGeneric(to: string, subject: string, clientName: string, message: string) {
-  return sendTemplatedEmail("welcome", to, {
-    company_name: COMPANY, client_name: clientName, subject, message,
+  return sendTemplatedEmail("welcome", to, { client_name: clientName, subject, message,
     custom_message: message,
   });
 }
@@ -453,7 +494,6 @@ export async function emailCancellationConfirmed(to: string, vars: {
   clientName: string; domain: string; serviceName: string; cancelDate: string;
 }) {
   return sendTemplatedEmail("service-cancelled", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     service_name: vars.serviceName,
@@ -467,7 +507,6 @@ export async function emailWelcome(
   meta?: { clientId?: string },
 ) {
   return sendTemplatedEmail("welcome", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     dashboard_url: vars.dashboardUrl || `${getClientUrl()}/dashboard`,
     ...(vars.username ? { username: vars.username } : {}),
@@ -480,7 +519,6 @@ export async function emailDomainRegistered(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("domain-registered", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     registration_date: vars.registrationDate || new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" }),
@@ -498,7 +536,6 @@ export async function emailDomainExpiryWarning(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("domain-expiry-warning", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain_name: vars.domainName,
     expiry_date: vars.expiryDate,
@@ -514,7 +551,6 @@ export async function emailTerminationWarning(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("service-termination-warning", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     service_name: vars.serviceName,
@@ -530,7 +566,6 @@ export async function emailServiceTerminated(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("service-terminated", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     service_name: vars.serviceName,
@@ -544,7 +579,6 @@ export async function emailRefundProcessed(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("refund-processed", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     refund_amount: vars.refundAmount,
     invoice_id: vars.invoiceId,
@@ -558,7 +592,6 @@ export async function emailPasswordReset(
   vars: { clientName: string; resetLink: string },
 ) {
   return sendTemplatedEmail("password-reset", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     reset_link: vars.resetLink,
   });
@@ -582,7 +615,6 @@ export async function emailResellerHostingCreated(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("reseller-hosting-created", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     username: vars.username,
     password: vars.password,
@@ -615,7 +647,6 @@ export async function emailVpsCreated(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("vps-created", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     server_ip: vars.serverIp,
     ssh_port: vars.sshPort,
@@ -645,7 +676,6 @@ export async function emailHostingRenewalReminder(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("hosting-renewal-reminder", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     service_name: vars.serviceName,
     domain_or_ip: vars.domainOrIp,
@@ -1006,7 +1036,6 @@ export async function emailDomainRenewalReminder(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("domain-renewal-reminder", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain_name: vars.domainName,
     expiry_date: vars.expiryDate,
@@ -1029,7 +1058,6 @@ export async function emailWordPressInstalled(
   meta?: { clientId?: string; referenceId?: string },
 ) {
   return sendTemplatedEmail("wordpress-installed", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     domain: vars.domain,
     site_url: vars.siteUrl,
@@ -1058,7 +1086,6 @@ export async function emailServiceActivated(
 ): Promise<{ sent: boolean; message: string }> {
   // 1. Try the customisable DB template
   const dbResult = await sendTemplatedEmail("service-activated", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     invoice_number: vars.invoiceNumber,
     domain: vars.domain,
@@ -1068,20 +1095,21 @@ export async function emailServiceActivated(
   if (dbResult.sent) return dbResult;
 
   // 2. Inline HTML fallback (works even if the DB template hasn't been created yet)
+  const b = await getBrandingVars();
   const dashUrl = vars.dashboardUrl || `${getClientUrl()}/dashboard`;
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif">
   <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-    <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:40px;text-align:center">
+    <div style="background:${b.brand_color};padding:40px;text-align:center">
       <div style="font-size:48px;margin-bottom:12px">🚀</div>
       <h1 style="color:#fff;margin:0;font-size:26px;font-weight:700">Your Service is Now Active!</h1>
-      <p style="color:rgba(255,255,255,.85);margin:8px 0 0;font-size:15px">${COMPANY}</p>
+      <p style="color:rgba(255,255,255,.85);margin:8px 0 0;font-size:15px">${b.company_name}</p>
     </div>
     <div style="padding:40px">
       <p style="margin:0 0 16px;color:#374151;font-size:15px">Dear <strong>${vars.clientName}</strong>,</p>
       <p style="margin:0 0 20px;color:#374151;font-size:15px">
-        We have successfully received your payment via Safepay for Invoice
+        We have successfully received your payment for Invoice
         <strong>#${vars.invoiceNumber}</strong>. Your hosting/domain service is now
         <span style="color:#16a34a;font-weight:700">Active</span>.
       </p>
@@ -1096,18 +1124,18 @@ export async function emailServiceActivated(
         access cPanel, and more.
       </p>
       <div style="text-align:center;margin:32px 0">
-        <a href="${dashUrl}" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block">
+        <a href="${dashUrl}" style="background:${b.brand_color};color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block">
           Manage My Services →
         </a>
       </div>
       <p style="margin:32px 0 0;color:#6b7280;font-size:14px;text-align:center">
-        Thank you for choosing <strong>${COMPANY}</strong>! 🎉
+        Thank you for choosing <strong>${b.company_name}</strong>! 🎉
       </p>
     </div>
-    ${WA_FOOTER}
+    ${buildWaFooter(b)}
     <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center">
       <p style="margin:0;color:#9ca3af;font-size:13px">
-        © ${new Date().getFullYear()} ${COMPANY}. All rights reserved.
+        © ${new Date().getFullYear()} ${b.company_name}. All rights reserved.
       </p>
     </div>
   </div>
@@ -1115,7 +1143,7 @@ export async function emailServiceActivated(
 
   return sendEmail({
     to,
-    subject: `🚀 Your Service is Now Active! - ${COMPANY}`,
+    subject: `🚀 Your Service is Now Active! - ${b.company_name}`,
     html,
     emailType: "service-activated",
     clientId: meta?.clientId,
@@ -1144,7 +1172,6 @@ export async function emailPaymentUnderReview(
   const viewUrl = `${getClientUrl()}/invoices/${vars.invoiceId}`;
 
   const dbResult = await sendTemplatedEmail("payment-under-review", to, {
-    company_name: COMPANY,
     client_name: vars.clientName,
     invoice_number: vars.invoiceNumber,
     service_name: vars.serviceName,
@@ -1156,14 +1183,15 @@ export async function emailPaymentUnderReview(
   if (dbResult.sent) return dbResult;
 
   // Inline HTML fallback
+  const b2 = await getBrandingVars();
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif">
   <div style="max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
-    <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:32px 40px;text-align:center">
+    <div style="background:${b2.brand_color};padding:32px 40px;text-align:center">
       <div style="font-size:40px;margin-bottom:8px">🔍</div>
       <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">Payment Under Review</h1>
-      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:14px">${COMPANY}</p>
+      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:14px">${b2.company_name}</p>
     </div>
     <div style="padding:36px 40px">
       <p style="margin:0 0 16px;color:#374151;font-size:15px">Dear <strong>${vars.clientName}</strong>,</p>
@@ -1177,7 +1205,7 @@ export async function emailPaymentUnderReview(
         <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Invoice #:</strong> ${vars.invoiceNumber}</p>
         <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Service:</strong> ${vars.serviceName}</p>
         <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Domain:</strong> ${vars.domain}</p>
-        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Amount:</strong> Rs. ${vars.amount}</p>
+        <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Amount:</strong> ${vars.amount}</p>
         <p style="margin:0 0 6px;color:#374151;font-size:13px"><strong>Payment via:</strong> ${vars.paymentMethod}</p>
         <p style="margin:0;color:#d97706;font-size:13px;font-weight:700"><strong>Status:</strong> ⏳ Pending Review</p>
       </div>
@@ -1188,21 +1216,21 @@ export async function emailPaymentUnderReview(
         3. You'll receive a separate email when your service goes live.
       </div>
       <div style="text-align:center;margin:28px 0">
-        <a href="${viewUrl}" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block">
+        <a href="${viewUrl}" style="background:${b2.brand_color};color:#fff;text-decoration:none;padding:13px 32px;border-radius:8px;font-weight:600;font-size:15px;display:inline-block">
           View Invoice →
         </a>
       </div>
     </div>
-    ${WA_FOOTER}
+    ${buildWaFooter(b2)}
     <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center">
-      <p style="margin:0;color:#9ca3af;font-size:12px">© ${new Date().getFullYear()} ${COMPANY}. All rights reserved.</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px">© ${new Date().getFullYear()} ${b2.company_name}. All rights reserved.</p>
     </div>
   </div>
 </body></html>`;
 
   return sendEmail({
     to,
-    subject: `🔍 Payment Under Review — Invoice #${vars.invoiceNumber} — ${COMPANY}`,
+    subject: `🔍 Payment Under Review — Invoice #${vars.invoiceNumber} — ${b2.company_name}`,
     html,
     emailType: "payment-under-review",
     clientId: meta?.clientId,
@@ -1228,6 +1256,7 @@ export async function emailAdminSaleAlert(
   },
 ): Promise<{ sent: boolean; message: string }> {
   const adminUrl = vars.adminPanelUrl || `${getAppUrl()}/admin/invoices`;
+  const bAdm = await getBrandingVars();
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif">
@@ -1235,7 +1264,7 @@ export async function emailAdminSaleAlert(
     <div style="background:linear-gradient(135deg,#059669,#047857);padding:32px 40px;text-align:center">
       <div style="font-size:40px;margin-bottom:8px">⚡</div>
       <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700">New Auto-Activation via Safepay</h1>
-      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:13px">${COMPANY} — Admin Alert</p>
+      <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:13px">${bAdm.company_name} — Admin Alert</p>
     </div>
     <div style="padding:36px 40px">
       <p style="margin:0 0 20px;color:#374151;font-size:14px">
@@ -1280,7 +1309,7 @@ export async function emailAdminSaleAlert(
     </div>
     <div style="background:#f9fafb;padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center">
       <p style="margin:0;color:#9ca3af;font-size:12px">
-        This is an automated alert from ${COMPANY} — no reply needed.
+        This is an automated alert from ${bAdm.company_name} — no reply needed.
       </p>
     </div>
   </div>
@@ -1386,6 +1415,7 @@ export async function emailSpaceshipPriceAlert(
     usdToPkr: string;
   },
 ): Promise<{ sent: boolean; message: string }> {
+  const bAlert = await getBrandingVars();
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#0f0f0f;font-family:Arial,sans-serif">
@@ -1427,7 +1457,7 @@ export async function emailSpaceshipPriceAlert(
       </div>
     </div>
     <div style="background:#111;padding:16px 40px;text-align:center;border-top:1px solid #2d2d2d">
-      <p style="margin:0;color:#4b5563;font-size:11px">${COMPANY} Loss-Prevention System • Registration ID has been queued for manual review</p>
+      <p style="margin:0;color:#4b5563;font-size:11px">${bAlert.company_name} Loss-Prevention System • Registration ID has been queued for manual review</p>
     </div>
   </div>
 </body></html>`;
