@@ -370,6 +370,17 @@ async function request<T = any>(
     const raw403 = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
     const perm = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
+    const blockedIp = d403?.user ?? d403?.error?.data?.user ?? d403?.data?.user ?? null;
+
+    if (perm === "IpMatch" || perm === "IpRange") {
+      const ipLine = blockedIp ? `IP "${blockedIp}"` : "your server's outbound IP";
+      throw new Error(
+        `20i API 403 — IP not whitelisted. ${ipLine} is blocked by 20i. ` +
+        `Go to my.20i.com → Reseller API → IP Whitelist and add ${blockedIp ?? "your outbound IP"}. ` +
+        `Or set a Static IP Proxy URL in Admin → Servers.`,
+      );
+    }
+
     const detail = perm
       ? ` (permission: ${perm})`
       : raw403 && raw403 !== "{}" && raw403 !== "null"
@@ -1018,10 +1029,18 @@ export async function twentyiCreateHosting(
         resolvedPackageTypeId = types[0].id;
         console.log(`[20i-CREATE] Auto-selected package type: id="${resolvedPackageTypeId}" label="${types[0].label}" (${types.length} type(s) available)`);
       } else {
-        console.warn("[20i-CREATE] No package types found — sending addWeb without type field (may fail on some accounts)");
+        // No package types found from either /reseller/*/packageTypes or /package fallback.
+        // Sending addWeb without `type` WILL cause 20i to return 403 — throw a clear error instead.
+        throw new Error(
+          "No 20i package types found on this account. " +
+          "Log in to your 20i reseller portal (my.20i.com), create at least one Hosting Package Type, " +
+          "then return here and retry activation. " +
+          "Alternatively, select a package type manually in the activation modal.",
+        );
       }
     } catch (pkgErr: any) {
-      console.warn(`[20i-CREATE] Failed to auto-fetch package types (non-fatal): ${pkgErr?.message}`);
+      // Re-throw errors that originate from this block (including the one above)
+      throw pkgErr;
     }
   } else {
     console.log(`[20i-CREATE] Using configured package type: id="${resolvedPackageTypeId}"`);
