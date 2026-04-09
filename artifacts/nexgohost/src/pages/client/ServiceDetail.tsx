@@ -194,23 +194,10 @@ function NotAvailable({ reason }: { reason: string }) {
   );
 }
 
-// ─── SSO Launch Helper ────────────────────────────────────────────────────────
-async function ssoLaunch(serviceId: string, target: string, toast: any) {
-  try {
-    const data = await apiFetch(`/client/hosting/${serviceId}/sso-launch`, {
-      method: "POST", body: JSON.stringify({ target }),
-    });
-    if (data.url) window.open(data.url, "_blank", "noopener");
-    else toast({ title: "Error", description: "No URL returned", variant: "destructive" });
-  } catch (err: any) {
-    toast({ title: "Could not open", description: err.message, variant: "destructive" });
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: OVERVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
-function SectionOverview({ service, plan, onSsoLaunch }: { service: Service; plan: HostingPlan | null; onSsoLaunch: (target: string) => void }) {
+function SectionOverview({ service, plan, navigateTo }: { service: Service; plan: HostingPlan | null; navigateTo: (s: NavSection) => void }) {
   const { formatPrice } = useCurrency();
   const [usage, setUsage] = useState<any>(null);
 
@@ -234,15 +221,19 @@ function SectionOverview({ service, plan, onSsoLaunch }: { service: Service; pla
     <div className="space-y-5">
       <SectionHeader title="Hosting Overview" description="Your hosting service at a glance" />
 
-      {/* Quick Actions */}
+      {/* Quick Actions — navigate to internal panel sections */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: "cPanel", icon: LayoutDashboard, target: "cpanel", color: "text-violet-600 bg-violet-50" },
-          { label: "File Manager", icon: FolderOpen, target: "filemanager", color: "text-blue-600 bg-blue-50" },
-          { label: "Email", icon: Mail, target: "email", color: "text-emerald-600 bg-emerald-50" },
-          { label: "Databases", icon: Database, target: "databases", color: "text-amber-600 bg-amber-50" },
-        ].map(a => (
-          <button key={a.target} onClick={() => onSsoLaunch(a.target)}
+        {([
+          { label: "File Manager", icon: FolderOpen, section: "files"     as NavSection, color: "text-blue-600 bg-blue-50" },
+          { label: "Email",        icon: Mail,        section: "email"     as NavSection, color: "text-emerald-600 bg-emerald-50" },
+          { label: "Databases",    icon: Database,    section: "databases" as NavSection, color: "text-amber-600 bg-amber-50" },
+          { label: "WordPress",    icon: Globe,       section: "wordpress" as NavSection, color: "text-violet-600 bg-violet-50" },
+          { label: "Backup",       icon: HardDrive,   section: "backup"    as NavSection, color: "text-rose-600 bg-rose-50" },
+          { label: "SSH Access",   icon: Terminal,    section: "ssh"       as NavSection, color: "text-slate-600 bg-slate-100" },
+          { label: "Node.js",      icon: Code2,       section: "nodejs"    as NavSection, color: "text-green-600 bg-green-50" },
+          { label: "SSL",          icon: ShieldCheck, section: "ssl"       as NavSection, color: "text-teal-600 bg-teal-50" },
+        ] as const).map(a => (
+          <button key={a.section} onClick={() => navigateTo(a.section)}
             className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-card hover:bg-muted transition-colors cursor-pointer">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${a.color}`}>
               <a.icon size={18} />
@@ -559,7 +550,7 @@ function SectionEmail({ service }: { service: Service }) {
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
 
-  if (!isWHM) return <NotAvailable reason="Email management via this panel requires a cPanel/WHM server. Use the cPanel button for email management." />;
+  if (!isWHM) return <NotAvailable reason="Email management is available on WHM/cPanel servers. This hosting account uses a different server type — contact support for help." />;
 
   return (
     <div className="space-y-5">
@@ -701,7 +692,7 @@ function SectionDatabases({ service }: { service: Service }) {
     finally { setPmaLoading(false); }
   }
 
-  if (!isWHM) return <NotAvailable reason="Database management requires a cPanel/WHM server. Use the cPanel button to access databases." />;
+  if (!isWHM) return <NotAvailable reason="Database management is available on WHM/cPanel servers. This hosting account uses a different server type — contact support for assistance." />;
 
   return (
     <div className="space-y-5">
@@ -905,7 +896,7 @@ function SectionFiles({ service }: { service: Service }) {
 
   const breadcrumbs = currentPath.split("/").filter(Boolean);
 
-  if (!isWHM) return <NotAvailable reason="File Manager requires a cPanel/WHM server." />;
+  if (!isWHM) return <NotAvailable reason="File Manager is available on WHM/cPanel servers. This account uses a different server type." />;
 
   if (editFile) {
     return (
@@ -1114,7 +1105,7 @@ function SectionSSH({ service }: { service: Service }) {
     finally { setToggling(false); }
   }
 
-  if (!isWHM) return <NotAvailable reason="SSH management requires a cPanel/WHM server." />;
+  if (!isWHM) return <NotAvailable reason="SSH access management is available on WHM/cPanel servers. This account uses a different server type." />;
 
   return (
     <div className="space-y-5">
@@ -1313,7 +1304,7 @@ function SectionNodejs({ service }: { service: Service }) {
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
 
-  if (!isWHM) return <NotAvailable reason="Node.js app management requires a cPanel/WHM server with Node.js Selector enabled." />;
+  if (!isWHM) return <NotAvailable reason="Node.js app management requires a WHM/cPanel server with Node.js Selector enabled. This account uses a different server type." />;
 
   return (
     <div className="space-y-5">
@@ -1438,7 +1429,7 @@ function SectionPython({ service }: { service: Service }) {
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
 
-  if (!isWHM) return <NotAvailable reason="Python app management requires a cPanel/WHM server with Python Selector enabled." />;
+  if (!isWHM) return <NotAvailable reason="Python app management requires a WHM/cPanel server with Python Selector enabled. This account uses a different server type." />;
 
   return (
     <div className="space-y-5">
@@ -1642,9 +1633,6 @@ export default function ServiceDetail() {
 
   useEffect(() => { if (serviceId) fetchService(); }, [serviceId]);
 
-  async function handleSsoLaunch(target: string) {
-    await ssoLaunch(serviceId!, target, toast);
-  }
 
   if (loading) {
     return (
@@ -1683,9 +1671,13 @@ export default function ServiceDetail() {
           <span className="text-sm text-muted-foreground">·</span>
           <span className="text-sm font-medium text-foreground">{service.domain || "Hosting Service"}</span>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleSsoLaunch("cpanel")} className="gap-1.5">
-              <ExternalLink size={13} /> cPanel
-            </Button>
+            {service.domain && (
+              <Button variant="outline" size="sm"
+                onClick={() => window.open(`https://${service.domain}`, "_blank", "noopener")}
+                className="gap-1.5">
+                <ExternalLink size={13} /> Visit Site
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={fetchService} className="text-muted-foreground">
               <RefreshCw size={14} />
             </Button>
@@ -1702,7 +1694,7 @@ export default function ServiceDetail() {
 
         {/* Section Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {section === "overview"   && <SectionOverview service={service} plan={plan} onSsoLaunch={handleSsoLaunch} />}
+          {section === "overview"   && <SectionOverview service={service} plan={plan} navigateTo={setSection} />}
           {section === "wordpress"  && <SectionWordPress service={service} refetch={fetchService} />}
           {section === "domains"    && <SectionDomains service={service} />}
           {section === "email"      && <SectionEmail service={service} />}
