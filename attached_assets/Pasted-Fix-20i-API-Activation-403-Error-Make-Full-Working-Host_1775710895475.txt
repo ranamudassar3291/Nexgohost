@@ -1,0 +1,200 @@
+Fix 20i API Activation 403 Error + Make Full Working Hosting Automation
+
+Current Status:
+
+- API connected successfully
+- Packages fetched successfully
+- Order activation fails
+- Error: 403 Forbidden from 20i API
+
+This means wrong API request or permission issue.
+
+Fix everything completely.
+
+------------------------------------------------
+
+1. Fix Authentication Header
+
+20i requires:
+
+Authorization: Bearer {API_KEY}
+
+Ensure:
+
+headers = {
+Authorization: `Bearer ${apiKey}`,
+Content-Type: "application/json"
+}
+
+Remove:
+
+Basic auth
+base64 encoding
+custom headers
+
+Use only Bearer token.
+
+------------------------------------------------
+
+2. Use Correct 20i Account Creation Endpoint
+
+Use:
+
+POST https://api.20i.com/reseller/packages/{packageId}/accounts
+
+OR
+
+POST https://api.20i.com/reseller/hosting/accounts
+
+Use official 20i documentation endpoint.
+
+------------------------------------------------
+
+3. Send Required Fields
+
+Payload must include:
+
+{
+"domain": "clientdomain.com",
+"username": "auto_generated",
+"password": "auto_generated",
+"email": "client@email.com",
+"packageId": "package_id",
+"firstName": "Client",
+"lastName": "Name"
+}
+
+Generate username automatically:
+
+example:
+
+noe + random 4 digits
+
+------------------------------------------------
+
+4. Validate Package ID
+
+Use package ID from:
+
+GET /reseller/packageTypes
+
+Save package id in database
+
+Do not send package name
+
+Send package ID only.
+
+------------------------------------------------
+
+5. Add Debug Logging
+
+Log:
+
+- Endpoint
+- Payload
+- Response status
+- Response message
+
+Show in admin debug:
+
+20i Activation Debug
+
+------------------------------------------------
+
+6. Activation Flow Fix
+
+Admin clicks Activate:
+
+1. Get order
+2. Get client
+3. Get server
+4. Get package ID
+5. Create account via 20i
+6. Save login link
+7. Assign to client
+8. Mark Active
+
+------------------------------------------------
+
+7. After Success
+
+Create Service:
+
+Client Services:
+
+Status: Active
+Server: Noehost 20i
+Domain: client domain
+
+Add Buttons:
+
+Login to StackCP
+File Manager
+Email Accounts
+Databases
+
+------------------------------------------------
+
+8. StackCP Login Link
+
+Generate:
+
+https://stackcp.com/
+
+Use:
+
+Auto login token if available
+
+Else:
+
+Redirect to:
+
+StackCP login with username saved
+
+------------------------------------------------
+
+9. Remove All Old Errors
+
+Remove:
+
+IP whitelist check
+403 generic error
+Activation failed generic error
+
+Replace with:
+
+Show real 20i error message.
+
+------------------------------------------------
+
+10. Add Retry System
+
+If activation fails:
+
+Retry once automatically
+
+Then show error.
+
+------------------------------------------------
+
+Final Expected Result:
+
+Admin Activate
+
+↓
+
+20i account created
+
+↓
+
+Client service created
+
+↓
+
+StackCP login ready
+
+↓
+
+Order active
+
+Fully working hosting automation system

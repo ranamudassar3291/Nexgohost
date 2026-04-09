@@ -477,14 +477,21 @@ export async function provisionHostingService(
           response: JSON.stringify({ ...twentyiResult, stackUserId }),
         });
       } catch (err: any) {
-        whmError = err.message;
-        console.warn(`[PROVISION] 20i create hosting failed: ${err.message}`);
+        const errMsg: string = err.message || String(err);
+        whmError = errMsg;
+        console.warn(`[PROVISION] 20i create hosting failed: ${errMsg}`);
         await logServerAction({
           serviceId,
           serverId: server.id,
           action: "create_hosting_20i",
           status: "failed",
-          errorMessage: err.message,
+          request: {
+            domain,
+            packageTypeId: overrides?.modulePlanId || plan?.modulePlanId || "(auto)",
+            email: user.email,
+          },
+          errorMessage: errMsg,
+          response: errMsg,
         });
       }
     }

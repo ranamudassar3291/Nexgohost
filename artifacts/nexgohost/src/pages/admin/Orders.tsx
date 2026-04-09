@@ -85,6 +85,12 @@ interface ActivateResult {
   whmError: string | null;
 }
 
+interface PackageType {
+  id: string;
+  label: string;
+  platform: string;
+}
+
 interface PreActivateModal {
   orderId: string;
   domain: string;
@@ -98,6 +104,10 @@ interface PreActivateModal {
   password: string;
   /** Admin-selected server ID (empty = auto-select) */
   serverId: string;
+  /** 20i package type ID to use for provisioning */
+  packageTypeId: string;
+  /** Pre-existing modulePlanId from the order (already configured) */
+  existingModulePlanId: string | null;
 }
 
 function generatePassword() {
@@ -168,6 +178,8 @@ export default function AdminOrders() {
   const [domainActivating, setDomainActivating] = useState(false);
   const [approveModal, setApproveModal] = useState<ApproveModal | null>(null);
   const [approveLoading, setApproveLoading] = useState(false);
+  const [twentyiPackageTypes, setTwentyiPackageTypes] = useState<PackageType[]>([]);
+  const [loadingPackageTypes, setLoadingPackageTypes] = useState(false);
 
   const { data: registrars = [] } = useQuery<Registrar[]>({
     queryKey: ["admin-registrars-for-orders"],
@@ -358,8 +370,46 @@ export default function AdminOrders() {
       moduleServerGroupId: order.moduleServerGroupId ?? null,
       username: generateUsername(domain),
       password: generatePassword(),
-      serverId: "",   // empty = auto-select by provision logic
+      serverId: "",
+      packageTypeId: order.modulePlanId || "",
+      existingModulePlanId: order.modulePlanId || null,
     });
+
+    // For 20i orders, fetch available package types from the configured server
+    if (order.moduleType === "20i") {
+      setTwentyiPackageTypes([]);
+      const serverId = order.moduleServerId;
+      if (serverId) {
+        setLoadingPackageTypes(true);
+        apiFetch(`/api/admin/servers/${serverId}/plans`)
+          .then((data: any) => {
+            const plans: PackageType[] = Array.isArray(data.plans) ? data.plans : [];
+            setTwentyiPackageTypes(plans);
+            // Auto-select first type if order has no modulePlanId
+            if (!order.modulePlanId && plans.length > 0) {
+              setPreActivate(p => p ? { ...p, packageTypeId: plans[0].id } : p);
+            }
+          })
+          .catch(() => {})
+          .finally(() => setLoadingPackageTypes(false));
+      } else {
+        // No specific server — fetch from first 20i server available
+        const first20iServer = allServers.find(s => s.type === "20i");
+        if (first20iServer) {
+          setLoadingPackageTypes(true);
+          apiFetch(`/api/admin/servers/${first20iServer.id}/plans`)
+            .then((data: any) => {
+              const plans: PackageType[] = Array.isArray(data.plans) ? data.plans : [];
+              setTwentyiPackageTypes(plans);
+              if (!order.modulePlanId && plans.length > 0) {
+                setPreActivate(p => p ? { ...p, packageTypeId: plans[0].id } : p);
+              }
+            })
+            .catch(() => {})
+            .finally(() => setLoadingPackageTypes(false));
+        }
+      }
+    }
   };
 
   // Step 2: submit activation with credentials
@@ -372,6 +422,8 @@ export default function AdminOrders() {
         password: preActivate.password,
       };
       if (preActivate.serverId) body.serverId = preActivate.serverId;
+      // Pass the selected 20i package type ID — overrides both order and plan defaults
+      if (preActivate.packageTypeId) body.modulePlanId = preActivate.packageTypeId;
 
       const data = await apiFetch(`/api/admin/orders/${preActivate.orderId}/activate`, {
         method: "POST",
@@ -646,6 +698,42 @@ export default function AdminOrders() {
                 </div>
               )}
             </div>
+
+            {/* 20i Package Type picker */}
+            {preActivate.moduleType === "20i" && (
+              <div className="space-y-1.5 mb-4">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap size={12} /> 20i Hosting Plan
+                </label>
+                {loadingPackageTypes ? (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-secondary/40 border border-border rounded-lg">
+                    <Loader2 size={13} className="animate-spin text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Fetching available package types…</span>
+                  </div>
+                ) : twentyiPackageTypes.length > 0 ? (
+                  <select
+                    value={preActivate.packageTypeId}
+                    onChange={e => setPreActivate(p => p ? { ...p, packageTypeId: e.target.value } : p)}
+                    className="w-full px-3 py-2 rounded-lg bg-secondary/60 border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  >
+                    <option value="">Auto-select (use first available)</option>
+                    {twentyiPackageTypes.map(t => (
+                      <option key={t.id} value={t.id}>{t.label} ({t.platform})</option>
+                    ))}
+                  </select>
+                ) : preActivate.existingModulePlanId ? (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <CheckCircle size={13} className="text-blue-400 shrink-0" />
+                    <p className="text-xs text-blue-400">Using configured plan ID: <code className="font-mono">{preActivate.existingModulePlanId}</code></p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                    <p className="text-xs text-amber-600 dark:text-amber-400">No package types found — server will auto-select. Configure a 20i server first if activation fails.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Server Group selection */}
             {(() => {

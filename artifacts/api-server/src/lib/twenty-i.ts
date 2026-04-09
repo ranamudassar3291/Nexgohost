@@ -367,11 +367,16 @@ async function request<T = any>(
     );
   }
   if (res.status === 403) {
+    const raw403 = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
     const perm = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
-    const detail = perm ? ` (permission: ${perm})` : "";
+    const detail = perm
+      ? ` (permission: ${perm})`
+      : raw403 && raw403 !== "{}" && raw403 !== "null"
+        ? ` — 20i response: ${raw403.substring(0, 300)}`
+        : "";
     throw new Error(
-      `Account creation failed — 20i API returned 403${detail}. Check your API key or package configuration at my.20i.com → Reseller API.`,
+      `20i API returned 403 Forbidden${detail}. Check your API key permissions at my.20i.com → Reseller API.`,
     );
   }
   if (res.status === 404) {
@@ -1001,6 +1006,27 @@ export async function twentyiCreateHosting(
   packageTypeId?: string,
   stackUserId?: string,
 ): Promise<TwentyICreateResult> {
+  // ── Auto-select package type if not provided ──────────────────────────────
+  // POST /reseller/*/addWeb requires a "type" field on many 20i account types.
+  // If the admin hasn't configured a package type on the plan/order, we fetch
+  // available types and use the first one. This prevents silent 403 errors.
+  let resolvedPackageTypeId = packageTypeId?.trim() || null;
+  if (!resolvedPackageTypeId) {
+    try {
+      const types = await twentyiGetPackages(apiKey);
+      if (types.length > 0) {
+        resolvedPackageTypeId = types[0].id;
+        console.log(`[20i-CREATE] Auto-selected package type: id="${resolvedPackageTypeId}" label="${types[0].label}" (${types.length} type(s) available)`);
+      } else {
+        console.warn("[20i-CREATE] No package types found — sending addWeb without type field (may fail on some accounts)");
+      }
+    } catch (pkgErr: any) {
+      console.warn(`[20i-CREATE] Failed to auto-fetch package types (non-fatal): ${pkgErr?.message}`);
+    }
+  } else {
+    console.log(`[20i-CREATE] Using configured package type: id="${resolvedPackageTypeId}"`);
+  }
+
   const body: Record<string, any> = {
     domain_name: domain,
     extra_domain_names: [],
@@ -1008,8 +1034,10 @@ export async function twentyiCreateHosting(
     documentRoots: { [domain]: "public_html" },
   };
 
-  if (packageTypeId) body.type = packageTypeId;
+  if (resolvedPackageTypeId) body.type = resolvedPackageTypeId;
   if (stackUserId) body.stackUser = stackUserId.startsWith("stack-user:") ? stackUserId : `stack-user:${stackUserId}`;
+
+  console.log(`[20i-CREATE] POST /reseller/*/addWeb payload: ${JSON.stringify(body)}`);
 
   const result = await requestWithRetry(apiKey, "POST", "/reseller/*/addWeb", body);
 

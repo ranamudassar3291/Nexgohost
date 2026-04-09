@@ -147,9 +147,14 @@ export class TwentyIClient {
     // Handle 403 – access denied (key permissions or account type)
     if (response.status === 403) {
       const perm = (data as TwentyIErrorResponse)?.permission;
-      const detail = perm ? ` (permission: ${perm})` : "";
+      const raw403 = typeof data === "string" ? data : JSON.stringify(data);
+      const detail = perm
+        ? ` (permission: ${perm})`
+        : raw403 && raw403 !== "{}" && raw403 !== "null"
+          ? ` — 20i response: ${raw403.substring(0, 300)}`
+          : "";
       throw new TwentyIAuthError(
-        `Account creation failed — 20i API returned 403${detail}. Check your API key or package configuration at my.20i.com → Reseller API.`,
+        `20i API returned 403 Forbidden${detail}. Check your API key permissions at my.20i.com → Reseller API.`,
         "forbidden",
         response.status,
       );
