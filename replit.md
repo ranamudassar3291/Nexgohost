@@ -57,8 +57,11 @@ Backend helpers: `artifacts/api-server/src/lib/cpanel.ts` (cpanelEmailList/Creat
   - Primary/Brand: `238 82% 65%` (indigo #5B5FEF)
   - Cards: white with subtle border
   - Font: "Plus Jakarta Sans"
-- **Homepage** (`src/pages/public/Homepage.tsx`) — restored original self-contained page with own navbar, hero, domain checker, pricing, features, testimonials, FAQ, and footer. No external layout wrappers.
-- All site components (`SiteNavbar`, `SiteFooter`, `PublicLayout`, `SiteHero`, etc.) were removed from the zip import. Homepage is now fully self-contained.
+- **Homepage** (`src/pages/public/Homepage.tsx`) — Full dark-themed noehost marketing homepage with TopBar, Navbar, Hero, Pricing, ControlEfficiency, FeatureShowcase, Promo, Services, Features, CTA, FAQ, Testimonials, Footer, WhatsApp, ChatBot.
+- **Marketing sub-pages**: `/shared-hosting`, `/wordpress-hosting`, `/reseller-hosting`, `/domains`, `/about-us`, `/contact-us`, `/privacy-policy`, `/terms-and-conditions`, `/refund-policy` — all use noehost dark design with `HostingPageLayout`.
+- **Component tree**: `src/pages/public/noehost/` — 38 components including Navbar, TopBar, Hero, Pricing, ChatBot (react-markdown), DomainChecker, Footer, and all legal/about/contact pages.
+- **ContentContext** (`src/context/ContentContext.tsx`) — polls `GET /api/content` every 60s; admin updates via `POST /api/admin/content`.
+- **CurrencyContext** — `useCurrency()` returns `{ currency, setCurrency, currencies, loading, formatPrice, convert }`. The `convert(usdAmount)` converts USD to current currency.
 - CSS variables defined in `:root` in `src/index.css`.
 
 ## Architecture

@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthProvider";
 import { CurrencyProvider } from "@/context/CurrencyProvider";
+import { ContentProvider } from "@/context/ContentContext";
 import { CartProvider } from "@/context/CartContext";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
@@ -82,6 +83,17 @@ import PrivacyPolicy from "@/pages/public/PrivacyPolicy";
 import RefundPolicy from "@/pages/public/RefundPolicy";
 import Contact from "@/pages/public/Contact";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
+// Noehost marketing pages
+import SharedHostingPage from "@/pages/public/SharedHosting";
+import WordPressHostingPage from "@/pages/public/WordPressHosting";
+import ResellerHostingPage from "@/pages/public/ResellerHosting";
+import DomainsPage from "@/pages/public/DomainsPage";
+import AboutUsPage from "@/pages/public/AboutUs";
+import ContactUsPage from "@/pages/public/ContactUs";
+import HostingPageLayout from "@/pages/public/noehost/components/pages/HostingPageLayout";
+import NoePrivacyPolicy from "@/pages/public/noehost/components/pages/PrivacyPolicy";
+import NoeTermsAndConditions from "@/pages/public/noehost/components/pages/TermsAndConditions";
+import NoeRefundPolicy from "@/pages/public/noehost/components/pages/RefundPolicy";
 
 import { queryClient } from "@/lib/query-client";
 
@@ -533,14 +545,42 @@ function RouterRoot() {
       <Route path="/admin/domain-extensions">
         <Redirect to="/admin/domains?tab=extensions" />
       </Route>
-      {/* ── Legal pages — public (canonical + short aliases) ── */}
+      {/* ── Noehost marketing / public hosting pages ── */}
+      <Route path="/shared-hosting"    component={SharedHostingPage}   />
+      <Route path="/wordpress-hosting" component={WordPressHostingPage} />
+      <Route path="/reseller-hosting"  component={ResellerHostingPage}  />
+      <Route path="/domains"           component={DomainsPage}          />
+      <Route path="/about-us"          component={AboutUsPage}          />
+      <Route path="/about"             component={AboutUsPage}          />
+      <Route path="/contact-us">
+        <ContactUsPage />
+      </Route>
+
+      {/* ── Legal pages — public (noehost dark theme + legacy aliases) ── */}
+      <Route path="/privacy-policy">
+        <HostingPageLayout user={null} setUser={() => {}}>
+          <NoePrivacyPolicy />
+        </HostingPageLayout>
+      </Route>
+      <Route path="/legal/privacy">
+        <HostingPageLayout user={null} setUser={() => {}}>
+          <NoePrivacyPolicy />
+        </HostingPageLayout>
+      </Route>
+      <Route path="/terms-and-conditions">
+        <HostingPageLayout user={null} setUser={() => {}}>
+          <NoeTermsAndConditions />
+        </HostingPageLayout>
+      </Route>
       <Route path="/legal/terms"       component={TermsOfService} />
-      <Route path="/legal/privacy"     component={PrivacyPolicy}  />
-      <Route path="/legal/refund"      component={RefundPolicy}   />
       <Route path="/terms-of-service"  component={TermsOfService} />
       <Route path="/tos"               component={TermsOfService} />
-      <Route path="/privacy-policy"    component={PrivacyPolicy}  />
-      <Route path="/refund-policy"     component={RefundPolicy}   />
+      <Route path="/refund-policy">
+        <HostingPageLayout user={null} setUser={() => {}}>
+          <NoeRefundPolicy />
+        </HostingPageLayout>
+      </Route>
+      <Route path="/legal/refund"      component={RefundPolicy}   />
       <Route path="/contact"           component={Contact}        />
 
       <Route path="/status" component={Status} />
@@ -579,13 +619,15 @@ function App() {
       <ThemeProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AuthProvider>
-              <CurrencyProvider>
-                <CartProvider>
-                  <RouterRoot />
-                </CartProvider>
-              </CurrencyProvider>
-            </AuthProvider>
+            <ContentProvider>
+              <AuthProvider>
+                <CurrencyProvider>
+                  <CartProvider>
+                    <RouterRoot />
+                  </CartProvider>
+                </CurrencyProvider>
+              </AuthProvider>
+            </ContentProvider>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

@@ -257,4 +257,99 @@ router.put("/admin/domain-search/promo", authenticate, requireAdmin, async (req:
   }
 });
 
+// GET /api/domain/search — PUBLIC (no auth) — used by marketing homepage DomainChecker
+router.get("/domain/search", async (req, res) => {
+  try {
+    const q = (req.query.q as string || "").trim().toLowerCase()
+      .replace(/^(https?:\/\/)?(www\.)?/, "");
+    if (!q || q.length < 2) {
+      return res.status(400).json({ error: "q (domain query) is required" });
+    }
+
+    // Determine base name and requested TLD (if the user typed a full domain)
+    const dotIdx = q.indexOf(".");
+    const baseName = dotIdx > -1 ? q.slice(0, dotIdx) : q;
+    const requestedTld = dotIdx > -1 ? q.slice(dotIdx + 1) : null;
+
+    // Get active TLDs from DB (up to 8); if user typed specific TLD, include it
+    const dbRows = await db.select().from(domainExtensionsTable)
+      .then(r => r.filter(e => e.status === "active"));
+
+    let targetExtensions: string[];
+    if (requestedTld) {
+      // User typed a specific TLD — check it first, then fill up with other popular ones
+      const specific = dbRows.find(r => r.extension.replace(/^\./, "") === requestedTld);
+      const others = dbRows.filter(r => r.extension.replace(/^\./, "") !== requestedTld)
+        .slice(0, 5);
+      targetExtensions = [
+        requestedTld,
+        ...others.map(r => r.extension.replace(/^\./, "")),
+      ];
+      if (!specific) {
+        // Add the requested TLD even if not in DB (we just won't have a price)
+        targetExtensions = [requestedTld, ...others.map(r => r.extension.replace(/^\./, ""))];
+      }
+    } else {
+      targetExtensions = dbRows
+        .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
+        .slice(0, 8)
+        .map(r => r.extension.replace(/^\./, ""));
+    }
+
+    const priceMap = new Map<string, typeof dbRows[0]>();
+    for (const row of dbRows) priceMap.set(row.extension.replace(/^\./, ""), row);
+
+    const results = await Promise.all(
+      targetExtensions.map(async (ext) => {
+        const fullDomain = `${baseName}.${ext}`;
+        const priceRow = priceMap.get(ext);
+
+        let check = await checkRdap(fullDomain);
+        if (!check) check = await checkCloudflare(fullDomain);
+        if (!check) check = await checkGoogleDns(fullDomain);
+
+        const available = check?.available ?? null;
+        const regPrice = priceRow ? parseFloat(priceRow.registerPrice as string) : null;
+        const xfrPrice = priceRow ? parseFloat((priceRow as any).transferPrice ?? priceRow.registerPrice as string) : null;
+
+        return {
+          domain: fullDomain,
+          sld: baseName,
+          tld: `.${ext}`,
+          available: available ?? false,
+          price: regPrice !== null ? String(regPrice) : "0",
+          registerPrice: regPrice !== null ? String(regPrice) : "0",
+          transferPrice: xfrPrice !== null ? String(xfrPrice) : "0",
+        };
+      })
+    );
+
+    // Sort: available first
+    results.sort((a, b) => (b.available ? 1 : 0) - (a.available ? 1 : 0));
+
+    return res.json(results);
+  } catch (err) {
+    console.error("[PUBLIC-DOMAIN-SEARCH]", err);
+    return res.status(500).json({ error: "Search failed" });
+  }
+});
+
+// GET /api/domain/pricing — PUBLIC — returns TLD pricing for homepage hero section
+router.get("/domain/pricing", async (_req, res) => {
+  try {
+    const rows = await db.select().from(domainExtensionsTable)
+      .then(r => r.filter(e => e.status === "active")
+        .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)));
+    res.json({
+      tlds: rows.map(r => ({
+        ext: r.extension.startsWith(".") ? r.extension : `.${r.extension}`,
+        register: parseFloat(r.registerPrice as string),
+        renew: parseFloat(r.renewalPrice as string),
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load pricing" });
+  }
+});
+
 export default router;
