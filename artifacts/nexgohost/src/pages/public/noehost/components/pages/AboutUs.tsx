@@ -102,13 +102,13 @@ const AboutUs: React.FC = () => {
 
       {/* STATS */}
       {stats.length > 0 && (
-        <section className="py-12 bg-primary">
+        <section className="py-12 bg-[#0a0a18] border-y border-white/5">
           <div className="container mx-auto px-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
               {stats.map((s: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="text-center">
                   <div className="text-3xl font-black text-white mb-1">{s.value}</div>
-                  <div className="text-primary-200 text-xs font-black uppercase tracking-widest">{s.label}</div>
+                  <div className="text-[#00D1FF] text-xs font-black uppercase tracking-widest">{s.label}</div>
                 </motion.div>
               ))}
             </div>
@@ -240,13 +240,14 @@ const AboutUs: React.FC = () => {
 
       {/* CTA */}
       {pg.ctaTitle && (
-        <section className="py-20 bg-primary relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        <section className="py-20 bg-[#0a0a18] relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full blur-[150px] opacity-25" style={{ background: 'radial-gradient(circle, rgba(103,61,230,0.5) 0%, transparent 70%)' }} />
+          <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
           <div className="container mx-auto px-6 text-center relative z-10">
             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <h2 className="text-4xl font-black text-white mb-4">{pg.ctaTitle}</h2>
-              <p className="text-primary-200 font-medium leading-relaxed mb-8 text-lg max-w-xl mx-auto">{pg.ctaDesc}</p>
-              {renderLink(pg.ctaBtnUrl || '/shared-hosting', <>{pg.ctaBtnText || 'Start Hosting Today'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
+              <p className="text-slate-400 font-medium leading-relaxed mb-8 text-lg max-w-xl mx-auto">{pg.ctaDesc}</p>
+              {renderLink(pg.ctaBtnUrl || '/shared-hosting', <>{pg.ctaBtnText || 'Start Hosting Today'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all group shadow-xl shadow-primary/30')}
             </motion.div>
           </div>
         </section>

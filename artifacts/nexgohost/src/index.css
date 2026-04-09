@@ -66,6 +66,10 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   --color-dark: #020617;
+  --color-primary-50: #f0eeff;
+  --color-primary-100: #ddd9ff;
+  --color-primary-200: #bfb8ff;
+  --color-primary-300: #a89eff;
   --color-primary-400: #8A7FFE;
   --color-primary-600: #5452D3;
   --color-primary-950: #1a1866;

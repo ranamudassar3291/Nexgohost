@@ -29,19 +29,19 @@ const Services: React.FC = () => {
   ];
 
   return (
-    <section id="services" className="py-16 bg-white relative overflow-hidden">
+    <section id="services" className="py-16 bg-[#0d0d1f] relative overflow-hidden">
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 text-slate-600 text-xs font-black mb-6 uppercase tracking-widest"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black mb-6 uppercase tracking-widest"
           >
             Our Services
           </motion.div>
-          <h2 className="text-3xl lg:text-4xl font-black text-slate-900 mb-4 tracking-tight">{servicesData.title}</h2>
-          <p className="text-base text-slate-600 font-medium leading-relaxed">{servicesData.description}</p>
+          <h2 className="text-3xl lg:text-4xl font-black text-white mb-4 tracking-tight">{servicesData.title}</h2>
+          <p className="text-base text-slate-400 font-medium leading-relaxed">{servicesData.description}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -53,16 +53,16 @@ const Services: React.FC = () => {
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
               whileHover={{ y: -8 }}
-              className="p-7 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-2xl hover:border-primary/20 transition-all duration-500 group"
+              className="p-7 bg-white/5 rounded-[24px] border border-white/10 hover:border-primary/30 hover:bg-white/10 transition-all duration-500 group"
             >
-              <div className={`w-12 h-12 ${s.bg} ${s.color} rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500`}>
+              <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mb-5 group-hover:bg-primary group-hover:text-white transition-all duration-500">
                 {icons[i % icons.length]}
               </div>
-              <h3 className="text-lg font-black text-slate-900 mb-3 group-hover:text-primary transition-colors">{s.title}</h3>
-              <p className="text-sm text-slate-500 font-medium leading-relaxed">
+              <h3 className="text-lg font-black text-white mb-3 group-hover:text-primary-300 transition-colors">{s.title}</h3>
+              <p className="text-sm text-slate-400 font-medium leading-relaxed">
                 {s.description}
               </p>
-              <div className="mt-5 flex items-center gap-2 text-primary font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="mt-5 flex items-center gap-2 text-primary-400 font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity">
                 Learn more <ArrowRight size={16} />
               </div>
             </motion.div>

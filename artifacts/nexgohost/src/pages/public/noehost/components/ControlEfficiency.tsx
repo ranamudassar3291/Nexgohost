@@ -180,10 +180,10 @@ const ControlEfficiency: React.FC = () => {
   };
 
   return (
-    <section className="py-14 bg-white overflow-hidden">
+    <section className="py-14 bg-[#0a0a18] overflow-hidden">
       <div className="container mx-auto px-6">
         <div className="text-center mb-10">
-          <h2 className="text-3xl lg:text-4xl font-black text-slate-900">
+          <h2 className="text-3xl lg:text-4xl font-black text-white">
             {data.title}
           </h2>
         </div>

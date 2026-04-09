@@ -151,22 +151,22 @@ const WordPressHosting: React.FC = () => {
 
       {/* FEATURES */}
       {features.length > 0 && (
-        <section className="py-20 bg-white">
+        <section className="py-20 bg-[#0d0d1f]">
           <div className="container mx-auto px-6">
             <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">WordPress Ready</div>
-              <h2 className="text-4xl font-black text-slate-900 mb-3">{pg.featuresTitle || 'Everything Your WordPress Site Needs'}</h2>
-              <p className="text-slate-500 font-medium max-w-xl mx-auto">{pg.featuresDesc || ''}</p>
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">WordPress Ready</div>
+              <h2 className="text-4xl font-black text-white mb-3">{pg.featuresTitle || 'Everything Your WordPress Site Needs'}</h2>
+              <p className="text-slate-400 font-medium max-w-xl mx-auto">{pg.featuresDesc || ''}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {features.map((f: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} whileHover={{ y: -5 }}
-                  className="p-6 bg-white rounded-2xl border border-slate-200 hover:border-primary/40 shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+                  className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/40 hover:bg-white/10 transition-all group">
+                  <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
                     {featIcons[f.title] || <Zap size={22} />}
                   </div>
-                  <h3 className="text-base font-black text-slate-900 mb-2">{f.title}</h3>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">{f.desc}</p>
+                  <h3 className="text-base font-black text-white mb-2">{f.title}</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">{f.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -176,13 +176,14 @@ const WordPressHosting: React.FC = () => {
 
       {/* CTA */}
       {pg.ctaTitle && (
-        <section className="py-20 bg-primary relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        <section className="py-20 bg-[#0a0a18] relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full blur-[150px] opacity-30" style={{ background: 'radial-gradient(circle, rgba(103,61,230,0.5) 0%, transparent 70%)' }} />
+          <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
           <div className="container mx-auto px-6 text-center relative z-10">
             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <h2 className="text-4xl font-black text-white mb-4">{pg.ctaTitle}</h2>
-              <p className="text-primary-200 font-medium leading-relaxed mb-8 text-lg max-w-xl mx-auto">{pg.ctaDesc}</p>
-              {renderLink(pg.ctaBtnUrl || '/register', <>{pg.ctaBtnText || 'Start Hosting'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
+              <p className="text-slate-400 font-medium leading-relaxed mb-8 text-lg max-w-xl mx-auto">{pg.ctaDesc}</p>
+              {renderLink(pg.ctaBtnUrl || '/register', <>{pg.ctaBtnText || 'Start Hosting'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all group shadow-xl shadow-primary/30')}
             </motion.div>
           </div>
         </section>

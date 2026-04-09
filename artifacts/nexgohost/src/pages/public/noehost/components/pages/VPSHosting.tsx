@@ -188,22 +188,22 @@ const VPSHosting: React.FC = () => {
 
       {/* USE CASES */}
       {useCases.length > 0 && (
-        <section className="py-20 bg-white">
+        <section className="py-20 bg-[#0d0d1f]">
           <div className="container mx-auto px-6">
             <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Use Cases</div>
-              <h2 className="text-4xl font-black text-slate-900 mb-3">{pg.useCasesTitle || 'What Will You Build?'}</h2>
-              <p className="text-slate-500 font-medium max-w-lg mx-auto">{pg.useCasesDesc || ''}</p>
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Use Cases</div>
+              <h2 className="text-4xl font-black text-white mb-3">{pg.useCasesTitle || 'What Will You Build?'}</h2>
+              <p className="text-slate-400 font-medium max-w-lg mx-auto">{pg.useCasesDesc || ''}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {useCases.map((uc: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} whileHover={{ scale: 1.02 }}
-                  className="p-6 bg-white rounded-2xl border border-slate-200 hover:border-primary/40 shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+                  className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/40 hover:bg-white/10 transition-all group">
+                  <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
                     {UC_ICONS[uc.title] || DEFAULT_ICON}
                   </div>
-                  <h3 className="text-base font-black text-slate-900 mb-2">{uc.title}</h3>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">{uc.desc}</p>
+                  <h3 className="text-base font-black text-white mb-2">{uc.title}</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">{uc.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -258,25 +258,26 @@ const VPSHosting: React.FC = () => {
 
       {/* MIGRATION CTA */}
       {pg.migrationTitle && (
-        <section className="py-20 bg-primary relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+        <section className="py-20 bg-[#0a0a18] relative overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full blur-[150px] opacity-25" style={{ background: 'radial-gradient(circle, rgba(103,61,230,0.5) 0%, transparent 70%)' }} />
+          <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
           <div className="container mx-auto px-6 relative z-10">
             <div className="max-w-3xl mx-auto text-center">
               <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-                <RefreshCw size={40} className="text-white/60 mx-auto mb-5" />
+                <RefreshCw size={40} className="text-primary-400 mx-auto mb-5" />
                 <h2 className="text-4xl font-black text-white mb-4">{pg.migrationTitle}</h2>
-                <p className="text-primary-200 font-medium leading-relaxed mb-8 text-lg">{pg.migrationDesc}</p>
+                <p className="text-slate-400 font-medium leading-relaxed mb-8 text-lg">{pg.migrationDesc}</p>
                 {(pg.migrationPoints || []).length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
                     {pg.migrationPoints.map((item: string, i: number) => (
-                      <div key={i} className="bg-white/10 rounded-xl px-4 py-3 border border-white/10">
-                        <Check size={16} className="text-white mx-auto mb-1" />
+                      <div key={i} className="bg-white/5 rounded-xl px-4 py-3 border border-white/10">
+                        <Check size={16} className="text-primary-400 mx-auto mb-1" />
                         <p className="text-white font-black text-xs text-center">{item}</p>
                       </div>
                     ))}
                   </div>
                 )}
-                {renderLink(pg.migrationBtnUrl || '/register', <>{pg.migrationBtnText || 'Request Free Migration'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
+                {renderLink(pg.migrationBtnUrl || '/register', <>{pg.migrationBtnText || 'Request Free Migration'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all group shadow-xl shadow-primary/30')}
               </motion.div>
             </div>
           </div>

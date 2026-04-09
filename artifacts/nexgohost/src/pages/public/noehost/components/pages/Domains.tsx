@@ -88,11 +88,11 @@ const Domains: React.FC = () => {
       </section>
 
       {/* TLD PRICING TABLE */}
-      <section className="bg-white py-20">
+      <section className="bg-[#0d0d1f] py-20">
         <div className="container mx-auto px-6 max-w-5xl">
           <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-black text-slate-900 mb-3">Domain Pricing</h2>
-            <p className="text-slate-500 text-base font-medium">Transparent, affordable pricing. Prices in your local currency — no hidden fees.</p>
+            <h2 className="text-3xl lg:text-4xl font-black text-white mb-3">Domain Pricing</h2>
+            <p className="text-slate-400 text-base font-medium">Transparent, affordable pricing. Prices in your local currency — no hidden fees.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {STATIC_TLDS.map(tld => {
@@ -102,8 +102,8 @@ const Domains: React.FC = () => {
               return (
                 <div
                   key={tld.ext}
-                  className={`relative p-5 rounded-2xl border text-center transition-all hover:shadow-lg ${
-                    tld.popular ? 'border-primary/40 bg-primary/5 shadow-sm' : 'border-slate-200 bg-white hover:border-primary/20'
+                  className={`relative p-5 rounded-2xl border text-center transition-all ${
+                    tld.popular ? 'border-primary/40 bg-primary/10 shadow-lg shadow-primary/10' : 'border-white/10 bg-white/5 hover:border-primary/30 hover:bg-white/10'
                   }`}
                 >
                   {tld.badge && (
@@ -111,14 +111,14 @@ const Domains: React.FC = () => {
                       <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-primary text-white whitespace-nowrap">{tld.badge}</span>
                     </div>
                   )}
-                  <div className="text-2xl font-black text-slate-800 mb-2">{tld.ext}</div>
+                  <div className="text-2xl font-black text-white mb-2">{tld.ext}</div>
                   <div className="mb-1">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Register</span>
-                    <div className="text-lg font-black text-primary">{fmt(prices.register)}<span className="text-xs font-medium text-slate-400">/yr</span></div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Register</span>
+                    <div className="text-lg font-black text-[#00D1FF]">{fmt(prices.register)}<span className="text-xs font-medium text-slate-500">/yr</span></div>
                   </div>
                   <div className="mb-3">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Transfer</span>
-                    <div className="text-base font-black text-orange-500">{fmt(prices.transfer)}<span className="text-xs font-medium text-slate-400">/yr</span></div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Transfer</span>
+                    <div className="text-base font-black text-orange-400">{fmt(prices.transfer)}<span className="text-xs font-medium text-slate-500">/yr</span></div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <a
@@ -167,16 +167,17 @@ const Domains: React.FC = () => {
       </section>
 
       {/* CTA */}
-      <section className="bg-primary py-16">
-        <div className="container mx-auto px-6 text-center max-w-2xl">
-          <Star className="mx-auto mb-4 text-white/60" size={32} />
+      <section className="bg-[#0a0a18] py-16 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full blur-[140px] opacity-25" style={{ background: 'radial-gradient(circle, rgba(103,61,230,0.5) 0%, transparent 70%)' }} />
+        <div className="container mx-auto px-6 text-center max-w-2xl relative z-10">
+          <Star className="mx-auto mb-4 text-primary-400" size={32} />
           <h2 className="text-3xl font-black text-white mb-4">Ready to Claim Your Domain?</h2>
-          <p className="text-white/80 text-base font-medium mb-8">Join thousands of businesses who trust Noehost for their domain needs.</p>
+          <p className="text-slate-400 text-base font-medium mb-8">Join thousands of businesses who trust Noehost for their domain needs.</p>
           <a
             href={`${WHMCS_BASE}/cart.php?a=add&domain=register`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-10 py-4 bg-white text-primary font-black rounded-2xl hover:bg-slate-50 transition-all shadow-xl uppercase tracking-widest text-sm"
+            className="inline-flex items-center gap-2 px-10 py-4 bg-primary hover:bg-primary-600 text-white font-black rounded-2xl transition-all shadow-xl shadow-primary/30 uppercase tracking-widest text-sm"
           >
             Register Now <ArrowRight size={18} />
           </a>
