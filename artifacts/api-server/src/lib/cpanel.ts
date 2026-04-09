@@ -381,14 +381,15 @@ export async function cpanelGetDnsZone(server: ServerConfig, domain: string, use
   // paginate=0 disables any server-side pagination — returns ALL records at once.
   try {
     const uapiParams = new URLSearchParams({
-      "api.version": "1",
-      user: username,
+      "api.version":             "1",
+      user:                      username,
+      cpanel_jsonapi_user:       username,
       cpanel_jsonapi_apiversion: "uapi",
-      cpanel_jsonapi_module: "ZoneEdit",
-      cpanel_jsonapi_func: "fetch_zone_record",
+      cpanel_jsonapi_module:     "ZoneEdit",
+      cpanel_jsonapi_func:       "fetch_zone_record",
       domain,
-      paginate: "0",           // explicitly disable pagination
-      "paginate-size": "9999", // safety net for cPanel versions that ignore paginate=0
+      paginate:                  "0",
+      "paginate-size":           "9999",
     });
     const uapiUrl = `https://${server.hostname}:${port}/json-api/cpanel?${uapiParams}`;
     const raw = await httpsGetRaw(uapiUrl, authHeader, 30_000);
@@ -428,7 +429,8 @@ export async function cpanelGetDnsZone(server: ServerConfig, domain: string, use
   const whmUrl = `https://${server.hostname}:${port}/json-api/cpanel?` +
     `cpanel_jsonapi_version=2&cpanel_jsonapi_module=ZoneEdit` +
     `&cpanel_jsonapi_func=fetchzone_records&domain=${encodeURIComponent(domain)}` +
-    `&customonly=0&api.version=1&user=${encodeURIComponent(username)}`;
+    `&customonly=0&api.version=1` +
+    `&user=${encodeURIComponent(username)}&cpanel_jsonapi_user=${encodeURIComponent(username)}`;
   const body = await httpsGet(whmUrl, authHeader, 45_000);
   const data = JSON.parse(body);
 
@@ -473,7 +475,7 @@ export async function cpanelAddDnsRecord(server: ServerConfig, username: string,
   const port = server.port || 2087;
   const authUser = server.username || "root";
   const params = new URLSearchParams({
-    "api.version": "1", user: username,
+    "api.version": "1", user: username, cpanel_jsonapi_user: username,
     cpanel_jsonapi_version: "2", cpanel_jsonapi_module: "ZoneEdit", cpanel_jsonapi_func: "add_zone_record",
     domain, type: record.type, name: record.name, ttl: String(record.ttl || 14400),
     ...(record.address && { address: record.address }),
@@ -492,7 +494,7 @@ export async function cpanelEditDnsRecord(server: ServerConfig, username: string
   const port = server.port || 2087;
   const authUser = server.username || "root";
   const params = new URLSearchParams({
-    "api.version": "1", user: username,
+    "api.version": "1", user: username, cpanel_jsonapi_user: username,
     cpanel_jsonapi_version: "2", cpanel_jsonapi_module: "ZoneEdit", cpanel_jsonapi_func: "edit_zone_record",
     domain, Line: String(line), type: record.type, name: record.name, ttl: String(record.ttl || 14400),
     ...(record.address && { address: record.address }),
@@ -511,7 +513,7 @@ export async function cpanelDeleteDnsRecord(server: ServerConfig, username: stri
   const port = server.port || 2087;
   const authUser = server.username || "root";
   const params = new URLSearchParams({
-    "api.version": "1", user: username,
+    "api.version": "1", user: username, cpanel_jsonapi_user: username,
     cpanel_jsonapi_version: "2", cpanel_jsonapi_module: "ZoneEdit", cpanel_jsonapi_func: "remove_zone_record",
     domain, Line: String(line),
   });
@@ -548,11 +550,12 @@ export async function cpanelUapi(
   const port = server.port || 2087;
   const authUser = server.username || "root";
   const query = new URLSearchParams({
-    "api.version": "1",
-    user: cpanelUser,
+    "api.version":             "1",
+    user:                      cpanelUser,
+    cpanel_jsonapi_user:       cpanelUser,
     cpanel_jsonapi_apiversion: "uapi",
-    cpanel_jsonapi_module: module,
-    cpanel_jsonapi_func: func,
+    cpanel_jsonapi_module:     module,
+    cpanel_jsonapi_func:       func,
     ...params,
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${query}`;
@@ -1520,11 +1523,12 @@ export async function cpanelFullBackup(
   // httpsGetRaw so a 500 response body is still inspectable.
   try {
     const uapiParams = new URLSearchParams({
-      "api.version": "1",
-      user: username,
+      "api.version":             "1",
+      user:                      username,
+      cpanel_jsonapi_user:       username,
       cpanel_jsonapi_apiversion: "uapi",
-      cpanel_jsonapi_module: "Backup",
-      cpanel_jsonapi_func: "fullbackup_to_homedir",
+      cpanel_jsonapi_module:     "Backup",
+      cpanel_jsonapi_func:       "fullbackup_to_homedir",
       dir: "",
       email: "",
       variant: "cpanel",
@@ -1574,11 +1578,12 @@ export async function cpanelFullBackup(
   // parameters are the same as Strategy 1 but submitted differently.
   try {
     const postBody = new URLSearchParams({
-      "api.version": "1",
-      user: username,
+      "api.version":             "1",
+      user:                      username,
+      cpanel_jsonapi_user:       username,
       cpanel_jsonapi_apiversion: "uapi",
-      cpanel_jsonapi_module: "Backup",
-      cpanel_jsonapi_func: "fullbackup_to_homedir",
+      cpanel_jsonapi_module:     "Backup",
+      cpanel_jsonapi_func:       "fullbackup_to_homedir",
       dir: "",
       email: "",
     }).toString();
@@ -1671,11 +1676,12 @@ export async function cpanelDbDump(
   // ── Primary: cPanel API2 Mysql::dump via WHM proxy ────────────────────────
   try {
     const params = new URLSearchParams({
-      "api.version": "1",
-      user: username,
+      "api.version":          "1",
+      user:                   username,
+      cpanel_jsonapi_user:    username,
       cpanel_jsonapi_version: "2",
-      cpanel_jsonapi_module: "Mysql",
-      cpanel_jsonapi_func: "dump",
+      cpanel_jsonapi_module:  "Mysql",
+      cpanel_jsonapi_func:    "dump",
       dbname: database,
       filename,
     });
@@ -1984,7 +1990,7 @@ export async function cpanelTestPermissions(
 
   // ── Backup probe: use UAPI Backup::query_backup_config via WHM proxy ───────
   // This is a read-only UAPI call that doesn't require root-level listacls ACL.
-  const backupProbeUrl = `https://${h}:${port}/json-api/cpanel?api.version=1&cpanel_jsonapi_version=2&cpanel_jsonapi_module=Backup&cpanel_jsonapi_func=query_backup_config&cpanel_apiuser=${u}`;
+  const backupProbeUrl = `https://${h}:${port}/json-api/cpanel?api.version=1&user=${u}&cpanel_jsonapi_user=${u}&cpanel_jsonapi_version=2&cpanel_jsonapi_module=Backup&cpanel_jsonapi_func=query_backup_config`;
   const backupCheck = await (async (): Promise<PermissionResult> => {
     try {
       const raw = await httpsGet(backupProbeUrl, authHeader, 12_000);
