@@ -1,0 +1,214 @@
+Required Architecture (Correct)
+
+Wrong:
+
+Client → Custom Panel → cPanel redirect
+
+Correct:
+
+Client → Custom Panel → Backend API → WHM → Server
+
+Client ko kabhi cPanel na dikhe.
+
+WHM 401 Error (Root Cause)
+
+Error:
+
+WHM 401 Unauthorized
+
+Common reasons:
+
+WHM API Token wrong
+Root permission missing
+API header wrong
+WHM port wrong (2087 required)
+
+Correct WHM API format:
+
+https://server-ip:2087/json-api/
+
+Header:
+
+Authorization: whm root:API_TOKEN
+
+NOT:
+
+Bearer token
+Email Create API (Correct)
+
+Example:
+
+/json-api/cpanel
+
+Parameters:
+
+cpanel_jsonapi_user=username
+cpanel_jsonapi_module=Email
+cpanel_jsonapi_func=add_pop
+DNS Manager Real Working
+
+WHM API:
+
+listzones
+editzonerecord
+addzonerecord
+removezonerecord
+
+Frontend:
+
+Show DNS records
+Add record
+Edit record
+Delete record
+
+Custom UI
+
+No cPanel redirect
+
+Buttons Jo Custom Banane Hain
+
+My Services → Manage
+
+Buttons:
+
+File Manager
+Email Accounts
+DNS Manager
+Backup
+Database
+WordPress
+NodeJS
+Python
+SSH
+
+Sab custom panel open kare
+
+Not cPanel.
+
+Example
+
+Wrong:
+
+Open File Manager → cpanel.com:2083
+
+Correct:
+
+Open File Manager → /client/files
+
+Backend:
+
+FTP / server API
+
+Final MASTER PROMPT
+
+Agent ko ye full prompt dein:
+
+Fix Custom Hosting Panel — Remove cPanel Redirect
+
+Current Issue:
+
+Buttons redirect to cPanel
+
+This is incorrect
+
+Fix:
+
+Remove all cPanel redirect links
+
+Build custom pages:
+
+File Manager
+Email Manager
+DNS Manager
+Backup Manager
+Database Manager
+WordPress Manager
+NodeJS Manager
+Python Manager
+SSH Manager
+
+--------------------------------
+
+WHM Integration
+
+Use WHM API
+
+Format:
+
+https://server-ip:2087/json-api/
+
+Header:
+
+Authorization: whm root:API_TOKEN
+
+--------------------------------
+
+Fix 401 error
+
+Verify:
+
+API token valid
+Root permissions
+Correct port 2087
+
+--------------------------------
+
+DNS Manager
+
+Show DNS records
+
+Add DNS
+Edit DNS
+Delete DNS
+
+Use:
+
+listzones
+editzonerecord
+addzonerecord
+
+--------------------------------
+
+Email Manager
+
+Create email
+Delete email
+Reset password
+
+Use:
+
+Email module WHM API
+
+--------------------------------
+
+File Manager
+
+Use FTP / server commands
+
+Upload
+Delete
+Edit
+
+--------------------------------
+
+Important
+
+Do not redirect to cPanel
+
+Everything must work from custom panel
+
+--------------------------------
+
+Goal
+
+Full custom hosting panel
+Hostinger style
+Production ready
+Final Result
+
+Aapka panel ban jayega:
+
+Fully custom UI
+No cPanel redirect
+Real backend working
+Professional hosting panel

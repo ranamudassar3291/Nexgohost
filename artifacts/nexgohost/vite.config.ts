@@ -12,9 +12,28 @@ if (Number.isNaN(port) || port <= 0) {
 
 const basePath = process.env.BASE_PATH ?? "/";
 
+const noCacheHtmlPlugin = {
+  name: "no-cache-html",
+  configureServer(server: any) {
+    server.middlewares.use((req: any, res: any, next: any) => {
+      const url: string = req.url ?? "";
+      const isHmr = url.startsWith("/@") || url.startsWith("/__");
+      const isAsset = /\.\w{2,6}(\?.*)?$/.test(url) && !url.endsWith(".html");
+      if (!isHmr && !isAsset) {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        res.setHeader("Surrogate-Control", "no-store");
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
   base: basePath,
   plugins: [
+    noCacheHtmlPlugin,
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
