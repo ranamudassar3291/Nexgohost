@@ -368,24 +368,11 @@ async function request<T = any>(
   }
   if (res.status === 403) {
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
-    const userNull = d403?.user === null || d403?.error?.data?.user === null;
-    // user: null on a 403 = the outbound IP is not in 20i's Reseller API IP whitelist.
-    // Fetch the current IP so the error message tells the admin exactly which IP to add.
-    if (userNull) {
-      let currentIp = "unknown";
-      try {
-        const { default: axiosIp } = await import("axios");
-        const ipRes = await axiosIp.get<{ ip: string }>("https://api.ipify.org?format=json", { timeout: 5_000 });
-        currentIp = ipRes.data?.ip ?? "unknown";
-      } catch { /* best-effort */ }
-      throw new Error(
-        `20i: IP not whitelisted (current outbound IP: ${currentIp}). ` +
-        `Go to my.20i.com → Reseller API → IP Whitelist and add ${currentIp}, then retry.`,
-      );
-    }
-    const perm = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "unknown";
-    const scope = d403?.scope ?? "unknown";
-    throw new Error(`20i Forbidden (403). Scope: ${scope}. Permission: ${perm}. Check your Reseller API key permissions.`);
+    const perm = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
+    const detail = perm ? ` (permission: ${perm})` : "";
+    throw new Error(
+      `Account creation failed — 20i API returned 403${detail}. Check your API key or package configuration at my.20i.com → Reseller API.`,
+    );
   }
   if (res.status === 404) {
     throw Object.assign(
@@ -962,9 +949,9 @@ export async function twentyiGetPackages(apiKey: string): Promise<TwentyIPackage
     return types;
   } catch (errB: any) {
     const errMsg = String(errB?.message ?? "");
-    // Re-throw IP whitelist errors so callers can show the correct "whitelist your IP" message.
+    // Re-throw auth/access errors so callers see the real failure.
     // Do NOT swallow them — otherwise the user sees "No packages found" instead of the real cause.
-    if (errMsg.includes("IpMatch") || errMsg.includes("Forbidden") || errMsg.includes("403")) {
+    if (errMsg.includes("403") || errMsg.includes("401") || errMsg.includes("Forbidden")) {
       throw errB;
     }
     console.warn(`[20i-PKG] /package fallback also failed: ${errMsg.substring(0, 80)}`);

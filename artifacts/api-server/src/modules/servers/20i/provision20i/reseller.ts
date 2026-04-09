@@ -49,12 +49,12 @@ export async function testConnection(client: TwentyIClient): Promise<TwentyIConn
           diagnostic: { detail: "20i returned {\"type\":\"User ID\"}. The key does not match any account.", status: 401 },
         };
       }
-      if (err.reason === "ip_blocked") {
+      if (err.reason === "ip_blocked" || err.reason === "forbidden") {
         return {
           success: false,
-          message: "403 — IP NOT WHITELISTED. Add this server's outbound IP at my.20i.com → Reseller API → IP Whitelist.",
+          message: "403 — Access denied. Check your API key or package configuration at my.20i.com → Reseller API.",
           diagnosis: "ip_blocked",
-          diagnostic: { detail: "IpMatch permission denied.", status: 403 },
+          diagnostic: { detail: err.message, status: 403 },
         };
       }
       return {

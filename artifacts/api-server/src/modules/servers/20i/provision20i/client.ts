@@ -138,24 +138,18 @@ export class TwentyIClient {
         );
       }
       throw new TwentyIAuthError(
-        `401 — Authentication failed. IP may not be whitelisted. Response: ${text.substring(0, 200)}`,
+        `401 — Authentication failed. Verify your API key at my.20i.com → Reseller API. Response: ${text.substring(0, 200)}`,
         "ip_or_unknown",
         response.status,
       );
     }
 
-    // Handle 403 – often IP whitelist
+    // Handle 403 – access denied (key permissions or account type)
     if (response.status === 403) {
       const perm = (data as TwentyIErrorResponse)?.permission;
-      if (perm === "IpMatch") {
-        throw new TwentyIAuthError(
-          `403 — IP not whitelisted. Add this server's outbound IP at my.20i.com → Reseller API → IP Whitelist.`,
-          "ip_blocked",
-          response.status,
-        );
-      }
+      const detail = perm ? ` (permission: ${perm})` : "";
       throw new TwentyIAuthError(
-        `403 — Access denied. ${text.substring(0, 200)}`,
+        `Account creation failed — 20i API returned 403${detail}. Check your API key or package configuration at my.20i.com → Reseller API.`,
         "forbidden",
         response.status,
       );

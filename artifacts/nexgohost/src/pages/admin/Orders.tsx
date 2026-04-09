@@ -388,17 +388,7 @@ export default function AdminOrders() {
       toast({ title: "Service Activated!", description: `Account provisioned for ${data.service?.domain || "the domain"}` });
     } catch (err: any) {
       const msg: string = err.message ?? "";
-      if (msg.includes("IP not whitelisted") || msg.includes("current outbound IP")) {
-        const ipMatch = msg.match(/([\d.]+\.\d+\.\d+)/);
-        const ip = ipMatch ? ipMatch[1] : "unknown";
-        toast({
-          title: "Server IP Not Whitelisted",
-          description: `Go to Admin → Servers → Test Connection to see the exact IP (${ip}) to add at 20i.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Activation failed", description: msg, variant: "destructive" });
-      }
+      toast({ title: "Activation failed", description: msg, variant: "destructive" });
     } finally { setLoadingId(null); }
   };
 
