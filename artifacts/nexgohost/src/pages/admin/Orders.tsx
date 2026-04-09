@@ -383,7 +383,12 @@ export default function AdminOrders() {
         setLoadingPackageTypes(true);
         apiFetch(`/api/admin/servers/${serverId}/plans`)
           .then((data: any) => {
-            const plans: PackageType[] = Array.isArray(data.plans) ? data.plans : [];
+            const raw: any[] = Array.isArray(data.plans) ? data.plans : [];
+            const plans: PackageType[] = raw.map(p => ({
+              id: String(p.id ?? ""),
+              label: String(p.label ?? p.name ?? p.id ?? "Unknown"),
+              platform: String(p.platform ?? ""),
+            }));
             setTwentyiPackageTypes(plans);
             // Auto-select first type if order has no modulePlanId
             if (!order.modulePlanId && plans.length > 0) {
@@ -399,7 +404,12 @@ export default function AdminOrders() {
           setLoadingPackageTypes(true);
           apiFetch(`/api/admin/servers/${first20iServer.id}/plans`)
             .then((data: any) => {
-              const plans: PackageType[] = Array.isArray(data.plans) ? data.plans : [];
+              const raw: any[] = Array.isArray(data.plans) ? data.plans : [];
+              const plans: PackageType[] = raw.map(p => ({
+                id: String(p.id ?? ""),
+                label: String(p.label ?? p.name ?? p.id ?? "Unknown"),
+                platform: String(p.platform ?? ""),
+              }));
               setTwentyiPackageTypes(plans);
               if (!order.modulePlanId && plans.length > 0) {
                 setPreActivate(p => p ? { ...p, packageTypeId: plans[0].id } : p);
@@ -787,79 +797,86 @@ export default function AdminOrders() {
       )}
 
       {/* Activate success modal */}
-      {activateResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setActivateResult(null)}>
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                <Zap size={20} className="text-green-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-foreground text-lg">Service Activated!</h3>
-                <p className="text-sm text-muted-foreground">{activateResult.service?.domain || "Hosting provisioned"}</p>
-              </div>
-            </div>
-
-            {activateResult.service && (
-              <div className="space-y-3">
-                <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2 font-mono text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Username</span>
-                    <span className="text-foreground font-medium">{activateResult.service.username || "—"}</span>
-                  </div>
-                  {activateResult.service.password && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Password</span>
-                      <span className="text-foreground font-medium">{activateResult.service.password}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">cPanel</span>
-                    {activateResult.service.id ? (
-                      <button onClick={() => handleSsoLogin(activateResult.service.id, "cpanel")}
-                        disabled={ssoLoadingId === `${activateResult.service.id}-cpanel`}
-                        className="text-primary hover:underline text-xs">
-                        {ssoLoadingId === `${activateResult.service.id}-cpanel` ? "Connecting..." : "Login to cPanel →"}
-                      </button>
-                    ) : <span className="text-muted-foreground text-xs">—</span>}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Webmail</span>
-                    {activateResult.service.id ? (
-                      <button onClick={() => handleSsoLogin(activateResult.service.id, "webmail")}
-                        disabled={ssoLoadingId === `${activateResult.service.id}-webmail`}
-                        className="text-primary hover:underline text-xs">
-                        {ssoLoadingId === `${activateResult.service.id}-webmail` ? "Connecting..." : "Login to Webmail →"}
-                      </button>
-                    ) : <span className="text-muted-foreground text-xs">—</span>}
-                  </div>
-                  {activateResult.service.serverName && (
-                    <div className="flex justify-between items-center border-t border-border/50 pt-2 mt-1">
-                      <span className="text-muted-foreground flex items-center gap-1"><Server size={11} /> Server</span>
-                      <span className="text-foreground text-xs">{activateResult.service.serverName}</span>
-                    </div>
-                  )}
+      {activateResult && (() => {
+        const svc = activateResult.service;
+        const svcId = svc?.id ?? null;
+        const is20i = !!(svc?.cpanelUrl?.includes("20i") || svc?.cpanelUrl?.includes("stackcp"));
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setActivateResult(null)}>
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Zap size={20} className="text-green-400" />
                 </div>
-                <p className="text-xs text-muted-foreground">A welcome email with credentials has been sent to the client.</p>
+                <div>
+                  <h3 className="font-bold text-foreground text-lg">Service Activated!</h3>
+                  <p className="text-sm text-muted-foreground">{svc?.domain || "Hosting provisioned"}</p>
+                </div>
               </div>
-            )}
 
-            <div className="mt-5 flex gap-3">
-              {activateResult.service?.id && (
-                <Button
-                  className="flex-1 bg-orange-600 hover:bg-orange-700"
-                  disabled={ssoLoadingId === `${activateResult.service.id}-cpanel`}
-                  onClick={() => handleSsoLogin(activateResult.service.id, "cpanel")}
-                >
-                  <Terminal size={14} className="mr-2" />
-                  {ssoLoadingId === `${activateResult.service.id}-cpanel` ? "Connecting..." : "Open cPanel"}
-                </Button>
+              {svc && (
+                <div className="space-y-3">
+                  <div className="bg-secondary/40 border border-border rounded-xl p-4 space-y-2 font-mono text-sm">
+                    {svc.username && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Username</span>
+                        <span className="text-foreground font-medium">{svc.username}</span>
+                      </div>
+                    )}
+                    {svc.password && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Password</span>
+                        <span className="text-foreground font-medium">{svc.password}</span>
+                      </div>
+                    )}
+                    {svcId && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">{is20i ? "StackCP" : "cPanel"}</span>
+                        <button onClick={() => handleSsoLogin(svcId, "cpanel")}
+                          disabled={ssoLoadingId === `${svcId}-cpanel`}
+                          className="text-primary hover:underline text-xs">
+                          {ssoLoadingId === `${svcId}-cpanel` ? "Connecting..." : `Login to ${is20i ? "StackCP" : "cPanel"} →`}
+                        </button>
+                      </div>
+                    )}
+                    {svcId && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Webmail</span>
+                        <button onClick={() => handleSsoLogin(svcId, "webmail")}
+                          disabled={ssoLoadingId === `${svcId}-webmail`}
+                          className="text-primary hover:underline text-xs">
+                          {ssoLoadingId === `${svcId}-webmail` ? "Connecting..." : "Login to Webmail →"}
+                        </button>
+                      </div>
+                    )}
+                    {svc.serverName && (
+                      <div className="flex justify-between items-center border-t border-border/50 pt-2 mt-1">
+                        <span className="text-muted-foreground flex items-center gap-1"><Server size={11} /> Server</span>
+                        <span className="text-foreground text-xs">{svc.serverName}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">A welcome email with credentials has been sent to the client.</p>
+                </div>
               )}
-              <Button variant="outline" className="flex-1" onClick={() => setActivateResult(null)}>Close</Button>
+
+              <div className="mt-5 flex gap-3">
+                {svcId && (
+                  <Button
+                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                    disabled={ssoLoadingId === `${svcId}-cpanel`}
+                    onClick={() => handleSsoLogin(svcId, "cpanel")}
+                  >
+                    <Terminal size={14} className="mr-2" />
+                    {ssoLoadingId === `${svcId}-cpanel` ? "Connecting..." : is20i ? "Open StackCP" : "Open cPanel"}
+                  </Button>
+                )}
+                <Button variant="outline" className="flex-1" onClick={() => setActivateResult(null)}>Close</Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

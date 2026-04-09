@@ -398,8 +398,10 @@ router.get("/admin/servers/:id/plans", authenticate, requireAdmin, async (req, r
     try {
       const pkgs = await twentyiGetPackages(resolvedKey);
       if (pkgs.length > 0) {
-        const plans: Plan[] = pkgs.map(p => ({
+        const plans = pkgs.map(p => ({
           id: p.id,
+          label: p.label,
+          platform: p.platform ?? "",
           name: p.label,
           monthlyPrice: 0,
           yearlyPrice: 0,
