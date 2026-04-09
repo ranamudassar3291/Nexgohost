@@ -186,7 +186,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
   return (
     <nav
       className={`transition-all duration-300 w-full z-[100] ${
-        isScrolled ? 'bg-white py-3 shadow-xl' : 'bg-secondary/80 backdrop-blur-sm py-5'
+        isScrolled
+          ? 'bg-[#080811]/95 backdrop-blur-xl py-3 shadow-2xl shadow-black/60 border-b border-white/5'
+          : 'bg-transparent py-5'
       }`}
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
@@ -202,9 +204,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <Link
                 key={idx}
                 to={link.href}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${
-                  isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                }`}
+                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
               >
                 <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
                   {IconMap[link.icon] || <Zap size={18} />}
@@ -218,9 +218,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <div ref={hostingRef} className="relative">
                 <button
                   onClick={() => setHostingOpen(o => !o)}
-                  className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${
-                    isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                  }`}
+                  className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
                 >
                   <span className="text-primary group-hover:scale-110 transition-transform">
                     <Server size={18} />
@@ -297,9 +295,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <Link
                 key={idx}
                 to={link.href}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${
-                  isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                }`}
+                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
               >
                 <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
                   {IconMap[link.icon] || <Zap size={18} />}
@@ -331,24 +327,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             </div>
           ) : (
             <>
-              <a
-                href="https://admin.noehost.com/index.php?rp=/login"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`font-black text-sm transition-colors uppercase tracking-widest ${
-                  isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                }`}
+              <Link
+                to="/client/login"
+                className="font-black text-sm transition-colors uppercase tracking-widest text-slate-300 hover:text-white"
               >
                 Log In
-              </a>
-              <a
-                href="https://admin.noehost.com/register.php"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-10 py-3.5 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 uppercase tracking-widest"
+              </Link>
+              <Link
+                to="/client/register"
+                className="px-10 py-3.5 bg-primary hover:bg-primary/80 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 uppercase tracking-widest"
               >
                 Sign Up
-              </a>
+              </Link>
             </>
           )}
         </div>
@@ -356,9 +346,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         {/* Mobile Toggle */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className={`lg:hidden p-2 rounded-xl transition-all ${
-            isScrolled ? 'text-slate-900 bg-slate-100' : 'text-white bg-white/10'
-          }`}
+          className="lg:hidden p-2 rounded-xl transition-all text-white bg-white/10 hover:bg-white/20"
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -366,7 +354,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden absolute top-full left-0 right-0 bg-white border-t border-slate-100 shadow-2xl p-8 flex flex-col gap-6 animate-in slide-in-from-top-4 duration-500 max-h-[85vh] overflow-y-auto z-[100]">
+        <div className="lg:hidden absolute top-full left-0 right-0 bg-[#080811] border-t border-white/5 shadow-2xl shadow-black/50 p-8 flex flex-col gap-6 animate-in slide-in-from-top-4 duration-500 max-h-[85vh] overflow-y-auto z-[100]">
           {/* Home link first */}
           {otherLinks.filter((l: any) => l.name.toLowerCase() === 'home').map((link: any, idx: number) => (
             <Link
@@ -375,10 +363,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-4 group"
             >
-              <div className={`p-3 rounded-xl bg-slate-50 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
+              <div className={`p-3 rounded-xl bg-white/5 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
                 {IconMap[link.icon] || <Zap size={18} />}
               </div>
-              <span className="text-sm font-black text-slate-800 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
+              <span className="text-sm font-black text-slate-300 group-hover:text-white transition-colors uppercase tracking-widest">{link.name}</span>
             </Link>
           ))}
 
@@ -389,11 +377,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 onClick={() => setMobileHostingOpen(o => !o)}
                 className="flex items-center gap-4 group w-full"
               >
-                <div className="p-3 rounded-xl bg-slate-50 text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                <div className="p-3 rounded-xl bg-white/5 text-primary group-hover:bg-primary group-hover:text-white transition-all">
                   <Server size={18} />
                 </div>
-                <span className="text-sm font-black text-slate-800 group-hover:text-primary transition-colors uppercase tracking-widest flex-1 text-left">Hosting</span>
-                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${mobileHostingOpen ? 'rotate-180' : ''}`} />
+                <span className="text-sm font-black text-slate-300 group-hover:text-white transition-colors uppercase tracking-widest flex-1 text-left">Hosting</span>
+                <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileHostingOpen ? 'rotate-180' : ''}`} />
               </button>
               {mobileHostingOpen && (
                 <div className="mt-3 flex flex-col gap-1">
@@ -404,26 +392,26 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                         key={idx}
                         to={link.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 transition-all group"
+                        className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
                       >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 group-hover:bg-primary/10 transition-all ${link.color || 'text-primary'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 group-hover:bg-primary/20 transition-all ${link.color || 'text-primary'}`}>
                           {IconMap[link.icon] || <Zap size={16} />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-slate-800 group-hover:text-primary transition-colors">
+                            <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">
                               {link.name === 'Shared' ? 'Shared Hosting' :
                                link.name === 'VPS' ? 'VPS Hosting' :
                                link.name === 'Reseller' ? 'Reseller Hosting' :
                                link.name === 'WordPress' ? 'WordPress Hosting' : link.name}
                             </span>
                             {meta.badge && (
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor || 'bg-slate-100 text-slate-500'}`}>
+                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor || 'bg-white/10 text-slate-400'}`}>
                                 {meta.badge}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-400 font-medium">{meta.desc}</p>
+                          <p className="text-xs text-slate-500 font-medium">{meta.desc}</p>
                         </div>
                       </Link>
                     );
@@ -441,14 +429,14 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-4 group"
             >
-              <div className={`p-3 rounded-xl bg-slate-50 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
+              <div className={`p-3 rounded-xl bg-white/5 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
                 {IconMap[link.icon] || <Zap size={18} />}
               </div>
-              <span className="text-sm font-black text-slate-800 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
+              <span className="text-sm font-black text-slate-300 group-hover:text-white transition-colors uppercase tracking-widest">{link.name}</span>
             </Link>
           ))}
 
-          <hr className="border-slate-100" />
+          <hr className="border-white/5" />
           {user ? (
             <div className="flex flex-col gap-4">
               <Link
@@ -460,31 +448,27 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               </Link>
               <button
                 onClick={handleLogout}
-                className="flex items-center justify-center gap-3 py-5 bg-slate-50 text-red-500 rounded-2xl font-black border border-slate-100"
+                className="flex items-center justify-center gap-3 py-5 bg-white/5 text-red-400 rounded-2xl font-black border border-white/10"
               >
                 <LogOut size={20} /> Logout
               </button>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <a
-                href="https://admin.noehost.com/index.php?rp=/login"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/client/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-sm font-black text-slate-800 text-center py-5 border border-slate-200 rounded-2xl uppercase tracking-widest hover:bg-slate-50 transition-all"
+                className="text-sm font-black text-white text-center py-5 border border-white/10 rounded-2xl uppercase tracking-widest hover:bg-white/5 transition-all"
               >
                 Log In
-              </a>
-              <a
-                href="https://admin.noehost.com/register.php"
-                target="_blank"
-                rel="noopener noreferrer"
+              </Link>
+              <Link
+                to="/client/register"
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full py-5 bg-primary text-white rounded-2xl font-black text-center shadow-2xl shadow-primary/30 uppercase tracking-widest"
               >
                 Sign Up
-              </a>
+              </Link>
             </div>
           )}
         </div>
