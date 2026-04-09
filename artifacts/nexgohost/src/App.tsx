@@ -87,6 +87,7 @@ import GoogleCallback from "@/pages/auth/GoogleCallback";
 import SharedHostingPage from "@/pages/public/SharedHosting";
 import WordPressHostingPage from "@/pages/public/WordPressHosting";
 import ResellerHostingPage from "@/pages/public/ResellerHosting";
+import VpsHostingPage from "@/pages/public/VpsHostingPage";
 import DomainsPage from "@/pages/public/DomainsPage";
 import AboutUsPage from "@/pages/public/AboutUs";
 import ContactUsPage from "@/pages/public/ContactUs";
@@ -549,6 +550,7 @@ function RouterRoot() {
       <Route path="/shared-hosting"    component={SharedHostingPage}   />
       <Route path="/wordpress-hosting" component={WordPressHostingPage} />
       <Route path="/reseller-hosting"  component={ResellerHostingPage}  />
+      <Route path="/vps-hosting"       component={VpsHostingPage}       />
       <Route path="/domains"           component={DomainsPage}          />
       <Route path="/about-us"          component={AboutUsPage}          />
       <Route path="/about"             component={AboutUsPage}          />

@@ -30,7 +30,7 @@ const TopBar: React.FC = () => {
   if (!config.show || dismissed) return null;
 
   return (
-    <div className="bg-gradient-to-r from-[#1e293b] via-[#1a1866] to-[#1e293b] text-white py-2.5 relative z-[110] overflow-visible" style={{ borderBottom: '1px solid rgba(103,61,230,0.4)' }}>
+    <div className="bg-gradient-to-r from-[#06060f] via-[#0c0c22] to-[#06060f] text-white py-2.5 relative z-[110] overflow-visible" style={{ borderBottom: '1px solid rgba(103,61,230,0.25)' }}>
       <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_50%_50%,rgba(103,61,230,0.2),transparent_70%)]" />
       <div className="container mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10">
 

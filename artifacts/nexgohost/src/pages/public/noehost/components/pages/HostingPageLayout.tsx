@@ -13,7 +13,7 @@ interface HostingPageLayoutProps {
 
 const HostingPageLayout: React.FC<HostingPageLayoutProps> = ({ user, setUser, children }) => {
   return (
-    <>
+    <div className="noehost-public min-h-screen flex flex-col bg-black">
       <header className="fixed top-0 left-0 right-0 z-[100]">
         <TopBar />
         <Navbar user={user} setUser={setUser} />
@@ -30,7 +30,7 @@ const HostingPageLayout: React.FC<HostingPageLayoutProps> = ({ user, setUser, ch
       >
         ↑
       </button>
-    </>
+    </div>
   );
 };
 

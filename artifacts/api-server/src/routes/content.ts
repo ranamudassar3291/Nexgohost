@@ -35,7 +35,16 @@ const DEFAULT_CONTENT = {
     logo: "NOEHOST",
     logoUrl: "",
     logoImage: "",
-    links: [],
+    links: [
+      { name: "Home", href: "/", icon: "Home", color: "text-primary" },
+      { name: "Shared", href: "/shared-hosting", icon: "Server", color: "text-blue-500" },
+      { name: "VPS", href: "/vps-hosting", icon: "Cpu", color: "text-purple-500" },
+      { name: "Reseller", href: "/reseller-hosting", icon: "Users", color: "text-rose-500" },
+      { name: "WordPress", href: "/wordpress-hosting", icon: "Layout", color: "text-emerald-500" },
+      { name: "Domains", href: "/domains", icon: "Globe", color: "text-cyan-500" },
+      { name: "About", href: "/about-us", icon: "Info", color: "text-sky-500" },
+      { name: "Contact", href: "/contact-us", icon: "Mail", color: "text-teal-500" },
+    ],
   },
   config: {
     topbar: {
@@ -131,12 +140,16 @@ function deepMerge(defaults: any, overrides: any): any {
   const result: any = { ...defaults };
   for (const key of Object.keys(overrides)) {
     if (
+      // For arrays: only use the override if it has items (non-empty).
+      // An empty array in stored content should fall back to defaults.
+      Array.isArray(overrides[key])
+    ) {
+      result[key] = overrides[key].length > 0 ? overrides[key] : (defaults[key] ?? overrides[key]);
+    } else if (
       typeof overrides[key] === "object" &&
       overrides[key] !== null &&
-      !Array.isArray(overrides[key]) &&
       typeof defaults[key] === "object" &&
-      defaults[key] !== null &&
-      !Array.isArray(defaults[key])
+      defaults[key] !== null
     ) {
       result[key] = deepMerge(defaults[key], overrides[key]);
     } else {
