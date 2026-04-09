@@ -759,14 +759,16 @@ export default function AdminOrders() {
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-muted-foreground">Username and password will be auto-generated</p>
+                  <p className="text-xs text-muted-foreground">
+                    {preActivate.moduleType === "20i" ? "StackCP account will be linked via email" : "Username and password will be auto-generated"}
+                  </p>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 mb-4 px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg">
                   <CheckCircle size={14} className="text-green-400 shrink-0" />
                   <p className="text-xs text-green-600 dark:text-green-400">
                     {groupServers.length === 1 ? `Server: ${groupServers[0].name}` : "Server will be auto-selected"}
-                    {" — "}credentials auto-generated
+                    {preActivate.moduleType === "20i" ? " — StackCP login via client email" : " — credentials auto-generated"}
                   </p>
                 </div>
               );

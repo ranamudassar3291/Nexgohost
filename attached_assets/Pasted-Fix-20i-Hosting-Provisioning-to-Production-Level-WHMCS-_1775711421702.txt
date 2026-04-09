@@ -1,0 +1,180 @@
+Fix 20i Hosting Provisioning to Production Level (WHMCS Style)
+
+Current Issues:
+
+- stackUser field missing
+- packageId field missing
+- Login using username instead of email
+- Order activation failing
+- 403 errors from API
+- Hosting account not created properly
+
+Fix everything fully.
+
+--------------------------------------------
+
+1. Add Required Fields (Frontend + Backend)
+
+Add in Server Configuration:
+
+Fields:
+
+Package ID
+Stack User Email
+Location (optional)
+Platform (stackcp)
+
+Add in Product Configuration:
+
+Package ID (20i)
+Server Group
+Auto Provision Toggle
+
+--------------------------------------------
+
+2. Fix Account Creation Payload
+
+20i requires:
+
+Use Email as stackUser
+
+Payload:
+
+{
+"domain": "clientdomain.com",
+"stackUser": "client@email.com",
+"email": "client@email.com",
+"packageId": "PACKAGE_ID",
+"firstName": "Client",
+"lastName": "Name"
+}
+
+Remove:
+
+username generation
+
+Do not create username
+
+Use email only.
+
+--------------------------------------------
+
+3. Activation Flow
+
+Admin clicks Activate Order:
+
+System:
+
+Get Client Email
+Get Domain
+Get Package ID
+Get Server
+
+Send to 20i API
+
+Create Hosting Account
+
+If success:
+
+Create client service
+Assign to client
+Mark Active
+
+--------------------------------------------
+
+4. StackCP Login
+
+After activation:
+
+Save:
+
+stackUser = client email
+
+Create login button:
+
+Login to StackCP
+
+Link:
+
+https://stackcp.com/
+
+Client logs in using email
+
+--------------------------------------------
+
+5. Fix Database Fields
+
+Add:
+
+services table:
+
+stackUser
+packageId
+serverId
+domain
+status
+
+--------------------------------------------
+
+6. Fix Order Activation
+
+Remove:
+
+username requirement
+
+Use:
+
+Email based login
+
+--------------------------------------------
+
+7. Fix 403 Errors
+
+Ensure:
+
+Package ID exists
+StackUser exists
+Email exists
+
+Validate before API call.
+
+--------------------------------------------
+
+8. Add Auto Service Creation
+
+After success:
+
+Client Dashboard show:
+
+Hosting Active
+
+Buttons:
+
+Login to StackCP
+File Manager
+Databases
+Email Accounts
+
+--------------------------------------------
+
+9. Final Result
+
+Admin Activate
+
+↓
+
+20i Account Create
+
+↓
+
+Client Service Create
+
+↓
+
+StackCP Login Ready
+
+↓
+
+Order Active
+
+Production ready hosting automation

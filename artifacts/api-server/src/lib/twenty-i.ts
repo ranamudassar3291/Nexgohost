@@ -1375,7 +1375,11 @@ export async function twentyiListStackUsers(apiKey: string): Promise<TwentyIStac
         siteCount,
       };
     });
-  } catch {
+  } catch (err: any) {
+    const msg = String(err?.message ?? "");
+    if (msg.includes("403")) {
+      console.warn("[20i-SUSERS] GET /reseller/*/susers returned 403 — this account may not have StackUser permissions. StackCP user linking will be skipped.");
+    }
     return [];
   }
 }

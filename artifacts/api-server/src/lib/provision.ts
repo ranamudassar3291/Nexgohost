@@ -447,7 +447,21 @@ export async function provisionHostingService(
         // Step B — Create the hosting package on 20i
         // Order-level modulePlanId overrides the plan's default (allows per-order plan selection)
         const packageTypeId = overrides?.modulePlanId || plan?.modulePlanId || undefined;
-        const twentyiResult = await twentyiCreateHosting(rawApiKey, domain, user.email, packageTypeId);
+
+        console.log(
+          `[PROVISION] 20i addWeb pre-call — domain="${domain}" email="${user.email}" ` +
+          `packageTypeId="${packageTypeId ?? "(auto)"}" stackUserId="${stackUserId ?? "(none)"}"`,
+        );
+
+        // Pass stackUserId so the package is linked to the client's StackCP account at
+        // creation time — the 20i API accepts "stack-user:N" ref in the addWeb payload.
+        const twentyiResult = await twentyiCreateHosting(
+          rawApiKey,
+          domain,
+          user.email,
+          packageTypeId,
+          stackUserId ?? undefined,
+        );
 
         if (twentyiResult.siteId) username = twentyiResult.siteId;
         if (twentyiResult.cpanelUrl) cpanelUrl = twentyiResult.cpanelUrl;
