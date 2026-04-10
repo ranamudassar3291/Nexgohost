@@ -81,20 +81,7 @@ import OrderFlow from "@/pages/public/OrderFlow";
 import TermsOfService from "@/pages/public/TermsOfService";
 import PrivacyPolicy from "@/pages/public/PrivacyPolicy";
 import RefundPolicy from "@/pages/public/RefundPolicy";
-import Contact from "@/pages/public/Contact";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
-// Noehost marketing pages
-import SharedHostingPage from "@/pages/public/SharedHosting";
-import WordPressHostingPage from "@/pages/public/WordPressHosting";
-import ResellerHostingPage from "@/pages/public/ResellerHosting";
-import VpsHostingPage from "@/pages/public/VpsHostingPage";
-import DomainsPage from "@/pages/public/DomainsPage";
-import AboutUsPage from "@/pages/public/AboutUs";
-import ContactUsPage from "@/pages/public/ContactUs";
-import HostingPageLayout from "@/pages/public/noehost/components/pages/HostingPageLayout";
-import NoePrivacyPolicy from "@/pages/public/noehost/components/pages/PrivacyPolicy";
-import NoeTermsAndConditions from "@/pages/public/noehost/components/pages/TermsAndConditions";
-import NoeRefundPolicy from "@/pages/public/noehost/components/pages/RefundPolicy";
 
 import { queryClient } from "@/lib/query-client";
 
@@ -546,44 +533,26 @@ function RouterRoot() {
       <Route path="/admin/domain-extensions">
         <Redirect to="/admin/domains?tab=extensions" />
       </Route>
-      {/* ── Noehost marketing / public hosting pages ── */}
-      <Route path="/shared-hosting"    component={SharedHostingPage}   />
-      <Route path="/wordpress-hosting" component={WordPressHostingPage} />
-      <Route path="/reseller-hosting"  component={ResellerHostingPage}  />
-      <Route path="/vps-hosting"       component={VpsHostingPage}       />
-      <Route path="/domains"           component={DomainsPage}          />
-      <Route path="/about-us"          component={AboutUsPage}          />
-      <Route path="/about"             component={AboutUsPage}          />
-      <Route path="/contact-us">
-        <ContactUsPage />
-      </Route>
+      {/* ── Public hosting / marketing pages — redirect to login ── */}
+      <Route path="/shared-hosting"><Redirect to="/client/login" /></Route>
+      <Route path="/wordpress-hosting"><Redirect to="/client/login" /></Route>
+      <Route path="/reseller-hosting"><Redirect to="/client/login" /></Route>
+      <Route path="/vps-hosting"><Redirect to="/client/login" /></Route>
+      <Route path="/domains"><Redirect to="/client/login" /></Route>
+      <Route path="/about-us"><Redirect to="/client/login" /></Route>
+      <Route path="/about"><Redirect to="/client/login" /></Route>
+      <Route path="/contact-us"><Redirect to="/client/login" /></Route>
+      <Route path="/contact"><Redirect to="/client/login" /></Route>
 
-      {/* ── Legal pages — public (noehost dark theme + legacy aliases) ── */}
-      <Route path="/privacy-policy">
-        <HostingPageLayout user={null} setUser={() => {}}>
-          <NoePrivacyPolicy />
-        </HostingPageLayout>
-      </Route>
-      <Route path="/legal/privacy">
-        <HostingPageLayout user={null} setUser={() => {}}>
-          <NoePrivacyPolicy />
-        </HostingPageLayout>
-      </Route>
-      <Route path="/terms-and-conditions">
-        <HostingPageLayout user={null} setUser={() => {}}>
-          <NoeTermsAndConditions />
-        </HostingPageLayout>
-      </Route>
-      <Route path="/legal/terms"       component={TermsOfService} />
-      <Route path="/terms-of-service"  component={TermsOfService} />
-      <Route path="/tos"               component={TermsOfService} />
-      <Route path="/refund-policy">
-        <HostingPageLayout user={null} setUser={() => {}}>
-          <NoeRefundPolicy />
-        </HostingPageLayout>
-      </Route>
-      <Route path="/legal/refund"      component={RefundPolicy}   />
-      <Route path="/contact"           component={Contact}        />
+      {/* ── Legal pages ── */}
+      <Route path="/privacy-policy"      component={PrivacyPolicy}  />
+      <Route path="/legal/privacy"       component={PrivacyPolicy}  />
+      <Route path="/terms-and-conditions" component={TermsOfService} />
+      <Route path="/legal/terms"         component={TermsOfService} />
+      <Route path="/terms-of-service"    component={TermsOfService} />
+      <Route path="/tos"                 component={TermsOfService} />
+      <Route path="/refund-policy"       component={RefundPolicy}   />
+      <Route path="/legal/refund"        component={RefundPolicy}   />
 
       <Route path="/status" component={Status} />
       <Route path="/help/:slug">
