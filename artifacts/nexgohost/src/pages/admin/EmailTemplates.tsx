@@ -30,6 +30,7 @@ const SAMPLES: Record<string, string> = {
   due_date: "Jan 31, 2025",
   payment_date: "Jan 15, 2025",
   company_name: "Noehost",
+  brand_color: "#701AFE",
   domain: "example.com",
   username: "jsmith001",
   password: "MyP@ssw0rd!",
@@ -48,11 +49,23 @@ const SAMPLES: Record<string, string> = {
   client_area_url: "https://noehost.com/client",
   reason: "Overdue invoice",
   cancel_date: "Jan 31, 2025",
+  logo_url: "/uploads/branding/logo.png",
+  website_url: "https://noehost.com",
+  support_url: "https://noehost.com/client/tickets/new",
+  footer_address: "Noehost, Pakistan",
 };
 
 function renderPreview(body: string): string {
   return body
+    // Mustache block sections: {{#var}}content{{/var}} — show content if var is truthy
+    .replace(/\{\{#([a-z_]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k, content) =>
+      SAMPLES[k] ? content : "")
+    // Mustache inverted sections: {{^var}}content{{/var}} — show content if var is falsy
+    .replace(/\{\{\^([a-z_]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_, k, content) =>
+      SAMPLES[k] ? "" : content)
+    // Simple {{variable}} substitution
     .replace(/\{\{([a-z_]+)\}\}/g, (_, k) => SAMPLES[k] ?? `{{${k}}}`)
+    // Single-brace {variable} substitution
     .replace(/\{([a-z_]+)\}/g,     (_, k) => SAMPLES[k] ?? `{${k}}`);
 }
 
