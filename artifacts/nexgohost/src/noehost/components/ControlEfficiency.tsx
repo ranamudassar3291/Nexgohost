@@ -41,13 +41,13 @@ const SharedHostingIllustration: React.FC = () => (
 );
 
 const WordPressIllustration: React.FC = () => (
-  <div className="w-full h-32 rounded-2xl bg-slate-200 flex flex-col items-center justify-center gap-2 select-none">
-    <div className="w-12 h-12 rounded-full bg-slate-900 flex items-center justify-center">
-      <Layout size={22} className="text-white" />
+  <div className="w-full h-32 rounded-2xl flex flex-col items-center justify-center gap-2 select-none" style={{ background: 'rgba(255,255,255,0.05)' }}>
+    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+      <Layout size={22} className="text-primary-300" />
     </div>
     <div className="flex gap-1">
       {['#','W','P'].map((c,i)=>(
-        <div key={i} className="w-6 h-6 bg-slate-300 rounded text-[10px] font-black text-slate-600 flex items-center justify-center">{c}</div>
+        <div key={i} className="w-6 h-6 bg-white/10 rounded text-[10px] font-black text-slate-300 flex items-center justify-center">{c}</div>
       ))}
     </div>
     <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">1-Click Install</div>
@@ -55,37 +55,37 @@ const WordPressIllustration: React.FC = () => (
 );
 
 const VPSIllustration: React.FC = () => (
-  <div className="w-full h-32 rounded-2xl bg-emerald-100 flex flex-col items-center justify-center gap-2 select-none">
+  <div className="w-full h-32 rounded-2xl flex flex-col items-center justify-center gap-2 select-none" style={{ background: 'rgba(16,185,129,0.06)' }}>
     <div className="flex gap-2">
       {[1,2,3].map(i=>(
-        <div key={i} className="w-8 h-16 bg-emerald-200 rounded-lg flex flex-col items-center justify-center gap-1">
-          <div className="w-5 h-1 bg-emerald-400 rounded-full"></div>
-          <div className="w-5 h-1 bg-emerald-400 rounded-full opacity-60"></div>
-          <div className="w-5 h-1 bg-emerald-400 rounded-full opacity-30"></div>
-          <Cpu size={10} className="text-emerald-600 mt-1" />
+        <div key={i} className="w-8 h-16 bg-emerald-500/10 rounded-lg flex flex-col items-center justify-center gap-1">
+          <div className="w-5 h-1 bg-emerald-500 rounded-full"></div>
+          <div className="w-5 h-1 bg-emerald-500 rounded-full opacity-60"></div>
+          <div className="w-5 h-1 bg-emerald-500 rounded-full opacity-30"></div>
+          <Cpu size={10} className="text-emerald-400 mt-1" />
         </div>
       ))}
     </div>
-    <div className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Dedicated vCPUs</div>
+    <div className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Dedicated vCPUs</div>
   </div>
 );
 
 const EmailIllustration: React.FC = () => (
-  <div className="w-full h-32 rounded-2xl bg-rose-100 flex flex-col items-center justify-center gap-2 select-none">
-    <div className="w-14 h-10 bg-rose-200 rounded-xl flex items-center justify-center relative">
-      <Mail size={22} className="text-rose-600" />
+  <div className="w-full h-32 rounded-2xl flex flex-col items-center justify-center gap-2 select-none" style={{ background: 'rgba(244,63,94,0.06)' }}>
+    <div className="w-14 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center relative">
+      <Mail size={22} className="text-rose-400" />
       <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full text-white text-[8px] font-black flex items-center justify-center">3</div>
     </div>
     <div className="flex flex-col gap-1 w-4/5">
       {['inbox@domain.com','team@domain.com'].map((e,i)=>(
-        <div key={i} className="bg-rose-200 rounded-md px-2 py-1 text-[8px] font-bold text-rose-700 truncate">{e}</div>
+        <div key={i} className="bg-rose-500/10 rounded-md px-2 py-1 text-[8px] font-bold text-rose-400 truncate">{e}</div>
       ))}
     </div>
   </div>
 );
 
 const CpanelIllustration: React.FC = () => (
-  <div className="w-full h-32 rounded-2xl bg-amber-100 flex flex-col items-center justify-center gap-2 select-none">
+  <div className="w-full h-32 rounded-2xl flex flex-col items-center justify-center gap-2 select-none" style={{ background: 'rgba(245,158,11,0.06)' }}>
     <div className="grid grid-cols-3 gap-2">
       {[
         {icon:<Settings size={12}/>,label:'cPanel'},
@@ -95,9 +95,9 @@ const CpanelIllustration: React.FC = () => (
         {icon:<HardDrive size={12}/>,label:'Files'},
         {icon:<RefreshCw size={12}/>,label:'Backup'},
       ].map((item,i)=>(
-        <div key={i} className="w-10 h-10 bg-amber-200 rounded-xl flex flex-col items-center justify-center gap-0.5">
-          <span className="text-amber-700">{item.icon}</span>
-          <span className="text-[6px] font-black text-amber-700 uppercase">{item.label}</span>
+        <div key={i} className="w-10 h-10 bg-amber-500/10 rounded-xl flex flex-col items-center justify-center gap-0.5">
+          <span className="text-amber-400">{item.icon}</span>
+          <span className="text-[6px] font-black text-amber-500 uppercase">{item.label}</span>
         </div>
       ))}
     </div>
@@ -117,21 +117,21 @@ const WebHostingIllustration: React.FC = () => (
 );
 
 const ResellerIllustration: React.FC = () => (
-  <div className="w-full h-32 rounded-2xl bg-blue-100 flex flex-col items-center justify-center gap-2 select-none">
+  <div className="w-full h-32 rounded-2xl flex flex-col items-center justify-center gap-2 select-none" style={{ background: 'rgba(59,130,246,0.06)' }}>
     <div className="flex items-center gap-3">
-      <div className="w-10 h-10 bg-blue-200 rounded-full flex items-center justify-center"><Users size={16} className="text-blue-600" /></div>
+      <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center"><Users size={16} className="text-blue-400" /></div>
       <div className="flex flex-col gap-1">
         {[1,2,3].map(i=>(
           <div key={i} className="flex items-center gap-1">
-            <div className="w-4 h-4 bg-blue-300 rounded-full flex items-center justify-center">
-              <Users size={8} className="text-blue-700" />
+            <div className="w-4 h-4 bg-blue-500/20 rounded-full flex items-center justify-center">
+              <Users size={8} className="text-blue-400" />
             </div>
-            <div className="w-12 h-1.5 bg-blue-200 rounded-full"></div>
+            <div className="w-12 h-1.5 bg-blue-500/20 rounded-full"></div>
           </div>
         ))}
       </div>
     </div>
-    <div className="text-[9px] font-black text-blue-700 uppercase tracking-widest">Manage Clients</div>
+    <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Manage Clients</div>
   </div>
 );
 
@@ -150,12 +150,12 @@ const ControlEfficiency: React.FC = () => {
       ],
     },
     items: [
-      { title: "WordPress Hosting", description: "The most popular hosting available, our plans offer exceptional performance.", icon: 'Layout', color: "bg-slate-100 text-slate-900", iconColor: "text-slate-600" },
-      { title: "VPS Hosting", description: "Upgrade to dedicated resources for increased hosting performance.", icon: 'Cloud', color: "bg-emerald-50 text-emerald-900", iconColor: "text-emerald-600" },
-      { title: "Email Hosting", description: "The most popular hosting available, our plans offer exceptional reliability.", icon: 'Mail', color: "bg-rose-50 text-rose-900", iconColor: "text-rose-600" },
-      { title: "cPanel Hosting", description: "cPanel Hosting is a popular hosting solution that provides a modern control panel.", icon: 'Settings', color: "bg-amber-50 text-amber-900", iconColor: "text-amber-600" },
-      { title: "Web Hosting", description: "Web hosting is a service that enables individuals and organizations to make sites.", icon: 'Server', color: "bg-rose-600 text-white", iconColor: "text-white" },
-      { title: "Reseller Hosting", description: "Reseller Hosting allows individuals or businesses to purchase hosting services.", icon: 'Globe', color: "bg-blue-50 text-blue-900", iconColor: "text-blue-600" }
+      { title: "WordPress Hosting", description: "The most popular hosting available, our plans offer exceptional performance.", icon: 'Layout', color: "text-slate-200", iconColor: "text-primary-300", darkBg: "rgba(103,61,230,0.08)" },
+      { title: "VPS Hosting", description: "Upgrade to dedicated resources for increased hosting performance.", icon: 'Cloud', color: "text-emerald-200", iconColor: "text-emerald-400", darkBg: "rgba(16,185,129,0.08)" },
+      { title: "Email Hosting", description: "The most popular hosting available, our plans offer exceptional reliability.", icon: 'Mail', color: "text-rose-200", iconColor: "text-rose-400", darkBg: "rgba(244,63,94,0.08)" },
+      { title: "cPanel Hosting", description: "cPanel Hosting is a popular hosting solution that provides a modern control panel.", icon: 'Settings', color: "text-amber-200", iconColor: "text-amber-400", darkBg: "rgba(245,158,11,0.08)" },
+      { title: "Web Hosting", description: "Web hosting is a service that enables individuals and organizations to make sites.", icon: 'Server', color: "text-white", iconColor: "text-white", darkBg: "#673de6" },
+      { title: "Reseller Hosting", description: "Reseller Hosting allows individuals or businesses to purchase hosting services.", icon: 'Globe', color: "text-blue-200", iconColor: "text-blue-400", darkBg: "rgba(59,130,246,0.08)" }
     ]
   };
 
@@ -180,10 +180,11 @@ const ControlEfficiency: React.FC = () => {
   };
 
   return (
-    <section className="py-14 bg-white overflow-hidden">
-      <div className="container mx-auto px-6">
+    <section className="py-14 overflow-hidden" style={{ background: '#060609' }}>
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 30% 50%, rgba(103,61,230,0.08) 0%, transparent 60%)' }} />
+      <div className="container mx-auto px-6 relative z-10">
         <div className="text-center mb-10">
-          <h2 className="text-3xl lg:text-4xl font-black text-slate-900">
+          <h2 className="text-3xl lg:text-4xl font-black text-white">
             {data.title}
           </h2>
         </div>
@@ -191,10 +192,10 @@ const ControlEfficiency: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {/* Large Feature Card - Shared Web Hosting */}
           <div className="md:col-span-2 xl:col-span-2">
-            <div className="h-full rounded-[28px] p-8 bg-primary text-white relative overflow-hidden group">
+            <div className="h-full rounded-[28px] p-8 text-white relative overflow-hidden group" style={{ background: 'linear-gradient(135deg, #673de6 0%, #4c22cc 100%)' }}>
               <div className="flex flex-col md:flex-row items-center gap-10 relative z-10">
                 <div className="md:w-3/5">
-                  <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-primary mb-8 shadow-lg">
+                  <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center text-white mb-8 shadow-lg border border-white/20">
                     <Server size={32} />
                   </div>
                   <h3 className="text-2xl font-black mb-4">{data.mainCard.title}</h3>
@@ -204,7 +205,7 @@ const ControlEfficiency: React.FC = () => {
                   <ul className="space-y-4">
                     {data.mainCard.features.map((item: string, i: number) => (
                       <li key={i} className="flex items-center gap-3">
-                        <CheckCircle2 size={18} className="text-white/60" />
+                        <CheckCircle2 size={18} className="text-white/70" />
                         <span className="font-bold text-sm">{item}</span>
                       </li>
                     ))}
@@ -226,18 +227,19 @@ const ControlEfficiency: React.FC = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className={`flex flex-col rounded-[28px] p-6 ${feature.color} transition-all duration-300 hover:shadow-xl group min-h-[320px]`}
+              className={`flex flex-col rounded-[28px] p-6 ${feature.color} transition-all duration-300 group min-h-[320px] border border-white/5 hover:border-white/15`}
+              style={{ background: feature.darkBg || 'rgba(255,255,255,0.04)' }}
             >
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${feature.iconColor} mb-6 shadow-sm ${feature.color.includes('text-white') ? 'bg-white/20' : 'bg-white'}`}>
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${feature.iconColor} mb-6 bg-white/10`}>
                 {IconMap[feature.icon] || <Zap size={32} />}
               </div>
               <h4 className="text-xl font-black mb-3">{feature.title}</h4>
-              <p className="text-sm font-medium opacity-70 mb-8 leading-relaxed">
+              <p className="text-sm font-medium opacity-60 mb-8 leading-relaxed">
                 {feature.description}
               </p>
               <div className="mt-auto">
                 {IllustrationMap[feature.title] || (
-                  <div className="w-full h-32 rounded-2xl bg-white/30 flex items-center justify-center">
+                  <div className="w-full h-32 rounded-2xl bg-white/5 flex items-center justify-center">
                     <div className={`${feature.iconColor} opacity-30`}>{IconMap[feature.icon]}</div>
                   </div>
                 )}

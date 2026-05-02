@@ -33,8 +33,9 @@ const TopBar: React.FC = () => {
     <div
       className="text-white py-2.5 relative z-[110] overflow-visible"
       style={{
-        background: 'linear-gradient(90deg, #0e0e11 0%, #1a0d3e 30%, #120840 50%, #1a0d3e 70%, #0e0e11 100%)',
-        borderBottom: '1px solid rgba(103,61,230,0.5)',
+        background: 'linear-gradient(90deg, #0b0b0f 0%, #1e0f4a 25%, #2a1060 50%, #1e0f4a 75%, #0b0b0f 100%)',
+        borderBottom: '1px solid rgba(103,61,230,0.6)',
+        boxShadow: '0 1px 20px rgba(103,61,230,0.15)',
       }}
     >
       <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(103,61,230,0.25), transparent 70%)' }} />

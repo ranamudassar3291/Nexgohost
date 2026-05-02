@@ -192,8 +192,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
   return (
     <nav
       className={`transition-all duration-300 w-full z-[100] ${
-        isScrolled ? 'bg-white py-3 shadow-xl' : 'bg-secondary/80 backdrop-blur-sm py-5'
+        isScrolled
+          ? 'bg-[#0e0e11]/95 backdrop-blur-2xl py-3 shadow-2xl shadow-black/60'
+          : 'bg-[#0e0e11]/80 backdrop-blur-sm py-5'
       }`}
+      style={{ borderBottom: isScrolled ? '1px solid rgba(103,61,230,0.25)' : 'none' }}
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
         <div className="flex items-center gap-12">
@@ -208,9 +211,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <Link
                 key={idx}
                 to={link.href}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${
-                  isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                }`}
+                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
               >
                 <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
                   {IconMap[link.icon] || <Zap size={18} />}
@@ -224,9 +225,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <div ref={hostingRef} className="relative">
                 <button
                   onClick={() => setHostingOpen(o => !o)}
-                  className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${
-                    isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                  }`}
+                  className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
                 >
                   <span className="text-primary group-hover:scale-110 transition-transform">
                     <Server size={18} />
@@ -236,12 +235,13 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 </button>
 
                 {hostingOpen && (
-                  <div className="absolute top-full left-0 mt-3 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
-                    style={{ minWidth: '340px' }}
+                  <div
+                    className="absolute top-full left-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                    style={{ minWidth: '340px', background: '#131318', border: '1px solid rgba(103,61,230,0.3)' }}
                   >
                     {/* Header */}
                     <div className="px-5 pt-5 pb-2">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Hosting</span>
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Hosting Plans</span>
                     </div>
 
                     {/* Items */}
@@ -253,29 +253,29 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                             key={idx}
                             to={link.href}
                             onClick={() => setHostingOpen(false)}
-                            className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-slate-50 transition-all group"
+                            className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
                           >
                             {/* Icon box */}
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 group-hover:bg-primary/10 transition-all ${link.color || 'text-primary'}`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 group-hover:bg-primary/20 transition-all ${link.color || 'text-primary'}`}>
                               {IconMap[link.icon] || <Server size={18} />}
                             </div>
 
                             {/* Text */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-sm font-bold text-slate-800 group-hover:text-primary transition-colors">
+                                <span className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors">
                                   {link.name === 'Shared' ? 'Shared Hosting' :
                                    link.name === 'VPS' ? 'VPS Hosting' :
                                    link.name === 'Reseller' ? 'Reseller Hosting' :
                                    link.name === 'WordPress' ? 'WordPress Hosting' : link.name}
                                 </span>
                                 {meta.badge && (
-                                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor || 'bg-slate-100 text-slate-500'}`}>
+                                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/15 text-primary">
                                     {meta.badge}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-slate-400 font-medium leading-snug">{meta.desc}</p>
+                              <p className="text-xs text-slate-500 font-medium leading-snug">{meta.desc}</p>
                             </div>
                           </Link>
                         );
@@ -283,7 +283,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                     </div>
 
                     {/* Footer CTA */}
-                    <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/60 flex items-center justify-between">
+                    <div className="px-5 py-3.5 flex items-center justify-between" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(103,61,230,0.05)' }}>
                       <span className="text-xs text-slate-500 font-medium">Not sure which plan?</span>
                       <Link
                         to="/#pricing"
@@ -303,9 +303,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <Link
                 key={idx}
                 to={link.href}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${
-                  isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                }`}
+                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
               >
                 <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
                   {IconMap[link.icon] || <Zap size={18} />}
@@ -319,9 +317,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         <div className="hidden lg:flex items-center gap-6">
           <button
             onClick={openCart}
-            className={`p-3 rounded-xl transition-all border relative group ${
-              isScrolled ? 'bg-slate-50 border-slate-100 text-slate-500 hover:text-primary hover:border-primary/30' : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/30'
-            }`}
+            className="p-3 rounded-xl transition-all border relative group bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/30"
             title="Cart"
           >
             <ShoppingCart size={20} />
@@ -342,9 +338,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               </a>
               <button
                 onClick={handleLogout}
-                className={`p-3 rounded-xl transition-all border ${
-                  isScrolled ? 'bg-slate-50 border-slate-100 text-slate-400 hover:text-red-500' : 'bg-white/5 border-white/5 text-slate-400 hover:text-red-500'
-                }`}
+                className="p-3 rounded-xl transition-all border bg-white/5 border-white/5 text-slate-400 hover:text-red-500"
               >
                 <LogOut size={20} />
               </button>
@@ -353,9 +347,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             <>
               <a
                 href="/client/login"
-                className={`font-black text-sm transition-colors uppercase tracking-widest ${
-                  isScrolled ? 'text-slate-600 hover:text-primary' : 'text-slate-200 hover:text-white'
-                }`}
+                className="font-black text-sm transition-colors uppercase tracking-widest text-slate-200 hover:text-white"
               >
                 Log In
               </a>
@@ -372,9 +364,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         {/* Mobile Toggle */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className={`lg:hidden p-2 rounded-xl transition-all ${
-            isScrolled ? 'text-slate-900 bg-slate-100' : 'text-white bg-white/10'
-          }`}
+          className="lg:hidden p-2 rounded-xl transition-all text-white bg-white/10 hover:bg-white/20"
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -382,7 +372,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden absolute top-full left-0 right-0 bg-white border-t border-slate-100 shadow-2xl p-8 flex flex-col gap-6 animate-in slide-in-from-top-4 duration-500 max-h-[85vh] overflow-y-auto z-[100]">
+        <div
+          className="lg:hidden absolute top-full left-0 right-0 shadow-2xl p-8 flex flex-col gap-6 animate-in slide-in-from-top-4 duration-500 max-h-[85vh] overflow-y-auto z-[100]"
+          style={{ background: '#0e0e11', borderBottom: '1px solid rgba(103,61,230,0.3)' }}
+        >
           {/* Home link first */}
           {otherLinks.filter((l: any) => l.name.toLowerCase() === 'home').map((link: any, idx: number) => (
             <Link
@@ -391,10 +384,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-4 group"
             >
-              <div className={`p-3 rounded-xl bg-slate-50 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
+              <div className={`p-3 rounded-xl bg-white/5 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
                 {IconMap[link.icon] || <Zap size={18} />}
               </div>
-              <span className="text-sm font-black text-slate-800 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
+              <span className="text-sm font-black text-slate-200 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
             </Link>
           ))}
 
@@ -405,11 +398,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 onClick={() => setMobileHostingOpen(o => !o)}
                 className="flex items-center gap-4 group w-full"
               >
-                <div className="p-3 rounded-xl bg-slate-50 text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                <div className="p-3 rounded-xl bg-white/5 text-primary group-hover:bg-primary group-hover:text-white transition-all">
                   <Server size={18} />
                 </div>
-                <span className="text-sm font-black text-slate-800 group-hover:text-primary transition-colors uppercase tracking-widest flex-1 text-left">Hosting</span>
-                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${mobileHostingOpen ? 'rotate-180' : ''}`} />
+                <span className="text-sm font-black text-slate-200 group-hover:text-primary transition-colors uppercase tracking-widest flex-1 text-left">Hosting</span>
+                <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileHostingOpen ? 'rotate-180' : ''}`} />
               </button>
               {mobileHostingOpen && (
                 <div className="mt-3 flex flex-col gap-1">
@@ -420,26 +413,26 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                         key={idx}
                         to={link.href}
                         onClick={() => setMobileMenuOpen(false)}
-                        className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 transition-all group"
+                        className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
                       >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 group-hover:bg-primary/10 transition-all ${link.color || 'text-primary'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 group-hover:bg-primary/20 transition-all ${link.color || 'text-primary'}`}>
                           {IconMap[link.icon] || <Zap size={16} />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-slate-800 group-hover:text-primary transition-colors">
+                            <span className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors">
                               {link.name === 'Shared' ? 'Shared Hosting' :
                                link.name === 'VPS' ? 'VPS Hosting' :
                                link.name === 'Reseller' ? 'Reseller Hosting' :
                                link.name === 'WordPress' ? 'WordPress Hosting' : link.name}
                             </span>
                             {meta.badge && (
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${meta.badgeColor || 'bg-slate-100 text-slate-500'}`}>
+                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/15 text-primary">
                                 {meta.badge}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-400 font-medium">{meta.desc}</p>
+                          <p className="text-xs text-slate-500 font-medium">{meta.desc}</p>
                         </div>
                       </Link>
                     );
@@ -457,14 +450,14 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-4 group"
             >
-              <div className={`p-3 rounded-xl bg-slate-50 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
+              <div className={`p-3 rounded-xl bg-white/5 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
                 {IconMap[link.icon] || <Zap size={18} />}
               </div>
-              <span className="text-sm font-black text-slate-800 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
+              <span className="text-sm font-black text-slate-200 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
             </Link>
           ))}
 
-          <hr className="border-slate-100" />
+          <hr className="border-white/10" />
           {user ? (
             <div className="flex flex-col gap-4">
               <a
@@ -476,7 +469,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               </a>
               <button
                 onClick={handleLogout}
-                className="flex items-center justify-center gap-3 py-5 bg-slate-50 text-red-500 rounded-2xl font-black border border-slate-100"
+                className="flex items-center justify-center gap-3 py-5 bg-white/5 text-red-400 rounded-2xl font-black border border-white/10"
               >
                 <LogOut size={20} /> Logout
               </button>
@@ -486,7 +479,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <a
                 href="/client/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-sm font-black text-slate-800 text-center py-5 border border-slate-200 rounded-2xl uppercase tracking-widest hover:bg-slate-50 transition-all"
+                className="text-sm font-black text-slate-200 text-center py-5 border border-white/10 rounded-2xl uppercase tracking-widest hover:bg-white/5 transition-all"
               >
                 Log In
               </a>
