@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { database, ref, set, onValue, get, off } from './firebase';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 interface ContentContextType {
   content: any;
@@ -11,7 +10,7 @@ interface ContentContextType {
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
-const CACHE_KEY = 'noehost_cms_v3';
+const CACHE_KEY = 'noehost_cms_v4';
 
 const saveToCache = (data: any) => {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
@@ -24,151 +23,83 @@ const loadFromCache = (): any | null => {
   } catch { return null; }
 };
 
-const fetchFromExpress = async () => {
-  const res = await fetch('/api/content', {
-    cache: 'no-store',
-    headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
-  });
-  return await res.json();
-};
+const getToken = () => localStorage.getItem('noehost_token') || '';
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [content, setContent] = useState<any>(() => loadFromCache());
   const [loading, setLoading] = useState(true);
-  const [firebaseConnected, setFirebaseConnected] = useState(false);
-  const unsubscribeRef = useRef<(() => void) | null>(null);
-  const seededRef = useRef(false);
 
   const setAndCache = (data: any) => {
     setContent(data);
     saveToCache(data);
   };
 
+  const fetchContent = useCallback(async () => {
+    try {
+      const res = await fetch('/api/content', {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setAndCache(data);
+    } catch (err) {
+      console.warn('[CMS] Failed to fetch content from backend:', err);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-
     const init = async () => {
-      // Step 1: Try Firebase FIRST — it's the source of truth
       try {
-        const fbRef = ref(database, 'siteContent');
-        const snapshot = await get(fbRef);
-
+        const res = await fetch('/api/content', {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
         if (!cancelled) {
-          if (snapshot.exists()) {
-            // Firebase has data — use it immediately
-            setAndCache(snapshot.val());
-            setLoading(false);
-            setFirebaseConnected(true);
-            console.log('[CMS] Firebase data loaded ✓');
-          } else {
-            // Firebase empty — seed from Express
-            setLoading(false);
-            if (!seededRef.current) {
-              seededRef.current = true;
-              try {
-                const expressData = await fetchFromExpress();
-                if (!cancelled) {
-                  await set(fbRef, expressData);
-                  setAndCache(expressData);
-                  console.log('[CMS] Firebase seeded from Express ✓');
-                }
-              } catch (seedErr) {
-                console.warn('[CMS] Firebase seed failed, using Express as fallback');
-                try {
-                  const expressData = await fetchFromExpress();
-                  if (!cancelled) setAndCache(expressData);
-                } catch {}
-              }
-            }
-            if (!cancelled) setFirebaseConnected(true);
-          }
+          setAndCache(data);
+          console.log('[CMS] Backend DB content loaded ✓');
         }
-      } catch (fbErr: any) {
-        console.warn('[CMS] Firebase unavailable, falling back to Express:', fbErr?.message);
-        // Firebase failed — fall back to Express API
-        try {
-          const expressData = await fetchFromExpress();
-          if (!cancelled) {
-            setAndCache(expressData);
-            setLoading(false);
-          }
-        } catch {
-          if (!cancelled) setLoading(false);
-        }
-        return;
+      } catch (err) {
+        console.warn('[CMS] Content fetch failed, using cached data:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (cancelled) return;
-
-      // Step 2: Subscribe to real-time updates — Firebase always wins
-      const fbRef = ref(database, 'siteContent');
-      const unsub = onValue(
-        fbRef,
-        (snap) => {
-          if (!cancelled && snap.exists()) {
-            setAndCache(snap.val());
-          }
-        },
-        (err) => {
-          console.warn('[CMS] Firebase listener error:', err.message);
-        }
-      );
-
-      unsubscribeRef.current = () => off(fbRef);
-      console.log('[CMS] Firebase real-time sync active');
     };
-
     init();
-
-    return () => {
-      cancelled = true;
-      if (unsubscribeRef.current) {
-        try { unsubscribeRef.current(); } catch {}
-      }
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const updateContent = async (key: string, value: any) => {
-    // Write to Firebase first (real-time propagation everywhere)
-    try {
-      const fbRef = ref(database, `siteContent/${key}`);
-      await set(fbRef, value);
-      // Firebase listener will update content automatically
-    } catch (err) {
-      console.warn('[CMS] Firebase write failed, updating locally:', err);
-      setAndCache({ ...content, [key]: value });
-    }
+    const token = getToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // Also backup to SQL (non-blocking)
+    const optimistic = { ...content, [key]: value };
+    setAndCache(optimistic);
+
     try {
-      const token = localStorage.getItem('noehost_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      await fetch('/api/admin/content', {
+      const res = await fetch('/api/admin/content', {
         method: 'POST',
         headers,
         body: JSON.stringify({ key, value }),
       });
-    } catch {}
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.error('[CMS] Failed to save content:', err);
+      throw err;
+    }
   };
 
-  const refreshContent = async () => {
-    try {
-      const fbRef = ref(database, 'siteContent');
-      const snapshot = await get(fbRef);
-      if (snapshot.exists()) {
-        setAndCache(snapshot.val());
-        return;
-      }
-    } catch {}
-    try {
-      const data = await fetchFromExpress();
-      setAndCache(data);
-    } catch {}
-  };
+  const refreshContent = fetchContent;
 
   return (
-    <ContentContext.Provider value={{ content, loading, updateContent, refreshContent, firebaseConnected }}>
+    <ContentContext.Provider value={{ content, loading, updateContent, refreshContent, firebaseConnected: true }}>
       {children}
     </ContentContext.Provider>
   );

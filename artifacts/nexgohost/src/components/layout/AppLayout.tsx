@@ -56,6 +56,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "IP Unblocker", href: "/admin/ip-unblocker",  icon: (() => null) as any },
     ],
   },
+  {
+    label: "Website",
+    items: [
+      { name: "Website Admin", href: "/admin/website", icon: (() => null) as any },
+    ],
+  },
 ];
 
 export function AppLayout({ children, role }: LayoutProps) {
@@ -120,6 +126,7 @@ export function AppLayout({ children, role }: LayoutProps) {
     "/admin/servers":   ["/admin/twenty-i", "/admin/modules", "/admin/server-nodes"],
     "/admin/analytics": ["/admin/reports", "/admin/transactions", "/admin/fraud-logs", "/admin/cron-logs", "/admin/server-logs", "/admin/backups", "/admin/whatsapp", "/admin/email-marketing", "/admin/whmcs-import"],
     "/admin/system":    ["/admin/settings", "/admin/admin-users", "/admin/email-templates", "/admin/api-settings", "/admin/api-docs", "/admin/security", "/admin/firewall", "/admin/ip-unblocker"],
+    "/admin/website":   [],
   };
 
   const isActive = (href: string) => {

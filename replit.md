@@ -1,5 +1,17 @@
 # Nexgohost (Noehost) — Hosting Management Platform
 
+## CMS Architecture (Updated)
+
+- **Firebase REMOVED** — all website content now stored in PostgreSQL `settings` table (key: `site_content_v1`)
+- **`GET /api/content`** — public endpoint, returns merged content from DB + defaults
+- **`POST /api/admin/content`** — admin-only, updates any content key in DB
+- **`ContentContext`** — pure backend API, no Firebase dependency, localStorage cache
+- **`/admin/website`** — new "Website Admin" section in nexgohost backend panel with tabs:
+  Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config
+- **TopBar** — now shows true purple gradient `#3b0d8f → #673de6 → #3b0d8f` (brand color fixed)
+
+
+
 A production-ready SaaS hosting and domain management platform (similar to WHMCS). Provides full-stack client and admin panels for managing hosting services, domains, billing, support tickets, and more.
 
 ## Running the App

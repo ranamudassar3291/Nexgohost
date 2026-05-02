@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { database, ref, onValue, off } from '../../firebase';
+import React, { useEffect, useState, useCallback } from 'react';
 import { CheckCircle, XCircle, Clock, RefreshCw, Activity, Server, Globe, Shield } from 'lucide-react';
 
 interface ServerNode {
@@ -17,7 +16,7 @@ interface StatusSummary {
   allOperational: boolean;
 }
 
-interface FirebaseStatusData {
+interface StatusData {
   nodes: ServerNode[];
   summary: StatusSummary;
   updatedAt: number;
@@ -42,29 +41,35 @@ function getTypeIcon(type: string) {
 }
 
 const ServerStatus: React.FC = () => {
-  const [data, setData] = useState<FirebaseStatusData | null>(null);
+  const [data, setData] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('—');
 
-  useEffect(() => {
-    const statusRef = ref(database, 'server-status');
-    onValue(statusRef, (snapshot) => {
-      const val = snapshot.val();
-      if (val) {
-        setData(val);
-        setLastUpdated(timeAgo(val.updatedAt));
-      }
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/status/nodes');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setData(json);
+      if (json.updatedAt) setLastUpdated(timeAgo(json.updatedAt));
+    } catch {
+      // silent fail — keep showing cached data
+    } finally {
       setLoading(false);
-    });
-
-    return () => off(statusRef);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchStatus]);
 
   useEffect(() => {
     if (!data?.updatedAt) return;
     const interval = setInterval(() => {
       setLastUpdated(timeAgo(data.updatedAt));
-    }, 10000);
+    }, 10_000);
     return () => clearInterval(interval);
   }, [data?.updatedAt]);
 
@@ -133,7 +138,7 @@ const ServerStatus: React.FC = () => {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
               <RefreshCw className="w-8 h-8 animate-spin mb-4" />
-              <p className="font-medium">Fetching live status from Firebase...</p>
+              <p className="font-medium">Fetching live status...</p>
             </div>
           ) : sorted.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
@@ -177,7 +182,7 @@ const ServerStatus: React.FC = () => {
           <Clock className="w-4 h-4" />
           <span>Last updated: {lastUpdated}</span>
           <span className="mx-1">·</span>
-          <span>Live via Firebase Realtime Database</span>
+          <span>Live via Backend API</span>
           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse ml-1" />
         </div>
       </div>

@@ -26,7 +26,7 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
-  const { content, updateContent, refreshContent, firebaseConnected } = useContent();
+  const { content, updateContent, refreshContent } = useContent();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -1095,7 +1095,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
           { label: 'Total Sections', value: '13', icon: <Layers size={20} />, color: '#673de6' },
           { label: 'Pages', value: '9', icon: <FileText size={20} />, color: '#00d1ff' },
           { label: 'Pricing Plans', value: (content?.pricing ? (content.pricing.shared?.length || 0) + (content.pricing.reseller?.length || 0) : 0).toString(), icon: <DollarSign size={20} />, color: '#10b981' },
-          { label: 'Firebase Sync', value: 'Live', icon: <Zap size={20} />, color: '#f59e0b' },
+          { label: 'DB Sync', value: 'Live', icon: <Zap size={20} />, color: '#10b981' },
         ].map((stat, i) => (
           <div key={i} className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(103,61,230,0.15)' }}>
             <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${stat.color}20`, color: stat.color }}>
@@ -1107,26 +1107,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
         ))}
       </div>
 
-      <div className="rounded-2xl p-6" style={{ background: firebaseConnected ? 'rgba(16,185,129,0.08)' : 'rgba(103,61,230,0.08)', border: firebaseConnected ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(103,61,230,0.25)' }}>
-        <div className="flex items-center gap-3 mb-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${firebaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-          <span className={`text-sm font-bold ${firebaseConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
-            Firebase Realtime Database — {firebaseConnected ? 'Connected & Live' : 'Not Connected (Using Local Database)'}
-          </span>
+      <div className="rounded-2xl p-6" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-sm font-bold text-emerald-400">Backend Database — Connected &amp; Live</span>
         </div>
-        {firebaseConnected ? (
-          <p className="text-slate-400 text-sm">All changes are instantly pushed to Firebase and reflected on your website in real-time — no page reload needed by visitors.</p>
-        ) : (
-          <div className="text-slate-400 text-sm space-y-2">
-            <p>To enable Firebase Realtime Database:</p>
-            <ol className="list-decimal list-inside space-y-1 text-slate-500">
-              <li>Go to <span className="text-purple-400">console.firebase.google.com</span> → your project</li>
-              <li>Click <strong className="text-slate-300">Build → Realtime Database → Create Database</strong></li>
-              <li>Choose a location and set rules to allow read/write</li>
-              <li>The app will auto-connect and sync all content to Firebase</li>
-            </ol>
-          </div>
-        )}
+        <p className="text-slate-400 text-sm">All content is stored in your PostgreSQL backend database. Changes save instantly and reflect on your website immediately — no Firebase, no external dependencies.</p>
       </div>
 
       <div>

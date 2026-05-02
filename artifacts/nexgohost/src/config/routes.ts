@@ -62,6 +62,7 @@ export const adminRoutes: RouteDefinition[] = [
   { path: "/admin/analytics",    label: "Analytics",   icon: BarChart3,       inNav: true  },
   { path: "/admin/system",       label: "System",      icon: Settings,        inNav: true  },
   { path: "/admin/ip-unblocker", label: "IP Unblocker", icon: ShieldCheck,    inNav: true  },
+  { path: "/admin/website",      label: "Website Admin", icon: Globe2,         inNav: true  },
   // Sub-page forms (not in nav)
   { path: "/admin/clients/add",            label: "Add Client",     icon: UserPlus,     inNav: false },
   { path: "/admin/clients/:id/edit",       label: "Edit Client",    icon: Users,        inNav: false },
