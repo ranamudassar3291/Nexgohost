@@ -12,7 +12,7 @@ kind = "web"
   [[services]]
   name = "web"
   paths = [ "/" ]
-  localPort = 5173
+  localPort = 5000
 
   [services.development]
   run = "pnpm --filter @workspace/nexgohost run dev"
@@ -27,6 +27,5 @@ kind = "web"
   to = "/index.html"
 
   [services.env]
-  PORT = "5173"
+  PORT = "5000"
   BASE_PATH = "/"
-  
