@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { useAuth } from "@/hooks/use-auth";
 import CaptchaWidget from "@/components/CaptchaWidget";
 
 const BRAND = "#4F46E5";
@@ -66,6 +67,7 @@ export default function Checkout() {
   const search = useSearch();
   const { toast } = useToast();
   const { formatPrice, currency } = useCurrency();
+  const { login: authLogin } = useAuth();
   const qc = useQueryClient();
 
   const params = new URLSearchParams(search);
@@ -76,7 +78,8 @@ export default function Checkout() {
   const semiannualPrice  = params.get("semiannualPrice")  ? parseFloat(params.get("semiannualPrice")!)  : null;
   const yearlyPrice      = params.get("yearlyPrice")      ? parseFloat(params.get("yearlyPrice")!)      : null;
   const renewalPrice     = params.get("renewalPrice")     ? parseFloat(params.get("renewalPrice")!)     : null;
-  const initialCycle     = (params.get("billingCycle") as BillingCycle) || "monthly";
+  const initialCycle         = (params.get("billingCycle") as BillingCycle) || "monthly";
+  const cycleWasPreselected  = !!params.get("billingCycle");
 
   const priceMap: Partial<Record<BillingCycle, number>> = {
     monthly: monthlyPrice,
@@ -155,7 +158,7 @@ export default function Checkout() {
       });
       const loginData = await loginRes.json();
       if (!loginRes.ok) { setAuthError(loginData.error ?? loginData.message ?? "Login failed."); return; }
-      localStorage.setItem("token", loginData.token);
+      authLogin(loginData.token);
       setIsLoggedIn(true);
       qc.invalidateQueries();
       toast({ title: authMode === "register" ? "Account created! Welcome." : "Signed in successfully." });
@@ -391,7 +394,7 @@ export default function Checkout() {
                 </span>
               </div>
               <div className="p-5 space-y-4">
-                {availableCycles.length > 1 && (
+                {availableCycles.length > 1 && !cycleWasPreselected && (
                   <>
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Billing Period</p>
                     <div className={`grid gap-2.5 ${availableCycles.length === 2 ? "grid-cols-2" : availableCycles.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
@@ -422,7 +425,7 @@ export default function Checkout() {
                     </div>
                   </>
                 )}
-                {availableCycles.length === 1 && (
+                {(availableCycles.length === 1 || cycleWasPreselected) && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">{CYCLE_LABELS[billingCycle]}</span>
                     <span className="text-xl font-black text-primary">{formatPrice(hostingPrice)}<span className="text-xs font-normal text-muted-foreground">{CYCLE_SUFFIX[billingCycle]}</span></span>

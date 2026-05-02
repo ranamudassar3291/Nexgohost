@@ -21,6 +21,7 @@ export default function Login() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const nextUrl = new URLSearchParams(window.location.search).get("next") || new URLSearchParams(window.location.search).get("redirect") || "";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +43,7 @@ export default function Login() {
       } else {
         login(data.token);
         toast({ title: "Welcome back!", description: "Successfully logged in." });
-        setLocation(data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard");
+        setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard"));
       }
     } catch (err: any) {
       toast({ title: "Login failed", description: err.message, variant: "destructive" });
@@ -58,7 +59,7 @@ export default function Login() {
       });
       login(data.token);
       toast({ title: "Welcome back!" });
-      setLocation(data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard");
+      setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard"));
     } catch (err: any) {
       toast({ title: "Invalid code", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }

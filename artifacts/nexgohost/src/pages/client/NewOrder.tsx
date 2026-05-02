@@ -17,9 +17,10 @@ import {
   AlertCircle, CheckCircle2, Key, Shield, Zap, Users, ChevronRight,
   CreditCard, Tag, Wallet, Landmark, Bitcoin, Smartphone, Gift,
   ChevronUp, ChevronDown, RefreshCw, Cpu, MemoryStick, HardDrive, Wifi, MonitorCog,
-  Eye, EyeOff, Shuffle, Terminal, User as UserIcon,
+  Eye, EyeOff, Shuffle, Terminal, User as UserIcon, UserPlus,
 } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { useCart, type BillingCycle, CYCLE_LABELS, CYCLE_SUFFIX } from "@/context/CartContext";
 import { useCurrency } from "@/context/CurrencyProvider";
 
@@ -739,6 +740,50 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [applyCredits,   setApplyCredits]   = useState(false);
   const [tosAccepted,    setTosAccepted]    = useState(false);
 
+  // ── Guest auth state ─────────────────────────────────────────────────────
+  const { login: authLogin } = useAuth();
+  const qc = useQueryClient();
+  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token"));
+  const [authMode,      setAuthMode]      = useState<"login" | "register">("login");
+  const [authEmail,     setAuthEmail]     = useState("");
+  const [authPassword,  setAuthPassword]  = useState("");
+  const [authFirstName, setAuthFirstName] = useState("");
+  const [authLastName,  setAuthLastName]  = useState("");
+  const [authPhone,     setAuthPhone]     = useState("");
+  const [authShowPass,  setAuthShowPass]  = useState(false);
+  const [authError,     setAuthError]     = useState("");
+  const [authLoading,   setAuthLoading]   = useState(false);
+
+  async function handleInlineAuth() {
+    setAuthError("");
+    if (!authEmail.trim() || !authPassword.trim()) { setAuthError("Email and password are required."); return; }
+    if (authMode === "register" && !authFirstName.trim()) { setAuthError("First name is required."); return; }
+    setAuthLoading(true);
+    try {
+      if (authMode === "register") {
+        const r = await fetch("/api/auth/register", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail.trim(), password: authPassword, firstName: authFirstName.trim(), lastName: authLastName.trim(), phone: authPhone.trim() }),
+        });
+        const d = await r.json();
+        if (!r.ok) { setAuthError(d.error ?? d.message ?? "Registration failed."); return; }
+      }
+      const lr = await fetch("/api/auth/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
+      });
+      const ld = await lr.json();
+      if (!lr.ok) { setAuthError(ld.error ?? ld.message ?? "Login failed."); return; }
+      authLogin(ld.token);
+      setIsLoggedIn(true);
+      qc.invalidateQueries();
+    } catch (e: any) {
+      setAuthError(e.message ?? "Network error. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   // Domain-first upsell: after user picks a domain in the domain/transfer flow,
   // show "Want to add hosting?" before moving to checkout
   const [domainPendingUpsell, setDomainPendingUpsell] = useState(false);
@@ -785,16 +830,16 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods"],
     queryFn: async () => (await apiFetch("/api/payment-methods")).json(),
-    enabled: step === 3,
+    enabled: isLoggedIn && step === 3,
     staleTime: 60_000,
   });
 
   const { data: creditData } = useQuery<{ creditBalance: string }>({
     queryKey: ["my-credits"],
     queryFn: async () => (await apiFetch("/api/my/credits")).json(),
-    enabled: step >= 2,   // pre-fetch from step 2 so wallet balance is ready by step 3
+    enabled: isLoggedIn && step >= 2,
     staleTime: 0,
-    retry: false,         // don't retry if unauthenticated (guest checkout)
+    retry: false,
   });
   const creditBalance = parseFloat(creditData?.creditBalance ?? "0");
 
@@ -1121,11 +1166,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       setLocation(`/client/invoices/${invoiceId}`);
     },
     onError: (err: Error) => {
-      if (err.message === "Unauthorized" || err.message.toLowerCase().includes("unauthorized") || err.message.includes("401")) {
-        setLocation(`/client/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-      } else {
-        setOrderError(err.message);
-      }
+      setOrderError(err.message);
     },
   });
 
@@ -2806,8 +2847,98 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             )}
           </div>
 
+          {/* ── Inline auth gate for guests ── */}
+          {!isLoggedIn && (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2 text-[15px]">
+                  {authMode === "login" ? <UserIcon size={15} style={{ color: P }} /> : <UserPlus size={15} style={{ color: P }} />}
+                  {authMode === "login" ? "Sign in to complete your order" : "Create an account to continue"}
+                </h3>
+                <p className="text-[12px] text-gray-500 mt-0.5">Your plan is saved — just one quick step.</p>
+              </div>
+              <div className="flex border-b border-gray-100">
+                <button onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                  className="flex-1 py-2.5 text-[13px] font-semibold transition-colors"
+                  style={authMode === "login" ? { color: P, borderBottom: `2px solid ${P}`, background: `${P}07` } : { color: "#6B7280" }}>
+                  Sign In
+                </button>
+                <button onClick={() => { setAuthMode("register"); setAuthError(""); }}
+                  className="flex-1 py-2.5 text-[13px] font-semibold transition-colors"
+                  style={authMode === "register" ? { color: P, borderBottom: `2px solid ${P}`, background: `${P}07` } : { color: "#6B7280" }}>
+                  Create Account
+                </button>
+              </div>
+              <div className="p-5 space-y-3">
+                {authMode === "register" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-gray-500 mb-1 block">First Name *</label>
+                      <input value={authFirstName} onChange={e => setAuthFirstName(e.target.value)} placeholder="John"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
+                        onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-gray-500 mb-1 block">Last Name</label>
+                      <input value={authLastName} onChange={e => setAuthLastName(e.target.value)} placeholder="Doe"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
+                        onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="text-[11px] text-gray-500 mb-1 block">Email Address *</label>
+                  <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="you@example.com"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
+                    onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                </div>
+                {authMode === "register" && (
+                  <div>
+                    <label className="text-[11px] text-gray-500 mb-1 block">Phone (optional)</label>
+                    <input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+1 555 000 0000"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
+                      onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                  </div>
+                )}
+                <div>
+                  <label className="text-[11px] text-gray-500 mb-1 block">Password *</label>
+                  <div className="relative">
+                    <input type={authShowPass ? "text" : "password"} value={authPassword} onChange={e => setAuthPassword(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleInlineAuth()}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
+                      onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+                    <button type="button" onClick={() => setAuthShowPass(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      {authShowPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+                {authError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-600">
+                    <AlertCircle size={13} className="shrink-0 mt-0.5" /> {authError}
+                  </div>
+                )}
+                <button onClick={handleInlineAuth} disabled={authLoading}
+                  className="w-full h-12 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${P} 0%, #6366F1 100%)`, boxShadow: authLoading ? "none" : `0 6px 24px ${P}40` }}>
+                  {authLoading
+                    ? <><Loader2 size={16} className="animate-spin" /> Please wait…</>
+                    : authMode === "login"
+                      ? <><Lock size={15} /> Sign In & Continue</>
+                      : <><UserPlus size={15} /> Create Account & Continue</>
+                  }
+                </button>
+                <p className="text-center text-[11px] text-gray-400">
+                  <Lock size={9} className="inline mr-1 text-green-500" />
+                  Your selections are saved. {authMode === "login" ? "Sign in" : "Registration"} won't reset them.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ── Payment methods ── */}
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+          {isLoggedIn && <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
               <span className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">Payment Method</span>
             </div>
@@ -2956,53 +3087,55 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                 </>
               )}
             </div>
-          </div>
+          </div>}
 
-          {/* ── Error ── */}
-          {orderError && (
-            <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-600">
-              <AlertCircle size={14}/> {orderError}
+          {isLoggedIn && <>
+            {/* ── Error ── */}
+            {orderError && (
+              <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-600">
+                <AlertCircle size={14}/> {orderError}
+              </div>
+            )}
+
+            {/* ── Terms of Service Acceptance ── */}
+            <label className="flex items-start gap-3 cursor-pointer select-none group p-4 rounded-xl border border-gray-200 bg-gray-50 hover:border-violet-300 transition-colors">
+              <input
+                type="checkbox"
+                checked={tosAccepted}
+                onChange={e => setTosAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600 cursor-pointer shrink-0"
+              />
+              <span className="text-[13px] text-gray-600 leading-relaxed">
+                <span className="text-red-500 font-bold mr-0.5">*</span>
+                I have read and agree to Noehost's{" "}
+                <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
+                  Terms of Service
+                </a>
+                ,{" "}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
+                  Privacy Policy
+                </a>
+                {" "}and{" "}
+                <a href="/legal/refund" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
+                  Refund Policy
+                </a>
+                .
+              </span>
+            </label>
+
+            {/* ── Place order ── */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
+              <PrimaryBtn
+                label="Place Order"
+                onClick={() => { setOrderError(""); orderMutation.mutate(); }}
+                disabled={!step3Complete || orderMutation.isPending}
+                loading={orderMutation.isPending}
+              />
+              <p className="text-[12px] text-gray-400 flex items-center gap-1.5">
+                <Lock size={11}/> SSL secured · 30-day money-back guarantee
+              </p>
             </div>
-          )}
-
-          {/* ── Terms of Service Acceptance ── */}
-          <label className="flex items-start gap-3 cursor-pointer select-none group p-4 rounded-xl border border-gray-200 bg-gray-50 hover:border-violet-300 transition-colors">
-            <input
-              type="checkbox"
-              checked={tosAccepted}
-              onChange={e => setTosAccepted(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600 cursor-pointer shrink-0"
-            />
-            <span className="text-[13px] text-gray-600 leading-relaxed">
-              <span className="text-red-500 font-bold mr-0.5">*</span>
-              I have read and agree to Noehost's{" "}
-              <a href="/legal/terms" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
-                Terms of Service
-              </a>
-              ,{" "}
-              <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
-                Privacy Policy
-              </a>
-              {" "}and{" "}
-              <a href="/legal/refund" target="_blank" rel="noopener noreferrer" className="underline font-medium text-violet-600 hover:text-violet-800">
-                Refund Policy
-              </a>
-              .
-            </span>
-          </label>
-
-          {/* ── Place order ── */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
-            <PrimaryBtn
-              label="Place Order"
-              onClick={() => { setOrderError(""); orderMutation.mutate(); }}
-              disabled={!step3Complete || orderMutation.isPending}
-              loading={orderMutation.isPending}
-            />
-            <p className="text-[12px] text-gray-400 flex items-center gap-1.5">
-              <Lock size={11}/> SSL secured · 30-day money-back guarantee
-            </p>
-          </div>
+          </>}
         </div>
       </motion.div>
     );

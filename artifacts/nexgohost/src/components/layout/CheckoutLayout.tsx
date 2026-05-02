@@ -8,7 +8,7 @@
  * When false (default), requires login before rendering.
  */
 import { ReactNode } from "react";
-import { Link, Redirect } from "wouter";
+import { Link, Redirect, useLocation } from "wouter";
 import { Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -16,6 +16,7 @@ interface Props { children: ReactNode; allowGuest?: boolean; }
 
 export function CheckoutLayout({ children, allowGuest = false }: Props) {
   const { user, isLoading } = useAuth();
+  const [currentPath] = useLocation();
 
   if (isLoading) {
     return (
@@ -54,7 +55,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
             {!user && allowGuest && (
               <>
                 <span className="text-gray-300">|</span>
-                <Link href="/client/login" className="font-semibold text-[#4F46E5] hover:underline no-underline">Sign in</Link>
+                <Link href={`/client/login?next=${encodeURIComponent(currentPath + window.location.search)}`} className="font-semibold text-[#4F46E5] hover:underline no-underline">Sign in</Link>
               </>
             )}
           </div>
