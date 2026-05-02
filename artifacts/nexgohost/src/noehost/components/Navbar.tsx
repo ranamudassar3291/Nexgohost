@@ -352,7 +352,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 Log In
               </a>
               <a
-                href="/client/register"
+                href="/register"
                 className="px-10 py-3.5 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 uppercase tracking-widest"
               >
                 Sign Up
@@ -484,7 +484,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 Log In
               </a>
               <a
-                href="/client/register"
+                href="/register"
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full py-5 bg-primary text-white rounded-2xl font-black text-center shadow-2xl shadow-primary/30 uppercase tracking-widest"
               >
