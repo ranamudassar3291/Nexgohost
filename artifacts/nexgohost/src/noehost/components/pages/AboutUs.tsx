@@ -51,7 +51,7 @@ const ABOUT_DEFAULT: any = {
   ctaTitle: 'Ready to Experience the Noehost Difference?',
   ctaDesc: 'Join over 50,000 customers who trust Noehost with their websites, apps, and businesses.',
   ctaBtnText: 'Get Started Today',
-  ctaBtnUrl: '/client/register',
+  ctaBtnUrl: '/register',
 };
 
 const AboutUs: React.FC = () => {

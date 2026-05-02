@@ -12,7 +12,7 @@ const RS_DEFAULT: any = {
     badge: 'Business Ready', title: 'Reseller Hosting.', titleHighlight: 'Build Your Business.',
     description: 'Start your own hosting company using our enterprise infrastructure. White-label branding, WHM control panel, and automated billing included.',
     primaryBtn: { text: 'View Plans', url: '#rs-plans', show: true },
-    secondaryBtn: { text: 'Start Free', url: '/client/register', show: true },
+    secondaryBtn: { text: 'Start Free', url: '/register', show: true },
     badges: ['White-Label Branding', 'WHM Included', 'Free Private Nameservers', 'WHMCS-Ready'],
   },
   steps: [
@@ -23,16 +23,16 @@ const RS_DEFAULT: any = {
   stepsTitle: 'Start Your Hosting Business in 3 Steps',
   stepsDesc: 'Go from zero to running your own hosting brand in under an hour.',
   plans: [
-    { name: 'Reseller Lite', desc: 'For freelancers with a small client base.', monthly: 19.99, yearly: 13.99, popular: false, btnText: 'Get Started', btnUrl: '/client/register',
+    { name: 'Reseller Lite', desc: 'For freelancers with a small client base.', monthly: 19.99, yearly: 13.99, popular: false, btnText: 'Get Started', btnUrl: '/register',
       specs: ['20 cPanel Accounts', '40 GB NVMe SSD Storage', '400 GB Monthly Bandwidth', 'Free SSL for All Clients', 'WHM Control Panel Included', 'cPanel for Each Client', 'White-Label Branding', 'Free Private Nameservers', 'Email Hosting for Clients', '24/7 Support Included'],
       addons: [{ label: 'WHMCS License', included: false }, { label: 'Dedicated IP Address', included: false }] },
-    { name: 'Reseller Pro', desc: 'For growing agencies.', monthly: 39.99, yearly: 27.99, popular: true, btnText: 'Get Started', btnUrl: '/client/register',
+    { name: 'Reseller Pro', desc: 'For growing agencies.', monthly: 39.99, yearly: 27.99, popular: true, btnText: 'Get Started', btnUrl: '/register',
       specs: ['50 cPanel Accounts', '100 GB NVMe SSD Storage', '1 TB Monthly Bandwidth', 'Free SSL for All Clients', 'WHM Control Panel Included', 'cPanel for Each Client', 'White-Label Branding', 'Free Private Nameservers', 'Email Hosting for Clients', 'Priority 24/7 Support'],
       addons: [{ label: 'WHMCS License', included: true }, { label: 'Dedicated IP Address', included: true }] },
-    { name: 'Reseller Elite', desc: 'For established hosting businesses.', monthly: 59.99, yearly: 41.99, popular: false, btnText: 'Get Started', btnUrl: '/client/register',
+    { name: 'Reseller Elite', desc: 'For established hosting businesses.', monthly: 59.99, yearly: 41.99, popular: false, btnText: 'Get Started', btnUrl: '/register',
       specs: ['100 cPanel Accounts', '200 GB NVMe SSD Storage', '2 TB Monthly Bandwidth', 'Free SSL for All Clients', 'WHM Control Panel Included', 'cPanel for Each Client', 'White-Label Branding', 'Free Private Nameservers', 'Email Hosting for Clients', 'VIP Priority Support'],
       addons: [{ label: 'WHMCS License', included: true }, { label: 'Dedicated IP Address', included: true }] },
-    { name: 'Reseller Ultimate', desc: 'Unlimited accounts, unlimited growth.', monthly: 99.99, yearly: 69.99, popular: false, btnText: 'Get Started', btnUrl: '/client/register',
+    { name: 'Reseller Ultimate', desc: 'Unlimited accounts, unlimited growth.', monthly: 99.99, yearly: 69.99, popular: false, btnText: 'Get Started', btnUrl: '/register',
       specs: ['Unlimited cPanel Accounts', '500 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'Free SSL for All Clients', 'WHM Control Panel Included', 'cPanel for Each Client', 'White-Label Branding', 'Free Private Nameservers', 'Email Hosting for Clients', 'Dedicated Account Manager'],
       addons: [{ label: 'WHMCS License', included: true }, { label: 'Dedicated IP Address', included: true }] },
   ],
@@ -57,7 +57,7 @@ const RS_DEFAULT: any = {
   ctaTitle: 'Ready to Start Your Hosting Business?',
   ctaDesc: 'Join hundreds of entrepreneurs who built their hosting brand on Noehost infrastructure.',
   ctaBtnText: 'Start Reselling Today',
-  ctaBtnUrl: '/client/register',
+  ctaBtnUrl: '/register',
 };
 
 const ResellerHosting: React.FC = () => {
@@ -154,7 +154,7 @@ const ResellerHosting: React.FC = () => {
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               {(hero.primaryBtn?.show !== false) && hero.primaryBtn && renderLink(hero.primaryBtn.url || '#rs-plans', <>{hero.primaryBtn.text || 'View Plans'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 flex items-center gap-2 group')}
-              {(hero.secondaryBtn?.show !== false) && hero.secondaryBtn && renderLink(hero.secondaryBtn.url || '/client/register', hero.secondaryBtn.text || 'Start Free', 'px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10')}
+              {(hero.secondaryBtn?.show !== false) && hero.secondaryBtn && renderLink(hero.secondaryBtn.url || '/register', hero.secondaryBtn.text || 'Start Free', 'px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10')}
             </div>
             {(hero.badges || []).length > 0 && (
               <div className="flex flex-wrap justify-center gap-6 mt-8">
@@ -293,7 +293,7 @@ const ResellerHosting: React.FC = () => {
                   <div className="text-xl font-black text-emerald-400">{convertFromPKR(clients * avgPrice - 39.99)}<span className="text-xs text-emerald-500">/mo</span></div>
                 </div>
               </div>
-              {renderLink('/client/register', <>Start Earning Now <ArrowRight size={16} /></>, 'inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-primary/30 group')}
+              {renderLink('/register', <>Start Earning Now <ArrowRight size={16} /></>, 'inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-primary/30 group')}
             </div>
           </div>
         </div>
@@ -355,7 +355,7 @@ const ResellerHosting: React.FC = () => {
             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <h2 className="text-4xl font-black text-white mb-4">{pg.ctaTitle}</h2>
               <p className="text-primary-200 font-medium leading-relaxed mb-8 text-lg max-w-xl mx-auto">{pg.ctaDesc}</p>
-              {renderLink(pg.ctaBtnUrl || '/client/register', <>{pg.ctaBtnText || 'Start Reselling'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
+              {renderLink(pg.ctaBtnUrl || '/register', <>{pg.ctaBtnText || 'Start Reselling'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
             </motion.div>
           </div>
         </section>

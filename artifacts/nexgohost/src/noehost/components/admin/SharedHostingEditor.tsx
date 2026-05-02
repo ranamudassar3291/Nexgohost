@@ -13,7 +13,7 @@ const DEFAULT: any = {
     titleHighlight: 'Made Simple.',
     description: 'Launch your website today with blazing-fast SSD storage, free SSL, and a one-click app installer. No technical skills needed.',
     primaryBtn: { text: 'See Plans', url: '#sh-plans', show: true },
-    secondaryBtn: { text: 'Start Free Trial', url: '/client/register', show: true },
+    secondaryBtn: { text: 'Start Free Trial', url: '/register', show: true },
     badges: ['Free Domain', 'Free SSL', '30-Day Guarantee', 'No Setup Fee'],
   },
   stats: [
@@ -26,7 +26,7 @@ const DEFAULT: any = {
     {
       name: 'WP Start', desc: 'Ideal for beginners building a single website',
       monthly: 2.99, yearly: 1.99, freeMonths: 3, savePercent: 33, popular: false,
-      btnText: 'Explore Now', btnUrl: '/client/register',
+      btnText: 'Explore Now', btnUrl: '/register',
       topFeatures: ['1 WordPress website', '10 email addresses', '100GB NVMe storage', 'FREE domain registration'],
       additionalFeatures: [{ label: 'Standard SSL Certificate', included: true }, { label: 'WordPress Staging', included: false }],
       suiteName: 'Starter Suite',
@@ -35,7 +35,7 @@ const DEFAULT: any = {
     {
       name: 'Business', desc: 'A versatile Web Hosting plan catering to the majority',
       monthly: 5.99, yearly: 3.99, freeMonths: 3, savePercent: 33, popular: true,
-      btnText: 'Explore Now', btnUrl: '/client/register',
+      btnText: 'Explore Now', btnUrl: '/register',
       topFeatures: ['Unlimited websites', '200GB NVMe storage', 'Unlimited email address', 'FREE domain registration'],
       additionalFeatures: [{ label: 'Staging Website', included: true }, { label: 'Jetpack free pre-installed', included: true }],
       suiteName: 'Premium Suite',
@@ -44,7 +44,7 @@ const DEFAULT: any = {
     {
       name: 'Growth', desc: 'Ideal for growing businesses needing more power',
       monthly: 14.99, yearly: 9.99, freeMonths: 3, savePercent: 33, popular: false,
-      btnText: 'Explore Now', btnUrl: '/client/register',
+      btnText: 'Explore Now', btnUrl: '/register',
       topFeatures: ['1 WordPress website', '10 email addresses', '100GB NVMe storage', 'FREE domain registration'],
       additionalFeatures: [{ label: 'Standard SSL Certificate', included: true }, { label: 'WordPress Staging', included: true }],
       suiteName: 'Growth Suite',
@@ -53,7 +53,7 @@ const DEFAULT: any = {
     {
       name: 'Pro', desc: 'Complete solution for established businesses',
       monthly: 24.99, yearly: 16.99, freeMonths: 3, savePercent: 33, popular: false,
-      btnText: 'Explore Now', btnUrl: '/client/register',
+      btnText: 'Explore Now', btnUrl: '/register',
       topFeatures: ['1 WordPress website', '10 email addresses', '100GB NVMe storage', 'FREE domain registration'],
       additionalFeatures: [{ label: 'Standard SSL Certificate', included: true }, { label: 'WordPress Staging', included: true }],
       suiteName: 'Pro Suite',
@@ -202,7 +202,7 @@ const SharedHostingEditor: React.FC = () => {
           <AddBtn onClick={() => {
             setData((p: any) => ({
               ...p,
-              plans: [...(p.plans || []), { name: 'New Plan', desc: '', monthly: 9.99, yearly: 6.99, freeMonths: 3, savePercent: 33, popular: false, btnText: 'Get Started', btnUrl: '/client/register', topFeatures: [], additionalFeatures: [], suiteName: 'Suite', suite: [] }]
+              plans: [...(p.plans || []), { name: 'New Plan', desc: '', monthly: 9.99, yearly: 6.99, freeMonths: 3, savePercent: 33, popular: false, btnText: 'Get Started', btnUrl: '/register', topFeatures: [], additionalFeatures: [], suiteName: 'Suite', suite: [] }]
             }));
           }} label="Add Plan" />
         </div>
@@ -224,7 +224,7 @@ const SharedHostingEditor: React.FC = () => {
               </FieldRow>
               <FieldRow>
                 <Field label="Button Text"><Input value={plan.btnText || 'Explore Now'} onChange={v => updArr('plans', i, 'btnText', v)} /></Field>
-                <Field label="Button URL"><Input value={plan.btnUrl || '/client/register'} onChange={v => updArr('plans', i, 'btnUrl', v)} /></Field>
+                <Field label="Button URL"><Input value={plan.btnUrl || '/register'} onChange={v => updArr('plans', i, 'btnUrl', v)} /></Field>
               </FieldRow>
               <Toggle value={plan.popular ?? false} onChange={v => updArr('plans', i, 'popular', v)} label="Mark as Popular" />
               <Divider label="Top Features" />

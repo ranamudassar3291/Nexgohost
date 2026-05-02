@@ -110,7 +110,7 @@ const Login: React.FC<LoginProps> = ({ setUser }) => {
 
           <div className="mt-10 pt-8 border-t border-slate-100 text-center">
             <p className="text-slate-500">
-              Don't have an account? <Link to="/client/register" className="text-primary font-bold hover:text-primary-600">Create one</Link>
+              Don't have an account? <Link to="/register" className="text-primary font-bold hover:text-primary-600">Create one</Link>
             </p>
           </div>
         </div>

@@ -23,7 +23,7 @@ const PlanBtn: React.FC<{ url: string; text: string; popular: boolean }> = ({ ur
   const cls = `block w-full py-3.5 rounded-2xl font-black transition-all mb-6 text-sm text-center ${
     popular ? 'bg-primary text-white hover:bg-primary-600 shadow-xl shadow-primary/30' : 'bg-slate-900 text-white hover:bg-slate-800'
   }`;
-  if (!url || url.startsWith('/')) return <Link to={url || '/client/register'} className={cls}>{text}</Link>;
+  if (!url || url.startsWith('/')) return <Link to={url || '/register'} className={cls}>{text}</Link>;
   return <a href={url} target="_blank" rel="noopener noreferrer" className={cls}>{text}</a>;
 };
 

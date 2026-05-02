@@ -141,7 +141,7 @@ export default function Login() {
           {step === "password" && (
             <p className="mt-6 text-center text-sm text-muted-foreground relative z-10">
               Don't have an account?{" "}
-              <a href="/client/register" className="text-primary font-medium hover:underline decoration-primary/50 underline-offset-4">Create an account</a>
+              <a href="/register" className="text-primary font-medium hover:underline decoration-primary/50 underline-offset-4">Create an account</a>
             </p>
           )}
         </div>

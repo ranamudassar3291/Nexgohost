@@ -17,10 +17,10 @@ const DEFAULT: any = {
     badges: ['Root SSH Access', 'Deploy in 60s', 'NVMe SSD', 'DDoS Protection'],
   },
   plans: [
-    { name: 'VPS-1', cpu: '1 vCPU', ram: '2 GB RAM', storage: '40 GB NVMe', bandwidth: '2 TB', price: 9.99, popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' },
-    { name: 'VPS-2', cpu: '2 vCPU', ram: '4 GB RAM', storage: '80 GB NVMe', bandwidth: '4 TB', price: 19.99, popular: true, btnText: 'Deploy Now', btnUrl: '/client/register' },
-    { name: 'VPS-4', cpu: '4 vCPU', ram: '8 GB RAM', storage: '160 GB NVMe', bandwidth: '8 TB', price: 39.99, popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' },
-    { name: 'VPS-8', cpu: '8 vCPU', ram: '16 GB RAM', storage: '320 GB NVMe', bandwidth: '16 TB', price: 79.99, popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' },
+    { name: 'VPS-1', cpu: '1 vCPU', ram: '2 GB RAM', storage: '40 GB NVMe', bandwidth: '2 TB', price: 9.99, popular: false, btnText: 'Deploy Now', btnUrl: '/register' },
+    { name: 'VPS-2', cpu: '2 vCPU', ram: '4 GB RAM', storage: '80 GB NVMe', bandwidth: '4 TB', price: 19.99, popular: true, btnText: 'Deploy Now', btnUrl: '/register' },
+    { name: 'VPS-4', cpu: '4 vCPU', ram: '8 GB RAM', storage: '160 GB NVMe', bandwidth: '8 TB', price: 39.99, popular: false, btnText: 'Deploy Now', btnUrl: '/register' },
+    { name: 'VPS-8', cpu: '8 vCPU', ram: '16 GB RAM', storage: '320 GB NVMe', bandwidth: '16 TB', price: 79.99, popular: false, btnText: 'Deploy Now', btnUrl: '/register' },
   ],
   plansTitle: 'Choose Your Power',
   plansDesc: 'All plans include 10 Gbps uplink, DDoS protection & instant provisioning.',
@@ -150,7 +150,7 @@ const VPSHostingEditor: React.FC = () => {
       <Card>
         <div className="flex items-center justify-between mb-2">
           <CardTitle>VPS Plans</CardTitle>
-          <AddBtn onClick={() => setData((p: any) => ({ ...p, plans: [...(p.plans || []), { name: 'VPS-New', cpu: '1 vCPU', ram: '2 GB RAM', storage: '40 GB NVMe', bandwidth: '1 TB', price: 9.99, popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' }] }))} label="Add Plan" />
+          <AddBtn onClick={() => setData((p: any) => ({ ...p, plans: [...(p.plans || []), { name: 'VPS-New', cpu: '1 vCPU', ram: '2 GB RAM', storage: '40 GB NVMe', bandwidth: '1 TB', price: 9.99, popular: false, btnText: 'Deploy Now', btnUrl: '/register' }] }))} label="Add Plan" />
         </div>
         <FieldRow>
           <Field label="Section Title"><Input value={data.plansTitle || ''} onChange={v => setData((p: any) => ({ ...p, plansTitle: v }))} /></Field>
@@ -174,7 +174,7 @@ const VPSHostingEditor: React.FC = () => {
               </FieldRow>
               <FieldRow>
                 <Field label="Button Text"><Input value={plan.btnText || 'Deploy Now'} onChange={v => updArr('plans', i, 'btnText', v)} /></Field>
-                <Field label="Button URL"><Input value={plan.btnUrl || '/client/register'} onChange={v => updArr('plans', i, 'btnUrl', v)} /></Field>
+                <Field label="Button URL"><Input value={plan.btnUrl || '/register'} onChange={v => updArr('plans', i, 'btnUrl', v)} /></Field>
               </FieldRow>
               <Toggle value={plan.popular ?? false} onChange={v => updArr('plans', i, 'popular', v)} label="Mark as Popular" />
             </AccordionItem>

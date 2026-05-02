@@ -505,7 +505,7 @@ export default function OrderFlow() {
     if (tok()) navigate(dest);
     else {
       sessionStorage.setItem("order_redirect", dest);
-      navigate(`/client/register?next=${encodeURIComponent(dest)}`);
+      navigate(`/register?next=${encodeURIComponent(dest)}`);
     }
   }
 

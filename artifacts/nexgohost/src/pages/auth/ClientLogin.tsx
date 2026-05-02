@@ -343,7 +343,7 @@ export default function ClientLogin() {
 
                 <p className="mt-6 text-center text-sm text-gray-500">
                   Don't have an account?{" "}
-                  <a href="/client/register" className="text-[#4F46E5] font-medium hover:underline">Create account</a>
+                  <a href="/register" className="text-[#4F46E5] font-medium hover:underline">Create account</a>
                 </p>
               </motion.div>
             )}
