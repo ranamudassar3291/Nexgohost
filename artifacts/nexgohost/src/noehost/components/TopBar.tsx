@@ -33,18 +33,11 @@ const TopBar: React.FC = () => {
     <div
       className="text-white py-2 relative z-[110] overflow-visible"
       style={{
-        background: 'linear-gradient(90deg, #3b0d8f 0%, #5b21b6 20%, #673de6 50%, #5b21b6 80%, #3b0d8f 100%)',
-        borderBottom: '1px solid rgba(139,92,246,0.5)',
-        boxShadow: '0 2px 24px rgba(103,61,230,0.45)',
+        background: '#000000',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}
     >
-      {/* subtle shimmer overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse 60% 100% at 50% 0%, rgba(255,255,255,0.08) 0%, transparent 100%)',
-        }}
-      />
+      <div className="absolute inset-0 pointer-events-none" />
       <div className="container mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
 
         {/* Left: contact */}
