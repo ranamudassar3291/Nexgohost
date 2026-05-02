@@ -29,7 +29,7 @@ import type {
  */
 export async function listStackUsers(client: TwentyIClient): Promise<TwentyIStackUser[]> {
   const data = await client.get<TwentyIStackUser[] | Record<string, TwentyIStackUser>>(
-    "/reseller/{reseller}/stackUser",
+    "/reseller/*/stackUser",
   );
   if (Array.isArray(data)) return data;
   return Object.entries(data).map(([id, u]) => ({ ...u, id }));
@@ -55,7 +55,7 @@ export async function createStackUser(
   if (opts.notificationEmail !== undefined) payload.notificationEmail = opts.notificationEmail;
 
   const result = await client.post<Record<string, unknown> | string | number>(
-    "/reseller/{reseller}/stackUser",
+    "/reseller/*/stackUser",
     payload,
   );
 

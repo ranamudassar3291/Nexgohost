@@ -80,7 +80,7 @@ export async function testConnection(client: TwentyIClient): Promise<TwentyIConn
  */
 export async function getPackageTypes(client: TwentyIClient): Promise<TwentyIPackageType[]> {
   const data = await client.get<Record<string, TwentyIPackageType> | TwentyIPackageType[]>(
-    "/reseller/{reseller}/packageTypes",
+    "/reseller/*/packageTypes",
   );
   if (Array.isArray(data)) return data;
   return Object.entries(data).map(([id, pkg]) => ({ ...pkg, id }));
@@ -123,7 +123,7 @@ export async function addWeb(
   if (opts.documentRoots) payload.documentRoots = opts.documentRoots;
 
   const result = await client.post<TwentyICreateWebResult | number | Record<string, unknown>>(
-    "/reseller/{reseller}/addWeb",
+    "/reseller/*/addWeb",
     payload,
   );
 

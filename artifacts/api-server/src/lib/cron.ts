@@ -1548,18 +1548,12 @@ export async function runTwentyiHealthCheck(): Promise<void> {
 
       if (shouldAlert) {
         _lastHealthAlertAt = now;
-        const proxyActive = !!(server as any).proxyUrl || !!process.env.TWENTYI_PROXY;
-        const proxyLine = proxyActive
-          ? `🔌 Proxy URL is set — the proxy may be down or the proxy's IP was removed from 20i's whitelist.`
-          : `⚠️ No proxy configured — Replit's outbound IP may have changed. Set a Static IP Proxy URL in Admin → Servers to prevent this.`;
-
         await sendWhatsAppAlert(
           "other",
           `🚨 *20i API Health Alert — NoePanel*\n\n` +
           `The 20i connection check has FAILED.\n\n` +
           `Error: ${result.message?.substring(0, 200) ?? "Unknown error"}\n\n` +
-          `${proxyLine}\n\n` +
-          `Check Admin → Servers → 20i server and test the connection.\n\n` +
+          `Check Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n` +
           `_Auto-check runs every 15 minutes_`,
         );
       }

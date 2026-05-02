@@ -29,17 +29,10 @@ import { runWithCtx,
   twentyiGetTicket,
   twentyiCreateTicket,
   twentyiReplyTicket,
-  runWithProxy,
   twentyiRawDebug,
   getOutboundIp,
   getProxyConfig,
-  twentyiGetWhitelist,
-  twentyiAddToWhitelist,
-  twentyiAutoWhitelist,
   twentyiGetSiteRenewalDate,
-  twentyiUploadFile,
-  twentyiMkdir,
-  twentyiFindPackageByDomain,
 } from "../lib/twenty-i.js";
 
 const router = Router();
@@ -102,17 +95,7 @@ function requireApiKey(server: any, res: any): boolean {
 // Returns true if the error was handled (response already sent), false otherwise.
 function handle20iError(e: any, res: any, emptyFallback?: any): boolean {
   const msg: string = e?.message ?? String(e);
-  const code: string = e?.code ?? "";
 
-  // IP not whitelisted — 20i blocks the request when the calling IP is not in the whitelist
-  if (code === "IP_NOT_WHITELISTED" || msg.includes("IP_NOT_WHITELISTED") || msg.includes("ip_not_whitelisted")) {
-    res.status(200).json({
-      error: "access_blocked",
-      message: "20i API access blocked — the server's outbound IP is not in the 20i whitelist. Set up the domain proxy (Admin → 20i Management → Domain Proxy Setup) to route calls through noehost.com permanently.",
-      ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
-    });
-    return true;
-  }
   // Authentication failed — wrong key
   if (msg.includes("KEY NOT RECOGNISED") || msg.includes("User ID") || msg.includes("Authentication failed")) {
     res.status(200).json({
@@ -122,11 +105,11 @@ function handle20iError(e: any, res: any, emptyFallback?: any): boolean {
     });
     return true;
   }
-  // IP blocked (403 from 20i) — server IP not in the whitelist
-  if (msg.includes("403") || msg.includes("Forbidden") || msg.includes("IpMatch")) {
+  // Access denied (403) — check API key permissions
+  if (msg.includes("403") || msg.includes("Forbidden")) {
     res.status(200).json({
-      error: "access_blocked",
-      message: "20i API returned 403 — the server's IP is not whitelisted. Use Domain Proxy Setup to route all calls through noehost.com (Admin → 20i Management → Domain Proxy Setup), then set TWENTYI_BASE_URL in Replit Secrets and restart.",
+      error: "access_denied",
+      message: "20i API returned 403 Access Denied. Check your API key permissions at my.20i.com → Reseller API.",
       ...(emptyFallback !== undefined ? { data: emptyFallback } : {}),
     });
     return true;
@@ -193,214 +176,6 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (req: Aut
   }
 });
 
-// ─── Proxy config ──────────────────────────────────────────────────────────────
-// Returns the current outbound IP, proxy status, and the server's twentyiBaseUrl
-
-router.get("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    const serverId = req.query.serverId as string | undefined;
-    const server = await get20iServer(serverId);
-    const [ip, proxyCfg] = await Promise.all([
-      getOutboundIp(),
-      Promise.resolve(getProxyConfig()),
-    ]);
-    res.json({
-      outboundIp: ip,
-      proxy: proxyCfg,
-      twentyiBaseUrl: server?.twentyiBaseUrl ?? null,
-      serverId: server?.id ?? null,
-    });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ─── Auto-deploy proxy ─────────────────────────────────────────────────────────
-// Uploads the PHP reverse proxy to the specified domain's package via 20i file API,
-// then saves the resulting base URL to the server record.
-//
-// Body: { domain?: string; path?: string; serverId?: string }
-//   domain  — the hosting domain to deploy to (default: "noehost.com")
-//   path    — the subdirectory in public_html (default: "20i-proxy")
-
-router.post("/admin/twenty-i/proxy-deploy", authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  const { domain = "noehost.com", path: proxyPath = "20i-proxy", serverId } = req.body as {
-    domain?: string;
-    path?: string;
-    serverId?: string;
-  };
-
-  try {
-    const server = await get20iServer(serverId as string | undefined);
-    if (!server?.apiToken) {
-      return res.status(400).json({ error: "No 20i API key configured. Add a 20i server first." });
-    }
-
-    // Step 1: find the package containing the target domain
-    const pkg = await runWith20i(server, () => twentyiFindPackageByDomain(server!.apiToken!, domain));
-    if (!pkg) {
-      return res.status(404).json({
-        error: `Domain "${domain}" not found in your 20i packages.`,
-        hint: "Make sure the domain is added to your 20i account and try again.",
-      });
-    }
-
-    // Step 2: build file contents
-    const phpContent = `<?php
-$uri = $_SERVER['REQUEST_URI'] ?? '/';
-$parts = explode('?', $uri, 2);
-$p = $parts[0];
-$q = isset($parts[1]) ? '?' . $parts[1] : '';
-$dir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-if ($dir !== '' && strpos($p, $dir) === 0) $p = substr($p, strlen($dir));
-if ($p === '' || $p === false) $p = '/';
-$target = 'https://api.20i.com' . $p . $q;
-$hdrs = [];
-foreach (getallheaders() as $n => $v) {
-  $l = strtolower($n);
-  if ($l === 'authorization') $hdrs[] = "Authorization: $v";
-  elseif ($l === 'content-type') $hdrs[] = "Content-Type: $v";
-  elseif ($l === 'accept') $hdrs[] = "Accept: $v";
-}
-if (!array_filter($hdrs, fn($h) => stripos($h, 'Content-Type:') === 0)) $hdrs[] = 'Content-Type: application/json';
-$method = $_SERVER['REQUEST_METHOD'];
-if ($method === 'OPTIONS') {
-  http_response_code(204);
-  header('Access-Control-Allow-Origin: *');
-  header('Access-Control-Allow-Headers: Authorization, Content-Type, Accept');
-  header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  exit;
-}
-$body = file_get_contents('php://input');
-$ch = curl_init($target);
-curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_CUSTOMREQUEST=>$method, CURLOPT_HTTPHEADER=>$hdrs, CURLOPT_TIMEOUT=>30, CURLOPT_SSL_VERIFYPEER=>true]);
-if ($body) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-$resp = curl_exec($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$ct = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-$err = curl_error($ch);
-curl_close($ch);
-if ($resp === false) { http_response_code(502); echo json_encode(['error'=>'Proxy failed','detail'=>$err]); exit; }
-http_response_code($code);
-header('Content-Type: ' . ($ct ?: 'application/json'));
-header('Access-Control-Allow-Origin: *');
-echo $resp;`;
-
-    const htaccessContent = `RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^(.*)$ index.php [QSA,L]`;
-
-    // Step 3: create directory + upload both files via 20i file management API
-    const dirPath = `public_html/${proxyPath}`;
-    const phpFilePath = `${dirPath}/index.php`;
-    const htaccessFilePath = `${dirPath}/.htaccess`;
-
-    console.log(`[PROXY-DEPLOY] Uploading to package ${pkg.id} (${domain}): ${phpFilePath}, ${htaccessFilePath}`);
-    await runWith20i(server, async () => {
-      // Best-effort directory creation (not fatal if endpoint not available)
-      await twentyiMkdir(server!.apiToken!, pkg.id, dirPath);
-      // Upload PHP proxy script
-      await twentyiUploadFile(server!.apiToken!, pkg.id, phpFilePath, phpContent);
-      // Upload .htaccess rewrite rules
-      await twentyiUploadFile(server!.apiToken!, pkg.id, htaccessFilePath, htaccessContent);
-    });
-
-    // Step 4: save the base URL to the server record (no env var needed)
-    const proxyBaseUrl = `https://${domain}/${proxyPath}`;
-    await db
-      .update(serversTable)
-      .set({ twentyiBaseUrl: proxyBaseUrl, updatedAt: new Date() })
-      .where(eq(serversTable.id, server.id));
-
-    console.log(`[PROXY-DEPLOY] ✓ Proxy deployed to ${proxyBaseUrl} for server ${server.id}`);
-    res.json({
-      ok: true,
-      packageId: pkg.id,
-      domain,
-      proxyPath,
-      proxyBaseUrl,
-      message: `Proxy deployed to ${proxyBaseUrl}. All 20i API calls now permanently route through noehost.com — IP changes no longer matter.`,
-    });
-  } catch (e: any) {
-    const msg: string = e.message ?? "";
-    console.error(`[PROXY-DEPLOY] Failed: ${msg.substring(0, 400)}`);
-
-    // IP whitelist block
-    if (msg.includes("IpMatch")) {
-      return res.status(403).json({
-        error: "IP blocked by 20i",
-        hint: "Your current outbound IP is not whitelisted in 20i. Add it temporarily to deploy the proxy, then remove it.",
-        detail: msg.substring(0, 300),
-      });
-    }
-
-    // File upload API not available — tell the user to upload manually
-    if (msg.includes("file upload API is not available") || msg.includes("vhostFiles")) {
-      return res.status(422).json({
-        error: "Auto-deploy not supported",
-        reason: "The 20i file management API (vhostFilesCreate / vhostFiles) returned 404 for all upload variants. This is a known limitation for some reseller account types.",
-        action: "Please upload the proxy files manually using one of these methods:\n1. StackCP File Manager → public_html/api-proxy/\n2. FTP to the noehost.com hosting account\n3. Use the 'Download Proxy Files' button below to get the files, then upload them.",
-        packageId: domain !== "" ? undefined : "unknown",
-        uploadPath: `public_html/${proxyPath}/`,
-        detail: msg.substring(0, 400),
-      });
-    }
-
-    res.status(500).json({ error: msg.substring(0, 500) });
-  }
-});
-
-// ─── Clear proxy base URL ──────────────────────────────────────────────────────
-// Removes the stored twentyiBaseUrl so calls go directly to api.20i.com again.
-
-router.delete("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    const serverId = req.query.serverId as string | undefined;
-    const server = await get20iServer(serverId);
-    if (!server) return res.status(404).json({ error: "Server not found." });
-    await db
-      .update(serversTable)
-      .set({ twentyiBaseUrl: null, updatedAt: new Date() })
-      .where(eq(serversTable.id, server.id));
-    res.json({ ok: true, message: "Proxy base URL cleared. API calls now go directly to api.20i.com." });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ─── Set proxy URL manually (no file upload — for use after manual FTP upload) ─
-// PATCH /admin/twenty-i/proxy-config  { proxyBaseUrl: "https://..." }
-// Saves the given URL directly to the DB without uploading any files.
-// Use this after manually uploading index.php + .htaccess via FTP or StackCP.
-
-router.patch("/admin/twenty-i/proxy-config", authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    const serverId = req.query.serverId as string | undefined;
-    const server = await get20iServer(serverId);
-    if (!server) return res.status(404).json({ error: "Server not found." });
-
-    const { proxyBaseUrl } = req.body as { proxyBaseUrl?: string };
-    if (!proxyBaseUrl || typeof proxyBaseUrl !== "string") {
-      return res.status(400).json({ error: "proxyBaseUrl is required (e.g. https://noehost.com/20i-proxy)" });
-    }
-
-    // Normalise: strip trailing slash
-    const normalised = proxyBaseUrl.replace(/\/+$/, "");
-    if (!normalised.startsWith("https://")) {
-      return res.status(400).json({ error: "proxyBaseUrl must start with https://" });
-    }
-
-    await db
-      .update(serversTable)
-      .set({ twentyiBaseUrl: normalised, updatedAt: new Date() })
-      .where(eq(serversTable.id, server.id));
-
-    console.log(`[PROXY-MANUAL] Admin manually set proxy URL: ${normalised} for server ${server.id}`);
-    res.json({ ok: true, twentyiBaseUrl: normalised, message: `Proxy URL set to ${normalised}. All 20i API calls will now route through this URL.` });
-  } catch (e: any) {
-    res.status(500).json({ error: (e as Error).message });
-  }
-});
 
 // ─── Direct diagnostic (no UI cache — tests saved key against live 20i API) ──
 
@@ -449,8 +224,10 @@ router.get("/admin/twenty-i/diagnostic", authenticate, requireAdmin, async (req:
       outboundIp: ip,
       proxy,
       debug,
-      hint: debug.diagnosis === "ip_blocked" || debug.responseStatus === 401
-        ? `Whitelist ${debug.outboundIp} in my.20i.com → Reseller API → IP Whitelist, then retry.`
+      hint: debug.diagnosis === "wrong_key" || debug.responseStatus === 401
+        ? `API key rejected. Verify your key at my.20i.com → Reseller API → API Keys, then update it in Admin → Servers.`
+        : debug.diagnosis === "ip_blocked"
+        ? `Access denied (403). Check your API key permissions at my.20i.com → Reseller API.`
         : debug.diagnosis === "connected" && debug.responseStatus !== 200
         ? `API connected — some reseller endpoints return 404/403 for this account type. Core hosting management works correctly.`
         : undefined,
@@ -544,182 +321,6 @@ router.get("/admin/twenty-i/probe", authenticate, requireAdmin, async (req: Auth
     return res.json({ ok: true, results });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-// ─── IP Whitelist ─────────────────────────────────────────────────────────────
-
-/**
- * GET /admin/twenty-i/whitelist
- * Returns current outbound IP + current 20i whitelist entries.
- * Works even if NOT whitelisted (outbound IP from ipify.org is always available).
- */
-// Derive the stable server hostname for display in the whitelist manager.
-// Priority:
-//   1. SERVER_HOSTNAME env var (user-configured custom domain like "noehost.com")
-//   2. A *.replit.app domain from REPLIT_DOMAINS (stable deployment hostname)
-//   3. Any other custom domain in REPLIT_DOMAINS (not *.replit.dev which is ephemeral)
-// Ephemeral *.replit.dev and *.kirk.replit.dev dev-only domains are excluded.
-function getServerHostname(): string | null {
-  // Prefer explicitly configured custom hostname
-  if (process.env.SERVER_HOSTNAME?.trim()) return process.env.SERVER_HOSTNAME.trim();
-
-  const replitDomains = (process.env.REPLIT_DOMAINS ?? "").split(",").map(d => d.trim()).filter(Boolean);
-  if (!replitDomains.length) return null;
-
-  // Prefer *.replit.app (stable, assigned at deployment time)
-  const deployDomain = replitDomains.find(d => d.endsWith(".replit.app"));
-  if (deployDomain) return deployDomain;
-
-  // Prefer any truly custom domain (not *.replit.* or *.repl.co)
-  const custom = replitDomains.find(d => !d.includes(".replit.") && !d.endsWith(".repl.co"));
-  if (custom) return custom;
-
-  // *.replit.dev / *.kirk.replit.dev are ephemeral dev domains — do not show them
-  return null;
-}
-
-router.get("/admin/twenty-i/whitelist", authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    const server = await get20iServer(req.query?.serverId as string | undefined);
-    const serverHostname = getServerHostname();
-    // If the server has a proxy configured, detect outbound IP through it so
-    // the panel shows the proxy's stable IP (not the ephemeral Replit IP)
-    const serverProxyUrl = server?.proxyUrl ?? undefined;
-    const outboundIp = serverProxyUrl
-      ? await runWithProxy(serverProxyUrl, () => getOutboundIp())
-      : await getOutboundIp();
-    const proxy: { enabled: boolean; url?: string } = serverProxyUrl
-      ? { enabled: true, url: serverProxyUrl }
-      : getProxyConfig();
-
-    if (!server || !server.apiToken) {
-      return res.json({ outboundIp, serverHostname, proxy, currentList: [], serverConfigured: false, isWhitelisted: null });
-    }
-
-    let currentList: string[] = [];
-    let fetchError: string | null = null;
-    let canVerify = false;
-
-    try {
-      currentList = await runWith20i(server, () => twentyiGetWhitelist(server!.apiToken!));
-      canVerify = true; // Successfully read the list — we know for sure
-    } catch (e: any) {
-      fetchError = e.message;
-      canVerify = false;
-      // Could not read whitelist — may be a permission issue or IP blocked.
-      // Do NOT assume isWhitelisted=false here; it could be already whitelisted.
-    }
-
-    // isWhitelisted is:
-    //   true  — confirmed in whitelist
-    //   false — confirmed NOT in whitelist
-    //   null  — cannot verify
-    let isWhitelisted: boolean | null = canVerify ? currentList.includes(outboundIp) : null;
-
-    // Secondary check: if whitelist API is unavailable (isWhitelisted still null),
-    // probe GET /package to detect the IpMatch 403 — a definitive signal the IP is NOT whitelisted.
-    // Uses the 60-second in-memory cache so subsequent calls within the same minute are free.
-    if (isWhitelisted === null) {
-      try {
-        await getCachedSites(server);
-        // /package succeeded — IP is in the whitelist
-        isWhitelisted = true;
-      } catch (probeErr: any) {
-        const msg = String(probeErr?.message ?? "");
-        if (msg.includes("IpMatch")) {
-          // Confirmed: 403 IpMatch → IP not in 20i whitelist
-          isWhitelisted = false;
-        }
-        // Any other error (auth failure, network, etc.) — leave isWhitelisted as null
-      }
-    }
-
-    return res.json({
-      outboundIp,
-      serverHostname,
-      proxy,
-      currentList,
-      fetchError,
-      canVerify,
-      isWhitelisted,
-      serverConfigured: true,
-    });
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
-  }
-});
-
-/**
- * POST /admin/twenty-i/whitelist/sync
- * Fetches the current outbound IP and attempts to add it to the 20i whitelist.
- * Returns { success, outboundIp } or { error: "chicken_and_egg", outboundIp } when auth fails.
- */
-router.post("/admin/twenty-i/whitelist/sync", authenticate, requireAdmin, async (req: AuthRequest, res) => {
-  try {
-    const server = await get20iServer(req.query?.serverId as string | undefined);
-    if (!server) return res.status(400).json({ error: "No active 20i server configured." });
-    if (!server.apiToken) return res.status(400).json({ error: "20i API key missing." });
-
-    const [outboundIp, serverHostname] = await Promise.all([getOutboundIp(), Promise.resolve(getServerHostname())]);
-    const apiKey = decryptField(server.apiToken);
-
-    const wlResult = await runWith20i(server, () => twentyiAutoWhitelist(apiKey, outboundIp));
-
-    if (wlResult.added) {
-      console.log(`[20i-WHITELIST] ✓ Added ${outboundIp} to whitelist`);
-      return res.json({ success: true, outboundIp, serverHostname, message: `IP ${outboundIp} successfully added to 20i whitelist.` });
-    }
-
-    // IP was already in the whitelist — treat as success
-    if (wlResult.alreadyPresent || wlResult.reason === "already_present") {
-      console.log(`[20i-WHITELIST] ✓ ${outboundIp} is already in the 20i whitelist`);
-      return res.json({
-        success: true,
-        outboundIp,
-        serverHostname,
-        alreadyPresent: true,
-        message: `IP ${outboundIp} is already in 20i's whitelist — no action needed.`,
-      });
-    }
-
-    if (wlResult.reason === "ip_blocked") {
-      console.warn(`[20i-WHITELIST] ✗ IP ${outboundIp} must be whitelisted manually at my.20i.com first`);
-      return res.json({
-        success: false,
-        error: "chicken_and_egg",
-        outboundIp,
-        serverHostname,
-        message: `The 20i API requires your IP to be whitelisted first. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. After that, this button will auto-update the whitelist whenever the IP changes.`,
-      });
-    }
-
-    if (wlResult.reason === "endpoint_unavailable") {
-      console.warn(`[20i-WHITELIST] ✗ Whitelist API endpoint not available for this 20i account type`);
-      return res.json({
-        success: false,
-        error: "endpoint_unavailable",
-        outboundIp,
-        serverHostname,
-        message: `The IP whitelist API is not available for your 20i account. Add ${outboundIp} manually at my.20i.com → Reseller API → IP Whitelist. This is a one-time step — if the IP changes, just click this button again to see the new IP.`,
-      });
-    }
-
-    if (wlResult.reason === "auth_failed") {
-      console.warn(`[20i-WHITELIST] ✗ API key authentication failed for whitelist sync`);
-      return res.json({
-        success: false,
-        error: "auth_failed",
-        outboundIp,
-        serverHostname,
-        message: `The 20i API key could not be authenticated. Please re-check your API key in Admin → Servers.`,
-      });
-    }
-
-    console.warn(`[20i-WHITELIST] ✗ Failed to add ${outboundIp}: ${wlResult.reason}`);
-    return res.json({ success: false, error: wlResult.reason, outboundIp, serverHostname });
-  } catch (e: any) {
-    return res.status(500).json({ error: e.message });
   }
 });
 
@@ -1153,7 +754,7 @@ router.get("/admin/twenty-i/migrations", authenticate, requireAdmin, async (req:
   } catch (e: any) {
     const msg: string = e.message ?? "";
     if (msg.includes("401") || msg.includes("Authentication failed") || msg.includes("403")) {
-      return res.status(200).json({ error: "auth_failed", message: "20i API key is invalid or the server IP is not whitelisted. Verify your API key in Admin → Servers.", migrations: [] });
+      return res.status(200).json({ error: "auth_failed", message: "20i API key is invalid or access denied. Verify your API key permissions at my.20i.com → Reseller API.", migrations: [] });
     }
     res.status(500).json({ error: e.message });
   }
