@@ -19,14 +19,6 @@ const DEFAULT_HEADER = {
   subtitle: 'Get the best value for your money with our feature-rich plans. All plans include a 30-day money-back guarantee.',
 };
 
-const PlanBtn: React.FC<{ url: string; text: string; popular: boolean }> = ({ url, text, popular }) => {
-  const cls = `block w-full py-3.5 rounded-2xl font-black transition-all mb-6 text-sm text-center ${
-    popular ? 'bg-primary text-white hover:bg-primary-600 shadow-xl shadow-primary/30' : 'bg-slate-900 text-white hover:bg-slate-800'
-  }`;
-  if (!url || url.startsWith('/')) return <Link to={url || '/register'} className={cls}>{text}</Link>;
-  return <a href={url} target="_blank" rel="noopener noreferrer" className={cls}>{text}</a>;
-};
-
 const Pricing: React.FC = () => {
   const [category, setCategory] = useState<'shared' | 'reseller'>('shared');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
@@ -94,38 +86,38 @@ const Pricing: React.FC = () => {
   };
 
   return (
-    <section id="pricing" className="py-16 relative overflow-hidden" style={{ backgroundColor: '#050505' }}>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(103,61,230,0.12),transparent_70%)]" />
+    <section id="pricing" className="py-16 bg-gray-50 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(103,61,230,0.05),transparent_60%)]" />
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <h2 className="text-3xl lg:text-4xl font-black text-white mb-4">{header.title}</h2>
-          <p className="text-base text-slate-400 font-medium">{header.subtitle}</p>
+          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4">{header.title}</h2>
+          <p className="text-base text-gray-500 font-medium">{header.subtitle}</p>
 
           {/* Billing toggle */}
           <div className="mt-6 inline-flex items-center gap-4">
-            <span className={`text-sm font-black ${billingCycle === 'monthly' ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
+            <span className={`text-sm font-black ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-400'}`}>Monthly</span>
             <button
               onClick={() => setBillingCycle(b => b === 'monthly' ? 'yearly' : 'monthly')}
-              className={`w-12 h-6 rounded-full transition-all relative ${billingCycle === 'yearly' ? 'bg-primary' : 'bg-white/20'}`}
+              className={`w-12 h-6 rounded-full transition-all relative ${billingCycle === 'yearly' ? 'bg-primary' : 'bg-gray-300'}`}
             >
               <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${billingCycle === 'yearly' ? 'left-7' : 'left-1'}`} />
             </button>
-            <span className={`text-sm font-black ${billingCycle === 'yearly' ? 'text-white' : 'text-slate-500'}`}>
-              Annual <span className="text-emerald-400 ml-1 text-xs">Save more</span>
+            <span className={`text-sm font-black ${billingCycle === 'yearly' ? 'text-gray-900' : 'text-gray-400'}`}>
+              Annual <span className="text-emerald-500 ml-1 text-xs">Save more</span>
             </span>
           </div>
 
           {showResellerTab && (
-            <div className="mt-6 inline-flex p-1.5 rounded-2xl ml-4" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(103,61,230,0.3)' }}>
+            <div className="mt-6 inline-flex p-1.5 rounded-2xl ml-4 bg-white border border-gray-200 shadow-sm">
               <button
                 onClick={() => setCategory('shared')}
-                className={`px-10 py-3.5 rounded-xl font-black text-sm transition-all ${activeCategory === 'shared' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-white'}`}
+                className={`px-10 py-3 rounded-xl font-black text-sm transition-all ${activeCategory === 'shared' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-gray-500 hover:text-gray-800'}`}
               >
                 Web Hosting
               </button>
               <button
                 onClick={() => setCategory('reseller')}
-                className={`px-10 py-3.5 rounded-xl font-black text-sm transition-all ${activeCategory === 'reseller' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-slate-400 hover:text-white'}`}
+                className={`px-10 py-3 rounded-xl font-black text-sm transition-all ${activeCategory === 'reseller' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-gray-500 hover:text-gray-800'}`}
               >
                 Reseller Hosting
               </button>
@@ -141,17 +133,11 @@ const Pricing: React.FC = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className={`relative flex flex-col p-7 rounded-[28px] border-2 transition-all duration-500 ${
+              className={`relative flex flex-col p-7 rounded-[28px] border-2 transition-all duration-300 bg-white ${
                 plan.popular
-                  ? 'border-primary scale-105 z-10 shadow-2xl shadow-primary/20'
-                  : 'hover:border-primary/40'
+                  ? 'border-primary scale-105 z-10 shadow-2xl shadow-primary/15'
+                  : 'border-gray-100 shadow-sm hover:border-primary/30 hover:shadow-md'
               }`}
-              style={{
-                background: plan.popular
-                  ? 'linear-gradient(135deg, #1a0d3e 0%, #0e0e11 100%)'
-                  : '#0e0e11',
-                borderColor: plan.popular ? '#673de6' : 'rgba(103,61,230,0.2)',
-              }}
             >
               {plan.popular && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-primary text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl shadow-primary/30">
@@ -160,23 +146,23 @@ const Pricing: React.FC = () => {
               )}
 
               <div className="mb-6">
-                <h3 className="text-xl font-black text-white mb-3">{plan.name}</h3>
+                <h3 className="text-xl font-black text-gray-900 mb-3">{plan.name}</h3>
                 <div className="flex items-baseline gap-1">
                   <span className="text-4xl font-black text-primary tracking-tighter">{convertFromPKR(getPrice(plan))}</span>
-                  <span className="text-slate-400 font-bold">/mo</span>
+                  <span className="text-gray-400 font-bold">/mo</span>
                 </div>
                 {billingCycle === 'yearly' && plan._raw?.yearlyPrice ? (
                   <div className="mt-1.5 space-y-0.5">
-                    <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                    <div className="text-xs font-black text-emerald-500 flex items-center gap-1.5">
                       <span className="inline-block w-4 h-0.5 bg-emerald-400 rounded"></span>
                       Save {Math.round((1 - plan.yearly / plan.monthly) * 100)}% vs monthly
                     </div>
-                    <div className="text-xs text-slate-500 font-semibold">
-                      Billed <span className="text-slate-300 font-black">{convertFromPKR(plan._raw.yearlyPrice)}</span>/yr
+                    <div className="text-xs text-gray-400 font-semibold">
+                      Billed <span className="text-gray-700 font-black">{convertFromPKR(plan._raw.yearlyPrice)}</span>/yr
                     </div>
                   </div>
                 ) : billingCycle === 'yearly' && (
-                  <div className="text-xs text-slate-500 font-medium mt-1">Billed yearly</div>
+                  <div className="text-xs text-gray-400 font-medium mt-1">Billed yearly</div>
                 )}
                 {plan.badge && (
                   <div className="mt-4 inline-block px-3 py-1 bg-primary/10 text-primary text-[10px] font-black rounded-full uppercase tracking-widest">
@@ -185,26 +171,35 @@ const Pricing: React.FC = () => {
                 )}
               </div>
 
-              <button onClick={() => handleOrderNow(plan)} className={`block w-full py-3.5 rounded-2xl font-black transition-all mb-6 text-sm text-center ${plan.popular ? 'bg-primary text-white hover:bg-primary-600 shadow-xl shadow-primary/30' : 'text-white hover:bg-primary/10'}`} style={!plan.popular ? { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(103,61,230,0.3)' } : {}}>{plan.btnText || 'Order Now'}</button>
+              <button
+                onClick={() => handleOrderNow(plan)}
+                className={`block w-full py-3.5 rounded-2xl font-black transition-all mb-6 text-sm text-center ${
+                  plan.popular
+                    ? 'bg-primary text-white hover:bg-primary-600 shadow-lg shadow-primary/25'
+                    : 'bg-gray-900 text-white hover:bg-gray-700'
+                }`}
+              >
+                {plan.btnText || 'Order Now'}
+              </button>
 
               <div className="flex-grow">
-                <div className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6">Top Features</div>
-                <ul className="space-y-4">
+                <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Top Features</div>
+                <ul className="space-y-3">
                   {(plan.features || []).map((feature: string, j: number) => (
                     <li key={j} className="flex items-start gap-3">
-                      <CheckCircle2 size={18} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm font-bold leading-tight text-slate-300">{feature}</span>
+                      <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm font-medium leading-tight text-gray-600">{feature}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              <div className="mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="mt-6 pt-5 border-t border-gray-100">
                 <button
                   onClick={() => setSelectedPlan(plan)}
                   className="text-primary font-black text-sm hover:underline flex items-center gap-2"
                 >
-                  See all features <ArrowRight size={16} />
+                  See all features <ArrowRight size={15} />
                 </button>
               </div>
             </motion.div>
@@ -221,38 +216,36 @@ const Pricing: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedPlan(null)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
-            style={{ background: '#0e0e11', border: '1px solid rgba(103,61,230,0.3)' }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              className="relative w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col bg-white"
             >
-              <div className="p-8 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#111115' }}>
+              <div className="p-7 flex items-center justify-between border-b border-gray-100">
                 <div>
-                  <h3 className="text-2xl font-black text-white">{selectedPlan.name} Features</h3>
-                  <p className="text-slate-400 font-medium">Detailed breakdown of everything included in this plan.</p>
+                  <h3 className="text-2xl font-black text-gray-900">{selectedPlan.name} Features</h3>
+                  <p className="text-gray-500 font-medium text-sm mt-1">Detailed breakdown of everything included in this plan.</p>
                 </div>
                 <button
                   onClick={() => setSelectedPlan(null)}
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-slate-400 hover:text-white transition-all"
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="p-8 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="p-7 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-7">
                 {(allFeatures || DEFAULT_ALL_FEATURES).map((cat: any, i: number) => (
-                  <div key={i} className="space-y-4">
+                  <div key={i} className="space-y-3">
                     <h4 className="text-xs font-black text-primary uppercase tracking-[0.2em]">{cat.category}</h4>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 gap-2">
                       {(cat.items || []).map((item: string, j: number) => (
-                        <div key={j} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
-                          <span className="text-sm font-bold text-slate-300">{item}</span>
+                        <div key={j} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                          <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" />
+                          <span className="text-sm font-medium text-gray-700">{item}</span>
                         </div>
                       ))}
                     </div>
@@ -260,12 +253,17 @@ const Pricing: React.FC = () => {
                 ))}
               </div>
 
-              <div className="p-8 flex items-center justify-between" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: '#111115' }}>
+              <div className="p-7 flex items-center justify-between border-t border-gray-100 bg-gray-50">
                 <div className="flex items-baseline gap-1">
                   <span className="text-3xl font-black text-primary">{convertFromPKR(getPrice(selectedPlan))}</span>
-                  <span className="text-slate-400 font-bold">/mo</span>
+                  <span className="text-gray-400 font-bold">/mo</span>
                 </div>
-                <button onClick={() => handleOrderNow(selectedPlan)} className="block py-3.5 px-8 rounded-2xl font-black transition-all text-sm text-center bg-primary text-white hover:bg-primary-600 shadow-xl shadow-primary/30">{selectedPlan.btnText || 'Order Now'}</button>
+                <button
+                  onClick={() => handleOrderNow(selectedPlan)}
+                  className="py-3 px-8 rounded-2xl font-black text-sm bg-primary text-white hover:bg-primary-600 shadow-lg shadow-primary/25 transition-all"
+                >
+                  {selectedPlan.btnText || 'Order Now'}
+                </button>
               </div>
             </motion.div>
           </div>

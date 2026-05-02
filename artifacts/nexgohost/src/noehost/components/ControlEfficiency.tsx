@@ -150,12 +150,12 @@ const ControlEfficiency: React.FC = () => {
       ],
     },
     items: [
-      { title: "WordPress Hosting", description: "The most popular hosting available, our plans offer exceptional performance.", icon: 'Layout', color: "text-slate-200", iconColor: "text-primary-300", darkBg: "rgba(103,61,230,0.08)" },
-      { title: "VPS Hosting", description: "Upgrade to dedicated resources for increased hosting performance.", icon: 'Cloud', color: "text-emerald-200", iconColor: "text-emerald-400", darkBg: "rgba(16,185,129,0.08)" },
-      { title: "Email Hosting", description: "The most popular hosting available, our plans offer exceptional reliability.", icon: 'Mail', color: "text-rose-200", iconColor: "text-rose-400", darkBg: "rgba(244,63,94,0.08)" },
-      { title: "cPanel Hosting", description: "cPanel Hosting is a popular hosting solution that provides a modern control panel.", icon: 'Settings', color: "text-amber-200", iconColor: "text-amber-400", darkBg: "rgba(245,158,11,0.08)" },
-      { title: "Web Hosting", description: "Web hosting is a service that enables individuals and organizations to make sites.", icon: 'Server', color: "text-white", iconColor: "text-white", darkBg: "#673de6" },
-      { title: "Reseller Hosting", description: "Reseller Hosting allows individuals or businesses to purchase hosting services.", icon: 'Globe', color: "text-blue-200", iconColor: "text-blue-400", darkBg: "rgba(59,130,246,0.08)" }
+      { title: "WordPress Hosting", description: "The most popular hosting available, our plans offer exceptional performance.", icon: 'Layout', color: "text-gray-900", iconColor: "text-primary", darkBg: "" },
+      { title: "VPS Hosting", description: "Upgrade to dedicated resources for increased hosting performance.", icon: 'Cloud', color: "text-gray-900", iconColor: "text-emerald-600", darkBg: "" },
+      { title: "Email Hosting", description: "The most popular hosting available, our plans offer exceptional reliability.", icon: 'Mail', color: "text-gray-900", iconColor: "text-rose-500", darkBg: "" },
+      { title: "cPanel Hosting", description: "cPanel Hosting is a popular hosting solution that provides a modern control panel.", icon: 'Settings', color: "text-gray-900", iconColor: "text-amber-500", darkBg: "" },
+      { title: "Web Hosting", description: "Web hosting is a service that enables individuals and organizations to make sites.", icon: 'Server', color: "text-gray-900", iconColor: "text-primary", darkBg: "" },
+      { title: "Reseller Hosting", description: "Reseller Hosting allows individuals or businesses to purchase hosting services.", icon: 'Globe', color: "text-gray-900", iconColor: "text-blue-500", darkBg: "" }
     ]
   };
 
@@ -180,11 +180,11 @@ const ControlEfficiency: React.FC = () => {
   };
 
   return (
-    <section className="py-14 overflow-hidden" style={{ background: '#060609' }}>
+    <section className="py-14 overflow-hidden bg-gray-50">
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 30% 50%, rgba(103,61,230,0.08) 0%, transparent 60%)' }} />
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center mb-10">
-          <h2 className="text-3xl lg:text-4xl font-black text-white">
+          <h2 className="text-3xl lg:text-4xl font-black text-gray-900">
             {data.title}
           </h2>
         </div>
@@ -227,20 +227,19 @@ const ControlEfficiency: React.FC = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className={`flex flex-col rounded-[28px] p-6 ${feature.color} transition-all duration-300 group min-h-[320px] border border-white/5 hover:border-white/15`}
-              style={{ background: feature.darkBg || 'rgba(255,255,255,0.04)' }}
+              className={`flex flex-col rounded-[28px] p-6 ${feature.color} transition-all duration-300 group min-h-[280px] border border-gray-100 hover:border-primary/20 hover:shadow-md bg-white`}
             >
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${feature.iconColor} mb-6 bg-white/10`}>
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${feature.iconColor} mb-6 bg-gray-50 border border-gray-100 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all`}>
                 {IconMap[feature.icon] || <Zap size={32} />}
               </div>
-              <h4 className="text-xl font-black mb-3">{feature.title}</h4>
-              <p className="text-sm font-medium opacity-60 mb-8 leading-relaxed">
+              <h4 className="text-xl font-black text-gray-900 mb-3">{feature.title}</h4>
+              <p className="text-sm font-medium text-gray-500 mb-8 leading-relaxed">
                 {feature.description}
               </p>
               <div className="mt-auto">
                 {IllustrationMap[feature.title] || (
-                  <div className="w-full h-32 rounded-2xl bg-white/5 flex items-center justify-center">
-                    <div className={`${feature.iconColor} opacity-30`}>{IconMap[feature.icon]}</div>
+                  <div className="w-full h-32 rounded-2xl bg-gray-50 flex items-center justify-center border border-gray-100">
+                    <div className={`${feature.iconColor} opacity-40`}>{IconMap[feature.icon]}</div>
                   </div>
                 )}
               </div>

@@ -33,12 +33,11 @@ const Testimonials: React.FC = () => {
   };
 
   return (
-    <section id="testimonials" className="py-14 bg-dark relative overflow-hidden">
-      <div className="tech-grid absolute inset-0 opacity-5"></div>
+    <section id="testimonials" className="py-14 bg-white relative overflow-hidden">
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <h2 className="text-3xl font-black text-white mb-3">{testimonialsData.title}</h2>
-          <p className="text-base text-slate-400 font-medium">{testimonialsData.description}</p>
+          <h2 className="text-3xl font-black text-gray-900 mb-3">{testimonialsData.title}</h2>
+          <p className="text-base text-gray-500 font-medium">{testimonialsData.description}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
@@ -46,37 +45,36 @@ const Testimonials: React.FC = () => {
             <motion.div
               key={i}
               whileHover={{ y: -5 }}
-              className="p-8 rounded-3xl bg-secondary/50 border border-white/5 relative group hover:border-white/10 transition-all"
+              className="p-8 rounded-2xl bg-gray-50 border border-gray-100 relative group hover:border-primary/20 hover:shadow-md transition-all"
             >
-              <Quote className="absolute top-6 right-8 text-primary/10 group-hover:text-primary/20 transition-colors" size={48} />
-              
-              <div className="flex gap-1 mb-6">
+              <Quote className="absolute top-6 right-8 text-primary/10 group-hover:text-primary/15 transition-colors" size={44} />
+
+              <div className="flex gap-1 mb-5">
                 {[...Array(5)].map((_, j) => (
-                  <Star key={j} size={16} className="fill-accent text-accent" />
+                  <Star key={j} size={15} className="fill-amber-400 text-amber-400" />
                 ))}
               </div>
-              
-              <p className="text-slate-300 mb-8 italic leading-relaxed font-medium">
+
+              <p className="text-gray-600 mb-7 italic leading-relaxed font-medium text-sm">
                 "{t.content}"
               </p>
-              
-              <div className="flex items-center gap-4">
-                <img src={t.avatar} alt={t.name} className="w-12 h-12 rounded-full border-2 border-white/10 shadow-sm" />
+
+              <div className="flex items-center gap-3">
+                <img src={t.avatar} alt={t.name} className="w-11 h-11 rounded-full border-2 border-gray-200 shadow-sm object-cover" />
                 <div>
-                  <h4 className="font-black text-white">{t.name}</h4>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{t.role}</p>
+                  <h4 className="font-black text-gray-900 text-sm">{t.name}</h4>
+                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{t.role}</p>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Partner Logo Cloud */}
-        <div className="pt-8 border-t border-white/5">
-          <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6">Powering our infrastructure with the best</p>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-30 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-700">
+        <div className="pt-8 border-t border-gray-100">
+          <p className="text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-6">Powering our infrastructure with the best</p>
+          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-14 opacity-40 hover:opacity-80 transition-all duration-500 grayscale hover:grayscale-0">
             {testimonialsData.partners.map((p: string, i: number) => (
-              <span key={i} className="text-lg md:text-xl font-black text-white/50 hover:text-white transition-colors cursor-default">{p}</span>
+              <span key={i} className="text-lg md:text-xl font-black text-gray-500 hover:text-primary transition-colors cursor-default">{p}</span>
             ))}
           </div>
         </div>

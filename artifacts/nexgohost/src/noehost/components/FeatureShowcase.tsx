@@ -176,7 +176,7 @@ const FeatureShowcase: React.FC = () => {
   };
 
   return (
-    <section className="py-16 overflow-hidden" style={{ background: '#07070a' }}>
+    <section className="py-16 overflow-hidden bg-white">
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 70% 30%, rgba(103,61,230,0.08) 0%, transparent 55%)' }} />
       <div className="container mx-auto px-6 relative z-10">
         {/* Header */}
@@ -190,10 +190,10 @@ const FeatureShowcase: React.FC = () => {
             <Zap size={14} />
             {data.badge}
           </motion.div>
-          <h2 className="text-3xl lg:text-4xl font-black text-white mb-4 tracking-tight">
+          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4 tracking-tight">
             {data.title}
           </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed">
+          <p className="text-lg text-gray-500 font-medium leading-relaxed">
             {data.description}
           </p>
         </div>
@@ -217,22 +217,22 @@ const FeatureShowcase: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="lg:w-1/2"
           >
-            <h3 className="text-3xl lg:text-4xl font-black text-white mb-6 leading-tight">
+            <h3 className="text-3xl lg:text-4xl font-black text-gray-900 mb-6 leading-tight">
               {data.row1.title}
             </h3>
-            <p className="text-lg text-slate-400 mb-10 font-medium">
+            <p className="text-lg text-gray-500 mb-10 font-medium">
               {data.row1.description}
             </p>
 
             <div className="space-y-8">
               {data.row1.features.map((f: any, i: number) => (
                 <div key={i} className="flex items-start gap-6 group">
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-300 flex-shrink-0">
                     {IconMap[f.icon] || <Zap size={28} />}
                   </div>
                   <div>
-                    <h4 className="text-xl font-black text-white mb-2">{f.title}</h4>
-                    <p className="text-slate-400 font-medium leading-relaxed">
+                    <h4 className="text-xl font-black text-gray-900 mb-2">{f.title}</h4>
+                    <p className="text-gray-500 font-medium leading-relaxed">
                       {f.description}
                     </p>
                   </div>
@@ -265,22 +265,22 @@ const FeatureShowcase: React.FC = () => {
             transition={{ duration: 0.8 }}
             className="lg:w-1/2"
           >
-            <h3 className="text-3xl lg:text-4xl font-black text-white mb-6 leading-tight">
+            <h3 className="text-3xl lg:text-4xl font-black text-gray-900 mb-6 leading-tight">
               {data.row2.title}
             </h3>
-            <p className="text-lg text-slate-400 mb-10 font-medium">
+            <p className="text-lg text-gray-500 mb-10 font-medium">
               {data.row2.description}
             </p>
 
             <div className="space-y-8">
               {data.row2.features.map((f: any, i: number) => (
                 <div key={i} className="flex items-start gap-6 group">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white group-hover:border-emerald-500 transition-all duration-300">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white group-hover:border-emerald-500 transition-all duration-300 flex-shrink-0">
                     {IconMap[f.icon] || <Zap size={28} />}
                   </div>
                   <div>
-                    <h4 className="text-xl font-black text-white mb-2">{f.title}</h4>
-                    <p className="text-slate-400 font-medium leading-relaxed">
+                    <h4 className="text-xl font-black text-gray-900 mb-2">{f.title}</h4>
+                    <p className="text-gray-500 font-medium leading-relaxed">
                       {f.description}
                     </p>
                   </div>

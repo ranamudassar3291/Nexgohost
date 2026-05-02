@@ -265,75 +265,75 @@ const SharedHosting: React.FC = () => {
         </section>
       )}
       {(plansLoading || plans.length > 0) && (
-        <section id="sh-plans" className="py-20 bg-dark">
+        <section id="sh-plans" className="py-20 bg-gray-50">
           <div className="container mx-auto px-6">
             <div className="text-center mb-12">
               <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Pricing Plans</div>
-              <h2 className="text-4xl font-black text-white mb-3">{pg.plansTitle || 'Simple, Transparent Pricing'}</h2>
-              <p className="text-slate-400 font-medium">{pg.plansSubtitle || 'No hidden fees. Cancel anytime.'}</p>
+              <h2 className="text-4xl font-black text-gray-900 mb-3">{pg.plansTitle || 'Simple, Transparent Pricing'}</h2>
+              <p className="text-gray-500 font-medium">{pg.plansSubtitle || 'No hidden fees. Cancel anytime.'}</p>
               <div className="flex items-center justify-center gap-4 mt-6">
-                <span className={`text-sm font-black ${!yearly ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
-                <button onClick={() => setYearly(y => !y)} className={`w-12 h-6 rounded-full transition-all relative ${yearly ? 'bg-primary' : 'bg-white/20'}`}>
+                <span className={`text-sm font-black ${!yearly ? 'text-gray-900' : 'text-gray-400'}`}>Monthly</span>
+                <button onClick={() => setYearly(y => !y)} className={`w-12 h-6 rounded-full transition-all relative ${yearly ? 'bg-primary' : 'bg-gray-300'}`}>
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${yearly ? 'left-7' : 'left-1'}`} />
                 </button>
-                <span className={`text-sm font-black ${yearly ? 'text-white' : 'text-slate-500'}`}>
-                  Annual <span className="text-emerald-400 ml-1">Save 33%</span>
+                <span className={`text-sm font-black ${yearly ? 'text-gray-900' : 'text-gray-400'}`}>
+                  Annual <span className="text-emerald-500 ml-1">Save 33%</span>
                 </span>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
               {plansLoading && [0,1,2].map(i => (
-                <div key={i} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden animate-pulse">
-                  <div className="p-6 text-center border-b border-white/5">
-                    <div className="h-5 bg-white/10 rounded w-24 mx-auto mb-3" />
-                    <div className="h-3 bg-white/5 rounded w-40 mx-auto mb-5" />
-                    <div className="h-10 bg-white/10 rounded w-28 mx-auto mb-2" />
+                <div key={i} className="rounded-2xl border border-gray-100 bg-white overflow-hidden animate-pulse shadow-sm">
+                  <div className="p-6 text-center border-b border-gray-100">
+                    <div className="h-5 bg-gray-100 rounded w-24 mx-auto mb-3" />
+                    <div className="h-3 bg-gray-50 rounded w-40 mx-auto mb-5" />
+                    <div className="h-10 bg-gray-100 rounded w-28 mx-auto mb-2" />
                   </div>
                   <div className="p-6 space-y-3">
-                    {[0,1,2,3,4].map(j => <div key={j} className="h-3 bg-white/5 rounded w-full" />)}
+                    {[0,1,2,3,4].map(j => <div key={j} className="h-3 bg-gray-50 rounded w-full" />)}
                   </div>
-                  <div className="px-6 pb-6"><div className="h-11 bg-white/10 rounded-xl w-full" /></div>
+                  <div className="px-6 pb-6"><div className="h-11 bg-gray-100 rounded-xl w-full" /></div>
                 </div>
               ))}
               {plans.map((plan: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                  className={`relative flex flex-col rounded-2xl overflow-hidden transition-all ${plan.popular ? 'border-2 border-primary shadow-2xl shadow-primary/30 bg-primary/[0.06]' : 'border border-white/10 bg-white/5 hover:border-primary/40 hover:bg-white/8'}`}>
+                  className={`relative flex flex-col rounded-2xl overflow-hidden bg-white transition-all ${plan.popular ? 'border-2 border-primary shadow-2xl shadow-primary/15' : 'border border-gray-100 shadow-sm hover:border-primary/30 hover:shadow-md'}`}>
                   {plan.popular && (
-                    <div className="absolute top-4 right-4 px-3 py-1 bg-primary rounded-full text-[10px] font-black text-white uppercase tracking-widest">Popular</div>
+                    <div className="absolute top-4 right-4 px-3 py-1 bg-primary rounded-full text-[10px] font-black text-white uppercase tracking-widest shadow-md shadow-primary/25">Popular</div>
                   )}
-                  <div className="p-6 text-center border-b border-white/5">
-                    <h3 className={`text-lg font-black mb-1 ${plan.popular ? 'text-primary' : 'text-white'}`}>{plan.name}</h3>
-                    <p className="text-xs text-slate-400 font-medium leading-snug mb-5 px-2">{plan.desc}</p>
+                  <div className="p-6 text-center border-b border-gray-100">
+                    <h3 className={`text-lg font-black mb-1 ${plan.popular ? 'text-primary' : 'text-gray-900'}`}>{plan.name}</h3>
+                    <p className="text-xs text-gray-500 font-medium leading-snug mb-5 px-2">{plan.desc}</p>
                     <div className="mb-1">
                       {yearly && plan.yearlyTotal ? (
                         <>
-                          <span className="text-4xl font-black text-white">{convertFromPKR(plan.yearlyTotal)}</span>
-                          <span className="text-sm text-slate-400 font-bold ml-1">/yr</span>
+                          <span className="text-4xl font-black text-gray-900">{convertFromPKR(plan.yearlyTotal)}</span>
+                          <span className="text-sm text-gray-400 font-bold ml-1">/yr</span>
                         </>
                       ) : (
-                        <span className="text-4xl font-black text-white">{convertFromPKR(plan.monthly)}</span>
+                        <span className="text-4xl font-black text-gray-900">{convertFromPKR(plan.monthly)}</span>
                       )}
                     </div>
                     {yearly && plan.yearlyTotal ? (
                       <>
-                        <p className="text-xs text-slate-400 font-bold mb-1">{convertFromPKR(plan.yearly)}/mo equivalent</p>
-                        <p className="text-xs text-emerald-400 font-bold mb-3">Billed as one yearly payment</p>
+                        <p className="text-xs text-gray-400 font-bold mb-1">{convertFromPKR(plan.yearly)}/mo equivalent</p>
+                        <p className="text-xs text-emerald-500 font-bold mb-3">Billed as one yearly payment</p>
                       </>
                     ) : (
-                      <p className="text-xs text-slate-400 font-bold mb-3">Per month</p>
+                      <p className="text-xs text-gray-400 font-bold mb-3">Per month</p>
                     )}
                     <div className="flex items-center justify-center gap-1.5 mb-1">
                       <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                      <span className="text-xs text-slate-400 font-medium">UP TO{' '}
+                      <span className="text-xs text-gray-500 font-medium">UP TO{' '}
                         <span className="font-black text-primary">{plan.freeMonths} MONTHS FREE</span>
                       </span>
                     </div>
-                    <p className="text-sm font-black text-white mb-1">Save {plan.savePercent}%</p>
-                    <p className="text-[10px] text-slate-500 font-medium mb-5 leading-tight">1-year discount term renew at<br /><span className="font-black text-slate-400">Regular rate</span></p>
+                    <p className="text-sm font-black text-gray-800 mb-1">Save {plan.savePercent}%</p>
+                    <p className="text-[10px] text-gray-400 font-medium mb-5 leading-tight">1-year discount term renew at<br /><span className="font-black text-gray-500">Regular rate</span></p>
                     <button
                       onClick={() => handleOrderNow(plan)}
-                      className={`block w-full text-center py-2.5 rounded-xl font-black text-sm transition-all ${plan.popular ? 'bg-primary hover:bg-primary-600 text-white shadow-lg shadow-primary/30' : 'bg-white/10 hover:bg-primary/20 text-white border border-white/20 hover:border-primary/40'}`}
+                      className={`block w-full text-center py-2.5 rounded-xl font-black text-sm transition-all ${plan.popular ? 'bg-primary hover:bg-primary-600 text-white shadow-lg shadow-primary/25' : 'bg-gray-900 hover:bg-gray-700 text-white'}`}
                     >
                       {plan.btnText || 'Order Now'}
                     </button>
@@ -344,9 +344,9 @@ const SharedHosting: React.FC = () => {
                         <p className="text-xs font-black uppercase tracking-widest mb-3 text-primary">Top Features</p>
                         <ul className="space-y-2">
                           {plan.topFeatures.map((f: string, j: number) => (
-                            <li key={j} className="flex items-start gap-2 text-xs text-slate-300 font-medium">
-                              <div className="w-4 h-4 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={9} className="text-primary" /></div>
-                              <span dangerouslySetInnerHTML={{ __html: f.replace('FREE', '<strong class="text-white">FREE</strong>') }} />
+                            <li key={j} className="flex items-start gap-2 text-xs text-gray-600 font-medium">
+                              <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={9} className="text-primary" /></div>
+                              <span dangerouslySetInnerHTML={{ __html: f.replace('FREE', '<strong class="text-gray-900">FREE</strong>') }} />
                             </li>
                           ))}
                         </ul>
@@ -359,11 +359,11 @@ const SharedHosting: React.FC = () => {
                           {plan.additionalFeatures.map((f: any, j: number) => (
                             <li key={j} className="flex items-start gap-2 text-xs font-medium">
                               {f.included ? (
-                                <div className="w-4 h-4 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={9} className="text-primary" /></div>
+                                <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={9} className="text-primary" /></div>
                               ) : (
-                                <div className="w-4 h-4 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5"><X size={9} className="text-red-400" /></div>
+                                <div className="w-4 h-4 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5"><X size={9} className="text-red-400" /></div>
                               )}
-                              <span className={f.included ? 'text-slate-300' : 'text-slate-500'}>{f.label}</span>
+                              <span className={f.included ? 'text-gray-700' : 'text-gray-400'}>{f.label}</span>
                             </li>
                           ))}
                         </ul>
@@ -376,13 +376,13 @@ const SharedHosting: React.FC = () => {
                           {plan.suite.map((f: any, j: number) => (
                             <li key={j} className="flex items-start gap-2 text-xs font-medium">
                               {f.included ? (
-                                <div className="w-4 h-4 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={9} className="text-primary" /></div>
+                                <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={9} className="text-primary" /></div>
                               ) : (
-                                <div className="w-4 h-4 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5"><X size={9} className="text-red-400" /></div>
+                                <div className="w-4 h-4 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5"><X size={9} className="text-red-400" /></div>
                               )}
                               <div>
-                                <span className={f.included ? 'text-slate-300' : 'text-slate-500'}>{f.label}</span>
-                                {f.note && <><br /><span className="text-[10px] text-slate-500">{f.note}</span></>}
+                                <span className={f.included ? 'text-gray-700' : 'text-gray-400'}>{f.label}</span>
+                                {f.note && <><br /><span className="text-[10px] text-gray-400">{f.note}</span></>}
                               </div>
                             </li>
                           ))}
@@ -399,22 +399,22 @@ const SharedHosting: React.FC = () => {
 
       {/* SECTION 4 — Features */}
       {features.length > 0 && (
-        <section className="py-20 bg-dark">
+        <section className="py-20 bg-white">
           <div className="container mx-auto px-6">
             <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Everything Included</div>
-              <h2 className="text-4xl font-black text-white mb-3">{featuresTitle}</h2>
-              <p className="text-slate-400 font-medium max-w-xl mx-auto">{featuresDesc}</p>
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Everything Included</div>
+              <h2 className="text-4xl font-black text-gray-900 mb-3">{featuresTitle}</h2>
+              <p className="text-gray-500 font-medium max-w-xl mx-auto">{featuresDesc}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {features.map((f: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} whileHover={{ y: -5 }}
-                  className="p-6 bg-white/5 rounded-2xl border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all group">
-                  <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+                  className="p-6 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-primary/30 hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
                     {ICONS[f.title] || DEFAULT_FEATURE_ICON}
                   </div>
-                  <h3 className="text-base font-black text-white mb-2">{f.title}</h3>
-                  <p className="text-sm text-slate-400 font-medium leading-relaxed">{f.desc}</p>
+                  <h3 className="text-base font-black text-gray-900 mb-2">{f.title}</h3>
+                  <p className="text-sm text-gray-500 font-medium leading-relaxed">{f.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -423,19 +423,19 @@ const SharedHosting: React.FC = () => {
       )}
 
       {/* SECTION 5 — Control Panel Showcase */}
-      <section className="py-20 bg-dark overflow-hidden relative">
+      <section className="py-20 bg-gray-50 overflow-hidden relative">
         <div className="container mx-auto px-6">
           <div className="flex flex-col lg:flex-row items-center gap-14">
             <motion.div initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="lg:w-1/2">
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-6 uppercase tracking-widest">Full Control</div>
-              <h2 className="text-4xl font-black text-white mb-5">cPanel Hosting<br /><span className="text-primary">The Industry Standard.</span></h2>
-              <p className="text-slate-400 font-medium leading-relaxed mb-8">
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-6 uppercase tracking-widest">Full Control</div>
+              <h2 className="text-4xl font-black text-gray-900 mb-5">cPanel Hosting<br /><span className="text-primary">The Industry Standard.</span></h2>
+              <p className="text-gray-500 font-medium leading-relaxed mb-8">
                 Manage every aspect of your hosting from one intuitive dashboard. cPanel is the world's most trusted control panel — and it comes included with every plan.
               </p>
               <ul className="space-y-3">
                 {['One-click WordPress installer', 'Full DNS and domain management', 'Advanced email & spam filtering', 'Real-time resource monitoring'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm text-slate-300 font-medium">
-                    <div className="w-6 h-6 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0"><Check size={12} className="text-primary" /></div>
+                  <li key={i} className="flex items-center gap-3 text-sm text-gray-600 font-medium">
+                    <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><Check size={12} className="text-primary" /></div>
                     {item}
                   </li>
                 ))}

@@ -4,24 +4,24 @@ import { CheckCircle2, Zap, Shield, Globe, Clock, Activity, RefreshCw, ArrowRigh
 import { useContent } from '../ContentContext';
 
 const IconMap: any = {
-  Zap: <Zap size={24} />,
-  Shield: <Shield size={24} />,
-  Globe: <Globe size={24} />,
-  Clock: <Clock size={24} />,
-  Activity: <Activity size={24} />,
-  RefreshCw: <RefreshCw size={24} />,
-  Database: <Database size={24} />,
-  Lock: <Lock size={24} />,
-  Cpu: <Cpu size={24} />,
-  Server: <Server size={24} />,
-  Cloud: <Cloud size={24} />,
-  HardDrive: <HardDrive size={24} />,
-  Terminal: <Terminal size={24} />,
-  Code: <Code size={24} />,
-  Headphones: <Headphones size={24} />,
-  Settings: <Settings size={24} />,
-  Star: <Star size={24} />,
-  CheckCircle2: <CheckCircle2 size={24} />,
+  Zap: <Zap size={22} />,
+  Shield: <Shield size={22} />,
+  Globe: <Globe size={22} />,
+  Clock: <Clock size={22} />,
+  Activity: <Activity size={22} />,
+  RefreshCw: <RefreshCw size={22} />,
+  Database: <Database size={22} />,
+  Lock: <Lock size={22} />,
+  Cpu: <Cpu size={22} />,
+  Server: <Server size={22} />,
+  Cloud: <Cloud size={22} />,
+  HardDrive: <HardDrive size={22} />,
+  Terminal: <Terminal size={22} />,
+  Code: <Code size={22} />,
+  Headphones: <Headphones size={22} />,
+  Settings: <Settings size={22} />,
+  Star: <Star size={22} />,
+  CheckCircle2: <CheckCircle2 size={22} />,
 };
 
 const defaultItems = [
@@ -51,58 +51,53 @@ const Features: React.FC = () => {
   const items = featuresData.items || defaultItems;
 
   const resolveIcon = (icon: any) => {
-    if (icon && typeof icon === 'string') {
-      return IconMap[icon] || <Zap size={24} />;
-    }
-    if (icon && typeof icon === 'object') {
-      return icon;
-    }
-    return <Zap size={24} />;
+    if (icon && typeof icon === 'string') return IconMap[icon] || <Zap size={22} />;
+    if (icon && typeof icon === 'object') return icon;
+    return <Zap size={22} />;
   };
 
   return (
-    <section id="features" className="py-16 bg-secondary relative overflow-hidden">
-      <div className="tech-grid absolute inset-0 opacity-5"></div>
+    <section id="features" className="py-16 bg-gray-50 relative overflow-hidden">
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary-300 text-xs font-black mb-6 uppercase tracking-widest"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-xs font-black mb-6 uppercase tracking-widest border border-primary/20"
           >
             Core Features
           </motion.div>
-          <h2 className="text-4xl lg:text-5xl font-black text-white mb-6 tracking-tight">{featuresData.title}</h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed">{featuresData.description}</p>
+          <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6 tracking-tight">{featuresData.title}</h2>
+          <p className="text-lg text-gray-500 font-medium leading-relaxed">{featuresData.description}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 max-w-7xl mx-auto">
           {items.map((f: any, i: number) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.05 }}
-              className="group p-6 bg-white/5 rounded-[24px] border border-white/5 hover:border-primary/30 hover:bg-white/10 transition-all duration-500 flex flex-col"
+              transition={{ delay: i * 0.04 }}
+              className="group p-6 bg-white rounded-2xl border border-gray-100 hover:border-primary/30 hover:shadow-md transition-all duration-300 flex flex-col"
             >
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center text-primary-300 group-hover:bg-primary group-hover:text-white transition-all duration-500 shadow-sm border border-white/5">
+              <div className="flex justify-between items-start mb-5">
+                <div className="w-11 h-11 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-300 shadow-sm">
                   {resolveIcon(f.icon)}
                 </div>
                 {f.badge && (
-                  <span className={`text-[10px] font-black px-2 py-1 rounded-md tracking-widest ${f.badge === 'AI' ? 'bg-purple-500/20 text-purple-300' : 'bg-primary/20 text-primary-300'}`}>
+                  <span className={`text-[10px] font-black px-2 py-1 rounded-md tracking-widest ${f.badge === 'AI' ? 'bg-purple-100 text-purple-600' : 'bg-primary/10 text-primary'}`}>
                     {f.badge}
                   </span>
                 )}
               </div>
 
-              <h4 className="text-xl font-black text-white mb-3 group-hover:text-primary-300 transition-colors">{f.title}</h4>
-              <p className="text-sm text-slate-400 font-medium leading-relaxed mb-6 flex-grow">{f.description}</p>
+              <h4 className="text-base font-black text-gray-900 mb-2 group-hover:text-primary transition-colors">{f.title}</h4>
+              <p className="text-sm text-gray-500 font-medium leading-relaxed mb-4 flex-grow">{f.description}</p>
 
-              <div className="flex items-center gap-2 text-primary-300 font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                Learn more <ArrowRight size={14} />
+              <div className="flex items-center gap-2 text-primary font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                Learn more <ArrowRight size={13} />
               </div>
             </motion.div>
           ))}
