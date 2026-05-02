@@ -4,7 +4,10 @@ import { useBranding } from "@/hooks/use-branding";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight, ShoppingCart, AlertTriangle, Plus } from "lucide-react";
+import {
+  LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight,
+  ShoppingCart, AlertTriangle, Plus, Settings,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
@@ -64,21 +67,25 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/* ─── Client nav: pinned shortcuts at top, rest of nav below ─── */
+const CLIENT_NAV_TOP = ["/client/dashboard", "/client/hosting", "/client/domains", "/client/billing"];
+const CLIENT_NAV_BOTTOM = ["/client/orders", "/client/tickets", "/client/account", "/client/security", "/help"];
+
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
   const { logoUrl, faviconUrl, siteName } = useBranding();
   const { currency, setCurrency, allCurrencies } = useCurrency();
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
     if (faviconUrl && link) link.href = faviconUrl;
   }, [faviconUrl]);
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
   const { data: priceGuardData } = useQuery<any>({
     queryKey: ["spaceship-balance-alert"],
     queryFn: async () => {
@@ -92,6 +99,7 @@ export function AppLayout({ children, role }: LayoutProps) {
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
   });
+
   const showLowBalanceAlert = role === "admin" && priceGuardData?.hasRegistrar && priceGuardData?.lowBalance;
   const { count: cartCount } = useCart();
 
@@ -99,10 +107,13 @@ export function AppLayout({ children, role }: LayoutProps) {
     setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const clientLinks = routesByRole.client
+  const allClientLinks = routesByRole.client
     .filter(r => r.inNav)
     .filter(r => r.path !== "/client/migrations" || (user as any)?.canMigrate === true)
     .map(r => ({ name: r.label, href: r.path, icon: r.icon }));
+
+  const clientLinksTop = allClientLinks.filter(l => CLIENT_NAV_TOP.includes(l.href));
+  const clientLinksBottom = allClientLinks.filter(l => CLIENT_NAV_BOTTOM.includes(l.href));
 
   const routeIconMap = routesByRole.admin.reduce<Record<string, LucideIcon>>((acc, r) => {
     acc[r.path] = r.icon;
@@ -143,140 +154,234 @@ export function AppLayout({ children, role }: LayoutProps) {
     return last.replace(/-/g, " ");
   })();
 
-  const sidebarContent = (
-    <div className="flex flex-col h-full">
+  const isClient = role === "client";
+
+  /* ─── Client Sidebar Content ─── */
+  const clientSidebarContent = (
+    <div className="flex flex-col h-full" style={{ background: "#1A202C" }}>
       {/* Logo */}
+      <div className="px-5 py-5 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", minHeight: 68 }}>
+        {logoUrl ? (
+          <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 40, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} />
+        ) : (
+          <>
+            <div
+              className="brand-logo-container w-9 h-9 rounded-xl font-black text-white text-base flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 14px rgba(91,95,239,0.4)" }}
+            >
+              {siteName?.[0] ?? "N"}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-display font-extrabold text-lg text-white tracking-tight leading-none">{siteName}</span>
+              <span className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#6366F1" }}>Client Portal</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Order Now CTA */}
+      <div className="px-4 pt-5 pb-3">
+        <Link href="/client/orders/new">
+          <div
+            onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer font-bold text-sm text-white transition-opacity hover:opacity-90"
+            style={{ background: "linear-gradient(135deg, #5B5FEF 0%, #7A6BFF 100%)", boxShadow: "0 4px 16px rgba(91,95,239,0.35)" }}
+          >
+            <Plus size={15} />
+            New Order
+          </div>
+        </Link>
+      </div>
+
+      {/* Main Nav */}
+      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
+        {/* Primary nav items */}
+        <p className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>Main</p>
+        {clientLinksTop.map(link => {
+          const active = isActive(link.href);
+          const Icon = link.icon;
+          return (
+            <Link key={link.name} href={link.href}>
+              <div
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group"
+                style={{
+                  background: active ? "rgba(99,102,241,0.22)" : "transparent",
+                  color: active ? "#fff" : "rgba(255,255,255,0.55)",
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; }}
+                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"; } }}
+              >
+                <Icon
+                  size={17}
+                  style={{ color: active ? "#818CF8" : "inherit", flexShrink: 0 }}
+                />
+                <span className="text-sm font-medium">{link.name}</span>
+                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#6366F1" }} />}
+              </div>
+            </Link>
+          );
+        })}
+
+        <p className="px-3 pt-5 pb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>Account</p>
+        {clientLinksBottom.map(link => {
+          const active = isActive(link.href);
+          const Icon = link.icon;
+          return (
+            <Link key={link.name} href={link.href}>
+              <div
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer"
+                style={{
+                  background: active ? "rgba(99,102,241,0.22)" : "transparent",
+                  color: active ? "#fff" : "rgba(255,255,255,0.55)",
+                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; }}
+                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"; } }}
+              >
+                <Icon size={17} style={{ color: active ? "#818CF8" : "inherit", flexShrink: 0 }} />
+                <span className="text-sm font-medium">{link.name}</span>
+                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#6366F1" }} />}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* User Footer */}
+      <div className="p-4" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        {/* Currency */}
+        <div className="flex items-center gap-2 px-1 mb-3">
+          <span className="text-[11px] font-medium shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>Currency</span>
+          <select
+            value={currency.code}
+            onChange={e => {
+              const found = allCurrencies.find(c => c.code === e.target.value);
+              if (found) setCurrency(found);
+            }}
+            className="flex-1 text-xs rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1"
+            style={{
+              background: "rgba(255,255,255,0.07)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "rgba(255,255,255,0.75)",
+              focusRingColor: "#6366F1",
+            }}
+          >
+            {allCurrencies.map(c => (
+              <option key={c.code} value={c.code} style={{ background: "#1A202C" }}>{c.code} ({c.symbol})</option>
+            ))}
+          </select>
+        </div>
+
+        {/* User card */}
+        <div className="flex items-center gap-3 p-2.5 rounded-xl mb-2" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
+            style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", color: "#fff" }}
+          >
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{user?.firstName} {user?.lastName}</p>
+            <p className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.4)" }}>{user?.email}</p>
+          </div>
+          <Link href="/client/account">
+            <Settings size={14} style={{ color: "rgba(255,255,255,0.35)" }} className="hover:opacity-80 cursor-pointer" />
+          </Link>
+        </div>
+
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
+          style={{ color: "rgba(255,255,255,0.4)" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.12)"; (e.currentTarget as HTMLElement).style.color = "rgba(252,165,165,0.9)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.4)"; }}
+        >
+          <LogOut size={14} />
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+
+  /* ─── Admin Sidebar Content (unchanged) ─── */
+  const adminSidebarContent = (
+    <div className="flex flex-col h-full">
       <div className="px-5 py-4 flex items-center gap-3 border-b border-border/50" style={{ minHeight: 64 }}>
         {logoUrl ? (
           <div className="flex items-center min-w-0 max-w-full">
-            <img
-              src={logoUrl}
-              alt={siteName}
-              className="brand-logo-img"
-              style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }}
-            />
+            <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }} />
           </div>
         ) : (
           <>
             <div
-              className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0"
+              className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0 flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 14px rgba(91,95,239,0.35)" }}
             >
               {siteName?.[0] ?? "N"}
             </div>
             <div className="flex flex-col justify-center min-w-0">
               <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
-              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#5B5FEF" }}>
-                {role === "admin" ? "NoePanel" : "Client Portal"}
-              </p>
+              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#5B5FEF" }}>NoePanel</p>
             </div>
           </>
         )}
       </div>
 
-      {/* Nav */}
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        {role === "admin" ? (
-          adminNavGroups.map(group => {
-            const isCollapsed = collapsedGroups[group.label];
-            const groupHasActive = group.items.some(item => isActive(item.href));
-
-            return (
-              <div key={group.label} className="mb-1">
-                <button
-                  onClick={() => toggleGroup(group.label)}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                    groupHasActive
-                      ? "text-primary"
-                      : "text-muted-foreground/60 hover:text-muted-foreground"
-                  }`}
-                >
-                  <span>{group.label}</span>
-                  {isCollapsed
-                    ? <ChevronRight size={12} />
-                    : <ChevronDown size={12} />}
-                </button>
-
-                <AnimatePresence initial={false}>
-                  {!isCollapsed && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: "easeInOut" }}
-                      className="overflow-hidden"
-                    >
-                      <div className="space-y-0.5 mt-0.5">
-                        {group.items.map(item => {
-                          const active = isActive(item.href);
-                          const Icon = item.icon;
-                          return (
-                            <Link key={item.name} href={item.href}>
-                              <div
-                                onClick={() => setMobileMenuOpen(false)}
-                                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
-                                  active
-                                    ? "bg-primary/10 text-primary font-semibold border border-primary/20"
-                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
-                                }`}
-                              >
-                                {Icon && (
-                                  <Icon
-                                    size={16}
-                                    className={active ? "text-primary shrink-0" : "text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"}
-                                  />
-                                )}
-                                <span className="text-sm truncate">{item.name}</span>
-                                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
-                              </div>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })
-        ) : (
-          <div className="space-y-0.5">
-            {/* Order Now CTA — always pinned at top for client */}
-            <Link href="/client/orders/new">
-              <div
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl mb-3 cursor-pointer text-white font-bold text-sm shadow-md transition-opacity hover:opacity-90"
-                style={{ background: "linear-gradient(135deg, #5B5FEF 0%, #7A6BFF 100%)", boxShadow: "0 0 14px rgba(91,95,239,0.30)" }}
+        {adminNavGroups.map(group => {
+          const isCollapsed = collapsedGroups[group.label];
+          const groupHasActive = group.items.some(item => isActive(item.href));
+          return (
+            <div key={group.label} className="mb-1">
+              <button
+                onClick={() => toggleGroup(group.label)}
+                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  groupHasActive ? "text-primary" : "text-muted-foreground/60 hover:text-muted-foreground"
+                }`}
               >
-                <Plus size={16} />
-                Order Now
-              </div>
-            </Link>
-            {clientLinks.map(link => {
-              const active = isActive(link.href);
-              const Icon = link.icon;
-              return (
-                <Link key={link.name} href={link.href}>
-                  <div
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
-                      active
-                        ? "bg-primary/10 text-primary font-semibold border border-primary/20"
-                        : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
-                    }`}
+                <span>{group.label}</span>
+                {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+              </button>
+              <AnimatePresence initial={false}>
+                {!isCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="overflow-hidden"
                   >
-                    <Icon size={18} className={active ? "text-primary shrink-0" : "text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"} />
-                    <span className="text-sm">{link.name}</span>
-                    {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                    <div className="space-y-0.5 mt-0.5">
+                      {group.items.map(item => {
+                        const active = isActive(item.href);
+                        const Icon = item.icon;
+                        return (
+                          <Link key={item.name} href={item.href}>
+                            <div
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group ${
+                                active
+                                  ? "bg-primary/10 text-primary font-semibold border border-primary/20"
+                                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground border border-transparent"
+                              }`}
+                            >
+                              {Icon && <Icon size={16} className={active ? "text-primary shrink-0" : "text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"} />}
+                              <span className="text-sm truncate">{item.name}</span>
+                              {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
       </div>
 
-      {/* User + Logout */}
       <div className="p-3 border-t border-border/50">
         <div className="flex items-center gap-3 px-3 py-2.5 bg-secondary/40 rounded-xl mb-2 border border-border/40">
           <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm border border-primary/30 shrink-0">
@@ -287,7 +392,6 @@ export function AppLayout({ children, role }: LayoutProps) {
             <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
           </div>
         </div>
-        {/* Currency Switcher */}
         <div className="flex items-center gap-2 px-1 mb-1">
           <span className="text-[11px] text-muted-foreground shrink-0">Currency:</span>
           <select
@@ -315,53 +419,51 @@ export function AppLayout({ children, role }: LayoutProps) {
     </div>
   );
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row font-sans">
+  const sidebarContent = isClient ? clientSidebarContent : adminSidebarContent;
 
-      {/* ── Mobile / Tablet Header (hidden on md+ desktop) ── */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        {/* Logo */}
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row font-sans" style={{ background: isClient ? "#F7F8FA" : undefined }}>
+
+      {/* ── Mobile Header ── */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b sticky top-0 z-50 shadow-sm"
+        style={{
+          background: isClient ? "#1A202C" : undefined,
+          borderColor: isClient ? "rgba(255,255,255,0.08)" : undefined,
+        }}
+      >
         <div className="flex items-center gap-2.5">
           {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={siteName}
-              className="brand-logo-img"
-              style={{ maxHeight: 38, width: "auto", maxWidth: 180 }}
-            />
+            <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: 180, ...(isClient ? { filter: "brightness(0) invert(1)" } : {}) }} />
           ) : (
             <>
               <div
-                className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow shrink-0"
-                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 12px rgba(91,95,239,0.35)" }}
+                className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}
               >
                 {siteName?.[0] ?? "N"}
               </div>
-              <span className="font-display font-bold text-lg tracking-tight" style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</span>
+              <span className="font-display font-bold text-lg tracking-tight text-white">{siteName}</span>
             </>
           )}
         </div>
 
-        {/* Right action cluster */}
         <div className="flex items-center gap-1">
-          {/* Order Now — always visible for client on mobile */}
-          {role === "client" && (
+          {isClient && (
             <Link href="/client/orders/new">
               <button
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow transition-opacity hover:opacity-90 mr-1"
-                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 12px rgba(91,95,239,0.30)" }}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow mr-1"
+                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}
               >
                 <Plus size={13} />
                 Order
               </button>
             </Link>
           )}
-
-          {/* Cart icon */}
-          {role === "client" && (
+          {isClient && (
             <button
               onClick={() => { setLocation("/client/cart"); setMobileMenuOpen(false); }}
-              className="relative p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              className="relative p-2 rounded-xl transition-colors"
+              style={{ color: "rgba(255,255,255,0.6)" }}
               aria-label="Cart"
             >
               <ShoppingCart size={19} />
@@ -372,11 +474,10 @@ export function AppLayout({ children, role }: LayoutProps) {
               )}
             </button>
           )}
-
-          {/* Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-foreground hover:bg-secondary transition-colors"
+            className="p-2 rounded-xl transition-colors"
+            style={{ color: isClient ? "rgba(255,255,255,0.8)" : undefined }}
             aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
@@ -384,12 +485,20 @@ export function AppLayout({ children, role }: LayoutProps) {
         </div>
       </div>
 
-      {/* ── Desktop Sidebar (md+ screens, or desktop-mode on mobile) ── */}
-      <aside className="hidden md:flex flex-col w-64 bg-card border-r border-border sticky top-0 h-screen overflow-hidden shadow-sm">
-        {sidebarContent}
+      {/* ── Desktop Sidebar ── */}
+      <aside
+        className="hidden md:flex flex-col w-60 sticky top-0 h-screen overflow-hidden"
+        style={{
+          background: isClient ? "#1A202C" : undefined,
+          borderRight: isClient ? "1px solid rgba(255,255,255,0.06)" : undefined,
+          boxShadow: isClient ? "4px 0 24px rgba(0,0,0,0.12)" : undefined,
+        }}
+      >
+        {!isClient && <div className="h-full bg-card border-r border-border">{sidebarContent}</div>}
+        {isClient && sidebarContent}
       </aside>
 
-      {/* ── Mobile Slide-out Sidebar Overlay ── */}
+      {/* ── Mobile Slide-out ── */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
@@ -405,9 +514,11 @@ export function AppLayout({ children, role }: LayoutProps) {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -290, opacity: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 32 }}
-              className="fixed top-0 left-0 h-screen w-72 bg-card border-r border-border z-50 md:hidden shadow-2xl"
+              className="fixed top-0 left-0 h-screen w-72 z-50 md:hidden shadow-2xl overflow-hidden"
+              style={{ background: isClient ? "#1A202C" : undefined }}
             >
-              {sidebarContent}
+              {!isClient && <div className="h-full bg-card border-r border-border">{sidebarContent}</div>}
+              {isClient && sidebarContent}
             </motion.aside>
           </>
         )}
@@ -416,8 +527,16 @@ export function AppLayout({ children, role }: LayoutProps) {
       {/* ── Main Content ── */}
       <main className="flex-1 flex flex-col min-h-screen overflow-hidden">
         {/* Desktop top-bar header */}
-        <header className="hidden md:flex h-16 items-center justify-between px-8 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30 shadow-sm">
-          <h2 className="text-lg font-display font-semibold text-foreground capitalize">
+        <header
+          className="hidden md:flex h-16 items-center justify-between px-8 sticky top-0 z-30"
+          style={{
+            background: isClient ? "#ffffff" : "rgba(var(--background)/0.8)",
+            borderBottom: isClient ? "1px solid #F0F0F5" : "1px solid hsl(var(--border)/0.5)",
+            backdropFilter: isClient ? "none" : "blur(20px)",
+            boxShadow: isClient ? "0 1px 3px rgba(0,0,0,0.04)" : "0 1px 2px rgba(0,0,0,0.04)",
+          }}
+        >
+          <h2 className="text-base font-display font-bold capitalize" style={{ color: isClient ? "#1A202C" : undefined }}>
             {pageTitle}
           </h2>
           <div className="flex items-center gap-3">
@@ -426,22 +545,24 @@ export function AppLayout({ children, role }: LayoutProps) {
                 <ShieldAlert size={14} /> Admin Access
               </div>
             )}
-            {role === "client" && (
+            {isClient && (
               <>
-                {/* Order Now CTA in desktop header */}
                 <Link href="/client/orders/new">
                   <button
                     className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow transition-opacity hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 14px rgba(91,95,239,0.30)" }}
+                    style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 14px rgba(91,95,239,0.25)" }}
                   >
-                    <Plus size={15} /> Order Now
+                    <Plus size={15} /> New Order
                   </button>
                 </Link>
                 <NotificationBell />
                 <button
                   onClick={() => setLocation("/client/cart")}
-                  className="relative p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+                  className="relative p-2 rounded-xl transition-colors"
+                  style={{ color: "#94A3B8" }}
                   title="View Cart"
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#1A202C"}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#94A3B8"}
                 >
                   <ShoppingCart size={18} />
                   {cartCount > 0 && (
@@ -452,13 +573,19 @@ export function AppLayout({ children, role }: LayoutProps) {
                 </button>
               </>
             )}
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs"
+              style={isClient
+                ? { background: "#EEF2FF", color: "#4F46E5", border: "2px solid #C7D2FE" }
+                : { background: "hsl(var(--primary)/0.1)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary)/0.2)" }
+              }
+            >
               {user?.firstName?.[0]}{user?.lastName?.[0]}
             </div>
           </div>
         </header>
 
-        {/* Spaceship low-balance alert banner */}
+        {/* Admin low-balance alert */}
         {showLowBalanceAlert && (
           <div className="mx-4 mt-3 md:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-400 text-[13px] font-medium">
             <AlertTriangle size={16} className="shrink-0 text-red-400" />
@@ -471,22 +598,25 @@ export function AppLayout({ children, role }: LayoutProps) {
         )}
 
         {/* Page content */}
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto overflow-x-hidden">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="max-w-7xl mx-auto space-y-6"
-          >
-            {children}
-          </motion.div>
+        <div
+          className="flex-1 overflow-y-auto overflow-x-hidden"
+          style={{ background: isClient ? "#F7F8FA" : undefined }}
+        >
+          <div className={isClient ? "p-6 md:p-8" : "p-4 md:p-8"}>
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className={isClient ? "max-w-6xl mx-auto" : "max-w-7xl mx-auto space-y-6"}
+            >
+              {children}
+            </motion.div>
+          </div>
         </div>
       </main>
 
-      {/* AI Chat Widget — floating in bottom-right for client panel */}
-      {role === "client" && <AiChatWidget />}
-      {/* Feedback Widget — floating bottom-left for client panel */}
-      {role === "client" && <FeedbackWidget />}
+      {isClient && <AiChatWidget />}
+      {isClient && <FeedbackWidget />}
     </div>
   );
 }
