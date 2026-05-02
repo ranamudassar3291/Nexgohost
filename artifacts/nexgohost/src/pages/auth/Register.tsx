@@ -272,7 +272,8 @@ export default function Register() {
         toast({ title: "Verification code sent", description: `Check your email at ${formData.email}` });
       } else {
         login(data.token);
-        setLocation("/client/dashboard");
+        const nextUrl = new URLSearchParams(window.location.search).get("next");
+        setLocation(nextUrl || "/client/dashboard");
       }
     } catch (err: any) {
       setFormError(err.message || "Registration failed. Please try again.");
@@ -286,7 +287,8 @@ export default function Register() {
       await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code }) });
       login(tempToken);
       toast({ title: "Email verified!", description: "Welcome to Noehost." });
-      setLocation("/client/dashboard");
+      const nextUrl = new URLSearchParams(window.location.search).get("next");
+      setLocation(nextUrl || "/client/dashboard");
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }

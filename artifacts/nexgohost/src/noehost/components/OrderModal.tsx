@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, Zap, ArrowRight, ShieldCheck, ShoppingCart, Check } from 'lucide-react';
 import { useCurrency } from '../CurrencyContext';
+import { useCart } from '@/context/CartContext';
+import { useLocation } from 'wouter';
 
 export interface OrderPlan {
   id: string;
@@ -35,6 +37,9 @@ interface CycleOption {
 
 const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
   const { convertFromPKR } = useCurrency();
+  const { addItem } = useCart();
+  const [, navigate] = useLocation();
+  const [added, setAdded] = useState(false);
 
   const buildCycles = (p: OrderPlan): CycleOption[] => {
     const monthly = p.monthlyPrice;
@@ -93,9 +98,26 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
   const cycles = buildCycles(plan);
   const activeCycle = cycles.find(c => c.key === cycle) || cycles[0];
 
-  const handleProceed = () => {
-    const dest = `/client/order/add/${encodeURIComponent(plan.id)}?cycle=${cycle}`;
-    window.location.href = dest;
+  const handleAddToCart = () => {
+    const planId = plan.id && plan.id.trim()
+      ? plan.id
+      : `plan-${plan.name.toLowerCase().replace(/\s+/g, '-')}`;
+
+    addItem({
+      planId,
+      planName: plan.name,
+      billingCycle: cycle,
+      monthlyPrice: plan.monthlyPrice,
+      quarterlyPrice: plan.quarterlyPrice ?? null,
+      semiannualPrice: plan.semiannualPrice ?? null,
+      yearlyPrice: plan.yearlyPrice,
+    });
+
+    setAdded(true);
+    setTimeout(() => {
+      onClose();
+      navigate('/cart');
+    }, 600);
   };
 
   return (
@@ -116,6 +138,7 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
             transition={{ type: 'spring', damping: 28, stiffness: 350 }}
             className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md z-10 overflow-hidden"
           >
+            {/* Header */}
             <div className="bg-gradient-to-br from-primary to-primary-600 px-6 pt-6 pb-8">
               <button
                 onClick={onClose}
@@ -124,7 +147,7 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
                 <X size={16} />
               </button>
               <div className="inline-flex items-center gap-1.5 bg-white/20 text-white text-xs font-black px-3 py-1 rounded-full mb-3 uppercase tracking-widest">
-                <Zap size={10} fill="white" /> Choose Your Billing
+                <Zap size={10} fill="white" /> Select Your Plan
               </div>
               <h2 className="text-2xl font-black text-white mb-1">{plan.name}</h2>
               {plan.description && (
@@ -132,6 +155,7 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
               )}
             </div>
 
+            {/* Billing Cycle Cards */}
             <div className="-mt-4 mx-4 bg-white rounded-2xl shadow-lg p-5 border border-slate-100">
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">
                 Select Billing Cycle
@@ -146,7 +170,7 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
                       cycle === c.key
                         ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
                         : 'border-slate-200 hover:border-slate-300'
-                    } ${!c.available ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    } ${!c.available ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     {c.savePct > 0 && (
                       <span className="absolute -top-2.5 -right-2.5 bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
@@ -165,7 +189,7 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
                         </p>
                       </>
                     ) : (
-                      <p className="text-sm text-slate-400 font-medium mt-1">Not available</p>
+                      <p className="text-sm text-slate-400 font-medium mt-1">N/A</p>
                     )}
                   </button>
                 ))}
@@ -178,13 +202,15 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
               )}
             </div>
 
+            {/* Trust note */}
             <div className="px-6 pt-3 pb-2">
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium justify-center">
                 <ShieldCheck size={13} className="text-emerald-500" />
-                Login or create a free account at checkout — no account needed to browse
+                No account needed to add to cart — login only at checkout
               </div>
             </div>
 
+            {/* Actions */}
             <div className="px-6 pb-5 pt-2 flex gap-3">
               <button
                 onClick={onClose}
@@ -193,10 +219,19 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
                 Cancel
               </button>
               <button
-                onClick={handleProceed}
-                className="flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 bg-primary hover:bg-primary-600 text-white shadow-lg shadow-primary/30 transition-all"
+                onClick={handleAddToCart}
+                disabled={added}
+                className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-lg ${
+                  added
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                    : 'bg-primary hover:bg-primary-600 text-white shadow-primary/30'
+                }`}
               >
-                Continue to Checkout <ArrowRight size={15} />
+                {added ? (
+                  <><Check size={15} /> Added! Going to cart…</>
+                ) : (
+                  <><ShoppingCart size={15} /> Add to Cart <ArrowRight size={15} /></>
+                )}
               </button>
             </div>
           </motion.div>

@@ -174,8 +174,8 @@ function OrderByVpsId() {
   return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
 }
 
-// WHMCS-style cart URL: /cart?a=add&pid=UUID  — direct order link
-// Also handles ?gid=UUID for group-based ordering
+// /cart — public cart page (no auth required)
+// Also handles WHMCS-style ?a=add&pid= and ?gid= direct-order links
 function WhmcsCartRedirect() {
   const params = new URLSearchParams(window.location.search);
   const pid    = params.get("pid")  ?? "";
@@ -188,9 +188,8 @@ function WhmcsCartRedirect() {
   if (gid) {
     return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
   }
-  // Fallback: go to the public order wizard
-  window.location.replace("/order");
-  return null;
+  // No WHMCS params — show the cart (no auth required)
+  return <CheckoutLayout allowGuest><Cart /></CheckoutLayout>;
 }
 
 // ─── Router Root ──────────────────────────────────────────────────────────────
@@ -489,7 +488,7 @@ function RouterRoot() {
       {/* VPS direct links: /order/vps/:planId and ?vps_id=UUID */}
       <Route path="/order/vps/:planId" component={OrderByVpsPlan}/>
       <Route path="/order/vps" component={OrderByVpsId}/>
-      {/* WHMCS cart-style URL: /cart?a=add&pid=UUID or /cart?gid=UUID */}
+      {/* Public cart — WHMCS ?a=add&pid= redirects handled, else show cart */}
       <Route path="/cart" component={WhmcsCartRedirect}/>
 
       <Route path="/client/orders/new">
@@ -499,10 +498,10 @@ function RouterRoot() {
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
       <Route path="/client/cart">
-        <ClientPage><Cart /></ClientPage>
+        <CheckoutLayout allowGuest><Cart /></CheckoutLayout>
       </Route>
       <Route path="/client/checkout">
-        <ClientPage><Checkout /></ClientPage>
+        <CheckoutLayout><Checkout /></CheckoutLayout>
       </Route>
       <Route path="/client/account">
         <ClientPage><ClientAccount /></ClientPage>

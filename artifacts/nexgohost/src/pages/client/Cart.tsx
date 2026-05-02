@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
-import { useCart, availableCycles, getItemPrice, CYCLE_LABELS, CYCLE_SUFFIX, type BillingCycle } from "@/context/CartContext";
+import { useCart, availableCycles, getItemPrice, CYCLE_LABELS, CYCLE_SUFFIX, type BillingCycle, type CartItem } from "@/context/CartContext";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { useQuery } from "@tanstack/react-query";
 
@@ -128,17 +128,20 @@ export default function Cart() {
   const { formatPrice } = useCurrency();
 
   const total = items.reduce((sum, item) => sum + getItemPrice(item), 0);
+  const isLoggedIn = !!localStorage.getItem("token");
 
   const { data: services = [] } = useQuery<HostingService[]>({
     queryKey: ["client-services-cart"],
     queryFn: () => apiFetch("/api/client/hosting"),
     retry: false,
+    enabled: isLoggedIn,
   });
 
   const { data: domains = [] } = useQuery<DomainItem[]>({
     queryKey: ["client-domains-cart"],
     queryFn: () => apiFetch("/api/domains"),
     retry: false,
+    enabled: isLoggedIn,
   });
 
   const { data: plans = [], isLoading: plansLoading } = useQuery<Plan[]>({
@@ -161,11 +164,9 @@ export default function Cart() {
     });
   }
 
-  function handleCheckout() {
-    if (items.length === 0) return;
-    const item = items[0];
+  function buildCheckoutParams(item: CartItem) {
     const price = getItemPrice(item);
-    const params = new URLSearchParams({
+    return new URLSearchParams({
       packageId: item.planId,
       packageName: item.planName,
       amount: String(price),
@@ -176,8 +177,23 @@ export default function Cart() {
       ...(item.yearlyPrice != null ? { yearlyPrice: String(item.yearlyPrice) } : {}),
       ...(item.renewalEnabled && item.renewalPrice != null ? { renewalPrice: String(item.renewalPrice) } : {}),
     });
+  }
+
+  function handleCheckout() {
+    if (items.length === 0) return;
+    const item = items[0];
+    const params = buildCheckoutParams(item as any);
+    const dest = `/client/checkout?${params.toString()}`;
+
+    // If not logged in — redirect to register with ?next= pointing to checkout
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setLocation(`/register?next=${encodeURIComponent(dest)}`);
+      return;
+    }
+
     clearCart();
-    setLocation(`/client/checkout?${params.toString()}`);
+    setLocation(dest);
   }
 
   if (items.length === 0) {
