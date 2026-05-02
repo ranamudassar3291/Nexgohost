@@ -40,33 +40,37 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
 }
 
 // Public: list active packages by group slug (used in noehost marketing pages)
-// Falls back to all active plans (capped at 6, lowest price first) when no slug match.
+// Resolves slug → UUID via product_groups table, then filters hosting plans.
+// Falls back to all active plans (capped at 6, cheapest first) when no match.
 router.get("/packages/group/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
+
+    // 1. Resolve slug to a product group UUID via product_groups table
+    const [group] = await db.select().from(productGroupsTable)
+      .where(eq(productGroupsTable.slug, slug))
+      .limit(1);
+
     const plans = await db.select().from(hostingPlansTable)
       .where(eq(hostingPlansTable.isActive, true))
       .orderBy(sql`price ASC`);
 
-    // 1. Exact groupId match (e.g. "shared-hosting")
-    let filtered = plans.filter(p =>
-      p.groupId && (
-        p.groupId.toLowerCase() === slug.toLowerCase() ||
-        p.groupId.toLowerCase().replace(/[^a-z0-9]/g, '-') === slug.toLowerCase()
-      )
-    );
+    let filtered: typeof plans = [];
 
-    // 2. Keyword match in groupId or plan name (e.g. slug "vps" matches name "VPS Basic")
-    if (filtered.length === 0) {
-      const keyword = slug.replace(/-/g, ' ').toLowerCase();
-      filtered = plans.filter(p => {
-        const nameMatch = p.name?.toLowerCase().includes(keyword.split(' ')[0]);
-        const groupMatch = p.groupId?.toLowerCase().includes(keyword.split(' ')[0]);
-        return nameMatch || groupMatch;
-      });
+    if (group) {
+      // Exact UUID match via product_groups.id → hosting_plans.group_id
+      filtered = plans.filter(p => p.groupId === group.id);
     }
 
-    // 3. Fallback: return up to 6 cheapest active plans so the page is never empty
+    // 2. Keyword fallback: slug word appears in plan name (e.g. "vps" in "VPS Basic")
+    if (filtered.length === 0) {
+      const keyword = slug.replace(/-/g, ' ').split(' ')[0].toLowerCase();
+      filtered = plans.filter(p =>
+        p.name?.toLowerCase().includes(keyword)
+      );
+    }
+
+    // 3. Last resort: return up to 6 cheapest active plans so page is never empty
     if (filtered.length === 0) {
       filtered = plans.slice(0, 6);
     }
