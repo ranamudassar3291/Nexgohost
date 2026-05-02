@@ -30,8 +30,14 @@ const TopBar: React.FC = () => {
   if (!config.show || dismissed) return null;
 
   return (
-    <div className="bg-gradient-to-r from-secondary via-primary-950 to-secondary text-white py-2.5 relative z-[110] overflow-visible" style={{ borderBottom: '1px solid rgba(103,61,230,0.5)' }}>
-      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_50%_50%,rgba(103,61,230,0.2),transparent_70%)]" />
+    <div
+      className="text-white py-2.5 relative z-[110] overflow-visible"
+      style={{
+        background: 'linear-gradient(90deg, #0e0e11 0%, #1a0d3e 30%, #120840 50%, #1a0d3e 70%, #0e0e11 100%)',
+        borderBottom: '1px solid rgba(103,61,230,0.5)',
+      }}
+    >
+      <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at 50% 50%, rgba(103,61,230,0.25), transparent 70%)' }} />
       <div className="container mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10">
 
         {/* Left: contact */}

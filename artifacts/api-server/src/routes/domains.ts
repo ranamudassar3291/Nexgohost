@@ -199,8 +199,9 @@ router.get("/domains/pricing", async (_req, res) => {
   }
 });
 
-// Authenticated: check domain availability across all supported TLDs
-router.get("/domains/availability", authenticate, async (req: AuthRequest, res) => {
+// Public: check domain availability across all supported TLDs
+// No auth needed — used by the marketing DomainChecker on the homepage.
+router.get("/domains/availability", async (req, res) => {
   try {
     const { domain } = req.query as { domain?: string };
     if (!domain || typeof domain !== "string") {
