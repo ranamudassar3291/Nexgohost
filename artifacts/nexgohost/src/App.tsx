@@ -501,7 +501,7 @@ function RouterRoot() {
         <CheckoutLayout allowGuest><Cart /></CheckoutLayout>
       </Route>
       <Route path="/client/checkout">
-        <CheckoutLayout><Checkout /></CheckoutLayout>
+        <CheckoutLayout allowGuest><Checkout /></CheckoutLayout>
       </Route>
       <Route path="/client/account">
         <ClientPage><ClientAccount /></ClientPage>

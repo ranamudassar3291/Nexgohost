@@ -183,17 +183,8 @@ export default function Cart() {
     if (items.length === 0) return;
     const item = items[0];
     const params = buildCheckoutParams(item as any);
-    const dest = `/client/checkout?${params.toString()}`;
-
-    // If not logged in — redirect to register with ?next= pointing to checkout
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setLocation(`/register?next=${encodeURIComponent(dest)}`);
-      return;
-    }
-
     clearCart();
-    setLocation(dest);
+    setLocation(`/client/checkout?${params.toString()}`);
   }
 
   if (items.length === 0) {

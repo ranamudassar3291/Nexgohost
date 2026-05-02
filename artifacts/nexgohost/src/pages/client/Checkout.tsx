@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ShieldCheck, CheckCircle2, Loader2, AlertCircle, Globe, Tag,
   Gift, Search as SearchIcon, XCircle, Wallet, CreditCard,
   Smartphone, Landmark, Lock, BadgeCheck, ChevronRight, Zap,
-  Check, Mail, Shield, Server, Star,
+  Check, Mail, Shield, Server, Star, Eye, EyeOff, User, UserPlus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -66,6 +66,7 @@ export default function Checkout() {
   const search = useSearch();
   const { toast } = useToast();
   const { formatPrice, currency } = useCurrency();
+  const qc = useQueryClient();
 
   const params = new URLSearchParams(search);
   const packageId   = params.get("packageId") ?? "";
@@ -108,6 +109,63 @@ export default function Checkout() {
 
   const [addons, setAddons] = useState<Record<string, boolean>>({ privacy: false, email: false, ssl: false });
 
+  // ── Guest auth state ─────────────────────────────────────────────────────
+  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token"));
+  const [authMode,      setAuthMode]      = useState<"login" | "register">("login");
+  const [authEmail,     setAuthEmail]     = useState("");
+  const [authPassword,  setAuthPassword]  = useState("");
+  const [authFirstName, setAuthFirstName] = useState("");
+  const [authLastName,  setAuthLastName]  = useState("");
+  const [authPhone,     setAuthPhone]     = useState("");
+  const [authShowPass,  setAuthShowPass]  = useState(false);
+  const [authError,     setAuthError]     = useState("");
+  const [authLoading,   setAuthLoading]   = useState(false);
+
+  async function handleInlineAuth() {
+    setAuthError("");
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthError("Email and password are required.");
+      return;
+    }
+    if (authMode === "register" && !authFirstName.trim()) {
+      setAuthError("First name is required.");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      if (authMode === "register") {
+        const regRes = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: authEmail.trim(),
+            password: authPassword,
+            firstName: authFirstName.trim(),
+            lastName: authLastName.trim(),
+            phone: authPhone.trim(),
+          }),
+        });
+        const regData = await regRes.json();
+        if (!regRes.ok) { setAuthError(regData.error ?? regData.message ?? "Registration failed."); return; }
+      }
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) { setAuthError(loginData.error ?? loginData.message ?? "Login failed."); return; }
+      localStorage.setItem("token", loginData.token);
+      setIsLoggedIn(true);
+      qc.invalidateQueries();
+      toast({ title: authMode === "register" ? "Account created! Welcome." : "Signed in successfully." });
+    } catch (e: any) {
+      setAuthError(e.message ?? "Network error. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   const { data: captchaConfig } = useQuery({
     queryKey: ["captcha-config"],
     queryFn: () => fetch("/api/security/captcha-config").then(r => r.json()),
@@ -117,7 +175,9 @@ export default function Checkout() {
 
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods-checkout"],
-    queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then(r => r.ok ? r.json() : []),
+    enabled: isLoggedIn,
   });
 
   const { data: domainExtensions = [] } = useQuery<any[]>({
@@ -128,17 +188,19 @@ export default function Checkout() {
   const { data: myDomains = [] } = useQuery<any[]>({
     queryKey: ["client-domains-checkout"],
     queryFn: () => apiFetch("/api/domains"),
+    enabled: isLoggedIn,
   });
 
   const { data: pkgDetails } = useQuery<any>({
     queryKey: ["package-details", packageId],
     queryFn: () => apiFetch(`/api/packages/${packageId}`),
-    enabled: !!packageId,
+    enabled: isLoggedIn && !!packageId,
   });
 
   const { data: creditsData } = useQuery<{ creditBalance: string }>({
     queryKey: ["my-credits-checkout"],
     queryFn: () => apiFetch("/api/my/credits"),
+    enabled: isLoggedIn,
   });
   const creditBalance = parseFloat(creditsData?.creditBalance ?? "0");
 
@@ -634,140 +696,262 @@ export default function Checkout() {
             </div>
           </div>
 
-          {/* Promo Code */}
-          <div className="bg-card border border-border rounded-xl p-4 space-y-2.5">
-            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Tag size={12} className="text-primary" /> Promo Code <span className="text-muted-foreground font-normal">(optional)</span>
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={promoCode}
-                onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); setPromoError(""); }}
-                placeholder="ENTER CODE"
-                className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm font-mono uppercase focus:outline-none focus:border-primary transition-colors"
-              />
-              <button onClick={handlePromo} disabled={promoLoading || !promoCode.trim()}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 ${promoResult ? "bg-green-500/15 text-green-500" : "bg-primary/10 text-primary hover:bg-primary/20"}`}>
-                {promoLoading ? <Loader2 size={13} className="animate-spin" /> : promoResult ? <CheckCircle2 size={13} /> : "Apply"}
-              </button>
-            </div>
-            {promoError && <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle size={11} /> {promoError}</p>}
-            {promoResult && promoDiscount > 0 && (
-              <p className="text-xs text-green-500 font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Saved {formatPrice(promoDiscount)}!</p>
-            )}
-          </div>
-
-          {/* Payment Methods */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-border">
-              <h3 className="font-bold text-foreground flex items-center gap-2">
-                <CreditCard size={14} className="text-primary" /> Payment Method
-              </h3>
-            </div>
-            <div className="p-4 space-y-2.5">
-              {/* Wallet */}
-              {creditBalance > 0 && (
-                <button onClick={() => setSelectedPm(selectedPm === "credits" ? "none" : "credits")}
-                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "credits" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Wallet size={18} className="text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">Wallet Balance</p>
-                    <p className={`text-xs ${creditBalance >= total ? "text-green-500" : "text-amber-500"}`}>
-                      {formatPrice(creditBalance)} {creditBalance >= total ? "· Enough to pay in full" : `· Short by ${formatPrice(total - creditBalance)}`}
-                    </p>
-                  </div>
-                  {selectedPm === "credits" && <CheckCircle2 size={16} className="text-primary shrink-0" />}
-                </button>
-              )}
-
-              {/* External payment methods */}
-              {paymentMethods.map(pm => {
-                const isSel  = selectedPm === pm.id;
-                const isAuto = ["safepay", "stripe"].includes(pm.type);
-                return (
-                  <button key={pm.id} onClick={() => setSelectedPm(isSel ? "none" : pm.id)}
-                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${isSel ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                    <PayIcon type={pm.type} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-semibold text-foreground">{pm.name}</span>
-                        {isAuto && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-500/15 text-green-500">⚡ Instant</span>}
-                        {pm.isSandbox && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/10 text-amber-500">Sandbox</span>}
-                      </div>
-                      {pm.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{pm.description}</p>}
-                      {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings?.mobileNumber && (
-                        <p className="text-xs text-muted-foreground mt-0.5">Send to: {pm.publicSettings.mobileNumber}</p>
-                      )}
-                      {pm.type === "bank_transfer" && pm.publicSettings?.bankName && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
-                      )}
-                    </div>
-                    {isSel && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+          {isLoggedIn ? (
+            <>
+              {/* Promo Code */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-2.5">
+                <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Tag size={12} className="text-primary" /> Promo Code <span className="text-muted-foreground font-normal">(optional)</span>
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={promoCode}
+                    onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); setPromoError(""); }}
+                    placeholder="ENTER CODE"
+                    className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm font-mono uppercase focus:outline-none focus:border-primary transition-colors"
+                  />
+                  <button onClick={handlePromo} disabled={promoLoading || !promoCode.trim()}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 ${promoResult ? "bg-green-500/15 text-green-500" : "bg-primary/10 text-primary hover:bg-primary/20"}`}>
+                    {promoLoading ? <Loader2 size={13} className="animate-spin" /> : promoResult ? <CheckCircle2 size={13} /> : "Apply"}
                   </button>
-                );
-              })}
+                </div>
+                {promoError && <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle size={11} /> {promoError}</p>}
+                {promoResult && promoDiscount > 0 && (
+                  <p className="text-xs text-green-500 font-semibold flex items-center gap-1"><CheckCircle2 size={11} /> Saved {formatPrice(promoDiscount)}!</p>
+                )}
+              </div>
 
-              {/* Pay Later */}
-              <button onClick={() => setSelectedPm("none")}
-                className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "none" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                  <ChevronRight size={18} className="text-muted-foreground" />
+              {/* Payment Methods */}
+              <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="font-bold text-foreground flex items-center gap-2">
+                    <CreditCard size={14} className="text-primary" /> Payment Method
+                  </h3>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Pay Later</p>
-                  <p className="text-xs text-muted-foreground">Place order now, pay via invoice</p>
+                <div className="p-4 space-y-2.5">
+                  {/* Wallet */}
+                  {creditBalance > 0 && (
+                    <button onClick={() => setSelectedPm(selectedPm === "credits" ? "none" : "credits")}
+                      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "credits" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <Wallet size={18} className="text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">Wallet Balance</p>
+                        <p className={`text-xs ${creditBalance >= total ? "text-green-500" : "text-amber-500"}`}>
+                          {formatPrice(creditBalance)} {creditBalance >= total ? "· Enough to pay in full" : `· Short by ${formatPrice(total - creditBalance)}`}
+                        </p>
+                      </div>
+                      {selectedPm === "credits" && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+                    </button>
+                  )}
+
+                  {/* External payment methods */}
+                  {paymentMethods.map(pm => {
+                    const isSel  = selectedPm === pm.id;
+                    const isAuto = ["safepay", "stripe"].includes(pm.type);
+                    return (
+                      <button key={pm.id} onClick={() => setSelectedPm(isSel ? "none" : pm.id)}
+                        className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${isSel ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                        <PayIcon type={pm.type} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-foreground">{pm.name}</span>
+                            {isAuto && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-500/15 text-green-500">⚡ Instant</span>}
+                            {pm.isSandbox && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/10 text-amber-500">Sandbox</span>}
+                          </div>
+                          {pm.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{pm.description}</p>}
+                          {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings?.mobileNumber && (
+                            <p className="text-xs text-muted-foreground mt-0.5">Send to: {pm.publicSettings.mobileNumber}</p>
+                          )}
+                          {pm.type === "bank_transfer" && pm.publicSettings?.bankName && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
+                          )}
+                        </div>
+                        {isSel && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+
+                  {/* Pay Later */}
+                  <button onClick={() => setSelectedPm("none")}
+                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "none" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                      <ChevronRight size={18} className="text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Pay Later</p>
+                      <p className="text-xs text-muted-foreground">Place order now, pay via invoice</p>
+                    </div>
+                    {selectedPm === "none" && <CheckCircle2 size={16} className="text-primary shrink-0 ml-auto" />}
+                  </button>
+
+                  {/* Safepay info */}
+                  {isSafepay && (
+                    <div className="flex gap-2 p-3 rounded-lg border border-green-500/20 bg-green-500/[0.07] text-xs">
+                      <CheckCircle2 size={13} className="text-green-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-green-400 font-semibold">⚡ Instant Automatic Activation</p>
+                        <p className="text-muted-foreground mt-0.5">Hosting activates the moment Safepay confirms your payment — no waiting.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manual method note */}
+                  {isManual && (
+                    <div className="flex gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.07] text-xs">
+                      <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-muted-foreground">Send payment proof after placing order. Service activates within 24 hours after admin verification.</p>
+                    </div>
+                  )}
                 </div>
-                {selectedPm === "none" && <CheckCircle2 size={16} className="text-primary shrink-0 ml-auto" />}
+              </div>
+
+              {/* Captcha */}
+              {captchaRequired && captchaConfig?.siteKey && (
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <CaptchaWidget siteKey={captchaConfig.siteKey} provider={captchaConfig.provider ?? "turnstile"}
+                    onVerify={t => setCaptchaToken(t)} onExpire={() => setCaptchaToken(null)} />
+                </div>
+              )}
+
+              {/* CTA */}
+              <button onClick={handlePlaceOrder}
+                disabled={placing || !packageId || (captchaRequired && !captchaToken)}
+                className="w-full h-14 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]"
+                style={{ background: BRAND_GRADIENT, boxShadow: placing ? "none" : "0 8px 32px rgba(112,26,254,0.35)" }}>
+                {placing
+                  ? <><Loader2 size={18} className="animate-spin" /> Placing Order…</>
+                  : <><ShieldCheck size={18} /> Complete Purchase — {formatPrice(total)}</>
+                }
               </button>
 
-              {/* Safepay info */}
-              {isSafepay && (
-                <div className="flex gap-2 p-3 rounded-lg border border-green-500/20 bg-green-500/[0.07] text-xs">
-                  <CheckCircle2 size={13} className="text-green-400 shrink-0 mt-0.5" />
+              {/* Micro trust row */}
+              <div className="flex items-center justify-center gap-5 text-[11px] text-muted-foreground flex-wrap">
+                <span className="flex items-center gap-1"><Lock size={10} className="text-green-500" /> SSL Secured</span>
+                <span className="flex items-center gap-1"><BadgeCheck size={10} className="text-primary" /> 30-Day Guarantee</span>
+                <span className="flex items-center gap-1"><ShieldCheck size={10} className="text-blue-400" /> No Hidden Fees</span>
+              </div>
+            </>
+          ) : (
+            /* ── Inline auth gate for guests ── */
+            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+              <div className="px-5 py-4 border-b border-border">
+                <h3 className="font-bold text-foreground flex items-center gap-2">
+                  {authMode === "login" ? <User size={14} className="text-primary" /> : <UserPlus size={14} className="text-primary" />}
+                  {authMode === "login" ? "Sign in to complete your order" : "Create an account to continue"}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">Your plan is ready — just one quick step.</p>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-border">
+                <button
+                  onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${authMode === "login" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}>
+                  Sign In
+                </button>
+                <button
+                  onClick={() => { setAuthMode("register"); setAuthError(""); }}
+                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${authMode === "register" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}>
+                  Create Account
+                </button>
+              </div>
+
+              <div className="p-5 space-y-3">
+                {authMode === "register" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">First Name *</label>
+                      <input
+                        value={authFirstName}
+                        onChange={e => setAuthFirstName(e.target.value)}
+                        placeholder="John"
+                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Last Name</label>
+                      <input
+                        value={authLastName}
+                        onChange={e => setAuthLastName(e.target.value)}
+                        placeholder="Doe"
+                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Email Address *</label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={e => setAuthEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
+                  />
+                </div>
+
+                {authMode === "register" && (
                   <div>
-                    <p className="text-green-400 font-semibold">⚡ Instant Automatic Activation</p>
-                    <p className="text-muted-foreground mt-0.5">Hosting activates the moment Safepay confirms your payment — no waiting.</p>
+                    <label className="text-xs text-muted-foreground mb-1 block">Phone (optional)</label>
+                    <input
+                      type="tel"
+                      value={authPhone}
+                      onChange={e => setAuthPhone(e.target.value)}
+                      placeholder="+1 555 000 0000"
+                      className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Password *</label>
+                  <div className="relative">
+                    <input
+                      type={authShowPass ? "text" : "password"}
+                      value={authPassword}
+                      onChange={e => setAuthPassword(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && handleInlineAuth()}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2.5 pr-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAuthShowPass(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {authShowPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* Manual method note */}
-              {isManual && (
-                <div className="flex gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.07] text-xs">
-                  <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-muted-foreground">Send payment proof after placing order. Service activates within 24 hours after admin verification.</p>
-                </div>
-              )}
-            </div>
-          </div>
+                {authError && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                    <AlertCircle size={13} className="shrink-0 mt-0.5" /> {authError}
+                  </div>
+                )}
 
-          {/* Captcha */}
-          {captchaRequired && captchaConfig?.siteKey && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <CaptchaWidget siteKey={captchaConfig.siteKey} provider={captchaConfig.provider ?? "turnstile"}
-                onVerify={t => setCaptchaToken(t)} onExpire={() => setCaptchaToken(null)} />
+                <button
+                  onClick={handleInlineAuth}
+                  disabled={authLoading}
+                  className="w-full h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-[0.99]"
+                  style={{ background: BRAND_GRADIENT, boxShadow: authLoading ? "none" : "0 6px 24px rgba(112,26,254,0.3)" }}>
+                  {authLoading
+                    ? <><Loader2 size={16} className="animate-spin" /> Please wait…</>
+                    : authMode === "login"
+                      ? <><Lock size={15} /> Sign In & Continue</>
+                      : <><UserPlus size={15} /> Create Account & Continue</>
+                  }
+                </button>
+
+                <p className="text-center text-[11px] text-muted-foreground">
+                  <Lock size={9} className="inline mr-1 text-green-500" />
+                  Your order details are saved. Completing {authMode === "login" ? "sign in" : "registration"} will not reset your selections.
+                </p>
+              </div>
             </div>
           )}
-
-          {/* CTA */}
-          <button onClick={handlePlaceOrder}
-            disabled={placing || !packageId || (captchaRequired && !captchaToken)}
-            className="w-full h-14 rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99]"
-            style={{ background: BRAND_GRADIENT, boxShadow: placing ? "none" : "0 8px 32px rgba(112,26,254,0.35)" }}>
-            {placing
-              ? <><Loader2 size={18} className="animate-spin" /> Placing Order…</>
-              : <><ShieldCheck size={18} /> Complete Purchase — {formatPrice(total)}</>
-            }
-          </button>
-
-          {/* Micro trust row */}
-          <div className="flex items-center justify-center gap-5 text-[11px] text-muted-foreground flex-wrap">
-            <span className="flex items-center gap-1"><Lock size={10} className="text-green-500" /> SSL Secured</span>
-            <span className="flex items-center gap-1"><BadgeCheck size={10} className="text-primary" /> 30-Day Guarantee</span>
-            <span className="flex items-center gap-1"><ShieldCheck size={10} className="text-blue-400" /> No Hidden Fees</span>
-          </div>
         </div>
       </div>
     </div>

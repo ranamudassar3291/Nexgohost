@@ -502,11 +502,7 @@ export default function OrderFlow() {
   // ── Navigation helpers ────────────────────────────────────────────────────
 
   function goToCheckout(dest: string) {
-    if (tok()) navigate(dest);
-    else {
-      sessionStorage.setItem("order_redirect", dest);
-      navigate(`/register?next=${encodeURIComponent(dest)}`);
-    }
+    navigate(dest);
   }
 
   // ── Cart actions ──────────────────────────────────────────────────────────
