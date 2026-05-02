@@ -224,12 +224,130 @@
 }
 
 /* ── Noehost Public Marketing Pages ─────────────────────────────────────────
-   Override CSS variables so bg-secondary, bg-dark etc resolve correctly
-   on the public marketing pages (which are always dark-themed).
+   Override CSS variables so bg-secondary, bg-dark, bg-accent etc resolve
+   correctly on public marketing pages (always dark-themed).
+   Applied via .noehost-public wrapper in NoeHostLayout.tsx
    ─────────────────────────────────────────────────────────────────────────── */
 .noehost-public {
-  --secondary: 222 47% 8%;        /* #0d1627 — deep dark navy */
+  /* Secondary: light-indigo → near-black for dark navbar/panels */
+  --secondary: 240 10% 6%;
   --secondary-foreground: 214 32% 90%;
+
+  /* Accent: indigo → noehost cyan #00d1ff */
+  --accent: 191 100% 50%;
+  --accent-foreground: 240 10% 6%;
+
+  /* Dark background */
+  --color-dark: #050505;
+
+  /* Primary: override to noehost purple #673de6 */
+  --color-primary: #673de6;
+  --color-primary-50:  #f3f0ff;
+  --color-primary-100: #e5dfff;
+  --color-primary-200: #c9bcff;
+  --color-primary-300: #a888f5;
+  --color-primary-400: #8b6ff0;
+  --color-primary-500: #673de6;
+  --color-primary-600: #5228cc;
+  --color-primary-700: #3d1faa;
+  --color-primary-800: #2d1585;
+  --color-primary-900: #1d0a60;
+  --color-primary-950: #120840;
+}
+
+/* ── NoeHost Marketing Utility Classes ───────────────────────────────────── */
+.glass-header {
+  background-color: rgba(14, 14, 17, 0.9);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.tech-grid {
+  background-size: 60px 60px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+.hero-mesh {
+  position: relative;
+  overflow: hidden;
+  background-image:
+    radial-gradient(at 0% 0%, hsla(255, 78%, 57%, 0.3) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(255, 78%, 57%, 0.2) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, hsla(255, 78%, 57%, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, hsla(190, 100%, 50%, 0.1) 0px, transparent 40%);
+}
+
+.card-shadow {
+  box-shadow: 0 8px 30px rgb(0, 0, 0, 0.04);
+}
+
+.card-shadow-hover {
+  transition: all 0.3s ease;
+}
+.card-shadow-hover:hover {
+  box-shadow: 0 20px 40px rgba(103, 61, 230, 0.1);
+  transform: translateY(-4px);
+}
+
+.badge-ai {
+  padding: 0.125rem 0.5rem;
+  background-color: #f3f0ff;
+  color: #673de6;
+  font-size: 0.625rem;
+  font-weight: 700;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-popular {
+  padding: 0.125rem 0.5rem;
+  background-color: #e0e7ff;
+  color: #4338ca;
+  font-size: 0.625rem;
+  font-weight: 700;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-new {
+  padding: 0.125rem 0.5rem;
+  background-color: #d1fae5;
+  color: #065f46;
+  font-size: 0.625rem;
+  font-weight: 700;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.markdown-body { line-height: 1.75; }
+.markdown-body p { margin-bottom: 1rem; }
+.markdown-body ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+.markdown-body ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.markdown-body strong { font-weight: 700; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s ease-in-out infinite;
 }
 
 @layer base {
