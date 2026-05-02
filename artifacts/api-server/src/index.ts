@@ -46,6 +46,7 @@ async function runStartupMigrations() {
       "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS renewal_enabled TEXT DEFAULT 'false'",
       "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS domain_name TEXT",
       "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS tld TEXT",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()",
     ];
     for (const stmt of cartCols) {
       await db.execute(sql.raw(stmt));

@@ -94,6 +94,7 @@ import NoeDomains from "@/noehost/components/pages/Domains";
 import NoeAboutUs from "@/noehost/components/pages/AboutUs";
 import NoeContactUs from "@/noehost/components/pages/ContactUs";
 import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
+import NoeCheckout from "@/noehost/components/pages/Checkout";
 
 import { queryClient } from "@/lib/query-client";
 
@@ -547,6 +548,11 @@ function RouterRoot() {
       <Route path="/admin/domain-extensions">
         <Redirect to="/admin/domains?tab=extensions" />
       </Route>
+      {/* ── Public checkout — no auth required, auth embedded in flow ── */}
+      <Route path="/checkout">
+        <NoeHostLayout><NoeCheckout /></NoeHostLayout>
+      </Route>
+
       {/* ── Noehost public marketing pages ── */}
       <Route path="/shared-hosting">
         <NoeHostLayout><NoeSharedHosting /></NoeHostLayout>

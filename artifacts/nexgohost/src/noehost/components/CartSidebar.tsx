@@ -39,18 +39,6 @@ function availableCycles(item: CartItem): CartItem['billingCycle'][] {
   });
 }
 
-function buildCheckoutUrl(item: CartItem): string {
-  const params = new URLSearchParams({
-    packageId: item.planId,
-    packageName: item.name,
-    billingCycle: item.billingCycle,
-    monthlyPrice: String(item.monthlyPrice),
-  });
-  if (item.quarterlyPrice != null) params.set('quarterlyPrice', String(item.quarterlyPrice));
-  if (item.semiannualPrice != null) params.set('semiannualPrice', String(item.semiannualPrice));
-  if (item.yearlyPrice != null) params.set('yearlyPrice', String(item.yearlyPrice));
-  return `/client/checkout?${params.toString()}`;
-}
 
 const CartSidebar: React.FC = () => {
   const { items, removeItem, updateBillingCycle, isCartOpen, closeCart, getTotal } = useCart();
@@ -60,34 +48,7 @@ const CartSidebar: React.FC = () => {
   const handleCheckout = () => {
     if (items.length === 0) return;
     closeCart();
-
-    const hostingItems = items.filter(i => i.type === 'hosting' || i.type === 'vps');
-    const domainItems = items.filter(i => i.type === 'domain');
-
-    const token = localStorage.getItem('noehost_token') || localStorage.getItem('token');
-
-    if (hostingItems.length === 1) {
-      const dest = buildCheckoutUrl(hostingItems[0]);
-      if (!token) {
-        navigate(`/register?next=${encodeURIComponent(dest)}`);
-      } else {
-        navigate(dest);
-      }
-    } else if (domainItems.length === 1 && hostingItems.length === 0) {
-      const d = domainItems[0];
-      const dest = `/client/domains/register?domain=${encodeURIComponent(d.domainName || '')}`;
-      if (!token) {
-        navigate(`/register?next=${encodeURIComponent(dest)}`);
-      } else {
-        navigate(dest);
-      }
-    } else {
-      if (!token) {
-        navigate('/register?next=/client/orders/new');
-      } else {
-        navigate('/client/orders/new');
-      }
-    }
+    navigate('/checkout');
   };
 
   const handleContinueShopping = () => {
