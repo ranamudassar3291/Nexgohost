@@ -28,7 +28,7 @@ const DEFAULT: any = {
     titleHighlight: 'Made Simple.',
     description: 'Launch your website today with blazing-fast NVMe SSD storage, free SSL, cPanel, and a one-click app installer. Perfect for personal sites, blogs, and small businesses.',
     primaryBtn: { text: 'See Plans', url: '#sh-plans', show: true },
-    secondaryBtn: { text: 'Start Free Trial', url: '/register', show: true },
+    secondaryBtn: { text: 'Start Free Trial', url: '/client/register', show: true },
     badges: ['Free SSL Certificate', 'cPanel Included', '30-Day Money Back'],
   },
   stats: [
@@ -38,10 +38,10 @@ const DEFAULT: any = {
     { value: '500K+', label: 'Happy Customers' },
   ],
   plans: [
-    { name: 'Hatchling', desc: 'Perfect for a single website just getting started.', monthly: 2.75, yearly: 1.83, freeMonths: 3, savePercent: 33, popular: false, btnText: 'Explore Now', btnUrl: '/register', topFeatures: ['1 Website', '10 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE SSL Certificate', 'FREE Email Hosting'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: false }, { label: 'Dedicated IP', included: false }], suite: [], suiteName: '' },
-    { name: 'Baby', desc: 'Host unlimited websites on one plan.', monthly: 4.75, yearly: 3.50, freeMonths: 3, savePercent: 26, popular: false, btnText: 'Explore Now', btnUrl: '/register', topFeatures: ['Unlimited Websites', '50 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE SSL Certificate', 'FREE Email Hosting'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: true }, { label: 'Dedicated IP', included: false }], suite: [], suiteName: '' },
-    { name: 'Business', desc: 'Enhanced performance with premium features.', monthly: 8.95, yearly: 5.95, freeMonths: 3, savePercent: 34, popular: true, btnText: 'Explore Now', btnUrl: '/register', topFeatures: ['Unlimited Websites', '100 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE SSL Certificate', 'FREE Email Hosting'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: true }, { label: 'Dedicated IP', included: true }], suite: [{ label: 'Positive SSL', included: true }, { label: 'SiteLock Security', included: true }, { label: 'CodeGuard Backups', included: true, note: 'Up to 1GB' }], suiteName: 'Security Suite' },
-    { name: 'Pro', desc: 'Maximum performance for demanding websites.', monthly: 12.95, yearly: 8.95, freeMonths: 5, savePercent: 31, popular: false, btnText: 'Explore Now', btnUrl: '/register', topFeatures: ['Unlimited Websites', 'Unlimited NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE Premium SSL Certificate', 'FREE Business Email'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: true }, { label: 'Dedicated IP', included: true }], suite: [{ label: 'Extended Validation SSL', included: true }, { label: 'SiteLock Professional', included: true }, { label: 'CodeGuard Pro', included: true, note: 'Up to 5GB' }], suiteName: 'Pro Security Suite' },
+    { name: 'Hatchling', desc: 'Perfect for a single website just getting started.', monthly: 2.75, yearly: 1.83, freeMonths: 3, savePercent: 33, popular: false, btnText: 'Explore Now', btnUrl: '/client/register', topFeatures: ['1 Website', '10 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE SSL Certificate', 'FREE Email Hosting'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: false }, { label: 'Dedicated IP', included: false }], suite: [], suiteName: '' },
+    { name: 'Baby', desc: 'Host unlimited websites on one plan.', monthly: 4.75, yearly: 3.50, freeMonths: 3, savePercent: 26, popular: false, btnText: 'Explore Now', btnUrl: '/client/register', topFeatures: ['Unlimited Websites', '50 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE SSL Certificate', 'FREE Email Hosting'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: true }, { label: 'Dedicated IP', included: false }], suite: [], suiteName: '' },
+    { name: 'Business', desc: 'Enhanced performance with premium features.', monthly: 8.95, yearly: 5.95, freeMonths: 3, savePercent: 34, popular: true, btnText: 'Explore Now', btnUrl: '/client/register', topFeatures: ['Unlimited Websites', '100 GB NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE SSL Certificate', 'FREE Email Hosting'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: true }, { label: 'Dedicated IP', included: true }], suite: [{ label: 'Positive SSL', included: true }, { label: 'SiteLock Security', included: true }, { label: 'CodeGuard Backups', included: true, note: 'Up to 1GB' }], suiteName: 'Security Suite' },
+    { name: 'Pro', desc: 'Maximum performance for demanding websites.', monthly: 12.95, yearly: 8.95, freeMonths: 5, savePercent: 31, popular: false, btnText: 'Explore Now', btnUrl: '/client/register', topFeatures: ['Unlimited Websites', 'Unlimited NVMe SSD Storage', 'Unmetered Bandwidth', 'FREE Premium SSL Certificate', 'FREE Business Email'], additionalFeatures: [{ label: 'Free Domain Registration', included: true }, { label: 'Daily Backups', included: true }, { label: 'Dedicated IP', included: true }], suite: [{ label: 'Extended Validation SSL', included: true }, { label: 'SiteLock Professional', included: true }, { label: 'CodeGuard Pro', included: true, note: 'Up to 5GB' }], suiteName: 'Pro Security Suite' },
   ],
   features: [
     { title: 'cPanel Control Panel', desc: 'Industry-leading cPanel gives you full control over your hosting environment with an intuitive graphical interface.' },
@@ -176,7 +176,7 @@ const SharedHosting: React.FC = () => {
                   'px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 flex items-center gap-2 group'
                 )}
                 {(hero.secondaryBtn?.show !== false) && hero.secondaryBtn && renderLink(
-                  hero.secondaryBtn.url || '/register',
+                  hero.secondaryBtn.url || '/client/register',
                   hero.secondaryBtn.text || 'Start Free Trial',
                   'px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10'
                 )}

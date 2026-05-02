@@ -77,7 +77,11 @@ export default function ClientLogin() {
     }
   }, []);
 
-  if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
+  if (user) {
+    const params = new URLSearchParams(window.location.search);
+    const redirectTo = params.get("redirect");
+    return <Redirect to={redirectTo || (user.role === "admin" ? "/admin/dashboard" : "/client/dashboard")} />;
+  }
 
   const startCountdown = () => {
     setCountdown(60);
@@ -105,7 +109,12 @@ export default function ClientLogin() {
         return;
       }
       if (data.requires2FA) { setTempToken(data.tempToken); setStep("2fa"); }
-      else { login(data.token); setLocation("/client/dashboard"); }
+      else {
+        login(data.token);
+        const params = new URLSearchParams(window.location.search);
+        const redirectTo = params.get("redirect");
+        setLocation(redirectTo || "/client/dashboard");
+      }
     } catch (err: any) {
       let raw: any = {};
       try { raw = JSON.parse(err.message); } catch { /* not json */ }
@@ -124,7 +133,9 @@ export default function ClientLogin() {
     e.preventDefault(); setError(null); setLoading(true);
     try {
       const data = await apiFetch("/api/auth/2fa/verify", tempToken, { method: "POST", body: JSON.stringify({ totp }) });
-      login(data.token); setLocation("/client/dashboard");
+      login(data.token);
+      const params = new URLSearchParams(window.location.search);
+      setLocation(params.get("redirect") || "/client/dashboard");
     } catch (err: any) { setError(err.message || "Invalid code. Please try again."); }
     finally { setLoading(false); }
   };
@@ -134,7 +145,9 @@ export default function ClientLogin() {
     try {
       await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
       const loginData = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
-      login(loginData.token); setLocation("/client/dashboard");
+      login(loginData.token);
+      const params2 = new URLSearchParams(window.location.search);
+      setLocation(params2.get("redirect") || "/client/dashboard");
     } catch (err: any) { setError(err.message || "Invalid code. Please try again."); }
     finally { setLoading(false); }
   };
@@ -330,7 +343,7 @@ export default function ClientLogin() {
 
                 <p className="mt-6 text-center text-sm text-gray-500">
                   Don't have an account?{" "}
-                  <a href="/register" className="text-[#4F46E5] font-medium hover:underline">Create account</a>
+                  <a href="/client/register" className="text-[#4F46E5] font-medium hover:underline">Create account</a>
                 </p>
               </motion.div>
             )}

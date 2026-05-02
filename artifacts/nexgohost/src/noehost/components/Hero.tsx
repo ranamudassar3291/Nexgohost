@@ -152,20 +152,10 @@ const Hero: React.FC = () => {
 
   return (
     <section className="bg-black pt-28 pb-16 overflow-hidden relative min-h-screen flex flex-col items-center">
-      {/* Decorative Lines and Glows */}
-      <div className="absolute inset-0 pointer-events-none">
-        {/* Top Left Corner */}
-        <div className="absolute top-20 left-20 w-40 h-px bg-gradient-to-r from-primary to-transparent"></div>
-        <div className="absolute top-20 left-20 w-px h-40 bg-gradient-to-b from-primary to-transparent"></div>
-        <div className="absolute top-[19px] left-[19px] w-2 h-2 bg-primary rounded-full shadow-[0_0_15px_rgba(59,130,246,0.8)]"></div>
-
-        {/* Bottom Right Corner */}
-        <div className="absolute bottom-20 right-20 w-40 h-px bg-gradient-to-l from-primary to-transparent"></div>
-        <div className="absolute bottom-20 right-20 w-px h-40 bg-gradient-to-t from-primary to-transparent"></div>
-        <div className="absolute bottom-[19px] right-[19px] w-2 h-2 bg-primary rounded-full shadow-[0_0_15px_rgba(59,130,246,0.8)]"></div>
-
-        {/* Top Right Glow */}
+      {/* Background Glows Only */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4"></div>
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan-500/5 rounded-full blur-[100px]"></div>
       </div>
       
       <div className="container mx-auto px-6 relative z-10">

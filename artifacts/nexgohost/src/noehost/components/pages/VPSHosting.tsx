@@ -35,10 +35,10 @@ const VPS_DEFAULT: any = {
     badges: ['Full Root Access', 'KVM Virtualization', 'Instant Deployment', '10 Gbps Uplink'],
   },
   plans: [
-    { name: 'VPS 1', price: 19.99, cpu: '2 vCPU Cores', ram: '4 GB RAM', storage: '80 GB NVMe SSD', bandwidth: '2 TB', popular: false, btnText: 'Deploy Now', btnUrl: '/register' },
-    { name: 'VPS 2', price: 39.99, cpu: '4 vCPU Cores', ram: '8 GB RAM', storage: '160 GB NVMe SSD', bandwidth: '4 TB', popular: true, btnText: 'Deploy Now', btnUrl: '/register' },
-    { name: 'VPS 3', price: 79.99, cpu: '8 vCPU Cores', ram: '16 GB RAM', storage: '320 GB NVMe SSD', bandwidth: '8 TB', popular: false, btnText: 'Deploy Now', btnUrl: '/register' },
-    { name: 'VPS 4', price: 149.99, cpu: '16 vCPU Cores', ram: '32 GB RAM', storage: '640 GB NVMe SSD', bandwidth: 'Unmetered', popular: false, btnText: 'Deploy Now', btnUrl: '/register' },
+    { name: 'VPS 1', price: 19.99, cpu: '2 vCPU Cores', ram: '4 GB RAM', storage: '80 GB NVMe SSD', bandwidth: '2 TB', popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' },
+    { name: 'VPS 2', price: 39.99, cpu: '4 vCPU Cores', ram: '8 GB RAM', storage: '160 GB NVMe SSD', bandwidth: '4 TB', popular: true, btnText: 'Deploy Now', btnUrl: '/client/register' },
+    { name: 'VPS 3', price: 79.99, cpu: '8 vCPU Cores', ram: '16 GB RAM', storage: '320 GB NVMe SSD', bandwidth: '8 TB', popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' },
+    { name: 'VPS 4', price: 149.99, cpu: '16 vCPU Cores', ram: '32 GB RAM', storage: '640 GB NVMe SSD', bandwidth: 'Unmetered', popular: false, btnText: 'Deploy Now', btnUrl: '/client/register' },
   ],
   plansTitle: 'Choose Your Power',
   plansDesc: 'All plans include 10 Gbps uplink, DDoS protection & instant provisioning.',
@@ -332,7 +332,7 @@ const VPSHosting: React.FC = () => {
                     ))}
                   </div>
                 )}
-                {renderLink(pg.migrationBtnUrl || '/register', <>{pg.migrationBtnText || 'Request Free Migration'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
+                {renderLink(pg.migrationBtnUrl || '/client/register', <>{pg.migrationBtnText || 'Request Free Migration'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
               </motion.div>
             </div>
           </div>
@@ -362,7 +362,7 @@ const VPSHosting: React.FC = () => {
               ))}
             </div>
             <div className="text-center mt-12">
-              {renderLink(pg.securityBtnUrl || '/register', <>{pg.securityBtnText || 'Deploy Your VPS Now'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 group')}
+              {renderLink(pg.securityBtnUrl || '/client/register', <>{pg.securityBtnText || 'Deploy Your VPS Now'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 group')}
             </div>
           </div>
         </section>

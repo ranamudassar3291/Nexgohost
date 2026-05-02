@@ -36,9 +36,9 @@ const DEFAULT: any = {
   plansTitle: 'Choose Your Reseller Package',
   plansDesc: 'Upgrade anytime. All plans include WHMCS, WHM, and full white-labeling.',
   plans: [
-    { name: 'Reseller Starter', price: 19.99, storage: '50 GB SSD', bandwidth: '500 GB', accounts: '20 cPanel', highlight: false, badge: '', features: ['20 cPanel Accounts', '50 GB SSD Storage', '500 GB Bandwidth', 'Free WHMCS Lite', 'WHM Access', 'Private Nameservers', 'Free SSL per Account', 'Daily Backups'], btnText: 'Start Reselling', btnUrl: '/register' },
-    { name: 'Reseller Pro', price: 39.99, storage: '150 GB SSD', bandwidth: 'Unlimited', accounts: '60 cPanel', highlight: true, badge: 'Most Popular', features: ['60 cPanel Accounts', '150 GB NVMe SSD', 'Unlimited Bandwidth', 'Free WHMCS Full', 'WHM Access', 'Private Nameservers', 'Free SSL per Account', 'Daily Backups', 'White-Label Branding', 'Priority Support', 'Free Domain Reseller'], btnText: 'Start Reselling', btnUrl: '/register' },
-    { name: 'Reseller Agency', price: 79.99, storage: '400 GB SSD', bandwidth: 'Unlimited', accounts: 'Unlimited', highlight: false, badge: '', features: ['Unlimited cPanel Accounts', '400 GB NVMe SSD', 'Unlimited Bandwidth', 'Full WHMCS License', 'WHM + Softaculous', 'Private Nameservers', 'Wildcard SSL', 'Hourly Backups', 'Custom Client Portal', 'Dedicated Account Manager', 'API Access'], btnText: 'Start Reselling', btnUrl: '/register' },
+    { name: 'Reseller Starter', price: 19.99, storage: '50 GB SSD', bandwidth: '500 GB', accounts: '20 cPanel', highlight: false, badge: '', features: ['20 cPanel Accounts', '50 GB SSD Storage', '500 GB Bandwidth', 'Free WHMCS Lite', 'WHM Access', 'Private Nameservers', 'Free SSL per Account', 'Daily Backups'], btnText: 'Start Reselling', btnUrl: '/client/register' },
+    { name: 'Reseller Pro', price: 39.99, storage: '150 GB SSD', bandwidth: 'Unlimited', accounts: '60 cPanel', highlight: true, badge: 'Most Popular', features: ['60 cPanel Accounts', '150 GB NVMe SSD', 'Unlimited Bandwidth', 'Free WHMCS Full', 'WHM Access', 'Private Nameservers', 'Free SSL per Account', 'Daily Backups', 'White-Label Branding', 'Priority Support', 'Free Domain Reseller'], btnText: 'Start Reselling', btnUrl: '/client/register' },
+    { name: 'Reseller Agency', price: 79.99, storage: '400 GB SSD', bandwidth: 'Unlimited', accounts: 'Unlimited', highlight: false, badge: '', features: ['Unlimited cPanel Accounts', '400 GB NVMe SSD', 'Unlimited Bandwidth', 'Full WHMCS License', 'WHM + Softaculous', 'Private Nameservers', 'Wildcard SSL', 'Hourly Backups', 'Custom Client Portal', 'Dedicated Account Manager', 'API Access'], btnText: 'Start Reselling', btnUrl: '/client/register' },
   ],
   partnerBenefitsTitle: 'Why Resell with Noehost?',
   partnerBenefitsDesc: 'We\'re not just your server provider — we\'re your silent business partner.',
@@ -176,7 +176,7 @@ const ResellerHostingEditor: React.FC = () => {
       <Card>
         <div className="flex items-center justify-between mb-2">
           <CardTitle>Reseller Plans</CardTitle>
-          <AddBtn onClick={() => setData((p: any) => ({ ...p, plans: [...(p.plans || []), { name: 'New Plan', price: 29.99, storage: '100 GB SSD', bandwidth: '1 TB', accounts: '30 cPanel', highlight: false, badge: '', features: [], btnText: 'Start Reselling', btnUrl: '/register' }] }))} label="Add Plan" />
+          <AddBtn onClick={() => setData((p: any) => ({ ...p, plans: [...(p.plans || []), { name: 'New Plan', price: 29.99, storage: '100 GB SSD', bandwidth: '1 TB', accounts: '30 cPanel', highlight: false, badge: '', features: [], btnText: 'Start Reselling', btnUrl: '/client/register' }] }))} label="Add Plan" />
         </div>
         <FieldRow>
           <Field label="Section Title"><Input value={data.plansTitle || ''} onChange={v => setData((p: any) => ({ ...p, plansTitle: v }))} /></Field>
@@ -203,7 +203,7 @@ const ResellerHostingEditor: React.FC = () => {
               </FieldRow>
               <FieldRow>
                 <Field label="Button Text"><Input value={plan.btnText || 'Start Reselling'} onChange={v => updArr('plans', i, 'btnText', v)} /></Field>
-                <Field label="Button URL"><Input value={plan.btnUrl || '/register'} onChange={v => updArr('plans', i, 'btnUrl', v)} /></Field>
+                <Field label="Button URL"><Input value={plan.btnUrl || '/client/register'} onChange={v => updArr('plans', i, 'btnUrl', v)} /></Field>
               </FieldRow>
               <Toggle value={plan.highlight ?? false} onChange={v => updArr('plans', i, 'highlight', v)} label="Highlight (Featured Plan)" />
               <Divider label="Features List" />

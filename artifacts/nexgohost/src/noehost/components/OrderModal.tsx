@@ -95,6 +95,11 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
 
   const handleProceed = () => {
     const dest = `/client/order/add/${encodeURIComponent(plan.id)}?cycle=${cycle}`;
+    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
+    if (!token) {
+      window.location.href = `/client/login?redirect=${encodeURIComponent(dest)}`;
+      return;
+    }
     window.location.href = dest;
   };
 

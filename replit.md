@@ -1,14 +1,25 @@
 # Nexgohost (Noehost) — Hosting Management Platform
 
-## CMS Architecture (Updated)
+## CMS Architecture
 
-- **Firebase REMOVED** — all website content now stored in PostgreSQL `settings` table (key: `site_content_v1`)
+- **Firebase REMOVED** — all website content stored in PostgreSQL `settings` table (key: `site_content_v1`)
 - **`GET /api/content`** — public endpoint, returns merged content from DB + defaults
 - **`POST /api/admin/content`** — admin-only, updates any content key in DB
-- **`ContentContext`** — pure backend API, no Firebase dependency, localStorage cache
-- **`/admin/website`** — new "Website Admin" section in nexgohost backend panel with tabs:
-  Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config
-- **TopBar** — now shows true purple gradient `#3b0d8f → #673de6 → #3b0d8f` (brand color fixed)
+- **`ContentContext`** (`src/noehost/ContentContext.tsx`) — pure backend API, no Firebase dependency, localStorage cache
+- **`/admin/website`** — Website Admin section with tabs: Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config
+
+## Auth & Token System
+
+- **Dual token sync**: `AuthProvider.login()` sets both `token` (client panel) and `noehost_token` (noehost CMS) in localStorage
+- **Order flow auth**: `OrderModal` checks `localStorage.getItem('token') || localStorage.getItem('noehost_token')` before opening — unauthenticated users are redirected to `/client/login?redirect=...`
+- **ClientLogin** honors `?redirect=` param after login (all 3 steps: password, 2FA, verify)
+- **All `/register` links** redirected to `/client/register` across all marketing pages, hosting pages, Login, ClientLogin, OrderFlow
+
+## Register Redirect Chains
+
+- `/register` → `<Navigate to="/client/register" />` (App.tsx)
+- `OrderFlow.tsx` → `/client/register?next=<encoded-checkout-url>`
+- `ClientLogin.tsx` → already-logged-in check respects `?redirect=` param
 
 
 
@@ -101,9 +112,8 @@ Backend helpers: `artifacts/api-server/src/lib/cpanel.ts`
 - **Homepage** (`src/pages/public/Homepage.tsx`) — Full dark-themed noehost marketing homepage with TopBar, Navbar, Hero, Pricing, ControlEfficiency, FeatureShowcase, Promo, Services, Features, CTA, FAQ, Testimonials, Footer, WhatsApp, ChatBot.
 - **Marketing sub-pages**: `/shared-hosting`, `/wordpress-hosting`, `/reseller-hosting`, `/vps-hosting`, `/domains`, `/about-us`, `/about`, `/contact-us`, `/contact`, `/server-status` — all use noehost dark design with `NoeHostLayout`.
 - **Component tree**: `src/noehost/` — 114 files extracted from original noehost website, including Navbar, TopBar, Hero, Pricing, CartSidebar, ChatBot, DomainChecker, Footer, and all hosting/about/contact/legal pages.
-- **Noehost Layout** (`src/pages/public/NoeHostLayout.tsx`) — wraps marketing pages with noehost's ContentProvider (Firebase CMS), CurrencyProvider, CartProvider, Navbar, Footer.
-- **Firebase CMS**: Marketing website content (hero text, pricing, navbar links, etc.) is fetched from Firebase Realtime Database (`noehost-7c4d8`). Falls back to Express `/api/content` if Firebase unavailable.
-- **ContentContext (noehost)** (`src/noehost/ContentContext.tsx`) — loads from Firebase first; seeds from Express API if Firebase is empty; real-time sync with onValue listener.
+- **Noehost Layout** (`src/pages/public/NoeHostLayout.tsx`) — wraps marketing pages with ContentProvider, CurrencyProvider, CartProvider, Navbar, Footer.
+- **ContentContext (noehost)** (`src/noehost/ContentContext.tsx`) — loads from Express `/api/content` (PostgreSQL backend), localStorage cache. Firebase fully removed.
 - **Vite aliases**: `react-router-dom` → `src/noehost/router-shim.tsx` (wouter compat layer); `motion/react` → `src/noehost/motion-shim.ts` (framer-motion re-export). No source file changes needed.
 - **CurrencyContext** — `useCurrency()` returns `{ currency, setCurrency, currencies, loading, formatPrice, convert }`. The `convert(usdAmount)` converts USD to current currency.
 - CSS variables defined in `:root` in `src/index.css`.

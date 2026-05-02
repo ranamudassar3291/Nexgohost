@@ -32,12 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = (newToken: string) => {
     setToken(newToken);
+    localStorage.setItem("noehost_token", newToken);
   };
 
   const logout = () => {
     const role = user?.role;
     setToken(null);
     localStorage.removeItem("token");
+    localStorage.removeItem("noehost_token");
     queryClient.clear();
     setLocation(role === "admin" ? "/admin/login" : "/client/login");
   };

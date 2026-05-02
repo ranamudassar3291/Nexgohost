@@ -555,13 +555,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
     const DEFAULT_PRICING = {
       header: { title: 'Choose your Web Hosting plan', subtitle: 'Get the best value for your money with our feature-rich plans. All plans include a 30-day money-back guarantee.' },
       shared: [
-        { name: 'Single', monthly: 1.99, yearly: 1.49, btnText: 'Add to cart', btnUrl: '/register', features: ['1 Website', '50GB SSD', '100GB Bandwidth', 'Free SSL', 'Weekly Backups'], popular: false, badge: '' },
-        { name: 'Premium', monthly: 2.99, yearly: 2.49, btnText: 'Add to cart', btnUrl: '/register', features: ['100 Websites', '100GB SSD', 'Unlimited Bandwidth', 'Free SSL', 'Free Domain ($9.99 value)', 'Weekly Backups'], popular: true, badge: '+ 3 Months Free' },
-        { name: 'Business', monthly: 3.99, yearly: 2.99, btnText: 'Add to cart', btnUrl: '/register', features: ['100 Websites', '200GB NVMe SSD', 'Unlimited Bandwidth', 'Free SSL', 'Free Domain', 'Daily Backups', 'CDN Included'], popular: false, badge: '' },
+        { name: 'Single', monthly: 1.99, yearly: 1.49, btnText: 'Add to cart', btnUrl: '/client/register', features: ['1 Website', '50GB SSD', '100GB Bandwidth', 'Free SSL', 'Weekly Backups'], popular: false, badge: '' },
+        { name: 'Premium', monthly: 2.99, yearly: 2.49, btnText: 'Add to cart', btnUrl: '/client/register', features: ['100 Websites', '100GB SSD', 'Unlimited Bandwidth', 'Free SSL', 'Free Domain ($9.99 value)', 'Weekly Backups'], popular: true, badge: '+ 3 Months Free' },
+        { name: 'Business', monthly: 3.99, yearly: 2.99, btnText: 'Add to cart', btnUrl: '/client/register', features: ['100 Websites', '200GB NVMe SSD', 'Unlimited Bandwidth', 'Free SSL', 'Free Domain', 'Daily Backups', 'CDN Included'], popular: false, badge: '' },
       ],
       reseller: [
-        { name: 'Reseller Lite', monthly: 19.99, yearly: 14.99, btnText: 'Add to cart', btnUrl: '/register', features: ['20 cPanel Accounts', '40GB SSD', 'White Label', 'Free WHMCS', 'Private Nameservers'], popular: false, badge: '' },
-        { name: 'Reseller Pro', monthly: 39.99, yearly: 29.99, btnText: 'Add to cart', btnUrl: '/register', features: ['50 cPanel Accounts', '100GB SSD', 'White Label', 'Free Billing Software', 'Priority Support'], popular: true, badge: '' },
+        { name: 'Reseller Lite', monthly: 19.99, yearly: 14.99, btnText: 'Add to cart', btnUrl: '/client/register', features: ['20 cPanel Accounts', '40GB SSD', 'White Label', 'Free WHMCS', 'Private Nameservers'], popular: false, badge: '' },
+        { name: 'Reseller Pro', monthly: 39.99, yearly: 29.99, btnText: 'Add to cart', btnUrl: '/client/register', features: ['50 cPanel Accounts', '100GB SSD', 'White Label', 'Free Billing Software', 'Priority Support'], popular: true, badge: '' },
       ],
       allFeatures: [
         { category: 'Performance', items: ['NVMe Storage', 'Object Cache', 'CDN Included', '99.9% Uptime Guarantee'] },
@@ -615,7 +615,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
     const addPlan = (category: string) => {
       setData((prev: any) => ({
         ...prev,
-        [category]: [...(prev[category] || []), { name: 'New Plan', monthly: 4.99, yearly: 3.99, btnText: 'Add to cart', btnUrl: '/register', features: [], popular: false, badge: '' }]
+        [category]: [...(prev[category] || []), { name: 'New Plan', monthly: 4.99, yearly: 3.99, btnText: 'Add to cart', btnUrl: '/client/register', features: [], popular: false, badge: '' }]
       }));
     };
 

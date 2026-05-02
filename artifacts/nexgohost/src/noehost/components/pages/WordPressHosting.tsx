@@ -12,14 +12,14 @@ const WP_DEFAULT: any = {
     badge: 'WP Optimised', title: 'WordPress Hosting.', titleHighlight: 'Optimised & Managed.',
     description: 'Pre-configured WordPress stacks running LiteSpeed, NVMe SSD, and Redis caching. Your site loads fast out of the box — no tuning required.',
     primaryBtn: { text: 'See Plans', url: '#wp-plans', show: true },
-    secondaryBtn: { text: 'Start Free', url: '/register', show: true },
+    secondaryBtn: { text: 'Start Free', url: '/client/register', show: true },
     badges: ['Auto WordPress Updates', 'Free SSL', 'Staging Environment', 'Malware Scanning'],
   },
   plans: [
-    { name: 'WP Starter', desc: 'For a single WordPress site.', monthly: 4.99, yearly: 2.99, popular: false, btnText: 'Get Started', btnUrl: '/register', specs: ['1 WordPress Site', '10 GB NVMe SSD', 'Unmetered Bandwidth'], addons: [{ label: 'Staging Environment', included: false }, { label: 'Object Cache (Redis)', included: false }] },
-    { name: 'WP Business', desc: 'For growing WordPress sites.', monthly: 9.99, yearly: 5.99, popular: true, btnText: 'Get Started', btnUrl: '/register', specs: ['5 WordPress Sites', '50 GB NVMe SSD', 'Unmetered Bandwidth'], addons: [{ label: 'Staging Environment', included: true }, { label: 'Object Cache (Redis)', included: true }] },
-    { name: 'WP Pro', desc: 'For agencies and high-traffic sites.', monthly: 19.99, yearly: 11.99, popular: false, btnText: 'Get Started', btnUrl: '/register', specs: ['Unlimited WP Sites', '100 GB NVMe SSD', 'Unmetered Bandwidth'], addons: [{ label: 'Staging Environment', included: true }, { label: 'Object Cache (Redis)', included: true }] },
-    { name: 'WP Elite', desc: 'Maximum WordPress performance.', monthly: 34.99, yearly: 19.99, popular: false, btnText: 'Get Started', btnUrl: '/register', specs: ['Unlimited WP Sites', 'Unlimited NVMe SSD', 'Priority Network'], addons: [{ label: 'Staging Environment', included: true }, { label: 'Object Cache (Redis)', included: true }] },
+    { name: 'WP Starter', desc: 'For a single WordPress site.', monthly: 4.99, yearly: 2.99, popular: false, btnText: 'Get Started', btnUrl: '/client/register', specs: ['1 WordPress Site', '10 GB NVMe SSD', 'Unmetered Bandwidth'], addons: [{ label: 'Staging Environment', included: false }, { label: 'Object Cache (Redis)', included: false }] },
+    { name: 'WP Business', desc: 'For growing WordPress sites.', monthly: 9.99, yearly: 5.99, popular: true, btnText: 'Get Started', btnUrl: '/client/register', specs: ['5 WordPress Sites', '50 GB NVMe SSD', 'Unmetered Bandwidth'], addons: [{ label: 'Staging Environment', included: true }, { label: 'Object Cache (Redis)', included: true }] },
+    { name: 'WP Pro', desc: 'For agencies and high-traffic sites.', monthly: 19.99, yearly: 11.99, popular: false, btnText: 'Get Started', btnUrl: '/client/register', specs: ['Unlimited WP Sites', '100 GB NVMe SSD', 'Unmetered Bandwidth'], addons: [{ label: 'Staging Environment', included: true }, { label: 'Object Cache (Redis)', included: true }] },
+    { name: 'WP Elite', desc: 'Maximum WordPress performance.', monthly: 34.99, yearly: 19.99, popular: false, btnText: 'Get Started', btnUrl: '/client/register', specs: ['Unlimited WP Sites', 'Unlimited NVMe SSD', 'Priority Network'], addons: [{ label: 'Staging Environment', included: true }, { label: 'Object Cache (Redis)', included: true }] },
   ],
   plansTitle: 'Choose the Right Plan',
   plansDesc: 'All plans include auto updates, malware scanning, and free SSL.',
@@ -36,7 +36,7 @@ const WP_DEFAULT: any = {
   ctaTitle: 'Launch Your WordPress Site Today',
   ctaDesc: 'Pre-installed WordPress, free SSL, and expert support — get online in minutes.',
   ctaBtnText: 'Start Hosting Now',
-  ctaBtnUrl: '/register',
+  ctaBtnUrl: '/client/register',
   faqs: [
     { q: 'Is WordPress pre-installed?', a: 'Yes! WordPress comes pre-installed and pre-configured on all our WordPress hosting plans.' },
     { q: 'How are WordPress sites kept secure?', a: 'We automatically apply WordPress core updates, run daily malware scans, and employ a WordPress-specific WAF.' },
@@ -127,7 +127,7 @@ const WordPressHosting: React.FC = () => {
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               {(hero.primaryBtn?.show !== false) && hero.primaryBtn && renderLink(hero.primaryBtn.url || '#wp-plans', <>{hero.primaryBtn.text || 'See Plans'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'px-8 py-4 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 flex items-center gap-2 group')}
-              {(hero.secondaryBtn?.show !== false) && hero.secondaryBtn && renderLink(hero.secondaryBtn.url || '/register', hero.secondaryBtn.text || 'Start Free', 'px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10')}
+              {(hero.secondaryBtn?.show !== false) && hero.secondaryBtn && renderLink(hero.secondaryBtn.url || '/client/register', hero.secondaryBtn.text || 'Start Free', 'px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10')}
             </div>
             {(hero.badges || []).length > 0 && (
               <div className="flex flex-wrap justify-center gap-6 mt-8">
@@ -230,7 +230,7 @@ const WordPressHosting: React.FC = () => {
             <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <h2 className="text-4xl font-black text-white mb-4">{pg.ctaTitle}</h2>
               <p className="text-primary-200 font-medium leading-relaxed mb-8 text-lg max-w-xl mx-auto">{pg.ctaDesc}</p>
-              {renderLink(pg.ctaBtnUrl || '/register', <>{pg.ctaBtnText || 'Start Hosting'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
+              {renderLink(pg.ctaBtnUrl || '/client/register', <>{pg.ctaBtnText || 'Start Hosting'} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" /></>, 'inline-flex items-center gap-2 px-8 py-4 bg-white text-primary hover:bg-primary-50 rounded-xl font-black text-sm transition-all group shadow-xl shadow-black/20')}
             </motion.div>
           </div>
         </section>
