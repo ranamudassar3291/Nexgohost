@@ -57,7 +57,8 @@ const Features: React.FC = () => {
   };
 
   return (
-    <section id="features" className="py-16 bg-gray-50 relative overflow-hidden">
+    <section id="features" className="py-16 bg-dark relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(103,61,230,0.12) 0%, transparent 60%)' }} />
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-12">
           <motion.div
@@ -68,8 +69,8 @@ const Features: React.FC = () => {
           >
             Core Features
           </motion.div>
-          <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6 tracking-tight">{featuresData.title}</h2>
-          <p className="text-lg text-gray-500 font-medium leading-relaxed">{featuresData.description}</p>
+          <h2 className="text-4xl lg:text-5xl font-black text-white mb-6 tracking-tight">{featuresData.title}</h2>
+          <p className="text-lg text-slate-400 font-medium leading-relaxed">{featuresData.description}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 max-w-7xl mx-auto">
@@ -80,21 +81,21 @@ const Features: React.FC = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.04 }}
-              className="group p-6 bg-white rounded-2xl border border-gray-100 hover:border-primary/30 hover:shadow-md transition-all duration-300 flex flex-col"
+              className="group p-6 bg-white/5 rounded-2xl border border-white/8 hover:border-primary/40 hover:bg-white/8 transition-all duration-300 flex flex-col"
             >
               <div className="flex justify-between items-start mb-5">
-                <div className="w-11 h-11 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-300 shadow-sm">
+                <div className="w-11 h-11 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all duration-300">
                   {resolveIcon(f.icon)}
                 </div>
                 {f.badge && (
-                  <span className={`text-[10px] font-black px-2 py-1 rounded-md tracking-widest ${f.badge === 'AI' ? 'bg-purple-100 text-purple-600' : 'bg-primary/10 text-primary'}`}>
+                  <span className={`text-[10px] font-black px-2 py-1 rounded-md tracking-widest ${f.badge === 'AI' ? 'bg-purple-500/20 text-purple-300' : 'bg-primary/10 text-primary'}`}>
                     {f.badge}
                   </span>
                 )}
               </div>
 
-              <h4 className="text-base font-black text-gray-900 mb-2 group-hover:text-primary transition-colors">{f.title}</h4>
-              <p className="text-sm text-gray-500 font-medium leading-relaxed mb-4 flex-grow">{f.description}</p>
+              <h4 className="text-base font-black text-white mb-2 group-hover:text-primary transition-colors">{f.title}</h4>
+              <p className="text-sm text-slate-400 font-medium leading-relaxed mb-4 flex-grow">{f.description}</p>
 
               <div className="flex items-center gap-2 text-primary font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                 Learn more <ArrowRight size={13} />

@@ -33,11 +33,12 @@ const Testimonials: React.FC = () => {
   };
 
   return (
-    <section id="testimonials" className="py-14 bg-white relative overflow-hidden">
+    <section id="testimonials" className="py-14 bg-dark relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 100%, rgba(103,61,230,0.10) 0%, transparent 55%)' }} />
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <h2 className="text-3xl font-black text-gray-900 mb-3">{testimonialsData.title}</h2>
-          <p className="text-base text-gray-500 font-medium">{testimonialsData.description}</p>
+          <h2 className="text-3xl font-black text-white mb-3">{testimonialsData.title}</h2>
+          <p className="text-base text-slate-400 font-medium">{testimonialsData.description}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
@@ -45,9 +46,9 @@ const Testimonials: React.FC = () => {
             <motion.div
               key={i}
               whileHover={{ y: -5 }}
-              className="p-8 rounded-2xl bg-gray-50 border border-gray-100 relative group hover:border-primary/20 hover:shadow-md transition-all"
+              className="p-8 rounded-2xl bg-white/5 border border-white/10 relative group hover:border-primary/30 hover:bg-white/8 transition-all"
             >
-              <Quote className="absolute top-6 right-8 text-primary/10 group-hover:text-primary/15 transition-colors" size={44} />
+              <Quote className="absolute top-6 right-8 text-primary/15 group-hover:text-primary/25 transition-colors" size={44} />
 
               <div className="flex gap-1 mb-5">
                 {[...Array(5)].map((_, j) => (
@@ -55,26 +56,26 @@ const Testimonials: React.FC = () => {
                 ))}
               </div>
 
-              <p className="text-gray-600 mb-7 italic leading-relaxed font-medium text-sm">
+              <p className="text-slate-300 mb-7 italic leading-relaxed font-medium text-sm">
                 "{t.content}"
               </p>
 
               <div className="flex items-center gap-3">
-                <img src={t.avatar} alt={t.name} className="w-11 h-11 rounded-full border-2 border-gray-200 shadow-sm object-cover" />
+                <img src={t.avatar} alt={t.name} className="w-11 h-11 rounded-full border-2 border-white/20 shadow-sm object-cover" />
                 <div>
-                  <h4 className="font-black text-gray-900 text-sm">{t.name}</h4>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{t.role}</p>
+                  <h4 className="font-black text-white text-sm">{t.name}</h4>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">{t.role}</p>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        <div className="pt-8 border-t border-gray-100">
-          <p className="text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-6">Powering our infrastructure with the best</p>
+        <div className="pt-8 border-t border-white/10">
+          <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6">Powering our infrastructure with the best</p>
           <div className="flex flex-wrap justify-center items-center gap-8 md:gap-14 opacity-40 hover:opacity-80 transition-all duration-500 grayscale hover:grayscale-0">
             {testimonialsData.partners.map((p: string, i: number) => (
-              <span key={i} className="text-lg md:text-xl font-black text-gray-500 hover:text-primary transition-colors cursor-default">{p}</span>
+              <span key={i} className="text-lg md:text-xl font-black text-slate-400 hover:text-primary transition-colors cursor-default">{p}</span>
             ))}
           </div>
         </div>

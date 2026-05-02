@@ -34,13 +34,13 @@ const Promo: React.FC = () => {
   const icons = [<UserPlus size={32} />, <CreditCard size={32} />, <Rocket size={32} />];
 
   return (
-    <section className="py-14 bg-gray-50 relative overflow-hidden">
+    <section className="py-14 bg-secondary relative overflow-hidden">
       <div className="tech-grid absolute inset-0 opacity-5"></div>
       
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-3">{promoData.title}</h2>
-          <p className="text-base text-gray-500 font-medium">{promoData.description}</p>
+          <h2 className="text-3xl lg:text-4xl font-black text-white mb-3">{promoData.title}</h2>
+          <p className="text-base text-slate-400 font-medium">{promoData.description}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -62,12 +62,12 @@ const Promo: React.FC = () => {
                   {icons[i % icons.length]}
                 </div>
                 
-                <div className="absolute -top-4 -left-4 w-10 h-10 rounded-full bg-primary text-white font-black border border-primary/20 flex items-center justify-center text-xs shadow-lg">
+                <div className="absolute -top-4 -left-4 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md text-white font-black border border-white/20 flex items-center justify-center text-xs shadow-xl">
                   {i + 1}
                 </div>
                 
-                <h3 className="text-xl font-black text-gray-900 mb-3 group-hover:text-primary transition-colors">{step.title}</h3>
-                <p className="text-gray-500 font-medium leading-relaxed">
+                <h3 className="text-xl font-black text-white mb-3 group-hover:text-primary-300 transition-colors">{step.title}</h3>
+                <p className="text-slate-400 font-medium leading-relaxed">
                   {step.description}
                 </p>
               </div>
