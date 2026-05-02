@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Zap, ArrowRight, ShieldCheck, ShoppingCart, Check } from 'lucide-react';
 import { useCurrency } from '../CurrencyContext';
-import { useCart } from '@/context/CartContext';
-import { useLocation } from 'wouter';
-// openCart is used to open the sidebar after adding to cart
+import { useCart } from '../context/CartContext';
 
 export interface OrderPlan {
   id: string;
@@ -39,7 +37,6 @@ interface CycleOption {
 const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
   const { convertFromPKR } = useCurrency();
   const { addItem, openCart } = useCart();
-  const [, navigate] = useLocation();
   const [added, setAdded] = useState(false);
 
   const buildCycles = (p: OrderPlan): CycleOption[] => {

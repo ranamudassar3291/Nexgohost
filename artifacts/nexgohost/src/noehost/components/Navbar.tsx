@@ -184,7 +184,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
           <Server size={20} />
         </div>
-        <span className="text-xl font-black tracking-tighter text-white">{navData.logo}</span>
+        <span className={`text-xl font-black tracking-tighter ${isScrolled ? 'text-slate-900' : 'text-white'}`}>{navData.logo}</span>
       </div>
     );
   };
@@ -193,10 +193,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
     <nav
       className={`transition-all duration-300 w-full z-[100] ${
         isScrolled
-          ? 'bg-[#0e0e11]/95 backdrop-blur-2xl py-3 shadow-2xl shadow-black/60'
+          ? 'bg-white shadow-xl shadow-black/8 py-3'
           : 'bg-[#0e0e11]/80 backdrop-blur-sm py-5'
       }`}
-      style={{ borderBottom: isScrolled ? '1px solid rgba(103,61,230,0.25)' : 'none' }}
+      style={{ borderBottom: isScrolled ? '1px solid rgba(0,0,0,0.08)' : 'none' }}
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
         <div className="flex items-center gap-12">
@@ -211,7 +211,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <Link
                 key={idx}
                 to={link.href}
-                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
+                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
               >
                 <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
                   {IconMap[link.icon] || <Zap size={18} />}
@@ -225,7 +225,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <div ref={hostingRef} className="relative">
                 <button
                   onClick={() => setHostingOpen(o => !o)}
-                  className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
+                  className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
                 >
                   <span className="text-primary group-hover:scale-110 transition-transform">
                     <Server size={18} />
@@ -303,7 +303,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <Link
                 key={idx}
                 to={link.href}
-                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
+                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
               >
                 <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
                   {IconMap[link.icon] || <Zap size={18} />}
@@ -317,7 +317,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         <div className="hidden lg:flex items-center gap-6">
           <button
             onClick={openCart}
-            className="p-3 rounded-xl transition-all border relative group bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/30"
+            className={`p-3 rounded-xl transition-all border relative group ${isScrolled ? 'bg-gray-50 border-gray-200 text-slate-600 hover:text-primary hover:border-primary/30 hover:bg-primary/5' : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/30'}`}
             title="Cart"
           >
             <ShoppingCart size={20} />
@@ -347,7 +347,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             <>
               <a
                 href="/client/login"
-                className="font-black text-sm transition-colors uppercase tracking-widest text-slate-200 hover:text-white"
+                className={`font-black text-sm transition-colors uppercase tracking-widest ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-200 hover:text-white'}`}
               >
                 Log In
               </a>
@@ -364,7 +364,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         {/* Mobile Toggle */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden p-2 rounded-xl transition-all text-white bg-white/10 hover:bg-white/20"
+          className={`lg:hidden p-2 rounded-xl transition-all ${isScrolled ? 'text-slate-700 bg-gray-100 hover:bg-gray-200' : 'text-white bg-white/10 hover:bg-white/20'}`}
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
