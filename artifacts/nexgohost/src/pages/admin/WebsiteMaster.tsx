@@ -102,8 +102,10 @@ function useSave(key: string) {
       await updateContent(key, data);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch {
-      alert("Failed to save. Please try again.");
+    } catch (err: any) {
+      const msg = err?.message || "Unknown error";
+      alert(`Failed to save: ${msg}\n\nPlease make sure you are logged in as admin and try again.`);
+      console.error("[WebsiteMaster] Save failed:", err);
     } finally {
       setSaving(false);
     }

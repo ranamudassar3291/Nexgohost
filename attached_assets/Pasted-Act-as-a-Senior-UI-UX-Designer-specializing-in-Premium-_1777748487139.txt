@@ -1,0 +1,24 @@
+Act as a Senior UI/UX Designer specializing in Premium SaaS Dashboards. I want to redesign the Nexgohost Client Dashboard to match the "DreamHost" aesthetic: Minimalist, Professional, and Spacious.
+
+### 1. VISUAL DESIGN LANGUAGE (DreamHost Look):
+- THEME: Use a "Clean Minimalist" theme. High-contrast white background for the workspace and a very subtle, professional dark sidebar.
+- TYPOGRAPHY: Use a modern, premium sans-serif font (like Inter or Plus Jakarta Sans). Ensure text is highly readable with proper line-spacing.
+- BORDERS & SHADOWS: Use extremely soft shadows (low blur) and rounded corners (at least 12px) for service cards. Avoid harsh borders; use light-grey dividers instead.
+
+### 2. LAYOUT STRUCTURE:
+- SIDEBAR: A slim, elegant sidebar with high-quality SVG icons. Include labels like: Dashboard, Managed Hosting, Domains, Mail Central, and Billing.
+- WORKSPACE: The main area should have plenty of "Whitespace" (padding) so the user doesn't feel overwhelmed.
+- SERVICE CARDS: Display active services (Hosting/Domains) as clean cards. Each card should have one primary action button (e.g., "Manage") and a status indicator (e.g., a small green dot for 'Active').
+
+### 3. THE "CONTEXTUAL UPSILLING" UI:
+- EMPTY STATES: If a user has no email accounts, show a DreamHost-style illustration with a message: "Your brand deserves a professional email. Create your first @domain.com address."
+- THE "+" ICON LOGIC: On the Domain management card, if there's no hosting attached, place a subtle "+" icon with the label "Add Hosting" to connect services visually.
+
+### 4. FUNCTIONAL ELEMENTS:
+- SEARCH BAR: A clean global search bar at the top to find services or help articles.
+- HELP SIDEBAR: A collapsible right-side drawer that shows "Relevant Guides" based on the page the user is currently on (e.g., DNS guides on the domain page).
+
+### 5. TECHNICAL FIDELITY:
+- Use Tailwind CSS for all styling.
+- Ensure the dashboard is 100% mobile-responsive without losing the premium feel.
+- DO NOT break the existing backend logic; only wrap the data in this new professional UI.

@@ -10,6 +10,8 @@ interface ContentContextType {
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
+const BROADCAST_KEY = "noehost_content_updated";
+
 export function ContentProvider({ children }: { children: ReactNode }) {
   const [content, setContent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
   const fetchContent = async () => {
     try {
-      const res = await fetch("/api/content");
+      const res = await fetch("/api/content", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setContent(data);
@@ -31,33 +33,40 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchContent();
-    pollingRef.current = setInterval(fetchContent, 60_000);
+    pollingRef.current = setInterval(fetchContent, 30_000);
+
+    const onFocus = () => fetchContent();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === BROADCAST_KEY) fetchContent();
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
   const updateContent = async (key: string, value: any) => {
-    try {
-      const token = localStorage.getItem("token") || "";
-      const res = await fetch("/api/admin/content", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-        body: JSON.stringify({ key, value }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${res.status}`);
-      }
-      setContent((prev: any) => ({ ...prev, [key]: value }));
-    } catch (err) {
-      console.warn("[CMS] Content update failed:", err);
-      throw err;
+    const token = localStorage.getItem("noehost_token") || localStorage.getItem("token") || "";
+    const res = await fetch("/api/admin/content", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ key, value }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    setContent((prev: any) => ({ ...prev, [key]: value }));
+    try {
+      localStorage.setItem(BROADCAST_KEY, Date.now().toString());
+    } catch {}
   };
 
   const refreshContent = async () => {

@@ -11,7 +11,50 @@ import { getSystemApiKey } from "./lib/systemApiKey.js";
 import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey } from "./lib/twenty-i.js";
 import { db } from "@workspace/db";
 import { serversTable } from "@workspace/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
+
+async function runStartupMigrations() {
+  try {
+    // Ensure cart_items table has all required columns (safe ADD COLUMN IF NOT EXISTS)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS cart_items (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        plan_id TEXT NOT NULL,
+        plan_name TEXT NOT NULL,
+        item_type TEXT DEFAULT 'hosting',
+        billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+        monthly_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+        quarterly_price NUMERIC(10,2),
+        semiannual_price NUMERIC(10,2),
+        yearly_price NUMERIC(10,2),
+        renewal_price NUMERIC(10,2),
+        renewal_enabled TEXT DEFAULT 'false',
+        domain_name TEXT,
+        tld TEXT,
+        added_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Add any missing columns to existing cart_items table
+    const cartCols = [
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS item_type TEXT DEFAULT 'hosting'",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS quarterly_price NUMERIC(10,2)",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS semiannual_price NUMERIC(10,2)",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS yearly_price NUMERIC(10,2)",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS renewal_price NUMERIC(10,2)",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS renewal_enabled TEXT DEFAULT 'false'",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS domain_name TEXT",
+      "ALTER TABLE cart_items ADD COLUMN IF NOT EXISTS tld TEXT",
+    ];
+    for (const stmt of cartCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] cart_items schema up to date");
+  } catch (err: any) {
+    console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
+  }
+}
 
 const rawPort = process.env["PORT"];
 
@@ -29,6 +72,9 @@ if (Number.isNaN(port) || port <= 0) {
 
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
+
+  // Run DB startup migrations (idempotent — safe to run on every start)
+  runStartupMigrations().catch(() => {});
 
   // Detect the correct 20i key format on startup and cache it for the session.
   // All API calls then use the right key portion without re-detecting each time.

@@ -25,12 +25,16 @@ router.post("/client/cart", authenticate, async (req: AuthRequest, res) => {
     const userId = req.user!.id;
     const {
       planId, planName, billingCycle,
-      monthlyPrice, quarterlyPrice, semiannualPrice, yearlyPrice, renewalPrice, renewalEnabled,
+      monthlyPrice, quarterlyPrice, semiannualPrice, yearlyPrice,
+      renewalPrice, renewalEnabled,
+      itemType, domainName, tld,
     } = req.body;
 
     if (!planId || !planName) {
       return res.status(400).json({ error: "planId and planName are required" });
     }
+
+    const itemTypeVal = (["hosting", "domain", "vps"].includes(itemType) ? itemType : "hosting") as string;
 
     // Upsert: update if exists, insert if not
     const existing = await db.select().from(cartItemsTable)
@@ -41,6 +45,7 @@ router.post("/client/cart", authenticate, async (req: AuthRequest, res) => {
       const [updated] = await db.update(cartItemsTable)
         .set({
           planName,
+          itemType: itemTypeVal,
           billingCycle: billingCycle || "monthly",
           monthlyPrice: String(monthlyPrice || 0),
           quarterlyPrice: quarterlyPrice != null ? String(quarterlyPrice) : null,
@@ -48,6 +53,8 @@ router.post("/client/cart", authenticate, async (req: AuthRequest, res) => {
           yearlyPrice: yearlyPrice != null ? String(yearlyPrice) : null,
           renewalPrice: renewalPrice != null ? String(renewalPrice) : null,
           renewalEnabled: renewalEnabled ? "true" : "false",
+          domainName: domainName || null,
+          tld: tld || null,
           updatedAt: new Date(),
         })
         .where(and(eq(cartItemsTable.userId, userId), eq(cartItemsTable.planId, planId)))
@@ -59,6 +66,7 @@ router.post("/client/cart", authenticate, async (req: AuthRequest, res) => {
       userId,
       planId,
       planName,
+      itemType: itemTypeVal,
       billingCycle: billingCycle || "monthly",
       monthlyPrice: String(monthlyPrice || 0),
       quarterlyPrice: quarterlyPrice != null ? String(quarterlyPrice) : null,
@@ -66,6 +74,8 @@ router.post("/client/cart", authenticate, async (req: AuthRequest, res) => {
       yearlyPrice: yearlyPrice != null ? String(yearlyPrice) : null,
       renewalPrice: renewalPrice != null ? String(renewalPrice) : null,
       renewalEnabled: renewalEnabled ? "true" : "false",
+      domainName: domainName || null,
+      tld: tld || null,
     }).returning();
 
     return res.json(inserted);

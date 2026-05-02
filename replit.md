@@ -11,9 +11,18 @@
 ## Auth & Token System
 
 - **Dual token sync**: `AuthProvider.login()` sets both `token` (client panel) and `noehost_token` (noehost CMS) in localStorage
+- **ContentContext auth fix**: Both `src/context/ContentContext.tsx` (admin) and `src/noehost/ContentContext.tsx` (public) read token as `localStorage.getItem("noehost_token") || localStorage.getItem("token")` — fixes 401 on admin content save
+- **Token expiry**: All JWT tokens (admin and client) now expire in 7 days (was 2h for admin)
+- **Real-time updates**: Both ContentContexts poll every 30s, refresh on window focus, and listen for `noehost_content_updated` localStorage storage event broadcast from admin saves
 - **Order flow auth**: `OrderModal` checks `localStorage.getItem('token') || localStorage.getItem('noehost_token')` before opening — unauthenticated users are redirected to `/client/login?redirect=...`
 - **ClientLogin** honors `?redirect=` param after login (all 3 steps: password, 2FA, verify)
 - **All `/register` links** redirected to `/client/register` across all marketing pages, hosting pages, Login, ClientLogin, OrderFlow
+
+## Cart System
+
+- **`cart_items` table**: Has columns `item_type`, `domain_name`, `tld`, `quarterly_price`, `semiannual_price`, `yearly_price`, `renewal_price`, `renewal_enabled`
+- **Startup migration**: `artifacts/api-server/src/index.ts` runs `runStartupMigrations()` on startup which safely adds any missing columns to `cart_items` using `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
+- **Cart route** (`artifacts/api-server/src/routes/cart.ts`): Handles `itemType`, `domainName`, `tld` fields from CartContext payload
 
 ## Register Redirect Chains
 

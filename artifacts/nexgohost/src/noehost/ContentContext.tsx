@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 interface ContentContextType {
   content: any;
@@ -11,6 +11,7 @@ interface ContentContextType {
 const ContentContext = createContext<ContentContextType | undefined>(undefined);
 
 const CACHE_KEY = 'noehost_cms_v4';
+const BROADCAST_KEY = 'noehost_content_updated';
 
 const saveToCache = (data: any) => {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch {}
@@ -23,11 +24,12 @@ const loadFromCache = (): any | null => {
   } catch { return null; }
 };
 
-const getToken = () => localStorage.getItem('noehost_token') || '';
+const getToken = () => localStorage.getItem('noehost_token') || localStorage.getItem('token') || '';
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [content, setContent] = useState<any>(() => loadFromCache());
   const [loading, setLoading] = useState(true);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const setAndCache = (data: any) => {
     setContent(data);
@@ -69,8 +71,23 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
     init();
-    return () => { cancelled = true; };
-  }, []);
+
+    pollingRef.current = setInterval(fetchContent, 30_000);
+
+    const onFocus = () => fetchContent();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === BROADCAST_KEY) fetchContent();
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      cancelled = true;
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [fetchContent]);
 
   const updateContent = async (key: string, value: any) => {
     const token = getToken();
@@ -90,6 +107,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
+      try { localStorage.setItem(BROADCAST_KEY, Date.now().toString()); } catch {}
     } catch (err) {
       console.error('[CMS] Failed to save content:', err);
       throw err;
