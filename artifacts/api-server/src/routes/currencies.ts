@@ -82,6 +82,25 @@ export async function refreshExchangeRates(force = false): Promise<{ updated: nu
   return { updated, errors };
 }
 
+// GET /api/detect-currency — server-side country detection from IP headers (public)
+// Used by CurrencyContext as a fallback when browser-side geo fails.
+// Returns { country: "PK" } — a 2-letter ISO country code.
+router.get("/detect-currency", (req, res) => {
+  // Cloudflare header (most accurate on Replit deployments)
+  const cf = req.headers["cf-ipcountry"];
+  if (cf && typeof cf === "string" && cf.length === 2 && cf !== "XX") {
+    return res.json({ country: cf.toUpperCase() });
+  }
+  // Generic forwarded-for chain — try all hops
+  const xff = req.headers["x-forwarded-for"];
+  const xcc = req.headers["x-country-code"] || req.headers["x-real-country"];
+  if (xcc && typeof xcc === "string" && xcc.length === 2) {
+    return res.json({ country: (xcc as string).toUpperCase() });
+  }
+  // Default to PK (Noehost's primary market)
+  return res.json({ country: "PK" });
+});
+
 // GET /api/currencies (public)
 router.get("/currencies", async (_req, res) => {
   const currencies = await db.select().from(currenciesTable).where(eq(currenciesTable.isActive, true)).orderBy(currenciesTable.code);

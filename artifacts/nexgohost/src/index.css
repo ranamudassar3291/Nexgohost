@@ -229,30 +229,52 @@
    Applied via .noehost-public wrapper in NoeHostLayout.tsx
    ─────────────────────────────────────────────────────────────────────────── */
 .noehost-public {
-  /* Secondary: light-indigo → near-black for dark navbar/panels */
-  --secondary: 240 10% 6%;
+  color-scheme: dark;
+
+  /* ── Primary: noehost purple #673de6 ── */
+  /* Both the HSL channel var AND the direct override for full Tailwind v4 compat */
+  --primary: 261 77% 56%;
+  --primary-foreground: 0 0% 100%;
+  --color-primary:      #673de6;
+  --color-primary-50:   #f3f0ff;
+  --color-primary-100:  #e5dfff;
+  --color-primary-200:  #c9bcff;
+  --color-primary-300:  #a888f5;
+  --color-primary-400:  #8b6ff0;
+  --color-primary-500:  #673de6;
+  --color-primary-600:  #5228cc;
+  --color-primary-700:  #3d1faa;
+  --color-primary-800:  #2d1585;
+  --color-primary-900:  #1d0a60;
+  --color-primary-950:  #120840;
+
+  /* ── Secondary: near-black #0e0e11 for navbar/panels ── */
+  --secondary:           240 10% 6%;
   --secondary-foreground: 214 32% 90%;
+  --color-secondary:     #0e0e11;
 
-  /* Accent: indigo → noehost cyan #00d1ff */
-  --accent: 191 100% 50%;
+  /* ── Accent: noehost cyan #00d1ff ── */
+  --accent:           191 100% 50%;
   --accent-foreground: 240 10% 6%;
+  --color-accent:     #00d1ff;
 
-  /* Dark background */
-  --color-dark: #050505;
+  /* ── Background / surface ── */
+  --background:        240 10% 4%;
+  --foreground:        214 32% 92%;
+  --color-dark:        #050505;
+  --color-background:  #050505;
 
-  /* Primary: override to noehost purple #673de6 */
-  --color-primary: #673de6;
-  --color-primary-50:  #f3f0ff;
-  --color-primary-100: #e5dfff;
-  --color-primary-200: #c9bcff;
-  --color-primary-300: #a888f5;
-  --color-primary-400: #8b6ff0;
-  --color-primary-500: #673de6;
-  --color-primary-600: #5228cc;
-  --color-primary-700: #3d1faa;
-  --color-primary-800: #2d1585;
-  --color-primary-900: #1d0a60;
-  --color-primary-950: #120840;
+  /* ── Cards / borders in dark context ── */
+  --card:              240 10% 7%;
+  --card-foreground:   214 32% 92%;
+  --card-border:       261 50% 20%;
+  --border:            261 40% 18%;
+  --muted:             240 10% 10%;
+  --muted-foreground:  215 16% 60%;
+
+  /* ── Ring / input ── */
+  --ring:  261 77% 56%;
+  --input: 240 10% 12%;
 }
 
 /* ── NoeHost Marketing Utility Classes ───────────────────────────────────── */
