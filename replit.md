@@ -2,6 +2,35 @@
 
 A production-ready SaaS hosting and domain management platform (similar to WHMCS). Provides full-stack client and admin panels for managing hosting services, domains, billing, support tickets, and more.
 
+## Running the App
+
+- **Frontend (Noehost)**: `artifacts/nexgohost` — React + Vite, runs on **port 5000** via workflow `artifacts/nexgohost: web`
+- **Backend (API Server)**: `artifacts/api-server` — Express.js, runs on **port 8080** via workflow `Start application`
+- **Database**: PostgreSQL (Replit built-in), schema managed with Drizzle Kit
+
+## Login Credentials (Development)
+
+| Portal | URL | Email | Password |
+|---|---|---|---|
+| **Admin Panel** | `/admin/noe` | `admin@noehost.com` | `Admin@123456` |
+| **Client Portal** | `/client/login` | _(register a new account)_ | — |
+
+## Database Setup
+
+First-time setup (or after environment reset):
+```bash
+# 1. Push schema to DB
+pnpm --filter @workspace/db push
+
+# 2. Seed default data (admin user, currencies, settings)
+node scripts/seed-db.mjs
+```
+
+Or run the post-merge script which does everything:
+```bash
+bash scripts/post-merge.sh
+```
+
 ## Hosting Management Panel (Hostinger-Style)
 
 The client service detail page (`/client/hosting/:id`) is a full Hostinger-style panel with a left sidebar and these sections:
@@ -20,8 +49,8 @@ The client service detail page (`/client/hosting/:id`) is a full Hostinger-style
 | **Node.js** | Create apps, start/stop/restart, delete (WHM NodeJs Selector UAPI) |
 | **Python** | Create apps, restart/stop, delete (WHM Python Selector UAPI) |
 
-Backend routes: `artifacts/api-server/src/routes/hosting.ts` (Email, DB, SSH, Node.js, Python, File Manager, Backup Restore, WP Deep-link sections)
-Backend helpers: `artifacts/api-server/src/lib/cpanel.ts` (cpanelEmailList/Create/Delete/ChangePassword, cpanelMysqlListDatabases, cpanelSshGetStatus/Enable/Disable, cpanelNodejsList/Create/Action/Delete, cpanelPythonList/Create/Action/Delete, cpanelFilelist/FileGetContent/SaveFile/FileMkdir/FileDelete/FileUpload, cpanelRestoreFullBackup/RestoreDatabase)
+Backend routes: `artifacts/api-server/src/routes/hosting.ts`
+Backend helpers: `artifacts/api-server/src/lib/cpanel.ts`
 
 ### File Manager details
 - Full in-browser custom file manager — no dependency on cPanel UI
@@ -71,13 +100,16 @@ This is a **pnpm monorepo** with the following structure:
 ```
 artifacts/
   api-server/       — Express.js backend (port 8080)
-  nexgohost/        — React + Vite frontend (port 5173, served at /)
+  nexgohost/        — React + Vite frontend (port 5000, served at /)
   mockup-sandbox/   — UI prototyping sandbox (port 8081)
 lib/
   db/               — Drizzle ORM schema + PostgreSQL config
   api-spec/         — OpenAPI spec + Orval codegen config
   api-zod/          — Zod schemas (generated)
   api-client-react/ — React Query hooks (generated)
+scripts/
+  seed-db.mjs       — Seeds admin user, currencies, and default settings
+  post-merge.sh     — Runs after merges: install + db push + seed
 ```
 
 ## Key Technologies
@@ -92,19 +124,25 @@ lib/
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM_NAME`, `SMTP_ENCRYPTION` — email config
 - `SERVER_HOSTNAME` — main domain (noehost.com)
 - `ENCRYPTION_KEY` — field encryption key
-- `ADMIN_LOGIN_SLUG` — admin login URL slug
+- `ADMIN_LOGIN_SLUG` — admin login URL slug (`noe` → login at `/admin/noe`)
 - `DATABASE_URL` — PostgreSQL connection string (auto-set by Replit DB)
 
 ## Workflows
 
-- **Start application** — Backend API server on port 8080
-- **artifacts/nexgohost: web** — Frontend Vite dev server on port 5173
+- **Start application** — Backend API server on port 8080 (console output)
+- **artifacts/nexgohost: web** — Frontend Vite dev server on port 5000 (webview)
+- **artifacts/mockup-sandbox: Component Preview Server** — UI sandbox on port 8081
 
 ## Database
 
 Run schema migrations with:
 ```bash
 pnpm --filter @workspace/db push
+```
+
+Seed initial data (admin user, currencies, settings) with:
+```bash
+node scripts/seed-db.mjs
 ```
 
 ## Integrations
@@ -121,10 +159,10 @@ pnpm --filter @workspace/db push
 - Client portal (login, dashboard, hosting, domains, support, billing)
 - Admin panel (client management, servers, invoices, email templates, KB)
 - Cron tasks: renewal reminders, invoice generation, suspension, health checks
-- Multi-currency support with auto-refreshing exchange rates
+- Multi-currency support with auto-refreshing exchange rates (PKR default)
 - WhatsApp notifications for billing events
-- **Unified Billing hub** at `/client/billing` — 5 tabs: Invoices, Transactions, Refunds, Wallet (Credits), Affiliate. Summary cards at top. Old routes `/client/invoices`, `/client/credits`, `/client/affiliate` redirect here.
-- **AI Chat Widget** — floating widget for clients (`role === "client"`) in AppLayout. Backend: `POST /api/ai/chat` with `authenticate` middleware. Frontend: `AiChatWidget.tsx` with quick questions, minimize/reset/close, unread badge.
+- **Unified Billing hub** at `/client/billing` — 5 tabs: Invoices, Transactions, Refunds, Wallet (Credits), Affiliate.
+- **AI Chat Widget** — floating widget for clients in AppLayout.
 
 ## Full Branding System (White-Label)
 
