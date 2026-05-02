@@ -15,7 +15,7 @@ import {
   Cpu, Code2, Wifi, Terminal, FolderOpen, Settings, LayoutDashboard,
   Globe2, Power, Play, Square, RotateCcw, ChevronRight, Info,
   MoreHorizontal, Boxes, AtSign, Zap, UploadCloud, FileText,
-  Network, FolderPlus, Upload, ArrowUp, Home, Save, X, Plug, Palette,
+  Network, FolderPlus, Upload, ArrowUp, Home, Save, X, Plug, Palette, ArrowRight,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -490,6 +490,19 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: EMAIL
 // ═══════════════════════════════════════════════════════════════════════════════
+function MailToggle({ checked, onChange, loading }: { checked: boolean; onChange: (v: boolean) => void; loading?: boolean }) {
+  return (
+    <button
+      onClick={() => !loading && onChange(!checked)}
+      disabled={loading}
+      className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-all duration-200 focus:outline-none disabled:opacity-50 cursor-pointer"
+      style={{ background: checked ? "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" : "rgba(0,0,0,0.15)" }}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`} />
+    </button>
+  );
+}
+
 function SectionEmail({ service }: { service: Service }) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -500,6 +513,10 @@ function SectionEmail({ service }: { service: Service }) {
   const [showPwd, setShowPwd] = useState(false);
   const [changePwd, setChangePwd] = useState<{ email: string; pwd: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState<string | null>(null);
+  const [emailSettings, setEmailSettings] = useState<Record<string, { spamFilter: boolean; autoForward: boolean; forwardTo: string }>>({});
+  const [savingSettings, setSavingSettings] = useState<string | null>(null);
+  const [webmailLoading, setWebmailLoading] = useState<string | null>(null);
 
   const isWHM = !service.twentyIPackageId && service.serverId;
 
@@ -512,7 +529,20 @@ function SectionEmail({ service }: { service: Service }) {
     finally { setLoadingList(false); }
   }
 
-  useEffect(() => { if (isWHM) loadAccounts(); else setLoadingList(false); }, [service.id]);
+  async function loadSettings() {
+    try {
+      const d = await apiFetch(`/client/hosting/${service.id}/email/settings`);
+      const map: Record<string, { spamFilter: boolean; autoForward: boolean; forwardTo: string }> = {};
+      for (const s of (d.settings || [])) {
+        map[s.email] = { spamFilter: s.spamFilter ?? true, autoForward: s.autoForward ?? false, forwardTo: s.forwardTo || "" };
+      }
+      setEmailSettings(map);
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (isWHM) { loadAccounts(); loadSettings(); } else setLoadingList(false);
+  }, [service.id]);
 
   async function handleCreate() {
     if (!form.email.includes("@")) return toast({ description: "Include the full email address with @domain", variant: "destructive" });
@@ -542,6 +572,15 @@ function SectionEmail({ service }: { service: Service }) {
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
 
+  async function handleWebmailFor(email: string) {
+    setWebmailLoading(email);
+    try {
+      const d = await apiFetch(`/client/hosting/${service.id}/email/webmail`, { method: "POST", body: JSON.stringify({ email }) });
+      if (d.url) window.open(d.url, "_blank", "noopener");
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    finally { setWebmailLoading(null); }
+  }
+
   async function handleChangePwd() {
     if (!changePwd) return;
     try {
@@ -550,38 +589,92 @@ function SectionEmail({ service }: { service: Service }) {
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
 
+  async function handleToggleSetting(email: string, key: "spamFilter" | "autoForward", value: boolean) {
+    const current = emailSettings[email] ?? { spamFilter: true, autoForward: false, forwardTo: "" };
+    const updated = { ...current, [key]: value };
+    setEmailSettings(prev => ({ ...prev, [email]: updated }));
+    setSavingSettings(email + key);
+    try {
+      await apiFetch(`/client/hosting/${service.id}/email/settings/${encodeURIComponent(email)}`, {
+        method: "PUT", body: JSON.stringify(updated),
+      });
+    } catch (e: any) {
+      setEmailSettings(prev => ({ ...prev, [email]: current }));
+      toast({ description: e.message, variant: "destructive" });
+    }
+    setSavingSettings(null);
+  }
+
+  async function handleSaveForwardTo(email: string, forwardTo: string) {
+    const current = emailSettings[email] ?? { spamFilter: true, autoForward: false, forwardTo: "" };
+    const updated = { ...current, forwardTo };
+    setSavingSettings(email + "forwardTo");
+    try {
+      await apiFetch(`/client/hosting/${service.id}/email/settings/${encodeURIComponent(email)}`, {
+        method: "PUT", body: JSON.stringify(updated),
+      });
+      toast({ title: "Forwarding address saved" });
+    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    setSavingSettings(null);
+  }
+
   if (!isWHM) return <NotAvailable reason="Email management is available on WHM/cPanel servers. This hosting account uses a different server type — contact support for help." />;
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="Email Accounts" description="Create and manage email accounts for your domain"
-        action={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleWebmail} className="gap-1.5"><ExternalLink size={13} />Webmail</Button>
-            <Button size="sm" onClick={() => setShowCreate(s => !s)} className="gap-1.5 bg-primary hover:bg-primary/90"><Plus size={13} />Create Email</Button>
+      {/* ── Mail Central Header ── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm"
+            style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+            <Mail size={20} className="text-white" />
           </div>
-        } />
+          <div>
+            <h3 className="font-bold text-foreground text-lg leading-tight">Mail Central</h3>
+            <p className="text-xs text-muted-foreground">
+              {loadingList ? "Loading…" : `${accounts.length} account${accounts.length !== 1 ? "s" : ""}`}
+              {service.domain ? ` · ${service.domain}` : ""}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleWebmail}
+            className="gap-1.5 text-primary border-primary/30 hover:bg-primary/5">
+            <Globe2 size={13} /> Quick Webmail
+          </Button>
+          <Button size="sm" onClick={() => setShowCreate(s => !s)}
+            className="gap-1.5 bg-primary hover:bg-primary/90">
+            <Plus size={13} /> Create Email
+          </Button>
+        </div>
+      </div>
 
+      {/* ── Create Form ── */}
       {showCreate && (
         <Card>
-          <h3 className="font-semibold text-foreground mb-4">Create Email Account</h3>
+          <h3 className="font-semibold text-foreground mb-4">New Email Account</h3>
           <div className="space-y-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Email Address</label>
-              <Input placeholder={`info@${service.domain || "yourdomain.com"}`} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+              <Input placeholder={`info@${service.domain || "yourdomain.com"}`} value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Password</label>
-              <div className="relative">
-                <Input type={showPwd ? "text" : "password"} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
-                <button type="button" onClick={() => setShowPwd(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Password</label>
+                <div className="relative">
+                  <Input type={showPwd ? "text" : "password"} value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+                  <button type="button" onClick={() => setShowPwd(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Quota (MB)</label>
-              <Input type="number" value={form.quota} onChange={e => setForm(f => ({ ...f, quota: e.target.value }))} />
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Quota (MB)</label>
+                <Input type="number" value={form.quota} onChange={e => setForm(f => ({ ...f, quota: e.target.value }))} />
+              </div>
             </div>
             <div className="flex gap-2 pt-1">
               <Button onClick={handleCreate} disabled={creating} className="gap-2 bg-primary hover:bg-primary/90">
@@ -593,11 +686,14 @@ function SectionEmail({ service }: { service: Service }) {
         </Card>
       )}
 
-      <Card>
+      {/* ── Email Table ── */}
+      <div className="rounded-2xl border border-border overflow-hidden bg-card">
         {loadingList ? (
-          <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
+          <div className="flex justify-center py-14">
+            <Loader2 size={24} className="animate-spin text-muted-foreground" />
+          </div>
         ) : accounts.length === 0 ? (
-          <div className="relative overflow-hidden rounded-2xl border border-dashed border-primary/25 p-8"
+          <div className="relative overflow-hidden p-8"
             style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(99,102,241,0.02) 100%)" }}>
             <div className="absolute top-0 right-0 w-40 h-40 opacity-[0.04]"
               style={{ background: "radial-gradient(circle, #6366F1 0%, transparent 70%)", transform: "translate(20%, -20%)" }} />
@@ -609,76 +705,203 @@ function SectionEmail({ service }: { service: Service }) {
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-foreground text-base leading-snug">
                   Professionalize your brand with custom email
-                  {service.domain && (
-                    <> for <span className="text-primary font-mono">{service.domain}</span></>
-                  )}
+                  {service.domain && <> for <span className="text-primary font-mono">{service.domain}</span></>}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                  Custom email addresses build trust and credibility — clients remember{" "}
-                  <span className="font-medium text-foreground">you@{service.domain || "yourdomain.com"}</span> more than a generic inbox.
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  Clients remember <span className="font-medium text-foreground">you@{service.domain || "yourdomain.com"}</span> more than a generic inbox.
                 </p>
                 <div className="flex items-center gap-4 mt-4 flex-wrap">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                      <ShieldCheck size={11} className="text-emerald-500" />
+                  {[["Spam-filtered inbox", "emerald"], ["Webmail access", "indigo"], ["Multiple addresses", "amber"]].map(([label]) => (
+                    <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <ShieldCheck size={12} className="text-primary opacity-60" /> {label}
                     </div>
-                    Spam-filtered inbox
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center">
-                      <Zap size={11} className="text-primary" />
-                    </div>
-                    Webmail access included
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div className="w-5 h-5 rounded-md bg-amber-500/10 flex items-center justify-center">
-                      <AtSign size={11} className="text-amber-500" />
-                    </div>
-                    Multiple addresses
-                  </div>
+                  ))}
                 </div>
-                <button
-                  onClick={() => setShowCreate(true)}
+                <button onClick={() => setShowCreate(true)}
                   className="mt-5 inline-flex items-center gap-2 h-9 px-5 rounded-xl text-sm font-semibold text-white shadow-md hover:opacity-90 transition-opacity"
-                  style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
-                >
+                  style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
                   <Plus size={14} /> Create Your First Email
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {accounts.map(acc => (
-              <div key={acc.email} className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <AtSign size={14} className="text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm text-foreground">{acc.email}</p>
-                    <p className="text-xs text-muted-foreground">{acc.diskquota || "Unlimited"} quota</p>
-                  </div>
-                </div>
-                <div className="flex gap-1.5">
-                  <Button variant="ghost" size="sm" onClick={() => setChangePwd({ email: acc.email, pwd: "" })}
-                    className="text-muted-foreground hover:text-foreground"><KeyRound size={14} /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(acc.email)} disabled={deleting === acc.email}
-                    className="text-destructive hover:text-destructive">
-                    {deleting === acc.email ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+          <>
+            {/* Table header */}
+            <div className="hidden sm:grid items-center px-5 py-3 border-b border-border bg-secondary/40"
+              style={{ gridTemplateColumns: "1fr 90px 80px 80px 152px" }}>
+              {["Email Address", "Quota", "Spam", "Forward", ""].map((h, i) => (
+                <span key={i} className={`text-[10px] font-bold text-muted-foreground uppercase tracking-wider ${i === 4 ? "text-right" : ""}`}>{h}</span>
+              ))}
+            </div>
 
+            {/* Rows */}
+            {accounts.map(acc => {
+              const settings = emailSettings[acc.email] ?? { spamFilter: true, autoForward: false, forwardTo: "" };
+              const isOpen = settingsOpen === acc.email;
+              return (
+                <div key={acc.email} className="border-b border-border last:border-0">
+                  {/* Main row */}
+                  <div
+                    className={`flex sm:grid items-center gap-3 px-5 py-4 flex-wrap transition-colors ${isOpen ? "bg-primary/[0.025]" : "hover:bg-secondary/30"}`}
+                    style={{ gridTemplateColumns: "1fr 90px 80px 80px 152px" }}
+                  >
+                    {/* Email avatar + info */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shrink-0"
+                        style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.15), rgba(99,102,241,0.1))", color: "#6366F1" }}>
+                        {acc.email.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-foreground truncate">{acc.email}</p>
+                        <p className="text-xs text-muted-foreground">{acc.diskused || "0 MB"} used</p>
+                      </div>
+                    </div>
+
+                    {/* Quota */}
+                    <span className="text-xs font-medium text-muted-foreground bg-secondary/60 border border-border px-2 py-1 rounded-lg shrink-0 hidden sm:inline-block">
+                      {acc.diskquota || "∞"}
+                    </span>
+
+                    {/* Spam badge */}
+                    <div className="hidden sm:block">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                        style={settings.spamFilter
+                          ? { background: "rgba(34,197,94,0.10)", backdropFilter: "blur(8px)", boxShadow: "0 0 8px rgba(34,197,94,0.18)", border: "1px solid rgba(34,197,94,0.28)", color: "#4ade80" }
+                          : { background: "rgba(239,68,68,0.08)", backdropFilter: "blur(8px)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
+                        <Shield size={9} /> {settings.spamFilter ? "ON" : "OFF"}
+                      </span>
+                    </div>
+
+                    {/* Forward badge */}
+                    <div className="hidden sm:block">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                        style={settings.autoForward
+                          ? { background: "rgba(59,130,246,0.10)", backdropFilter: "blur(8px)", boxShadow: "0 0 8px rgba(59,130,246,0.18)", border: "1px solid rgba(59,130,246,0.28)", color: "#60a5fa" }
+                          : { background: "rgba(255,255,255,0.04)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.10)", color: "#6b7280" }}>
+                        {settings.autoForward ? "ON" : "OFF"}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 justify-end ml-auto sm:ml-0">
+                      <button onClick={() => handleWebmailFor(acc.email)} disabled={webmailLoading === acc.email}
+                        title="Quick Login to Webmail"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40">
+                        {webmailLoading === acc.email ? <Loader2 size={13} className="animate-spin" /> : <Globe2 size={13} />}
+                      </button>
+                      <button onClick={() => setSettingsOpen(isOpen ? null : acc.email)} title="Mail Settings"
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isOpen ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}>
+                        <Settings size={13} />
+                      </button>
+                      <button onClick={() => setChangePwd({ email: acc.email, pwd: "" })} title="Change Password"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                        <KeyRound size={13} />
+                      </button>
+                      <button onClick={() => handleDelete(acc.email)} disabled={deleting === acc.email} title="Delete"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40">
+                        {deleting === acc.email ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── Mail Settings Panel ── */}
+                  {isOpen && (
+                    <div className="border-b border-border px-5 py-5"
+                      style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.03) 0%, rgba(99,102,241,0.015) 100%)" }}>
+                      <div className="flex items-center gap-2 mb-4">
+                        <Settings size={13} className="text-primary" />
+                        <p className="text-sm font-bold text-foreground">Mail Settings</p>
+                        <span className="text-xs text-muted-foreground font-mono">— {acc.email}</span>
+                        {savingSettings?.startsWith(acc.email) && (
+                          <Loader2 size={12} className="animate-spin text-primary ml-auto" />
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Spam Protection */}
+                        <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card/60"
+                          style={{ backdropFilter: "blur(8px)" }}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+                              style={settings.spamFilter
+                                ? { background: "rgba(34,197,94,0.12)", boxShadow: "0 0 10px rgba(34,197,94,0.2)" }
+                                : { background: "rgba(239,68,68,0.08)" }}>
+                              <Shield size={16} className={settings.spamFilter ? "text-emerald-400" : "text-red-400"} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">Spam Protection</p>
+                              <p className="text-xs text-muted-foreground">Block junk mail automatically</p>
+                            </div>
+                          </div>
+                          <MailToggle
+                            checked={settings.spamFilter}
+                            loading={savingSettings === acc.email + "spamFilter"}
+                            onChange={v => handleToggleSetting(acc.email, "spamFilter", v)}
+                          />
+                        </div>
+
+                        {/* Auto-Forwarding */}
+                        <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card/60"
+                          style={{ backdropFilter: "blur(8px)" }}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-all"
+                              style={settings.autoForward
+                                ? { background: "rgba(59,130,246,0.12)", boxShadow: "0 0 10px rgba(59,130,246,0.2)" }
+                                : { background: "rgba(255,255,255,0.05)" }}>
+                              <ArrowRight size={16} className={settings.autoForward ? "text-blue-400" : "text-muted-foreground"} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">Auto-Forwarding</p>
+                              <p className="text-xs text-muted-foreground">Forward mail to another address</p>
+                            </div>
+                          </div>
+                          <MailToggle
+                            checked={settings.autoForward}
+                            loading={savingSettings === acc.email + "autoForward"}
+                            onChange={v => handleToggleSetting(acc.email, "autoForward", v)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Forward-to address */}
+                      {settings.autoForward && (
+                        <div className="mt-4">
+                          <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                            <ArrowRight size={11} /> Forward all mail to
+                          </label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="recipient@example.com"
+                              value={settings.forwardTo}
+                              onChange={e => setEmailSettings(prev => ({ ...prev, [acc.email]: { ...settings, forwardTo: e.target.value } }))}
+                              className="flex-1 bg-card"
+                            />
+                            <Button size="sm"
+                              onClick={() => handleSaveForwardTo(acc.email, settings.forwardTo)}
+                              disabled={savingSettings === acc.email + "forwardTo"}
+                              className="bg-primary hover:bg-primary/90 gap-1.5">
+                              {savingSettings === acc.email + "forwardTo" ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
+
+      {/* Change password */}
       {changePwd && (
         <Card>
           <h3 className="font-semibold text-foreground mb-3">Change Password — {changePwd.email}</h3>
           <div className="flex gap-2">
-            <Input type="password" placeholder="New password" value={changePwd.pwd} onChange={e => setChangePwd(c => c ? { ...c, pwd: e.target.value } : null)} className="flex-1" />
+            <Input type="password" placeholder="New password" value={changePwd.pwd}
+              onChange={e => setChangePwd(c => c ? { ...c, pwd: e.target.value } : null)} className="flex-1" />
             <Button onClick={handleChangePwd} disabled={!changePwd.pwd} className="bg-primary hover:bg-primary/90">Update</Button>
             <Button variant="outline" onClick={() => setChangePwd(null)}>Cancel</Button>
           </div>

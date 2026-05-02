@@ -715,17 +715,34 @@ export default function ClientDomains() {
                         <p className="text-sm font-bold text-foreground">Popular domain extensions</p>
                         <p className="text-[10px] text-muted-foreground">Click any TLD to search</p>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {tldPricing.sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)).slice(0, 8).map(t => (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                        {tldPricing.sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)).map(t => (
                           <button key={t.tld}
                             onClick={() => { if (searchInput.trim()) { setTypedTld(t.tld); setSearchQuery(searchInput.trim().split(".")[0]); } else { inputRef.current?.focus(); } }}
-                            className="flex flex-col items-center gap-2 p-4 bg-card border border-border rounded-2xl hover:border-primary/50 hover:shadow-md hover:shadow-primary/5 transition-all group text-center"
+                            className="relative flex flex-col items-center gap-2.5 p-4 rounded-2xl border transition-all group text-center hover:-translate-y-0.5"
+                            style={{
+                              background: "rgba(255,255,255,0.6)",
+                              backdropFilter: "blur(12px)",
+                              borderColor: "rgba(226,232,240,0.8)",
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8)",
+                            }}
+                            onMouseEnter={e => {
+                              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(99,102,241,0.4)";
+                              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(99,102,241,0.12), inset 0 1px 0 rgba(255,255,255,0.8)";
+                            }}
+                            onMouseLeave={e => {
+                              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(226,232,240,0.8)";
+                              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 1px 3px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.8)";
+                            }}
                           >
                             <TldIcon tld={t.tld} />
                             <div>
                               <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{t.tld}</p>
-                              <p className="text-xs font-black text-primary">{formatPrice(t.registrationPrice)}</p>
+                              <p className="text-sm font-black text-primary">{formatPrice(t.registrationPrice)}</p>
                               <p className="text-[9px] text-muted-foreground">/ year</p>
+                              {t.renewalPrice !== t.registrationPrice && (
+                                <p className="text-[9px] text-muted-foreground/70">renews {formatPrice(t.renewalPrice)}</p>
+                              )}
                             </div>
                           </button>
                         ))}
@@ -862,14 +879,14 @@ export default function ClientDomains() {
               const page = Math.min(portfolioPage, totalPages);
               const paged = filtered.slice((page - 1) * DOMAINS_PER_PAGE, page * DOMAINS_PER_PAGE);
 
-              const sMap = {
-                active:      { label: 'Active',      cls: 'bg-green-500/10 text-green-400 border-green-500/20' },
-                expired:     { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
-                pending:     { label: 'Pending',     cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                suspended:   { label: 'Suspended',   cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-                transferred: { label: 'Transferred', cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-                cancelled:   { label: 'Cancelled',   cls: 'bg-secondary text-muted-foreground border-border' },
-                pending_transfer: { label: 'Pending Transfer', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+              const sMap: Record<string, { label: string; style: React.CSSProperties }> = {
+                active:      { label: 'Active',          style: { background: 'rgba(34,197,94,0.10)',  backdropFilter: 'blur(8px)', boxShadow: '0 0 10px rgba(34,197,94,0.20), inset 0 0 6px rgba(34,197,94,0.05)',  border: '1px solid rgba(34,197,94,0.30)',  color: '#4ade80' } },
+                expired:     { label: 'Cancelled',       style: { background: 'rgba(107,114,128,0.10)', backdropFilter: 'blur(8px)', border: '1px solid rgba(107,114,128,0.20)', color: '#9ca3af' } },
+                pending:     { label: 'Pending',         style: { background: 'rgba(245,158,11,0.10)',  backdropFilter: 'blur(8px)', boxShadow: '0 0 8px rgba(245,158,11,0.15)',  border: '1px solid rgba(245,158,11,0.30)',  color: '#fbbf24' } },
+                suspended:   { label: 'Suspended',       style: { background: 'rgba(245,158,11,0.10)',  backdropFilter: 'blur(8px)', boxShadow: '0 0 8px rgba(245,158,11,0.15)',  border: '1px solid rgba(245,158,11,0.30)',  color: '#fbbf24' } },
+                transferred: { label: 'Transferred',     style: { background: 'rgba(59,130,246,0.10)',  backdropFilter: 'blur(8px)', boxShadow: '0 0 8px rgba(59,130,246,0.15)',   border: '1px solid rgba(59,130,246,0.28)',  color: '#60a5fa' } },
+                cancelled:   { label: 'Cancelled',       style: { background: 'rgba(107,114,128,0.10)', backdropFilter: 'blur(8px)', border: '1px solid rgba(107,114,128,0.20)', color: '#9ca3af' } },
+                pending_transfer: { label: 'Pending Transfer', style: { background: 'rgba(168,85,247,0.10)', backdropFilter: 'blur(8px)', boxShadow: '0 0 8px rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.28)', color: '#c084fc' } },
               };
 
               return (
@@ -878,14 +895,14 @@ export default function ClientDomains() {
                     {paged.map((domain) => {
                       const expiryDate = domain.expiryDate ? new Date(domain.expiryDate) : null;
                       const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - Date.now()) / 86400000) : null;
-                      const statusEntry = sMap[domain.status as keyof typeof sMap] ?? { label: domain.status, cls: 'bg-secondary text-muted-foreground border-border' };
+                      const statusEntry = sMap[domain.status as keyof typeof sMap] ?? { label: domain.status, style: { background: 'rgba(107,114,128,0.10)', backdropFilter: 'blur(8px)', border: '1px solid rgba(107,114,128,0.20)', color: '#9ca3af' } };
                       return (
                         <div key={domain.id} className="flex items-center gap-4 px-5 py-4 hover:bg-primary/[0.015] transition-colors group">
                           <TldIcon tld={domain.tld} />
                           <div className="flex-1 min-w-0">
                             <p className="text-base font-bold font-mono text-foreground truncate">{domain.name}{domain.tld}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${statusEntry.cls}`}>{statusEntry.label}</span>
+                              <span className="text-xs px-2.5 py-0.5 rounded-full font-bold" style={statusEntry.style}>{statusEntry.label}</span>
                               {daysLeft !== null && (
                                 <span className={`text-xs font-semibold ${daysLeft < 0 ? 'text-red-400' : daysLeft < 30 ? 'text-red-400' : daysLeft < 90 ? 'text-amber-400' : 'text-green-400'}`}>
                                   {daysLeft < 0 ? `Expired ${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}

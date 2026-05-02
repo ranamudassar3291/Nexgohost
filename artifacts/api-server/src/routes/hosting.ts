@@ -3032,9 +3032,49 @@ router.post("/client/hosting/:id/email/webmail", authenticate, async (req: AuthR
   try {
     const { service, server, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg || !server) return res.status(error === "Service not found" ? 404 : 400).json({ error });
-    // Generate a cPanel session then redirect to webmail
     const sessionUrl = await cpanelCreateUserSession(serverCfg, service!.username!, "webmaild");
     res.json({ url: sessionUrl });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Email Account Settings (spam / forward — stored in our DB) ──────────────
+
+router.get("/client/hosting/:id/email/settings", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !service) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const result = await db.execute(sql`
+      SELECT email,
+             spam_filter   AS "spamFilter",
+             auto_forward  AS "autoForward",
+             forward_to    AS "forwardTo"
+      FROM   email_account_settings
+      WHERE  hosting_service_id = ${service.id}
+    `);
+    res.json({ settings: result.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.put("/client/hosting/:id/email/settings/:emailAddr", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { service, error } = await resolveClientService(req.params.id, req.user!.userId);
+    if (error || !service) return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    const emailAddr = decodeURIComponent(req.params.emailAddr);
+    const { spamFilter = true, autoForward = false, forwardTo = "" } = req.body as {
+      spamFilter?: boolean; autoForward?: boolean; forwardTo?: string;
+    };
+    await db.execute(sql`
+      INSERT INTO email_account_settings
+        (id, hosting_service_id, email, spam_filter, auto_forward, forward_to, created_at, updated_at)
+      VALUES
+        (gen_random_uuid()::text, ${service.id}, ${emailAddr}, ${spamFilter}, ${autoForward}, ${forwardTo || null}, NOW(), NOW())
+      ON CONFLICT (hosting_service_id, email) DO UPDATE SET
+        spam_filter  = ${spamFilter},
+        auto_forward = ${autoForward},
+        forward_to   = ${forwardTo || null},
+        updated_at   = NOW()
+    `);
+    res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

@@ -52,6 +52,22 @@ async function runStartupMigrations() {
       await db.execute(sql.raw(stmt));
     }
     console.log("[MIGRATIONS] cart_items schema up to date");
+
+    // email_account_settings table — persists spam/forward prefs per email address
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS email_account_settings (
+        id TEXT PRIMARY KEY,
+        hosting_service_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        spam_filter BOOLEAN NOT NULL DEFAULT TRUE,
+        auto_forward BOOLEAN NOT NULL DEFAULT FALSE,
+        forward_to TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(hosting_service_id, email)
+      )
+    `);
+    console.log("[MIGRATIONS] email_account_settings table ready");
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
