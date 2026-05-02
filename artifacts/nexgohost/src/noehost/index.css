@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* ── NoeHost Brand Purple #673de6 — unified across all portals ── */
+  --color-primary: #673de6;
+  --color-primary-50:  #f3f0ff;
+  --color-primary-100: #e5dfff;
+  --color-primary-200: #c9bcff;
+  --color-primary-300: #a888f5;
+  --color-primary-400: #8b6ff0;
+  --color-primary-500: #673de6;
+  --color-primary-600: #5228cc;
+  --color-primary-700: #3d1faa;
+  --color-primary-800: #2d1585;
+  --color-primary-900: #1d0a60;
+  --color-secondary: #0e0e11;
+  --color-dark: #050505;
+  --color-accent: #00d1ff;
+  --color-surface: #ffffff;
+}
+
+@layer base {
+  body {
+    @apply bg-dark text-slate-300 antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+.glass-header {
+  @apply bg-secondary/90 backdrop-blur-2xl border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)];
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s ease-in-out infinite;
+}
+
+.hero-mesh {
+  @apply relative bg-secondary overflow-hidden;
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(255, 78%, 57%, 0.3) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(255, 78%, 57%, 0.2) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, hsla(255, 78%, 57%, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, hsla(190, 100%, 50%, 0.1) 0px, transparent 40%);
+}
+
+.tech-grid {
+  background-size: 60px 60px;
+  background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), 
+                    linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+}
+
+.card-shadow {
+  @apply shadow-[0_8px_30px_rgb(0,0,0,0.04)];
+}
+
+.card-shadow-hover {
+  @apply transition-all duration-300 hover:shadow-[0_20px_40px_rgba(103,61,230,0.1)] hover:-translate-y-1;
+}
+
+.badge-ai {
+  @apply px-2 py-0.5 bg-primary-100 text-primary text-[10px] font-bold rounded uppercase tracking-wider;
+}
+
+.badge-popular {
+  @apply px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase tracking-wider;
+}
+
+.badge-new {
+  @apply px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase tracking-wider;
+}
+
+.markdown-body {
+  @apply space-y-4;
+}
+
+.markdown-body p {
+  @apply leading-relaxed;
+}
+
+.markdown-body ul {
+  @apply list-disc list-inside space-y-1;
+}
+
+.markdown-body ol {
+  @apply list-decimal list-inside space-y-1;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  @apply font-bold mt-4 mb-2;
+}
+
+.markdown-body strong {
+  @apply font-bold text-slate-900;
+}

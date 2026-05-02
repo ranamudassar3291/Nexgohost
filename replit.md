@@ -87,9 +87,12 @@ Backend helpers: `artifacts/api-server/src/lib/cpanel.ts`
   - Cards: white with subtle border
   - Font: "Plus Jakarta Sans"
 - **Homepage** (`src/pages/public/Homepage.tsx`) — Full dark-themed noehost marketing homepage with TopBar, Navbar, Hero, Pricing, ControlEfficiency, FeatureShowcase, Promo, Services, Features, CTA, FAQ, Testimonials, Footer, WhatsApp, ChatBot.
-- **Marketing sub-pages**: `/shared-hosting`, `/wordpress-hosting`, `/reseller-hosting`, `/domains`, `/about-us`, `/contact-us`, `/privacy-policy`, `/terms-and-conditions`, `/refund-policy` — all use noehost dark design with `HostingPageLayout`.
-- **Component tree**: `src/pages/public/noehost/` — 38 components including Navbar, TopBar, Hero, Pricing, ChatBot (react-markdown), DomainChecker, Footer, and all legal/about/contact pages.
-- **ContentContext** (`src/context/ContentContext.tsx`) — polls `GET /api/content` every 60s; admin updates via `POST /api/admin/content`.
+- **Marketing sub-pages**: `/shared-hosting`, `/wordpress-hosting`, `/reseller-hosting`, `/vps-hosting`, `/domains`, `/about-us`, `/about`, `/contact-us`, `/contact`, `/server-status` — all use noehost dark design with `NoeHostLayout`.
+- **Component tree**: `src/noehost/` — 114 files extracted from original noehost website, including Navbar, TopBar, Hero, Pricing, CartSidebar, ChatBot, DomainChecker, Footer, and all hosting/about/contact/legal pages.
+- **Noehost Layout** (`src/pages/public/NoeHostLayout.tsx`) — wraps marketing pages with noehost's ContentProvider (Firebase CMS), CurrencyProvider, CartProvider, Navbar, Footer.
+- **Firebase CMS**: Marketing website content (hero text, pricing, navbar links, etc.) is fetched from Firebase Realtime Database (`noehost-7c4d8`). Falls back to Express `/api/content` if Firebase unavailable.
+- **ContentContext (noehost)** (`src/noehost/ContentContext.tsx`) — loads from Firebase first; seeds from Express API if Firebase is empty; real-time sync with onValue listener.
+- **Vite aliases**: `react-router-dom` → `src/noehost/router-shim.tsx` (wouter compat layer); `motion/react` → `src/noehost/motion-shim.ts` (framer-motion re-export). No source file changes needed.
 - **CurrencyContext** — `useCurrency()` returns `{ currency, setCurrency, currencies, loading, formatPrice, convert }`. The `convert(usdAmount)` converts USD to current currency.
 - CSS variables defined in `:root` in `src/index.css`.
 

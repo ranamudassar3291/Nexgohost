@@ -83,6 +83,17 @@ import PrivacyPolicy from "@/pages/public/PrivacyPolicy";
 import RefundPolicy from "@/pages/public/RefundPolicy";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
+// ── Noehost marketing pages ──
+import NoeHostLayout from "@/pages/public/NoeHostLayout";
+import NoeSharedHosting from "@/noehost/components/pages/SharedHosting";
+import NoeWordPressHosting from "@/noehost/components/pages/WordPressHosting";
+import NoeResellerHosting from "@/noehost/components/pages/ResellerHosting";
+import NoeVPSHosting from "@/noehost/components/pages/VPSHosting";
+import NoeDomains from "@/noehost/components/pages/Domains";
+import NoeAboutUs from "@/noehost/components/pages/AboutUs";
+import NoeContactUs from "@/noehost/components/pages/ContactUs";
+import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
+
 import { queryClient } from "@/lib/query-client";
 
 // ─── Auth Guard Helpers ───────────────────────────────────────────────────────
@@ -533,16 +544,37 @@ function RouterRoot() {
       <Route path="/admin/domain-extensions">
         <Redirect to="/admin/domains?tab=extensions" />
       </Route>
-      {/* ── Public hosting / marketing pages — redirect to login ── */}
-      <Route path="/shared-hosting"><Redirect to="/client/login" /></Route>
-      <Route path="/wordpress-hosting"><Redirect to="/client/login" /></Route>
-      <Route path="/reseller-hosting"><Redirect to="/client/login" /></Route>
-      <Route path="/vps-hosting"><Redirect to="/client/login" /></Route>
-      <Route path="/domains"><Redirect to="/client/login" /></Route>
-      <Route path="/about-us"><Redirect to="/client/login" /></Route>
-      <Route path="/about"><Redirect to="/client/login" /></Route>
-      <Route path="/contact-us"><Redirect to="/client/login" /></Route>
-      <Route path="/contact"><Redirect to="/client/login" /></Route>
+      {/* ── Noehost public marketing pages ── */}
+      <Route path="/shared-hosting">
+        <NoeHostLayout><NoeSharedHosting /></NoeHostLayout>
+      </Route>
+      <Route path="/wordpress-hosting">
+        <NoeHostLayout><NoeWordPressHosting /></NoeHostLayout>
+      </Route>
+      <Route path="/reseller-hosting">
+        <NoeHostLayout><NoeResellerHosting /></NoeHostLayout>
+      </Route>
+      <Route path="/vps-hosting">
+        <NoeHostLayout><NoeVPSHosting /></NoeHostLayout>
+      </Route>
+      <Route path="/domains">
+        <NoeHostLayout><NoeDomains /></NoeHostLayout>
+      </Route>
+      <Route path="/about-us">
+        <NoeHostLayout><NoeAboutUs /></NoeHostLayout>
+      </Route>
+      <Route path="/about">
+        <NoeHostLayout><NoeAboutUs /></NoeHostLayout>
+      </Route>
+      <Route path="/contact-us">
+        <NoeHostLayout><NoeContactUs /></NoeHostLayout>
+      </Route>
+      <Route path="/contact">
+        <NoeHostLayout><NoeContactUs /></NoeHostLayout>
+      </Route>
+      <Route path="/server-status">
+        <NoeHostLayout><NoeServerStatus /></NoeHostLayout>
+      </Route>
 
       {/* ── Legal pages ── */}
       <Route path="/privacy-policy"      component={PrivacyPolicy}  />

@@ -55,6 +55,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      "react-router-dom": path.resolve(import.meta.dirname, "src/noehost/router-shim.tsx"),
+      "motion/react": path.resolve(import.meta.dirname, "src/noehost/motion-shim.ts"),
     },
     dedupe: ["react", "react-dom"],
   },
