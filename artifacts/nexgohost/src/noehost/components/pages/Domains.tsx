@@ -84,11 +84,11 @@ const Domains: React.FC = () => {
       </section>
 
       {/* TLD PRICING TABLE */}
-      <section className="bg-white py-20">
+      <section className="bg-dark py-20">
         <div className="container mx-auto px-6 max-w-5xl">
           <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-black text-slate-900 mb-3">Domain Pricing</h2>
-            <p className="text-slate-500 text-base font-medium">Transparent, affordable pricing. Prices in your local currency — no hidden fees.</p>
+            <h2 className="text-3xl lg:text-4xl font-black text-white mb-3">Domain Pricing</h2>
+            <p className="text-slate-400 text-base font-medium">Transparent, affordable pricing. Prices in your local currency — no hidden fees.</p>
           </div>
 
           {tldLoading ? (
@@ -109,7 +109,7 @@ const Domains: React.FC = () => {
                   <div
                     key={tld.ext}
                     className={`relative p-5 rounded-2xl border text-center transition-all hover:shadow-lg ${
-                      isPopular ? 'border-primary/40 bg-primary/5 shadow-sm' : 'border-slate-200 bg-white hover:border-primary/20'
+                      isPopular ? 'border-primary/40 bg-primary/10 shadow-sm shadow-primary/20' : 'border-white/10 bg-white/5 hover:border-primary/30 hover:bg-white/8'
                     }`}
                   >
                     {badge && (
@@ -117,7 +117,7 @@ const Domains: React.FC = () => {
                         <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-primary text-white whitespace-nowrap">{badge}</span>
                       </div>
                     )}
-                    <div className="text-2xl font-black text-slate-800 mb-2">{tld.ext}</div>
+                    <div className="text-2xl font-black text-white mb-2">{tld.ext}</div>
                     <div className="mb-1">
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Register</span>
                       <div className="text-lg font-black text-primary">{fmt(tld.register)}<span className="text-xs font-medium text-slate-400">/yr</span></div>

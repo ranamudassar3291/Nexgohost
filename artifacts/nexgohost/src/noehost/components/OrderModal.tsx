@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Zap, ArrowRight } from 'lucide-react';
+import { X, Zap, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useCurrency } from '../CurrencyContext';
 
 export interface OrderPlan {
@@ -95,11 +95,6 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
 
   const handleProceed = () => {
     const dest = `/client/order/add/${encodeURIComponent(plan.id)}?cycle=${cycle}`;
-    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
-    if (!token) {
-      window.location.href = `/client/login?redirect=${encodeURIComponent(dest)}`;
-      return;
-    }
     window.location.href = dest;
   };
 
@@ -183,7 +178,14 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
               )}
             </div>
 
-            <div className="px-6 py-5 flex gap-3">
+            <div className="px-6 pt-3 pb-2">
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium justify-center">
+                <ShieldCheck size={13} className="text-emerald-500" />
+                Login or create a free account at checkout — no account needed to browse
+              </div>
+            </div>
+
+            <div className="px-6 pb-5 pt-2 flex gap-3">
               <button
                 onClick={onClose}
                 className="flex-shrink-0 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-black text-sm hover:bg-slate-50 transition-all"
@@ -194,7 +196,7 @@ const OrderModal: React.FC<OrderModalProps> = ({ plan, onClose }) => {
                 onClick={handleProceed}
                 className="flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 bg-primary hover:bg-primary-600 text-white shadow-lg shadow-primary/30 transition-all"
               >
-                Proceed to Checkout <ArrowRight size={15} />
+                Continue to Checkout <ArrowRight size={15} />
               </button>
             </div>
           </motion.div>

@@ -244,22 +244,22 @@ const VPSHosting: React.FC = () => {
 
       {/* USE CASES */}
       {useCases.length > 0 && (
-        <section className="py-20 bg-white">
+        <section className="py-20 bg-dark">
           <div className="container mx-auto px-6">
             <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Use Cases</div>
-              <h2 className="text-4xl font-black text-slate-900 mb-3">{pg.useCasesTitle || 'What Will You Build?'}</h2>
-              <p className="text-slate-500 font-medium max-w-lg mx-auto">{pg.useCasesDesc || ''}</p>
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Use Cases</div>
+              <h2 className="text-4xl font-black text-white mb-3">{pg.useCasesTitle || 'What Will You Build?'}</h2>
+              <p className="text-slate-400 font-medium max-w-lg mx-auto">{pg.useCasesDesc || ''}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {useCases.map((uc: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} whileHover={{ scale: 1.02 }}
-                  className="p-6 bg-white rounded-2xl border border-slate-200 hover:border-primary/40 shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+                  className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/40 hover:bg-white/8 transition-all group">
+                  <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
                     {UC_ICONS[uc.title] || DEFAULT_ICON}
                   </div>
-                  <h3 className="text-base font-black text-slate-900 mb-2">{uc.title}</h3>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">{uc.desc}</p>
+                  <h3 className="text-base font-black text-white mb-2">{uc.title}</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">{uc.desc}</p>
                 </motion.div>
               ))}
             </div>

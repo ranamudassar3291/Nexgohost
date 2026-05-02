@@ -39,15 +39,24 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
   const updateContent = async (key: string, value: any) => {
     try {
-      await fetch("/api/admin/content", {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch("/api/admin/content", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({ key, value }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
       setContent((prev: any) => ({ ...prev, [key]: value }));
     } catch (err) {
       console.warn("[CMS] Content update failed:", err);
+      throw err;
     }
   };
 

@@ -301,22 +301,22 @@ const ResellerHosting: React.FC = () => {
 
       {/* FEATURES */}
       {features.length > 0 && (
-        <section className="py-20 bg-white">
+        <section className="py-20 bg-dark">
           <div className="container mx-auto px-6">
             <div className="text-center mb-12">
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Platform Features</div>
-              <h2 className="text-4xl font-black text-slate-900 mb-3">{pg.featuresTitle || 'Everything You Need to Resell'}</h2>
-              <p className="text-slate-500 font-medium max-w-xl mx-auto">{pg.featuresDesc || ''}</p>
+              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Platform Features</div>
+              <h2 className="text-4xl font-black text-white mb-3">{pg.featuresTitle || 'Everything You Need to Resell'}</h2>
+              <p className="text-slate-400 font-medium max-w-xl mx-auto">{pg.featuresDesc || ''}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {features.map((f: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} whileHover={{ y: -5 }}
-                  className="p-6 bg-white rounded-2xl border border-slate-200 hover:border-primary/40 shadow-sm hover:shadow-md transition-all group">
-                  <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+                  className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/40 hover:bg-white/8 transition-all group">
+                  <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
                     {featIcons[f.title] || <Zap size={22} />}
                   </div>
-                  <h3 className="text-base font-black text-slate-900 mb-2">{f.title}</h3>
-                  <p className="text-sm text-slate-500 font-medium leading-relaxed">{f.desc}</p>
+                  <h3 className="text-base font-black text-white mb-2">{f.title}</h3>
+                  <p className="text-sm text-slate-400 font-medium leading-relaxed">{f.desc}</p>
                 </motion.div>
               ))}
             </div>
