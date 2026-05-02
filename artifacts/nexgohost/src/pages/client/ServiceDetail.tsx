@@ -597,7 +597,56 @@ function SectionEmail({ service }: { service: Service }) {
         {loadingList ? (
           <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-muted-foreground" /></div>
         ) : accounts.length === 0 ? (
-          <EmptyState icon={Mail} title="No email accounts" description="Create your first email account above" />
+          <div className="relative overflow-hidden rounded-2xl border border-dashed border-primary/25 p-8"
+            style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(99,102,241,0.02) 100%)" }}>
+            <div className="absolute top-0 right-0 w-40 h-40 opacity-[0.04]"
+              style={{ background: "radial-gradient(circle, #6366F1 0%, transparent 70%)", transform: "translate(20%, -20%)" }} />
+            <div className="flex items-start gap-5">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
+                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                <AtSign size={24} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-foreground text-base leading-snug">
+                  Professionalize your brand with custom email
+                  {service.domain && (
+                    <> for <span className="text-primary font-mono">{service.domain}</span></>
+                  )}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+                  Custom email addresses build trust and credibility — clients remember{" "}
+                  <span className="font-medium text-foreground">you@{service.domain || "yourdomain.com"}</span> more than a generic inbox.
+                </p>
+                <div className="flex items-center gap-4 mt-4 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
+                      <ShieldCheck size={11} className="text-emerald-500" />
+                    </div>
+                    Spam-filtered inbox
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center">
+                      <Zap size={11} className="text-primary" />
+                    </div>
+                    Webmail access included
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="w-5 h-5 rounded-md bg-amber-500/10 flex items-center justify-center">
+                      <AtSign size={11} className="text-amber-500" />
+                    </div>
+                    Multiple addresses
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="mt-5 inline-flex items-center gap-2 h-9 px-5 rounded-xl text-sm font-semibold text-white shadow-md hover:opacity-90 transition-opacity"
+                  style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                >
+                  <Plus size={14} /> Create Your First Email
+                </button>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="divide-y divide-border">
             {accounts.map(acc => (

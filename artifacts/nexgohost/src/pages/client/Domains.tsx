@@ -8,6 +8,7 @@ import {
   Server, Plus, Minus, Save, Key, Copy, CheckCheck, ArrowLeft, ClipboardList,
   ArrowRightLeft, ShieldCheck, Lock, Network, Settings, Receipt,
   Tag, Wallet, CreditCard, Smartphone, Landmark, Sparkles,
+  Mail, HardDrive, Wifi, Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -209,6 +210,7 @@ export default function ClientDomains() {
   const [cardTab, setCardTab] = useState<Record<string, "overview" | "security">>({});
   const [portfolioSearch, setPortfolioSearch] = useState("");
   const [portfolioPage, setPortfolioPage] = useState(1);
+  const [upsellDomain, setUpsellDomain] = useState<MyDomain | null>(null);
   const DOMAINS_PER_PAGE = 50;
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -226,6 +228,16 @@ export default function ClientDomains() {
     queryFn: () => apiFetch("/api/client/hosting"),
     retry: false,
   });
+
+  const { data: publicPackages = [] } = useQuery<Array<{
+    id: string; name: string; price: number; diskSpace: string;
+    bandwidth: string; emailAccounts?: string; features?: string[];
+  }>>({
+    queryKey: ["public-packages-upsell"],
+    queryFn: () => fetch("/api/packages").then(r => r.json()),
+    staleTime: 3_600_000,
+  });
+  const bestSharedPlan = publicPackages.find(p => !/vps/i.test(p.name) && !/virtual\s*private/i.test(p.name)) ?? null;
 
   const { data: rawTldPricing } = useQuery({
     queryKey: ["domain-tlds-pricing"],
@@ -882,6 +894,16 @@ export default function ClientDomains() {
                             </div>
                           </div>
                           <ExpiryRing daysLeft={daysLeft} registrationDate={domain.registrationDate} size={42} />
+                          {domain.status === "active" && !domainHasHosting(domain) && (
+                            <button
+                              onClick={() => setUpsellDomain(domain)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-dashed border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 hover:border-primary/60 transition-all shrink-0"
+                              title="No hosting linked to this domain"
+                            >
+                              <Server size={12} />
+                              + Add Hosting
+                            </button>
+                          )}
                           {domain.canManage !== false ? (
                             <button
                               onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
@@ -1025,6 +1047,135 @@ export default function ClientDomains() {
           onReview={handleGoToReview}
           total={getCartTotal(cart)}
         />
+      )}
+
+      {/* ─── Add Hosting Upsell Modal ─── */}
+      {upsellDomain && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setUpsellDomain(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Gradient accent header */}
+            <div className="relative px-6 pt-6 pb-5 border-b border-border overflow-hidden">
+              <div className="absolute inset-0 opacity-[0.06]"
+                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }} />
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-md"
+                    style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                    <Server size={22} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground text-base leading-tight">Add Web Hosting</p>
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                      {upsellDomain.name}{upsellDomain.tld}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setUpsellDomain(null)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="relative text-sm text-muted-foreground mt-3 leading-relaxed">
+                This domain doesn't have hosting yet. Host your website files and make{" "}
+                <span className="font-medium text-foreground font-mono">
+                  {upsellDomain.name}{upsellDomain.tld}
+                </span>{" "}
+                live in minutes.
+              </p>
+            </div>
+
+            {/* Plan card */}
+            <div className="p-6">
+              {bestSharedPlan ? (
+                <div className="rounded-2xl border border-primary/25 p-5 relative overflow-hidden"
+                  style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(99,102,241,0.02) 100%)" }}>
+                  <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.05]"
+                    style={{ background: "radial-gradient(circle, #6366F1 0%, transparent 70%)" }} />
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white"
+                          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="font-bold text-foreground text-base">{bestSharedPlan.name}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-2xl font-black text-primary leading-none">
+                        {formatPrice(bestSharedPlan.price)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">/month</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-5">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <HardDrive size={11} className="text-primary" />
+                      </div>
+                      {bestSharedPlan.diskSpace} Storage
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Wifi size={11} className="text-primary" />
+                      </div>
+                      {bestSharedPlan.bandwidth} Bandwidth
+                    </div>
+                    {bestSharedPlan.emailAccounts && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <Mail size={11} className="text-emerald-500" />
+                        </div>
+                        {bestSharedPlan.emailAccounts} Email Accounts
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                        <ShieldCheck size={11} className="text-emerald-500" />
+                      </div>
+                      Free SSL Certificate
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setUpsellDomain(null);
+                      navigate(`/client/orders/new?plan=${bestSharedPlan.id}&domain=${encodeURIComponent(upsellDomain.name + upsellDomain.tld)}`);
+                    }}
+                    className="w-full h-11 rounded-xl text-sm font-bold text-white shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                    style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                  >
+                    <Zap size={15} />
+                    Get Hosting for {upsellDomain.name}{upsellDomain.tld}
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-border p-5 text-center">
+                  <Server size={28} className="text-muted-foreground mx-auto mb-3 opacity-40" />
+                  <p className="font-semibold text-foreground text-sm">Browse Hosting Plans</p>
+                  <p className="text-xs text-muted-foreground mt-1">Find the right plan for your needs.</p>
+                  <button
+                    onClick={() => { setUpsellDomain(null); navigate("/client/orders/new"); }}
+                    className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold text-white inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                  >
+                    <Sparkles size={13} /> View All Plans
+                  </button>
+                </div>
+              )}
+              <p className="text-center text-[11px] text-muted-foreground mt-4">
+                No setup fees · Cancel anytime · 99.9% uptime SLA
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ─── Manage Domain Modal ─── */}
