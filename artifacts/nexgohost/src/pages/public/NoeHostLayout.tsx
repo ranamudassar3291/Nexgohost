@@ -51,7 +51,7 @@ export default function NoeHostLayout({ children }: NoeHostLayoutProps) {
     <ContentProvider>
       <CurrencyProvider>
         <CartProvider>
-          <div className="min-h-screen flex flex-col selection:bg-primary/30">
+          <div className="noehost-public min-h-screen flex flex-col selection:bg-primary/30 bg-[#050505]">
             <NoeHostInner>{children}</NoeHostInner>
           </div>
         </CartProvider>

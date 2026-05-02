@@ -39,6 +39,27 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
   };
 }
 
+// Public: list active packages by group slug (used in noehost marketing pages)
+router.get("/packages/group/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const plans = await db.select().from(hostingPlansTable)
+      .where(eq(hostingPlansTable.isActive, true))
+      .orderBy(sql`price ASC`);
+    // Filter by groupId matching the slug
+    const filtered = plans.filter(p =>
+      p.groupId && (
+        p.groupId.toLowerCase() === slug.toLowerCase() ||
+        p.groupId.toLowerCase().replace(/[^a-z0-9]/g, '-') === slug.toLowerCase()
+      )
+    );
+    res.json(filtered.map(formatPlan));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Public: list active packages (used in client new order page)
 router.get("/packages", async (_req, res) => {
   try {
