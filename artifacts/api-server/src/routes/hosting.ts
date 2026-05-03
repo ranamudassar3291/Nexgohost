@@ -1871,7 +1871,25 @@ router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, r
         return res.json({ source: "cached", diskUsed: service.diskUsed, diskPct: 0, bwUsed: service.bandwidthUsed, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
       }
     } catch { /* ignore */ }
-    res.json({ source: "error", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
+    const [fallback] = await db.select({
+      diskUsed: hostingServicesTable.diskUsed,
+      bandwidthUsed: hostingServicesTable.bandwidthUsed,
+      usageCache: hostingServicesTable.usageCache,
+    }).from(hostingServicesTable).where(eq(hostingServicesTable.id, req.params.id)).limit(1);
+    if (fallback?.usageCache) {
+      try {
+        return res.json({ source: "cached", ...JSON.parse(fallback.usageCache) });
+      } catch {}
+    }
+    return res.json({
+      source: "error",
+      diskUsed: fallback?.diskUsed ?? null,
+      diskPct: 0,
+      bwUsed: fallback?.bandwidthUsed ?? null,
+      bwPct: 0,
+      diskUnlimited: false,
+      bwUnlimited: false,
+    });
   }
 });
 

@@ -216,7 +216,7 @@ function MgmtUnavailable({ message, onRetry }: { message: string; onRetry?: () =
     : isNoUser ? "Account not provisioned"
     : isNoServer ? "Server not configured"
     : isAuth ? "Server authentication error"
-    : "Management unavailable";
+    : "Temporary issue";
 
   const detail = isStatus
     ? "This service is not in an active state. Management features are only available for active services."
@@ -228,7 +228,7 @@ function MgmtUnavailable({ message, onRetry }: { message: string; onRetry?: () =
     ? "No WHM/cPanel server is linked to this account. Please contact support."
     : isAuth
     ? "The server API token is invalid or lacks permission. Please contact support to re-link the server credentials."
-    : message;
+    : "We couldn't load this section right now. Your saved data is still available.";
 
   return (
     <Card className="flex items-start gap-4">
