@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
-import { AiChatWidget } from "@/components/AiChatWidget";
+import NoeChat from "@/components/NoeChat";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { useQuery } from "@tanstack/react-query";
 
@@ -756,7 +756,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         )}
       </main>
 
-      {isClient && <AiChatWidget />}
+      {isClient && <NoeChat />}
       {isClient && <FeedbackWidget />}
 
       {/* ── Contextual Help Drawer ── */}

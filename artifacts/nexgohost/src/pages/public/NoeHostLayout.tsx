@@ -5,7 +5,7 @@ import { CartProvider } from '@/noehost/context/CartContext';
 import Navbar from '@/noehost/components/Navbar';
 import TopBar from '@/noehost/components/TopBar';
 import Footer from '@/noehost/components/Footer';
-import ChatBot from '@/noehost/components/ChatBot';
+import NoeChat from '@/components/NoeChat';
 import CartSidebar from '@/noehost/components/CartSidebar';
 
 interface NoeHostLayoutProps {
@@ -35,7 +35,7 @@ function NoeHostInner({ children }: NoeHostLayoutProps) {
         {children}
       </main>
       <Footer />
-      <ChatBot />
+      <NoeChat />
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className="fixed bottom-28 right-8 w-12 h-12 bg-slate-900/10 hover:bg-slate-900/20 backdrop-blur-md rounded-full flex items-center justify-center text-slate-600 transition-all z-[100]"

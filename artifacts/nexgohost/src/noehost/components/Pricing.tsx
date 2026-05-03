@@ -112,7 +112,7 @@ const Pricing: React.FC = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto mt-4">
           {plans.map((plan: any, i: number) => (
             <motion.div
               key={i}
@@ -121,14 +121,14 @@ const Pricing: React.FC = () => {
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
               whileHover={{ y: -4 }}
-              className={`relative flex flex-col p-7 rounded-[28px] border-2 transition-all duration-300 card-shine ${
+              className={`relative flex flex-col p-6 rounded-2xl border transition-all duration-300 ${
                 plan.popular
-                  ? 'border-primary scale-105 z-10 shadow-2xl shadow-primary/25 bg-gradient-to-b from-primary/10 to-white/5 plan-popular-glow'
-                  : 'border-white/10 bg-white/5 hover:border-primary/40 hover:bg-white/8 hover:shadow-xl hover:shadow-primary/10'
+                  ? 'border-primary/60 z-10 shadow-2xl shadow-primary/20 bg-[#0d0d2b] mt-0'
+                  : 'border-white/10 bg-[#0a0a1f] hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10'
               }`}
             >
               {plan.popular && (
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-primary text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl shadow-primary/30">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/30 whitespace-nowrap">
                   Most Popular
                 </div>
               )}
