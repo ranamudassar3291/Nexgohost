@@ -202,6 +202,52 @@ function NotAvailable({ reason }: { reason: string }) {
   );
 }
 
+function MgmtUnavailable({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const isNoServer = message.toLowerCase().includes("no whm") || message.toLowerCase().includes("no cpanel");
+  const isNoUser = message.toLowerCase().includes("username") || message.toLowerCase().includes("no cpanel username");
+  const is20i = message.toLowerCase().includes("20i");
+  const isStatus = message.toLowerCase().includes("management unavailable");
+
+  const title = isStatus ? "Service not active"
+    : is20i ? "Not available for this plan"
+    : isNoUser ? "Account not provisioned"
+    : isNoServer ? "Server not configured"
+    : "Management unavailable";
+
+  const detail = isStatus
+    ? "This service is not in an active state. Management features are only available for active services."
+    : is20i
+    ? "This feature is managed through the 20i control panel. Contact support for assistance."
+    : isNoUser
+    ? "This hosting account has not been provisioned yet or is missing configuration. Please contact support."
+    : isNoServer
+    ? "No WHM/cPanel server is linked to this account. Please contact support."
+    : message;
+
+  return (
+    <Card className="flex items-start gap-4">
+      <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+        <AlertTriangle size={19} className="text-amber-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-foreground">{title}</p>
+        <p className="text-sm text-muted-foreground mt-1">{detail}</p>
+        <div className="flex items-center gap-3 mt-3">
+          {onRetry && (
+            <Button size="sm" variant="outline" onClick={onRetry} className="gap-1.5">
+              <RefreshCw size={12} /> Retry
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => window.location.href = "/client/support/new"}
+            className="gap-1.5 text-muted-foreground">
+            <TicketCheck size={12} /> Contact Support
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: OVERVIEW
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -518,6 +564,7 @@ function SectionEmail({ service }: { service: Service }) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [mgmtError, setMgmtError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", quota: "250" });
@@ -533,10 +580,11 @@ function SectionEmail({ service }: { service: Service }) {
 
   async function loadAccounts() {
     setLoadingList(true);
+    setMgmtError(null);
     try {
       const d = await apiFetch(`/client/hosting/${service.id}/email`);
       setAccounts(d.accounts || []);
-    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    } catch (e: any) { setMgmtError(e.message); }
     finally { setLoadingList(false); }
   }
 
@@ -630,6 +678,13 @@ function SectionEmail({ service }: { service: Service }) {
   }
 
   if (!isWHM) return <NotAvailable reason="Email management is available on WHM/cPanel servers. This hosting account uses a different server type — contact support for help." />;
+
+  if (mgmtError) return (
+    <div className="space-y-5">
+      <SectionHeader title="Email Accounts" description="Manage email accounts for your hosting" />
+      <MgmtUnavailable message={mgmtError} onRetry={() => { loadAccounts(); loadSettings(); }} />
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -929,6 +984,7 @@ function SectionDatabases({ service }: { service: Service }) {
   const { toast } = useToast();
   const [dbs, setDbs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mgmtError, setMgmtError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ suffix: "", password: "" });
@@ -939,8 +995,9 @@ function SectionDatabases({ service }: { service: Service }) {
 
   async function loadDbs() {
     setLoading(true);
+    setMgmtError(null);
     try { const d = await apiFetch(`/client/hosting/${service.id}/databases`); setDbs(d.databases || []); }
-    catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    catch (e: any) { setMgmtError(e.message); }
     finally { setLoading(false); }
   }
 
@@ -976,6 +1033,13 @@ function SectionDatabases({ service }: { service: Service }) {
   }
 
   if (!isWHM) return <NotAvailable reason="Database management is available on WHM/cPanel servers. This hosting account uses a different server type — contact support for assistance." />;
+
+  if (mgmtError) return (
+    <div className="space-y-5">
+      <SectionHeader title="Databases" description="MySQL databases for your hosting account" />
+      <MgmtUnavailable message={mgmtError} onRetry={loadDbs} />
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -1072,6 +1136,7 @@ function SectionFiles({ service }: { service: Service }) {
   const [currentPath, setCurrentPath] = useState("public_html");
   const [items, setItems] = useState<FsItem[]>([]);
   const [loadingDir, setLoadingDir] = useState(false);
+  const [mgmtError, setMgmtError] = useState<string | null>(null);
   const [editFile, setEditFile] = useState<{ path: string; content: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [showMkdir, setShowMkdir] = useState(false);
@@ -1079,6 +1144,7 @@ function SectionFiles({ service }: { service: Service }) {
   const [mkdiring, setMkdiring] = useState(false);
   const [uploading, setUploading] = useState(false);
   const uploadRef = useRef<HTMLInputElement | null>(null);
+  const isInitialLoad = useRef(true);
 
   async function loadDir(path: string) {
     setLoadingDir(true);
@@ -1088,11 +1154,15 @@ function SectionFiles({ service }: { service: Service }) {
       if (!res.ok) throw new Error(d.error || "Failed to list directory");
       setItems(d.items || []);
       setCurrentPath(path);
-    } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
-    finally { setLoadingDir(false); }
+      setMgmtError(null);
+    } catch (e: any) {
+      if (isInitialLoad.current) setMgmtError(e.message);
+      else toast({ description: e.message, variant: "destructive" });
+    }
+    finally { setLoadingDir(false); isInitialLoad.current = false; }
   }
 
-  useEffect(() => { if (isWHM) loadDir("public_html"); }, [service.id]);
+  useEffect(() => { isInitialLoad.current = true; if (isWHM) loadDir("public_html"); }, [service.id]);
 
   function navigateTo(path: string) { setEditFile(null); loadDir(path); }
 
@@ -1180,6 +1250,13 @@ function SectionFiles({ service }: { service: Service }) {
   const breadcrumbs = currentPath.split("/").filter(Boolean);
 
   if (!isWHM) return <NotAvailable reason="File Manager is available on WHM/cPanel servers. This account uses a different server type." />;
+
+  if (mgmtError) return (
+    <div className="space-y-5">
+      <SectionHeader title="File Manager" description="Browse and manage your hosting files" />
+      <MgmtUnavailable message={mgmtError} onRetry={() => { isInitialLoad.current = true; loadDir("public_html"); }} />
+    </div>
+  );
 
   if (editFile) {
     return (
@@ -1419,14 +1496,16 @@ function SectionSSH({ service }: { service: Service }) {
   const { toast } = useToast();
   const [status, setStatus] = useState<{ enabled: boolean; shell: string; host?: string; port?: number; user?: string; loginCmd?: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mgmtError, setMgmtError] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
 
   const isWHM = !service.twentyIPackageId;
 
   async function loadStatus() {
     setLoading(true);
+    setMgmtError(null);
     try { const d = await apiFetch(`/client/hosting/${service.id}/ssh`); setStatus(d); }
-    catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
+    catch (e: any) { setMgmtError(e.message); }
     finally { setLoading(false); }
   }
 
@@ -1444,6 +1523,13 @@ function SectionSSH({ service }: { service: Service }) {
   }
 
   if (!isWHM) return <NotAvailable reason="SSH access management is available on WHM/cPanel servers. This account uses a different server type." />;
+
+  if (mgmtError) return (
+    <div className="space-y-5">
+      <SectionHeader title="SSH Access" description="Secure Shell access to your hosting account" />
+      <MgmtUnavailable message={mgmtError} onRetry={loadStatus} />
+    </div>
+  );
 
   return (
     <div className="space-y-5">

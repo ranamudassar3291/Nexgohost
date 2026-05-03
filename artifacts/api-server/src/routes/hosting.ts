@@ -2887,63 +2887,6 @@ router.delete("/admin/hosting/:id", authenticate, requireAdmin, async (req: Auth
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// ─── GET /api/client/hosting/:id/usage — Disk & Bandwidth usage for client dashboard ─
-router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const [service] = await db.select().from(hostingServicesTable)
-      .where(eq(hostingServicesTable.id, id)).limit(1);
-    if (!service) { res.status(404).json({ error: "Service not found" }); return; }
-    if (service.clientId !== req.user!.userId && req.user!.role !== "admin") {
-      res.status(403).json({ error: "Forbidden" }); return;
-    }
-
-    // Parse disk & bandwidth from stored strings (e.g. "250 MB" / "1.5 GB")
-    function parseMB(val: string | null | undefined): number {
-      if (!val) return 0;
-      const num = parseFloat(val);
-      if (isNaN(num)) return 0;
-      return val.toLowerCase().includes("gb") ? num * 1024 : num;
-    }
-
-    // Fetch plan limits
-    const [plan] = service.planId
-      ? await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1)
-      : [null];
-
-    const diskUsedMB  = parseMB((service as any).diskUsed);
-    const diskLimitMB = plan ? parseFloat((plan as any).diskSpace ?? "1024") * (((plan as any).diskSpace ?? "").includes("GB") ? 1024 : 1) : 1024;
-
-    const bwUsedMB    = parseMB((service as any).bandwidthUsed);
-    const bwLimitMB   = plan ? parseFloat((plan as any).bandwidth ?? "10000") * (((plan as any).bandwidth ?? "").includes("GB") ? 1024 : 1) : 10240;
-
-    function fmtMB(mb: number) {
-      if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
-      return `${Math.round(mb)} MB`;
-    }
-
-    res.json({
-      disk: {
-        usedMB:   diskUsedMB,
-        limitMB:  diskLimitMB,
-        usedFmt:  fmtMB(diskUsedMB),
-        limitFmt: fmtMB(diskLimitMB),
-        pct:      diskLimitMB > 0 ? Math.min(100, Math.round((diskUsedMB / diskLimitMB) * 100)) : 0,
-      },
-      bandwidth: {
-        usedMB:   bwUsedMB,
-        limitMB:  bwLimitMB,
-        usedFmt:  fmtMB(bwUsedMB),
-        limitFmt: fmtMB(bwLimitMB),
-        pct:      bwLimitMB > 0 ? Math.min(100, Math.round((bwUsedMB / bwLimitMB) * 100)) : 0,
-      },
-      updatedAt: (service as any).updatedAt ?? null,
-    });
-  } catch (err) {
-    console.error("[USAGE]", err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
 
 // ─── POST /admin/hosting/:id/sync-usage — Force-refresh disk/bandwidth from cPanel ─
 // Admin-only. Pulls live stats from WHM accountsummary and persists to the service record
@@ -3077,7 +3020,10 @@ router.get("/client/hosting/:id/email", authenticate, async (req: AuthRequest, r
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
     const accounts = await cpanelEmailList(serverCfg, service!.username!);
     res.json({ accounts });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    console.error("[EMAIL LIST]", req.params.id, err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {

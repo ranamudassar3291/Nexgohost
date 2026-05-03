@@ -1,0 +1,29 @@
+Act as a Senior Full-Stack Engineer & UI Designer. I need to fix the content mismatch, eliminate bugs, and polish the design for production on noehost.com.
+
+### 1. DATA SYNC & CONTENT MIGRATION (FIX MISMATCH):
+- The website is currently showing hardcoded content, but the Admin Panel is empty. 
+- TASK: Scan all frontend page files (Home, Hosting, About, etc.) and extract the current text/headings.
+- INSERT this content into the PostgreSQL 'site_pages' table automatically (Seeding).
+- Update the Frontend to ONLY pull data from PostgreSQL. This ensures that what I see on the site is exactly what I see in the Admin Editor.
+
+### 2. URL & LINK UNIFICATION (noehost.com Ready):
+- Replace all internal Replit URLs and hardcoded links with dynamic absolute paths.
+- Ensure all "Order Now" and "Manage" links are consistent and lead to the unified `/client/orders/new` or dashboard routes.
+- Prepare the system for the production domain: `noehost.com`.
+
+### 3. DESIGN & COLOR POLISH:
+- FIX THE LOOKS: The current purple/blue theme needs a "Premium Enterprise" feel.
+- Refine the color palette: Use a deep professional Navy Blue (#0f172a) or Midnight Black with Clean Purple accents.
+- Improve typography and spacing: Ensure all cards, buttons, and sections have consistent padding and shadows.
+- Add "Micro-interactions": Smooth hover effects on buttons and clean transitions between dashboard tabs.
+
+### 4. BUG SQUASHING & PERSISTENCE:
+- Fix the "HTTP 500" errors in the Hosting Management tabs by ensuring the 'cpanel_username' is always passed to the WHM API.
+- Ensure "Every design setting, color hex code, and page content is saved in the PostgreSQL database" persistently.
+- Logic Check: Ensure the Login/Register system doesn't break the checkout flow.
+
+### 5. FINAL DEPLOYMENT READINESS:
+- Run a full system check to ensure no "Dead Links" or "Empty States" exist.
+- If a database record is missing, show a professional placeholder instead of an error.
+
+Please rebuild the entire UI and Data Bridge to make Noehost.com look like a world-class hosting provider.
