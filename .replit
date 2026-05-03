@@ -31,12 +31,12 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
+args = "bash scripts/start-all.sh"
+waitForPort = 5000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -63,3 +63,7 @@ SMTP_ENCRYPTION = "tls"
 SERVER_HOSTNAME = "noehost.com"
 ENCRYPTION_KEY = "85c7248771b95111543eb554d1eaaa88b6455508f431e22b5a5c66f24d333674"
 ADMIN_LOGIN_SLUG = "noe"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
