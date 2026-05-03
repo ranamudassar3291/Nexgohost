@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Search, Check, X, Loader2, Globe, ShoppingCart, AlertCircle,
   ExternalLink, Tag, Sparkles, ChevronRight, Trash2, Server, X as XIcon,
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token") || "";
@@ -51,6 +52,10 @@ interface SearchResult {
   isFreeWithHosting: boolean;
   extension: string;
   checkedVia: string;
+  registrantName?: string | null;
+  registrar?: string | null;
+  expiryDate?: string | null;
+  nameservers?: string[] | null;
 }
 
 interface PromoConfig {
@@ -84,6 +89,8 @@ export default function DomainSearch() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [promoDismissed, setPromoDismissed] = useState(false);
+  const [whoisOpen, setWhoisOpen] = useState(false);
+  const [whoisDomain, setWhoisDomain] = useState<SearchResult | null>(null);
   const [, setLocation] = useLocation();
   const { formatPrice } = useCurrency();
   const { toast } = useToast();
@@ -102,15 +109,15 @@ export default function DomainSearch() {
     staleTime: 60_000,
   });
 
-  function getPriceForPeriod(r: Pick<TldInfo | SearchResult, "registerPrice" | "register2YearPrice" | "register3YearPrice">): { price: number | null; original: number | null } {
-    const base = r.registerPrice;
-    if (period === 3 && r.register3YearPrice) {
-      return { price: r.register3YearPrice / 3, original: base };
+  function isPkDomain(domain: string) {
+    return /\.(pk)$/i.test(domain);
+  }
+
+  function getPriceForPeriod(r: Pick<TldInfo | SearchResult, "registerPrice" | "register2YearPrice" | "register3YearPrice">, domain?: string): { price: number | null; original: number | null; period: Period } {
+    if (domain && isPkDomain(domain)) {
+      return { price: r.register2YearPrice ?? null, original: r.registerPrice, period: 2 };
     }
-    if (period === 2 && r.register2YearPrice) {
-      return { price: r.register2YearPrice / 2, original: base };
-    }
-    return { price: base, original: null };
+    return { price: r.registerPrice, original: null, period: 1 };
   }
 
   async function handleSearch(e?: React.FormEvent) {
@@ -144,26 +151,42 @@ export default function DomainSearch() {
   }
 
   function addToCart(r: SearchResult) {
-    const { price, original } = getPriceForPeriod(r);
+    const { price, original, period: selectedPeriod } = getPriceForPeriod(r, r.domain);
     if (!price) return;
     let alreadyIn = false;
     setCart(prev => {
       if (prev.find(c => c.domain === r.domain)) { alreadyIn = true; return prev; }
       return [...prev, {
         domain: r.domain,
-        period,
-        price: price * period,
-        originalPrice: original ? original * period : null,
+        period: selectedPeriod,
+        price: price * selectedPeriod,
+        originalPrice: original ? original * selectedPeriod : null,
         isFreeWithHosting: r.isFreeWithHosting ?? false,
       }];
     });
     if (!alreadyIn) {
       toast({
         title: "Added to cart!",
-        description: `${r.domain} (${period} yr${period > 1 ? "s" : ""}) — ${formatPrice(price * period)}`,
+        description: `${r.domain} (${selectedPeriod} yr${selectedPeriod > 1 ? "s" : ""}) — ${formatPrice(price * selectedPeriod)}`,
       });
     }
     setCartOpen(true);
+  }
+
+  function saveSelectedDomain(r: SearchResult) {
+    sessionStorage.setItem("domain_search", r.domain);
+    localStorage.setItem("order_wizard_domain", r.domain);
+    localStorage.setItem("order_wizard_domain_price", String(r.registerPrice ?? 0));
+  }
+
+  function orderNow(r: SearchResult) {
+    saveSelectedDomain(r);
+    setLocation(`/client/checkout?domain_name=${encodeURIComponent(r.domain)}&price=${encodeURIComponent(String(r.registerPrice ?? 0))}`);
+  }
+
+  function openWhois(r: SearchResult) {
+    setWhoisDomain(r);
+    setWhoisOpen(true);
   }
 
   function removeFromCart(domain: string) {
@@ -320,7 +343,7 @@ export default function DomainSearch() {
             </div>
           )}
           {results.map(r => {
-            const { price, original } = getPriceForPeriod(r);
+            const { price, original } = getPriceForPeriod(r, r.domain);
             const isAvailable = r.status === "available";
             const isTaken = r.status === "taken";
             const inCart = cart.some(c => c.domain === r.domain);
@@ -421,15 +444,12 @@ export default function DomainSearch() {
                   ) : isTaken ? (
                     <>
                       <Badge variant="secondary" className="text-xs">Taken</Badge>
-                      <a
-                        href={`https://lookup.icann.org/en/lookup?name=${encodeURIComponent(r.domain)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8">
-                          <ExternalLink size={12} /> WHOIS
-                        </Button>
-                      </a>
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => openWhois(r)}>
+                        <BadgeInfo size={12} /> WHOIS
+                      </Button>
+                      <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => orderNow(r)}>
+                        <ArrowRightLeft size={12} /> Transfer
+                      </Button>
                     </>
                   ) : (
                     <a
@@ -505,6 +525,44 @@ export default function DomainSearch() {
           </div>
         </div>
       )}
+
+      <Dialog open={whoisOpen} onOpenChange={setWhoisOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>WHOIS Details</DialogTitle>
+          </DialogHeader>
+          {whoisDomain && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-muted-foreground text-xs">Domain</p>
+                  <p className="font-mono font-semibold">{whoisDomain.domain}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">Registrar</p>
+                  <p className="font-medium">{whoisDomain.registrar ?? "Not available"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">Registrant Name</p>
+                  <p className="font-medium">{whoisDomain.registrantName ?? "Hidden"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">Expiry Date</p>
+                  <p className="font-medium">{whoisDomain.expiryDate ?? "Unknown"}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs mb-2">Nameservers</p>
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                  {(whoisDomain.nameservers?.length ? whoisDomain.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).map(ns => (
+                    <p key={ns} className="font-mono text-xs">{ns}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Mini-Cart Slide-over */}
       {cartOpen && (

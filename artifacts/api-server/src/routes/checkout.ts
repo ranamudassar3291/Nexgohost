@@ -86,6 +86,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     if (!packageId && domain) {
       // Always look up the authoritative TLD price server-side — never trust the client amount
       let domainPrice = typeof clientDomainAmount === "number" ? clientDomainAmount : 0;
+      const cleanDomain = domain.trim().toLowerCase();
       if (domain.includes(".")) {
         const tld = domain.slice(domain.indexOf(".")).toLowerCase();
         const [tldRow] = await db.select().from(domainExtensionsTable)
@@ -93,13 +94,15 @@ async function handleCheckout(req: AuthRequest, res: any) {
         if (tldRow) {
           domainPrice = transferDomain
             ? Number(tldRow.transferPrice)
-            : Number(tldRow.registerPrice);
+            : cleanDomain.endsWith(".pk")
+              ? Number(tldRow.register2YearPrice ?? tldRow.registerPrice) * 1
+              : Number(tldRow.registerPrice);
         }
       }
       const finalAmount = Math.max(0, domainPrice);
 
       // Domain invoices: due date = 1 year from now (next renewal date)
-      const dueDate = new Date(); dueDate.setFullYear(dueDate.getFullYear() + 1);
+      const dueDate = new Date(); dueDate.setFullYear(dueDate.getFullYear() + (cleanDomain.endsWith(".pk") ? 2 : 1));
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
       const invoiceNumber = `INV-${dateStr}-${rand}`;
@@ -159,7 +162,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
           const dotIdx = domain.indexOf(".");
           const dName = domain.slice(0, dotIdx).toLowerCase();
           const dTld  = domain.slice(dotIdx).toLowerCase();
-          const expiryDate = new Date(); expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+          const expiryDate = new Date(); expiryDate.setFullYear(expiryDate.getFullYear() + (dTld.endsWith(".pk") ? 2 : 1));
           // Free/zero-amount domain → activate immediately; paid domain → pending until invoice paid
           const domainStatus = finalAmount === 0 ? "active" : "pending";
 

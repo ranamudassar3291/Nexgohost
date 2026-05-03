@@ -308,7 +308,12 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
       return;
     }
 
-    const registrationPrice = Number(pricing.registrationPrice) * Number(period);
+    const isPk = cleanTld.endsWith(".pk");
+    const requestedPeriod = Math.max(1, Number(period) || 1);
+    const effectivePeriod = isPk ? Math.max(2, requestedPeriod) : 1;
+    const registrationPrice = isPk
+      ? Number(pricing.register2YearPrice ?? pricing.registrationPrice)
+      : Number(pricing.registrationPrice);
 
     const rdapStatus = await checkRdapAvailability(cleanName, cleanTld);
     if (rdapStatus === "taken") {
@@ -318,7 +323,7 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
 
     const regDate = new Date();
     const expiryDate = new Date(regDate);
-    expiryDate.setFullYear(expiryDate.getFullYear() + Number(period));
+    expiryDate.setFullYear(expiryDate.getFullYear() + effectivePeriod);
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
@@ -338,7 +343,7 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
       clientId: req.user!.userId,
       type: "domain",
       itemId: domain.id,
-      itemName: `${cleanName}${cleanTld} (${period}yr)`,
+      itemName: `${cleanName}${cleanTld} (${effectivePeriod}yr)`,
       amount: String(registrationPrice),
       status: "approved",
       notes: `Domain registration for ${cleanName}${cleanTld}`,
@@ -356,7 +361,7 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
       total: String(registrationPrice),
       status: "unpaid",
       dueDate,
-      items: [{ description: `${cleanName}${cleanTld} - Domain Registration (${period} year${Number(period) > 1 ? "s" : ""})`, quantity: 1, unitPrice: registrationPrice, total: registrationPrice }],
+      items: [{ description: `${cleanName}${cleanTld} - Domain Registration (${effectivePeriod} year${effectivePeriod > 1 ? "s" : ""})`, quantity: 1, unitPrice: registrationPrice, total: registrationPrice }],
     }).returning();
 
     const clientName = `${user.firstName} ${user.lastName}`;

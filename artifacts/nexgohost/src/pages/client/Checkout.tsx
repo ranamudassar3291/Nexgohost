@@ -15,17 +15,13 @@ import CaptchaWidget from "@/components/CaptchaWidget";
 const BRAND = "#4F46E5";
 const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
 
-type BillingCycle = "monthly" | "quarterly" | "semiannual" | "yearly";
+type BillingCycle = "yearly";
 
 const CYCLE_LABELS: Record<BillingCycle, string> = {
-  monthly: "Monthly", quarterly: "Quarterly", semiannual: "6 Months", yearly: "Yearly",
+  yearly: "Yearly",
 };
-const CYCLE_SUFFIX: Record<BillingCycle, string> = {
-  monthly: "/mo", quarterly: "/qtr", semiannual: "/6mo", yearly: "/yr",
-};
-const CYCLE_MONTHS: Record<BillingCycle, number> = {
-  monthly: 1, quarterly: 3, semiannual: 6, yearly: 12,
-};
+const CYCLE_SUFFIX: Record<BillingCycle, string> = { yearly: "/yr" };
+const CYCLE_MONTHS: Record<BillingCycle, number> = { yearly: 12 };
 
 interface PaymentMethod {
   id: string; name: string; type: string; description: string | null; isSandbox: boolean;
@@ -73,25 +69,10 @@ export default function Checkout() {
   const params = new URLSearchParams(search);
   const packageId   = params.get("packageId") ?? "";
   const packageName = params.get("packageName") ?? "Hosting Package";
-  const monthlyPrice     = parseFloat(params.get("monthlyPrice") ?? params.get("amount") ?? "0");
-  const quarterlyPrice   = params.get("quarterlyPrice")   ? parseFloat(params.get("quarterlyPrice")!)   : null;
-  const semiannualPrice  = params.get("semiannualPrice")  ? parseFloat(params.get("semiannualPrice")!)  : null;
   const yearlyPrice      = params.get("yearlyPrice")      ? parseFloat(params.get("yearlyPrice")!)      : null;
   const renewalPrice     = params.get("renewalPrice")     ? parseFloat(params.get("renewalPrice")!)     : null;
-  const initialCycle         = (params.get("billingCycle") as BillingCycle) || "monthly";
-  const cycleWasPreselected  = !!params.get("billingCycle");
 
-  const priceMap: Partial<Record<BillingCycle, number>> = {
-    monthly: monthlyPrice,
-    ...(quarterlyPrice  != null ? { quarterly:  quarterlyPrice  } : {}),
-    ...(semiannualPrice != null ? { semiannual: semiannualPrice } : {}),
-    ...(yearlyPrice     != null ? { yearly:     yearlyPrice     } : {}),
-  };
-  const availableCycles = (Object.keys(priceMap) as BillingCycle[]).filter(c => (priceMap[c] ?? 0) > 0);
-
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(
-    availableCycles.includes(initialCycle) ? initialCycle : (availableCycles[0] ?? "monthly")
-  );
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>("yearly");
   const [domainChoice,      setDomainChoice]      = useState<"register" | "existing" | "skip">("skip");
   const [domainName,        setDomainName]        = useState("");
   const [domainPeriod,      setDomainPeriod]      = useState<1 | 2 | 3>(1);
@@ -284,12 +265,14 @@ export default function Checkout() {
   const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register";
 
   useEffect(() => {
-    const saved = sessionStorage.getItem("domain_search") || localStorage.getItem("order_wizard_domain");
+    const saved = params.get("domain_name") || params.get("domain") || sessionStorage.getItem("domain_search") || localStorage.getItem("order_wizard_domain");
     if (saved) {
       setDomainName(saved);
       setDomainChoice("register");
       setTimeout(() => checkDomain(saved), 600);
     }
+    const savedPrice = params.get("price");
+    if (savedPrice) localStorage.setItem("order_wizard_domain_price", savedPrice);
   }, []);
 
   useEffect(() => {
@@ -318,9 +301,8 @@ export default function Checkout() {
   const getDomainPrice = (domain: string, period: 1 | 2 | 3): number => {
     const ext = getDomainExt(domain);
     if (!ext) return 0;
-    if (period === 2 && ext.register2YearPrice) return Number(ext.register2YearPrice);
-    if (period === 3 && ext.register3YearPrice) return Number(ext.register3YearPrice);
-    return Number(ext.registerPrice ?? 0) * period;
+    if (domain.toLowerCase().endsWith(".pk")) return Number(ext.register2YearPrice ?? ext.registerPrice ?? 0);
+    return Number(ext.registerPrice ?? 0);
   };
 
   const hostingPrice = priceMap[billingCycle] ?? monthlyPrice;
@@ -385,7 +367,7 @@ export default function Checkout() {
           registerDomain: domainChoice === "register" && domainAvail === "available",
           freeDomain: isDomainFree,
           domainAmount: isDomainFree ? 0 : domainAmount,
-          domainPeriod,
+          domainPeriod: domainName.toLowerCase().endsWith(".pk") ? 2 : 1,
           promoCode: promoResult ? promoCode : undefined,
           paymentMethodId: selectedPm !== "none" && selectedPm !== "credits" ? selectedPm : undefined,
           useCredits: selectedPm === "credits",
