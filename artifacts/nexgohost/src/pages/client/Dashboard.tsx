@@ -964,38 +964,6 @@ export default function ClientDashboard() {
         </Link>
       )}
 
-      {/* ── Quick Access Cards ── */}
-      {!q && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link href="/client/hosting">
-            <div className="p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5" style={{ background: "#EEF2FF", border: "1px solid #C7D2FE" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff" }}>
-                  <Server size={20} style={{ color: "#4F46E5" }} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "#111827" }}>Hosting</p>
-                  <p className="text-xs" style={{ color: "#6B7280" }}>{allServices.length} service{allServices.length === 1 ? "" : "s"}</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link href="/client/domains">
-            <div className="p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5" style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff" }}>
-                  <Globe size={20} style={{ color: "#059669" }} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: "#111827" }}>Domains</p>
-                  <p className="text-xs" style={{ color: "#6B7280" }}>{allDomains.length} domain{allDomains.length === 1 ? "" : "s"}</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-        </div>
-      )}
-
       {/* ── Setup Wizard ── */}
       {!q && setupProgress && !setupProgress.allComplete && (() => {
         const s1 = setupProgress.step1;
@@ -1067,9 +1035,6 @@ export default function ClientDashboard() {
       {/* ── Free Domain Banners ── */}
       {/* ── IP Unblock Banner ── */}
       {!q && <IpUnblockBanner />}
-
-      {/* ── Site Health & Performance ── */}
-      {!q && <SiteHealthPanel />}
 
       {/* ── No results ── */}
       {q && !hasResults && (
