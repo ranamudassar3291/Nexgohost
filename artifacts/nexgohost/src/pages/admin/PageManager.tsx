@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Home, Info, DollarSign, FileText, Eye, EyeOff,
-  Save, RefreshCw, Search, Shield, ChevronRight,
-  Type, AlignLeft, Tag, Globe, CheckCircle2, AlertCircle,
+  Home, Info, Server, Globe, Mail, FileText, Shield, RefreshCw,
+  Save, CheckCircle2, AlertCircle, ChevronRight,
+  Type, AlignLeft, Tag, Users, List, Cpu, Layout,
 } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 const inputCls =
@@ -20,322 +19,334 @@ function Field({ label, icon, children }: { label: string; icon?: React.ReactNod
     </div>
   );
 }
-function Inp({ value, onChange, placeholder = "", type = "text" }: any) {
-  return <input type={type} value={value ?? ""} onChange={onChange} placeholder={placeholder} className={inputCls} />;
+function Inp({ value, onChange, placeholder = "" }: any) {
+  return <input value={value ?? ""} onChange={onChange} placeholder={placeholder} className={inputCls} />;
 }
 function Txtarea({ value, onChange, placeholder = "", rows = 4 }: any) {
   return <textarea value={value ?? ""} onChange={onChange} placeholder={placeholder} rows={rows} className={`${inputCls} resize-y font-mono text-xs leading-relaxed`} />;
 }
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+
+/** JSON array editor with parse-error feedback */
+function JsonEditor({ value, onChange, placeholder }: { value: any; onChange: (v: any) => void; placeholder?: string }) {
+  const [raw, setRaw] = useState(() => JSON.stringify(value ?? [], null, 2));
+  const [err, setErr] = useState(false);
+  useEffect(() => { setRaw(JSON.stringify(value ?? [], null, 2)); }, [JSON.stringify(value)]);
   return (
-    <label className="flex items-center gap-3 cursor-pointer group select-none">
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={`relative w-10 h-5 rounded-full transition-all ${checked ? "bg-primary" : "bg-muted-foreground/30"}`}
-      >
-        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${checked ? "left-5" : "left-0.5"}`} />
-      </button>
-      <span className={`text-sm font-medium transition-colors ${checked ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
-    </label>
+    <div>
+      <Txtarea value={raw} onChange={(e: any) => {
+        setRaw(e.target.value);
+        try { onChange(JSON.parse(e.target.value)); setErr(false); } catch { setErr(true); }
+      }} rows={8} placeholder={placeholder} />
+      {err && <p className="text-xs text-destructive mt-1 font-medium">⚠ Invalid JSON — fix before saving.</p>}
+    </div>
   );
 }
 
-// ─── Page definitions ─────────────────────────────────────────────────────────
+// ─── Page + section definitions ───────────────────────────────────────────────
+type SectionDef = {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  /**
+   * isRoot=true → the section's localData object is SPREAD into the page root on save
+   * (used for flat fields like teamTitle, ctaTitle, plansTitle that live at page root level)
+   * isRoot=false (default) → saved as allPageData[key] = localData
+   */
+  isRoot?: boolean;
+  editor: (data: any, set: (d: any) => void) => React.ReactNode;
+};
+
 const PAGES = [
-  { id: "home",    label: "Home",          icon: Home,     color: "text-blue-400",   bg: "bg-blue-500/10" },
-  { id: "about",   label: "About",         icon: Info,     color: "text-emerald-400",bg: "bg-emerald-500/10" },
-  { id: "pricing", label: "Pricing",       icon: DollarSign, color: "text-amber-400",  bg: "bg-amber-500/10" },
-  { id: "terms",   label: "Terms",         icon: FileText, color: "text-rose-400",   bg: "bg-rose-500/10" },
-  { id: "privacy", label: "Privacy",       icon: Shield,   color: "text-violet-400", bg: "bg-violet-500/10" },
+  { id: "about",            label: "About",      icon: Info,     color: "text-emerald-400", bg: "bg-emerald-500/10", cmsDot: "pages.about" },
+  { id: "contact",          label: "Contact",    icon: Mail,     color: "text-sky-400",     bg: "bg-sky-500/10",     cmsDot: "pages.contact" },
+  { id: "sharedHosting",    label: "Shared",     icon: Server,   color: "text-blue-400",    bg: "bg-blue-500/10",    cmsDot: "pages.sharedHosting" },
+  { id: "wordpressHosting", label: "WordPress",  icon: Layout,   color: "text-indigo-400",  bg: "bg-indigo-500/10",  cmsDot: "pages.wordpressHosting" },
+  { id: "resellerHosting",  label: "Reseller",   icon: Users,    color: "text-violet-400",  bg: "bg-violet-500/10",  cmsDot: "pages.resellerHosting" },
+  { id: "vpsHosting",       label: "VPS",        icon: Cpu,      color: "text-rose-400",    bg: "bg-rose-500/10",    cmsDot: "pages.vpsHosting" },
+  { id: "domains",          label: "Domains",    icon: Globe,    color: "text-cyan-400",    bg: "bg-cyan-500/10",    cmsDot: "pages.domains" },
+  { id: "terms",            label: "Terms",      icon: FileText, color: "text-amber-400",   bg: "bg-amber-500/10",   cmsDot: "pages.terms" },
+  { id: "privacy",          label: "Privacy",    icon: Shield,   color: "text-teal-400",    bg: "bg-teal-500/10",    cmsDot: "pages.privacy" },
 ];
 
-// Per-page section definitions: id, label, icon, fields editor component
-const SECTION_META: Record<string, {
-  id: string; label: string; icon: React.ReactNode;
-  editor: (content: any, onChange: (c: any) => void) => React.ReactNode;
-}[]> = {
-  home: [
-    {
-      id: "meta", label: "SEO Meta Tags", icon: <Tag size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Page Title" icon={<Type size={11} />}><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Noehost — Next-Gen Web Hosting" /></Field>
-          <Field label="Meta Description" icon={<AlignLeft size={11} />}><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} placeholder="Short SEO description..." /></Field>
-          <Field label="Keywords" icon={<Search size={11} />}><Inp value={c.keywords} onChange={(e: any) => set({ ...c, keywords: e.target.value })} placeholder="web hosting, vps, domains..." /></Field>
-        </div>
-      ),
-    },
-    {
-      id: "hero", label: "Hero Banner", icon: <Home size={13} />,
-      editor: (_c, _set) => (
-        <div className="rounded-xl bg-secondary/30 border border-border/40 p-4">
-          <p className="text-sm text-muted-foreground">Hero banner content is managed in the <span className="text-primary font-semibold">Hero</span> tab of Website Admin. Toggle visibility below to show/hide this section on the page.</p>
-        </div>
-      ),
-    },
-    {
-      id: "services", label: "Services Section", icon: <Globe size={13} />,
-      editor: (_c, _set) => (
-        <div className="rounded-xl bg-secondary/30 border border-border/40 p-4">
-          <p className="text-sm text-muted-foreground">Services content is managed in the <span className="text-primary font-semibold">Services</span> tab of Website Admin. Toggle visibility below.</p>
-        </div>
-      ),
-    },
-    {
-      id: "features", label: "Features Section", icon: <CheckCircle2 size={13} />,
-      editor: (_c, _set) => (
-        <div className="rounded-xl bg-secondary/30 border border-border/40 p-4">
-          <p className="text-sm text-muted-foreground">Features section visibility toggle. Content is rendered from built-in components.</p>
-        </div>
-      ),
-    },
-    {
-      id: "pricing", label: "Pricing Section", icon: <DollarSign size={13} />,
-      editor: (_c, _set) => (
-        <div className="rounded-xl bg-secondary/30 border border-border/40 p-4">
-          <p className="text-sm text-muted-foreground">Pricing plans are managed in the <span className="text-primary font-semibold">Pricing</span> tab of Website Admin. Toggle to show/hide on home page.</p>
-        </div>
-      ),
-    },
-    {
-      id: "faq", label: "FAQ Section", icon: <AlertCircle size={13} />,
-      editor: (_c, _set) => (
-        <div className="rounded-xl bg-secondary/30 border border-border/40 p-4">
-          <p className="text-sm text-muted-foreground">FAQ content is managed in the <span className="text-primary font-semibold">FAQ</span> tab of Website Admin. Toggle visibility below.</p>
-        </div>
-      ),
-    },
-    {
-      id: "testimonials", label: "Testimonials", icon: <CheckCircle2 size={13} />,
-      editor: (_c, _set) => (
-        <div className="rounded-xl bg-secondary/30 border border-border/40 p-4">
-          <p className="text-sm text-muted-foreground">Testimonials section visibility toggle. Use the toggle below to show or hide this section.</p>
-        </div>
-      ),
-    },
-  ],
+// Shared hero editor (badge / title / titleHighlight / description)
+function heroEditor(c: any, set: (d: any) => void) {
+  return (
+    <div className="space-y-4">
+      <Field label="Badge Text" icon={<Tag size={11} />}>
+        <Inp value={c.badge} onChange={(e: any) => set({ ...c, badge: e.target.value })} placeholder="Our Story" />
+      </Field>
+      <Field label="Heading" icon={<Type size={11} />}>
+        <Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Main heading" />
+      </Field>
+      <Field label="Heading Highlight (coloured text)" icon={<Type size={11} />}>
+        <Inp value={c.titleHighlight} onChange={(e: any) => set({ ...c, titleHighlight: e.target.value })} placeholder="Highlighted portion" />
+      </Field>
+      <Field label="Description" icon={<AlignLeft size={11} />}>
+        <Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} placeholder="Subtitle / description text" />
+      </Field>
+    </div>
+  );
+}
+
+function jsonNote(schema: string) {
+  return <p className="text-xs text-muted-foreground bg-secondary/40 px-3 py-2 rounded-lg mb-3">{schema}</p>;
+}
+
+const SECTION_DEFS: Record<string, SectionDef[]> = {
+
+  // ─── About ──────────────────────────────────────────────────────────────────
   about: [
+    { key: "hero", label: "Hero Banner", icon: <Home size={13} />, editor: heroEditor },
     {
-      id: "meta", label: "SEO Meta Tags", icon: <Tag size={13} />,
+      key: "stats", label: "Stats Row", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "value": "99.9%", "label": "Uptime SLA" } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      key: "values", label: "Core Values", icon: <CheckCircle2 size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "title": "Reliability", "desc": "99.9% uptime..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      key: "milestones", label: "Milestones", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "year": "2019", "title": "Founded", "desc": "..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      key: "team", label: "Team Members", icon: <Users size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "name": "Alex Johnson", "role": "CEO", "bio": "..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      // isRoot: true → teamTitle and teamDesc live at root of pages.about
+      key: "_teamMeta", label: "Team Section Text", icon: <Type size={13} />, isRoot: true,
       editor: (c, set) => (
         <div className="space-y-4">
-          <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="About Us — Noehost" /></Field>
-          <Field label="Meta Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} /></Field>
-          <Field label="Keywords"><Inp value={c.keywords} onChange={(e: any) => set({ ...c, keywords: e.target.value })} /></Field>
+          <Field label="Section Title"><Inp value={c.teamTitle} onChange={(e: any) => set({ ...c, teamTitle: e.target.value })} placeholder="The Team Behind Noehost" /></Field>
+          <Field label="Section Description"><Txtarea value={c.teamDesc} onChange={(e: any) => set({ ...c, teamDesc: e.target.value })} rows={3} /></Field>
         </div>
       ),
     },
     {
-      id: "hero", label: "Page Hero", icon: <Home size={13} />,
+      // isRoot: true → ctaTitle etc. live at root of pages.about
+      key: "_cta", label: "Call to Action", icon: <Tag size={13} />, isRoot: true,
       editor: (c, set) => (
         <div className="space-y-4">
-          <Field label="Badge Text"><Inp value={c.badge} onChange={(e: any) => set({ ...c, badge: e.target.value })} placeholder="Our Story" /></Field>
-          <Field label="Heading"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="About Noehost" /></Field>
-          <Field label="Subtitle"><Txtarea value={c.subtitle} onChange={(e: any) => set({ ...c, subtitle: e.target.value })} rows={3} /></Field>
-        </div>
-      ),
-    },
-    {
-      id: "mission", label: "Mission Statement", icon: <Globe size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Our Mission" /></Field>
-          <Field label="Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={4} /></Field>
-        </div>
-      ),
-    },
-    {
-      id: "values", label: "Core Values", icon: <CheckCircle2 size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Section Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Our Values" /></Field>
-          <Field label="Values (JSON array)">
-            <Txtarea
-              value={JSON.stringify(c.items ?? [], null, 2)}
-              onChange={(e: any) => {
-                try { set({ ...c, items: JSON.parse(e.target.value) }); } catch {}
-              }}
-              rows={8}
-              placeholder={`[{ "title": "Reliability", "description": "..." }]`}
-            />
-          </Field>
-        </div>
-      ),
-    },
-    {
-      id: "team", label: "Team Section", icon: <Info size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="The Team" /></Field>
-          <Field label="Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={4} /></Field>
-        </div>
-      ),
-    },
-    {
-      id: "contact", label: "Contact Info", icon: <Globe size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Section Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Get in Touch" /></Field>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field label="Email"><Inp value={c.email} onChange={(e: any) => set({ ...c, email: e.target.value })} placeholder="support@noehost.com" /></Field>
-            <Field label="Phone"><Inp value={c.phone} onChange={(e: any) => set({ ...c, phone: e.target.value })} placeholder="+92 300 0000000" /></Field>
-            <Field label="Address"><Inp value={c.address} onChange={(e: any) => set({ ...c, address: e.target.value })} placeholder="Lahore, Pakistan" /></Field>
-          </div>
+          <Field label="Heading"><Inp value={c.ctaTitle} onChange={(e: any) => set({ ...c, ctaTitle: e.target.value })} placeholder="Ready to Experience Noehost?" /></Field>
+          <Field label="Description"><Txtarea value={c.ctaDesc} onChange={(e: any) => set({ ...c, ctaDesc: e.target.value })} rows={2} /></Field>
+          <Field label="Button Text"><Inp value={c.ctaBtnText} onChange={(e: any) => set({ ...c, ctaBtnText: e.target.value })} placeholder="Get Started Today" /></Field>
+          <Field label="Button URL"><Inp value={c.ctaBtnUrl} onChange={(e: any) => set({ ...c, ctaBtnUrl: e.target.value })} placeholder="/register" /></Field>
         </div>
       ),
     },
   ],
-  pricing: [
+
+  // ─── Contact ─────────────────────────────────────────────────────────────────
+  contact: [
+    { key: "hero", label: "Hero Banner", icon: <Home size={13} />, editor: heroEditor },
     {
-      id: "meta", label: "SEO Meta Tags", icon: <Tag size={13} />,
+      key: "channels", label: "Support Channels", icon: <Mail size={13} />,
+      editor: (c, set) => (
+        <>
+          {jsonNote('Array of { "type": "Live Chat", "desc": "24/7 instant support...", "action": "Start Chat", "url": "#" }. The "type" field is the card title.')}
+          <JsonEditor value={c} onChange={set} />
+        </>
+      ),
+    },
+    {
+      key: "offices", label: "Office Locations", icon: <Globe size={13} />,
+      editor: (c, set) => (
+        <>
+          {jsonNote('Array of { "city": "Karachi", "country": "Pakistan", "address": "...", "phone": "...", "email": "...", "primary": true }. Set primary:true for HQ.')}
+          <JsonEditor value={c} onChange={set} />
+        </>
+      ),
+    },
+    {
+      key: "faqs", label: "FAQ Items", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "q": "Question?", "a": "Answer..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+  ],
+
+  // ─── Shared Hosting ──────────────────────────────────────────────────────────
+  sharedHosting: [
+    { key: "hero", label: "Hero Banner", icon: <Home size={13} />, editor: heroEditor },
+    {
+      key: "_plansText", label: "Plans Section Text", icon: <Type size={13} />, isRoot: true,
       editor: (c, set) => (
         <div className="space-y-4">
-          <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Hosting Plans & Pricing — Noehost" /></Field>
-          <Field label="Meta Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} /></Field>
-          <Field label="Keywords"><Inp value={c.keywords} onChange={(e: any) => set({ ...c, keywords: e.target.value })} /></Field>
+          <Field label="Plans Section Title"><Inp value={c.plansTitle} onChange={(e: any) => set({ ...c, plansTitle: e.target.value })} placeholder="Simple, Transparent Pricing" /></Field>
+          <Field label="Plans Subtitle"><Inp value={c.plansSubtitle} onChange={(e: any) => set({ ...c, plansSubtitle: e.target.value })} placeholder="No hidden fees. Cancel anytime." /></Field>
+          <p className="text-xs text-muted-foreground bg-secondary/40 px-3 py-2 rounded-lg">Pricing plans themselves are managed under <span className="text-primary font-semibold">Admin → Packages</span>.</p>
         </div>
       ),
     },
     {
-      id: "header", label: "Page Header", icon: <Type size={13} />,
+      key: "features", label: "Feature Cards", icon: <List size={13} />,
       editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Badge"><Inp value={c.badge} onChange={(e: any) => set({ ...c, badge: e.target.value })} placeholder="Best Value" /></Field>
-          <Field label="Heading"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Choose Your Hosting Plan" /></Field>
-          <Field label="Subtitle"><Txtarea value={c.subtitle} onChange={(e: any) => set({ ...c, subtitle: e.target.value })} rows={3} /></Field>
-        </div>
+        <>
+          {jsonNote('Array of { "title": "Free SSL Certificate", "desc": "Every domain gets..." }. Title must match icon keys: "cPanel Control Panel", "1-Click App Installer", "Free SSL Certificate", "Professional Email", "Daily Backups", "24/7 Expert Support".')}
+          <JsonEditor value={c} onChange={set} />
+        </>
       ),
     },
     {
-      id: "cta", label: "CTA Banner", icon: <Globe size={13} />,
+      key: "faqs", label: "FAQ Items", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "q": "Question?", "a": "Answer..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+  ],
+
+  // ─── WordPress Hosting ───────────────────────────────────────────────────────
+  wordpressHosting: [
+    { key: "hero", label: "Hero Banner", icon: <Home size={13} />, editor: heroEditor },
+    {
+      key: "features", label: "Feature Cards", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "title": "Feature Name", "desc": "Description..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      key: "faqs", label: "FAQ Items", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "q": "Question?", "a": "Answer..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+  ],
+
+  // ─── Reseller Hosting ────────────────────────────────────────────────────────
+  resellerHosting: [
+    { key: "hero", label: "Hero Banner", icon: <Home size={13} />, editor: heroEditor },
+    {
+      key: "features", label: "Feature Cards", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "title": "Feature Name", "desc": "Description..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      key: "faqs", label: "FAQ Items", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "q": "Question?", "a": "Answer..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+  ],
+
+  // ─── VPS Hosting ─────────────────────────────────────────────────────────────
+  vpsHosting: [
+    { key: "hero", label: "Hero Banner", icon: <Home size={13} />, editor: heroEditor },
+    {
+      key: "features", label: "Feature Cards", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "title": "Full Root Access", "desc": "Complete control..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+    {
+      key: "faqs", label: "FAQ Items", icon: <List size={13} />,
+      editor: (c, set) => <>{jsonNote('Array of { "q": "Question?", "a": "Answer..." } objects.')}<JsonEditor value={c} onChange={set} /></>,
+    },
+  ],
+
+  // ─── Domains ─────────────────────────────────────────────────────────────────
+  domains: [
+    {
+      key: "hero", label: "Hero Banner", icon: <Home size={13} />,
       editor: (c, set) => (
         <div className="space-y-4">
-          <Field label="CTA Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} /></Field>
-          <Field label="CTA Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} /></Field>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Button Text"><Inp value={c.buttonText} onChange={(e: any) => set({ ...c, buttonText: e.target.value })} /></Field>
-            <Field label="Button Link"><Inp value={c.buttonHref} onChange={(e: any) => set({ ...c, buttonHref: e.target.value })} /></Field>
-          </div>
+          <p className="text-xs text-muted-foreground bg-secondary/40 px-3 py-2 rounded-lg">The domain search bar and TLD pricing table are pulled from <span className="text-primary font-semibold">Admin → Domain Extensions</span>. Edit TLD prices there.</p>
+          <Field label="Badge Text"><Inp value={c.badge} onChange={(e: any) => set({ ...c, badge: e.target.value })} placeholder="Domain Registration" /></Field>
+          <Field label="Main Heading"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Find Your Perfect" /></Field>
+          <Field label="Heading Highlight (coloured)"><Inp value={c.titleHighlight} onChange={(e: any) => set({ ...c, titleHighlight: e.target.value })} placeholder="Domain Name." /></Field>
+          <Field label="Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} /></Field>
         </div>
       ),
     },
   ],
+
+  // ─── Terms ───────────────────────────────────────────────────────────────────
   terms: [
     {
-      id: "meta", label: "SEO Meta Tags", icon: <Tag size={13} />,
+      // isRoot: writes title/lastUpdated/intro directly to page root
+      key: "_pageInfo", label: "Page Header", icon: <FileText size={13} />, isRoot: true,
       editor: (c, set) => (
         <div className="space-y-4">
-          <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} /></Field>
-          <Field label="Meta Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} /></Field>
-          <Field label="Keywords"><Inp value={c.keywords} onChange={(e: any) => set({ ...c, keywords: e.target.value })} /></Field>
+          <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Terms & Conditions" /></Field>
+          <Field label="Last Updated Date"><Inp value={c.lastUpdated} onChange={(e: any) => set({ ...c, lastUpdated: e.target.value })} placeholder="January 15, 2025" /></Field>
+          <Field label="Intro Paragraph"><Txtarea value={c.intro} onChange={(e: any) => set({ ...c, intro: e.target.value })} rows={3} placeholder="Brief introductory text shown at the top..." /></Field>
         </div>
       ),
     },
     {
-      id: "header", label: "Page Header", icon: <Type size={13} />,
+      key: "sections", label: "T&C Sections", icon: <List size={13} />,
       editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Terms of Service" /></Field>
-          <Field label="Last Updated"><Inp value={c.lastUpdated} onChange={(e: any) => set({ ...c, lastUpdated: e.target.value })} placeholder="27 March 2026" /></Field>
-        </div>
-      ),
-    },
-    {
-      id: "content", label: "Page Content", icon: <AlignLeft size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-muted-foreground">Supports Markdown headings (## Heading), bold (**text**), and plain paragraphs.</span>
-          </div>
-          <Field label="Content (Markdown)">
-            <Txtarea value={c.body} onChange={(e: any) => set({ ...c, body: e.target.value })} rows={20} placeholder="## Section Title&#10;&#10;Your content here..." />
-          </Field>
-        </div>
+        <>
+          {jsonNote('Array of { "title": "1. Account Responsibility", "content": "You are responsible for..." }. Each renders as an expandable accordion.')}
+          <JsonEditor value={c} onChange={set} />
+        </>
       ),
     },
   ],
+
+  // ─── Privacy ─────────────────────────────────────────────────────────────────
   privacy: [
     {
-      id: "meta", label: "SEO Meta Tags", icon: <Tag size={13} />,
-      editor: (c, set) => (
-        <div className="space-y-4">
-          <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} /></Field>
-          <Field label="Meta Description"><Txtarea value={c.description} onChange={(e: any) => set({ ...c, description: e.target.value })} rows={3} /></Field>
-          <Field label="Keywords"><Inp value={c.keywords} onChange={(e: any) => set({ ...c, keywords: e.target.value })} /></Field>
-        </div>
-      ),
-    },
-    {
-      id: "header", label: "Page Header", icon: <Type size={13} />,
+      key: "_pageInfo", label: "Page Header", icon: <Shield size={13} />, isRoot: true,
       editor: (c, set) => (
         <div className="space-y-4">
           <Field label="Page Title"><Inp value={c.title} onChange={(e: any) => set({ ...c, title: e.target.value })} placeholder="Privacy Policy" /></Field>
-          <Field label="Last Updated"><Inp value={c.lastUpdated} onChange={(e: any) => set({ ...c, lastUpdated: e.target.value })} placeholder="27 March 2026" /></Field>
+          <Field label="Last Updated Date"><Inp value={c.lastUpdated} onChange={(e: any) => set({ ...c, lastUpdated: e.target.value })} placeholder="January 15, 2025" /></Field>
+          <Field label="Intro Paragraph"><Txtarea value={c.intro} onChange={(e: any) => set({ ...c, intro: e.target.value })} rows={3} /></Field>
         </div>
       ),
     },
     {
-      id: "content", label: "Page Content", icon: <AlignLeft size={13} />,
+      key: "sections", label: "Policy Sections", icon: <List size={13} />,
       editor: (c, set) => (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-muted-foreground">Supports Markdown headings (## Heading), bold (**text**), and plain paragraphs.</span>
-          </div>
-          <Field label="Content (Markdown)">
-            <Txtarea value={c.body} onChange={(e: any) => set({ ...c, body: e.target.value })} rows={20} placeholder="## Section Title&#10;&#10;Your content here..." />
-          </Field>
-        </div>
+        <>
+          {jsonNote('Array of { "title": "1. Information We Collect", "content": "Account info, payment info..." }. Each renders as an expandable accordion.')}
+          <JsonEditor value={c} onChange={set} />
+        </>
       ),
     },
   ],
 };
 
-// ─── Section Editor Panel ─────────────────────────────────────────────────────
+// ─── Section Editor ───────────────────────────────────────────────────────────
 function SectionEditor({
-  pageId,
-  sectionId,
-  sectionMeta,
-  sectionData,
-  onSaved,
-  token,
+  cmsDot, sectionDef, allPageData, onSaved, token,
 }: {
-  pageId: string;
-  sectionId: string;
-  sectionMeta: (typeof SECTION_META)[string][number];
-  sectionData: { content: any; isVisible: boolean } | null;
+  cmsDot: string;
+  sectionDef: SectionDef;
+  allPageData: any;
   onSaved: () => void;
   token: string | null;
 }) {
-  const [content, setContent] = useState<any>(sectionData?.content ?? {});
-  const [isVisible, setIsVisible] = useState<boolean>(sectionData?.isVisible ?? true);
+  /**
+   * For isRoot sections: localData = allPageData (entire page object), so the
+   * editor can read/write root-level fields directly.
+   * For normal sections: localData = allPageData[key] (just that section).
+   */
+  const getInitial = () =>
+    sectionDef.isRoot ? (allPageData ?? {}) : (allPageData?.[sectionDef.key] ?? (Array.isArray(sectionDef.key) ? [] : {}));
+
+  const [localData, setLocalData] = useState<any>(getInitial);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
-    if (sectionData) {
-      setContent(sectionData.content ?? {});
-      setIsVisible(sectionData.isVisible ?? true);
-    }
-  }, [sectionData, sectionId, pageId]);
+    setLocalData(getInitial());
+    setSavedAt(null);
+  }, [sectionDef.key, allPageData]);
 
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/pages/${pageId}/${sectionId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ content, isVisible }),
+      // isRoot → spread localData into page root; normal → nest under key
+      const updatedPage = sectionDef.isRoot
+        ? { ...allPageData, ...localData }
+        : { ...allPageData, [sectionDef.key]: localData };
+
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch("/api/admin/content", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ key: cmsDot, value: updatedPage }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      setSavedAt(Date.now());
-      setTimeout(() => setSavedAt(null), 3000);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      setSavedAt(new Date());
+      // Broadcast change so ContentContext on other tabs / same page re-fetches
+      try { localStorage.setItem("noehost_content_updated", Date.now().toString()); } catch {}
       onSaved();
-    } catch (err: any) {
-      alert(`Failed to save: ${err.message}`);
+    } catch (err) {
+      console.error("[PageManager] save error:", err);
+      alert("Save failed — please try again.");
     } finally {
       setSaving(false);
     }
@@ -343,11 +354,15 @@ function SectionEditor({
 
   return (
     <div className="space-y-5">
-      {/* Section header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h3 className="text-base font-bold text-foreground">{sectionMeta.label}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Edit content and save. Changes go live immediately.</p>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">{sectionDef.icon}</span>
+            <h3 className="text-base font-bold text-foreground">{sectionDef.label}</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Changes are saved to the database and go live immediately.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {savedAt && (
@@ -367,27 +382,13 @@ function SectionEditor({
         </div>
       </div>
 
-      {/* Visibility toggle */}
-      <div className="rounded-xl border border-border/50 bg-secondary/20 px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {isVisible ? <Eye size={14} className="text-emerald-400" /> : <EyeOff size={14} className="text-muted-foreground" />}
-          <span className="text-sm font-semibold text-foreground">Section Visibility</span>
-        </div>
-        <Toggle
-          checked={isVisible}
-          onChange={setIsVisible}
-          label={isVisible ? "Visible on website" : "Hidden from website"}
-        />
-      </div>
-
-      {/* Content editor */}
       <div className="rounded-2xl border border-border/60 bg-secondary/20 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-border/40 bg-primary/5 flex items-center gap-2">
-          <span className="text-muted-foreground">{sectionMeta.icon}</span>
-          <span className="text-sm font-bold text-foreground">Content Editor</span>
+          <span className="text-muted-foreground">{sectionDef.icon}</span>
+          <span className="text-sm font-bold text-foreground">Content Editor — {sectionDef.label}</span>
         </div>
         <div className="p-5">
-          {sectionMeta.editor(content, setContent)}
+          {sectionDef.editor(localData, setLocalData)}
         </div>
       </div>
     </div>
@@ -395,42 +396,40 @@ function SectionEditor({
 }
 
 // ─── Page Tab ─────────────────────────────────────────────────────────────────
-function PageTab({ pageId }: { pageId: string }) {
+function PageTab({ pageId, cmsDot }: { pageId: string; cmsDot: string }) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const sections = SECTION_META[pageId] ?? [];
+  const sections = SECTION_DEFS[pageId] ?? [];
 
-  const [pageData, setPageData] = useState<Record<string, { content: any; isVisible: boolean }> | null>(null);
+  const [allPageData, setAllPageData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<string>(sections[0]?.id ?? "meta");
+  const [activeSection, setActiveSection] = useState<string>(sections[0]?.key ?? "hero");
   const [error, setError] = useState<string | null>(null);
 
   const fetchPage = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/pages/${pageId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        cache: "no-store",
-      });
+      const res = await fetch("/api/content", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setPageData(data.sections ?? {});
+      const all = await res.json();
+      // cmsDot is like "pages.about" — the slash notation used as a dot key
+      setAllPageData(all[cmsDot] ?? {});
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [pageId, token]);
+  }, [cmsDot]);
 
   useEffect(() => { fetchPage(); }, [fetchPage]);
 
-  const currentSectionMeta = sections.find((s) => s.id === activeSection) ?? sections[0];
+  const currentSectionDef = sections.find((s) => s.key === activeSection) ?? sections[0];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <RefreshCw size={20} className="animate-spin text-primary mr-3" />
-        <span className="text-sm text-muted-foreground">Loading page data…</span>
+        <span className="text-sm text-muted-foreground">Loading page content…</span>
       </div>
     );
   }
@@ -443,52 +442,53 @@ function PageTab({ pageId }: { pageId: string }) {
       </div>
     );
   }
+  if (sections.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <Info size={24} className="text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">No editable sections for this page.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex gap-5 min-h-[500px]">
-      {/* Sidebar — section list */}
+      {/* Section sidebar */}
       <div className="w-52 shrink-0">
         <div className="rounded-2xl border border-border/60 bg-secondary/20 overflow-hidden">
           <div className="px-4 py-3 border-b border-border/40 bg-primary/5">
             <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Sections</p>
           </div>
           <div className="divide-y divide-border/30">
-            {sections.map((s) => {
-              const vis = pageData?.[s.id]?.isVisible ?? true;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveSection(s.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all group ${
-                    activeSection === s.id
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={activeSection === s.id ? "text-primary" : "text-muted-foreground"}>{s.icon}</span>
-                    <span className="text-xs font-semibold truncate">{s.label}</span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0 ml-1">
-                    {!vis && <EyeOff size={10} className="text-muted-foreground/50" />}
-                    {activeSection === s.id && <ChevronRight size={12} />}
-                  </div>
-                </button>
-              );
-            })}
+            {sections.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setActiveSection(s.key)}
+                className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all ${
+                  activeSection === s.key
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={activeSection === s.key ? "text-primary" : "text-muted-foreground"}>{s.icon}</span>
+                  <span className="text-xs font-semibold truncate">{s.label}</span>
+                </div>
+                {activeSection === s.key && <ChevronRight size={12} />}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Editor panel */}
       <div className="flex-1 min-w-0">
-        {currentSectionMeta && (
+        {currentSectionDef && (
           <SectionEditor
             key={`${pageId}-${activeSection}`}
-            pageId={pageId}
-            sectionId={activeSection}
-            sectionMeta={currentSectionMeta}
-            sectionData={pageData?.[activeSection] ?? null}
+            cmsDot={cmsDot}
+            sectionDef={currentSectionDef}
+            allPageData={allPageData}
             onSaved={fetchPage}
             token={token}
           />
@@ -498,9 +498,9 @@ function PageTab({ pageId }: { pageId: string }) {
   );
 }
 
-// ─── Main PageManager component ───────────────────────────────────────────────
+// ─── Main PageManager ─────────────────────────────────────────────────────────
 export default function PageManager() {
-  const [activePage, setActivePage] = useState<string>("home");
+  const [activePage, setActivePage] = useState<string>("about");
   const activeDef = PAGES.find((p) => p.id === activePage) ?? PAGES[0];
 
   return (
@@ -515,9 +515,7 @@ export default function PageManager() {
               key={p.id}
               onClick={() => setActivePage(p.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                active
-                  ? "text-white shadow-lg"
-                  : "text-muted-foreground hover:text-foreground bg-transparent"
+                active ? "text-white shadow-lg" : "text-muted-foreground hover:text-foreground"
               }`}
               style={active ? { background: "linear-gradient(135deg,#673de6,#8b5cf6)" } : {}}
             >
@@ -528,17 +526,17 @@ export default function PageManager() {
         })}
       </div>
 
-      {/* Active page info */}
+      {/* Active page info bar */}
       <div className={`rounded-xl ${activeDef.bg} border border-border/40 px-5 py-3 flex items-center gap-3`}>
         <activeDef.icon size={16} className={activeDef.color} />
         <div>
           <p className="text-sm font-bold text-foreground">{activeDef.label} Page</p>
-          <p className="text-xs text-muted-foreground">Edit sections, toggle visibility, and manage SEO meta tags. All changes save to the database and go live immediately.</p>
+          <p className="text-xs text-muted-foreground">Edit content below — saved directly to the database and shown live on your website immediately.</p>
         </div>
       </div>
 
-      {/* Page editor */}
-      <PageTab key={activePage} pageId={activePage} />
+      {/* Page tab content */}
+      <PageTab key={activePage} pageId={activePage} cmsDot={activeDef.cmsDot} />
     </div>
   );
 }

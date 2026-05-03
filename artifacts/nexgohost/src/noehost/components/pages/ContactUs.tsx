@@ -75,9 +75,9 @@ const ContactUs: React.FC = () => {
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
                   className="p-6 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/30 transition-all text-center group hover:bg-white/10">
                   <div className="w-12 h-12 bg-primary/10 text-primary-400 rounded-xl flex items-center justify-center mx-auto mb-4 group-hover:bg-primary group-hover:text-white transition-all">
-                    {chanIcons[ch.title] || <MessageCircle size={22} />}
+                    {chanIcons[ch.type || ch.title] || <MessageCircle size={22} />}
                   </div>
-                  <h3 className="text-base font-black text-white mb-2">{ch.title}</h3>
+                  <h3 className="text-base font-black text-white mb-2">{ch.type || ch.title}</h3>
                   <p className="text-sm text-slate-400 font-medium leading-relaxed mb-3">{ch.desc}</p>
                   <p className="text-xs text-primary-300 font-black mb-4">{ch.detail}</p>
                   <button
