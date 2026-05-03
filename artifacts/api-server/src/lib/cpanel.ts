@@ -546,6 +546,7 @@ export async function cpanelUapi(
   module: string,
   func: string,
   params: Record<string, string> = {},
+  timeoutMs = 60_000,
 ): Promise<any> {
   const port = server.port || 2087;
   const authUser = server.username || "root";
@@ -559,7 +560,7 @@ export async function cpanelUapi(
     ...params,
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${query}`;
-  const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` }, 60_000);
+  const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` }, timeoutMs);
 
   let data: any;
   try { data = JSON.parse(raw); } catch {
@@ -693,6 +694,7 @@ export async function cpanelFilelist(
   cpanelUser: string,
   dir: string,
   limit = 200,
+  timeoutMs = 10_000,
 ): Promise<FilesystemItem[]> {
   const data = await cpanelUapi(server, cpanelUser, "Fileman", "list", {
     dir,
@@ -700,7 +702,7 @@ export async function cpanelFilelist(
     limit: String(limit),
     sort_by: "type",
     sort_order: "asc",
-  });
+  }, timeoutMs);
   const items: any[] = Array.isArray(data) ? data : (data?.list ?? data?.files ?? []);
   return items.map((item: any) => ({
     file: item.file ?? item.filename ?? "",

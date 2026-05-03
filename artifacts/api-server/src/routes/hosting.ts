@@ -3288,15 +3288,86 @@ router.delete("/client/hosting/:id/python/:appname", authenticate, async (req: A
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
+// In-memory file listing cache: key = `${serviceId}:${path}`, TTL = 5 min
+const _fileListCache = new Map<string, { items: any[]; expiresAt: number }>();
+const FILE_CACHE_TTL = 5 * 60 * 1000;
+
+function isNetworkError(msg: string) {
+  const m = msg.toLowerCase();
+  return m.includes("timed out") || m.includes("econnreset") || m.includes("econnrefused")
+    || m.includes("enotfound") || m.includes("socket hang up") || m.includes("connection failed")
+    || m.includes("network") || m.includes("connect");
+}
+
 // GET /api/client/hosting/:id/files?path=public_html
 router.get("/client/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
+  const svcId = req.params.id;
+  const dirPath = ((req.query.path as string) || "public_html").replace(/\/+$/, "") || "public_html";
+  const cacheKey = `${svcId}:${dirPath}`;
+
   try {
-    const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
-    if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
-    const dirPath = (req.query.path as string) || "public_html";
-    const items = await cpanelFilelist(serverCfg, service!.username!, dirPath);
+    // ── 1. Resolve service + server (includes username check) ──────────────
+    const { service, serverCfg, error } = await resolveClientService(svcId, req.user!.userId);
+    if (error || !serverCfg) {
+      return res.status(error === "Service not found" ? 404 : 400).json({ error });
+    }
+
+    const cpanelUser = service!.username!;
+    const port = serverCfg.port || 2087;
+    const authWhmUser = serverCfg.username || "root";
+    const tokenPreview = serverCfg.apiToken ? `${serverCfg.apiToken.substring(0, 8)}…` : "MISSING";
+    const debugUrl = `https://${serverCfg.hostname}:${port}/json-api/cpanel?api.version=1&user=${cpanelUser}&cpanel_jsonapi_apiversion=uapi&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=list&dir=${encodeURIComponent(dirPath)}`;
+
+    // ── 2. Serve from cache if fresh ───────────────────────────────────────
+    const hit = _fileListCache.get(cacheKey);
+    if (hit && hit.expiresAt > Date.now()) {
+      console.log(`[FILE-MANAGER] CACHE HIT — svc=${svcId} path=${dirPath} user=${cpanelUser} server=${serverCfg.hostname}`);
+      return res.json({ items: hit.items, path: dirPath, cached: true });
+    }
+
+    // ── 3. Live debug log ──────────────────────────────────────────────────
+    console.log(`[FILE-MANAGER] REQUEST — svc=${svcId} cpanelUser=${cpanelUser} server=${serverCfg.hostname}:${port} path=${dirPath}`);
+    console.log(`[FILE-MANAGER] URL  → ${debugUrl}`);
+    console.log(`[FILE-MANAGER] AUTH → WHM ${authWhmUser}:${tokenPreview}`);
+
+    // ── 4. First attempt (10 s timeout) ────────────────────────────────────
+    let items: any[];
+    try {
+      items = await cpanelFilelist(serverCfg, cpanelUser, dirPath, 200, 10_000);
+      console.log(`[FILE-MANAGER] SUCCESS (attempt 1) — ${items.length} items from ${serverCfg.hostname}`);
+    } catch (firstErr: any) {
+      console.error(`[FILE-MANAGER] ATTEMPT 1 FAILED — ${firstErr.message}`);
+
+      // ── 5. Retry once with a fresh server re-resolve ─────────────────────
+      try {
+        console.log(`[FILE-MANAGER] Retrying with fresh server resolve…`);
+        const { service: svc2, serverCfg: cfg2, error: err2 } = await resolveClientService(svcId, req.user!.userId);
+        if (err2 || !cfg2) throw new Error(err2 || "Server not found on retry");
+        items = await cpanelFilelist(cfg2, svc2!.username!, dirPath, 200, 10_000);
+        console.log(`[FILE-MANAGER] SUCCESS (attempt 2 / retry) — ${items.length} items`);
+      } catch (retryErr: any) {
+        console.error(`[FILE-MANAGER] ATTEMPT 2 FAILED — ${retryErr.message}`);
+
+        // ── 6. Network/timeout → return "syncing" instead of 500 ──────────
+        if (isNetworkError(retryErr.message) || isNetworkError(firstErr.message)) {
+          return res.status(503).json({
+            error: "Data syncing — the server is taking longer than expected. Please retry.",
+            syncing: true,
+          });
+        }
+        // Auth / WHM logic error — throw so catch below returns full message
+        throw retryErr;
+      }
+    }
+
+    // ── 7. Store in cache for 5 minutes ────────────────────────────────────
+    _fileListCache.set(cacheKey, { items, expiresAt: Date.now() + FILE_CACHE_TTL });
+
     res.json({ items, path: dirPath });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  } catch (err: any) {
+    console.error(`[FILE-MANAGER] FATAL — svc=${svcId} path=${dirPath}: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/client/hosting/:id/files/content?path=public_html/index.html

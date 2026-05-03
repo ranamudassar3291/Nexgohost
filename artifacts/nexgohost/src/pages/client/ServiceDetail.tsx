@@ -203,15 +203,19 @@ function NotAvailable({ reason }: { reason: string }) {
 }
 
 function MgmtUnavailable({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  const isNoServer = message.toLowerCase().includes("no whm") || message.toLowerCase().includes("no cpanel");
-  const isNoUser = message.toLowerCase().includes("username") || message.toLowerCase().includes("no cpanel username");
-  const is20i = message.toLowerCase().includes("20i");
-  const isStatus = message.toLowerCase().includes("management unavailable");
+  const m = message.toLowerCase();
+  const isNoServer = m.includes("no whm") || m.includes("no cpanel");
+  const isNoUser = m.includes("username") || m.includes("no cpanel username")
+    || m.includes("user parameter") || m.includes("user is invalid") || m.includes("invalid user");
+  const is20i = m.includes("20i");
+  const isStatus = m.includes("management unavailable");
+  const isAuth = m.includes("invalid api token") || m.includes("access denied") || m.includes("401") || m.includes("403");
 
   const title = isStatus ? "Service not active"
     : is20i ? "Not available for this plan"
     : isNoUser ? "Account not provisioned"
     : isNoServer ? "Server not configured"
+    : isAuth ? "Server authentication error"
     : "Management unavailable";
 
   const detail = isStatus
@@ -219,9 +223,11 @@ function MgmtUnavailable({ message, onRetry }: { message: string; onRetry?: () =
     : is20i
     ? "This feature is managed through the 20i control panel. Contact support for assistance."
     : isNoUser
-    ? "This hosting account has not been provisioned yet or is missing configuration. Please contact support."
+    ? "This hosting account has not been fully provisioned on the server yet. Please contact support to complete setup."
     : isNoServer
     ? "No WHM/cPanel server is linked to this account. Please contact support."
+    : isAuth
+    ? "The server API token is invalid or lacks permission. Please contact support to re-link the server credentials."
     : message;
 
   return (
@@ -1137,6 +1143,7 @@ function SectionFiles({ service }: { service: Service }) {
   const [items, setItems] = useState<FsItem[]>([]);
   const [loadingDir, setLoadingDir] = useState(false);
   const [mgmtError, setMgmtError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [editFile, setEditFile] = useState<{ path: string; content: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [showMkdir, setShowMkdir] = useState(false);
@@ -1148,13 +1155,20 @@ function SectionFiles({ service }: { service: Service }) {
 
   async function loadDir(path: string) {
     setLoadingDir(true);
+    setIsSyncing(false);
     try {
       const res = await authFetch(`/client/hosting/${service.id}/files?path=${encodeURIComponent(path)}`);
       const d = await res.json();
+      if (res.status === 503 && d.syncing) {
+        setIsSyncing(true);
+        setMgmtError(null);
+        return;
+      }
       if (!res.ok) throw new Error(d.error || "Failed to list directory");
       setItems(d.items || []);
       setCurrentPath(path);
       setMgmtError(null);
+      setIsSyncing(false);
     } catch (e: any) {
       if (isInitialLoad.current) setMgmtError(e.message);
       else toast({ description: e.message, variant: "destructive" });
@@ -1250,6 +1264,28 @@ function SectionFiles({ service }: { service: Service }) {
   const breadcrumbs = currentPath.split("/").filter(Boolean);
 
   if (!isWHM) return <NotAvailable reason="File Manager is available on WHM/cPanel servers. This account uses a different server type." />;
+
+  if (isSyncing) return (
+    <div className="space-y-5">
+      <SectionHeader title="File Manager" description="Browse and manage your hosting files" />
+      <Card className="flex items-center gap-4 p-5">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+          <Loader2 size={20} className="text-blue-500 animate-spin" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">Data Synching...</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            The server is taking longer than usual to respond. Your files are safe — please retry in a moment.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => { isInitialLoad.current = true; loadDir("public_html"); }}
+          className="gap-1.5 shrink-0">
+          <Loader2 size={13} />
+          Retry
+        </Button>
+      </Card>
+    </div>
+  );
 
   if (mgmtError) return (
     <div className="space-y-5">
