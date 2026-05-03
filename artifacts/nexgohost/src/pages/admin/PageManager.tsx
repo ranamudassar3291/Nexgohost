@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  Home, Info, Server, Globe, Mail, FileText, Shield, RefreshCw,
-  Save, CheckCircle2, AlertCircle, ChevronRight,
-  Type, AlignLeft, Tag, Users, List, Cpu, Layout,
-} from "lucide-react";
+import { Plus, Save, RefreshCw, AlertCircle } from "lucide-react";
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 const inputCls =
@@ -56,17 +52,7 @@ type SectionDef = {
   editor: (data: any, set: (d: any) => void) => React.ReactNode;
 };
 
-const PAGES = [
-  { id: "about",            label: "About",      icon: Info,     color: "text-emerald-400", bg: "bg-emerald-500/10", cmsDot: "pages.about" },
-  { id: "contact",          label: "Contact",    icon: Mail,     color: "text-sky-400",     bg: "bg-sky-500/10",     cmsDot: "pages.contact" },
-  { id: "sharedHosting",    label: "Shared",     icon: Server,   color: "text-blue-400",    bg: "bg-blue-500/10",    cmsDot: "pages.sharedHosting" },
-  { id: "wordpressHosting", label: "WordPress",  icon: Layout,   color: "text-indigo-400",  bg: "bg-indigo-500/10",  cmsDot: "pages.wordpressHosting" },
-  { id: "resellerHosting",  label: "Reseller",   icon: Users,    color: "text-violet-400",  bg: "bg-violet-500/10",  cmsDot: "pages.resellerHosting" },
-  { id: "vpsHosting",       label: "VPS",        icon: Cpu,      color: "text-rose-400",    bg: "bg-rose-500/10",    cmsDot: "pages.vpsHosting" },
-  { id: "domains",          label: "Domains",    icon: Globe,    color: "text-cyan-400",    bg: "bg-cyan-500/10",    cmsDot: "pages.domains" },
-  { id: "terms",            label: "Terms",      icon: FileText, color: "text-amber-400",   bg: "bg-amber-500/10",   cmsDot: "pages.terms" },
-  { id: "privacy",          label: "Privacy",    icon: Shield,   color: "text-teal-400",    bg: "bg-teal-500/10",    cmsDot: "pages.privacy" },
-];
+const PAGES = [];
 
 // Shared hero editor (badge / title / titleHighlight / description)
 function heroEditor(c: any, set: (d: any) => void) {
@@ -500,27 +486,57 @@ function PageTab({ pageId, cmsDot }: { pageId: string; cmsDot: string }) {
 
 // ─── Main PageManager ─────────────────────────────────────────────────────────
 export default function PageManager() {
-  const [activePage, setActivePage] = useState<string>("about");
-  const activeDef = PAGES.find((p) => p.id === activePage) ?? PAGES[0];
+  const [pages, setPages] = useState<any[]>([]);
+  const [activePage, setActivePage] = useState<string>("");
+  const activeDef = pages.find((p) => p.pageSlug === activePage) ?? pages[0];
+  const [showAdd, setShowAdd] = useState(false);
+  const [newPageName, setNewPageName] = useState("");
+  const [newPageSlug, setNewPageSlug] = useState("");
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  const loadPages = useCallback(async () => {
+    const res = await fetch("/api/admin/pages", { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const data = await res.json();
+    setPages(data.pages || []);
+    if (!activePage && data.pages?.[0]?.pageSlug) setActivePage(data.pages[0].pageSlug);
+  }, [token, activePage]);
+
+  useEffect(() => { loadPages(); }, [loadPages]);
+
+  const createPage = async () => {
+    const res = await fetch("/api/admin/pages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ pageTitle: newPageName, pageSlug: newPageSlug }),
+    });
+    if (res.ok) {
+      setShowAdd(false);
+      setNewPageName("");
+      setNewPageSlug("");
+      await loadPages();
+      setActivePage(newPageSlug);
+    }
+  };
 
   return (
     <div className="space-y-6">
       {/* Page tabs */}
-      <div className="rounded-2xl border border-border/60 bg-secondary/10 p-1.5 flex gap-1.5 flex-wrap">
-        {PAGES.map((p) => {
-          const Icon = p.icon;
-          const active = activePage === p.id;
+      <div className="rounded-2xl border border-border/60 bg-secondary/10 p-1.5 flex gap-1.5 flex-wrap items-center">
+        <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: "linear-gradient(135deg,#673de6,#8b5cf6)" }}>
+          <Plus size={14} className="inline mr-2" /> Add New Page
+        </button>
+        {pages.map((p) => {
+          const active = activePage === p.pageSlug;
           return (
             <button
-              key={p.id}
-              onClick={() => setActivePage(p.id)}
+              key={p.pageSlug}
+              onClick={() => setActivePage(p.pageSlug)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                 active ? "text-white shadow-lg" : "text-muted-foreground hover:text-foreground"
               }`}
               style={active ? { background: "linear-gradient(135deg,#673de6,#8b5cf6)" } : {}}
             >
-              <Icon size={14} className={active ? "text-white" : p.color} />
-              {p.label}
+              {p.pageTitle}
             </button>
           );
         })}
@@ -528,15 +544,28 @@ export default function PageManager() {
 
       {/* Active page info bar */}
       <div className={`rounded-xl ${activeDef.bg} border border-border/40 px-5 py-3 flex items-center gap-3`}>
-        <activeDef.icon size={16} className={activeDef.color} />
+        <span className="text-sm font-bold text-foreground">{activeDef?.pageTitle}</span>
         <div>
-          <p className="text-sm font-bold text-foreground">{activeDef.label} Page</p>
+          <p className="text-sm font-bold text-foreground">{activeDef?.pageTitle} Page</p>
           <p className="text-xs text-muted-foreground">Edit content below — saved directly to the database and shown live on your website immediately.</p>
         </div>
       </div>
 
       {/* Page tab content */}
-      <PageTab key={activePage} pageId={activePage} cmsDot={activeDef.cmsDot} />
+      <PageTab key={activePage} pageId={activePage} cmsDot={activePage} />
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6">
+          <div className="bg-background rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4">Add New Page</h3>
+            <input className={inputCls} placeholder="Page Name" value={newPageName} onChange={e => setNewPageName(e.target.value)} />
+            <input className={`${inputCls} mt-3`} placeholder="page-slug" value={newPageSlug} onChange={e => setNewPageSlug(e.target.value)} />
+            <div className="flex gap-2 mt-4 justify-end">
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg bg-secondary">Cancel</button>
+              <button onClick={createPage} className="px-4 py-2 rounded-lg text-white" style={{ background: "linear-gradient(135deg,#673de6,#8b5cf6)" }}>Create</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

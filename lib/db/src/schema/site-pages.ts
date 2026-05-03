@@ -1,13 +1,15 @@
-import { pgTable, varchar, text, boolean, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, boolean, timestamp } from "drizzle-orm/pg-core";
 
 export const sitePagesTable = pgTable(
   "site_pages",
   {
-    pageId:      varchar("page_id",      { length: 50  }).notNull(),
-    sectionName: varchar("section_name", { length: 100 }).notNull(),
-    contentJson: text("content_json"),
-    isVisible:   boolean("is_visible").default(true).notNull(),
-    lastUpdated: timestamp("last_updated").defaultNow().$onUpdate(() => new Date()),
+    id: serial("id").primaryKey(),
+    pageSlug: varchar("page_slug", { length: 120 }).notNull().unique(),
+    pageTitle: varchar("page_title", { length: 200 }).notNull(),
+    metaDescription: text("meta_description"),
+    keywords: text("keywords"),
+    sectionsJson: text("sections_json").notNull(),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (table) => [primaryKey({ columns: [table.pageId, table.sectionName] })],
 );
