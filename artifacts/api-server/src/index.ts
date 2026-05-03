@@ -390,6 +390,38 @@ async function runStartupMigrations() {
     `);
     console.log("[MIGRATIONS] hosting_cache_settings table ready");
 
+    // ── Staging & Cloning: staging_sites ─────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS staging_sites (
+        id                SERIAL PRIMARY KEY,
+        service_id        TEXT NOT NULL UNIQUE,
+        staging_subdomain TEXT,
+        staging_url       TEXT,
+        status            TEXT NOT NULL DEFAULT 'creating',
+        provider          TEXT NOT NULL DEFAULT 'none',
+        remote_id         TEXT,
+        created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_staging_sites_service ON staging_sites(service_id)`);
+    console.log("[MIGRATIONS] staging_sites table ready");
+
+    // ── Staging & Cloning: staging_sync_logs ─────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS staging_sync_logs (
+        id          SERIAL PRIMARY KEY,
+        service_id  TEXT NOT NULL,
+        action      TEXT NOT NULL DEFAULT 'create',
+        status      TEXT NOT NULL DEFAULT 'success',
+        steps_json  JSONB NOT NULL DEFAULT '[]',
+        note        TEXT,
+        logged_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_staging_sync_service ON staging_sync_logs(service_id, logged_at DESC)`);
+    console.log("[MIGRATIONS] staging_sync_logs table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

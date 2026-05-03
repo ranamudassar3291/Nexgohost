@@ -492,3 +492,43 @@ Extended with:
 - `resource_usage_logs` — (id, service_id, disk_io_read, disk_io_write, entry_processes, inodes_used, inodes_limit, cpu_pct, recorded_at)
 - `security_scan_logs` — (id, service_id, scan_type, result, dirs_fixed, files_fixed, source, scanned_at)
 - `hosting_cache_settings` — (service_id PK, edge_cache, object_cache, updated_at)
+
+## One-Click Staging & Cloning
+
+### New client nav section: "Staging & Clone" (ServiceDetail.tsx)
+- NavSection type extended with `"staging"`
+- Nav item added to "Tools" group with Rocket icon + tooltip
+- `SectionStaging` component with 4 panels: progress tracker, active staging card, how-it-works, quick launch builders, sync log history
+
+### StepTracker component
+- Animated vertical step list with connector lines between steps
+- Each step cycles through: pending (numbered circle) → active (spinning loader + pulse glow + primary color) → done (emerald checkmark with glow shadow)
+- Steps are animated sequentially via 550ms/700ms delay loop for visual flair
+- Error state shows red X icon
+
+### SuccessBanner component
+- Slide-in-from-top emerald banner with glowing green checkmark icon
+- Auto-dismisses after 5 seconds or user can close manually
+
+### Staging Lifecycle UI
+- Empty state: centered card with Rocket icon, description, "Create Staging Site" CTA, 3-column how-it-works grid (Clone → Test → Deploy)
+- Active staging: shows status badge (Ready/Pushed/Creating), clickable staging URL, Open button, two-step "Push to Live" confirm flow, Delete button
+- Confirmation guard: clicking Push to Live reveals inline "Are you sure? / Yes, Push / Cancel" to prevent accidents
+- Sync log history: last 8 operations with action label, status badge, note, and timestamp
+
+### Website Builder Quick Launch
+- 4 builder cards: Elementor (red), Divi (purple), Framer (black), Webflow (indigo)
+- Each card links to the builder's site with arrow icon and brand color background tint
+- Note about Software section for WordPress installation
+
+### New Backend: staging.ts
+- `GET /client/hosting/:id/staging` — fetches staging record + last 20 sync logs from DB
+- `POST /client/hosting/:id/staging/create` — clones site via 20i stagingCreate API or cPanel SubDomain + Fileman copy, saves to staging_sites, writes to staging_sync_logs
+- `POST /client/hosting/:id/staging/push-to-live` — pushes via 20i stagingPushToLive or cPanel Fileman overwrite, marks status=pushed, logs result
+- `DELETE /client/hosting/:id/staging` — removes via 20i or cPanel SubDomain delete, marks status=deleted, logs result
+- Graceful simulated fallback for accounts with no configured server
+- Registered in `routes/index.ts`
+
+### New PostgreSQL Tables (auto-migrated on startup)
+- `staging_sites` — (id, service_id UNIQUE, staging_subdomain, staging_url, status, provider, remote_id, created_at, updated_at)
+- `staging_sync_logs` — (id, service_id, action, status, steps_json JSONB, note, logged_at)

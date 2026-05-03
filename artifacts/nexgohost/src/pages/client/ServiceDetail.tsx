@@ -57,7 +57,7 @@ interface Service {
 
 interface DnsRecord { line: number; type: string; name: string; address: string; ttl: number }
 interface HostingPlan { id: string; name: string; price: number; yearlyPrice?: number | null; diskSpace: string; bandwidth: string }
-type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment" | "monitor";
+type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment" | "monitor" | "staging";
 
 // ─── Sidebar Nav ─────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string; tooltip?: string }[] = [
@@ -71,6 +71,7 @@ const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group
   { id: "monitor",      label: "Resource Guard",  icon: Gauge,           group: "Security", tooltip: "Real-time resource monitoring, security permission scanning, and edge/object cache controls for your hosting account." },
   { id: "ssl",          label: "SSL",             icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
   { id: "ssh",          label: "SSH Access",      icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
+  { id: "staging",      label: "Staging & Clone", icon: Rocket,          group: "Tools", tooltip: "Create a full 1-click copy of your live site for safe testing, then push it back to production with one click." },
   { id: "backup",       label: "Backups",        icon: ArchiveRestore,  group: "Tools" },
   { id: "environment",  label: "Environment",    icon: Sliders,         group: "Tools", tooltip: "Switch PHP and runtime versions for your hosting account with one click." },
   { id: "nodejs",       label: "Node.js",        icon: Code2,           group: "Tools" },
@@ -2222,6 +2223,363 @@ function SectionDomains({ service }: { service: Service }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: STAGING & CLONING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Animated step-by-step progress tracker */
+function StepTracker({ steps }: { steps: { key: string; label: string; status: "done" | "active" | "pending" | "error" }[] }) {
+  return (
+    <div className="space-y-2.5">
+      {steps.map((step, i) => {
+        const isDone    = step.status === "done";
+        const isActive  = step.status === "active";
+        const isError   = step.status === "error";
+        return (
+          <div key={step.key} className="flex items-center gap-3">
+            {/* connector line */}
+            <div className="flex flex-col items-center shrink-0">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${
+                isDone  ? "bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.35)]" :
+                isActive? "bg-primary text-white shadow-[0_0_12px_rgba(99,102,241,0.4)] animate-pulse" :
+                isError ? "bg-red-500 text-white" :
+                          "bg-muted text-muted-foreground"
+              }`}>
+                {isDone  ? <CheckCircle2 size={14} /> :
+                 isActive? <Loader2 size={13} className="animate-spin" /> :
+                 isError ? <X size={13} /> :
+                           <span>{i + 1}</span>}
+              </div>
+              {i < steps.length - 1 && (
+                <div className={`w-0.5 h-4 mt-0.5 transition-colors duration-700 ${isDone ? "bg-emerald-400" : "bg-border"}`} />
+              )}
+            </div>
+            <span className={`text-sm transition-colors ${
+              isDone ? "text-foreground font-medium" : isActive ? "text-primary font-semibold" : "text-muted-foreground"
+            }`}>{step.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Full-width success flash animation */
+function SuccessBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => { const t = setTimeout(onDismiss, 5000); return () => clearTimeout(t); }, []);
+  return (
+    <div className="flex items-center gap-3 px-5 py-4 rounded-xl bg-emerald-50 border border-emerald-200 animate-in slide-in-from-top-2 duration-300">
+      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-[0_0_14px_rgba(16,185,129,0.4)]">
+        <CheckCircle2 size={16} className="text-white" />
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-emerald-800">{message}</p>
+      </div>
+      <button onClick={onDismiss} className="text-emerald-600 hover:text-emerald-800"><X size={14} /></button>
+    </div>
+  );
+}
+
+/** Website builder quick-launch cards */
+const BUILDERS = [
+  { name: "Elementor",   desc: "Drag-and-drop WordPress editor",    color: "#E22D2D", icon: "🎨", url: "https://elementor.com" },
+  { name: "Divi",        desc: "Visual builder with 800+ templates", color: "#7D4CDB", icon: "✏️", url: "https://www.elegantthemes.com/gallery/divi" },
+  { name: "Framer",      desc: "Interactive no-code site builder",  color: "#0D0D0D", icon: "⚡", url: "https://www.framer.com" },
+  { name: "Webflow",     desc: "Professional CMS + designer tool",  color: "#4353FF", icon: "🌐", url: "https://webflow.com" },
+];
+
+function SectionStaging({ service }: { service: Service }) {
+  const { toast } = useToast();
+
+  const [stagingData, setStagingData] = useState<any>(null);
+  const [syncLogs,    setSyncLogs]    = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // Progress / animation state
+  const [progressSteps, setProgressSteps] = useState<any[] | null>(null);
+  const [actionLoading, setActionLoading]  = useState<string | null>(null);
+  const [success,       setSuccess]        = useState<string | null>(null);
+  const [confirmPush,   setConfirmPush]    = useState(false);
+
+  const load = async () => {
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/staging`);
+      if (r.ok) { const d = await r.json(); setStagingData(d.staging); setSyncLogs(d.logs ?? []); }
+    } catch {} finally { setLoadingData(false); }
+  };
+
+  useEffect(() => { load(); }, [service.id]);
+
+  const activeStaging = stagingData && stagingData.status !== "deleted";
+
+  // Animate steps one-by-one for visual flair
+  async function animateSteps(finalSteps: any[]) {
+    const pending = finalSteps.map(s => ({ ...s, status: "pending" }));
+    setProgressSteps(pending);
+    for (let i = 0; i < finalSteps.length; i++) {
+      await new Promise(r => setTimeout(r, 550));
+      setProgressSteps(prev => prev!.map((s, j) => j === i ? { ...s, status: "active" } : s));
+      await new Promise(r => setTimeout(r, 700));
+      setProgressSteps(prev => prev!.map((s, j) => j === i ? { ...s, status: finalSteps[i].status } : s));
+    }
+  }
+
+  async function handleCreate() {
+    setActionLoading("create");
+    setProgressSteps([
+      { key: "init",      label: "Initialising clone",         status: "pending" },
+      { key: "files",     label: "Copying files & assets",     status: "pending" },
+      { key: "db",        label: "Cloning database",           status: "pending" },
+      { key: "subdomain", label: "Setting up staging domain",  status: "pending" },
+      { key: "ssl",       label: "Issuing SSL certificate",    status: "pending" },
+    ]);
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/staging/create`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Create failed");
+      await animateSteps(d.steps);
+      await load();
+      setSuccess(`Staging site is ready at ${d.stagingUrl}`);
+    } catch (e: any) {
+      toast({ title: "Staging Error", description: e.message, variant: "destructive" });
+      setProgressSteps(null);
+    } finally { setActionLoading(null); }
+  }
+
+  async function handlePushToLive() {
+    setConfirmPush(false);
+    setActionLoading("push");
+    setProgressSteps([
+      { key: "backup",  label: "Backing up live site",        status: "pending" },
+      { key: "files",   label: "Syncing files to production", status: "pending" },
+      { key: "db",      label: "Syncing database",            status: "pending" },
+      { key: "cache",   label: "Clearing caches",             status: "pending" },
+      { key: "verify",  label: "Verifying deployment",        status: "pending" },
+    ]);
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/staging/push-to-live`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Push failed");
+      await animateSteps(d.steps);
+      await load();
+      setSuccess("Staging successfully pushed to live — your production site is updated!");
+    } catch (e: any) {
+      toast({ title: "Push Error", description: e.message, variant: "destructive" });
+      setProgressSteps(null);
+    } finally { setActionLoading(null); }
+  }
+
+  async function handleDelete() {
+    setActionLoading("delete");
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/staging`, { method: "DELETE" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Delete failed");
+      setStagingData(null); setProgressSteps(null);
+      toast({ title: "Staging site deleted" });
+      load();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally { setActionLoading(null); }
+  }
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        title="Staging & Clone"
+        description="Create a full copy of your live site, test changes safely, and push to production in one click"
+      />
+
+      {/* Success banner */}
+      {success && <SuccessBanner message={success} onDismiss={() => setSuccess(null)} />}
+
+      {/* ── Progress tracker (shown during operations) ── */}
+      {progressSteps && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Loader2 size={15} className={actionLoading ? "animate-spin text-primary" : "text-emerald-500"} />
+            {actionLoading === "create" ? "Creating Staging Site…" :
+             actionLoading === "push"   ? "Pushing to Live…"       : "Processing…"}
+          </h3>
+          <StepTracker steps={progressSteps} />
+        </Card>
+      )}
+
+      {/* ── No staging yet ── */}
+      {!activeStaging && !progressSteps && (
+        <Card className="flex flex-col items-center text-center py-10 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Rocket size={26} className="text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground text-base">No Staging Site Yet</h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Create a full 1:1 clone of your live site. Test changes, install plugins, redesign pages — all without affecting your visitors.
+            </p>
+          </div>
+          <Button onClick={handleCreate} disabled={!!actionLoading} className="gap-2 bg-primary hover:bg-primary/90 px-6">
+            {actionLoading === "create" ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+            Create Staging Site
+          </Button>
+          <p className="text-xs text-muted-foreground">Takes 30–60 seconds · All data is saved in PostgreSQL</p>
+        </Card>
+      )}
+
+      {/* ── Active staging site ── */}
+      {activeStaging && !progressSteps && (
+        <Card>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                stagingData.status === "ready" ? "bg-emerald-50 text-emerald-600" :
+                stagingData.status === "pushed"? "bg-blue-50 text-blue-600" : "bg-amber-50 text-amber-600"
+              }`}>
+                <Rocket size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-foreground">Staging Site</p>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    stagingData.status === "ready"  ? "bg-emerald-50 text-emerald-700" :
+                    stagingData.status === "pushed" ? "bg-blue-50 text-blue-700"       :
+                    stagingData.status === "creating"? "bg-amber-50 text-amber-700"    : "bg-muted text-muted-foreground"
+                  }`}>
+                    {stagingData.status === "ready"   ? "Ready" :
+                     stagingData.status === "pushed"  ? "Pushed to Live" :
+                     stagingData.status === "creating"? "Creating…" : stagingData.status}
+                  </span>
+                </div>
+                <a href={stagingData.staging_url} target="_blank" rel="noopener noreferrer"
+                   className="text-sm text-primary hover:underline flex items-center gap-1 mt-1">
+                  {stagingData.staging_url} <ExternalLink size={11} />
+                </a>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Created {new Date(stagingData.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                  {" · "} Provider: <strong>{stagingData.provider}</strong>
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <a href={stagingData.staging_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={13} /> Open
+                </a>
+              </Button>
+              {stagingData.status === "ready" && (
+                confirmPush ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Are you sure?</span>
+                    <Button size="sm" onClick={handlePushToLive} disabled={!!actionLoading} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+                      {actionLoading === "push" ? <Loader2 size={13} className="animate-spin" /> : <UploadCloud size={13} />}
+                      Yes, Push
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setConfirmPush(false)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <Button size="sm" onClick={() => setConfirmPush(true)} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+                    <UploadCloud size={13} /> Push to Live
+                  </Button>
+                )
+              )}
+              <Button variant="ghost" size="sm" onClick={handleDelete} disabled={!!actionLoading}
+                className="text-destructive hover:text-destructive gap-1.5">
+                {actionLoading === "delete" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                Delete
+              </Button>
+            </div>
+          </div>
+
+          {/* Usage tip */}
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <Info size={12} className="mt-0.5 shrink-0" />
+              <span>Make your changes on the staging site, then click <strong className="text-foreground">Push to Live</strong> to deploy everything to production atomically. All clone metadata and sync logs are saved in PostgreSQL.</span>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* ── How it works ── */}
+      {!activeStaging && !progressSteps && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {([
+            { icon: Rocket,      title: "1. Clone",   desc: "We copy every file, database, and config from your live site to an isolated staging URL." },
+            { icon: Settings,    title: "2. Test",    desc: "Install plugins, redesign layouts, or update your code — changes only affect staging." },
+            { icon: UploadCloud, title: "3. Deploy",  desc: "When you're ready, push staging to live in one click. Your audience sees the update instantly." },
+          ] as const).map(item => (
+            <div key={item.title} className="flex flex-col gap-2 p-4 rounded-xl border border-border bg-card">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <item.icon size={16} className="text-primary" />
+              </div>
+              <p className="font-semibold text-sm text-foreground">{item.title}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Website Builder Quick Launch ── */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <Palette size={15} className="text-primary" /> Quick Launch — Website Builder
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Connect a no-code builder to your hosting plan and start designing instantly</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {BUILDERS.map(b => (
+            <a key={b.name} href={b.url} target="_blank" rel="noopener noreferrer"
+               className="flex items-center gap-3 p-3.5 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/40 transition-all group">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+                   style={{ background: `${b.color}18` }}>
+                {b.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-foreground group-hover:text-primary transition-colors">{b.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{b.desc}</p>
+              </div>
+              <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+            </a>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
+          <Info size={11} /> Your hosting plan supports all major WordPress builders. Install via the Software section.
+        </p>
+      </Card>
+
+      {/* ── Sync Log History ── */}
+      {syncLogs.length > 0 && (
+        <Card>
+          <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Clock size={14} className="text-muted-foreground" /> Sync History
+          </h3>
+          <div className="space-y-2">
+            {syncLogs.slice(0, 8).map((log: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 text-sm py-2 border-b border-border last:border-0">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                  log.status === "success" ? "bg-emerald-500" :
+                  log.status === "error"   ? "bg-red-400"     : "bg-amber-400"
+                }`} />
+                <span className="capitalize font-medium text-foreground w-28 shrink-0">{log.action.replace(/-/g, " ")}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
+                  log.status === "success" ? "bg-emerald-50 text-emerald-700" :
+                  log.status === "error"   ? "bg-red-50 text-red-700"         : "bg-amber-50 text-amber-700"
+                }`}>{log.status}</span>
+                <span className="text-xs text-muted-foreground flex-1 truncate">{log.note}</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {new Date(log.logged_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: RESOURCE GUARD (Monitor + Security + Cache)
 // ═══════════════════════════════════════════════════════════════════════════════
 function AnimatedBar({ pct, color, animated = true }: { pct: number; color: string; animated?: boolean }) {
@@ -2658,6 +3016,7 @@ export default function ServiceDetail() {
           {section === "nodejs"       && <SectionNodejs service={service} />}
           {section === "python"       && <SectionPython service={service} />}
           {section === "monitor"      && <SectionMonitor service={service} />}
+          {section === "staging"      && <SectionStaging service={service} />}
         </div>
       </div>
     </div>
