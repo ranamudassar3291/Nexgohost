@@ -32,7 +32,11 @@ async function apiFetch(url: string, opts?: RequestInit) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers },
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) {
+    const err = new Error(data.error || "Request failed") as any;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
@@ -110,6 +114,15 @@ interface PreActivateModal {
   existingModulePlanId: string | null;
 }
 
+interface ActivateError {
+  orderId: string;
+  error: string;
+  errorCode: "ip_blocked" | "permission_denied" | "no_package_types" | "auth_failed" | "api_error";
+  serviceId: string | null;
+  /** Saved modal state so admin can retry immediately */
+  preActivate: PreActivateModal;
+}
+
 function generatePassword() {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
   return Array.from({ length: 14 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
@@ -180,6 +193,7 @@ export default function AdminOrders() {
   const [approveLoading, setApproveLoading] = useState(false);
   const [twentyiPackageTypes, setTwentyiPackageTypes] = useState<PackageType[]>([]);
   const [loadingPackageTypes, setLoadingPackageTypes] = useState(false);
+  const [activateError, setActivateError] = useState<ActivateError | null>(null);
 
   const { data: registrars = [] } = useQuery<Registrar[]>({
     queryKey: ["admin-registrars-for-orders"],
@@ -450,7 +464,21 @@ export default function AdminOrders() {
       toast({ title: "Service Activated!", description: `Account provisioned for ${data.service?.domain || "the domain"}` });
     } catch (err: any) {
       const msg: string = err.message ?? "";
-      toast({ title: "Activation failed", description: msg, variant: "destructive" });
+      const errData = (err as any).data ?? {};
+      // Structured 20i error — show rich error panel with retry button
+      if (errData.errorCode && preActivate) {
+        setActivateError({
+          orderId: preActivate.orderId,
+          error: msg,
+          errorCode: errData.errorCode,
+          serviceId: errData.serviceId ?? null,
+          preActivate,
+        });
+        setPreActivate(null);
+        fetchOrders();
+      } else {
+        toast({ title: "Activation failed", description: msg, variant: "destructive" });
+      }
     } finally { setLoadingId(null); }
   };
 
@@ -676,6 +704,122 @@ export default function AdminOrders() {
           </div>
         </div>
       )}
+
+      {/* 20i Activation Error Modal — structured error with retry */}
+      {activateError && (() => {
+        const code = activateError.errorCode;
+        const fixMap: Record<string, { title: string; steps: string[]; color: string }> = {
+          ip_blocked: {
+            title: "IP Address Not Whitelisted",
+            color: "amber",
+            steps: [
+              "Log in to my.20i.com → Reseller API.",
+              "Find 'IP Whitelist' or 'Allowed IPs' section.",
+              "Add your server's outbound IP address.",
+              "Wait 1–2 minutes for the change to propagate, then retry.",
+            ],
+          },
+          permission_denied: {
+            title: "API Key Missing Permission",
+            color: "red",
+            steps: [
+              "Log in to my.20i.com → Reseller API.",
+              "Ensure your API key has 'addWeb' permission enabled.",
+              "Re-generate the key if permissions cannot be edited.",
+              "Paste the updated key in Admin → Servers, then retry.",
+            ],
+          },
+          no_package_types: {
+            title: "No Hosting Package Types Found",
+            color: "orange",
+            steps: [
+              "Log in to my.20i.com → Hosting Package Types.",
+              "Create at least one package type (e.g. 'Starter', 'Business').",
+              "Or manually enter a package type ID in the activation modal.",
+              "Retry activation once a package type exists.",
+            ],
+          },
+          auth_failed: {
+            title: "20i API Authentication Failed",
+            color: "red",
+            steps: [
+              "Log in to my.20i.com → Reseller API.",
+              "Copy your API key (General Key or Combined Key).",
+              "Paste it in Admin → Servers → Edit → API Token.",
+              "Save, then retry activation.",
+            ],
+          },
+          api_error: {
+            title: "20i API Error",
+            color: "red",
+            steps: [
+              "Check server logs for the full 20i error response.",
+              "Verify your API key and IP whitelist at my.20i.com.",
+              "If the error persists, contact 20i support.",
+            ],
+          },
+        };
+        const fix = fixMap[code] ?? fixMap.api_error;
+        const borderCls = fix.color === "amber" ? "border-amber-500/40" : fix.color === "orange" ? "border-orange-500/40" : "border-red-500/40";
+        const bgCls    = fix.color === "amber" ? "bg-amber-500/10" : fix.color === "orange" ? "bg-orange-500/10" : "bg-red-500/10";
+        const textCls  = fix.color === "amber" ? "text-amber-400" : fix.color === "orange" ? "text-orange-400" : "text-red-400";
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setActivateError(null)}>
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-lg w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-start gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-full ${bgCls} flex items-center justify-center shrink-0`}>
+                  <AlertTriangle size={20} className={textCls} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-foreground text-lg">Activation Failed</h3>
+                  <p className={`text-sm font-semibold ${textCls} mt-0.5`}>{fix.title}</p>
+                </div>
+                <button onClick={() => setActivateError(null)} className="text-muted-foreground hover:text-foreground">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Error message */}
+              <div className={`rounded-xl border ${borderCls} ${bgCls} px-3 py-2.5 mb-4`}>
+                <p className="text-xs text-muted-foreground font-mono break-all leading-relaxed">{activateError.error}</p>
+              </div>
+
+              {/* Fix steps */}
+              <div className="mb-5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">How to fix</p>
+                <ol className="space-y-1.5">
+                  {fix.steps.map((step, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-foreground/80">
+                      <span className={`shrink-0 w-5 h-5 rounded-full ${bgCls} ${textCls} text-[10px] font-bold flex items-center justify-center`}>{i + 1}</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1 bg-primary hover:bg-primary/90"
+                  onClick={() => {
+                    const saved = activateError.preActivate;
+                    setActivateError(null);
+                    setPreActivate(saved);
+                  }}
+                >
+                  <RotateCcw size={14} className="mr-2" /> Retry Activation
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setActivateError(null)}>
+                  Dismiss
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                Service is still <span className="font-semibold text-amber-400">Pending</span> — the order can be retried after fixing the issue.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Pre-Activation Modal — credentials form */}
       {preActivate && (
