@@ -8,6 +8,38 @@
 - **`ContentContext`** (`src/noehost/ContentContext.tsx`) — pure backend API, no Firebase dependency, localStorage cache
 - **`/admin/website`** — Website Admin section with tabs: Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config, **Page Manager**
 
+## Autonomous Global Sentinel — Abuse System Upgrade (2026-05-03)
+
+### Schema Changes
+- **`lib/db/src/schema/abuse-reports.ts`**: Added `threatScore` (int), `classification` (low/medium/high/critical), `sourceCredibility` (text), `isDmca` (bool), `dmcaDeadlineAt`, `counterNoticeAt`, `counterNoticeText` columns to `abuseReportsTable`
+- **NEW: `abuseReputationTable`** — permanent client reputation tracking: totalReports, validReports, threatScoreSum, avgThreatScore, maxThreatScore, isPermanentlyBanned, banReason
+- **NEW: `abuseEvidenceTable`** — evidence vault: fileName, fileUrl, mimeType, description, uploadedBy, linked to report
+- All new tables/columns added via `ALTER TABLE IF NOT EXISTS / CREATE TABLE IF NOT EXISTS` in `index.ts` startup migrations
+
+### Backend Upgrades (`artifacts/api-server/src/routes/abuse.ts`)
+- **Threat Scoring Engine**: `computeThreatScore()` — base score by type (child_safety=100, phishing=85, malware=80, ddos=70, spam=40), +source credibility boost (Spamhaus/Google=+50), +evidence keywords (+3 each up to +15), +repeat offender penalty (+5/report up to +20). Capped at 100.
+- **Auto Instant Lockdown**: phishing/child_safety or score≥90 → immediate WHM suspension + critical_lockdown status on report submission
+- **DMCA Workflow**: auto-sets 14-day deadline, sends specialized DMCA email with counter-notice + takedown buttons, `POST /:id/counter-notice` for admin review, `POST /abuse/:reportId/counter-notice` for client filing
+- **Reputation System**: `updateReputation()` called on every report submission, updates avgThreatScore/maxThreatScore, permanent ban flagging
+- **Network Health API**: `GET /admin/abuse/network-health` — top 10 bad actors, abuse-by-type distribution, most abused IPs/domains, high-threat reports, score distribution buckets
+- **Evidence Vault API**: `POST /admin/abuse/:id/evidence` — admin adds file URLs/descriptions to vault
+- **Score Adjustment API**: `POST /admin/abuse/:id/score-adjust` — detects resolution keywords in client replies, adjusts score up/down
+- **Permanent Ban API**: `POST /admin/abuse/reputation/:clientId/ban` and `/unban`
+- **Status**: Added `critical_lockdown` as new status (score≥90 suspensions)
+- **Email Templates**: Rebuilt `buildEmailBase()` helper + `buildAbuseWarningHtml()` with threat score gauge + one-click dispute/respond buttons + DMCA option, `buildAbuseSuspensionHtml()` with critical lockdown variant, `buildDmcaNoticeHtml()` with counter-notice + comply buttons
+- **Cron**: Enhanced to handle DMCA deadline expiry auto-takedown + critical lockdown for high-score overdue reports
+
+### Admin Dashboard (`artifacts/nexgohost/src/pages/admin/AbuseDashboard.tsx`)
+- **Network Health Tab**: `NetworkHealthTab` component with score distribution cards, top 10 bad actors table with permanent ban button, abuse-by-type bar chart with scores, most abused IPs table, most reported domains table, high-threat reports list
+- **Threat Score Column**: `ThreatScoreBadge` (color-coded 💀/🔴/🟡/🟢 + score/100) in reports table
+- **Score Gauge**: `ScoreGauge` progress bar in detail modal header
+- **Client Reputation Panel**: Shows totalReports, validReports, avgScore, maxScore in detail modal + permanent ban indicator
+- **DMCA UI**: Counter-notice review panel in detail modal for admin accept/reject
+- **Evidence Vault UI**: Add evidence (URL + description) inline in detail modal, vault display with links
+- **Score Adjustment UI**: Paste client reply → detect resolution keywords → adjust score
+- **8-stat header**: Added Critical Lockdown count and Avg Threat Score cards
+- **`critical_lockdown` status**: Full support with 💀 icon + Skull badge
+
 ## Production Polish Batch (2026-05-03)
 
 ### Dark Theme Unification

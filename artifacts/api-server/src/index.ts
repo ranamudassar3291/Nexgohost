@@ -534,6 +534,54 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_actions_report ON abuse_actions(report_id, created_at DESC)`);
     console.log("[MIGRATIONS] abuse_actions table ready");
 
+    // ── Sentinel Upgrade: new columns + tables ────────────────────────────────
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS threat_score INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS classification TEXT DEFAULT 'low'`);
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS source_credibility TEXT`);
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS is_dmca BOOLEAN DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS dmca_deadline_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS counter_notice_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE abuse_reports ADD COLUMN IF NOT EXISTS counter_notice_text TEXT`);
+    console.log("[MIGRATIONS] abuse_reports sentinel columns ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS abuse_reputation (
+        id                    TEXT PRIMARY KEY,
+        client_id             TEXT NOT NULL UNIQUE,
+        client_email          TEXT,
+        total_reports         INTEGER DEFAULT 0,
+        valid_reports         INTEGER DEFAULT 0,
+        threat_score_sum      INTEGER DEFAULT 0,
+        avg_threat_score      INTEGER DEFAULT 0,
+        max_threat_score      INTEGER DEFAULT 0,
+        last_report_at        TIMESTAMP,
+        is_permanently_banned BOOLEAN DEFAULT FALSE,
+        ban_reason            TEXT,
+        banned_at             TIMESTAMP,
+        banned_by             TEXT,
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at            TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_rep_client ON abuse_reputation(client_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_rep_score ON abuse_reputation(avg_threat_score DESC)`);
+    console.log("[MIGRATIONS] abuse_reputation table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS abuse_evidence (
+        id          TEXT PRIMARY KEY,
+        report_id   TEXT NOT NULL REFERENCES abuse_reports(id) ON DELETE CASCADE,
+        file_name   TEXT,
+        file_url    TEXT,
+        mime_type   TEXT,
+        description TEXT,
+        uploaded_by TEXT,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_evidence_report ON abuse_evidence(report_id)`);
+    console.log("[MIGRATIONS] abuse_evidence table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

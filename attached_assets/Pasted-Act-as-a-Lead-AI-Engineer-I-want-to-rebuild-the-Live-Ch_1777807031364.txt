@@ -1,0 +1,31 @@
+Act as a Lead AI Engineer. I want to rebuild the Live Chat into an Advanced Autonomous Support Agent (Hostinger Style). It must work on both the Main Website and Client Dashboard, managed via the Admin Panel.
+
+### 1. KNOWLEDGE & TRAINING (NO EXTERNAL API DEPENDENCY):
+- The AI must be "Self-Trained" using data from the PostgreSQL 'site_pages' and 'Services' tables. 
+- It should know everything about Noehost pricing, features, and server status.
+- Add a "Knowledge Base" section in the Admin Panel where I can upload FAQs and Documents to train the AI instantly.
+
+### 2. HOSTINGER-STYLE UI/UX:
+- Build a modern chat interface with:
+    - "New Conversation" button.
+    - File attachment support (Images/PDFs).
+    - Pre-defined "Quick Options" (e.g., "Check Server Status", "Billing Issue", "cPanel Help").
+- Ensure the chat history is "Saved in the PostgreSQL database" so a client can see their previous chats even after refreshing.
+
+### 3. HUMAN HANDOVER & WHATSAPP BRIDGE:
+- Implement a "Request Human Agent" logic. If the AI cannot solve a query after 2 attempts, or if the user clicks "Talk to Human":
+    - Automatically trigger a WhatsApp notification to the Admin (Me) via a Webhook (e.g., using Twilio or a simple WhatsApp link generator).
+    - The notification must include the Client Name, Issue, and a direct link to the Admin Chat Panel.
+
+### 4. ADMIN SUPPORT PANEL:
+- Create a "Live Support" tab in the Admin Panel where I can see all active AI chats in real-time.
+- Allow the Admin to "Take Over" any chat and reply directly to the client from the Admin UI.
+
+### 5. FILE ATTACHMENT SYSTEM:
+- Integrate a secure file upload system for screenshots. 
+- "Save file URLs and metadata in the PostgreSQL database" and link them to the specific Ticket/Chat ID.
+
+### 6. ADVANCED REPLIES:
+- The AI must analyze the client's current services from the database to give personalized answers (e.g., "I see your hosting for kalahostss.com is active...").
+
+Please rebuild the Chat Controller and UI into this professional, autonomous support system.
