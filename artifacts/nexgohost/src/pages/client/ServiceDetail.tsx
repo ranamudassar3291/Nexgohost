@@ -16,7 +16,7 @@ import {
   Globe2, Power, Play, Square, RotateCcw, ChevronRight, Info,
   MoreHorizontal, Boxes, AtSign, Zap, UploadCloud, FileText,
   Network, FolderPlus, Upload, ArrowUp, Home, Save, X, Plug, Palette, ArrowRight,
-  Package, Sparkles, Gauge, Ghost, BookOpen, Sliders,
+  Package, Sparkles, Gauge, Ghost, BookOpen, Sliders, Bot, Send, TicketCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -57,7 +57,7 @@ interface Service {
 
 interface DnsRecord { line: number; type: string; name: string; address: string; ttl: number }
 interface HostingPlan { id: string; name: string; price: number; yearlyPrice?: number | null; diskSpace: string; bandwidth: string }
-type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment" | "monitor" | "staging";
+type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment" | "monitor" | "staging" | "ai-support";
 
 // ─── Sidebar Nav ─────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string; tooltip?: string }[] = [
@@ -68,6 +68,7 @@ const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group
   { id: "email",        label: "Email",          icon: Mail,            group: "Hosting" },
   { id: "databases",    label: "Databases",      icon: Database,        group: "Hosting" },
   { id: "files",        label: "File Manager",   icon: FolderOpen,      group: "Hosting" },
+  { id: "ai-support",   label: "AI Specialist",   icon: Sparkles,        group: "Security", tooltip: "24/7 AI Support Specialist that reads your error logs and suggests instant fixes — or auto-creates a ticket for the support team." },
   { id: "monitor",      label: "Resource Guard",  icon: Gauge,           group: "Security", tooltip: "Real-time resource monitoring, security permission scanning, and edge/object cache controls for your hosting account." },
   { id: "ssl",          label: "SSL",             icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
   { id: "ssh",          label: "SSH Access",      icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
@@ -2223,6 +2224,317 @@ function SectionDomains({ service }: { service: Service }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: AI SUPPORT SPECIALIST
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type AiMessage = { role: "user" | "assistant" | "system"; content: string; ts?: number };
+
+const ACTION_MAP: Record<string, { label: string; color: string; icon: React.ElementType; action: (svc: Service) => void }> = {
+  fix_permissions: {
+    label: "Fix Permissions",
+    color: "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/30",
+    icon: ShieldCheck,
+    action: (svc) => {
+      const token = localStorage.getItem("token");
+      fetch(`/api/client/hosting/${svc.id}/fix-permissions`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}` },
+      }).then(() => { /* toast handled by parent */ }).catch(() => {});
+    },
+  },
+  clear_cache: {
+    label: "Clear Cache",
+    color: "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/30",
+    icon: Zap,
+    action: (svc) => {
+      const token = localStorage.getItem("token");
+      fetch(`/api/client/hosting/${svc.id}/cache`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ edge: true, object: true }),
+      }).catch(() => {});
+    },
+  },
+  open_file_manager: {
+    label: "Open File Manager",
+    color: "bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-500/30",
+    icon: FolderOpen,
+    action: () => {},
+  },
+  open_wordpress: {
+    label: "WordPress Admin",
+    color: "bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 border-purple-500/30",
+    icon: Boxes,
+    action: (svc) => { window.open(`https://${svc.domain}/wp-admin`, "_blank"); },
+  },
+};
+
+function parseActions(text: string): { cleanText: string; actions: string[] } {
+  const actions: string[] = [];
+  const cleanText = text.replace(/\[ACTION:\s*(\w+)\]/g, (_: string, key: string) => {
+    if (key !== "create_ticket") actions.push(key);
+    return "";
+  }).replace(/\[ACTION:\s*create_ticket\]/g, "").trim();
+  return { cleanText, actions };
+}
+
+function AiMessageBubble({
+  msg, service, onCreateTicket, conversation,
+}: {
+  msg: AiMessage;
+  service: Service | null;
+  onCreateTicket: (convo: AiMessage[]) => void;
+  conversation: AiMessage[];
+}) {
+  const isUser = msg.role === "user";
+  const { cleanText, actions } = isUser ? { cleanText: msg.content, actions: [] } : parseActions(msg.content);
+  const wantsTicket = !isUser && msg.content.includes("[ACTION: create_ticket]");
+
+  return (
+    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold mt-0.5 ${
+        isUser ? "bg-primary text-primary-foreground" : "bg-gradient-to-br from-indigo-500 to-violet-600 text-white"
+      }`}>
+        {isUser ? <span>U</span> : <Bot size={14} />}
+      </div>
+      <div className={`max-w-[82%] space-y-2 ${isUser ? "items-end" : "items-start"} flex flex-col`}>
+        <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+          isUser
+            ? "bg-primary text-primary-foreground rounded-tr-sm"
+            : "bg-muted/70 text-foreground rounded-tl-sm border border-border/60"
+        }`}>
+          {cleanText}
+        </div>
+        {actions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {actions.map(key => {
+              const def = ACTION_MAP[key];
+              if (!def) return null;
+              const Icon = def.icon;
+              return (
+                <button key={key}
+                  onClick={() => service && def.action(service)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${def.color}`}>
+                  <Icon size={11} />
+                  {def.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {wantsTicket && (
+          <button
+            onClick={() => onCreateTicket(conversation)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-600 hover:bg-red-500/20 border border-red-500/30 transition-colors">
+            <TicketCheck size={12} />
+            Auto-Create Support Ticket
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionAiSupport({ service }: { service: Service | null }) {
+  const { toast } = useToast();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const WELCOME: AiMessage = {
+    role: "assistant",
+    content: service
+      ? `Hi! I'm Noe, your 24/7 AI Support Specialist. I can see your hosting account for *${service.domain}* (${service.planName ?? "Starter"}, status: ${service.status}). Describe any issue and I'll read your server logs and suggest an instant fix — or escalate it automatically if needed. [ACTION: create_ticket]`
+      : "Hi! I'm Noe, your AI Support Specialist. Tell me about your issue and I'll help you resolve it right away.",
+    ts: Date.now(),
+  };
+
+  const QUICK_PROMPTS = [
+    "My site is showing a 500 error",
+    "WordPress is broken after an update",
+    "Site is loading very slowly",
+    "SSL certificate isn't working",
+    "I can't access my email",
+    "Database connection error",
+  ];
+
+  const [messages, setMessages]     = useState<AiMessage[]>([WELCOME]);
+  const [input, setInput]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const [ticketing, setTicketing]   = useState(false);
+  const [ticketResult, setTicketResult] = useState<{ ticketNumber: string } | null>(null);
+
+  const token = () => localStorage.getItem("token") ?? "";
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    if (!service?.id) return;
+    fetch(`/api/ai/specialist/history/${service.id}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    }).then(r => r.json()).then(data => {
+      if (data.messages?.length > 0) {
+        const hist: AiMessage[] = data.messages.map((m: any) => ({
+          role: m.role as AiMessage["role"],
+          content: m.content,
+          ts: new Date(m.created_at).getTime(),
+        }));
+        setMessages([WELCOME, ...hist]);
+      }
+    }).catch(() => {});
+  }, [service?.id]);
+
+  const sendMessage = async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || loading) return;
+    setInput("");
+
+    const userMsg: AiMessage = { role: "user", content, ts: Date.now() };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/ai/specialist/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({
+          messages: updated.filter(m => m.role !== "system").slice(-14).map(m => ({ role: m.role, content: m.content })),
+          serviceId: service?.id,
+        }),
+      });
+      const data = await res.json();
+      const reply = data.reply ?? "Sorry, I couldn't process that. [ACTION: create_ticket]";
+      setMessages(prev => [...prev, { role: "assistant", content: reply, ts: Date.now() }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "I'm having connection trouble. [ACTION: create_ticket] to reach our support team directly.",
+        ts: Date.now(),
+      }]);
+    } finally { setLoading(false); }
+  };
+
+  const createTicket = async (convo: AiMessage[]) => {
+    setTicketing(true);
+    try {
+      const subject = convo.find(m => m.role === "user")?.content?.slice(0, 80) ?? "AI Support Auto-Escalation";
+      const res = await fetch("/api/ai/specialist/auto-ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ conversation: convo, serviceId: service?.id, subject }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTicketResult({ ticketNumber: data.ticketNumber });
+        toast({ title: "Ticket Created!", description: `Ticket ${data.ticketNumber} sent to the Noehost support team with full technical logs.` });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `I've created support ticket **${data.ticketNumber}** with all your error logs attached. The Noehost team will respond within 24 hours. You'll also find it under Support → My Tickets.`,
+          ts: Date.now(),
+        }]);
+      }
+    } catch {
+      toast({ title: "Error creating ticket", variant: "destructive" });
+    } finally { setTicketing(false); }
+  };
+
+  const resetChat = () => {
+    setMessages([WELCOME]);
+    setTicketResult(null);
+    setInput("");
+  };
+
+  return (
+    <div className="flex flex-col h-full max-h-[680px] bg-background rounded-2xl border border-border overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-gradient-to-r from-indigo-500/5 via-violet-500/5 to-transparent">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
+          <Bot size={18} className="text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Noe · AI Support Specialist</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+            Active 24/7 · Reads your server logs in real time
+          </p>
+        </div>
+        <button onClick={resetChat} className="ml-auto text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-muted/60" title="New conversation">
+          <RotateCcw size={14} />
+        </button>
+      </div>
+
+      {/* Message feed */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth">
+        {messages.map((msg, i) => (
+          <AiMessageBubble key={i} msg={msg} service={service} onCreateTicket={createTicket} conversation={messages} />
+        ))}
+        {loading && (
+          <div className="flex gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
+              <Bot size={14} className="text-white" />
+            </div>
+            <div className="px-3.5 py-2.5 rounded-2xl rounded-tl-sm bg-muted/70 border border-border/60">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            </div>
+          </div>
+        )}
+        {ticketResult && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400 text-xs">
+            <CheckCircle2 size={14} />
+            Ticket {ticketResult.ticketNumber} created — our team will reply within 24 hours.
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Quick prompts (only show initially) */}
+      {messages.length <= 1 && (
+        <div className="px-4 pb-2">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 font-medium">Common issues</p>
+          <div className="flex flex-wrap gap-1.5">
+            {QUICK_PROMPTS.map(q => (
+              <button key={q} onClick={() => sendMessage(q)}
+                className="px-2.5 py-1 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/60 transition-colors">
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="px-4 py-3 border-t border-border bg-background/80 backdrop-blur-sm">
+        <div className="flex gap-2">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            placeholder={loading ? "Noe is thinking…" : "Describe your issue or error…"}
+            disabled={loading || ticketing}
+            className="flex-1 bg-muted/50 border border-border rounded-xl px-3.5 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:bg-background transition-all disabled:opacity-50"
+          />
+          <button
+            onClick={() => sendMessage()}
+            disabled={!input.trim() || loading || ticketing}
+            className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-all shrink-0">
+            {loading || ticketing ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+          Noe reads your error logs and suggests targeted fixes. Complex issues are auto-escalated to the team.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: STAGING & CLONING
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -3015,6 +3327,7 @@ export default function ServiceDetail() {
           {section === "backup"       && <SectionBackup service={service} />}
           {section === "nodejs"       && <SectionNodejs service={service} />}
           {section === "python"       && <SectionPython service={service} />}
+          {section === "ai-support"   && <SectionAiSupport service={service} />}
           {section === "monitor"      && <SectionMonitor service={service} />}
           {section === "staging"      && <SectionStaging service={service} />}
         </div>

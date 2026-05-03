@@ -1,4 +1,4 @@
-import { BarChart2, AlertOctagon, Clock, Terminal, Database, Mail, MessageSquare, Shield } from "lucide-react";
+import { BarChart2, AlertOctagon, Clock, Terminal, Database, Mail, MessageSquare, Shield, Smartphone } from "lucide-react";
 import { MasterPage } from "@/components/layout/MasterPage";
 import AdminReports from "./Reports";
 import FraudLogs from "./FraudLogs";
@@ -7,6 +7,7 @@ import ServerLogs from "./ServerLogs";
 import AdminBackups from "./Backups";
 import EmailMarketing from "./EmailMarketing";
 import WhatsAppSettings from "./WhatsAppSettings";
+import WhatsAppClientSync from "./WhatsAppClientSync";
 import WhmcsImport from "./WhmcsImport";
 
 export default function AnalyticsMaster() {
@@ -65,6 +66,13 @@ export default function AnalyticsMaster() {
           icon: MessageSquare,
           desc: "WhatsApp notification settings",
           component: WhatsAppSettings,
+        },
+        {
+          id: "whatsapp-sync",
+          label: "Client WhatsApp Sync",
+          icon: Smartphone,
+          desc: "Send Order Status & Renewal Alerts to client phones",
+          component: WhatsAppClientSync,
         },
         {
           id: "whmcs-import",

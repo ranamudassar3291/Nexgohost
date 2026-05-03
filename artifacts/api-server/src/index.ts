@@ -422,6 +422,38 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_staging_sync_service ON staging_sync_logs(service_id, logged_at DESC)`);
     console.log("[MIGRATIONS] staging_sync_logs table ready");
 
+    // ── AI Support Specialist: ai_conversations ───────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_conversations (
+        id            SERIAL PRIMARY KEY,
+        user_id       TEXT NOT NULL,
+        service_id    TEXT,
+        role          TEXT NOT NULL DEFAULT 'user',
+        content       TEXT NOT NULL,
+        metadata_json JSONB NOT NULL DEFAULT '{}',
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ai_convo_user    ON ai_conversations(user_id, created_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_ai_convo_service ON ai_conversations(service_id, created_at DESC)`);
+    console.log("[MIGRATIONS] ai_conversations table ready");
+
+    // ── WhatsApp Client Sync: whatsapp_client_notifications ──────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS whatsapp_client_notifications (
+        id          SERIAL PRIMARY KEY,
+        user_id     TEXT NOT NULL,
+        phone       TEXT NOT NULL,
+        event_type  TEXT NOT NULL DEFAULT 'client_notification',
+        message     TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        error       TEXT,
+        sent_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wa_client_notif_user ON whatsapp_client_notifications(user_id, sent_at DESC)`);
+    console.log("[MIGRATIONS] whatsapp_client_notifications table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
