@@ -8,7 +8,7 @@ import {
   PartyPopper, Search, X, ArrowRight, ChevronRight, RotateCcw,
   Cpu, MemoryStick, Activity, Shield, WifiOff, UnlockKeyhole,
 } from "lucide-react";
-import { WelcomeTour, useWelcomeTour } from "@/components/WelcomeTour";
+import { useWelcomeTour } from "@/components/WelcomeTour";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -702,7 +702,7 @@ function SectionHeader({ title, icon: Icon, link, linkLabel, count }: {
 
 /* ─── Main Component ─────────────────────────────────────────────── */
 export default function ClientDashboard() {
-  const { show: showTour, dismiss: dismissTour } = useWelcomeTour();
+  useWelcomeTour();
   const { data: stats, isLoading } = useGetClientDashboard();
   const { data: user } = useGetMe();
   const [, navigate] = useLocation();
@@ -1253,7 +1253,6 @@ export default function ClientDashboard() {
       )}
 
     </div>
-    {showTour && <WelcomeTour onClose={dismissTour} />}
     </>
   );
 }

@@ -54,8 +54,6 @@ import Status from "@/pages/public/Status";
 import NoeBlog from "@/noehost/components/pages/Blog";
 import NoeBlogPost from "@/noehost/components/pages/BlogPost";
 import NoeFlashSale from "@/noehost/components/pages/FlashSale";
-import { ExitIntentPopup } from "@/components/funnel/ExitIntentPopup";
-import { SocialProofToast } from "@/components/funnel/SocialProofToast";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -744,8 +742,6 @@ function App() {
                   <CurrencyProvider>
                     <CartProvider>
                       <RouterRoot />
-                      <ExitIntentPopup />
-                      <SocialProofToast />
                     </CartProvider>
                   </CurrencyProvider>
                 </AuthProvider>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 
 interface ProofEvent {
   id: string;
@@ -47,6 +48,7 @@ function seedEvents(n = 20): ProofEvent[] {
 }
 
 export function SocialProofToast() {
+  const [location] = useLocation();
   const [events, setEvents]       = useState<ProofEvent[]>(seedEvents());
   const [current, setCurrent]     = useState<ProofEvent | null>(null);
   const [visible, setVisible]     = useState(false);
@@ -56,11 +58,12 @@ export function SocialProofToast() {
 
   // Fetch real events from API
   useEffect(() => {
+    if (!location.startsWith("/client/orders/new") && !location.startsWith("/client/checkout") && !location.startsWith("/checkout") && !location.startsWith("/cart")) return;
     fetch("/api/social-proof/feed")
       .then(r => r.json())
       .then(d => { if (d.events?.length) setEvents(d.events); })
       .catch(() => {});
-  }, []);
+  }, [location]);
 
   // Cycle through events
   const showNext = () => {
@@ -79,6 +82,7 @@ export function SocialProofToast() {
   };
 
   useEffect(() => {
+    if (!location.startsWith("/client/orders/new") && !location.startsWith("/client/checkout") && !location.startsWith("/checkout") && !location.startsWith("/cart")) return;
     // First toast after 6 s, then every 20 s
     const initial = setTimeout(() => {
       showNext();
@@ -86,7 +90,7 @@ export function SocialProofToast() {
       return () => clearInterval(interval);
     }, 6_000);
     return () => { clearTimeout(initial); clearTimeout(timerRef.current); };
-  }, [events]);
+  }, [events, location]);
 
   const dismiss = () => {
     clearTimeout(timerRef.current);
