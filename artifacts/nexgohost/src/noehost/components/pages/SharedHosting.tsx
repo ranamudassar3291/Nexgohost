@@ -116,11 +116,9 @@ const SharedHosting: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const handleOrderNow = (plan: any) => {
     const planId = plan._planId || plan._raw?.id || plan.id || '';
-    if (planId) {
-      window.location.href = `/order/add/${planId}`;
-    } else {
-      window.location.href = '/order';
-    }
+    window.location.href = planId
+      ? `/client/orders/new?plan_id=${planId}`
+      : '/client/orders/new';
   };
 
   const renderLink = (to: string, children: React.ReactNode, className: string) => {

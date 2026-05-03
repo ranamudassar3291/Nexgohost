@@ -29,23 +29,10 @@ const Pricing: React.FC = () => {
 
   const handleOrderNow = (p: any) => {
     const raw = p._raw || p;
-    if (!raw.id) {
-      window.location.href = '/client/order';
-      return;
-    }
     setSelectedPlan(null);
-    setOrderPlan({
-      id: raw.id,
-      name: raw.name || p.name,
-      description: raw.description || '',
-      monthlyPrice: Number(raw.price || p.monthly || 0),
-      yearlyPrice: raw.yearlyPrice != null ? Number(raw.yearlyPrice) : null,
-      quarterlyPrice: raw.quarterlyPrice != null ? Number(raw.quarterlyPrice) : null,
-      semiannualPrice: raw.semiannualPrice != null ? Number(raw.semiannualPrice) : null,
-      type: 'hosting',
-      features: p.features || [],
-      defaultCycle: billingCycle,
-    });
+    window.location.href = raw.id
+      ? `/client/orders/new?plan_id=${raw.id}`
+      : '/client/orders/new';
   };
 
   const { plans: apiShared, loading: loadingShared } = usePackagesByGroup('shared-hosting');

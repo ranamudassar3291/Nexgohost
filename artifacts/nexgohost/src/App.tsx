@@ -1,4 +1,5 @@
 import { Switch, Route, Router as WouterRouter, useLocation, useParams, Redirect } from "wouter";
+import { useState, useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -144,7 +145,7 @@ function HelpPage({ children }: { children: React.ReactNode }) {
           <a href="/client/login" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
           <div className="flex gap-3">
             <a href="/client/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
-            <a href="/order" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
+            <a href="/client/orders/new" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
           </div>
         </div>
       </header>
@@ -186,22 +187,70 @@ function OrderByVpsId() {
   return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
 }
 
-// /cart — public cart page (no auth required)
-// Also handles WHMCS-style ?a=add&pid= and ?gid= direct-order links
-function WhmcsCartRedirect() {
+// /buy/:planId  — clean short link: UUID or slug → resolves to NewOrder
+// /order/:slug  — clean short link: plan name slug → resolves to NewOrder
+// Both try the /api/packages/resolve/:slugOrId endpoint for real-time DB lookup.
+function OrderBySlug() {
+  const params = useParams<{ slug?: string; planId?: string }>();
+  const raw = params.slug ?? params.planId ?? "";
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [err, setErr]       = useState("");
+
+  useEffect(() => {
+    if (!raw) { setErr("No plan specified"); return; }
+    fetch(`/api/packages/resolve/${encodeURIComponent(raw)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.id) setPlanId(d.id);
+        else { setErr(d.error ?? "Plan not found"); }
+      })
+      .catch(() => setErr("Could not connect to server"));
+  }, [raw]);
+
+  if (err) return (
+    <CheckoutLayout allowGuest>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-5 text-center px-4">
+        <div className="w-16 h-16 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-400 text-2xl">✕</div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Plan Not Found</h2>
+          <p className="text-gray-500 text-sm max-w-sm">{err}. Please browse our available plans and choose one to get started.</p>
+        </div>
+        <a href="/client/orders/new" className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow">
+          Browse All Plans →
+        </a>
+      </div>
+    </CheckoutLayout>
+  );
+
+  if (!planId) return (
+    <CheckoutLayout allowGuest>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-400">Loading plan details…</p>
+        </div>
+      </div>
+    </CheckoutLayout>
+  );
+
+  return <CheckoutLayout allowGuest><NewOrder initialPackageId={planId} /></CheckoutLayout>;
+}
+
+// /cart — redirect to unified checkout
+function CartRedirect() {
   const params = new URLSearchParams(window.location.search);
   const pid    = params.get("pid")  ?? "";
   const gid    = params.get("gid")  ?? "";
   const action = params.get("a")    ?? "";
 
+  // Keep backward-compat WHMCS-style links working
   if (action === "add" && pid) {
     return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
   }
   if (gid) {
     return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
   }
-  // No WHMCS params — show the cart (no auth required)
-  return <CheckoutLayout allowGuest><Cart /></CheckoutLayout>;
+  return <Redirect to="/client/orders/new" />;
 }
 
 // ─── API Health Wrapper ────────────────────────────────────────────────────────
@@ -232,7 +281,8 @@ function RouterRoot() {
       <Route path="/forgot-password"  component={ForgotPassword}  />
       <Route path="/reset-password"   component={ResetPassword}   />
       <Route path="/vps"              component={VpsHosting}      />
-      <Route path="/order"            component={OrderFlow}       />
+      {/* /order root → unified checkout */}
+      <Route path="/order"><Redirect to="/client/orders/new" /></Route>
 
       <Route path="/login">
         {!isLoading && user ? (
@@ -510,7 +560,10 @@ function RouterRoot() {
       <Route path="/client/migrations">
         <ClientPage><ClientMigrations /></ClientPage>
       </Route>
-      {/* Direct order-link routes — like WHMCS ?gid=1 / ?pid=5 */}
+      {/* ── Unified short-link & direct-order routes ── */}
+      {/* /buy/:planId — clean sharable link by UUID or slug */}
+      <Route path="/buy/:planId" component={OrderBySlug}/>
+      {/* /order/group/:groupId, /order/add/:packageId etc — kept for backward compat */}
       <Route path="/order/group/:groupId" component={OrderByGroup}/>
       <Route path="/order/add/:packageId" component={OrderByPackage}/>
       {/* WHMCS-style clean URL: /order/config/index.php?pid=UUID */}
@@ -518,12 +571,19 @@ function RouterRoot() {
       {/* VPS direct links: /order/vps/:planId and ?vps_id=UUID */}
       <Route path="/order/vps/:planId" component={OrderByVpsPlan}/>
       <Route path="/order/vps" component={OrderByVpsId}/>
-      {/* Public cart — WHMCS ?a=add&pid= redirects handled, else show cart */}
-      <Route path="/cart" component={WhmcsCartRedirect}/>
+      {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
+      <Route path="/order/:slug" component={OrderBySlug}/>
+      {/* /cart — backward compat, redirects to unified checkout */}
+      <Route path="/cart" component={CartRedirect}/>
 
       <Route path="/client/orders/new">
         {() => {
-          const pid = new URLSearchParams(window.location.search).get("plan_id") ?? "";
+          const sp     = new URLSearchParams(window.location.search);
+          const pid    = sp.get("plan_id") ?? "";
+          const vpsId  = sp.get("vps_id")  ?? "";
+          const gid    = sp.get("group_id") ?? "";
+          if (vpsId)  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId} /></CheckoutLayout>;
+          if (gid)    return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid} /></CheckoutLayout>;
           return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid || undefined} /></CheckoutLayout>;
         }}
       </Route>
@@ -531,7 +591,7 @@ function RouterRoot() {
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
       <Route path="/client/cart">
-        <CheckoutLayout allowGuest><Cart /></CheckoutLayout>
+        <Redirect to="/client/orders/new" />
       </Route>
       <Route path="/client/checkout">
         <CheckoutLayout allowGuest><Checkout /></CheckoutLayout>

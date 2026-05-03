@@ -39,6 +39,43 @@ function formatPlan(p: typeof hostingPlansTable.$inferSelect) {
   };
 }
 
+// ── Slug helper ──────────────────────────────────────────────────────────────
+function slugify(str: string): string {
+  return str.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+// Public: resolve a plan by UUID or slugified name — used by /buy/:id & /order/:slug short links
+// Returns the plan or 404 with a { error, redirect } body so the client can show a proper message.
+router.get("/packages/resolve/:slugOrId", async (req, res) => {
+  try {
+    const raw = req.params.slugOrId?.trim();
+    if (!raw) return res.status(400).json({ error: "Missing plan identifier" });
+
+    const allActive = await db.select().from(hostingPlansTable)
+      .where(eq(hostingPlansTable.isActive, true));
+
+    // 1. Try exact UUID match
+    const byId = allActive.find(p => p.id === raw);
+    if (byId) return res.json(formatPlan(byId));
+
+    // 2. Try slug match (name → slug comparison)
+    const bySlug = allActive.find(p => slugify(p.name) === slugify(raw));
+    if (bySlug) return res.json(formatPlan(bySlug));
+
+    // 3. Try partial name match (e.g. "starter" matches "Starter Hosting")
+    const partial = allActive.find(p => slugify(p.name).includes(slugify(raw)) || slugify(raw).includes(slugify(p.name)));
+    if (partial) return res.json(formatPlan(partial));
+
+    return res.status(404).json({
+      error: `No active plan found matching "${raw}"`,
+      redirect: "/client/orders/new",
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Public: list active packages by group slug (used in noehost marketing pages)
 // Resolves slug → UUID via product_groups table, then filters hosting plans.
 // Falls back to all active plans (capped at 6, cheapest first) when no match.
