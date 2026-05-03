@@ -58,8 +58,8 @@ async function generateUsername(firstName: string): Promise<string> {
 router.post("/auth/register", async (req, res) => {
   try {
     const { firstName, lastName, email, password, company, phone, captchaToken, country, billingCurrency } = req.body;
-    if (!firstName || !lastName || !email || !password) {
-      res.status(400).json({ error: "Validation error", message: "Required fields missing" }); return;
+    if (!firstName || !email || !password) {
+      res.status(400).json({ error: "Validation error", message: "First name, email, and password are required" }); return;
     }
 
     // ── Captcha check ─────────────────────────────────────────────────────────
@@ -70,7 +70,8 @@ router.post("/auth/register", async (req, res) => {
         res.status(400).json({ error: "Captcha verification failed. Please try again.", code: "CAPTCHA_FAILED" }); return;
       }
     }
-    const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existing = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
     if (existing.length > 0) {
       res.status(400).json({ error: "Validation error", message: "Email already registered" }); return;
     }
@@ -89,7 +90,7 @@ router.post("/auth/register", async (req, res) => {
     const autoUsername = await generateUsername(firstName);
 
     const [user] = await db.insert(usersTable).values({
-      firstName, lastName, email, passwordHash,
+      firstName, lastName: lastName || null, email: normalizedEmail, passwordHash,
       company: company || null, phone: phone || null,
       role: "client", status: "active",
       emailVerified: !verificationRequired,
