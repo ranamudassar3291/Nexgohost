@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Search, Check, X, Loader2, Globe, ShoppingCart, AlertCircle,
   ExternalLink, Tag, Sparkles, ChevronRight, Trash2, Server, X as XIcon,
-  HelpCircle,
+  HelpCircle, ArrowRightLeft, BadgeInfo,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -115,9 +115,18 @@ export default function DomainSearch() {
 
   function getPriceForPeriod(r: Pick<TldInfo | SearchResult, "registerPrice" | "register2YearPrice" | "register3YearPrice">, domain?: string): { price: number | null; original: number | null; period: Period } {
     if (domain && isPkDomain(domain)) {
-      return { price: r.register2YearPrice ?? null, original: r.registerPrice, period: 2 };
+      return { price: r.register2YearPrice ?? null, original: null, period: 2 };
     }
     return { price: r.registerPrice, original: null, period: 1 };
+  }
+
+  function getWhoisData(r: SearchResult) {
+    return {
+      registrantName: r.registrantName && r.registrantName.toLowerCase() !== "unauthorized" ? r.registrantName : "Protected",
+      registrar: r.registrar && r.registrar.toLowerCase() !== "unauthorized" ? r.registrar : "Not available",
+      expiryDate: r.expiryDate && r.expiryDate.toLowerCase() !== "unauthorized" ? r.expiryDate : "Unknown",
+      nameservers: r.nameservers?.length ? r.nameservers : ["ns1.noehost.com", "ns2.noehost.com"],
+    };
   }
 
   async function handleSearch(e?: React.FormEvent) {
@@ -498,16 +507,10 @@ export default function DomainSearch() {
                   {price ? (
                     <div className="space-y-0.5">
                       {isPromoTld ? (
-                        <>
-                          <p className="text-xs line-through text-muted-foreground">{formatPrice(promo!.originalPrice)}/yr</p>
-                          <p className="text-sm font-bold text-green-500">{formatPrice(promo!.price)}/1st yr</p>
-                        </>
+                        <p className="text-sm font-bold text-green-500">{formatPrice(promo!.price)}/yr</p>
                       ) : (
                         <>
-                          {original && period > 1 && (
-                            <p className="text-xs line-through text-muted-foreground">{formatPrice(original)}/yr</p>
-                          )}
-                          <p className={`text-sm font-bold ${original && period > 1 ? "text-green-500" : "text-foreground"}`}>
+                          <p className="text-sm font-bold text-foreground">
                             {formatPrice(price)}/yr
                           </p>
                         </>
@@ -533,29 +536,23 @@ export default function DomainSearch() {
           </DialogHeader>
           {whoisDomain && (
             <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-muted-foreground text-xs">Domain</p>
-                  <p className="font-mono font-semibold">{whoisDomain.domain}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Registrar</p>
-                  <p className="font-medium">{whoisDomain.registrar ?? "Not available"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Registrant Name</p>
-                  <p className="font-medium">{whoisDomain.registrantName ?? "Hidden"}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Expiry Date</p>
-                  <p className="font-medium">{whoisDomain.expiryDate ?? "Unknown"}</p>
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="grid grid-cols-2 text-sm">
+                  <div className="bg-muted/40 px-4 py-3 text-muted-foreground">Domain</div>
+                  <div className="px-4 py-3 font-mono font-semibold">{whoisDomain.domain}</div>
+                  <div className="bg-muted/40 px-4 py-3 text-muted-foreground">Registrant Name</div>
+                  <div className="px-4 py-3">{getWhoisData(whoisDomain).registrantName}</div>
+                  <div className="bg-muted/40 px-4 py-3 text-muted-foreground">Registrar</div>
+                  <div className="px-4 py-3">{getWhoisData(whoisDomain).registrar}</div>
+                  <div className="bg-muted/40 px-4 py-3 text-muted-foreground">Expiry Date</div>
+                  <div className="px-4 py-3">{getWhoisData(whoisDomain).expiryDate}</div>
                 </div>
               </div>
-              <div>
+              <div className="rounded-xl border border-border bg-card p-4">
                 <p className="text-muted-foreground text-xs mb-2">Nameservers</p>
-                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
-                  {(whoisDomain.nameservers?.length ? whoisDomain.nameservers : ["ns1.noehost.com", "ns2.noehost.com"]).map(ns => (
-                    <p key={ns} className="font-mono text-xs">{ns}</p>
+                <div className="flex flex-wrap gap-2">
+                  {getWhoisData(whoisDomain).nameservers.map(ns => (
+                    <Badge key={ns} variant="secondary" className="font-mono text-[11px]">{ns}</Badge>
                   ))}
                 </div>
               </div>
