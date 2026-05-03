@@ -18,6 +18,7 @@ import {
   Network, FolderPlus, Upload, ArrowUp, Home, Save, X, Plug, Palette, ArrowRight,
 } from "lucide-react";
 import { format } from "date-fns";
+import { InfoTooltip } from "@/components/InfoTooltip";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API = "";
@@ -58,15 +59,15 @@ interface HostingPlan { id: string; name: string; price: number; yearlyPrice?: n
 type NavSection = "overview" | "wordpress" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python";
 
 // ─── Sidebar Nav ─────────────────────────────────────────────────────────────
-const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string }[] = [
+const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string; tooltip?: string }[] = [
   { id: "overview",   label: "Overview",       icon: LayoutDashboard, group: "Hosting" },
   { id: "wordpress",  label: "WordPress",      icon: Boxes,           group: "Hosting" },
-  { id: "domains",    label: "Domains & DNS",  icon: Globe,           group: "Hosting" },
+  { id: "domains",    label: "Domains & DNS",  icon: Globe,           group: "Hosting", tooltip: "DNS (Domain Name System) translates your domain name into an IP address so browsers can find your site." },
   { id: "email",      label: "Email",          icon: Mail,            group: "Hosting" },
   { id: "databases",  label: "Databases",      icon: Database,        group: "Hosting" },
   { id: "files",      label: "File Manager",   icon: FolderOpen,      group: "Hosting" },
-  { id: "ssl",        label: "SSL",            icon: ShieldCheck,     group: "Security" },
-  { id: "ssh",        label: "SSH Access",     icon: Terminal,        group: "Security" },
+  { id: "ssl",        label: "SSL",            icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
+  { id: "ssh",        label: "SSH Access",     icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
   { id: "backup",     label: "Backups",        icon: ArchiveRestore,  group: "Tools" },
   { id: "nodejs",     label: "Node.js",        icon: Code2,           group: "Tools" },
   { id: "python",     label: "Python",         icon: Cpu,             group: "Tools" },
@@ -94,7 +95,8 @@ function Sidebar({ active, onChange, service }: { active: NavSection; onChange: 
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}>
                   <Icon size={15} className="shrink-0" />
-                  <span>{item.label}</span>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.tooltip && <InfoTooltip text={item.tooltip} />}
                 </button>
               );
             })}
@@ -264,10 +266,13 @@ function SectionOverview({ service, plan, navigateTo }: { service: Service; plan
             { label: "Next Due", value: service.nextDueDate ? format(new Date(service.nextDueDate), "MMM d, yyyy") : "—" },
             { label: "IP Address", value: service.serverIp ?? "—" },
             { label: "Username", value: service.username ?? "—" },
-            { label: "SSL", value: ["active", "installed"].includes(service.sslStatus) ? "Active ✓" : "Not installed" },
+            { label: "SSL", value: ["active", "installed"].includes(service.sslStatus) ? "Active ✓" : "Not installed", tooltip: "Secure Sockets Layer — encrypts traffic between your visitors and your server, enabling the padlock in the browser." },
           ].map(row => (
             <div key={row.label} className="flex justify-between border-b border-border pb-2 last:border-0">
-              <span className="text-muted-foreground">{row.label}</span>
+              <span className="text-muted-foreground flex items-center">
+                {row.label}
+                {"tooltip" in row && row.tooltip && <InfoTooltip text={row.tooltip} />}
+              </span>
               <span className="font-medium text-foreground">{row.value as any}</span>
             </div>
           ))}
@@ -1305,7 +1310,7 @@ function SectionSSL({ service, refetch }: { service: Service; refetch: () => voi
   const isActive = ["active", "installed"].includes(service.sslStatus);
   return (
     <div className="space-y-5">
-      <SectionHeader title="SSL Certificate" description="Manage SSL/TLS security for your domain" />
+      <SectionHeader title="SSL Certificate" description="SSL encrypts the connection between your visitors and your server — it's what puts the padlock in the browser and the 'S' in HTTPS." />
       <Card>
         <div className="flex items-center gap-4 mb-5">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isActive ? "bg-emerald-50" : "bg-orange-50"}`}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useGetClientDashboard, useGetMe } from "@workspace/api-client-react";
 import {
   Server, Globe, FileText, Ticket, ShoppingCart, Clock, DollarSign,
@@ -458,6 +458,13 @@ export default function ClientDashboard() {
 
   const pendingOrders = recentOrders.filter(o => o.status === "pending").length;
 
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return "Good morning";
+    if (h >= 12 && h < 17) return "Good afternoon";
+    return "Good evening";
+  }, []);
+
   if (isLoading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center">
@@ -478,12 +485,12 @@ export default function ClientDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex-1">
           <h1 className="font-display font-extrabold" style={{ fontSize: "22px", color: "#111827", letterSpacing: "-0.02em" }}>
-            Welcome back, {user?.firstName} 👋
+            {greeting}, {user?.firstName}. Let's build something great today.
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "#6B7280" }}>
             {activeServices.length > 0
-              ? `${activeServices.length} active service${activeServices.length === 1 ? "" : "s"} running smoothly`
-              : "Get started by ordering your first hosting plan"
+              ? `${activeServices.length} service${activeServices.length === 1 ? "" : "s"} humming along — you're in good hands.`
+              : "Your suite is empty — let's change that."
             }
           </p>
         </div>
@@ -492,7 +499,7 @@ export default function ClientDashboard() {
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#9CA3AF" }} />
           <input
             type="text"
-            placeholder="Search services or domains…"
+            placeholder="Search your services and domains…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-9 py-2.5 rounded-xl text-sm font-medium transition-all focus:outline-none"
@@ -543,7 +550,7 @@ export default function ClientDashboard() {
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}>
           <Clock size={15} style={{ color: "#D97706" }} />
           <p className="text-sm font-medium" style={{ color: "#92400E" }}>
-            You have <span className="font-bold">{pendingOrders}</span> pending order{pendingOrders > 1 ? "s" : ""} awaiting approval
+            <span className="font-bold">{pendingOrders}</span> order{pendingOrders > 1 ? "s" : ""} pending review — we'll notify you once it's approved.
           </p>
           <Link href="/client/orders" className="ml-auto">
             <span className="text-xs font-semibold" style={{ color: "#D97706" }}>View →</span>
@@ -557,7 +564,7 @@ export default function ClientDashboard() {
           <div className="flex items-center gap-3 px-5 py-3" style={{ background: "#FFF7ED", borderBottom: "1px solid #FED7AA" }}>
             <AlertTriangle size={15} style={{ color: "#C2410C" }} />
             <p className="text-sm font-bold" style={{ color: "#7C2D12" }}>
-              {expiryAlerts.length} service{expiryAlerts.length > 1 ? "s" : ""} expiring soon
+              {expiryAlerts.length} service{expiryAlerts.length > 1 ? "s" : ""} coming up for renewal — act now to stay online.
             </p>
           </div>
           <div style={{ background: "#ffffff" }}>
@@ -590,10 +597,10 @@ export default function ClientDashboard() {
       {/* ── Stat Summary Cards ── */}
       {!q && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Active Services" value={stats.activeServices} icon={Server} href="/client/hosting" color="#4F46E5" />
+          <StatCard title="Services Running" value={stats.activeServices} icon={Server} href="/client/hosting" color="#4F46E5" />
           <StatCard title="Domains" value={stats.activeDomains} icon={Globe} href="/client/domains" color="#059669" />
-          <StatCard title="Unpaid Invoices" value={stats.unpaidInvoices} icon={FileText} href="/client/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
-          <StatCard title="Open Tickets" value={stats.openTickets} icon={Ticket} href="/client/tickets" color="#F59E0B" />
+          <StatCard title="Invoices Due" value={stats.unpaidInvoices} icon={FileText} href="/client/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
+          <StatCard title="Support Cases" value={stats.openTickets} icon={Ticket} href="/client/tickets" color="#F59E0B" />
         </div>
       )}
 
@@ -608,8 +615,8 @@ export default function ClientDashboard() {
               <Wallet size={20} style={{ color: "#059669" }} />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold" style={{ color: "#064E3B" }}>Account Credits Available</p>
-              <p className="text-xs mt-0.5" style={{ color: "#047857" }}>Use your balance to pay invoices instantly</p>
+              <p className="text-sm font-bold" style={{ color: "#064E3B" }}>Available Credit</p>
+              <p className="text-xs mt-0.5" style={{ color: "#047857" }}>Apply your balance to any invoice in seconds.</p>
             </div>
             <div className="text-right shrink-0">
               <p className="text-xl font-black" style={{ color: "#059669" }}>{formatPrice(creditBalance)}</p>
@@ -624,15 +631,15 @@ export default function ClientDashboard() {
         const s1 = setupProgress.step1;
         const s2 = setupProgress.step2;
         const steps = [
-          { label: "Register Domain", icon: Globe, done: s1, desc: s1 ? setupProgress.primaryDomain ?? "Your domain is ready" : "Order a domain to get started.", cta: !s1 ? { label: "Get Domain", href: "/client/domains" } : null, locked: false },
-          { label: "Setup Hosting",   icon: Server, done: s2, desc: s2 ? "Hosting is active."                 : "Connect your domain to a server.",   cta: !s2 ? { label: "Get Hosting", href: "/client/orders/new" } : null, locked: !s1 },
-          { label: "Website Live",   icon: Rocket, done: false, desc: "Complete steps above to go live.", cta: null, locked: !s1 || !s2 },
+          { label: "Claim Your Domain", icon: Globe, done: s1, desc: s1 ? setupProgress.primaryDomain ?? "Your domain is ready." : "Register a domain to get started.", cta: !s1 ? { label: "Get a Domain", href: "/client/domains" } : null, locked: false },
+          { label: "Launch Hosting",   icon: Server, done: s2, desc: s2 ? "Hosting is live and running."       : "Connect your domain to a hosting plan.",   cta: !s2 ? { label: "Get Hosting", href: "/client/orders/new" } : null, locked: !s1 },
+          { label: "You're Live",      icon: Rocket, done: false, desc: "Complete the steps above to go live.", cta: null, locked: !s1 || !s2 },
         ];
         return (
           <div className="rounded-2xl overflow-hidden" style={{ background: "#ffffff", border: "1px solid #E0E7FF", borderRadius: "16px" }}>
             <div className="flex items-center gap-3 px-5 py-3.5" style={{ background: "#EEF2FF", borderBottom: "1px solid #E0E7FF" }}>
               <Rocket size={15} style={{ color: "#4F46E5" }} />
-              <p className="text-sm font-bold" style={{ color: "#312E81" }}>Launch your website — {setupProgress.pct}% complete</p>
+              <p className="text-sm font-bold" style={{ color: "#312E81" }}>You're {setupProgress.pct}% of the way to launch — keep going.</p>
               <div className="flex-1 mx-4 h-1.5 rounded-full overflow-hidden" style={{ background: "#C7D2FE" }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${setupProgress.pct}%`, background: "linear-gradient(90deg,#4F46E5,#6366F1)" }} />
               </div>
@@ -671,8 +678,8 @@ export default function ClientDashboard() {
               <PartyPopper size={28} className="text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white">Congratulations! 🎉</h2>
-              <p className="text-violet-200 font-semibold mt-1">Your website is officially LIVE</p>
+              <h2 className="text-2xl font-black text-white">You're Live!</h2>
+              <p className="text-violet-200 font-semibold mt-1">Your site is live and the world can find you.</p>
               {setupProgress.primaryDomain && (
                 <a href={setupProgress.siteUrl ?? "#"} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-300 hover:text-white transition-colors underline underline-offset-2 mt-1 block">
                   {setupProgress.primaryDomain}
@@ -696,12 +703,12 @@ export default function ClientDashboard() {
               <Gift size={22} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-white">🎁 Free Domain for {svc.planName}!</p>
-              <p className="text-xs text-white/75 mt-0.5">Your yearly plan includes a free domain. Claim it now.</p>
+              <p className="text-sm font-black text-white">A free domain is waiting for you.</p>
+              <p className="text-xs text-white/75 mt-0.5">Your annual plan includes one free domain registration — claim it before it expires.</p>
             </div>
             <button onClick={() => navigate(`/client/register-domain?claim_token=${svc.id}`)}
               className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white border border-white/25 hover:bg-white/10 transition-all">
-              Claim →
+              Claim My Domain →
             </button>
           </div>
         </div>
@@ -711,7 +718,7 @@ export default function ClientDashboard() {
       {filteredServices.length > 0 && (
         <div>
           <SectionHeader
-            title="My Hosting"
+            title="Your Hosting"
             icon={Server}
             link="/client/hosting"
             linkLabel="View All"
@@ -729,7 +736,7 @@ export default function ClientDashboard() {
       {filteredDomains.length > 0 && (
         <div>
           <SectionHeader
-            title="My Domains"
+            title="Your Domains"
             icon={Globe}
             link="/client/domains"
             linkLabel="View All"
@@ -747,8 +754,8 @@ export default function ClientDashboard() {
       {q && !hasResults && (
         <div className="py-16 text-center rounded-2xl" style={{ background: "#ffffff", border: "1px solid #E5E7EB", borderRadius: "16px" }}>
           <Search size={32} className="mx-auto mb-3" style={{ color: "#D1D5DB" }} />
-          <p className="text-sm font-semibold" style={{ color: "#374151" }}>No results for "{searchQuery}"</p>
-          <p className="text-xs mt-1" style={{ color: "#9CA3AF" }}>Try searching for a domain name or hosting plan</p>
+          <p className="text-sm font-semibold" style={{ color: "#374151" }}>Nothing matches "{searchQuery}"</p>
+          <p className="text-xs mt-1" style={{ color: "#9CA3AF" }}>Try a different name or browse your services above.</p>
           <button onClick={() => setSearchQuery("")} className="mt-4 text-sm font-semibold" style={{ color: "#4F46E5" }}>Clear search</button>
         </div>
       )}
@@ -758,14 +765,14 @@ export default function ClientDashboard() {
         <div className="rounded-2xl overflow-hidden" style={{ background: "#ffffff", border: "1px solid #E0E7FF", borderRadius: "16px" }}>
           <div className="flex items-center gap-3 px-5 py-3.5" style={{ background: "#EEF2FF", borderBottom: "1px solid #E0E7FF" }}>
             <Sparkles size={15} style={{ color: "#4F46E5" }} />
-            <p className="text-sm font-bold" style={{ color: "#312E81" }}>Welcome! Here's how to get started</p>
+            <p className="text-sm font-bold" style={{ color: "#312E81" }}>New around here? Let us show you the ropes.</p>
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
-              { label: "How to access cPanel", href: "/client/hosting" },
-              { label: "Add or transfer a domain", href: "/client/domains" },
-              { label: "Set up email accounts", href: "/client/hosting" },
-              { label: "Submit a support ticket", href: "/client/tickets" },
+              { label: "Log in to your control panel", href: "/client/hosting" },
+              { label: "Connect or transfer a domain", href: "/client/domains" },
+              { label: "Create your business email", href: "/client/hosting" },
+              { label: "Get help from our team", href: "/client/tickets" },
             ].map(g => (
               <Link key={g.label} href={g.href}
                 className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"

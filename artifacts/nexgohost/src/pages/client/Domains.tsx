@@ -504,8 +504,8 @@ export default function ClientDomains() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">My Domains</h1>
-          <p className="text-muted-foreground mt-1">Manage, register and transfer your domain names.</p>
+          <h1 className="text-3xl font-display font-bold text-foreground">Your Domain Portfolio</h1>
+          <p className="text-muted-foreground mt-1">Your unique identities on the web — registered, managed, and renewed in one place.</p>
         </div>
         <div className="flex items-center gap-2.5">
           {cart.length > 0 && activeTab === "order" && orderView === "search" && (

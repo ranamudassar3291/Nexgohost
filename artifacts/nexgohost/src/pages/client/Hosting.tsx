@@ -335,8 +335,8 @@ export default function ClientHosting() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-display font-bold text-foreground">My Services</h2>
-          <p className="text-muted-foreground mt-1">Manage your active hosting services and VPS servers.</p>
+          <h2 className="text-3xl font-display font-bold text-foreground">Your Hosting Suite</h2>
+          <p className="text-muted-foreground mt-1">Your digital foundation — everything you need to run a fast, reliable website.</p>
         </div>
         {services.length > 0 && (
           <button
@@ -344,7 +344,7 @@ export default function ClientHosting() {
             className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow-md hover:opacity-90 transition-opacity shrink-0"
             style={{ background: BRAND_GRADIENT }}
           >
-            <Sparkles size={14} /> Add Service
+            <Sparkles size={14} /> Add to My Suite
           </button>
         )}
       </div>
@@ -371,23 +371,23 @@ export default function ClientHosting() {
               style={{ background: BRAND_GRADIENT }}>
               <Server className="w-10 h-10 text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-foreground">Start Your Hosting Journey</h3>
+            <h3 className="text-2xl font-bold text-foreground">Your hosting story starts here.</h3>
             <p className="text-muted-foreground mt-2 max-w-md">
-              You don't have any active services yet. Choose a plan below to get started — your site can be live in minutes.
+              You don't have any active plans yet. Pick one below and be live in minutes — no technical experience required.
             </p>
             <button
               onClick={() => setLocation("/client/orders/new")}
               className="mt-6 flex items-center gap-2 h-11 px-6 rounded-xl text-sm font-bold text-white shadow-lg hover:opacity-90 transition-opacity"
               style={{ background: BRAND_GRADIENT }}
             >
-              <Sparkles size={15} /> Browse All Plans
+              <Sparkles size={15} /> Explore All Plans
             </button>
           </div>
 
           {/* Top plans comparison */}
           {topPlans.length > 0 && (
             <div>
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Popular Plans</p>
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Most Loved Plans</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {topPlans.map((plan, i) => (
                   <motion.div
@@ -476,8 +476,8 @@ export default function ClientHosting() {
           {services.length > 0 && searchQ && filteredVps.length === 0 && filteredHosting.length === 0 && (
             <div className="py-12 text-center text-muted-foreground">
               <Search size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="font-semibold">No services match "{searchQ}"</p>
-              <p className="text-sm mt-1">Try a different search term.</p>
+              <p className="font-semibold">Nothing matches "{searchQ}"</p>
+              <p className="text-sm mt-1">Try a different name or clear the search to see all your services.</p>
             </div>
           )}
         </div>

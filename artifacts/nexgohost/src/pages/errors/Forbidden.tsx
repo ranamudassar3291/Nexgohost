@@ -43,10 +43,10 @@ export default function Forbidden({ requiredRole, attemptedPath }: ForbiddenProp
         {/* Heading */}
         <div className="space-y-3">
           <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">
-            Access Forbidden
+            This area is off-limits.
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed">
-            You don't have permission to view this page.
+            Your account doesn't have access to this area. If you believe this is a mistake, please contact our support team.
           </p>
         </div>
 
@@ -89,7 +89,7 @@ export default function Forbidden({ requiredRole, attemptedPath }: ForbiddenProp
           <Link href={homePath}>
             <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-[0_0_20px_-4px_rgba(139,92,246,0.4)] text-sm">
               <ArrowLeft size={16} />
-              Go to my Dashboard
+              Back to My Dashboard
             </button>
           </Link>
           {user && (
