@@ -40,3 +40,4 @@ export * from "./email-campaigns";
 export * from "./email-unsubscribes";
 export * from "./cart-items";
 export * from "./guest-cart-items";
+export * from "./site-pages";

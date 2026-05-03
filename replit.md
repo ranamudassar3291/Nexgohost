@@ -6,7 +6,23 @@
 - **`GET /api/content`** — public endpoint, returns merged content from DB + defaults
 - **`POST /api/admin/content`** — admin-only, updates any content key in DB
 - **`ContentContext`** (`src/noehost/ContentContext.tsx`) — pure backend API, no Firebase dependency, localStorage cache
-- **`/admin/website`** — Website Admin section with tabs: Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config
+- **`/admin/website`** — Website Admin section with tabs: Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config, **Page Manager**
+
+## Page Manager CMS (2026-05-03)
+
+- **`site_pages` table** (`lib/db/src/schema/site-pages.ts`): composite PK `(page_id, section_name)`, `content_json` (text), `is_visible` (boolean), `last_updated` (timestamp). Auto-created via `CREATE TABLE IF NOT EXISTS` in `pages.ts` on first startup.
+- **Default content seeding**: First fetch for any page seeds all sections from `PAGE_DEFAULTS` in `pages.ts` using `INSERT … ON CONFLICT DO NOTHING`.
+- **API routes** (`artifacts/api-server/src/routes/pages.ts`):
+  - `GET /api/pages/:pageId` — **public**, returns all visible sections (used by frontend)
+  - `GET /api/admin/pages/:pageId` — **admin**, returns all sections including hidden
+  - `PUT /api/admin/pages/:pageId/:sectionName` — **admin**, updates `content_json` and/or `is_visible`
+  - `GET /api/admin/pages` — **admin**, lists all managed page IDs
+- **Admin editor** (`artifacts/nexgohost/src/pages/admin/PageManager.tsx`): Tab per page (Home, About, Pricing, Terms, Privacy). Each tab shows a section sidebar + content editor + visibility toggle + Save Changes button. Accessible via `/admin/website` → **Page Manager** tab.
+- **Frontend pages updated to fetch from DB**:
+  - `TermsOfService.tsx` → `GET /api/pages/terms`, falls back to hardcoded defaults
+  - `PrivacyPolicy.tsx` → `GET /api/pages/privacy`, falls back to hardcoded defaults
+  - Both use a lightweight `renderMarkdown()` function (headings, bold, paragraphs) — no external dependency
+- **Section visibility toggles**: Each section in the admin can be toggled off — the public API filters hidden sections, so changes go live immediately on save.
 
 ## Auth & Token System
 

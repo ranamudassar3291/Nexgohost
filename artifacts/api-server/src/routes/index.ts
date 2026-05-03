@@ -65,6 +65,7 @@ import salesFunnelRouter from "./sales-funnel.js";
 import resourceMonitorRouter from "./resource-monitor.js";
 import stagingRouter from "./staging.js";
 import aiSpecialistRouter from "./ai-specialist.js";
+import pagesRouter from "./pages.js";
 
 const router: IRouter = Router();
 
@@ -138,5 +139,6 @@ router.use(salesFunnelRouter);
 router.use(resourceMonitorRouter);
 router.use(stagingRouter);
 router.use(aiSpecialistRouter);
+router.use(pagesRouter);
 
 export default router;

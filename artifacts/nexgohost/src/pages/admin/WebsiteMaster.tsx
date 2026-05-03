@@ -3,11 +3,12 @@ import {
   Globe, Home, Zap, Package, TrendingUp, MessageSquare, Star, Award,
   Settings, Shield, Layout, Layers, DollarSign, RefreshCw, Save,
   Plus, Trash2, ChevronDown, ChevronUp, Type, AlignLeft, Phone, Mail,
-  FileText, Server, Cpu, Users, Bell
+  FileText, Server, Cpu, Users, Bell, LayoutDashboard
 } from "lucide-react";
 import { MasterPage } from "@/components/layout/MasterPage";
 import { useContent } from "@/context/ContentContext";
 import { useAuth } from "@/hooks/use-auth";
+import PageManager from "./PageManager";
 
 // ─── Shared UI helpers ────────────────────────────────────────────────────────
 const inputCls = "w-full px-4 py-2.5 rounded-xl text-sm text-foreground placeholder-muted-foreground outline-none transition-all focus:ring-2 focus:ring-primary/30 bg-secondary/60 border border-border/60 focus:border-primary/40";
@@ -494,7 +495,8 @@ export default function WebsiteMaster() {
         { id: "footer",        label: "Footer",       icon: Shield,     desc: "Footer & contact info",            component: FooterTab },
         { id: "pricing",       label: "Pricing",      icon: DollarSign, desc: "Hosting plans & prices",          component: PricingTab },
         { id: "domains",       label: "Domain Prices",icon: Globe,      desc: "TLD register/renew pricing (PKR)", component: DomainPricingTab },
-        { id: "config",        label: "Global Config",icon: Settings,   desc: "Site name, tagline, meta",         component: GlobalConfigTab },
+        { id: "config",        label: "Global Config",icon: Settings,      desc: "Site name, tagline, meta",         component: GlobalConfigTab },
+        { id: "pages",         label: "Page Manager", icon: LayoutDashboard, desc: "Edit pages, sections, SEO & visibility", component: PageManager },
       ]}
     />
   );
