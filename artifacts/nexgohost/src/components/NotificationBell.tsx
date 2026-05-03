@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, X, Check, CheckCheck, Loader2, Globe, Package, FileText, Ticket, Info, RefreshCw } from "lucide-react";
+import {
+  Bell, X, Check, CheckCheck, Loader2, Globe, Package,
+  FileText, Ticket, Info, RefreshCw, ShieldAlert, CreditCard,
+  Sparkles, ArrowRight,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,13 +18,18 @@ interface Notification {
   createdAt: string;
 }
 
-const typeIcon: Record<string, React.ReactNode> = {
-  domain:  <Globe size={14} className="text-blue-400" />,
-  order:   <Package size={14} className="text-green-400" />,
-  invoice: <FileText size={14} className="text-yellow-400" />,
-  ticket:  <Ticket size={14} className="text-purple-400" />,
-  hosting: <RefreshCw size={14} className="text-primary" />,
+// Per-type visual config
+const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
+  invoice:  { icon: FileText,    color: "#D97706", bg: "#FFFBEB", label: "Billing"   },
+  payment:  { icon: CreditCard,  color: "#059669", bg: "#ECFDF5", label: "Payment"   },
+  domain:   { icon: Globe,       color: "#2563EB", bg: "#EFF6FF", label: "Domain"    },
+  order:    { icon: Package,     color: "#7C3AED", bg: "#F5F3FF", label: "Order"     },
+  ticket:   { icon: Ticket,      color: "#DB2777", bg: "#FDF2F8", label: "Support"   },
+  hosting:  { icon: RefreshCw,   color: "#0891B2", bg: "#ECFEFF", label: "Hosting"   },
+  security: { icon: ShieldAlert, color: "#DC2626", bg: "#FEF2F2", label: "Security"  },
+  system:   { icon: Sparkles,    color: "#6366F1", bg: "#EEF2FF", label: "System"    },
 };
+const DEFAULT_TYPE = { icon: Info, color: "#6B7280", bg: "#F9FAFB", label: "Notice" };
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -33,13 +42,13 @@ function timeAgo(dateStr: string): string {
 }
 
 export function NotificationBell() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]               = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unread, setUnread] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [, setLocation] = useLocation();
+  const [unread, setUnread]           = useState(0);
+  const [loading, setLoading]         = useState(false);
+  const [, setLocation]               = useLocation();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function fetchUnread() {
     try {
@@ -93,7 +102,7 @@ export function NotificationBell() {
 
   useEffect(() => {
     fetchUnread();
-    pollRef.current = setInterval(fetchUnread, 30000);
+    pollRef.current = setInterval(fetchUnread, 30_000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
@@ -112,107 +121,244 @@ export function NotificationBell() {
   }, [open]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div style={{ position: "relative" }} ref={dropdownRef}>
+      {/* Bell trigger */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
         title="Notifications"
+        style={{
+          position: "relative",
+          width: 36, height: 36,
+          borderRadius: 10,
+          border: "none",
+          background: open ? "#EEF2FF" : "transparent",
+          color: open ? "#4F46E5" : "#94A3B8",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer",
+          transition: "all 0.15s",
+        }}
+        onMouseEnter={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = "#F8FAFF"; (e.currentTarget as HTMLElement).style.color = "#4F46E5"; } }}
+        onMouseLeave={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#94A3B8"; } }}
       >
         <Bell size={18} />
-        {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
+        <AnimatePresence>
+          {unread > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              style={{
+                position: "absolute", top: -2, right: -2,
+                minWidth: 18, height: 18, padding: "0 4px",
+                background: "linear-gradient(135deg, #EF4444, #DC2626)",
+                color: "#fff",
+                borderRadius: 20,
+                fontSize: 10, fontWeight: 900,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: "2px solid #fff",
+                boxShadow: "0 2px 6px rgba(239,68,68,0.4)",
+                lineHeight: 1,
+              }}
+            >
+              {unread > 9 ? "9+" : unread}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </button>
 
+      {/* Dropdown panel */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
+            initial={{ opacity: 0, y: -10, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute right-0 top-full mt-2 w-80 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
+            exit={{ opacity: 0, y: -10, scale: 0.96 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            style={{
+              position: "absolute", right: 0, top: "calc(100% + 10px)",
+              width: 360,
+              background: "#fff",
+              border: "1px solid #E8EAED",
+              borderRadius: 20,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06)",
+              zIndex: 9999,
+              overflow: "hidden",
+            }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-              <div className="flex items-center gap-2">
-                <Bell size={15} className="text-primary" />
-                <span className="font-semibold text-sm text-foreground">Notifications</span>
-                {unread > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 text-[10px] font-bold border border-red-500/20">
-                    {unread} new
-                  </span>
-                )}
+            {/* ── Header ── */}
+            <div style={{
+              padding: "14px 18px",
+              background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 10,
+                  background: "rgba(255,255,255,0.18)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Bell size={14} color="#fff" />
+                </div>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>Notifications</span>
+                  {unread > 0 && (
+                    <span style={{
+                      marginLeft: 8, padding: "1px 7px",
+                      borderRadius: 20, background: "rgba(255,255,255,0.22)",
+                      color: "#fff", fontSize: 10, fontWeight: 800,
+                    }}>
+                      {unread} unread
+                    </span>
+                  )}
+                </div>
               </div>
               {notifications.some(n => !n.isRead) && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "5px 10px", borderRadius: 8,
+                    background: "rgba(255,255,255,0.18)",
+                    border: "none", cursor: "pointer",
+                    color: "#fff", fontSize: 11, fontWeight: 700,
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.28)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.18)"}
                 >
                   <CheckCheck size={12} /> Mark all read
                 </button>
               )}
             </div>
 
-            {/* List */}
-            <div className="max-h-80 overflow-y-auto custom-scrollbar">
+            {/* ── Notification list ── */}
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
               {loading ? (
-                <div className="flex justify-center p-6">
-                  <Loader2 size={20} className="animate-spin text-primary" />
+                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px 0" }}>
+                  <Loader2 size={22} style={{ color: "#C7D2FE", animation: "spin 1s linear infinite" }} />
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 p-8 text-center">
-                  <div className="w-10 h-10 rounded-full bg-secondary/60 flex items-center justify-center">
-                    <Bell size={18} className="text-muted-foreground" />
+                <div style={{ padding: "40px 20px", textAlign: "center" }}>
+                  <div style={{
+                    width: 52, height: 52, borderRadius: 18,
+                    background: "linear-gradient(135deg, #EEF2FF, #E0E7FF)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    margin: "0 auto 14px",
+                  }}>
+                    <Bell size={22} color="#A5B4FC" />
                   </div>
-                  <p className="text-sm text-muted-foreground">No notifications yet</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#374151", margin: "0 0 4px" }}>All caught up!</p>
+                  <p style={{ fontSize: 12, color: "#9CA3AF", margin: 0 }}>No notifications right now.</p>
                 </div>
               ) : (
-                notifications.map(n => (
-                  <div
-                    key={n.id}
-                    onClick={() => handleNotificationClick(n)}
-                    className={`flex items-start gap-3 px-4 py-3 border-b border-border/40 last:border-0 cursor-pointer transition-colors hover:bg-secondary/40 ${!n.isRead ? "bg-primary/3" : ""}`}
-                  >
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${!n.isRead ? "bg-primary/10" : "bg-secondary/60"}`}>
-                      {typeIcon[n.type] ?? <Info size={14} className="text-muted-foreground" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-1">
-                        <p className={`text-xs font-semibold truncate ${!n.isRead ? "text-foreground" : "text-muted-foreground"}`}>
-                          {n.title}
-                        </p>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {!n.isRead && (
+                notifications.map((n, idx) => {
+                  const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_TYPE;
+                  const Icon = cfg.icon;
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotificationClick(n)}
+                      style={{
+                        display: "flex", alignItems: "flex-start", gap: 12,
+                        padding: "13px 16px",
+                        borderBottom: idx < notifications.length - 1 ? "1px solid #F9FAFB" : "none",
+                        cursor: n.link ? "pointer" : "default",
+                        background: n.isRead ? "transparent" : "#FAFBFF",
+                        transition: "background 0.15s",
+                        position: "relative",
+                      }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#F8FAFF"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = n.isRead ? "transparent" : "#FAFBFF"}
+                    >
+                      {/* Unread stripe */}
+                      {!n.isRead && (
+                        <div style={{
+                          position: "absolute", left: 0, top: 0, bottom: 0,
+                          width: 3, background: "linear-gradient(180deg,#6366F1,#8B5CF6)", borderRadius: "0 2px 2px 0",
+                        }} />
+                      )}
+
+                      {/* Icon */}
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 11,
+                        background: cfg.bg,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        flexShrink: 0,
+                      }}>
+                        <Icon size={16} color={cfg.color} />
+                      </div>
+
+                      {/* Content */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <span style={{
+                              display: "inline-block", padding: "1px 7px", borderRadius: 20,
+                              background: cfg.bg, color: cfg.color,
+                              fontSize: 9, fontWeight: 800, textTransform: "uppercase",
+                              letterSpacing: "0.06em", marginBottom: 3,
+                            }}>
+                              {cfg.label}
+                            </span>
+                            <p style={{
+                              fontSize: 13, fontWeight: n.isRead ? 600 : 800,
+                              color: n.isRead ? "#4B5563" : "#111827",
+                              margin: 0, lineHeight: 1.3,
+                            }}>
+                              {n.title}
+                            </p>
+                          </div>
+                          {/* Actions */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                            {!n.isRead && (
+                              <button
+                                onClick={e => { e.stopPropagation(); markRead(n.id); }}
+                                title="Mark read"
+                                style={{ width: 22, height: 22, border: "none", borderRadius: 6, background: "#EEF2FF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366F1" }}
+                              >
+                                <Check size={11} />
+                              </button>
+                            )}
                             <button
-                              onClick={e => { e.stopPropagation(); markRead(n.id); }}
-                              className="text-muted-foreground hover:text-primary"
-                              title="Mark read"
+                              onClick={e => deleteNotification(n.id, e)}
+                              title="Dismiss"
+                              style={{ width: 22, height: 22, border: "none", borderRadius: 6, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#D1D5DB" }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FEF2F2"; (e.currentTarget as HTMLElement).style.color = "#EF4444"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#D1D5DB"; }}
                             >
-                              <Check size={11} />
+                              <X size={11} />
                             </button>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: 12, color: "#6B7280", margin: "0 0 4px", lineHeight: 1.4 }}>{n.message}</p>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: 10, color: "#9CA3AF" }}>{timeAgo(n.createdAt)}</span>
+                          {n.link && !n.isRead && (
+                            <span style={{ fontSize: 10, color: "#6366F1", fontWeight: 700, display: "flex", alignItems: "center", gap: 2 }}>
+                              View <ArrowRight size={9} />
+                            </span>
                           )}
-                          <button
-                            onClick={e => deleteNotification(n.id, e)}
-                            className="text-muted-foreground hover:text-red-400"
-                            title="Delete"
-                          >
-                            <X size={11} />
-                          </button>
                         </div>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.createdAt)}</p>
                     </div>
-                    {!n.isRead && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-2" />
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
+
+            {/* ── Footer ── */}
+            {notifications.length > 0 && (
+              <div style={{
+                padding: "10px 16px",
+                borderTop: "1px solid #F3F4F6",
+                background: "#FAFBFF",
+                textAlign: "center",
+              }}>
+                <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+                  Showing last {notifications.length} notification{notifications.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

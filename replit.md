@@ -281,6 +281,43 @@ Extended with:
 ### Overview Quick Actions Grid
 - Replaced "Backup" + "SSH" shortcuts with **Software** + **Environment** quick-launch tiles
 
+## Elite Client Profile & Notification Center
+
+### DB Table: `user_preferences` (startup migration)
+- `user_id TEXT PRIMARY KEY`, `theme TEXT DEFAULT 'light'`, `created_at`, `updated_at`
+- Upserted via `ON CONFLICT (user_id) DO UPDATE`
+
+### Backend Routes (`artifacts/api-server/src/routes/user-preferences.ts`)
+- `GET /api/my/preferences` — returns `{ theme, memberSince, serviceCount, domainCount, totalServices, vipLevel, vipNext, vipNextAt, vipProgress }`
+- `PUT /api/my/preferences` — saves theme to DB
+
+### VIP Loyalty System (based on total active services + domains)
+- Starter (0): Gray | Growth (1-2): Blue | Pro (3-5): Purple | Elite (6+): Gold/Amber
+- VIP level computed server-side from live hosting + domain counts
+
+### Theme System (`artifacts/nexgohost/src/context/ThemeProvider.tsx`)
+- On mount: loads theme from DB (with localStorage fallback)
+- On toggle: saves to localStorage + fire-and-forget PUT to DB
+- Adds/removes `dark` CSS class on `document.documentElement`
+- Exports `{ theme, toggleTheme, setTheme }`
+
+### Redesigned NotificationBell (`artifacts/nexgohost/src/components/NotificationBell.tsx`)
+- Full visual overhaul with indigo gradient header, color-coded type icons (invoice=amber, domain=blue, ticket=pink, order=purple, payment=emerald, security=red, system=indigo)
+- Per-type pill labels (uppercase), unread left-stripe indicator, animated badge counter
+- "All caught up" empty state with illustration
+- Mark read/dismiss/mark-all-read — all existing API calls preserved
+
+### Redesigned Account Page (`artifacts/nexgohost/src/pages/client/Account.tsx`)
+- **Profile Hero**: gradient banner using VIP tier color, large avatar with initials, name + tier badge, member since stats row (4 columns)
+- **VIP Loyalty card**: current tier banner, animated progress bar to next tier, 4-tile tier ladder
+- **Appearance section**: Two-card theme picker (Light Mode / Executive Dark), saves to DB
+- Existing Personal Info, Username, Change Password sections preserved
+
+### AppLayout Dark Mode (`artifacts/nexgohost/src/components/layout/AppLayout.tsx`)
+- Imports `useTheme` to get current theme
+- `C` color object: `pageBg`, `headerBg`, `headerBorder`, `headerShadow`, `footerBg`, `footerBorder`, `titleColor`
+- Applied to outer wrapper, desktop header, page content area, and footer
+
 ## Growth Suite (Client Dashboard → /client/growth)
 
 ### DB Table: `seo_scans` (startup migration in `index.ts`)

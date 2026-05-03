@@ -164,6 +164,17 @@ async function runStartupMigrations() {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_seo_scans_user ON seo_scans(user_id)`);
     console.log("[MIGRATIONS] seo_scans table ready");
+
+    // ── User Preferences (theme, etc.) ───────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id    TEXT PRIMARY KEY,
+        theme      TEXT NOT NULL DEFAULT 'light',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] user_preferences table ready");
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

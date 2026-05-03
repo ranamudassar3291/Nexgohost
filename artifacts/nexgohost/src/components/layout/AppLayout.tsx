@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBranding } from "@/hooks/use-branding";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { useTheme } from "@/context/ThemeProvider";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -168,6 +169,20 @@ export function AppLayout({ children, role }: LayoutProps) {
 
   const showLowBalanceAlert = role === "admin" && priceGuardData?.hasRegistrar && priceGuardData?.lowBalance;
   const { count: cartCount } = useCart();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  // Client portal dynamic theme colours
+  const C = {
+    pageBg:        isDark ? "#0F172A" : "#F7F8FA",
+    headerBg:      isDark ? "#1E293B" : "#ffffff",
+    headerBorder:  isDark ? "#334155" : "#F0F0F5",
+    headerShadow:  isDark ? "0 1px 3px rgba(0,0,0,0.3)"  : "0 1px 3px rgba(0,0,0,0.04)",
+    footerBg:      isDark ? "#1E293B" : "#ffffff",
+    footerBorder:  isDark ? "#334155" : "#F0F0F5",
+    titleColor:    isDark ? "#F1F5F9" : "#1A202C",
+    bellColor:     isDark ? "#94A3B8" : "#94A3B8",
+  };
 
   const toggleGroup = (label: string) => {
     setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
@@ -544,7 +559,7 @@ export function AppLayout({ children, role }: LayoutProps) {
   const sidebarContent = isClient ? clientSidebarContent : adminSidebarContent;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-sans" style={{ background: isClient ? "#F7F8FA" : undefined }}>
+    <div className="min-h-screen flex flex-col md:flex-row font-sans" style={{ background: isClient ? C.pageBg : undefined }}>
 
       {/* ── Mobile Header ── */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 border-b sticky top-0 z-50 shadow-sm"
@@ -652,13 +667,13 @@ export function AppLayout({ children, role }: LayoutProps) {
         <header
           className="hidden md:flex h-16 items-center justify-between px-8 sticky top-0 z-30"
           style={{
-            background: isClient ? "#ffffff" : "rgba(var(--background)/0.8)",
-            borderBottom: isClient ? "1px solid #F0F0F5" : "1px solid hsl(var(--border)/0.5)",
+            background: isClient ? C.headerBg : "rgba(var(--background)/0.8)",
+            borderBottom: isClient ? `1px solid ${C.headerBorder}` : "1px solid hsl(var(--border)/0.5)",
             backdropFilter: isClient ? "none" : "blur(20px)",
-            boxShadow: isClient ? "0 1px 3px rgba(0,0,0,0.04)" : "0 1px 2px rgba(0,0,0,0.04)",
+            boxShadow: isClient ? C.headerShadow : "0 1px 2px rgba(0,0,0,0.04)",
           }}
         >
-          <h2 className="text-base font-display font-bold capitalize" style={{ color: isClient ? "#1A202C" : undefined }}>
+          <h2 className="text-base font-display font-bold capitalize" style={{ color: isClient ? C.titleColor : undefined }}>
             {pageTitle}
           </h2>
           <div className="flex items-center gap-3">
@@ -732,7 +747,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         {/* Page content */}
         <div
           className="flex-1 overflow-y-auto overflow-x-hidden"
-          style={{ background: isClient ? "#F7F8FA" : undefined }}
+          style={{ background: isClient ? C.pageBg : undefined }}
         >
           <div className={isClient ? "p-6 md:p-8" : "p-4 md:p-8"}>
             <motion.div
@@ -750,7 +765,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         {isClient && (
           <footer
             className="hidden md:flex items-center justify-between px-8 py-3 shrink-0"
-            style={{ borderTop: "1px solid #F0F0F5", background: "#ffffff" }}
+            style={{ borderTop: `1px solid ${C.footerBorder}`, background: C.footerBg }}
           >
             <div className="flex items-center gap-2 text-xs" style={{ color: "#94A3B8" }}>
               <span className="relative flex h-2 w-2 shrink-0">

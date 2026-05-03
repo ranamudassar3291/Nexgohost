@@ -58,6 +58,7 @@ import contentRouter from "./content.js";
 import siteHealthRouter from "./site-health.js";
 import teamAccessRouter from "./team-access.js";
 import growthSuiteRouter from "./growth-suite.js";
+import userPreferencesRouter from "./user-preferences.js";
 
 const router: IRouter = Router();
 
@@ -124,5 +125,6 @@ router.use(contentRouter);
 router.use(siteHealthRouter);
 router.use(teamAccessRouter);
 router.use(growthSuiteRouter);
+router.use(userPreferencesRouter);
 
 export default router;
