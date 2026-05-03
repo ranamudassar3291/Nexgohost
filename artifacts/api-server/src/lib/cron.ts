@@ -1604,6 +1604,13 @@ export async function runTwentyiHealthCheck(): Promise<void> {
 // ─── Master cron runner (runs all tasks) ─────────────────────────────────────
 export async function runAllCronTasks(): Promise<void> {
   console.log("[CRON] Running all cron tasks...");
+  // Import and run abuse enforcement (dynamic import to avoid circular deps)
+  let runAbuseEnforcementCron: (() => Promise<void>) | null = null;
+  try {
+    const abuseRoute = await import("../routes/abuse.js");
+    runAbuseEnforcementCron = abuseRoute.runAbuseEnforcementCron;
+  } catch { /* non-fatal */ }
+
   await Promise.allSettled([
     runBillingCron(),
     runMarkOverdueCron(),
@@ -1620,6 +1627,7 @@ export async function runAllCronTasks(): Promise<void> {
     runDomainLifecycleCron(),
     runTwentyiStatusSyncCron(),
     runSuspensionWarningCron(),
+    runAbuseEnforcementCron ? runAbuseEnforcementCron() : Promise.resolve(),
   ]);
   console.log("[CRON] All tasks completed.");
 }

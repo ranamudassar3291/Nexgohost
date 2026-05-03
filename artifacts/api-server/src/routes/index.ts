@@ -66,6 +66,7 @@ import resourceMonitorRouter from "./resource-monitor.js";
 import stagingRouter from "./staging.js";
 import aiSpecialistRouter from "./ai-specialist.js";
 import pagesRouter from "./pages.js";
+import abuseRouter from "./abuse.js";
 
 const router: IRouter = Router();
 
@@ -140,5 +141,6 @@ router.use(resourceMonitorRouter);
 router.use(stagingRouter);
 router.use(aiSpecialistRouter);
 router.use(pagesRouter);
+router.use(abuseRouter);
 
 export default router;

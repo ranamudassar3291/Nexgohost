@@ -482,6 +482,58 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wa_client_notif_user ON whatsapp_client_notifications(user_id, sent_at DESC)`);
     console.log("[MIGRATIONS] whatsapp_client_notifications table ready");
 
+    // ── Abuse & Spam Handling System ─────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS abuse_reports (
+        id                    TEXT PRIMARY KEY,
+        report_number         TEXT NOT NULL UNIQUE,
+        reporter_email        TEXT NOT NULL,
+        reporter_name         TEXT,
+        reporter_org          TEXT,
+        abuse_type            TEXT NOT NULL DEFAULT 'spam',
+        target_domain         TEXT,
+        target_ip             TEXT,
+        evidence_logs         TEXT NOT NULL,
+        service_id            TEXT,
+        client_id             TEXT,
+        status                TEXT NOT NULL DEFAULT 'pending',
+        is_valid              BOOLEAN,
+        analysis_notes        TEXT,
+        warning_email_sent_at TIMESTAMP,
+        warning_deadline      TIMESTAMP,
+        suspended_at          TIMESTAMP,
+        resolved_at           TIMESTAMP,
+        resolved_by           TEXT,
+        resolved_note         TEXT,
+        dismissed_at          TIMESTAMP,
+        dismissed_by          TEXT,
+        dismiss_reason        TEXT,
+        ticket_id             TEXT,
+        auto_suspended        BOOLEAN DEFAULT FALSE,
+        notified_client_at    TIMESTAMP,
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at            TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_reports_status ON abuse_reports(status, created_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_reports_client ON abuse_reports(client_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_reports_service ON abuse_reports(service_id)`);
+    console.log("[MIGRATIONS] abuse_reports table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS abuse_actions (
+        id                TEXT PRIMARY KEY,
+        report_id         TEXT NOT NULL REFERENCES abuse_reports(id) ON DELETE CASCADE,
+        action_type       TEXT NOT NULL,
+        action_note       TEXT,
+        performed_by      TEXT NOT NULL,
+        performed_by_email TEXT,
+        created_at        TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_actions_report ON abuse_actions(report_id, created_at DESC)`);
+    console.log("[MIGRATIONS] abuse_actions table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

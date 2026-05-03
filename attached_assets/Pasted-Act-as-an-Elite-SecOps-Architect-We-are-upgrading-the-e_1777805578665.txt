@@ -1,0 +1,35 @@
+Act as an Elite SecOps Architect. We are upgrading the existing Abuse System into an Autonomous Global Sentinel. This system must handle reports with machine-learning-like logic and execute actions with surgical precision.
+
+### 1. MULTI-CHANNEL ABUSE INGESTION:
+- Add support for "Email-to-Report": Automatically scan an 'abuse@noehost.com' inbox for incoming reports and parse them into the 'abuse_reports' table in PostgreSQL.
+- Implement an "Evidence Vault": Allow reports to include screenshots or log files, which should be stored securely and linked to the report ID.
+
+### 2. ADVANCED SCORING & CLASSIFICATION:
+- Create a "Threat Score" system (1-100) based on:
+    - Report source credibility (e.g., reports from Spamhaus or Google Safe Browsing get +50 score).
+    - Type of abuse: Phishing/Child Safety = 100 (Instant Suspension), SMTP Spam = 40 (Warning).
+- "Save all threat scores and classification logic in the PostgreSQL database" to maintain a history of client behavior.
+
+### 3. THE "AUTO-RESPONDER" TICKETING ENGINE:
+- When a report is logged, the system must automatically create a "Critical Dispute Ticket" in the client's dashboard.
+- If the client's reply contains specific resolution keywords (e.g., "removed malware", "deleted script"), the AI should lower the threat score and notify the Admin for a quick review.
+
+### 4. SMART SUSPENSION & NETWORK SHIELD:
+- CRITICAL: Instead of just suspending the whole cPanel, implement "Selective Blocking" if possible (e.g., block outgoing Port 25 for SMTP spam while keeping the website live).
+- If the Threat Score hits 90+, trigger the 'Suspend Account' function in WHM immediately and update the PostgreSQL status to 'Critical_Lockdown'.
+
+### 5. LEGAL COMPLIANCE & DMCA HANDLER:
+- Add a specific workflow for DMCA/Copyright claims:
+    - Automated "Counter-Notice" forms for clients.
+    - Systematic "Takedown Clock" that counts down for the client to remove copyrighted material.
+
+### 6. ANALYTICS & REPUTATION DASHBOARD:
+- Build a "Network Health" view for the Admin showing:
+    - Most abused IP ranges.
+    - Top 10 "Bad Actors" (clients with repeated reports).
+    - "Save all reputation data in the PostgreSQL database" so we can permanently ban users who move between accounts.
+
+### 7. GLOBAL MAIL NOTIFICATIONS:
+- Use advanced HTML templates that include "One-Click Dispute" buttons for the client and "Evidence Viewers" for the Admin.
+
+Please rebuild the Abuse Controller into this autonomous sentinel to ensure Noehost remains the most secure and respected host in the industry.

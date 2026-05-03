@@ -50,6 +50,7 @@ import WebsiteMaster from "@/pages/admin/WebsiteMaster";
 import CommandCenter from "@/pages/admin/CommandCenter";
 import SeoEngine from "@/pages/admin/SeoEngine";
 import SalesFunnel from "@/pages/admin/SalesFunnel";
+import AbuseDashboard from "@/pages/admin/AbuseDashboard";
 import Status from "@/pages/public/Status";
 import NoeBlog from "@/noehost/components/pages/Blog";
 import NoeBlogPost from "@/noehost/components/pages/BlogPost";
@@ -410,6 +411,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/website">
         <AdminPage><WebsiteMaster /></AdminPage>
+      </Route>
+      <Route path="/admin/abuse">
+        <AdminPage><AbuseDashboard /></AdminPage>
       </Route>
 
       {/* Legacy routes — redirect to master pages with correct tab */}

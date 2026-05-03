@@ -109,6 +109,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { name: "Support",   href: "/admin/support",  icon: (() => null) as any },
       { name: "Finance",   href: "/admin/finance",  icon: (() => null) as any },
+      { name: "Abuse",     href: "/admin/abuse",    icon: (() => null) as any },
     ],
   },
   {
