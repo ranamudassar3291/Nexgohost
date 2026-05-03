@@ -120,16 +120,37 @@ A production-ready SaaS hosting and domain management platform (similar to WHMCS
 - **Backend (API Server)**: `artifacts/api-server` — Express.js, runs on **port 8080** via workflow `Start application`
 - **Database**: PostgreSQL (Replit built-in), schema managed with Drizzle Kit
 
-## Login Credentials (Development)
+## Login Credentials
 
 | Portal | URL | Email | Password |
 |---|---|---|---|
 | **Admin Panel** | `/admin/noe` | `admin@noehost.com` | `Admin@123456` |
-| **Client Portal** | `/client/login` | _(register a new account)_ | — |
+| **Client Portal** | `/login` | _(any imported client email)_ | _(their original password)_ |
 
-## Database Setup
+> Admin login URL slug is controlled by `ADMIN_LOGIN_SLUG` env var (currently `noe`).
 
-First-time setup (or after environment reset):
+## Database — Production Backup Imported
+
+The live database backup from `noehost_latests_backup.sql` (GitHub: ranamudassar3291/Nexgohost) has been imported into the Replit PostgreSQL instance.
+
+**Imported data summary:**
+- 968 users (1 admin, 967 clients)
+- 916 hosting services
+- 1,125 domains
+- 1,866 invoices
+- 466 support tickets
+- 7 transactions
+- 87 tables total
+
+**Post-import fixes applied:**
+- 51 uppercase client emails normalized to lowercase
+- 3 unverified users marked as email_verified
+- `email_verification_enabled` set to `false` (so imported users can login immediately)
+- Admin password reset to `Admin@123456` (bcrypt)
+
+## Database Setup (fresh environment)
+
+If you need to reset from scratch:
 ```bash
 # 1. Push schema to DB
 pnpm --filter @workspace/db push
@@ -141,6 +162,13 @@ node scripts/seed-db.mjs
 Or run the post-merge script which does everything:
 ```bash
 bash scripts/post-merge.sh
+```
+
+To re-import the production backup:
+```bash
+curl -L "https://raw.githubusercontent.com/ranamudassar3291/Nexgohost/master/noehost_latests_backup.sql" -o /tmp/backup.sql
+sed '/^\\restrict/d; /^ALTER .* OWNER TO/d; /^COMMENT ON SCHEMA/d' /tmp/backup.sql > /tmp/backup_clean.sql
+psql "$DATABASE_URL" -f /tmp/backup_clean.sql
 ```
 
 ## Central Command Center (`/admin/command-center`)
