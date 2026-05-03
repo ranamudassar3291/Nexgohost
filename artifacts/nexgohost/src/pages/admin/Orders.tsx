@@ -470,7 +470,7 @@ export default function AdminOrders() {
         setActivateError({
           orderId: preActivate.orderId,
           error: msg,
-          errorCode: errData.errorCode,
+          errorCode: errData.errorCode as ActivateError["errorCode"],
           serviceId: errData.serviceId ?? null,
           preActivate,
         });
@@ -708,7 +708,7 @@ export default function AdminOrders() {
       {/* 20i Activation Error Modal — structured error with retry */}
       {activateError && (() => {
         const code = activateError.errorCode;
-        const fixMap: Record<string, { title: string; steps: string[]; color: string }> = {
+        const fixMap: Record<ActivateError["errorCode"], { title: string; steps: string[]; color: string }> = {
           ip_blocked: {
             title: "IP Address Not Whitelisted",
             color: "amber",

@@ -553,8 +553,7 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
         if (provisionResult.whmError) {
           console.warn("[ACTIVATE] WHM error (hard failure — service stays pending):", provisionResult.whmError);
           const whmMsg = provisionResult.whmError;
-          // Classify the error into a structured code for the admin UI
-          let errorCode: string = "api_error";
+          let errorCode: "ip_blocked" | "permission_denied" | "no_package_types" | "auth_failed" | "api_error" = "api_error";
           if (/IpMatch|ip.*match|IP.*not.*white|outbound.*ip|ip.*block/i.test(whmMsg)) {
             errorCode = "ip_blocked";
           } else if (/addWeb|permission.*denied|Forbidden.*addWeb/i.test(whmMsg)) {
@@ -564,7 +563,6 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
           } else if (/Authentication failed|401|key.*not.*recogni/i.test(whmMsg)) {
             errorCode = "auth_failed";
           } else if (/403|Forbidden/i.test(whmMsg)) {
-            // Generic 403 — check for addWeb keyword anywhere in the message
             errorCode = whmMsg.includes("addWeb") ? "permission_denied" : "ip_blocked";
           }
           res.status(400).json({
