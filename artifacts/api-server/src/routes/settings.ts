@@ -8,6 +8,9 @@ import { db } from "@workspace/db";
 import { settingsTable, emailLogsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { desc, eq } from "drizzle-orm";
+import { encryptField, decryptField } from "../lib/fieldCrypto.js";
+
+const ENCRYPTED_SETTING_KEYS = new Set(["smtp_pass", "google_client_secret", "safepay_live_secret", "safepay_sandbox_secret", "stripe_secret_key"]);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -101,11 +104,11 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
     if (smtp_from_name !== undefined)  pairs.push({ key: "smtp_from_name",  value: smtp_from_name });
     if (smtp_encryption !== undefined) pairs.push({ key: "smtp_encryption", value: smtp_encryption });
     if (smtp_pass !== undefined && smtp_pass !== "••••••••" && smtp_pass !== "") {
-      pairs.push({ key: "smtp_pass", value: smtp_pass });
+      pairs.push({ key: "smtp_pass", value: encryptField(smtp_pass) });
     }
     if (google_client_id !== undefined) pairs.push({ key: "google_client_id", value: google_client_id });
     if (google_client_secret !== undefined && google_client_secret !== "••••••••" && google_client_secret !== "") {
-      pairs.push({ key: "google_client_secret", value: google_client_secret });
+      pairs.push({ key: "google_client_secret", value: encryptField(google_client_secret) });
     }
     if (google_allowed_domains !== undefined) pairs.push({ key: "google_allowed_domains", value: google_allowed_domains });
     if (email_verification_enabled !== undefined) pairs.push({ key: "email_verification_enabled", value: String(email_verification_enabled) });
@@ -141,7 +144,7 @@ router.post("/admin/settings/smtp/verify", authenticate, requireAdmin, async (re
     const user       = req.body.smtp_user       || map["smtp_user"]       || "";
     const pass       = (req.body.smtp_pass && req.body.smtp_pass !== "••••••••")
                        ? req.body.smtp_pass
-                       : (map["smtp_pass"] || "");
+                       : decryptField(map["smtp_pass"] || "");
     const encryption = req.body.smtp_encryption || map["smtp_encryption"] || "tls";
 
     if (!host || !user) {

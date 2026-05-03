@@ -66,6 +66,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     setContent((prev: any) => ({ ...prev, [key]: value }));
     try {
       localStorage.setItem(BROADCAST_KEY, Date.now().toString());
+      // Also broadcast pricing update so package hooks refetch immediately
+      localStorage.setItem("noehost_pricing_updated", Date.now().toString());
     } catch {}
   };
 

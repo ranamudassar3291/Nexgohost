@@ -102,6 +102,9 @@ function useSave(key: string) {
       await updateContent(key, data);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      if (key === "pricing") {
+        try { localStorage.setItem("noehost_pricing_updated", Date.now().toString()); } catch {}
+      }
     } catch (err: any) {
       const msg = err?.message || "Unknown error";
       alert(`Failed to save: ${msg}\n\nPlease make sure you are logged in as admin and try again.`);
@@ -402,6 +405,7 @@ function DomainPricingTab() {
       if (!res.ok) throw new Error();
       setSaved(id);
       setTimeout(() => setSaved(null), 2000);
+      try { localStorage.setItem("noehost_pricing_updated", Date.now().toString()); } catch {}
     } catch {
       setExtensions(prev);
       alert("Failed to update");

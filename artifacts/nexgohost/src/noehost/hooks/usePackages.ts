@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+
+export const PRICING_BROADCAST_KEY = "noehost_pricing_updated";
 
 export interface HostingPlan {
   id: string;
@@ -65,40 +67,64 @@ export function usePackagesByGroup(slug: string) {
   const [plans, setPlans] = useState<HostingPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetch$ = useCallback(() => {
     setLoading(true);
     cachedFetch<HostingPlan>(`pkg-${slug}`, `/api/packages/group/${slug}`)
       .then(setPlans)
       .finally(() => setLoading(false));
   }, [slug]);
 
-  return { plans, loading };
+  useEffect(() => { fetch$(); }, [fetch$]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === PRICING_BROADCAST_KEY) fetch$(); };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [fetch$]);
+
+  return { plans, loading, refetch: fetch$ };
 }
 
 export function useVpsPlans() {
   const [plans, setPlans] = useState<VpsPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetch$ = useCallback(() => {
     setLoading(true);
     cachedFetch<VpsPlan>('vps-plans', '/api/vps-plans')
       .then(setPlans)
       .finally(() => setLoading(false));
   }, []);
 
-  return { plans, loading };
+  useEffect(() => { fetch$(); }, [fetch$]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === PRICING_BROADCAST_KEY) fetch$(); };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [fetch$]);
+
+  return { plans, loading, refetch: fetch$ };
 }
 
 export function useDomainPricing() {
   const [extensions, setExtensions] = useState<DomainExtension[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetch$ = useCallback(() => {
     setLoading(true);
     cachedFetch<DomainExtension>('domain-pricing', '/api/domain-extensions')
       .then(setExtensions)
       .finally(() => setLoading(false));
   }, []);
 
-  return { extensions, loading };
+  useEffect(() => { fetch$(); }, [fetch$]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === PRICING_BROADCAST_KEY) fetch$(); };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [fetch$]);
+
+  return { extensions, loading, refetch: fetch$ };
 }

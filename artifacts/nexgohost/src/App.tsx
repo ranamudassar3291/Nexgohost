@@ -97,6 +97,8 @@ import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
 import NoeCheckout from "@/noehost/components/pages/Checkout";
 
 import { queryClient } from "@/lib/query-client";
+import { useApiHealth } from "@/hooks/use-api-health";
+import MaintenancePage from "@/pages/errors/MaintenancePage";
 
 // ─── Auth Guard Helpers ───────────────────────────────────────────────────────
 // Used inline per-route to avoid nested Switch context issues in Wouter v3.
@@ -191,6 +193,15 @@ function WhmcsCartRedirect() {
   }
   // No WHMCS params — show the cart (no auth required)
   return <CheckoutLayout allowGuest><Cart /></CheckoutLayout>;
+}
+
+// ─── API Health Wrapper ────────────────────────────────────────────────────────
+// Monitors backend availability and shows a maintenance page if the API
+// fails to respond after 2 consecutive checks (every 20 seconds).
+function ApiHealthWrapper({ children }: { children: React.ReactNode }) {
+  const { isDown, retry } = useApiHealth();
+  if (isDown) return <MaintenancePage onRetry={retry} />;
+  return <>{children}</>;
 }
 
 // ─── Router Root ──────────────────────────────────────────────────────────────
@@ -631,15 +642,17 @@ function App() {
       <ThemeProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <ContentProvider>
-              <AuthProvider>
-                <CurrencyProvider>
-                  <CartProvider>
-                    <RouterRoot />
-                  </CartProvider>
-                </CurrencyProvider>
-              </AuthProvider>
-            </ContentProvider>
+            <ApiHealthWrapper>
+              <ContentProvider>
+                <AuthProvider>
+                  <CurrencyProvider>
+                    <CartProvider>
+                      <RouterRoot />
+                    </CartProvider>
+                  </CurrencyProvider>
+                </AuthProvider>
+              </ContentProvider>
+            </ApiHealthWrapper>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

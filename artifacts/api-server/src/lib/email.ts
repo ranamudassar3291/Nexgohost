@@ -1,4 +1,5 @@
 import { getAppUrl, getClientUrl } from "./app-url.js";
+import { decryptField } from "./fieldCrypto.js";
 
 /**
  * Email Service — renders templates and sends via SMTP (nodemailer)
@@ -88,7 +89,7 @@ async function getSmtpConfig(): Promise<SmtpConfig> {
     host:        map["smtp_host"]      || process.env.SMTP_HOST || "",
     port:        Number(map["smtp_port"] || process.env.SMTP_PORT || "587"),
     user:        map["smtp_user"]      || process.env.SMTP_USER || "",
-    pass:        map["smtp_pass"]      || process.env.SMTP_PASS || "",
+    pass:        (map["smtp_pass"] ? decryptField(map["smtp_pass"]) : "") || process.env.SMTP_PASS || "",
     from:        map["smtp_from"]      || process.env.SMTP_FROM || `noreply@${new URL(getAppUrl()).hostname}`,
     fromName:    map["smtp_from_name"] || process.env.SMTP_FROM_NAME || "Noehost",
     encryption:  (map["smtp_encryption"] || "tls") as SmtpConfig["encryption"],

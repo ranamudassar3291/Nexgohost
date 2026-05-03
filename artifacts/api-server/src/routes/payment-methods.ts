@@ -1,6 +1,32 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { paymentMethodsTable } from "@workspace/db/schema";
+import { encryptField, decryptField } from "../lib/fieldCrypto.js";
+
+const PAYMENT_SECRET_FIELDS = ["secretKey", "liveSecretKey", "sandboxSecretKey", "privateKey", "apiKey", "apiSecret"];
+
+function encryptPaymentSettings(settings: Record<string, unknown>): string {
+  const result = { ...settings };
+  for (const field of PAYMENT_SECRET_FIELDS) {
+    if (typeof result[field] === "string" && result[field]) {
+      result[field] = encryptField(result[field] as string);
+    }
+  }
+  return JSON.stringify(result);
+}
+
+function decryptPaymentSettings(json: string | null | undefined): Record<string, unknown> {
+  if (!json) return {};
+  try {
+    const obj = JSON.parse(json) as Record<string, unknown>;
+    for (const field of PAYMENT_SECRET_FIELDS) {
+      if (typeof obj[field] === "string") {
+        obj[field] = decryptField(obj[field] as string);
+      }
+    }
+    return obj;
+  } catch { return {}; }
+}
 import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 
@@ -20,7 +46,7 @@ function formatMethod(m: typeof paymentMethodsTable.$inferSelect) {
 }
 
 function formatMethodAdmin(m: typeof paymentMethodsTable.$inferSelect) {
-  return { ...formatMethod(m), settings: JSON.parse(m.settings ?? "{}") };
+  return { ...formatMethod(m), settings: decryptPaymentSettings(m.settings) };
 }
 
 // Public settings fields exposed to clients per gateway type (no secrets)
@@ -107,7 +133,7 @@ router.post("/admin/payment-methods", authenticate, requireAdmin, async (req: Au
 
     const [method] = await db.insert(paymentMethodsTable).values({
       name, type, description, isSandbox, isActive: true,
-      settings: JSON.stringify(settings),
+      settings: encryptPaymentSettings(settings),
     }).returning();
 
     res.status(201).json(formatMethodAdmin(method));
@@ -128,7 +154,7 @@ router.put("/admin/payment-methods/:id", authenticate, requireAdmin, async (req:
     if (type !== undefined) updates.type = type;
     if (description !== undefined) updates.description = description;
     if (isSandbox !== undefined) updates.isSandbox = isSandbox;
-    if (settings !== undefined) updates.settings = JSON.stringify(settings);
+    if (settings !== undefined) updates.settings = encryptPaymentSettings(settings);
     updates.updatedAt = new Date();
 
     const [method] = await db.update(paymentMethodsTable)
