@@ -522,7 +522,10 @@ function RouterRoot() {
       <Route path="/cart" component={WhmcsCartRedirect}/>
 
       <Route path="/client/orders/new">
-        <CheckoutLayout allowGuest><NewOrder /></CheckoutLayout>
+        {() => {
+          const pid = new URLSearchParams(window.location.search).get("plan_id") ?? "";
+          return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid || undefined} /></CheckoutLayout>;
+        }}
       </Route>
       <Route path="/client/orders">
         <ClientPage><ClientOrders /></ClientPage>

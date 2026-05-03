@@ -617,7 +617,12 @@ router.delete("/domains/:id/dns/:recordId", authenticate, async (req: AuthReques
 // Client: get my domains
 router.get("/domains", authenticate, async (req: AuthRequest, res) => {
   try {
-    const domains = await db.select().from(domainsTable).where(eq(domainsTable.clientId, req.user!.userId));
+    const domains = await db.select().from(domainsTable)
+      .where(eq(domainsTable.clientId, req.user!.userId))
+      .orderBy(
+        sql`CASE ${domainsTable.status} WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END`,
+        desc(domainsTable.createdAt),
+      );
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     const manageMap = await bulkCanManageDomains(domains);
     res.json(domains.map(d => formatDomain(d, user ? `${user.firstName} ${user.lastName}` : "", manageMap.get(d.id))));

@@ -7,13 +7,12 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight,
-  ShoppingCart, AlertTriangle, Plus, Settings, HelpCircle,
+  AlertTriangle, Plus, Settings, HelpCircle,
   ExternalLink, BookOpen, Server, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
-import { useCart } from "@/context/CartContext";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AiChatWidget } from "@/components/AiChatWidget";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
@@ -135,7 +134,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 /* ─── Client nav: pinned shortcuts at top, rest of nav below ─── */
 const CLIENT_NAV_TOP      = ["/client/dashboard", "/client/billing"];
 const CLIENT_NAV_SERVICES = ["/client/hosting", "/client/domains"];
-const CLIENT_NAV_BOTTOM   = ["/client/orders", "/client/tickets", "/client/account", "/client/security", "/client/team", "/client/growth", "/help"];
+const CLIENT_NAV_BOTTOM   = ["/client/tickets"];
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -171,7 +170,6 @@ export function AppLayout({ children, role }: LayoutProps) {
   });
 
   const showLowBalanceAlert = role === "admin" && priceGuardData?.hasRegistrar && priceGuardData?.lowBalance;
-  const { count: cartCount } = useCart();
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -599,21 +597,6 @@ export function AppLayout({ children, role }: LayoutProps) {
               </button>
             </Link>
           )}
-          {isClient && (
-            <button
-              onClick={() => { setLocation("/client/cart"); setMobileMenuOpen(false); }}
-              className="relative p-2 rounded-xl transition-colors"
-              style={{ color: "rgba(255,255,255,0.6)" }}
-              aria-label="Cart"
-            >
-              <ShoppingCart size={19} />
-              {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-white rounded-full text-[10px] font-bold flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-          )}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 rounded-xl transition-colors"
@@ -705,21 +688,6 @@ export function AppLayout({ children, role }: LayoutProps) {
                   onMouseLeave={e => { if (!helpOpen) (e.currentTarget as HTMLElement).style.color = "#94A3B8"; }}
                 >
                   <HelpCircle size={18} />
-                </button>
-                <button
-                  onClick={() => setLocation("/client/cart")}
-                  className="relative p-2 rounded-xl transition-colors"
-                  style={{ color: "#94A3B8" }}
-                  title="View Cart"
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#1A202C"}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#94A3B8"}
-                >
-                  <ShoppingCart size={18} />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-white rounded-full text-[10px] font-bold flex items-center justify-center">
-                      {cartCount}
-                    </span>
-                  )}
                 </button>
               </>
             )}

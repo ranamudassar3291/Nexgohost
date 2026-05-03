@@ -1280,7 +1280,12 @@ router.post("/admin/hosting/link-all-servers", authenticate, requireAdmin, async
 
 router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
   try {
-    const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.clientId, req.user!.userId));
+    const services = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.clientId, req.user!.userId))
+      .orderBy(
+        sql`CASE ${hostingServicesTable.status} WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END`,
+        desc(hostingServicesTable.createdAt),
+      );
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     const manageMap = await bulkCanManageHostingServices(services);
     res.json(services.map(s => formatService(s, user ? `${user.firstName} ${user.lastName}` : "", manageMap.get(s.id))));
