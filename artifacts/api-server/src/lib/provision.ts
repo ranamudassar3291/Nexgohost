@@ -333,7 +333,10 @@ export async function provisionHostingService(
     finalServerId = server.id;
     finalServerIp = server.ipAddress || server.hostname;
 
-    if (module === "cpanel" && server.apiUsername && server.apiToken) {
+    const panelType = String(server.type || "").toLowerCase();
+    const isWhmPanel = panelType === "cpanel" || panelType === "whm";
+
+    if (isWhmPanel && server.apiUsername && server.apiToken) {
       const whmPlan = plan?.modulePlanName || plan?.modulePlanId || "";
       const whmPort = server.apiPort || 2087;
       const serverCfg = { hostname: server.hostname, port: whmPort, username: server.apiUsername, apiToken: server.apiToken };
@@ -425,7 +428,7 @@ export async function provisionHostingService(
           createAttempt++;
         }
       }
-    } else if (module === "20i" && server.apiToken) {
+    } else if (server.type === "20i" && server.apiToken) {
       try {
         // Pre-flight validation — catch obvious issues before hitting the API
         if (!domain) throw new Error("Domain is required for 20i hosting provisioning");
