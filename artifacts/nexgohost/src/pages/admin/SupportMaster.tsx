@@ -1,16 +1,17 @@
-import { LifeBuoy, BookOpen, Megaphone, ArrowRight, XCircle } from "lucide-react";
+import { LifeBuoy, BookOpen, Megaphone, ArrowRight, XCircle, MessageCircle } from "lucide-react";
 import { MasterPage } from "@/components/layout/MasterPage";
 import AdminTickets from "./Tickets";
 import KnowledgeBase from "./KnowledgeBase";
 import Announcements from "./Announcements";
 import AdminMigrations from "./Migrations";
 import CancellationRequests from "./CancellationRequests";
+import AdminLiveSupport from "./AdminLiveSupport";
 
 export default function SupportMaster() {
   return (
     <MasterPage
       title="Support"
-      description="Handle customer tickets, announcements, migrations, and cancellation requests."
+      description="Handle customer tickets, live AI chat, announcements, migrations, and cancellation requests."
       icon={LifeBuoy}
       defaultTab="tickets"
       tabs={[
@@ -20,6 +21,13 @@ export default function SupportMaster() {
           icon: LifeBuoy,
           desc: "Customer support tickets",
           component: AdminTickets,
+        },
+        {
+          id: "live-support",
+          label: "Live Support",
+          icon: MessageCircle,
+          desc: "Real-time AI chat sessions & human takeover",
+          component: AdminLiveSupport,
         },
         {
           id: "knowledge-base",

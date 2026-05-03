@@ -582,6 +582,73 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_abuse_evidence_report ON abuse_evidence(report_id)`);
     console.log("[MIGRATIONS] abuse_evidence table ready");
 
+    // ── Autonomous Support Agent: chat_sessions ───────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS chat_sessions (
+        id              SERIAL PRIMARY KEY,
+        session_id      TEXT NOT NULL UNIQUE,
+        user_id         TEXT,
+        client_name     TEXT NOT NULL DEFAULT 'Guest',
+        client_email    TEXT NOT NULL DEFAULT '',
+        client_phone    TEXT,
+        service_id      TEXT,
+        subject         TEXT,
+        source          TEXT NOT NULL DEFAULT 'website',
+        status          TEXT NOT NULL DEFAULT 'ai',
+        failed_attempts INT NOT NULL DEFAULT 0,
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_sessions_status ON chat_sessions(status, updated_at DESC)`);
+    console.log("[MIGRATIONS] chat_sessions table ready");
+
+    // ── Autonomous Support Agent: chat_messages ───────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id            SERIAL PRIMARY KEY,
+        session_id    TEXT NOT NULL,
+        role          TEXT NOT NULL DEFAULT 'user',
+        content       TEXT NOT NULL,
+        metadata_json JSONB NOT NULL DEFAULT '{}',
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at ASC)`);
+    console.log("[MIGRATIONS] chat_messages table ready");
+
+    // ── Autonomous Support Agent: chat_attachments ────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS chat_attachments (
+        id          SERIAL PRIMARY KEY,
+        session_id  TEXT NOT NULL,
+        file_name   TEXT NOT NULL DEFAULT 'attachment',
+        file_url    TEXT NOT NULL,
+        mime_type   TEXT NOT NULL DEFAULT 'application/octet-stream',
+        file_size   BIGINT NOT NULL DEFAULT 0,
+        uploaded_by TEXT NOT NULL DEFAULT 'client',
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_attachments_session ON chat_attachments(session_id)`);
+    console.log("[MIGRATIONS] chat_attachments table ready");
+
+    // ── Autonomous Support Agent: ai_training_docs ────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ai_training_docs (
+        id          SERIAL PRIMARY KEY,
+        title       TEXT NOT NULL,
+        content     TEXT NOT NULL,
+        doc_type    TEXT NOT NULL DEFAULT 'faq',
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_by  TEXT,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] ai_training_docs table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

@@ -8,6 +8,64 @@
 - **`ContentContext`** (`src/noehost/ContentContext.tsx`) — pure backend API, no Firebase dependency, localStorage cache
 - **`/admin/website`** — Website Admin section with tabs: Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config, **Page Manager**
 
+## Autonomous Support Agent — Noe AI Rebuild (2026-05-03)
+
+### New Backend (`artifacts/api-server/src/routes/ai-support.ts`)
+- **`POST /ai/support/session`** — Create or resume a chat session (works for anonymous public users AND authenticated clients). Auto-populates client name/email/phone from DB if token provided.
+- **`POST /ai/support/message`** — Send message, get AI reply with full knowledge context injected (hosting plans, KB articles, training docs, site_pages). Auto-bumps failedAttempts; at 2 failures → auto-triggers WhatsApp handover to admin.
+- **`GET /ai/support/session/:id/messages`** — Load full chat history for a session (used by frontend on reload).
+- **`POST /ai/support/handover/:id`** — Client requests human agent → sets status to "handover" + sends WhatsApp alert to admin with client name, email, issue summary, and direct link to admin panel.
+- **`POST /ai/support/attachment/:id`** — Store file attachment URL + metadata linked to session. Creates a message with `[attachment]` metadata.
+- **`GET /admin/ai/support/sessions`** — List all chat sessions with last_message + message_count. Supports `?status=` filter. Auto-refreshes every 10s in admin UI.
+- **`GET /admin/ai/support/sessions/:id`** — Full session detail: session info + all messages + attachments.
+- **`POST /admin/ai/support/sessions/:id/reply`** — Admin sends message as "admin" role → auto-promotes session to "human" status.
+- **`PUT /admin/ai/support/sessions/:id/status`** — Admin changes session status (ai/handover/human/closed). Closing injects a goodbye message automatically.
+- **`GET/POST/DELETE /admin/ai/support/knowledge`** — CRUD for AI training documents (FAQs, guides, policies, pricing, technical docs).
+
+### Knowledge Context Engine
+- `buildKnowledgeContext()` pulls from: `hosting_plans` table (all plans + prices), `kb_articles` (published, top 15 by views), `ai_training_docs` (admin-uploaded), `site_pages` (all visible content sections).
+- `buildClientContext()` pulls client name/email + all their hosting services (domain, plan, status, disk, SSL, WP) for personalized answers.
+- Full knowledge context injected into every AI system prompt — no external training needed.
+
+### New DB Tables (auto-migrated on startup)
+- **`chat_sessions`** — session_id (unique), user_id, client_name, client_email, client_phone, service_id, subject, source (website/dashboard), status (ai/handover/human/closed), failed_attempts
+- **`chat_messages`** — session_id, role (user/assistant/admin), content, metadata_json, created_at
+- **`chat_attachments`** — session_id, file_name, file_url, mime_type, file_size, uploaded_by
+- **`ai_training_docs`** — title, content, doc_type (faq/guide/policy/pricing/technical), is_active, created_by
+
+### Rebuilt `AiChatWidget.tsx` (client dashboard)
+- Session management: New Conversation button, auto-resume previous session on reopen
+- 5 Quick Option buttons: Check Server Status, Billing Issue, cPanel Help, Domain Transfer, SSL Certificate
+- File attachment (Paperclip icon) — uploads file, saves URL to DB, adds message with download link
+- Human Handover button appears after 2nd message → "Talk to Human Agent"
+- Polling every 5s when session is handover/human — auto-shows admin messages as green "Support Agent" bubbles
+- Animated typing dots loader, gradient header, status badge (AI/Waiting for Agent/Human Active)
+
+### Rebuilt `ChatBot.tsx` (public website)
+- Contact capture form (name, email, phone) pops up before first message (saved to localStorage)
+- Same 6 quick options, file attachment, human handover button
+- Polls every 5s for admin messages when human/handover status
+- `source: "website"` sessions tracked separately from dashboard
+
+### New `AdminLiveSupport.tsx` (Admin Panel Component)
+- 4-stat header: Open Sessions, Needs Agent (amber highlight), Human Active, Total Sessions
+- Sessions list with search + status filter dropdown + auto-refresh every 10s
+- Amber ring highlight on sessions needing handover
+- Full conversation view with color-coded bubbles (user=white, AI=white, admin=emerald)
+- Status dropdown to switch any session: AI Mode / Handover / Take Over / Close
+- Admin reply box with Enter-to-send, emerald styling, disabled when closed
+- **AI Knowledge Base tab**: List, add, delete training documents. Add-doc form with title, content, type selector.
+
+### Updated `SupportMaster.tsx`
+- Added "Live Support" tab (2nd position, `MessageCircle` icon) pointing to `AdminLiveSupport`
+
+### Human Handover Flow
+1. Client clicks "Talk to Human" OR AI fails 2 attempts
+2. Session status → `handover`, WhatsApp alert sent to admin with client details
+3. Admin opens Live Support panel, clicks session, sends reply
+4. Session status auto-promotes to `human`
+5. Client sees green "Support Agent" bubble, 5s polling shows reply in real-time
+
 ## Autonomous Global Sentinel — Abuse System Upgrade (2026-05-03)
 
 ### Schema Changes
