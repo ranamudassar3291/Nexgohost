@@ -1,0 +1,25 @@
+Act as a Senior Backend Systems Engineer. My Hosting Management tabs are showing "HTTP 500 — No data returned from cPanel Service". Although direct login works, the real-time data (Disk, Bandwidth, DNS, Databases) is NOT fetching. Fix this bridge now.
+
+### 1. IDENTIFIER ALIGNMENT (CRITICAL):
+- The HTTP 500 error happens because the 'username' or 'domain' parameter is missing in the API call to WHM/cPanel.
+- Update the Service Controller: Before any API call, fetch the 'cpanel_username' and 'server_ip' directly from the PostgreSQL 'user_services' table for this specific service ID.
+- Ensure the API request uses the WHM 'uapi' or 'json-api' format correctly with the mandatory 'user' parameter.
+
+### 2. REAL-TIME FETCHING & MAPPING:
+- For the "File Manager" and "Overview" tabs, the system must call the 'StatsBar::get_stats' UAPI function.
+- For the "DNS" tab, call the 'ZoneEdit::fetch_zone_records' function.
+- Map the JSON response from the server directly to the frontend state. If the server returns 0, show 0, but DO NOT return an empty object that causes a 500 error.
+
+### 3. BACKEND PERSISTENCE:
+- "Save all fetched service metadata (Disk limits, IP, Nameservers) in the PostgreSQL database" as a cache.
+- If the API call fails, the system should fall back to the last known data saved in the database instead of showing a blank screen or a 500 error.
+
+### 4. PERMISSION & TOKEN VERIFICATION:
+- Verify that the WHM API Token being used has 'All Permissions' or specifically 'Manage Shell/Full Access' enabled in WHM.
+- Log the RAW response from the WHM API into the backend console if a 500 error occurs so we can see the exact missing parameter.
+
+### 5. UI/UX ERROR HANDLING:
+- Replace the red "HTTP 500" popup with a professional loading skeleton while the API is fetching data.
+- If the account is still "Pending", disable these tabs automatically to prevent API calls on non-existent accounts.
+
+Please rebuild the Hosting Management API logic to ensure real data from cPanel/WHM is displayed correctly in every tab.

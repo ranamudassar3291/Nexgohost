@@ -94,6 +94,7 @@ import RefundPolicy from "@/pages/public/RefundPolicy";
 import GoogleCallback from "@/pages/auth/GoogleCallback";
 
 // ── Noehost marketing pages ──
+import CustomPage from "@/noehost/pages/CustomPage";
 import NoeHostLayout from "@/pages/public/NoeHostLayout";
 import NoeSharedHosting from "@/noehost/components/pages/SharedHosting";
 import NoeWordPressHosting from "@/noehost/components/pages/WordPressHosting";
@@ -736,6 +737,9 @@ function RouterRoot() {
           <Homepage />
         )}
       </Route>
+
+      {/* Custom pages created from Admin → Page Manager */}
+      <Route path="/p/:slug" component={CustomPage} />
 
       <Route component={NotFound} />
     </Switch>
