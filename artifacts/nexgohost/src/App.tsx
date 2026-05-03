@@ -48,9 +48,13 @@ import IpUnblocker from "@/pages/admin/IpUnblocker";
 import WebsiteMaster from "@/pages/admin/WebsiteMaster";
 import CommandCenter from "@/pages/admin/CommandCenter";
 import SeoEngine from "@/pages/admin/SeoEngine";
+import SalesFunnel from "@/pages/admin/SalesFunnel";
 import Status from "@/pages/public/Status";
 import NoeBlog from "@/noehost/components/pages/Blog";
 import NoeBlogPost from "@/noehost/components/pages/BlogPost";
+import NoeFlashSale from "@/noehost/components/pages/FlashSale";
+import { ExitIntentPopup } from "@/components/funnel/ExitIntentPopup";
+import { SocialProofToast } from "@/components/funnel/SocialProofToast";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -341,6 +345,9 @@ function RouterRoot() {
       <Route path="/admin/seo-engine">
         <AdminPage><SeoEngine /></AdminPage>
       </Route>
+      <Route path="/admin/sales-funnel">
+        <AdminPage><SalesFunnel /></AdminPage>
+      </Route>
       <Route path="/admin/website">
         <AdminPage><WebsiteMaster /></AdminPage>
       </Route>
@@ -619,6 +626,9 @@ function RouterRoot() {
       <Route path="/blog">
         <NoeHostLayout><NoeBlog /></NoeHostLayout>
       </Route>
+      <Route path="/sale/:slug">
+        <NoeHostLayout><NoeFlashSale /></NoeHostLayout>
+      </Route>
 
       {/* ── Legal pages ── */}
       <Route path="/privacy-policy"      component={PrivacyPolicy}  />
@@ -672,6 +682,8 @@ function App() {
                   <CurrencyProvider>
                     <CartProvider>
                       <RouterRoot />
+                      <ExitIntentPopup />
+                      <SocialProofToast />
                     </CartProvider>
                   </CurrencyProvider>
                 </AuthProvider>

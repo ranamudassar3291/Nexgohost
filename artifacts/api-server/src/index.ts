@@ -301,6 +301,51 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kw_positions_keyword ON keyword_positions(keyword_id, checked_at DESC)`);
     console.log("[MIGRATIONS] keyword_positions table ready");
 
+    // ── Sales Funnel: flash_sales ─────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS flash_sales (
+        id             TEXT PRIMARY KEY,
+        title          TEXT NOT NULL,
+        slug           TEXT NOT NULL UNIQUE,
+        headline       TEXT NOT NULL DEFAULT '',
+        subheadline    TEXT NOT NULL DEFAULT '',
+        badge_text     TEXT NOT NULL DEFAULT 'Flash Sale',
+        cta_text       TEXT NOT NULL DEFAULT 'Grab the Deal',
+        cta_url        TEXT NOT NULL DEFAULT '',
+        original_price NUMERIC(10,2),
+        sale_price     NUMERIC(10,2),
+        currency       TEXT NOT NULL DEFAULT 'USD',
+        ends_at        TIMESTAMP,
+        bg_color       TEXT NOT NULL DEFAULT '#0F172A',
+        accent_color   TEXT NOT NULL DEFAULT '#6366F1',
+        is_active      BOOLEAN NOT NULL DEFAULT true,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_flash_sales_slug ON flash_sales(slug)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_flash_sales_active ON flash_sales(is_active, ends_at)`);
+    console.log("[MIGRATIONS] flash_sales table ready");
+
+    // ── Sales Funnel: cart_recovery_logs ─────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS cart_recovery_logs (
+        id             TEXT PRIMARY KEY,
+        user_id        TEXT,
+        email          TEXT,
+        plan_name      TEXT,
+        plan_id        TEXT,
+        cart_value     NUMERIC(10,2),
+        discount_code  TEXT,
+        status         TEXT NOT NULL DEFAULT 'triggered',
+        converted_at   TIMESTAMP,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cart_recovery_status ON cart_recovery_logs(status, created_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cart_recovery_user   ON cart_recovery_logs(user_id)`);
+    console.log("[MIGRATIONS] cart_recovery_logs table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
