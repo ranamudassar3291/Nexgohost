@@ -114,7 +114,7 @@ export default function Checkout() {
 
   // ── Guest auth state ─────────────────────────────────────────────────────
   const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token"));
-  const [authMode,      setAuthMode]      = useState<"login" | "register">("login");
+  const [authMode,      setAuthMode]      = useState<"login" | "register" | "verify">("login");
   const [authEmail,     setAuthEmail]     = useState("");
   const [authPassword,  setAuthPassword]  = useState("");
   const [authFirstName, setAuthFirstName] = useState("");
@@ -123,6 +123,9 @@ export default function Checkout() {
   const [authShowPass,  setAuthShowPass]  = useState(false);
   const [authError,     setAuthError]     = useState("");
   const [authLoading,   setAuthLoading]   = useState(false);
+  const [authTempToken, setAuthTempToken] = useState("");
+  const [authVerifyCode, setAuthVerifyCode] = useState("");
+  const [authResending, setAuthResending] = useState(false);
 
   async function handleInlineAuth() {
     setAuthError("");
@@ -150,7 +153,54 @@ export default function Checkout() {
         });
         const regData = await regRes.json();
         if (!regRes.ok) { setAuthError(regData.error ?? regData.message ?? "Registration failed."); return; }
+        if (regData.requiresVerification && regData.token) {
+          setAuthTempToken(regData.token);
+          setAuthMode("verify");
+          toast({ title: "Check your email", description: "Enter the verification code to continue." });
+          return;
+        }
       }
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
+      });
+      const loginData = await loginRes.json();
+      if (loginData.requiresVerification && loginData.tempToken) {
+        setAuthTempToken(loginData.tempToken);
+        setAuthMode("verify");
+        toast({ title: "Email verification required", description: "Enter the code sent to your email." });
+        return;
+      }
+      if (!loginRes.ok) { setAuthError(loginData.error ?? loginData.message ?? "Login failed."); return; }
+      authLogin(loginData.token);
+      setIsLoggedIn(true);
+      qc.invalidateQueries();
+      toast({ title: authMode === "register" ? "Account created! Welcome." : "Signed in successfully." });
+    } catch (e: any) {
+      setAuthError(e.message ?? "Network error. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleInlineVerify() {
+    setAuthError("");
+    if (!authVerifyCode.trim()) {
+      setAuthError("Verification code is required.");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authTempToken}` },
+        body: JSON.stringify({ code: authVerifyCode.trim() }),
+      }).then(async r => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || d.message || "Verification failed.");
+        return d;
+      });
       const loginRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -161,11 +211,32 @@ export default function Checkout() {
       authLogin(loginData.token);
       setIsLoggedIn(true);
       qc.invalidateQueries();
-      toast({ title: authMode === "register" ? "Account created! Welcome." : "Signed in successfully." });
+      setAuthMode("login");
+      setAuthTempToken("");
+      setAuthVerifyCode("");
+      toast({ title: "Email verified!", description: "Your account is now active." });
     } catch (e: any) {
-      setAuthError(e.message ?? "Network error. Please try again.");
+      setAuthError(e.message ?? "Verification failed.");
     } finally {
       setAuthLoading(false);
+    }
+  }
+
+  async function handleInlineResend() {
+    setAuthResending(true);
+    setAuthError("");
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authTempToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "Could not resend code.");
+      toast({ title: "Code resent", description: "Please check your inbox." });
+    } catch (e: any) {
+      setAuthError(e.message ?? "Could not resend code.");
+    } finally {
+      setAuthResending(false);
     }
   }
 
@@ -892,18 +963,66 @@ export default function Checkout() {
               {/* Tabs */}
               <div className="flex border-b border-border">
                 <button
-                  onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                  onClick={() => { setAuthMode("login"); setAuthError(""); setAuthTempToken(""); setAuthVerifyCode(""); }}
                   className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${authMode === "login" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}>
                   Sign In
                 </button>
                 <button
-                  onClick={() => { setAuthMode("register"); setAuthError(""); }}
+                  onClick={() => { setAuthMode("register"); setAuthError(""); setAuthTempToken(""); setAuthVerifyCode(""); }}
                   className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${authMode === "register" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}>
                   Create Account
                 </button>
+                {authMode === "verify" && (
+                  <button
+                    onClick={() => { setAuthMode("verify"); setAuthError(""); }}
+                    className="flex-1 py-2.5 text-sm font-semibold text-primary border-b-2 border-primary bg-primary/5"
+                  >
+                    Verify Code
+                  </button>
+                )}
               </div>
 
               <div className="p-5 space-y-3">
+                {authMode === "verify" && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+                      <p className="text-sm font-semibold text-foreground">Check your email</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        We sent a verification code to <span className="font-medium text-foreground">{authEmail}</span>.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Verification Code *</label>
+                      <input
+                        value={authVerifyCode}
+                        onChange={e => setAuthVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="000000"
+                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm font-mono tracking-[0.4em] text-center focus:outline-none focus:border-primary transition-colors"
+                        maxLength={6}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleInlineVerify}
+                        disabled={authLoading || authVerifyCode.length !== 6}
+                        className="flex-1 h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-[0.99]"
+                        style={{ background: BRAND_GRADIENT, boxShadow: authLoading ? "none" : "0 6px 24px rgba(112,26,254,0.3)" }}
+                      >
+                        {authLoading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : <><ShieldCheck size={15} /> Verify & Continue</>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleInlineResend}
+                        disabled={authResending}
+                        className="px-4 h-12 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-accent transition-colors disabled:opacity-60"
+                      >
+                        {authResending ? "Resending…" : "Resend"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {authMode === "register" && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -978,13 +1097,15 @@ export default function Checkout() {
                 )}
 
                 <button
-                  onClick={handleInlineAuth}
+                  onClick={authMode === "verify" ? handleInlineVerify : handleInlineAuth}
                   disabled={authLoading}
                   className="w-full h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-[0.99]"
                   style={{ background: BRAND_GRADIENT, boxShadow: authLoading ? "none" : "0 6px 24px rgba(112,26,254,0.3)" }}>
                   {authLoading
                     ? <><Loader2 size={16} className="animate-spin" /> Please wait…</>
-                    : authMode === "login"
+                    : authMode === "verify"
+                      ? <><ShieldCheck size={15} /> Verify & Continue</>
+                      : authMode === "login"
                       ? <><Lock size={15} /> Sign In & Continue</>
                       : <><UserPlus size={15} /> Create Account & Continue</>
                   }
