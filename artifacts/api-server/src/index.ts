@@ -250,6 +250,57 @@ async function runStartupMigrations() {
     `);
     console.log("[MIGRATIONS] activity_stream table ready");
 
+    // ── SEO Engine: blog posts ───────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS blog_posts (
+        id               SERIAL PRIMARY KEY,
+        title            TEXT NOT NULL,
+        slug             TEXT NOT NULL UNIQUE,
+        content          TEXT NOT NULL DEFAULT '',
+        excerpt          TEXT NOT NULL DEFAULT '',
+        category         TEXT NOT NULL DEFAULT 'General',
+        cover_image      TEXT NOT NULL DEFAULT '',
+        author_name      TEXT NOT NULL DEFAULT 'Noehost Team',
+        published        BOOLEAN NOT NULL DEFAULT FALSE,
+        published_at     TIMESTAMP,
+        meta_title       TEXT NOT NULL DEFAULT '',
+        meta_description TEXT NOT NULL DEFAULT '',
+        focus_keyword    TEXT NOT NULL DEFAULT '',
+        read_time_mins   INTEGER NOT NULL DEFAULT 5,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_blog_posts_published ON blog_posts(published, published_at DESC)`);
+    console.log("[MIGRATIONS] blog_posts table ready");
+
+    // ── SEO Engine: keyword tracking ─────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS keyword_tracking (
+        id         SERIAL PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        keyword    TEXT NOT NULL,
+        domain     TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kw_tracking_user ON keyword_tracking(user_id)`);
+    console.log("[MIGRATIONS] keyword_tracking table ready");
+
+    // ── SEO Engine: keyword position history ──────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS keyword_positions (
+        id         SERIAL PRIMARY KEY,
+        keyword_id INTEGER NOT NULL REFERENCES keyword_tracking(id) ON DELETE CASCADE,
+        position   INTEGER NOT NULL,
+        url        TEXT NOT NULL DEFAULT '',
+        checked_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_kw_positions_keyword ON keyword_positions(keyword_id, checked_at DESC)`);
+    console.log("[MIGRATIONS] keyword_positions table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

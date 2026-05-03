@@ -5,6 +5,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Globe, ChevronDown,
   Facebook, Twitter, Sparkles, Trophy, Star, Zap, ExternalLink,
   FileText, MapPin, Shield, Smartphone, Link2, AlignLeft,
+  Target, Plus, Trash2, ArrowDown, ArrowUp, Minus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -238,7 +239,7 @@ function AdCreditsPanel({ credits }: { credits: AdCredits }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function GrowthSuite() {
-  const [tab, setTab]       = useState<"seo" | "social" | "ads">("seo");
+  const [tab, setTab]       = useState<"seo" | "social" | "ads" | "keywords">("seo");
   const [domain, setDomain] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scan, setScan]     = useState<SeoScan | null>(null);
@@ -293,9 +294,10 @@ export default function GrowthSuite() {
   ] : [];
 
   const tabs = [
-    { id: "seo",    label: "SEO Toolkit",      icon: Search     },
-    { id: "social", label: "Social Preview",   icon: Share2     },
-    { id: "ads",    label: "Ad Credits",       icon: BadgeCheck },
+    { id: "seo",      label: "SEO Toolkit",     icon: Search     },
+    { id: "social",   label: "Social Preview",  icon: Share2     },
+    { id: "ads",      label: "Ad Credits",      icon: BadgeCheck },
+    { id: "keywords", label: "Keyword Tracker", icon: Target     },
   ] as const;
 
   return (
@@ -498,7 +500,191 @@ export default function GrowthSuite() {
             ) : null}
           </motion.div>
         )}
+
+        {/* ── KEYWORD TRACKER ── */}
+        {tab === "keywords" && (
+          <motion.div key="keywords" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <KeywordTrackerTab />
+          </motion.div>
+        )}
+
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Keyword Tracker Tab ──────────────────────────────────────────────────────
+function KeywordTrackerTab() {
+  const qc = useQueryClient();
+  const [keyword, setKeyword] = useState("");
+  const [domain, setDomain]   = useState("");
+  const [addErr, setAddErr]   = useState("");
+  const [checking, setChecking] = useState<number | null>(null);
+
+  interface KwRow {
+    id: number; keyword: string; domain: string; created_at: string;
+    position: number | null; url: string | null; checked_at: string | null;
+  }
+
+  const { data: keywords = [], isLoading } = useQuery<KwRow[]>({
+    queryKey: ["my-keywords"],
+    queryFn: () => fetch("/api/my/keywords", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(r => r.json()),
+    staleTime: 30_000,
+  });
+
+  const addMut = useMutation({
+    mutationFn: async (body: { keyword: string; domain: string }) => {
+      const r = await fetch("/api/my/keywords", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Failed to add");
+      return j;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-keywords"] }); setKeyword(""); setDomain(""); setAddErr(""); },
+    onError: (e: any) => setAddErr(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/my/keywords/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-keywords"] }),
+  });
+
+  const checkMut = useMutation({
+    mutationFn: async (id: number) => {
+      setChecking(id);
+      const r = await fetch(`/api/my/keywords/${id}/check`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-keywords"] }); setChecking(null); },
+    onError: () => setChecking(null),
+  });
+
+  function posColor(p: number | null) {
+    if (p === null) return "#9CA3AF";
+    if (p <= 10)  return "#10B981";
+    if (p <= 30)  return "#F59E0B";
+    return "#EF4444";
+  }
+  function posLabel(p: number | null) {
+    if (p === null) return "Not checked";
+    if (p <= 3)   return "Top 3 🏆";
+    if (p <= 10)  return "Page 1";
+    if (p <= 20)  return "Page 2";
+    if (p <= 50)  return "Page 5";
+    return `Position ${p}`;
+  }
+
+  const canAdd = keywords.length < 5;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header info */}
+      <div style={{ background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", border: "1px solid #C7D2FE", borderRadius: 16, padding: "16px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+          <Target size={18} color="#4F46E5" />
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#1E1B4B" }}>Keyword Rank Tracker</span>
+          <span style={{ marginLeft: "auto", padding: "3px 10px", borderRadius: 20, background: "#4F46E5", color: "#fff", fontSize: 11, fontWeight: 700 }}>
+            {keywords.length}/5 Keywords
+          </span>
+        </div>
+        <p style={{ fontSize: 13, color: "#3730A3", margin: 0 }}>
+          Track up to 5 keywords for your website. Click "Check Rank" to see your estimated Google position.
+        </p>
+      </div>
+
+      {/* Add keyword form */}
+      {canAdd && (
+        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: "16px 18px" }}>
+          <p style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Add a Keyword to Track</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="e.g. cheap hosting pakistan"
+              style={{ flex: 2, minWidth: 180, padding: "9px 12px", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", color: "#374151" }} />
+            <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="yourdomain.com"
+              style={{ flex: 1, minWidth: 140, padding: "9px 12px", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", color: "#374151" }} />
+            <button onClick={() => { if (keyword && domain) addMut.mutate({ keyword, domain }); }} disabled={!keyword || !domain || addMut.isPending}
+              style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: keyword && domain ? "#4F46E5" : "#E5E7EB", color: keyword && domain ? "#fff" : "#9CA3AF", fontWeight: 700, fontSize: 13, cursor: keyword && domain ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6 }}>
+              {addMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              Add
+            </button>
+          </div>
+          {addErr && <p style={{ fontSize: 12, color: "#DC2626", marginTop: 8 }}>{addErr}</p>}
+        </div>
+      )}
+
+      {/* Keywords list */}
+      {isLoading ? (
+        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: 48, display: "flex", justifyContent: "center" }}>
+          <Loader2 size={20} className="animate-spin" color="#C7D2FE" />
+        </div>
+      ) : keywords.length === 0 ? (
+        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: "48px 24px", textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+            <Target size={24} color="#A5B4FC" />
+          </div>
+          <p style={{ fontWeight: 700, color: "#374151", fontSize: 15, marginBottom: 6 }}>No keywords tracked yet</p>
+          <p style={{ fontSize: 13, color: "#9CA3AF" }}>Add your first keyword above to start tracking your Google position.</p>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, overflow: "hidden" }}>
+          <div style={{ padding: "11px 16px", background: "#FAFBFF", borderBottom: "1px solid #F3F4F6", display: "grid", gridTemplateColumns: "1fr 130px 110px 130px 80px", gap: 8 }}>
+            {["Keyword", "Domain", "Position", "Last Checked", ""].map(h => (
+              <span key={h} style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</span>
+            ))}
+          </div>
+          {keywords.map((kw, i) => (
+            <div key={kw.id} style={{ padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr 130px 110px 130px 80px", gap: 8, alignItems: "center", borderBottom: i < keywords.length - 1 ? "1px solid #F9FAFB" : "none" }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>{kw.keyword}</p>
+              </div>
+              <span style={{ fontSize: 12, color: "#6B7280" }}>{kw.domain}</span>
+              <div>
+                {kw.position !== null ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 20, fontWeight: 900, color: posColor(kw.position) }}>#{kw.position}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: posColor(kw.position) + "20", color: posColor(kw.position) }}>
+                      {posLabel(kw.position)}
+                    </span>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 12, color: "#D1D5DB", fontStyle: "italic" }}>Not checked</span>
+                )}
+              </div>
+              <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+                {kw.checked_at ? new Date(kw.checked_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}
+              </span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => checkMut.mutate(kw.id)} disabled={checking === kw.id}
+                  style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#EEF2FF", fontSize: 11, fontWeight: 700, color: "#4F46E5", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  {checking === kw.id ? <Loader2 size={11} className="animate-spin" /> : "Check"}
+                </button>
+                <button onClick={() => deleteMut.mutate(kw.id)}
+                  style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+                  <Trash2 size={12} color="#EF4444" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!canAdd && (
+        <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 12, padding: "10px 14px" }}>
+          <p style={{ fontSize: 12, color: "#92400E", margin: 0 }}>
+            <strong>5/5 keywords used.</strong> Remove a keyword to add a new one. Upgrade your plan for unlimited tracking.
+          </p>
+        </div>
+      )}
+
+      <div style={{ background: "#F0F9FF", border: "1px solid #BAE6FD", borderRadius: 12, padding: "12px 14px" }}>
+        <p style={{ fontSize: 12, color: "#0369A1", margin: 0 }}>
+          <strong>Note:</strong> Positions are estimated based on available signals. For precise rank tracking, connect a Google Search Console account or use a professional SERP API.
+        </p>
+      </div>
     </div>
   );
 }

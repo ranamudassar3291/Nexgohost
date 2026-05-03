@@ -60,6 +60,7 @@ import teamAccessRouter from "./team-access.js";
 import growthSuiteRouter from "./growth-suite.js";
 import userPreferencesRouter from "./user-preferences.js";
 import commandCenterRouter from "./command-center.js";
+import seoEngineRouter from "./seo-engine.js";
 
 const router: IRouter = Router();
 
@@ -128,5 +129,6 @@ router.use(teamAccessRouter);
 router.use(growthSuiteRouter);
 router.use(userPreferencesRouter);
 router.use(commandCenterRouter);
+router.use(seoEngineRouter);
 
 export default router;

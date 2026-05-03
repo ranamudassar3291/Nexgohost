@@ -125,7 +125,8 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Website",
     items: [
-      { name: "Website Admin", href: "/admin/website", icon: (() => null) as any },
+      { name: "Website Admin", href: "/admin/website",     icon: (() => null) as any },
+      { name: "SEO Engine",    href: "/admin/seo-engine",  icon: (() => null) as any },
     ],
   },
 ];

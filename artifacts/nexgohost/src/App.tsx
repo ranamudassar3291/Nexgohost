@@ -47,7 +47,10 @@ import SystemMaster from "@/pages/admin/SystemMaster";
 import IpUnblocker from "@/pages/admin/IpUnblocker";
 import WebsiteMaster from "@/pages/admin/WebsiteMaster";
 import CommandCenter from "@/pages/admin/CommandCenter";
+import SeoEngine from "@/pages/admin/SeoEngine";
 import Status from "@/pages/public/Status";
+import NoeBlog from "@/noehost/components/pages/Blog";
+import NoeBlogPost from "@/noehost/components/pages/BlogPost";
 
 // Client pages
 import ClientDashboard from "@/pages/client/Dashboard";
@@ -335,6 +338,9 @@ function RouterRoot() {
       <Route path="/admin/command-center">
         <AdminPage><CommandCenter /></AdminPage>
       </Route>
+      <Route path="/admin/seo-engine">
+        <AdminPage><SeoEngine /></AdminPage>
+      </Route>
       <Route path="/admin/website">
         <AdminPage><WebsiteMaster /></AdminPage>
       </Route>
@@ -606,6 +612,12 @@ function RouterRoot() {
       </Route>
       <Route path="/server-status">
         <NoeHostLayout><NoeServerStatus /></NoeHostLayout>
+      </Route>
+      <Route path="/blog/:slug">
+        <NoeHostLayout><NoeBlogPost /></NoeHostLayout>
+      </Route>
+      <Route path="/blog">
+        <NoeHostLayout><NoeBlog /></NoeHostLayout>
       </Route>
 
       {/* ── Legal pages ── */}
