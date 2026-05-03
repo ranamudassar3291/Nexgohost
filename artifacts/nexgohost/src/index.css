@@ -629,6 +629,85 @@
     background-size: 50px 50px;
   }
 
+  /* ── NoeHost Public Premium Micro-interactions ─────────────────────── */
+  .noehost-public button,
+  .noehost-public a {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Glow effect on primary action buttons */
+  .noehost-public .btn-glow {
+    box-shadow: 0 0 20px rgba(103, 61, 230, 0.4);
+  }
+  .noehost-public .btn-glow:hover {
+    box-shadow: 0 0 35px rgba(103, 61, 230, 0.6);
+  }
+
+  /* Card shimmer on hover */
+  .noehost-public .card-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .noehost-public .card-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.04),
+      transparent
+    );
+    transition: left 0.6s ease;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .noehost-public .card-shine:hover::before {
+    left: 150%;
+  }
+
+  /* Gradient text utility for headings */
+  .noehost-public .gradient-text {
+    background: linear-gradient(135deg, #a78bfa, #7c3aed, #00d1ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Smooth number counter animation */
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .noehost-public .stat-number {
+    animation: countUp 0.6s ease-out forwards;
+  }
+
+  /* Premium border glow on focus/hover */
+  .noehost-public input:focus,
+  .noehost-public select:focus,
+  .noehost-public textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(103, 61, 230, 0.5), 0 0 20px rgba(103, 61, 230, 0.1);
+  }
+
+  /* Smooth section scroll snap */
+  .noehost-public section {
+    scroll-margin-top: 80px;
+  }
+
+  /* Animated gradient border on popular plan card */
+  @keyframes borderGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(103, 61, 230, 0.3); }
+    50%       { box-shadow: 0 0 40px rgba(103, 61, 230, 0.6); }
+  }
+  .noehost-public .plan-popular-glow {
+    animation: borderGlow 3s ease-in-out infinite;
+  }
+
   /* ── Smooth page entrance ─────────────────────────────────────────────── */
   .page-enter {
     animation: pageEnter 0.25s ease-out forwards;

@@ -73,38 +73,38 @@ const Pricing: React.FC = () => {
   };
 
   return (
-    <section id="pricing" className="py-16 bg-gray-50 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(103,61,230,0.05),transparent_60%)]" />
+    <section id="pricing" className="py-16 bg-[#050612] relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(103,61,230,0.12),transparent_60%)]" />
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4">{header.title}</h2>
-          <p className="text-base text-gray-500 font-medium">{header.subtitle}</p>
+          <h2 className="text-3xl lg:text-4xl font-black text-white mb-4">{header.title}</h2>
+          <p className="text-base text-slate-400 font-medium">{header.subtitle}</p>
 
           {/* Billing toggle */}
           <div className="mt-6 inline-flex items-center gap-4">
-            <span className={`text-sm font-black ${billingCycle === 'monthly' ? 'text-gray-900' : 'text-gray-400'}`}>Monthly</span>
+            <span className={`text-sm font-black ${billingCycle === 'monthly' ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
             <button
               onClick={() => setBillingCycle(b => b === 'monthly' ? 'yearly' : 'monthly')}
-              className={`w-12 h-6 rounded-full transition-all relative ${billingCycle === 'yearly' ? 'bg-primary' : 'bg-gray-300'}`}
+              className={`w-12 h-6 rounded-full transition-all relative ${billingCycle === 'yearly' ? 'bg-primary' : 'bg-white/20'}`}
             >
               <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${billingCycle === 'yearly' ? 'left-7' : 'left-1'}`} />
             </button>
-            <span className={`text-sm font-black ${billingCycle === 'yearly' ? 'text-gray-900' : 'text-gray-400'}`}>
-              Annual <span className="text-emerald-500 ml-1 text-xs">Save more</span>
+            <span className={`text-sm font-black ${billingCycle === 'yearly' ? 'text-white' : 'text-slate-500'}`}>
+              Annual <span className="text-emerald-400 ml-1 text-xs">Save more</span>
             </span>
           </div>
 
           {showResellerTab && (
-            <div className="mt-6 inline-flex p-1.5 rounded-2xl ml-4 bg-white border border-gray-200 shadow-sm">
+            <div className="mt-6 inline-flex p-1.5 rounded-2xl ml-4 bg-white/10 border border-white/10 shadow-sm">
               <button
                 onClick={() => setCategory('shared')}
-                className={`px-10 py-3 rounded-xl font-black text-sm transition-all ${activeCategory === 'shared' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-gray-500 hover:text-gray-800'}`}
+                className={`px-10 py-3 rounded-xl font-black text-sm transition-all ${activeCategory === 'shared' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-slate-400 hover:text-white'}`}
               >
                 Web Hosting
               </button>
               <button
                 onClick={() => setCategory('reseller')}
-                className={`px-10 py-3 rounded-xl font-black text-sm transition-all ${activeCategory === 'reseller' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-gray-500 hover:text-gray-800'}`}
+                className={`px-10 py-3 rounded-xl font-black text-sm transition-all ${activeCategory === 'reseller' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'text-slate-400 hover:text-white'}`}
               >
                 Reseller Hosting
               </button>
@@ -120,10 +120,11 @@ const Pricing: React.FC = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className={`relative flex flex-col p-7 rounded-[28px] border-2 transition-all duration-300 bg-white ${
+              whileHover={{ y: -4 }}
+              className={`relative flex flex-col p-7 rounded-[28px] border-2 transition-all duration-300 card-shine ${
                 plan.popular
-                  ? 'border-primary scale-105 z-10 shadow-2xl shadow-primary/15'
-                  : 'border-gray-100 shadow-sm hover:border-primary/30 hover:shadow-md'
+                  ? 'border-primary scale-105 z-10 shadow-2xl shadow-primary/25 bg-gradient-to-b from-primary/10 to-white/5 plan-popular-glow'
+                  : 'border-white/10 bg-white/5 hover:border-primary/40 hover:bg-white/8 hover:shadow-xl hover:shadow-primary/10'
               }`}
             >
               {plan.popular && (
@@ -133,23 +134,23 @@ const Pricing: React.FC = () => {
               )}
 
               <div className="mb-6">
-                <h3 className="text-xl font-black text-gray-900 mb-3">{plan.name}</h3>
+                <h3 className="text-xl font-black text-white mb-3">{plan.name}</h3>
                 <div className="flex items-baseline gap-1">
                   <span className="text-4xl font-black text-primary tracking-tighter">{convertFromPKR(getPrice(plan))}</span>
-                  <span className="text-gray-400 font-bold">/mo</span>
+                  <span className="text-slate-500 font-bold">/mo</span>
                 </div>
                 {billingCycle === 'yearly' && plan._raw?.yearlyPrice ? (
                   <div className="mt-1.5 space-y-0.5">
-                    <div className="text-xs font-black text-emerald-500 flex items-center gap-1.5">
+                    <div className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
                       <span className="inline-block w-4 h-0.5 bg-emerald-400 rounded"></span>
                       Save {Math.round((1 - plan.yearly / plan.monthly) * 100)}% vs monthly
                     </div>
-                    <div className="text-xs text-gray-400 font-semibold">
-                      Billed <span className="text-gray-700 font-black">{convertFromPKR(plan._raw.yearlyPrice)}</span>/yr
+                    <div className="text-xs text-slate-500 font-semibold">
+                      Billed <span className="text-white font-black">{convertFromPKR(plan._raw.yearlyPrice)}</span>/yr
                     </div>
                   </div>
                 ) : billingCycle === 'yearly' && (
-                  <div className="text-xs text-gray-400 font-medium mt-1">Billed yearly</div>
+                  <div className="text-xs text-slate-500 font-medium mt-1">Billed yearly</div>
                 )}
                 {plan.badge && (
                   <div className="mt-4 inline-block px-3 py-1 bg-primary/10 text-primary text-[10px] font-black rounded-full uppercase tracking-widest">
@@ -162,26 +163,26 @@ const Pricing: React.FC = () => {
                 onClick={() => handleOrderNow(plan)}
                 className={`block w-full py-3.5 rounded-2xl font-black transition-all mb-6 text-sm text-center ${
                   plan.popular
-                    ? 'bg-primary text-white hover:bg-primary-600 shadow-lg shadow-primary/25'
-                    : 'bg-gray-900 text-white hover:bg-gray-700'
+                    ? 'bg-primary text-white hover:bg-primary-600 shadow-lg shadow-primary/40'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
                 }`}
               >
                 {plan.btnText || 'Order Now'}
               </button>
 
               <div className="flex-grow">
-                <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Top Features</div>
+                <div className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Top Features</div>
                 <ul className="space-y-3">
                   {(plan.features || []).map((feature: string, j: number) => (
                     <li key={j} className="flex items-start gap-3">
-                      <CheckCircle2 size={16} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm font-medium leading-tight text-gray-600">{feature}</span>
+                      <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm font-medium leading-tight text-slate-300">{feature}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              <div className="mt-6 pt-5 border-t border-gray-100">
+              <div className="mt-6 pt-5 border-t border-white/10">
                 <button
                   onClick={() => setSelectedPlan(plan)}
                   className="text-primary font-black text-sm hover:underline flex items-center gap-2"

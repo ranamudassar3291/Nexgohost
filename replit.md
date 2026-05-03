@@ -8,6 +8,30 @@
 - **`ContentContext`** (`src/noehost/ContentContext.tsx`) — pure backend API, no Firebase dependency, localStorage cache
 - **`/admin/website`** — Website Admin section with tabs: Hero, Navbar, Top Bar, Services, FAQ, Footer, Pricing, Domain Prices, Global Config, **Page Manager**
 
+## Production Polish Batch (2026-05-03)
+
+### Dark Theme Unification
+- **Pricing.tsx** — fixed `bg-gray-50` → `bg-[#050612]`, all text colors updated to `text-white`/`text-slate-400`/`text-slate-300`. Plan cards now use `bg-white/5 border-white/10` glassmorphism.
+- **Services.tsx** — fixed `bg-white` → `bg-[#08080f]`. Service cards use dark glassmorphism. Icon backgrounds updated to `bg-*/15 text-*-400` for dark contrast.
+- **FAQ.tsx** — fixed `bg-gray-50` → `bg-[#050612]`. Accordion cards use `bg-white/5 border-white/10` with `bg-primary/5 border-primary/40` when active.
+
+### URL & Link Fixes
+- **constants.tsx** — all 3 hardcoded `https://admin.noehost.com/index.php?rp=...` pricing plan links replaced with `/client/orders/new`.
+- **Footer.tsx** — all `#` dead links replaced: Affiliate/Partner→`/contact-us`, Cookie Policy→`/privacy-policy`, SLA→`/terms-and-conditions`, Knowledge Base→`/contact-us`. Social media icons now link to real external URLs (twitter.com, github.com, linkedin.com).
+
+### Bug Fixes
+- **site-health.ts** — fixed 500 error on `/api/my/site-health` and `/api/my/site-health/history`: was using `hostingServicesTable.userId` (undefined column), fixed to `hostingServicesTable.clientId`.
+- **NoeHostLayout.tsx** — fixed public site token check: now checks both `noehost_token` (public-facing) and `token` (client area login) so Navbar correctly shows user state after client login.
+
+### Premium CSS Micro-interactions
+- Added `.noehost-public .card-shine` — shimmer sweep effect on hover (uses `::before` pseudo-element).
+- Added `.noehost-public .plan-popular-glow` — animated pulsing border glow on the Most Popular plan card.
+- Added `.noehost-public .gradient-text` — purple-to-cyan gradient text utility.
+- Added `.noehost-public .btn-glow` — ambient glow on CTA buttons.
+- Added `countUp` keyframe animation and `.stat-number` class.
+- Added `section { scroll-margin-top: 80px }` for smooth anchor scroll with fixed navbar.
+- All public buttons/links get `cubic-bezier(0.4,0,0.2,1)` easing.
+
 ## Page Manager CMS (2026-05-03)
 
 - **`site_pages` table** (`lib/db/src/schema/site-pages.ts`): composite PK `(page_id, section_name)`, `content_json` (text), `is_visible` (boolean), `last_updated` (timestamp). Auto-created via `CREATE TABLE IF NOT EXISTS` in `pages.ts` on first startup.

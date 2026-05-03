@@ -30,8 +30,8 @@ const Footer: React.FC = () => {
       links: [
         { label: 'About Noehost', href: '/about-us' },
         { label: 'Contact Us', href: '/contact-us' },
-        { label: 'Affiliate Program', href: '#' },
-        { label: 'Partner with Us', href: '#' },
+        { label: 'Affiliate Program', href: '/contact-us' },
+        { label: 'Partner with Us', href: '/contact-us' },
       ]
     },
     {
@@ -40,14 +40,14 @@ const Footer: React.FC = () => {
         { label: 'Privacy Policy', href: '/privacy-policy' },
         { label: 'Terms & Conditions', href: '/terms-and-conditions' },
         { label: 'Refund Policy', href: '/refund-policy' },
-        { label: 'Cookie Policy', href: '#' },
-        { label: 'SLA', href: '#' },
+        { label: 'Cookie Policy', href: '/privacy-policy' },
+        { label: 'SLA', href: '/terms-and-conditions' },
       ]
     },
     {
       title: 'SUPPORT',
       links: [
-        { label: 'Knowledge Base', href: '#' },
+        { label: 'Knowledge Base', href: '/contact-us' },
         { label: 'System Status', href: '/status' },
         { label: 'Billing Support', href: '/contact-us' },
         { label: 'Technical Support', href: '/contact-us' },
@@ -86,13 +86,13 @@ const Footer: React.FC = () => {
               {footerData.about}
             </p>
             <div className="flex items-center gap-4">
-              <a href="#" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400">
+              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400">
                 <Twitter size={18} />
               </a>
-              <a href="#" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400">
+              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400">
                 <Github size={18} />
               </a>
-              <a href="#" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400">
+              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center hover:bg-primary hover:text-white transition-all text-slate-400">
                 <Linkedin size={18} />
               </a>
             </div>

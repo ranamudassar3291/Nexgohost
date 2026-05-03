@@ -1,0 +1,32 @@
+Act as a Senior Cyber Security & DevSecOps Engineer. We need to build an automated Abuse & Spam Handling System for Noehost that functions at an international professional level (similar to Hetzner/DigitalOcean).
+
+### 1. ABUSE REPORT INGESTION:
+- Create an "Abuse Report" endpoint/portal where external parties or automated filters can submit reports (Spam, Phishing, Malware).
+- Create a 'abuse_reports' table in PostgreSQL to store: report_id, client_id, service_id, source_ip, evidence_logs, and status (Warning/Suspended/Resolved).
+
+### 2. AI ANALYSIS & VERIFICATION LOGIC:
+- Build a logic that "Analyzes" the report before taking action:
+    - Check the 'evidence_logs' for keywords like "SMTP Spam", "Phishing Link", or "Bulk Mail".
+    - Cross-reference the reported IP/Domain with the active services in the PostgreSQL database to identify the exact client.
+    - IMPORTANT: Ensure the system confirms the report is valid and not a false positive before proceeding.
+
+### 3. AUTOMATED ENFORCEMENT FLOW (The "Warning-First" Policy):
+- STAGE 1 (Warning): If a report is verified, the system must NOT suspend immediately. Send a professional "Abuse Warning" email to the client with the full report details and a 12-24 hour deadline to fix it.
+- STAGE 2 (Auto-Suspension): If a second report arrives for the same service within 24 hours, or the deadline passes without a 'Ticket Reply', automatically call the WHM API to "Suspend cPanel Account".
+- Save the suspension reason as "Abuse/Spamming" in the PostgreSQL database.
+
+### 4. PROFESSIONAL EMAIL SYSTEM:
+- Create a high-end HTML email template for Abuse Notifications:
+    - Clear subject: [URGENT] Abuse Report - Action Required for [Domain].
+    - Include: Report ID, Type of Abuse, Evidence Snippet, and a direct link to "Reply to Ticket".
+    - Tone: Firm, professional, and international.
+
+### 5. TICKETING INTEGRATION:
+- When a client is suspended or warned, automatically open a "High Priority" ticket in their dashboard.
+- If the client replies and resolves the issue, provide an Admin button to "Unsuspend & Clear Abuse History".
+
+### 6. PERSISTENCE & LOGGING:
+- "Save every report, automated mail sent, and suspension action in the PostgreSQL database" persistently.
+- Create an "Abuse Dashboard" for the Admin to see all active reports and global spam statistics.
+
+Please build this entire automated security layer to protect the Noehost infrastructure from being blacklisted.

@@ -47,7 +47,7 @@ router.get("/my/site-health", authenticate, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId;
     const services = await db.select().from(hostingServicesTable)
-      .where(eq(hostingServicesTable.userId, userId));
+      .where(eq(hostingServicesTable.clientId, userId));
 
     const activeServices = services.filter(s => s.status === "active");
     const targetServices = activeServices.length > 0 ? activeServices : services.slice(0, 3);
@@ -94,7 +94,7 @@ router.get("/my/site-health/history", authenticate, async (req: AuthRequest, res
     const userId = req.user!.userId;
     // Build 7-day deterministic history for each active service
     const services = await db.select().from(hostingServicesTable)
-      .where(eq(hostingServicesTable.userId, userId));
+      .where(eq(hostingServicesTable.clientId, userId));
     const active = services.filter(s => s.status === "active").slice(0, 3);
     if (!active.length) { res.json({ history: [], days: [] }); return; }
 

@@ -37,21 +37,30 @@ const Services: React.FC = () => {
     'bg-rose-50 text-rose-600',
   ];
 
+  const darkIconBgs: string[] = [
+    'bg-blue-500/15 text-blue-400',
+    'bg-violet-500/15 text-violet-400',
+    'bg-emerald-500/15 text-emerald-400',
+    'bg-amber-500/15 text-amber-400',
+    'bg-purple-500/15 text-purple-400',
+    'bg-rose-500/15 text-rose-400',
+  ];
+
   return (
-    <section id="services" className="py-16 bg-white relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(103,61,230,0.04) 0%, transparent 60%)' }} />
+    <section id="services" className="py-16 bg-[#08080f] relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(103,61,230,0.10) 0%, transparent 60%)' }} />
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-xs font-black mb-6 uppercase tracking-widest border border-primary/20"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary-400 text-xs font-black mb-6 uppercase tracking-widest border border-primary/20"
           >
             Our Services
           </motion.div>
-          <h2 className="text-3xl lg:text-4xl font-black text-gray-900 mb-4 tracking-tight">{servicesData.title}</h2>
-          <p className="text-base text-gray-500 font-medium leading-relaxed">{servicesData.description}</p>
+          <h2 className="text-3xl lg:text-4xl font-black text-white mb-4 tracking-tight">{servicesData.title}</h2>
+          <p className="text-base text-slate-400 font-medium leading-relaxed">{servicesData.description}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -63,13 +72,13 @@ const Services: React.FC = () => {
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
               whileHover={{ y: -6 }}
-              className="p-7 rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 group"
+              className="p-7 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 group card-shine"
             >
-              <div className={`w-12 h-12 ${iconBgs[i % iconBgs.length]} rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
+              <div className={`w-12 h-12 ${darkIconBgs[i % darkIconBgs.length]} rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
                 {icons[i % icons.length]}
               </div>
-              <h3 className="text-lg font-black text-gray-900 mb-2 group-hover:text-primary transition-colors">{s.title}</h3>
-              <p className="text-sm text-gray-500 font-medium leading-relaxed">{s.description}</p>
+              <h3 className="text-lg font-black text-white mb-2 group-hover:text-primary-300 transition-colors">{s.title}</h3>
+              <p className="text-sm text-slate-400 font-medium leading-relaxed">{s.description}</p>
               <div className="mt-5 flex items-center gap-2 text-primary font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity">
                 Learn more <ArrowRight size={14} />
               </div>

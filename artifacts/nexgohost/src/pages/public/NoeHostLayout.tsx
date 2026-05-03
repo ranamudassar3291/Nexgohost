@@ -16,7 +16,7 @@ function NoeHostInner({ children }: NoeHostLayoutProps) {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('noehost_token');
+    const token = localStorage.getItem('noehost_token') || localStorage.getItem('token');
     if (!token) return;
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => { if (!res.ok) throw new Error(); return res.json(); })
