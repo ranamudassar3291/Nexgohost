@@ -115,10 +115,11 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Technical",
     items: [
-      { name: "Servers",      href: "/admin/servers",       icon: (() => null) as any },
-      { name: "Analytics",    href: "/admin/analytics",     icon: (() => null) as any },
-      { name: "System",       href: "/admin/system",        icon: (() => null) as any },
-      { name: "IP Unblocker", href: "/admin/ip-unblocker",  icon: (() => null) as any },
+      { name: "Servers",         href: "/admin/servers",          icon: (() => null) as any },
+      { name: "Analytics",       href: "/admin/analytics",        icon: (() => null) as any },
+      { name: "System",          href: "/admin/system",           icon: (() => null) as any },
+      { name: "IP Unblocker",    href: "/admin/ip-unblocker",     icon: (() => null) as any },
+      { name: "Command Center",  href: "/admin/command-center",   icon: (() => null) as any },
     ],
   },
   {

@@ -1,0 +1,25 @@
+Act as a Lead Full-Stack Engineer and API Architect. My 20i/WHM orders are NOT showing real data, and I am getting "400 API Call Failed" errors in the database and DNS tabs. You have FULL PERMISSION and SYSTEM ACCESS to fix the bridge between the backend and the UI.
+
+### 1. REAL-TIME DATA MANDATE:
+- STOP displaying static/mock frontend states for managed services. 
+- Every time a user opens a "Manage" tab (DNS, Database, SSL, or Hosting), the system MUST perform a real-time API request to 20i/WHM.
+- Fetch live data including: Disk Usage, Bandwidth, DNS Records, Database Names, and Service Status.
+
+### 2. FIXING THE 400 ERROR & API FAILURES:
+- The "400 Bad Request" indicates that the 'Service ID' or 'Account Reference' is missing or null when the API call is made.
+- Update the Backend Controller to verify that it is pulling the correct '20i_package_id' or 'whm_username' from the PostgreSQL database before sending the request to the API.
+- If the database record is empty, implement a "Re-sync" function that fetches the account details from the provider and saves them to the database.
+
+### 3. DNS & DATABASE REAL-WORK:
+- The DNS tab must pull real records from the 20i/StackDNS nameservers.
+- The Database tab must allow real actions (Create DB, Delete DB, Change Password) by sending the correct commands to the server API.
+- DATABASE INTEGRITY: All API credentials, server responses, and session tokens must be "Saved in the PostgreSQL database" to ensure the connection is persistent and secure.
+
+### 4. FULL ACCESS INTEGRATION:
+- You are authorized to modify the API Middlewares and Controllers to ensure that the frontend "Manage" buttons are correctly mapped to the real backend routes (/api/v1/manage/dns, etc.).
+- Ensure that the connection test (20i) uses the persistent key from the database to avoid 403 Forbidden errors.
+
+### 5. DEBUGGING TRANSPARENCY:
+- If an API call fails, display the RAW JSON response from 20i/WHM in the console or a hidden debug log so we can see why the provider is rejecting the request.
+
+Please rebuild the Service Management module so that Noehost works as a real, automated hosting platform, not just a frontend template.

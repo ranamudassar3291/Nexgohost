@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { kbCategoriesTable, kbArticlesTable, kbDeflectionsTable } from "@workspace/db/schema";
 import { eq, ilike, or, and, desc, asc, sql, count } from "drizzle-orm";
-import { authenticate, requireRole } from "../lib/auth.js";
+import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
+import { emitActivity } from "../lib/activity.js";
 
 const router = Router();
 
@@ -85,7 +86,7 @@ router.get("/kb/articles", async (req, res) => {
 });
 
 // ─── AUTHENTICATED: AI-powered KB article suggestions for ticket drafts ──────
-router.post("/kb/suggest", authenticate, async (req, res) => {
+router.post("/kb/suggest", authenticate, async (req: AuthRequest, res) => {
   try {
     const { text } = req.body as { text: string };
     if (!text || text.trim().length < 5) {
@@ -161,7 +162,15 @@ Return ONLY a JSON array of exactly 3 article IDs, like: ["id1","id2","id3"]. If
     scored.sort((a, b) => b.hits - a.hits);
     const top = scored.slice(0, 3).filter(a => a.hits > 0);
 
-    res.json({ articles: top.length > 0 ? top : allArticles.slice(0, 3), source: "keywords" });
+    const topArticles = top.length > 0 ? top : allArticles.slice(0, 3);
+    emitActivity({
+      userId: req.user!.userId,
+      userEmail: req.user!.email ?? "",
+      userName: "",
+      action: `Used AI KB Suggestions — query: "${text.slice(0, 60)}${text.length > 60 ? "…" : ""}"`,
+      meta: { type: "ai_kb_suggest", source: "keywords", articleCount: topArticles.length },
+    });
+    res.json({ articles: topArticles, source: "keywords" });
   } catch (err: any) {
     console.error("[kb/suggest]", err.message);
     res.status(500).json({ error: err.message });

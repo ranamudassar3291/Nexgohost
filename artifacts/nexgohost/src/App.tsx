@@ -46,6 +46,7 @@ import AnalyticsMaster from "@/pages/admin/AnalyticsMaster";
 import SystemMaster from "@/pages/admin/SystemMaster";
 import IpUnblocker from "@/pages/admin/IpUnblocker";
 import WebsiteMaster from "@/pages/admin/WebsiteMaster";
+import CommandCenter from "@/pages/admin/CommandCenter";
 import Status from "@/pages/public/Status";
 
 // Client pages
@@ -330,6 +331,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/ip-unblocker">
         <AdminPage><IpUnblocker /></AdminPage>
+      </Route>
+      <Route path="/admin/command-center">
+        <AdminPage><CommandCenter /></AdminPage>
       </Route>
       <Route path="/admin/website">
         <AdminPage><WebsiteMaster /></AdminPage>

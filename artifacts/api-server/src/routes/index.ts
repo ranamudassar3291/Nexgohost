@@ -59,6 +59,7 @@ import siteHealthRouter from "./site-health.js";
 import teamAccessRouter from "./team-access.js";
 import growthSuiteRouter from "./growth-suite.js";
 import userPreferencesRouter from "./user-preferences.js";
+import commandCenterRouter from "./command-center.js";
 
 const router: IRouter = Router();
 
@@ -126,5 +127,6 @@ router.use(siteHealthRouter);
 router.use(teamAccessRouter);
 router.use(growthSuiteRouter);
 router.use(userPreferencesRouter);
+router.use(commandCenterRouter);
 
 export default router;

@@ -6,6 +6,7 @@ import {
   hostingServicesTable, invoicesTable, usersTable, activityLogsTable,
 } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { emitActivity } from "../lib/activity.js";
 import { and, desc, eq, gt, gte, sql } from "drizzle-orm";
 import {
   getSecurityConfig, setSecuritySetting, verifyCaptcha, getClientIp,
@@ -142,6 +143,16 @@ router.post("/my/security/unblock-ip", authenticate, async (req: AuthRequest, re
         NOW()
       )
     `).catch(() => {});
+
+    // Emit to Command Center activity stream
+    const [userData] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1).catch(() => [null]);
+    emitActivity({
+      userId,
+      userEmail: userData?.email ?? req.user!.email ?? "",
+      userName: userData ? `${userData.firstName} ${userData.lastName}`.trim() : "",
+      action: `Used IP Unblocker — unblocked ${clientIp}`,
+      meta: { type: "ip_unblock", ip: clientIp },
+    });
 
     res.json({ success: true, ip: clientIp, message: `IP ${clientIp} has been unblocked and whitelisted.` });
   } catch (err: any) {

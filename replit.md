@@ -63,6 +63,36 @@ Or run the post-merge script which does everything:
 bash scripts/post-merge.sh
 ```
 
+## Central Command Center (`/admin/command-center`)
+
+Full admin control plane for features, config, and live monitoring. Three tabs:
+
+| Tab | What it does |
+|---|---|
+| **Feature Management** | Master toggle list — enable/disable 8 features (AI Insights, SEO Toolkit, Team Access, IP Unblocker, etc.) globally or per individual client. Per-client overrides take precedence over global defaults. |
+| **Dynamic Config** | Edit Health Meter thresholds (CPU/RAM/disk/speed warning+critical levels) and Upselling banner text — all saved to PostgreSQL, no code changes needed. |
+| **Live Activity Feed** | Real-time stream (polls every 3s) showing which client used which advanced tool. Filterable by category. |
+
+### New DB tables
+- **`feature_flags`** — `(id, feature_key, user_id nullable, enabled, updated_by, updated_at)` with partial unique indexes for global vs per-user
+- **`admin_config`** — `(key TEXT PK, value, updated_by, updated_at)` — seeds 12 default values on first load
+- **`activity_stream`** — `(id SERIAL, user_id, user_email, user_name, action, meta JSONB, created_at)` — written to by emitActivity()
+
+### New API routes (`artifacts/api-server/src/routes/command-center.ts`)
+- `GET /api/admin/command-center/features` — feature catalogue + all flag states
+- `PUT /api/admin/command-center/features` — toggle global or per-client
+- `GET /api/admin/command-center/config` — all config (seeds defaults on first call)
+- `PUT /api/admin/command-center/config/:key` — save single config value
+- `PUT /api/admin/command-center/config-bulk` — save many config values at once
+- `GET /api/admin/command-center/activity` — activity stream (last 80 events)
+- `GET /api/my/features` — client checks which features are enabled for their account
+
+### Activity emitters
+`artifacts/api-server/src/lib/activity.ts` exports `emitActivity()` — called from:
+- `security.ts` → IP unblock
+- `kb.ts` → AI KB suggest
+- `tickets.ts` → ticket submit
+
 ## Hosting Management Panel (Hostinger-Style)
 
 The client service detail page (`/client/hosting/:id`) is a full Hostinger-style panel with a left sidebar and these sections:

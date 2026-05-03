@@ -7,6 +7,7 @@ import { eq, sql } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
 import { createNotification } from "../lib/notifications.js";
+import { emitActivity } from "../lib/activity.js";
 
 const router = Router();
 
@@ -108,6 +109,15 @@ router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
     });
 
     res.status(201).json(formatTicket(ticket, `${user.firstName} ${user.lastName}`));
+
+    // Emit to Command Center activity stream (non-blocking)
+    emitActivity({
+      userId: req.user!.userId,
+      userEmail: user.email ?? "",
+      userName: `${user.firstName} ${user.lastName}`.trim(),
+      action: `Submitted support ticket — "${subject.slice(0, 70)}${subject.length > 70 ? "…" : ""}"`,
+      meta: { type: "ticket_create", ticketId: ticket.id, department: department || "General", priority: priority || "medium" },
+    });
 
     // AI auto-reply (non-blocking — runs after response is sent)
     generateAiSupportReply(subject, message, department || "General").then(async (aiReply) => {

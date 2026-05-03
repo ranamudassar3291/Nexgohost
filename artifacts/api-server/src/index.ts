@@ -202,6 +202,54 @@ async function runStartupMigrations() {
       )
     `);
     console.log("[MIGRATIONS] ticket_drafts table ready");
+
+    // feature_flags — global + per-client feature toggles managed via Command Center
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS feature_flags (
+        id         SERIAL PRIMARY KEY,
+        feature_key TEXT NOT NULL,
+        user_id    TEXT,
+        enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_by TEXT,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql.raw(`
+      CREATE UNIQUE INDEX IF NOT EXISTS feature_flags_global_idx
+        ON feature_flags (feature_key) WHERE user_id IS NULL
+    `));
+    await db.execute(sql.raw(`
+      CREATE UNIQUE INDEX IF NOT EXISTS feature_flags_user_idx
+        ON feature_flags (feature_key, user_id) WHERE user_id IS NOT NULL
+    `));
+    console.log("[MIGRATIONS] feature_flags table ready");
+
+    // admin_config — key/value store for dynamic config (health thresholds, upsell banners)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS admin_config (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL DEFAULT '',
+        updated_by TEXT,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] admin_config table ready");
+
+    // activity_stream — real-time log of advanced tool usage by clients
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS activity_stream (
+        id         SERIAL PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        user_email TEXT NOT NULL DEFAULT '',
+        user_name  TEXT NOT NULL DEFAULT '',
+        action     TEXT NOT NULL,
+        meta       JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] activity_stream table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
