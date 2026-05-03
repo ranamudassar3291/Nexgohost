@@ -14,7 +14,7 @@ import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
 import {
   Server, Globe, ArrowRightLeft, Check, X, Search, Loader2,
   Star, ArrowLeft, ShoppingCart, Receipt, Lock,
-  AlertCircle, CheckCircle2, Key, Shield, Zap, Users, ChevronRight,
+  AlertCircle, CheckCircle2, Key, Shield, Zap, Users, ChevronRight, MailCheck,
   CreditCard, Tag, Wallet, Landmark, Bitcoin, Smartphone, Gift,
   ChevronUp, ChevronDown, RefreshCw, Cpu, MemoryStick, HardDrive, Wifi, MonitorCog,
   Eye, EyeOff, Shuffle, Terminal, User as UserIcon, UserPlus,
