@@ -6,7 +6,8 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight,
-  ShoppingCart, AlertTriangle, Plus, Settings,
+  ShoppingCart, AlertTriangle, Plus, Settings, HelpCircle,
+  ExternalLink, BookOpen, Server, Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
@@ -26,6 +27,66 @@ interface NavGroup {
   label: string;
   items: { name: string; href: string; icon: LucideIcon }[];
 }
+
+// ─── Contextual Help Guides ───────────────────────────────────────────────────
+const HELP_CONTEXT: Record<string, { title: string; articles: { label: string; desc: string }[] }> = {
+  "/client/hosting": {
+    title: "Hosting Guides",
+    articles: [
+      { label: "Getting started with cPanel", desc: "Set up files, databases and SSL in minutes." },
+      { label: "Create & manage email accounts", desc: "Add custom email addresses for your domain." },
+      { label: "1-click WordPress installation", desc: "Launch WordPress from your control panel." },
+    ],
+  },
+  "/client/domains": {
+    title: "Domain Guides",
+    articles: [
+      { label: "Transfer a domain to us", desc: "Move your domain and keep existing settings." },
+      { label: "Configure DNS records", desc: "Point your domain to the right servers." },
+      { label: "Enable WHOIS privacy", desc: "Hide your contact info from public lookups." },
+    ],
+  },
+  "/client/billing": {
+    title: "Billing Guides",
+    articles: [
+      { label: "Pay an invoice", desc: "Step-by-step payment instructions." },
+      { label: "Apply a promo code", desc: "Save on your next order with a discount." },
+      { label: "Understanding renewals", desc: "When and how you're billed for renewals." },
+    ],
+  },
+  "/client/tickets": {
+    title: "Support Guides",
+    articles: [
+      { label: "Open a support ticket", desc: "Describe your issue for a fast response." },
+      { label: "Response time SLA", desc: "Our commitment by priority level." },
+      { label: "Escalate an issue", desc: "When and how to request priority handling." },
+    ],
+  },
+  "/client/account": {
+    title: "Account Guides",
+    articles: [
+      { label: "Update contact details", desc: "Keep your billing info and email current." },
+      { label: "Enable two-factor auth", desc: "Secure your account with 2FA." },
+      { label: "Notification preferences", desc: "Choose which emails you receive." },
+    ],
+  },
+  "/admin/servers": {
+    title: "Server Guides",
+    articles: [
+      { label: "Connecting a WHM server", desc: "Link your cPanel/WHM server in minutes." },
+      { label: "Adding server nodes", desc: "Scale by adding more provisioning nodes." },
+      { label: "Monitoring server health", desc: "Read live usage stats and alerts." },
+    ],
+  },
+};
+const DEFAULT_HELP = {
+  title: "Help & Guides",
+  articles: [
+    { label: "Getting started guide", desc: "A complete walkthrough of the client portal." },
+    { label: "Managing your services", desc: "How to view, upgrade, and cancel services." },
+    { label: "Contacting our support team", desc: "When and how to reach us for help." },
+  ],
+};
 
 const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
@@ -68,8 +129,9 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 ];
 
 /* ─── Client nav: pinned shortcuts at top, rest of nav below ─── */
-const CLIENT_NAV_TOP = ["/client/dashboard", "/client/hosting", "/client/domains", "/client/billing"];
-const CLIENT_NAV_BOTTOM = ["/client/orders", "/client/tickets", "/client/account", "/client/security", "/help"];
+const CLIENT_NAV_TOP      = ["/client/dashboard", "/client/billing"];
+const CLIENT_NAV_SERVICES = ["/client/hosting", "/client/domains"];
+const CLIENT_NAV_BOTTOM   = ["/client/orders", "/client/tickets", "/client/account", "/client/security", "/help"];
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -78,6 +140,10 @@ export function AppLayout({ children, role }: LayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(
+    () => location.startsWith("/client/hosting") || location.startsWith("/client/domains")
+  );
 
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
@@ -112,8 +178,12 @@ export function AppLayout({ children, role }: LayoutProps) {
     .filter(r => r.path !== "/client/migrations" || (user as any)?.canMigrate === true)
     .map(r => ({ name: r.label, href: r.path, icon: r.icon }));
 
-  const clientLinksTop = allClientLinks.filter(l => CLIENT_NAV_TOP.includes(l.href));
-  const clientLinksBottom = allClientLinks.filter(l => CLIENT_NAV_BOTTOM.includes(l.href));
+  const clientLinksTop      = allClientLinks.filter(l => CLIENT_NAV_TOP.includes(l.href));
+  const clientLinksServices = allClientLinks.filter(l => CLIENT_NAV_SERVICES.includes(l.href));
+  const clientLinksBottom   = allClientLinks.filter(l => CLIENT_NAV_BOTTOM.includes(l.href));
+
+  const helpContextKey = Object.keys(HELP_CONTEXT).find(k => location.startsWith(k));
+  const helpContext = helpContextKey ? HELP_CONTEXT[helpContextKey] : DEFAULT_HELP;
 
   const routeIconMap = routesByRole.admin.reduce<Record<string, LucideIcon>>((acc, r) => {
     acc[r.path] = r.icon;
@@ -222,6 +292,58 @@ export function AppLayout({ children, role }: LayoutProps) {
             </Link>
           );
         })}
+
+        {/* ── Services sub-menu ── */}
+        <div className="mt-1">
+          <button
+            onClick={() => setServicesOpen(s => !s)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer"
+            style={{ color: "rgba(255,255,255,0.28)" }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.28)"}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-widest flex-1 text-left">Services</span>
+            <motion.span animate={{ rotate: servicesOpen ? 0 : -90 }} transition={{ duration: 0.18 }} style={{ display: "inline-flex" }}>
+              <ChevronDown size={11} />
+            </motion.span>
+          </button>
+          <AnimatePresence initial={false}>
+            {servicesOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-0.5 mt-0.5">
+                  {clientLinksServices.map(link => {
+                    const active = isActive(link.href);
+                    const Icon = link.icon;
+                    return (
+                      <Link key={link.name} href={link.href}>
+                        <div
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer"
+                          style={{
+                            background: active ? "rgba(99,102,241,0.22)" : "transparent",
+                            color: active ? "#fff" : "rgba(255,255,255,0.55)",
+                          }}
+                          onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; } }}
+                          onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"; } }}
+                        >
+                          <Icon size={17} style={{ color: active ? "#818CF8" : "inherit", flexShrink: 0 }} />
+                          <span className="text-sm font-medium">{link.name}</span>
+                          {active && <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#6366F1" }} />}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <p className="px-3 pt-5 pb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>Account</p>
         {clientLinksBottom.map(link => {
@@ -557,6 +679,16 @@ export function AppLayout({ children, role }: LayoutProps) {
                 </Link>
                 <NotificationBell />
                 <button
+                  onClick={() => setHelpOpen(s => !s)}
+                  title="Help & Guides"
+                  className="relative p-2 rounded-xl transition-colors"
+                  style={{ color: helpOpen ? "#4F46E5" : "#94A3B8", background: helpOpen ? "#EEF2FF" : "transparent" }}
+                  onMouseEnter={e => { if (!helpOpen) (e.currentTarget as HTMLElement).style.color = "#1A202C"; }}
+                  onMouseLeave={e => { if (!helpOpen) (e.currentTarget as HTMLElement).style.color = "#94A3B8"; }}
+                >
+                  <HelpCircle size={18} />
+                </button>
+                <button
                   onClick={() => setLocation("/client/cart")}
                   className="relative p-2 rounded-xl transition-colors"
                   style={{ color: "#94A3B8" }}
@@ -613,10 +745,145 @@ export function AppLayout({ children, role }: LayoutProps) {
             </motion.div>
           </div>
         </div>
+
+        {/* ── Dashboard Footer ── */}
+        {isClient && (
+          <footer
+            className="hidden md:flex items-center justify-between px-8 py-3 shrink-0"
+            style={{ borderTop: "1px solid #F0F0F5", background: "#ffffff" }}
+          >
+            <div className="flex items-center gap-2 text-xs" style={{ color: "#94A3B8" }}>
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span
+                  className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60"
+                  style={{ background: "#34D399" }}
+                />
+                <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: "#10B981" }} />
+              </span>
+              System Status: All systems operational
+            </div>
+            <p className="text-[11px]" style={{ color: "#CBD5E1" }}>
+              © {new Date().getFullYear()} {siteName}. All rights reserved.
+            </p>
+          </footer>
+        )}
       </main>
 
       {isClient && <AiChatWidget />}
       {isClient && <FeedbackWidget />}
+
+      {/* ── Contextual Help Drawer ── */}
+      <AnimatePresence>
+        {helpOpen && isClient && (
+          <>
+            <motion.div
+              key="help-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="fixed inset-0 z-40"
+              onClick={() => setHelpOpen(false)}
+            />
+            <motion.div
+              key="help-drawer"
+              initial={{ x: 340, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 340, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed top-0 right-0 h-screen w-80 z-50 flex flex-col shadow-2xl"
+              style={{ background: "#ffffff", borderLeft: "1px solid #F0F0F5" }}
+            >
+              {/* Drawer header */}
+              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #F0F0F5" }}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#EEF2FF" }}>
+                    <BookOpen size={15} style={{ color: "#4F46E5" }} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold" style={{ color: "#1A202C" }}>{helpContext.title}</h3>
+                    <p className="text-[10px]" style={{ color: "#94A3B8" }}>3 quick guides</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setHelpOpen(false)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                  style={{ color: "#94A3B8" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F7F8FA"; (e.currentTarget as HTMLElement).style.color = "#1A202C"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#94A3B8"; }}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Guide articles */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {helpContext.articles.map((art, i) => (
+                  <a
+                    key={i}
+                    href="#"
+                    onClick={e => e.preventDefault()}
+                    className="flex items-start gap-3 p-4 rounded-xl border transition-all group cursor-pointer block"
+                    style={{ borderColor: "#F0F0F5", background: "#FAFAFA" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#C7D2FE"; (e.currentTarget as HTMLElement).style.background = "#EEF2FF"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#F0F0F5"; (e.currentTarget as HTMLElement).style.background = "#FAFAFA"; }}
+                  >
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-colors"
+                      style={{ background: "#EEF2FF" }}>
+                      <BookOpen size={14} style={{ color: "#4F46E5" }} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold leading-snug" style={{ color: "#1A202C" }}>{art.label}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#94A3B8" }}>{art.desc}</p>
+                    </div>
+                    <ExternalLink size={12} style={{ color: "#C7D2FE", flexShrink: 0, marginTop: 4 }} />
+                  </a>
+                ))}
+
+                {/* Divider */}
+                <div className="pt-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest px-1 pb-2" style={{ color: "#CBD5E1" }}>Still need help?</p>
+                  <Link href="/client/tickets" onClick={() => setHelpOpen(false)}>
+                    <div
+                      className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
+                      style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                    >
+                      <Server size={14} />
+                      Open a Support Ticket
+                    </div>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Powered-by footer */}
+              <div className="px-5 py-3 text-center" style={{ borderTop: "1px solid #F0F0F5" }}>
+                <p className="text-[10px]" style={{ color: "#CBD5E1" }}>Self-service help · {siteName} Support</p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* ── Dashboard Footer (rendered inside main content) ── */
+export function DashboardFooter({ siteName }: { siteName: string }) {
+  return (
+    <footer
+      className="hidden md:flex items-center justify-between px-8 py-3 mt-auto"
+      style={{ borderTop: "1px solid #F0F0F5", background: "#ffffff" }}
+    >
+      <div className="flex items-center gap-2 text-xs" style={{ color: "#94A3B8" }}>
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: "#34D399" }} />
+          <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: "#10B981" }} />
+        </span>
+        System Status: All systems operational
+      </div>
+      <p className="text-[11px]" style={{ color: "#CBD5E1" }}>
+        © {new Date().getFullYear()} {siteName}. All rights reserved.
+      </p>
+    </footer>
   );
 }
