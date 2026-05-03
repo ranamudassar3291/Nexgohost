@@ -57,6 +57,7 @@ import aiChatRouter from "./ai-chat.js";
 import contentRouter from "./content.js";
 import siteHealthRouter from "./site-health.js";
 import teamAccessRouter from "./team-access.js";
+import growthSuiteRouter from "./growth-suite.js";
 
 const router: IRouter = Router();
 
@@ -122,5 +123,6 @@ router.use(aiChatRouter);
 router.use(contentRouter);
 router.use(siteHealthRouter);
 router.use(teamAccessRouter);
+router.use(growthSuiteRouter);
 
 export default router;

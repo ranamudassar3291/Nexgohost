@@ -35,6 +35,7 @@ import {
   Search,
   LifeBuoy,
   Users2,
+  TrendingUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -99,6 +100,7 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/credits",            label: "Credits",         icon: Wallet,          inNav: false },
   { path: "/client/security",            label: "Security",        icon: ShieldCheck,     inNav: true  },
   { path: "/client/team",               label: "Team Access",     icon: Users2,          inNav: true  },
+  { path: "/client/growth",             label: "Growth Suite",    icon: TrendingUp,      inNav: true  },
   { path: "/client/domains/transfer",   label: "Transfer Domain", icon: RefreshCw,       inNav: false },
   { path: "/help",                       label: "Help Center",     icon: HelpCircle,      inNav: true  },
 ];

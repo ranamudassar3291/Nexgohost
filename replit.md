@@ -281,6 +281,32 @@ Extended with:
 ### Overview Quick Actions Grid
 - Replaced "Backup" + "SSH" shortcuts with **Software** + **Environment** quick-launch tiles
 
+## Growth Suite (Client Dashboard → /client/growth)
+
+### DB Table: `seo_scans` (startup migration in `index.ts`)
+- Columns: `id`, `user_id`, `domain`, `title`, `meta_description`, `og_title`, `og_description`, `og_image`, `twitter_card`, `twitter_image`, `sitemap_ok`, `robots_ok`, `canonical`, `h1_count`, `https_ok`, `viewport_ok`, `score`, `fetch_ok`, `scanned_at`
+- UNIQUE constraint on `(user_id, domain)` — re-scanning updates via `ON CONFLICT DO UPDATE`
+
+### Backend Routes (`artifacts/api-server/src/routes/growth-suite.ts`)
+- `POST /api/my/growth/seo-scan` — fetches domain HTML, probes /sitemap.xml + /robots.txt, parses OG/meta tags, scores 0-100, upserts to DB
+- `GET /api/my/growth/seo-results` — returns all saved scans for user, ordered by scanned_at
+- `GET /api/my/growth/domains` — returns user's active hosting services for domain picker
+- `GET /api/my/growth/ad-credits` — sums paid invoice totals (PKR), returns tier eligibility + progress %
+
+### SEO Score Weights (100pts total)
+- title: 15 | meta description: 15 | og:title: 10 | og:image: 10 | sitemap: 20 | robots.txt: 10 | canonical: 10 | https: 5 | viewport: 5
+
+### Ad Credit Tiers (PKR)
+- Rs. 15,000+ → Silver ($75 credit) | Rs. 45,000+ → Gold ($150) | Rs. 150,000+ → Platinum ($500)
+
+### Frontend (`artifacts/nexgohost/src/pages/client/GrowthSuite.tsx`)
+- 3-tab layout: SEO Toolkit / Social Preview / Ad Credits
+- **SEO Toolkit**: domain selector (auto-populated from active hosting), ScoreRing SVG gauge, 10-item checklist with pass/fail icons, click-to-expand fix tips, previously scanned domains list
+- **Social Preview**: Facebook + Twitter/X card mockup with real OG data from scan, network switcher, OG tag checklist
+- **Ad Credits**: eligible badge with tier color, progress bar to next tier, reward tier ladder, informational note
+- `ScoreRing`: circular SVG arc colored green/amber/red by score range
+- `CheckRow`: expandable row with tip shown on click for failed items
+
 ## Secure Team Access (Client Dashboard → /client/team)
 
 ### DB Tables (startup migrations in `index.ts`)

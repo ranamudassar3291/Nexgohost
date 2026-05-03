@@ -136,6 +136,34 @@ async function runStartupMigrations() {
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_team_logs_owner ON team_access_logs(owner_user_id, created_at DESC)`);
     console.log("[MIGRATIONS] team_access_logs table ready");
+
+    // ── Growth Suite: SEO scans ───────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS seo_scans (
+        id              SERIAL PRIMARY KEY,
+        user_id         TEXT NOT NULL,
+        domain          TEXT NOT NULL,
+        title           TEXT,
+        meta_description TEXT,
+        og_title        TEXT,
+        og_description  TEXT,
+        og_image        TEXT,
+        twitter_card    TEXT,
+        twitter_image   TEXT,
+        sitemap_ok      BOOLEAN NOT NULL DEFAULT FALSE,
+        robots_ok       BOOLEAN NOT NULL DEFAULT FALSE,
+        canonical       TEXT,
+        h1_count        INTEGER NOT NULL DEFAULT 0,
+        https_ok        BOOLEAN NOT NULL DEFAULT FALSE,
+        viewport_ok     BOOLEAN NOT NULL DEFAULT FALSE,
+        score           INTEGER NOT NULL DEFAULT 0,
+        fetch_ok        BOOLEAN NOT NULL DEFAULT TRUE,
+        scanned_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(user_id, domain)
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_seo_scans_user ON seo_scans(user_id)`);
+    console.log("[MIGRATIONS] seo_scans table ready");
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

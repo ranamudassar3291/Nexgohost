@@ -131,7 +131,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 /* ─── Client nav: pinned shortcuts at top, rest of nav below ─── */
 const CLIENT_NAV_TOP      = ["/client/dashboard", "/client/billing"];
 const CLIENT_NAV_SERVICES = ["/client/hosting", "/client/domains"];
-const CLIENT_NAV_BOTTOM   = ["/client/orders", "/client/tickets", "/client/account", "/client/security", "/client/team", "/help"];
+const CLIENT_NAV_BOTTOM   = ["/client/orders", "/client/tickets", "/client/account", "/client/security", "/client/team", "/client/growth", "/help"];
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
