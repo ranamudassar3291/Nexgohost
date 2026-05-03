@@ -3,11 +3,7 @@
  * https://api.20i.com  (official API Blueprint v1)
  *
  * Authentication
- *   Authorization: Bearer {base64(apiKey + "\n")}
- *   Per official 20i API docs: the key MUST have a trailing newline appended
- *   BEFORE base64 encoding. Proven by decoding their example token:
- *   "ZTRkNGZkMzFhNTJkY2FlMwo=" → "e4d4fd31a52dcae3\n"
- *   Without the "\n" the token is different and 20i returns 401 {"type":"User ID"}.
+ *   Authorization: Bearer {trimmed plain API key}
  *
  * Reseller self-reference
  *   All /reseller/{resellerId}/... endpoints use "*" as the resellerId
@@ -161,8 +157,7 @@ export async function twentyiFindWorkingKeyFormat(
 
   for (const fmt of formats) {
     const keyVariant = getKeyForFormat(cleanKey, fmt);
-    const token = encodeKeyToBase64(keyVariant);
-    const authHeader = `Bearer ${token}`;
+    const authHeader = `Bearer ${keyVariant}`;
 
     try {
       const maskedDetect = authHeader.replace(/Bearer\s+\S+/i, "Bearer ****");
@@ -204,26 +199,10 @@ export async function twentyiFindWorkingKeyFormat(
   return { format: "before_plus", authKey: fallback, status: 0 };
 }
 
-// STEP 2 — Encode: base64(key [+ "\n"]).
-// For /reseller/* endpoints (General Key usage), 20i requires a trailing newline:
-//   Proof from docs: "ZTRkNGZkMzFhNTJkY2FlMwo=" decodes to "e4d4fd31a52dcae3\n"
-// For /package (StackCP/customer-level) endpoints, the token must be encoded WITHOUT "\n":
-//   Probe result (2026-04-04): before_plus NO-\n on /package → 200 with packages
-//                               before_plus WITH-\n on /package → 403 user:null
-// addNewline=true  → /reseller/* paths (General Key auth with \n)
-// addNewline=false → /package paths (OAuthKey-style auth without \n)
-function encodeKeyToBase64(cleanKey: string, addNewline = true): string {
-  return Buffer.from(addNewline ? cleanKey + "\n" : cleanKey).toString("base64");
-}
-
-// Build the full Authorization header value.
-// Extracts the General Key from a Combined Key if needed, then encodes it.
-// Result: "Bearer " + base64(generalKey + "\n")
 export function buildAuthHeader(apiKey: string): string {
   const clean = sanitiseKey(apiKey);
   const generalKey = extractGeneralKey(clean);
-  const base64 = encodeKeyToBase64(generalKey);
-  return `Bearer ${base64}`;
+  return `Bearer ${generalKey}`;
 }
 
 // ─── Outbound IP detection ────────────────────────────────────────────────────
@@ -265,13 +244,6 @@ function selectKeyForPath(cleanKey: string): string {
   return cleanKey.substring(0, plusIdx); // Always use before_plus
 }
 
-// Whether to append "\n" before base64 encoding — depends on endpoint type.
-function useNewlineForPath(path: string): boolean {
-  // /reseller/* endpoints use the General Key convention (requires "\n")
-  return path.startsWith("/reseller/");
-  // /package and all other customer endpoints use the OAuthKey convention (no "\n")
-}
-
 // Fallback key on auth failure — try the other key portion as an alternative.
 function selectAlternativeKeyForPath(cleanKey: string, primaryKey: string): string | null {
   const plusIdx = cleanKey.indexOf("+");
@@ -292,13 +264,7 @@ async function request<T = any>(
   const cleanKey = sanitiseKey(apiKey);
   // Step 2: Pick the key portion — always before_plus (proven correct for both path types)
   const selectedKey = selectKeyForPath(cleanKey);
-  // Step 3: Encode — with or without "\n" depending on endpoint type
-  //   /reseller/* → WITH "\n"   (General Key convention — proven to authenticate)
-  //   /package    → WITHOUT "\n" (StackCP token convention — proven to return packages)
-  const addNl = useNewlineForPath(path);
-  const base64Token = encodeKeyToBase64(selectedKey, addNl);
-  // Step 4: Build header — exactly ONE "Bearer " prefix
-  const authorizationHeader = `Bearer ${base64Token}`;
+  const authorizationHeader = `Bearer ${selectedKey}`;
 
   const url = `${resolveBaseUrl()}${path}`;
   const proxyUrl = resolveProxyUrl();
@@ -308,7 +274,7 @@ async function request<T = any>(
     : "customer(before_+,no-nl)";
   console.log(
     `[20i] ${method} ${url}` +
-    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} auth_key_len=${selectedKey.length} b64_len=${base64Token.length}` +
+    ` | raw_len=${apiKey.length} clean_len=${cleanKey.length} auth_key_len=${selectedKey.length}` +
     ` | key_mode=${keyDesc}`
   );
 
@@ -357,8 +323,7 @@ async function request<T = any>(
     const altKey = selectAlternativeKeyForPath(cleanKey, selectedKey);
     if (altKey && altKey !== selectedKey) {
       console.log(`[20i] Retrying with alt key (len=${altKey.length}) — primary got HTTP ${res.status}`);
-      const altToken = encodeKeyToBase64(altKey, addNl);
-      const retryRes = await makeRequest(`Bearer ${altToken}`, body);
+      const retryRes = await makeRequest(`Bearer ${altKey}`, body);
       const retryPreview = JSON.stringify(retryRes.data).substring(0, 300);
       console.log(`[20i] <- Retry HTTP ${retryRes.status}  body=${retryPreview}`);
       // Accept the retry result if it's better (200/4xx other than 401)
