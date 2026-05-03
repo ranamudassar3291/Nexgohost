@@ -133,7 +133,7 @@
   --sidebar-accent-foreground: 238 82% 65%;
   --sidebar-ring: 238 82% 65%;
 
-  --radius: 0.75rem;
+  --radius: 1rem;
 
   --button-outline: rgba(91, 95, 239, 0.12);
   --badge-outline: rgba(91, 95, 239, 0.07);
@@ -161,24 +161,24 @@
    Text:        slate-300 / slate-400 for muted
    ─────────────────────────────────────────────────────────────────────────── */
 .dark {
-  --background: 222 84% 5%;               /* #020617 — deep navy */
+  --background: 220 27% 6%;               /* #0B0E14 — deep space */
   --foreground: 214 32% 90%;              /* slate-300 #cbd5e1 */
 
-  --card: 222 47% 11%;                    /* #0F172A — dark card */
+  --card: 222 23% 10%;                    /* #141822 — dark card */
   --card-foreground: 214 32% 90%;
-  --card-border: 222 40% 17%;             /* subtle dark border */
+  --card-border: 222 20% 17%;             /* #1E263A — subtle border */
 
-  --popover: 222 47% 11%;
+  --popover: 222 23% 10%;
   --popover-foreground: 214 32% 90%;
-  --popover-border: 222 40% 17%;
+  --popover-border: 222 20% 17%;
 
   --primary: 244 98% 68%;                 /* #6A62FE — user's brand indigo */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 217 33% 17%;               /* slate-800 #1e293b */
+  --secondary: 222 20% 14%;               /* #1A2131 — elevated surface */
   --secondary-foreground: 214 32% 90%;
 
-  --muted: 217 33% 17%;
+  --muted: 222 20% 14%;
   --muted-foreground: 215 16% 65%;        /* slate-400 #94a3b8 */
 
   --accent: 244 98% 68%;
@@ -187,8 +187,8 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 222 40% 17%;
-  --input: 222 40% 17%;
+  --border: 222 20% 17%;
+  --input: 222 20% 17%;
   --ring: 244 98% 68%;
 
   --chart-1: 244 98% 68%;
@@ -197,12 +197,12 @@
   --chart-4: 38 92% 50%;
   --chart-5: 0 84% 60%;
 
-  --sidebar: 222 55% 7%;                  /* slightly darker than bg */
+  --sidebar: 222 30% 5%;                  /* #0A0D18 — deepest panel */
   --sidebar-foreground: 214 32% 90%;
-  --sidebar-border: 222 40% 14%;
+  --sidebar-border: 222 20% 13%;
   --sidebar-primary: 244 98% 68%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 40% 15%;
+  --sidebar-accent: 222 20% 14%;
   --sidebar-accent-foreground: 244 98% 75%;
   --sidebar-ring: 244 98% 68%;
 
@@ -636,5 +636,21 @@
   @keyframes pageEnter {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Skeleton shimmer ────────────────────────────────────────────────── */
+  @keyframes skeleton-shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+  }
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 25%,
+      hsl(var(--muted-foreground) / 0.10) 50%,
+      hsl(var(--muted)) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
   }
 }

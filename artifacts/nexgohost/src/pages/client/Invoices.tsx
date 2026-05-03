@@ -298,7 +298,7 @@ export default function ClientInvoices() {
     mutationFn: ({ id, autoRenew }: { id: string; autoRenew: boolean }) =>
       apiFetch(`/api/client/hosting/${id}/auto-renew`, { method: "PUT", body: JSON.stringify({ autoRenew }) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["client-hosting-billing"] }),
-    onError: (err: any) => toast({ title: "Failed to update", description: err.message, variant: "destructive" }),
+    onError: () => toast({ title: "Failed to update", description: "We couldn't update auto-renewal. Please refresh the page and try again.", variant: "destructive" }),
   });
 
   const initTab = (): BillingTab => {
@@ -441,7 +441,21 @@ export default function ClientInvoices() {
       {activeTab === "invoices" && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
           {isLoading ? (
-            <div className="p-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>
+            <div className="divide-y divide-border/50">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+                  <div className="w-8 h-8 bg-primary/5 rounded-lg shrink-0 skeleton" />
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="skeleton h-3.5 w-28 rounded" />
+                    <div className="skeleton h-3 w-16 rounded" />
+                  </div>
+                  <div className="skeleton h-3.5 w-20 rounded hidden sm:block" />
+                  <div className="skeleton h-3.5 w-20 rounded hidden sm:block" />
+                  <div className="skeleton h-5 w-16 rounded-full hidden sm:block" />
+                  <div className="skeleton h-7 w-14 rounded-lg" />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -528,7 +542,17 @@ export default function ClientInvoices() {
             {txSearch && <button onClick={() => setTxSearch("")} className="text-xs text-muted-foreground hover:text-foreground">Clear</button>}
           </div>
           {txLoading ? (
-            <div className="p-12 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></div>
+            <div className="divide-y divide-border/50">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+                  <div className="skeleton h-3.5 w-20 rounded" />
+                  <div className="skeleton h-3.5 w-32 rounded flex-1" />
+                  <div className="skeleton h-3.5 w-20 rounded hidden sm:block" />
+                  <div className="skeleton h-3.5 w-16 rounded" />
+                  <div className="skeleton h-5 w-14 rounded-full" />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">

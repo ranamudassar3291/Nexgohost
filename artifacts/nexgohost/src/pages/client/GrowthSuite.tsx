@@ -8,6 +8,7 @@ import {
   Target, Plus, Trash2, ArrowDown, ArrowUp, Minus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface SeoScan {
@@ -49,21 +50,24 @@ function scoreLabel(s: number) {
 // ─── SEO Check Row ────────────────────────────────────────────────────────────
 function CheckRow({ ok, label, value, tip }: { ok: boolean | null; label: string; value?: string; tip?: string }) {
   const [open, setOpen] = useState(false);
-  const color  = ok === null ? "#9CA3AF" : ok ? "#10B981" : "#EF4444";
-  const Icon   = ok === null ? AlertCircle : ok ? CheckCircle2 : XCircle;
+  const color = ok === null ? "text-muted-foreground" : ok ? "text-green-500" : "text-red-400";
+  const Icon  = ok === null ? AlertCircle : ok ? CheckCircle2 : XCircle;
   return (
-    <div style={{ borderBottom: "1px solid #F9FAFB" }}>
-      <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 10, cursor: tip ? "pointer" : "default" }}
-           onClick={() => tip && setOpen(o => !o)}>
-        <Icon size={15} color={color} style={{ flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#374151" }}>{label}</span>
+    <div className="border-b border-border/40 last:border-0">
+      <div
+        className={`flex items-center gap-2.5 px-4 py-3 ${tip ? "cursor-pointer hover:bg-secondary/20" : ""} transition-colors`}
+        onClick={() => tip && setOpen(o => !o)}>
+        <Icon size={14} className={`${color} shrink-0`} />
+        <span className="flex-1 text-sm font-semibold text-foreground">{label}</span>
         {value && (
-          <span style={{ fontSize: 11, color: "#9CA3AF", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
+          <span className="text-[11px] text-muted-foreground max-w-[160px] truncate hidden sm:block">{value}</span>
         )}
-        {!ok && tip && <ChevronDown size={12} color="#9CA3AF" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />}
+        {!ok && tip && (
+          <ChevronDown size={12} className={`text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        )}
       </div>
       {open && tip && !ok && (
-        <div style={{ margin: "0 16px 10px 41px", background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#92400E" }}>
+        <div className="mx-4 mb-3 ml-10 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
           💡 {tip}
         </div>
       )}
@@ -77,16 +81,16 @@ function ScoreRing({ score }: { score: number }) {
   const dash = (score / 100) * circ;
   const color = scoreColor(score);
   return (
-    <div style={{ position: "relative", width: 90, height: 90, flexShrink: 0 }}>
-      <svg style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }} viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="#F3F4F6" strokeWidth="8" />
+    <div className="relative w-[90px] h-[90px] shrink-0">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="8" />
         <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="8"
           strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ - dash}
           style={{ transition: "stroke-dashoffset 1.2s ease" }} />
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 18, fontWeight: 900, color, lineHeight: 1 }}>{score}</span>
-        <span style={{ fontSize: 9, color: "#94A3B8", fontWeight: 600 }}>/ 100</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[18px] font-black leading-none" style={{ color }}>{score}</span>
+        <span className="text-[9px] text-muted-foreground font-semibold">/ 100</span>
       </div>
     </div>
   );
@@ -94,24 +98,24 @@ function ScoreRing({ score }: { score: number }) {
 
 // ─── Facebook Card Preview ────────────────────────────────────────────────────
 function FacebookCard({ scan }: { scan: SeoScan }) {
-  const title   = scan.ogTitle   || scan.title   || scan.domain;
-  const desc    = scan.ogDesc    || scan.metaDesc || "No description found.";
-  const image   = scan.ogImage   || "";
-  const domain  = scan.domain.replace(/^https?:\/\//, "").split("/")[0];
+  const title  = scan.ogTitle  || scan.title  || scan.domain;
+  const desc   = scan.ogDesc   || scan.metaDesc || "No description found.";
+  const image  = scan.ogImage  || "";
+  const domain = scan.domain.replace(/^https?:\/\//, "").split("/")[0];
   return (
-    <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E5E7EB", background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
+    <div className="rounded-xl overflow-hidden border border-border bg-card shadow-sm">
       {image ? (
-        <img src={image} alt="og" style={{ width: "100%", height: 180, objectFit: "cover", display: "block", background: "#F3F4F6" }}
+        <img src={image} alt="og" className="w-full h-44 object-cover block bg-secondary"
           onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
       ) : (
-        <div style={{ width: "100%", height: 180, background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Globe size={40} color="#A5B4FC" />
+        <div className="w-full h-44 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+          <Globe size={40} className="text-primary/30" />
         </div>
       )}
-      <div style={{ padding: "12px 14px", borderTop: "1px solid #F3F4F6" }}>
-        <p style={{ fontSize: 11, color: "#9CA3AF", textTransform: "uppercase", margin: "0 0 4px" }}>{domain}</p>
-        <p style={{ fontSize: 15, fontWeight: 800, color: "#1C2433", margin: "0 0 4px", lineHeight: 1.3 }}>{title}</p>
-        <p style={{ fontSize: 13, color: "#606770", margin: 0, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{desc}</p>
+      <div className="p-3.5 border-t border-border">
+        <p className="text-[11px] text-muted-foreground uppercase mb-1 tracking-wide">{domain}</p>
+        <p className="text-[15px] font-bold text-foreground mb-1 leading-snug">{title}</p>
+        <p className="text-sm text-muted-foreground leading-snug line-clamp-2">{desc}</p>
       </div>
     </div>
   );
@@ -119,27 +123,27 @@ function FacebookCard({ scan }: { scan: SeoScan }) {
 
 // ─── Twitter Card Preview ─────────────────────────────────────────────────────
 function TwitterCard({ scan }: { scan: SeoScan }) {
-  const title  = scan.ogTitle   || scan.title   || scan.domain;
-  const desc   = scan.ogDesc    || scan.metaDesc || "No description found.";
+  const title  = scan.ogTitle  || scan.title  || scan.domain;
+  const desc   = scan.ogDesc   || scan.metaDesc || "No description found.";
   const image  = scan.twitterImage || scan.ogImage || "";
   const domain = scan.domain.replace(/^https?:\/\//, "").split("/")[0];
   const isLarge = scan.twitterCard === "summary_large_image" || !scan.twitterCard;
   return (
-    <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E5E7EB", background: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
-      {isLarge ? (
+    <div className="rounded-xl overflow-hidden border border-border bg-card shadow-sm">
+      {isLarge && (
         image ? (
-          <img src={image} alt="twitter" style={{ width: "100%", height: 160, objectFit: "cover", display: "block", background: "#F3F4F6" }}
+          <img src={image} alt="twitter" className="w-full h-40 object-cover block bg-secondary"
             onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
-          <div style={{ width: "100%", height: 160, background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Twitter size={36} color="#93C5FD" />
+          <div className="w-full h-40 bg-gradient-to-br from-blue-500/10 to-blue-500/5 flex items-center justify-center">
+            <Twitter size={36} className="text-blue-400/40" />
           </div>
         )
-      ) : null}
-      <div style={{ padding: "12px 14px" }}>
-        <p style={{ fontSize: 15, fontWeight: 800, color: "#0F1419", margin: "0 0 4px", lineHeight: 1.3 }}>{title}</p>
-        <p style={{ fontSize: 13, color: "#536471", margin: "0 0 6px", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{desc}</p>
-        <p style={{ fontSize: 11, color: "#8899A6", margin: 0, display: "flex", alignItems: "center", gap: 4 }}><Globe size={11} />{domain}</p>
+      )}
+      <div className="p-3.5">
+        <p className="text-[15px] font-bold text-foreground mb-1 leading-snug">{title}</p>
+        <p className="text-sm text-muted-foreground mb-1.5 leading-snug line-clamp-2">{desc}</p>
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Globe size={11} />{domain}</p>
       </div>
     </div>
   );
@@ -147,90 +151,91 @@ function TwitterCard({ scan }: { scan: SeoScan }) {
 
 // ─── Ad Credits Section ───────────────────────────────────────────────────────
 function AdCreditsPanel({ credits }: { credits: AdCredits }) {
-  const { eligible, nextTier, progress, paidInvoiceCount, totalSpentBase } = credits;
+  const { eligible, nextTier, progress, totalSpentBase } = credits;
   const tiers = [
-    { credit: "$75",  badge: "silver",   label: "Silver Member", threshold: 15_000, color: "#6B7280", bg: "#F3F4F6" },
-    { credit: "$150", badge: "gold",     label: "Gold Member",   threshold: 45_000, color: "#D97706", bg: "#FFFBEB" },
-    { credit: "$500", badge: "platinum", label: "Platinum Partner", threshold: 150_000, color: "#7C3AED", bg: "#EDE9FE" },
+    { credit: "$75",  badge: "silver",   label: "Silver Member",    threshold: 15_000,  color: "#6B7280", bg: "bg-secondary" },
+    { credit: "$150", badge: "gold",     label: "Gold Member",      threshold: 45_000,  color: "#D97706", bg: "bg-amber-500/10" },
+    { credit: "$500", badge: "platinum", label: "Platinum Partner", threshold: 150_000, color: "#7C3AED", bg: "bg-violet-500/10" },
   ];
   const badgeIcon = eligible?.badge === "platinum" ? "💎" : eligible?.badge === "gold" ? "🥇" : "🥈";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Eligible badge */}
+    <div className="flex flex-col gap-4">
       {eligible ? (
         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }}
-          style={{ background: `linear-gradient(135deg,${eligible.bg},${eligible.bg})`, border: `2px solid ${eligible.color}30`, borderRadius: 18, padding: "20px 22px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 16, background: eligible.color + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>
+          className="border-2 rounded-2xl p-5"
+          style={{ borderColor: eligible.color + "40", backgroundColor: eligible.color + "0D" }}>
+          <div className="flex items-center gap-4">
+            <div className="w-13 h-13 rounded-2xl flex items-center justify-center text-[26px] shrink-0"
+              style={{ backgroundColor: eligible.color + "20" }}>
               {badgeIcon}
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                <span style={{ fontSize: 16, fontWeight: 800, color: eligible.color }}>{eligible.label}</span>
-                <span style={{ padding: "2px 8px", borderRadius: 20, background: eligible.color, color: "#fff", fontSize: 10, fontWeight: 800 }}>ELIGIBLE</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base font-black" style={{ color: eligible.color }}>{eligible.label}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black text-white"
+                  style={{ backgroundColor: eligible.color }}>ELIGIBLE</span>
               </div>
-              <p style={{ fontSize: 13, color: "#374151", margin: 0 }}>{eligible.desc}</p>
+              <p className="text-sm text-muted-foreground">{eligible.desc}</p>
             </div>
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 28, fontWeight: 900, color: eligible.color, margin: 0 }}>{eligible.credit}</p>
-              <p style={{ fontSize: 10, color: "#9CA3AF", margin: 0 }}>Ad Credit</p>
+            <div className="text-center shrink-0">
+              <p className="text-[28px] font-black leading-none" style={{ color: eligible.color }}>{eligible.credit}</p>
+              <p className="text-[10px] text-muted-foreground">Ad Credit</p>
             </div>
           </div>
         </motion.div>
       ) : (
-        <div style={{ background: "#F8FAFC", border: "1px dashed #CBD5E1", borderRadius: 18, padding: "20px 22px", textAlign: "center" }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏆</div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", margin: "0 0 4px" }}>Not Yet Eligible</p>
-          <p style={{ fontSize: 13, color: "#9CA3AF" }}>
+        <div className="bg-secondary/40 border border-dashed border-border rounded-2xl p-5 text-center">
+          <div className="text-3xl mb-2">🏆</div>
+          <p className="text-[15px] font-bold text-foreground mb-1">Not Yet Eligible</p>
+          <p className="text-sm text-muted-foreground">
             Spend Rs. {(15_000 - totalSpentBase).toLocaleString()} more to unlock your first $75 Google Ads Credit.
           </p>
         </div>
       )}
 
-      {/* Progress to next tier */}
       {nextTier && !eligible?.badge && (
-        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 14, padding: "16px 18px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Progress to {nextTier.label}</span>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#4F46E5" }}>{progress}%</span>
+        <div className="bg-card border border-border rounded-xl px-5 py-4">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-sm font-bold text-foreground">Progress to {nextTier.label}</span>
+            <span className="text-sm font-black text-primary">{progress}%</span>
           </div>
-          <div style={{ height: 8, background: "#F3F4F6", borderRadius: 8, overflow: "hidden" }}>
+          <div className="h-2 bg-secondary rounded-full overflow-hidden">
             <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 1.2, ease: "easeOut" }}
-              style={{ height: "100%", borderRadius: 8, background: "linear-gradient(90deg,#6366F1,#8B5CF6)" }} />
+              className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500" />
           </div>
-          <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6, textAlign: "right" }}>
+          <p className="text-[11px] text-muted-foreground mt-1.5 text-right">
             Rs. {totalSpentBase.toLocaleString()} / Rs. {nextTier.threshold.toLocaleString()}
           </p>
         </div>
       )}
 
-      {/* Tier ladder */}
-      <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid #F3F4F6", background: "#FAFBFF" }}>
-          <p style={{ fontSize: 12, fontWeight: 800, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Reward Tiers</p>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-border/60 bg-secondary/30">
+          <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Reward Tiers</p>
         </div>
         {tiers.map((t, i) => {
           const unlocked = totalSpentBase >= t.threshold;
           return (
-            <div key={t.badge} style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: i < tiers.length - 1 ? "1px solid #F9FAFB" : "none", opacity: unlocked ? 1 : 0.55 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Trophy size={16} color={t.color} />
+            <div key={t.badge}
+              className={`flex items-center gap-3 px-4 py-3 border-b border-border/40 last:border-0 ${unlocked ? "opacity-100" : "opacity-50"}`}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.bg}`}>
+                <Trophy size={16} style={{ color: t.color }} />
               </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>{t.label}</p>
-                <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Spend Rs. {t.threshold.toLocaleString()}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-foreground">{t.label}</p>
+                <p className="text-[11px] text-muted-foreground">Spend Rs. {t.threshold.toLocaleString()}</p>
               </div>
-              <span style={{ fontSize: 14, fontWeight: 800, color: t.color }}>{t.credit}</span>
-              {unlocked && <CheckCircle2 size={16} color="#10B981" />}
+              <span className="text-sm font-black" style={{ color: t.color }}>{t.credit}</span>
+              {unlocked && <CheckCircle2 size={16} className="text-green-500" />}
             </div>
           );
         })}
       </div>
 
-      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "12px 16px" }}>
-        <p style={{ fontSize: 12, color: "#1E40AF", margin: 0 }}>
-          <strong>How it works:</strong> Google Ads Credits are based on your total payments to us. Once eligible, contact our support team to claim your credit. Credits are subject to Google's promotional terms.
+      <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          <strong className="text-foreground">How it works:</strong> Google Ads Credits are based on your total payments to us. Once eligible, contact support to claim. Credits are subject to Google's promotional terms.
         </p>
       </div>
     </div>
@@ -274,82 +279,83 @@ export default function GrowthSuite() {
         method: "POST", headers: authHeaders(), body: JSON.stringify({ domain }),
       });
       const d = await r.json();
-      if (!r.ok) { setScanErr(d.error || "Scan failed"); setScanning(false); return; }
+      if (!r.ok) { setScanErr(d.error || "We couldn't reach that domain. Please double-check the URL and try again."); setScanning(false); return; }
       setScan(d);
-    } catch { setScanErr("Network error — please try again."); }
+    } catch { setScanErr("Connection error — please check your internet and try again."); }
     setScanning(false);
   };
 
   const seoChecks = activeScan ? [
-    { ok: activeScan.httpsOk,    label: "HTTPS / SSL",        value: activeScan.httpsOk ? "Secure" : undefined, tip: "Install an SSL certificate so your site loads over HTTPS. This is free with Let's Encrypt and required by Google." },
-    { ok: !!activeScan.title,    label: "Page Title",         value: activeScan.title ? activeScan.title.slice(0, 50) : undefined, tip: "Add a <title> tag to your page. It shows in search results and browser tabs." },
-    { ok: !!activeScan.metaDesc, label: "Meta Description",   value: activeScan.metaDesc ? activeScan.metaDesc.slice(0, 50) + "…" : undefined, tip: 'Add <meta name="description" content="..."> to describe your page in 155 characters.' },
-    { ok: !!activeScan.ogTitle,  label: "Open Graph Title",   value: activeScan.ogTitle ? activeScan.ogTitle.slice(0, 45) : undefined, tip: 'Add <meta property="og:title" content="..."> so social shares look great.' },
-    { ok: !!activeScan.ogImage,  label: "Open Graph Image",   value: activeScan.ogImage ? "Found" : undefined, tip: 'Add <meta property="og:image" content="..."> with a 1200×630px image for rich social previews.' },
-    { ok: activeScan.sitemapOk,  label: "Sitemap.xml",        value: activeScan.sitemapOk ? "Found" : undefined, tip: "Create a /sitemap.xml file and submit it to Google Search Console so your pages get indexed faster." },
-    { ok: activeScan.robotsOk,   label: "Robots.txt",         value: activeScan.robotsOk ? "Found" : undefined, tip: "Add a /robots.txt file to guide search engine crawlers on which pages to index." },
-    { ok: !!activeScan.canonical,label: "Canonical URL",      value: activeScan.canonical ? "Set" : undefined, tip: 'Add <link rel="canonical" href="..."> to prevent duplicate content penalties.' },
-    { ok: activeScan.viewportOk, label: "Mobile Viewport",    value: activeScan.viewportOk ? "Set" : undefined, tip: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> for mobile-friendly pages.' },
-    { ok: activeScan.h1Count === 1, label: "Single H1 Tag",   value: activeScan.h1Count > 0 ? `${activeScan.h1Count} found` : undefined, tip: "Your page should have exactly one <h1> tag. Multiple or missing H1s confuse search engines." },
+    { ok: activeScan.httpsOk,       label: "HTTPS / SSL",      value: activeScan.httpsOk ? "Secure" : undefined,   tip: "Install an SSL certificate so your site loads over HTTPS. This is free with Let's Encrypt and required by Google." },
+    { ok: !!activeScan.title,       label: "Page Title",        value: activeScan.title ? activeScan.title.slice(0, 50) : undefined, tip: "Add a <title> tag to your page. It shows in search results and browser tabs." },
+    { ok: !!activeScan.metaDesc,    label: "Meta Description",  value: activeScan.metaDesc ? activeScan.metaDesc.slice(0, 50) + "…" : undefined, tip: 'Add <meta name="description" content="..."> to describe your page in 155 characters.' },
+    { ok: !!activeScan.ogTitle,     label: "Open Graph Title",  value: activeScan.ogTitle ? activeScan.ogTitle.slice(0, 45) : undefined, tip: 'Add <meta property="og:title" content="..."> so social shares look great.' },
+    { ok: !!activeScan.ogImage,     label: "Open Graph Image",  value: activeScan.ogImage ? "Found" : undefined, tip: 'Add <meta property="og:image" content="..."> with a 1200×630px image for rich social previews.' },
+    { ok: activeScan.sitemapOk,     label: "Sitemap.xml",       value: activeScan.sitemapOk ? "Found" : undefined, tip: "Create a /sitemap.xml and submit it to Google Search Console so pages get indexed faster." },
+    { ok: activeScan.robotsOk,      label: "Robots.txt",        value: activeScan.robotsOk ? "Found" : undefined, tip: "Add a /robots.txt file to guide search engine crawlers on which pages to index." },
+    { ok: !!activeScan.canonical,   label: "Canonical URL",     value: activeScan.canonical ? "Set" : undefined, tip: 'Add <link rel="canonical" href="..."> to prevent duplicate content penalties.' },
+    { ok: activeScan.viewportOk,    label: "Mobile Viewport",   value: activeScan.viewportOk ? "Set" : undefined, tip: 'Add <meta name="viewport" content="width=device-width, initial-scale=1"> for mobile-friendly pages.' },
+    { ok: activeScan.h1Count === 1, label: "Single H1 Tag",     value: activeScan.h1Count > 0 ? `${activeScan.h1Count} found` : undefined, tip: "Your page should have exactly one <h1> tag. Multiple or missing H1s confuse search engines." },
   ] : [];
 
   const tabs = [
-    { id: "seo",      label: "SEO Toolkit",     icon: Search     },
-    { id: "social",   label: "Social Preview",  icon: Share2     },
-    { id: "ads",      label: "Ad Credits",      icon: BadgeCheck },
-    { id: "keywords", label: "Keyword Tracker", icon: Target     },
+    { id: "seo",      label: "SEO Toolkit",    icon: Search     },
+    { id: "social",   label: "Social Preview", icon: Share2     },
+    { id: "ads",      label: "Ad Credits",     icon: BadgeCheck },
+    { id: "keywords", label: "Keywords",       icon: Target     },
   ] as const;
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 16px" }}>
+    <div className="max-w-4xl mx-auto py-6 px-4">
       {/* Header */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 12, background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <TrendingUp size={18} color="#4F46E5" />
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <TrendingUp size={18} className="text-primary" />
         </div>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0 }}>Growth Suite</h1>
-          <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>SEO, social sharing, and ad credit tools for your business.</p>
+          <h1 className="text-2xl font-black text-foreground leading-tight">Growth Suite</h1>
+          <p className="text-sm text-muted-foreground">SEO, social sharing, and ad credit tools for your business.</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 22, background: "#F3F4F6", borderRadius: 14, padding: 4 }}>
+      <div className="flex gap-1 mb-5 bg-secondary/60 border border-border/60 rounded-2xl p-1">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-              padding: "9px 14px", borderRadius: 10, border: "none", cursor: "pointer",
-              fontWeight: 700, fontSize: 13, transition: "all 0.2s",
-              background: tab === t.id ? "#fff" : "transparent",
-              color: tab === t.id ? "#4F46E5" : "#6B7280",
-              boxShadow: tab === t.id ? "0 1px 6px rgba(0,0,0,0.10)" : "none" }}>
-            <t.icon size={14} />{t.label}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-sm font-bold transition-all cursor-pointer ${
+              tab === t.id
+                ? "bg-card border-border/60 text-primary shadow-sm"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}>
+            <t.icon size={13} className="shrink-0" />
+            <span className="hidden sm:inline">{t.label}</span>
           </button>
         ))}
       </div>
 
       {/* ── Domain Scanner Bar (SEO + Social) ── */}
       {(tab === "seo" || tab === "social") && (
-        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: "14px 16px", marginBottom: 18, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {/* Domain picker */}
+        <div className="bg-card border border-border rounded-2xl px-4 py-3.5 mb-5 flex items-center gap-2.5 flex-wrap">
           {domains.length > 0 ? (
             <select value={domain} onChange={e => setDomain(e.target.value)}
-              style={{ flex: 1, minWidth: 180, padding: "9px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, outline: "none", color: "#374151", background: "#F9FAFB" }}>
+              className="flex-1 min-w-[180px] px-3 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm outline-none focus:border-primary/60 transition-all cursor-pointer">
               <option value="">— Select a domain —</option>
               {domains.map(d => <option key={d.id} value={d.domain ?? ""}>{d.domain}</option>)}
             </select>
+          ) : null}
+          {domains.length > 0 ? (
+            <input value={domain} onChange={e => setDomain(e.target.value)}
+              placeholder="Or type any domain…"
+              className="flex-1 min-w-[160px] px-3 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm outline-none focus:border-primary/60 transition-all" />
           ) : (
             <input value={domain} onChange={e => setDomain(e.target.value)}
               placeholder="yourwebsite.com"
-              style={{ flex: 1, minWidth: 200, padding: "9px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, outline: "none", color: "#374151" }} />
-          )}
-          {domains.length > 0 && (
-            <input value={domain} onChange={e => setDomain(e.target.value)}
-              placeholder="Or type any domain…"
-              style={{ flex: 1, minWidth: 160, padding: "9px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 14, outline: "none", color: "#374151" }} />
+              className="flex-1 min-w-[200px] px-3 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm outline-none focus:border-primary/60 transition-all" />
           )}
           <button onClick={handleScan} disabled={scanning || !domain}
-            style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: domain ? "#4F46E5" : "#E5E7EB", color: domain ? "#fff" : "#9CA3AF", fontWeight: 700, fontSize: 13, cursor: domain ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s" }}>
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm cursor-pointer flex items-center gap-1.5 transition-all ${
+              domain ? "bg-primary hover:bg-primary/90 text-white" : "bg-secondary text-muted-foreground cursor-default"
+            } disabled:opacity-70`}>
             {scanning ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
             {scanning ? "Scanning…" : activeScan?.domain === domain ? "Re-scan" : "Scan Site"}
           </button>
@@ -360,73 +366,83 @@ export default function GrowthSuite() {
 
         {/* ── SEO TOOLKIT ── */}
         {tab === "seo" && (
-          <motion.div key="seo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+          <motion.div key="seo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
             {scanErr && (
-              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#DC2626", fontSize: 13 }}>
+              <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 text-sm text-destructive">
                 {scanErr}
               </div>
             )}
 
-            {!activeScan && !scanning && (
-              <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 18, padding: "52px 24px", textAlign: "center" }}>
-                <div style={{ width: 60, height: 60, borderRadius: 18, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-                  <Search size={26} color="#A5B4FC" />
-                </div>
-                <p style={{ fontWeight: 700, color: "#374151", fontSize: 15, marginBottom: 6 }}>Run your first SEO scan</p>
-                <p style={{ fontSize: 13, color: "#9CA3AF" }}>Enter your domain above and click Scan Site to get your SEO score and a detailed checklist.</p>
+            {scanning && (
+              <div className="space-y-4">
+                <Skeleton className="h-32 w-full rounded-2xl" />
+                <Skeleton className="h-64 w-full rounded-2xl" />
               </div>
             )}
 
-            {activeScan && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!activeScan && !scanning && (
+              <div className="bg-card border border-border rounded-2xl py-13 px-6 text-center">
+                <div className="w-15 h-15 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Search size={26} className="text-primary/40" />
+                </div>
+                <p className="font-bold text-foreground text-[15px] mb-1.5">Run your first SEO scan</p>
+                <p className="text-sm text-muted-foreground">Enter your domain above and click Scan Site to get your SEO score and a detailed checklist.</p>
+              </div>
+            )}
+
+            {activeScan && !scanning && (
+              <div className="space-y-4">
                 {/* Score card */}
-                <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 18, padding: "18px 20px", display: "flex", alignItems: "center", gap: 18 }}>
+                <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-5">
                   <ScoreRing score={activeScan.score} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontSize: 20, fontWeight: 900, color: "#111827" }}>{activeScan.domain}</span>
-                      <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 800, background: scoreColor(activeScan.score) + "20", color: scoreColor(activeScan.score) }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-xl font-black text-foreground truncate">{activeScan.domain}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black"
+                        style={{ background: scoreColor(activeScan.score) + "22", color: scoreColor(activeScan.score) }}>
                         {scoreLabel(activeScan.score)}
                       </span>
                     </div>
-                    <p style={{ fontSize: 13, color: "#9CA3AF", margin: "0 0 10px" }}>
+                    <p className="text-sm text-muted-foreground mb-3">
                       Last scanned {timeAgo(activeScan.scannedAt)} · {seoChecks.filter(c => c.ok).length}/{seoChecks.length} checks passed
                     </p>
-                    <div style={{ height: 7, background: "#F3F4F6", borderRadius: 8, overflow: "hidden", maxWidth: 280 }}>
-                      <div style={{ height: "100%", borderRadius: 8, background: `linear-gradient(90deg,${scoreColor(activeScan.score)},${scoreColor(activeScan.score)}aa)`, width: `${activeScan.score}%`, transition: "width 1s ease" }} />
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden max-w-[280px]">
+                      <div className="h-full rounded-full transition-all duration-1000"
+                        style={{ background: `linear-gradient(90deg, ${scoreColor(activeScan.score)}, ${scoreColor(activeScan.score)}aa)`, width: `${activeScan.score}%` }} />
                     </div>
                   </div>
                   {!activeScan.fetchOk && (
-                    <div style={{ padding: "8px 12px", borderRadius: 10, background: "#FFF7ED", border: "1px solid #FDE68A" }}>
-                      <p style={{ fontSize: 11, color: "#92400E", margin: 0, fontWeight: 600 }}>⚠ Site unreachable</p>
+                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2 shrink-0">
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">⚠ Site unreachable</p>
                     </div>
                   )}
                 </div>
 
                 {/* Checklist */}
-                <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 18, overflow: "hidden" }}>
-                  <div style={{ padding: "13px 16px", borderBottom: "1px solid #F3F4F6", background: "#FAFBFF", display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>SEO Checklist</span>
-                    <span style={{ fontSize: 12, color: "#9CA3AF" }}>Click a failed item for a fix tip</span>
+                <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-secondary/30">
+                    <span className="text-sm font-black text-foreground">SEO Checklist</span>
+                    <span className="text-xs text-muted-foreground">Click a failed item for a fix tip</span>
                   </div>
                   {seoChecks.map(c => (
                     <CheckRow key={c.label} ok={c.ok} label={c.label} value={c.value} tip={c.tip} />
                   ))}
                 </div>
 
-                {/* Saved scans list */}
+                {/* Saved scans */}
                 {(savedScans?.scans?.length ?? 0) > 1 && (
-                  <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 14, overflow: "hidden" }}>
-                    <div style={{ padding: "10px 16px", borderBottom: "1px solid #F3F4F6", background: "#FAFBFF" }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.07em" }}>Previously scanned</span>
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-border/60 bg-secondary/30">
+                      <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Previously Scanned</span>
                     </div>
                     {savedScans!.scans.map(s => (
-                      <div key={s.domain} onClick={() => { setDomain(s.domain); setScan(s); }}
-                        style={{ padding: "11px 16px", display: "flex", alignItems: "center", gap: 12, borderBottom: "1px solid #F9FAFB", cursor: "pointer" }}>
-                        <Globe size={13} color="#9CA3AF" />
-                        <span style={{ flex: 1, fontSize: 13, color: "#374151", fontWeight: 600 }}>{s.domain}</span>
-                        <span style={{ fontSize: 11, color: scoreColor(s.score), fontWeight: 800 }}>{s.score}/100</span>
-                        <span style={{ fontSize: 11, color: "#D1D5DB" }}>{timeAgo(s.scannedAt)}</span>
+                      <div key={s.domain}
+                        onClick={() => { setDomain(s.domain); setScan(s); }}
+                        className="flex items-center gap-3 px-4 py-3 border-b border-border/40 last:border-0 cursor-pointer hover:bg-secondary/30 transition-colors">
+                        <Globe size={13} className="text-muted-foreground shrink-0" />
+                        <span className="flex-1 text-sm font-semibold text-foreground">{s.domain}</span>
+                        <span className="text-[11px] font-black" style={{ color: scoreColor(s.score) }}>{s.score}/100</span>
+                        <span className="text-[11px] text-muted-foreground/60">{timeAgo(s.scannedAt)}</span>
                       </div>
                     ))}
                   </div>
@@ -440,31 +456,38 @@ export default function GrowthSuite() {
         {tab === "social" && (
           <motion.div key="social" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             {!activeScan ? (
-              <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 18, padding: "52px 24px", textAlign: "center" }}>
-                <div style={{ width: 60, height: 60, borderRadius: 18, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-                  <Share2 size={26} color="#A5B4FC" />
+              <div className="bg-card border border-border rounded-2xl py-13 px-6 text-center">
+                <div className="w-15 h-15 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Share2 size={26} className="text-primary/40" />
                 </div>
-                <p style={{ fontWeight: 700, color: "#374151", fontSize: 15, marginBottom: 6 }}>No scan data yet</p>
-                <p style={{ fontSize: 13, color: "#9CA3AF" }}>Run an SEO scan first to see how your site appears when shared on social media.</p>
+                <p className="font-bold text-foreground text-[15px] mb-1.5">No scan data yet</p>
+                <p className="text-sm text-muted-foreground">Run an SEO scan first to preview how your site looks when shared on social media.</p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="space-y-4">
                 {/* Network switcher */}
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex gap-2">
                   {[
-                    { id: "facebook", label: "Facebook", icon: Facebook, color: "#1877F2", bg: "#EFF4FF" },
-                    { id: "twitter",  label: "Twitter / X", icon: Twitter,  color: "#1DA1F2", bg: "#E8F4FD" },
+                    { id: "facebook", label: "Facebook",   icon: Facebook, color: "#1877F2" },
+                    { id: "twitter",  label: "Twitter / X", icon: Twitter,  color: "#1DA1F2" },
                   ].map(n => (
                     <button key={n.id} onClick={() => setSocialNet(n.id as any)}
-                      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px", borderRadius: 12, border: `2px solid ${socialNet === n.id ? n.color : "#E5E7EB"}`, background: socialNet === n.id ? n.bg : "#fff", cursor: "pointer", fontWeight: 700, fontSize: 13, color: socialNet === n.id ? n.color : "#6B7280" }}>
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 font-bold text-sm cursor-pointer transition-all ${
+                        socialNet === n.id ? "" : "border-border text-muted-foreground bg-transparent"
+                      }`}
+                      style={socialNet === n.id ? {
+                        borderColor: n.color,
+                        color: n.color,
+                        backgroundColor: n.color + "18",
+                      } : {}}>
                       <n.icon size={15} />{n.label}
                     </button>
                   ))}
                 </div>
 
                 {/* Preview card */}
-                <div style={{ background: socialNet === "facebook" ? "#F0F2F5" : "#000", borderRadius: 18, padding: "20px", maxWidth: 500, margin: "0 auto", width: "100%" }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: socialNet === "facebook" ? "#65676B" : "#71767B", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                <div className={`rounded-2xl p-5 max-w-[500px] mx-auto w-full ${socialNet === "facebook" ? "bg-[#F0F2F5] dark:bg-[#18191A]" : "bg-black"}`}>
+                  <p className={`text-[11px] font-bold mb-3 uppercase tracking-widest ${socialNet === "facebook" ? "text-[#65676B] dark:text-[#B0B3B8]" : "text-[#71767B]"}`}>
                     {socialNet === "facebook" ? "Facebook" : "Twitter"} Preview
                   </p>
                   {socialNet === "facebook"
@@ -473,15 +496,15 @@ export default function GrowthSuite() {
                 </div>
 
                 {/* OG tag status */}
-                <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, overflow: "hidden" }}>
-                  <div style={{ padding: "12px 16px", background: "#FAFBFF", borderBottom: "1px solid #F3F4F6" }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>Open Graph Tags</span>
+                <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                  <div className="px-4 py-3 bg-secondary/30 border-b border-border/60">
+                    <span className="text-sm font-black text-foreground">Open Graph Tags</span>
                   </div>
-                  <CheckRow ok={!!activeScan.ogTitle}  label="og:title"       value={activeScan.ogTitle?.slice(0,50)} tip='Add <meta property="og:title" content="Your Page Title">' />
-                  <CheckRow ok={!!activeScan.ogDesc}   label="og:description" value={activeScan.ogDesc?.slice(0,50)}  tip='Add <meta property="og:description" content="…">' />
-                  <CheckRow ok={!!activeScan.ogImage}  label="og:image"       value={activeScan.ogImage ? "Set" : undefined} tip="Add a 1200×630px og:image for rich link previews on all platforms." />
-                  <CheckRow ok={!!activeScan.twitterCard} label="twitter:card" value={activeScan.twitterCard || undefined} tip='Add <meta name="twitter:card" content="summary_large_image"> for large Twitter previews.' />
-                  <CheckRow ok={!!activeScan.twitterImage} label="twitter:image" value={activeScan.twitterImage ? "Set" : undefined} tip='Add <meta name="twitter:image" content="…"> for a custom Twitter preview image.' />
+                  <CheckRow ok={!!activeScan.ogTitle}     label="og:title"       value={activeScan.ogTitle?.slice(0,50)} tip='Add <meta property="og:title" content="Your Page Title">' />
+                  <CheckRow ok={!!activeScan.ogDesc}      label="og:description" value={activeScan.ogDesc?.slice(0,50)}  tip='Add <meta property="og:description" content="…">' />
+                  <CheckRow ok={!!activeScan.ogImage}     label="og:image"       value={activeScan.ogImage ? "Set" : undefined} tip="Add a 1200×630px og:image for rich link previews on all platforms." />
+                  <CheckRow ok={!!activeScan.twitterCard}   label="twitter:card"  value={activeScan.twitterCard || undefined} tip='Add <meta name="twitter:card" content="summary_large_image"> for large Twitter previews.' />
+                  <CheckRow ok={!!activeScan.twitterImage}  label="twitter:image" value={activeScan.twitterImage ? "Set" : undefined} tip='Add <meta name="twitter:image" content="…"> for a custom Twitter preview image.' />
                 </div>
               </div>
             )}
@@ -492,8 +515,10 @@ export default function GrowthSuite() {
         {tab === "ads" && (
           <motion.div key="ads" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             {adsLoading ? (
-              <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 18, padding: 52, display: "flex", justifyContent: "center" }}>
-                <Loader2 size={20} className="animate-spin" color="#C7D2FE" />
+              <div className="space-y-4">
+                <Skeleton className="h-32 w-full rounded-2xl" />
+                <Skeleton className="h-20 w-full rounded-xl" />
+                <Skeleton className="h-36 w-full rounded-xl" />
               </div>
             ) : adCredits ? (
               <AdCreditsPanel credits={adCredits} />
@@ -582,107 +607,123 @@ function KeywordTrackerTab() {
   const canAdd = keywords.length < 5;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="space-y-4">
       {/* Header info */}
-      <div style={{ background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", border: "1px solid #C7D2FE", borderRadius: 16, padding: "16px 18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <Target size={18} color="#4F46E5" />
-          <span style={{ fontSize: 15, fontWeight: 800, color: "#1E1B4B" }}>Keyword Rank Tracker</span>
-          <span style={{ marginLeft: "auto", padding: "3px 10px", borderRadius: 20, background: "#4F46E5", color: "#fff", fontSize: 11, fontWeight: 700 }}>
+      <div className="bg-primary/10 border border-primary/20 rounded-2xl px-5 py-4">
+        <div className="flex items-center gap-2.5 mb-1.5">
+          <Target size={18} className="text-primary shrink-0" />
+          <span className="text-[15px] font-black text-foreground">Keyword Rank Tracker</span>
+          <span className="ml-auto px-2.5 py-0.5 rounded-full bg-primary text-white text-[11px] font-bold">
             {keywords.length}/5 Keywords
           </span>
         </div>
-        <p style={{ fontSize: 13, color: "#3730A3", margin: 0 }}>
+        <p className="text-sm text-muted-foreground">
           Track up to 5 keywords for your website. Click "Check Rank" to see your estimated Google position.
         </p>
       </div>
 
       {/* Add keyword form */}
       {canAdd && (
-        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: "16px 18px" }}>
-          <p style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginBottom: 12 }}>Add a Keyword to Track</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="bg-card border border-border rounded-2xl px-5 py-4">
+          <p className="text-sm font-black text-foreground mb-3">Add a Keyword to Track</p>
+          <div className="flex gap-2 flex-wrap">
             <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="e.g. cheap hosting pakistan"
-              style={{ flex: 2, minWidth: 180, padding: "9px 12px", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", color: "#374151" }} />
+              className="flex-[2] min-w-[180px] px-3 py-2.5 border border-border bg-background text-foreground rounded-xl text-sm outline-none focus:border-primary/60 transition-all" />
             <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="yourdomain.com"
-              style={{ flex: 1, minWidth: 140, padding: "9px 12px", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 14, outline: "none", color: "#374151" }} />
-            <button onClick={() => { if (keyword && domain) addMut.mutate({ keyword, domain }); }} disabled={!keyword || !domain || addMut.isPending}
-              style={{ padding: "9px 16px", borderRadius: 10, border: "none", background: keyword && domain ? "#4F46E5" : "#E5E7EB", color: keyword && domain ? "#fff" : "#9CA3AF", fontWeight: 700, fontSize: 13, cursor: keyword && domain ? "pointer" : "default", display: "flex", alignItems: "center", gap: 6 }}>
+              className="flex-1 min-w-[140px] px-3 py-2.5 border border-border bg-background text-foreground rounded-xl text-sm outline-none focus:border-primary/60 transition-all" />
+            <button onClick={() => { if (keyword && domain) addMut.mutate({ keyword, domain }); }}
+              disabled={!keyword || !domain || addMut.isPending}
+              className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-1.5 cursor-pointer transition-all ${
+                keyword && domain ? "bg-primary hover:bg-primary/90 text-white" : "bg-secondary text-muted-foreground cursor-default"
+              } disabled:opacity-70`}>
               {addMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
               Add
             </button>
           </div>
-          {addErr && <p style={{ fontSize: 12, color: "#DC2626", marginTop: 8 }}>{addErr}</p>}
+          {addErr && <p className="text-xs text-destructive mt-2">{addErr}</p>}
         </div>
       )}
 
       {/* Keywords list */}
       {isLoading ? (
-        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: 48, display: "flex", justifyContent: "center" }}>
-          <Loader2 size={20} className="animate-spin" color="#C7D2FE" />
-        </div>
-      ) : keywords.length === 0 ? (
-        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, padding: "48px 24px", textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <Target size={24} color="#A5B4FC" />
-          </div>
-          <p style={{ fontWeight: 700, color: "#374151", fontSize: 15, marginBottom: 6 }}>No keywords tracked yet</p>
-          <p style={{ fontSize: 13, color: "#9CA3AF" }}>Add your first keyword above to start tracking your Google position.</p>
-        </div>
-      ) : (
-        <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, overflow: "hidden" }}>
-          <div style={{ padding: "11px 16px", background: "#FAFBFF", borderBottom: "1px solid #F3F4F6", display: "grid", gridTemplateColumns: "1fr 130px 110px 130px 80px", gap: 8 }}>
-            {["Keyword", "Domain", "Position", "Last Checked", ""].map(h => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</span>
-            ))}
-          </div>
-          {keywords.map((kw, i) => (
-            <div key={kw.id} style={{ padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr 130px 110px 130px 80px", gap: 8, alignItems: "center", borderBottom: i < keywords.length - 1 ? "1px solid #F9FAFB" : "none" }}>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#111827", margin: 0 }}>{kw.keyword}</p>
+        <div className="bg-card border border-border rounded-2xl divide-y divide-border/40">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-4">
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-36" />
+                <Skeleton className="h-3 w-24" />
               </div>
-              <span style={{ fontSize: 12, color: "#6B7280" }}>{kw.domain}</span>
-              <div>
-                {kw.position !== null ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 20, fontWeight: 900, color: posColor(kw.position) }}>#{kw.position}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: posColor(kw.position) + "20", color: posColor(kw.position) }}>
-                      {posLabel(kw.position)}
-                    </span>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: 12, color: "#D1D5DB", fontStyle: "italic" }}>Not checked</span>
-                )}
-              </div>
-              <span style={{ fontSize: 11, color: "#9CA3AF" }}>
-                {kw.checked_at ? new Date(kw.checked_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}
-              </span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => checkMut.mutate(kw.id)} disabled={checking === kw.id}
-                  style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#EEF2FF", fontSize: 11, fontWeight: 700, color: "#4F46E5", cursor: "pointer", whiteSpace: "nowrap" }}>
-                  {checking === kw.id ? <Loader2 size={11} className="animate-spin" /> : "Check"}
-                </button>
-                <button onClick={() => deleteMut.mutate(kw.id)}
-                  style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
-                  <Trash2 size={12} color="#EF4444" />
-                </button>
-              </div>
+              <Skeleton className="h-8 w-16 rounded-full" />
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-7 w-16 rounded-lg" />
             </div>
           ))}
+        </div>
+      ) : keywords.length === 0 ? (
+        <div className="bg-card border border-border rounded-2xl py-12 px-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
+            <Target size={24} className="text-primary/40" />
+          </div>
+          <p className="font-bold text-foreground text-[15px] mb-1.5">No keywords tracked yet</p>
+          <p className="text-sm text-muted-foreground">Add your first keyword above to start tracking your Google position.</p>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="grid grid-cols-[1fr_130px_110px_100px_80px] gap-2 px-4 py-2.5 border-b border-border/60 bg-secondary/30">
+            {["Keyword", "Domain", "Position", "Checked", ""].map(h => (
+              <span key={h} className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">{h}</span>
+            ))}
+          </div>
+          <div className="divide-y divide-border/40">
+            {keywords.map(kw => (
+              <div key={kw.id} className="grid grid-cols-[1fr_130px_110px_100px_80px] gap-2 items-center px-4 py-3.5">
+                <div>
+                  <p className="text-sm font-bold text-foreground">{kw.keyword}</p>
+                </div>
+                <span className="text-xs text-muted-foreground truncate">{kw.domain}</span>
+                <div>
+                  {kw.position !== null ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xl font-black" style={{ color: posColor(kw.position) }}>#{kw.position}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: posColor(kw.position) + "22", color: posColor(kw.position) }}>
+                        {posLabel(kw.position)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/60 italic">Not checked</span>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  {kw.checked_at ? new Date(kw.checked_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"}
+                </span>
+                <div className="flex gap-1.5">
+                  <button onClick={() => checkMut.mutate(kw.id)} disabled={checking === kw.id}
+                    className="px-2.5 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-[11px] font-bold text-primary cursor-pointer hover:bg-primary/20 transition-colors whitespace-nowrap">
+                    {checking === kw.id ? <Loader2 size={11} className="animate-spin" /> : "Check"}
+                  </button>
+                  <button onClick={() => deleteMut.mutate(kw.id)}
+                    className="p-1.5 rounded-lg border border-border bg-card hover:bg-destructive/10 cursor-pointer transition-colors">
+                    <Trash2 size={12} className="text-destructive" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {!canAdd && (
-        <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 12, padding: "10px 14px" }}>
-          <p style={{ fontSize: 12, color: "#92400E", margin: 0 }}>
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
+          <p className="text-xs text-amber-700 dark:text-amber-400">
             <strong>5/5 keywords used.</strong> Remove a keyword to add a new one. Upgrade your plan for unlimited tracking.
           </p>
         </div>
       )}
 
-      <div style={{ background: "#F0F9FF", border: "1px solid #BAE6FD", borderRadius: 12, padding: "12px 14px" }}>
-        <p style={{ fontSize: 12, color: "#0369A1", margin: 0 }}>
-          <strong>Note:</strong> Positions are estimated based on available signals. For precise rank tracking, connect a Google Search Console account or use a professional SERP API.
+      <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          <strong className="text-foreground">Note:</strong> Positions are estimated based on available signals. For precise rank tracking, connect Google Search Console or use a professional SERP API.
         </p>
       </div>
     </div>

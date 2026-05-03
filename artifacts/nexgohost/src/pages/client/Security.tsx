@@ -7,6 +7,7 @@ import {
   Wifi, TrendingUp, Users, BarChart2, Globe, Zap, RefreshCw,
   AlertCircle, ChevronRight,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -171,7 +172,7 @@ export default function Security() {
       qc.invalidateQueries({ queryKey: ["my-health-score"] });
       refetchHealth();
     },
-    onError: (err: any) => toast({ title: "Unblock failed", description: err.message, variant: "destructive" }),
+    onError: () => toast({ title: "Unblock failed", description: "We couldn't reach the server. Please wait a moment and try again.", variant: "destructive" }),
   });
 
   // ── 2FA handlers ──────────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ export default function Security() {
     try {
       const data = await apiFetch("/api/auth/2fa/setup");
       setQrCode(data.qrCode); setSecret(data.secret); setStep("scanning");
-    } catch (err: any) { toast({ title: "Setup failed", description: err.message, variant: "destructive" }); }
+    } catch { toast({ title: "Setup failed", description: "We couldn't start 2FA setup. Please try again in a moment.", variant: "destructive" }); }
     finally { setLoading2FA(false); }
   }
 
@@ -193,7 +194,7 @@ export default function Security() {
       qc.invalidateQueries({ queryKey: ["my-health-score"] });
       setStep("done");
       toast({ title: "2FA Enabled", description: "Your account is now protected." });
-    } catch (err: any) { toast({ title: "Verification failed", description: err.message, variant: "destructive" }); }
+    } catch { toast({ title: "Verification failed", description: "That code doesn't match. Check your authenticator app and try again.", variant: "destructive" }); }
     finally { setLoading2FA(false); }
   }
 
@@ -206,7 +207,7 @@ export default function Security() {
       qc.invalidateQueries({ queryKey: ["my-health-score"] });
       setShowDisableConfirm(false); setDisableTotp("");
       toast({ title: "2FA Disabled" });
-    } catch (err: any) { toast({ title: "Disable failed", description: err.message, variant: "destructive" }); }
+    } catch { toast({ title: "Disable failed", description: "That code doesn't match. Please check your authenticator app and try again.", variant: "destructive" }); }
     finally { setLoading2FA(false); }
   }
 
@@ -269,7 +270,20 @@ export default function Security() {
               </div>
               <div className="p-6">
                 {healthLoading ? (
-                  <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-primary" /></div>
+                  <div className="flex flex-col sm:flex-row items-center gap-8">
+                    <Skeleton className="w-40 h-40 rounded-full shrink-0" />
+                    <div className="flex-1 w-full space-y-3">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <Skeleton className="w-6 h-6 rounded-full shrink-0" />
+                          <div className="flex-1 space-y-1.5">
+                            <Skeleton className="h-3.5 w-48" />
+                            <Skeleton className="h-3 w-64 max-w-full" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : healthData ? (
                   <div className="flex flex-col sm:flex-row items-center gap-8">
                     <ScoreGauge score={healthData.score} />
@@ -312,7 +326,10 @@ export default function Security() {
               </div>
               <div className="p-5">
                 {healthLoading ? (
-                  <div className="h-14 flex items-center"><Loader2 size={16} className="animate-spin text-muted-foreground" /></div>
+                  <div className="space-y-3">
+                    <Skeleton className="h-10 w-52 rounded-xl" />
+                    <Skeleton className="h-9 w-32 rounded-xl" />
+                  </div>
                 ) : (
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="flex-1">
@@ -466,7 +483,20 @@ export default function Security() {
 
             {/* Stat Cards */}
             {visitorLoading ? (
-              <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-primary" /></div>
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="bg-card border border-border rounded-xl p-4 space-y-3">
+                      <Skeleton className="w-8 h-8 rounded-lg" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-6 w-16" />
+                        <Skeleton className="h-3 w-28 max-w-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Skeleton className="h-64 w-full rounded-2xl" />
+              </>
             ) : summary ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -546,7 +576,20 @@ export default function Security() {
               </div>
 
               {actLoading ? (
-                <div className="flex justify-center p-10"><Loader2 size={22} className="animate-spin text-primary" /></div>
+                <div className="divide-y divide-border/40">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3 px-5 py-4">
+                      <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                      <div className="flex-1 space-y-2 pt-0.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <Skeleton className="h-3.5 w-36" />
+                          <Skeleton className="h-3 w-28" />
+                        </div>
+                        <Skeleton className="h-3 w-48 max-w-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : activityLogs.length === 0 ? (
                 <div className="p-10 text-center">
                   <Activity size={28} className="mx-auto mb-3 text-muted-foreground/40" />
