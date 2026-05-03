@@ -175,6 +175,33 @@ async function runStartupMigrations() {
       )
     `);
     console.log("[MIGRATIONS] user_preferences table ready");
+
+    // ip_unblock_logs — full audit trail of every client self-unblock action
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ip_unblock_logs (
+        id          TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL,
+        ip_address  TEXT NOT NULL,
+        label       TEXT,
+        status      TEXT NOT NULL DEFAULT 'success',
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] ip_unblock_logs table ready");
+
+    // ticket_drafts — auto-saved ticket drafts per user (one active draft at a time)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS ticket_drafts (
+        id          TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL UNIQUE,
+        subject     TEXT NOT NULL DEFAULT '',
+        message     TEXT NOT NULL DEFAULT '',
+        department  TEXT NOT NULL DEFAULT 'Technical Support',
+        priority    TEXT NOT NULL DEFAULT 'medium',
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] ticket_drafts table ready");
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

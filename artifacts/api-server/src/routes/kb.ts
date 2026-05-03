@@ -84,6 +84,90 @@ router.get("/kb/articles", async (req, res) => {
   }
 });
 
+// ─── AUTHENTICATED: AI-powered KB article suggestions for ticket drafts ──────
+router.post("/kb/suggest", authenticate, async (req, res) => {
+  try {
+    const { text } = req.body as { text: string };
+    if (!text || text.trim().length < 5) {
+      return res.json({ articles: [] });
+    }
+
+    // Fetch all published articles (title + excerpt only — no heavy content)
+    const allArticles = await db
+      .select({
+        id: kbArticlesTable.id,
+        title: kbArticlesTable.title,
+        slug: kbArticlesTable.slug,
+        excerpt: kbArticlesTable.excerpt,
+      })
+      .from(kbArticlesTable)
+      .where(eq(kbArticlesTable.isPublished, true))
+      .orderBy(desc(kbArticlesTable.isFeatured), desc(kbArticlesTable.updatedAt));
+
+    if (!allArticles.length) return res.json({ articles: [] });
+
+    // ── Try AI first ────────────────────────────────────────────────────────
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+
+    if (baseURL && apiKey) {
+      try {
+        const { default: OpenAI } = await import("openai");
+        const client = new OpenAI({ baseURL, apiKey });
+
+        const articleList = allArticles
+          .slice(0, 60)
+          .map((a, i) => `${i + 1}. [ID:${a.id}] ${a.title}${a.excerpt ? ` — ${a.excerpt.slice(0, 80)}` : ""}`)
+          .join("\n");
+
+        const prompt = `You are a support knowledge base assistant. A client is typing a support ticket. Return the IDs of the 3 most relevant articles from the list below that could help them.
+
+Ticket text: "${text.slice(0, 400)}"
+
+Articles:
+${articleList}
+
+Return ONLY a JSON array of exactly 3 article IDs, like: ["id1","id2","id3"]. If fewer than 3 are relevant, return what you can. No explanation.`;
+
+        const response = await client.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_completion_tokens: 100,
+          messages: [{ role: "user", content: prompt }],
+        });
+
+        const raw = response.choices[0]?.message?.content?.trim() ?? "[]";
+        const match = raw.match(/\[.*?\]/s);
+        if (match) {
+          const ids: string[] = JSON.parse(match[0]);
+          const ordered = ids
+            .map(id => allArticles.find(a => a.id === id))
+            .filter(Boolean) as typeof allArticles;
+          if (ordered.length > 0) {
+            return res.json({ articles: ordered, source: "ai" });
+          }
+        }
+      } catch (_aiErr) {
+        // Fall through to keyword matching
+      }
+    }
+
+    // ── Keyword fallback — score articles by how many words from the ticket appear in title/excerpt ──
+    const words = text.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+    const scored = allArticles.map(a => {
+      const haystack = `${a.title} ${a.excerpt ?? ""}`.toLowerCase();
+      const hits = words.filter(w => haystack.includes(w)).length;
+      return { ...a, hits };
+    });
+    scored.sort((a, b) => b.hits - a.hits);
+    const top = scored.slice(0, 3).filter(a => a.hits > 0);
+
+    res.json({ articles: top.length > 0 ? top : allArticles.slice(0, 3), source: "keywords" });
+  } catch (err: any) {
+    console.error("[kb/suggest]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── PUBLIC: get single article by slug ──────────────────────────────────────
 router.get("/kb/articles/:slug", async (req, res) => {
   try {

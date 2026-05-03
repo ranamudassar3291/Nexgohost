@@ -247,6 +247,58 @@ router.post("/admin/tickets/:id/close", authenticate, requireAdmin, async (req: 
 });
 
 // Client: submit panel feedback (rating + optional comment)
+// ── GET /api/tickets/draft — load saved draft for this user ──────────────────
+router.get("/tickets/draft", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = await db.execute(sql`
+      SELECT subject, message, department, priority, updated_at
+      FROM ticket_drafts
+      WHERE user_id = ${userId}
+      LIMIT 1
+    `);
+    const draft = rows.rows?.[0] ?? null;
+    res.json(draft ?? { subject: "", message: "", department: "Technical Support", priority: "medium" });
+  } catch (err: any) {
+    res.json({ subject: "", message: "", department: "Technical Support", priority: "medium" });
+  }
+});
+
+// ── PUT /api/tickets/draft — auto-save draft for this user ───────────────────
+router.put("/tickets/draft", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { subject = "", message = "", department = "Technical Support", priority = "medium" } = req.body;
+    await db.execute(sql`
+      INSERT INTO ticket_drafts (id, user_id, subject, message, department, priority, updated_at)
+      VALUES (
+        ${'dft-' + userId.slice(0, 8)},
+        ${userId}, ${subject}, ${message}, ${department}, ${priority}, NOW()
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        subject = EXCLUDED.subject,
+        message = EXCLUDED.message,
+        department = EXCLUDED.department,
+        priority = EXCLUDED.priority,
+        updated_at = NOW()
+    `);
+    res.json({ saved: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DELETE /api/tickets/draft — clear draft after ticket submitted ────────────
+router.delete("/tickets/draft", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    await db.execute(sql`DELETE FROM ticket_drafts WHERE user_id = ${userId}`);
+    res.json({ cleared: true });
+  } catch {
+    res.json({ cleared: true });
+  }
+});
+
 router.post("/client/feedback", authenticate, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;

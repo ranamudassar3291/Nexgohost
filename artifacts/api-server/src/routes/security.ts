@@ -130,7 +130,37 @@ router.post("/my/security/unblock-ip", authenticate, async (req: AuthRequest, re
         set: { label: `Self-unblock by ${adminEmail}`, addedBy: adminEmail },
       });
 
+    // Audit log — full record in ip_unblock_logs for technical team
+    await db.execute(sql`
+      INSERT INTO ip_unblock_logs (id, user_id, ip_address, label, status, created_at)
+      VALUES (
+        ${`ulg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`},
+        ${userId},
+        ${clientIp},
+        ${'Self-requested unblock via client dashboard'},
+        ${'success'},
+        NOW()
+      )
+    `).catch(() => {});
+
     res.json({ success: true, ip: clientIp, message: `IP ${clientIp} has been unblocked and whitelisted.` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/my/security/unblock-logs ─────────────────────────────────────────
+router.get("/my/security/unblock-logs", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = await db.execute(sql`
+      SELECT id, ip_address, label, status, created_at
+      FROM ip_unblock_logs
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    res.json(rows.rows ?? []);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

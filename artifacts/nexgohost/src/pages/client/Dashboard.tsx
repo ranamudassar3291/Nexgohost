@@ -6,7 +6,7 @@ import {
   Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi, CheckCircle2,
   Rocket, Lock, BadgeCheck, ShieldCheck, Zap, Star, RefreshCw, Globe2,
   PartyPopper, Search, X, ArrowRight, ChevronRight, RotateCcw,
-  Cpu, MemoryStick, Activity,
+  Cpu, MemoryStick, Activity, Shield, WifiOff, UnlockKeyhole,
 } from "lucide-react";
 import { WelcomeTour, useWelcomeTour } from "@/components/WelcomeTour";
 import { Link, useLocation } from "wouter";
@@ -142,6 +142,109 @@ function UptimeGauge({ pct }: { pct: number }) {
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[11px] font-black" style={{ color }}>{pct.toFixed(1)}%</span>
         <span className="text-[9px] font-medium" style={{ color: "#94A3B8" }}>uptime</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── IP Unblock Banner ───────────────────────────────────────────── */
+function IpUnblockBanner() {
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [detectedIp, setDetectedIp] = useState("");
+  const [resultIp, setResultIp]     = useState("");
+  const token   = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  useEffect(() => {
+    fetch("/api/my/security/health-score", { headers })
+      .then(r => r.json())
+      .then(d => { if (d.detectedIp) setDetectedIp(d.detectedIp); })
+      .catch(() => {});
+  }, []);
+
+  async function handleUnblock() {
+    setStatus("loading");
+    try {
+      const res  = await fetch("/api/my/security/unblock-ip", { method: "POST", headers });
+      const data = await res.json();
+      if (data.success) { setStatus("done"); setResultIp(data.ip); }
+      else               setStatus("error");
+    } catch { setStatus("error"); }
+  }
+
+  const isDone  = status === "done";
+  const isError = status === "error";
+
+  return (
+    <div style={{
+      background: isDone
+        ? "linear-gradient(135deg,#052e16,#14532d)"
+        : "linear-gradient(135deg,#1E1B4B 0%,#312E81 55%,#1E1B4B 100%)",
+      borderRadius: 16, overflow: "hidden", position: "relative",
+      border: isDone ? "1px solid rgba(16,185,129,0.35)" : "1px solid rgba(99,102,241,0.3)",
+      boxShadow: isDone ? "0 8px 32px rgba(16,185,129,0.15)" : "0 8px 32px rgba(79,70,229,0.2)",
+      transition: "all 0.4s ease",
+    }}>
+      <div style={{ position:"absolute", top:-50, right:-50, width:220, height:220,
+        background:"radial-gradient(circle,rgba(139,92,246,0.18),transparent 60%)",
+        pointerEvents:"none" }} />
+
+      <div className="relative px-5 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        {/* Icon badge */}
+        <div style={{
+          width:54, height:54, borderRadius:14, flexShrink:0, display:"flex",
+          alignItems:"center", justifyContent:"center",
+          background: isDone ? "rgba(16,185,129,0.2)" : isError ? "rgba(239,68,68,0.2)" : "rgba(99,102,241,0.22)",
+          border: `1px solid ${isDone ? "rgba(16,185,129,0.4)" : isError ? "rgba(239,68,68,0.35)" : "rgba(139,92,246,0.4)"}`,
+        }}>
+          {status === "loading" ? <Loader2 size={22} className="animate-spin" style={{color:"#818CF8"}} />
+            : isDone             ? <CheckCircle2 size={22} style={{color:"#10B981"}} />
+            : isError            ? <WifiOff size={22} style={{color:"#F87171"}} />
+            :                      <UnlockKeyhole size={22} style={{color:"#818CF8"}} />}
+        </div>
+
+        {/* Copy */}
+        <div className="flex-1 min-w-0">
+          {isDone ? <>
+            <p style={{color:"#34D399", fontWeight:700, fontSize:15}}>IP Unblocked & Whitelisted</p>
+            <p style={{color:"#6EE7B7", fontSize:13, marginTop:2}}>
+              <code style={{background:"rgba(255,255,255,0.08)", padding:"1px 7px", borderRadius:5}}>{resultIp}</code>
+              {" "}is now whitelisted in the firewall — site access restored.
+            </p>
+          </> : isError ? <>
+            <p style={{color:"#FCA5A5", fontWeight:700, fontSize:15}}>Unblock Failed</p>
+            <p style={{color:"#FDA4AF", fontSize:13, marginTop:2}}>Contact support if the issue persists.</p>
+          </> : <>
+            <p style={{color:"#ffffff", fontWeight:800, fontSize:15, letterSpacing:"-0.01em"}}>
+              Can't access your site? <span style={{color:"#A5B4FC"}}>Unblock my IP instantly.</span>
+            </p>
+            <p style={{color:"#C7D2FE", fontSize:13, marginTop:2}}>
+              Your IP{detectedIp
+                ? <> <code style={{background:"rgba(255,255,255,0.1)", padding:"1px 6px", borderRadius:5, fontSize:12}}>{detectedIp}</code></>
+                : ""} may be blocked by the server firewall. One click removes the block and logs it for the technical team.
+            </p>
+          </>}
+        </div>
+
+        {/* CTA */}
+        {!isDone && (
+          <button
+            onClick={handleUnblock}
+            disabled={status === "loading"}
+            style={{
+              flexShrink:0, padding:"10px 22px", borderRadius:10,
+              background: status === "loading" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.13)",
+              border:"1px solid rgba(255,255,255,0.22)", color:"#fff",
+              fontWeight:700, fontSize:14, cursor: status==="loading" ? "not-allowed":"pointer",
+              display:"flex", alignItems:"center", gap:8, whiteSpace:"nowrap",
+              transition:"all 0.2s",
+            }}
+          >
+            {status === "loading"
+              ? <><Loader2 size={14} className="animate-spin"/>Unblocking…</>
+              : <><UnlockKeyhole size={15}/>Unblock My IP</>}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -949,6 +1052,9 @@ export default function ClientDashboard() {
           </div>
         </div>
       ))}
+
+      {/* ── IP Unblock Banner ── */}
+      {!q && <IpUnblockBanner />}
 
       {/* ── Site Health & Performance ── */}
       {!q && <SiteHealthPanel />}

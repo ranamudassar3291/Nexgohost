@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Ticket as TicketIcon, Plus, MessageSquare, Loader2, Paperclip, X,
   Upload, BookOpen, CheckCircle2, ChevronRight, Lightbulb, ExternalLink,
-  AlertCircle, Bot, ArrowRight, Search, Sparkles,
+  AlertCircle, Bot, ArrowRight, Search, Sparkles, Brain, Save, Wand2,
 } from "lucide-react";
 import { format } from "date-fns";
 import Fuse from "fuse.js";
@@ -182,6 +182,16 @@ export default function ClientTickets() {
   const [detectedLinks, setDetectedLinks] = useState<Array<{ slug: string; label: string }>>([]);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
+  // AI KB suggestion state
+  const [aiSuggestions, setAiSuggestions] = useState<KbArticle[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSource, setAiSource] = useState<"ai" | "keywords" | null>(null);
+  const aiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Draft save state
+  const [draftSaved, setDraftSaved] = useState(false);
+  const draftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data: captchaConfig } = useQuery({
     queryKey: ["captcha-config"],
     queryFn: () => fetch("/api/security/captcha-config").then(r => r.json()),
@@ -244,6 +254,8 @@ export default function ClientTickets() {
     mutationFn: (data: any) => apiFetch("/api/tickets", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       toast({ title: "Ticket Created", description: "Our team will respond within 1–4 hours." });
+      // Clear saved draft now that ticket is submitted
+      apiFetch("/api/tickets/draft", { method: "DELETE" }).catch(() => {});
       resetAll();
       qc.invalidateQueries({ queryKey: ["client-tickets"] });
     },
@@ -293,6 +305,54 @@ export default function ClientTickets() {
     setDetectedLinks(detectErrorLinks(formData.message));
   }, [formData.message]);
 
+  // Load saved draft when entering form stage
+  useEffect(() => {
+    if (stage !== "form") return;
+    apiFetch("/api/tickets/draft").then((draft: any) => {
+      if (draft?.message || draft?.subject) {
+        if (draft.message)    setFormData(d => ({ ...d, message: draft.message, department: draft.department ?? d.department, priority: draft.priority ?? d.priority }));
+        if (draft.subject && !subject) setSubject(draft.subject);
+        setDraftSaved(true);
+      }
+    }).catch(() => {});
+  }, [stage]);
+
+  // Auto-save draft as user types (debounced 1500ms)
+  useEffect(() => {
+    if (stage !== "form") return;
+    if (!formData.message && !subject) return;
+    if (draftTimeoutRef.current) clearTimeout(draftTimeoutRef.current);
+    setDraftSaved(false);
+    draftTimeoutRef.current = setTimeout(() => {
+      apiFetch("/api/tickets/draft", {
+        method: "PUT",
+        body: JSON.stringify({ subject, message: formData.message, department: formData.department, priority: formData.priority }),
+      }).then(() => setDraftSaved(true)).catch(() => {});
+    }, 1500);
+    return () => { if (draftTimeoutRef.current) clearTimeout(draftTimeoutRef.current); };
+  }, [formData.message, formData.department, formData.priority, subject, stage]);
+
+  // AI KB suggestions — triggered by message typing (600ms debounce)
+  useEffect(() => {
+    if (stage !== "form") return;
+    if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current);
+    const text = `${subject} ${formData.message}`.trim();
+    if (text.length < 8) { setAiSuggestions([]); setAiLoading(false); return; }
+    setAiLoading(true);
+    aiTimeoutRef.current = setTimeout(async () => {
+      try {
+        const result = await apiFetch("/api/kb/suggest", {
+          method: "POST",
+          body: JSON.stringify({ text }),
+        });
+        setAiSuggestions(result.articles ?? []);
+        setAiSource(result.source ?? "keywords");
+      } catch { setAiSuggestions([]); }
+      finally   { setAiLoading(false); }
+    }, 600);
+    return () => { if (aiTimeoutRef.current) clearTimeout(aiTimeoutRef.current); };
+  }, [formData.message, subject, stage]);
+
   function resetAll() {
     setStage(null);
     setSubject("");
@@ -302,6 +362,9 @@ export default function ClientTickets() {
     setAttachments([]);
     setDeflectedArticle(null);
     setCaptchaToken(null);
+    setAiSuggestions([]);
+    setAiLoading(false);
+    setDraftSaved(false);
   }
 
   function handleDeflected(article: KbArticle) {
@@ -553,125 +616,228 @@ export default function ClientTickets() {
       {stage === "form" && (
         <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl">
           {/* Bot header */}
-          <div className="bg-gradient-to-r from-primary/10 via-violet-500/5 to-transparent border-b border-border/60 p-5 flex items-center gap-3">
-            <BotAvatar size={44} />
-            <div>
-              <p className="font-bold text-foreground">Noehost Support Team</p>
-              <p className="text-xs text-muted-foreground">We typically reply within 1–4 hours · Subject: <span className="text-foreground/70">{subject}</span></p>
+          <div className="bg-gradient-to-r from-primary/10 via-violet-500/5 to-transparent border-b border-border/60 p-5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <BotAvatar size={44} />
+              <div>
+                <p className="font-bold text-foreground">Noehost Support Team</p>
+                <p className="text-xs text-muted-foreground">We typically reply within 1–4 hours · Subject: <span className="text-foreground/70">{subject}</span></p>
+              </div>
+            </div>
+            {/* Draft save indicator */}
+            <div className="flex items-center gap-1.5 text-xs shrink-0">
+              {draftSaved
+                ? <><Save size={11} className="text-green-500" /><span className="text-green-500 font-medium hidden sm:inline">Draft saved</span></>
+                : formData.message
+                  ? <><Save size={11} className="text-muted-foreground animate-pulse" /><span className="text-muted-foreground hidden sm:inline">Saving…</span></>
+                  : null}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Department</label>
-                <select
-                  className="w-full h-10 px-3 rounded-lg bg-background border border-border text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                  value={formData.department}
-                  onChange={e => setFormData(d => ({ ...d, department: e.target.value }))}
-                >
-                  <option>Technical Support</option>
-                  <option>Billing</option>
-                  <option>Sales</option>
-                  <option>Abuse</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Priority</label>
-                <select
-                  className="w-full h-10 px-3 rounded-lg bg-background border border-border text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                  value={formData.priority}
-                  onChange={e => setFormData(d => ({ ...d, priority: e.target.value }))}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
+          {/* 2-column layout: form (left) + AI suggestions (right) */}
+          <div className="flex flex-col lg:flex-row">
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Message</label>
-              <Textarea
-                required
-                rows={5}
-                className="bg-background resize-none"
-                value={formData.message}
-                onChange={e => setFormData(d => ({ ...d, message: e.target.value }))}
-                placeholder="Describe your issue in detail — include any error messages, URLs, and what you've already tried..."
-              />
+            {/* ── Left: form ── */}
+            <form onSubmit={handleSubmit} className="flex-1 p-5 space-y-4 min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Department</label>
+                  <select
+                    className="w-full h-10 px-3 rounded-lg bg-background border border-border text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={formData.department}
+                    onChange={e => setFormData(d => ({ ...d, department: e.target.value }))}
+                  >
+                    <option>Technical Support</option>
+                    <option>Billing</option>
+                    <option>Sales</option>
+                    <option>Abuse</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Priority</label>
+                  <select
+                    className="w-full h-10 px-3 rounded-lg bg-background border border-border text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    value={formData.priority}
+                    onChange={e => setFormData(d => ({ ...d, priority: e.target.value }))}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
 
-              {/* Auto-detected error links */}
-              {detectedLinks.length > 0 && (
-                <div className="mt-2 rounded-xl bg-blue-500/8 border border-blue-500/15 p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-blue-500">
-                    <Lightbulb size={13} />
-                    <span>Noehost Support Bot detected relevant guides:</span>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Message</label>
+                <Textarea
+                  required
+                  rows={6}
+                  className="bg-background resize-none"
+                  value={formData.message}
+                  onChange={e => setFormData(d => ({ ...d, message: e.target.value }))}
+                  placeholder="Describe your issue in detail — include any error messages, URLs, and what you've already tried..."
+                />
+
+                {/* Auto-detected error links */}
+                {detectedLinks.length > 0 && (
+                  <div className="mt-2 rounded-xl bg-blue-500/8 border border-blue-500/15 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-blue-500">
+                      <Lightbulb size={13} />
+                      <span>Noehost Support Bot detected relevant guides:</span>
+                    </div>
+                    {detectedLinks.map(link => (
+                      <a
+                        key={link.slug}
+                        href={`/help/${link.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 text-xs text-primary hover:underline"
+                      >
+                        <ExternalLink size={11} /> {link.label}
+                      </a>
+                    ))}
                   </div>
-                  {detectedLinks.map(link => (
-                    <a
-                      key={link.slug}
-                      href={`/help/${link.slug}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 text-xs text-primary hover:underline"
-                    >
-                      <ExternalLink size={11} /> {link.label}
-                    </a>
+                )}
+              </div>
+
+              {/* Attachments */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Attachments <span className="text-muted-foreground font-normal">(optional)</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {attachments.map((att, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-secondary/50 border border-border rounded-lg px-3 py-1.5 text-xs">
+                      <Paperclip size={12} className="text-muted-foreground" />
+                      <span className="max-w-[120px] truncate">{att.name}</span>
+                      <span className="text-muted-foreground">({(att.size / 1024).toFixed(0)}KB)</span>
+                      <button type="button" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
+                        className="text-muted-foreground hover:text-destructive transition-colors">
+                        <X size={12} />
+                      </button>
+                    </div>
                   ))}
+                  <button type="button" onClick={() => fileRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground border border-dashed border-border rounded-lg hover:border-primary/50 hover:text-primary transition-colors">
+                    <Upload size={12} /> Add file
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">Allowed: JPG, PNG, PDF, ZIP · Max {MAX_SIZE_MB}MB each</p>
+                <input ref={fileRef} type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf,.zip" multiple onChange={handleFileChange} />
+              </div>
+
+              {captchaRequired && captchaConfig?.siteKey && (
+                <div className="pt-1">
+                  <CaptchaWidget
+                    siteKey={captchaConfig.siteKey}
+                    provider={captchaConfig.provider ?? "turnstile"}
+                    onVerify={token => setCaptchaToken(token)}
+                    onExpire={() => setCaptchaToken(null)}
+                  />
                 </div>
               )}
-            </div>
 
-            {/* Attachments */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Attachments <span className="text-muted-foreground font-normal">(optional)</span></label>
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((att, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-secondary/50 border border-border rounded-lg px-3 py-1.5 text-xs">
-                    <Paperclip size={12} className="text-muted-foreground" />
-                    <span className="max-w-[120px] truncate">{att.name}</span>
-                    <span className="text-muted-foreground">({(att.size / 1024).toFixed(0)}KB)</span>
-                    <button type="button" onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
-                      className="text-muted-foreground hover:text-destructive transition-colors">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => fileRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground border border-dashed border-border rounded-lg hover:border-primary/50 hover:text-primary transition-colors">
-                  <Upload size={12} /> Add file
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">Allowed: JPG, PNG, PDF, ZIP · Max {MAX_SIZE_MB}MB each</p>
-              <input ref={fileRef} type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf,.zip" multiple onChange={handleFileChange} />
-            </div>
-
-            {captchaRequired && captchaConfig?.siteKey && (
-              <div className="pt-1">
-                <CaptchaWidget
-                  siteKey={captchaConfig.siteKey}
-                  provider={captchaConfig.provider ?? "turnstile"}
-                  onVerify={token => setCaptchaToken(token)}
-                  onExpire={() => setCaptchaToken(null)}
-                />
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-between pt-2 border-t border-border/40">
-              <Button type="button" variant="ghost" onClick={() => setStage("subject")} className="text-muted-foreground gap-2">
-                ← Back to Suggestions
-              </Button>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={resetAll}>Cancel</Button>
-                <Button type="submit" disabled={createMutation.isPending || (captchaRequired && !captchaToken)} className="bg-primary gap-2">
-                  {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <TicketIcon size={16} />}
-                  Submit Ticket
+              <div className="flex flex-col sm:flex-row gap-3 justify-between pt-2 border-t border-border/40">
+                <Button type="button" variant="ghost" onClick={() => setStage("subject")} className="text-muted-foreground gap-2">
+                  ← Back to Suggestions
                 </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={resetAll}>Cancel</Button>
+                  <Button type="submit" disabled={createMutation.isPending || (captchaRequired && !captchaToken)} className="bg-primary gap-2">
+                    {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <TicketIcon size={16} />}
+                    Submit Ticket
+                  </Button>
+                </div>
+              </div>
+            </form>
+
+            {/* ── Right: AI KB Suggestions sidebar ── */}
+            <div className="lg:w-72 xl:w-80 shrink-0 border-t lg:border-t-0 lg:border-l border-border/50 flex flex-col">
+              {/* Sidebar header */}
+              <div className="px-4 py-3 flex items-center gap-2 border-b border-border/40"
+                style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.04))" }}>
+                <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "rgba(99,102,241,0.15)" }}>
+                  <Brain size={13} style={{ color: "#6366F1" }} />
+                </div>
+                <p className="text-xs font-bold text-foreground flex-1">AI Knowledge Base</p>
+                {aiSource === "ai" && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(99,102,241,0.15)", color: "#818CF8" }}>
+                    AI
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 p-3 space-y-2 overflow-y-auto">
+                {/* Loading skeleton */}
+                {aiLoading && (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="border border-border/40 rounded-xl p-3 animate-pulse">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-3.5 h-3.5 rounded bg-muted shrink-0 mt-0.5" />
+                          <div className="flex-1 space-y-1.5">
+                            <div className="h-3 bg-muted rounded w-4/5" />
+                            <div className="h-2.5 bg-muted rounded w-3/5" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty state — prompt to start typing */}
+                {!aiLoading && aiSuggestions.length === 0 && (
+                  <div className="py-6 text-center">
+                    <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center"
+                      style={{ background: "rgba(99,102,241,0.1)" }}>
+                      <Wand2 size={18} style={{ color: "#818CF8" }} />
+                    </div>
+                    <p className="text-xs font-semibold text-foreground mb-1">Smart suggestions</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Start typing your message and the AI will find relevant help articles instantly.
+                    </p>
+                  </div>
+                )}
+
+                {/* Article suggestion cards */}
+                {!aiLoading && aiSuggestions.map((article, i) => (
+                  <a
+                    key={article.id}
+                    href={`/help/${article.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-start gap-2.5 p-3 rounded-xl border border-border/50 hover:border-primary/40 hover:bg-secondary/40 transition-all group block"
+                  >
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors"
+                      style={{ background: i === 0 ? "rgba(79,70,229,0.12)" : "rgba(99,102,241,0.08)" }}>
+                      <BookOpen size={12} style={{ color: "#6366F1" }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">
+                        {article.title}
+                      </p>
+                      {article.excerpt && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed">
+                          {article.excerpt}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-primary font-medium">
+                        <ExternalLink size={9} /> Read article
+                      </div>
+                    </div>
+                  </a>
+                ))}
+
+                {/* Bottom note */}
+                {!aiLoading && aiSuggestions.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground text-center pt-1 pb-0.5">
+                    Saved in PostgreSQL · Refreshes as you type
+                  </p>
+                )}
               </div>
             </div>
-          </form>
+
+          </div>{/* end flex row */}
         </div>
       )}
 
