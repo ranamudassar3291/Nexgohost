@@ -753,6 +753,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [authShowPass,  setAuthShowPass]  = useState(false);
   const [authError,     setAuthError]     = useState("");
   const [authLoading,   setAuthLoading]   = useState(false);
+  const [verifyCode,    setVerifyCode]    = useState("");
+  const [verifyLoading,  setVerifyLoading] = useState(false);
+  const [verifyEmailStep,setVerifyEmailStep] = useState(false);
+  const [tempToken,     setTempToken]     = useState("");
 
   async function handleInlineAuth() {
     setAuthError("");
@@ -767,12 +771,22 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         });
         const d = await r.json();
         if (!r.ok) { setAuthError(d.error ?? d.message ?? "Registration failed."); return; }
+        if (d.requiresVerification && d.tempToken) {
+          setTempToken(d.tempToken);
+          setVerifyEmailStep(true);
+          return;
+        }
       }
       const lr = await fetch("/api/auth/login", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
       });
       const ld = await lr.json();
+      if (ld.requiresVerification && ld.tempToken) {
+        setTempToken(ld.tempToken);
+        setVerifyEmailStep(true);
+        return;
+      }
       if (!lr.ok) { setAuthError(ld.error ?? ld.message ?? "Login failed."); return; }
       authLogin(ld.token);
       setIsLoggedIn(true);
@@ -781,6 +795,35 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
       setAuthError(e.message ?? "Network error. Please try again.");
     } finally {
       setAuthLoading(false);
+    }
+  }
+
+  async function handleVerifyEmail() {
+    setAuthError("");
+    if (!verifyCode.trim()) { setAuthError("Email code is required."); return; }
+    setVerifyLoading(true);
+    try {
+      const vr = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tempToken}` },
+        body: JSON.stringify({ code: verifyCode.trim() }),
+      });
+      const vd = await vr.json();
+      if (!vr.ok) { setAuthError(vd.error ?? vd.message ?? "Verification failed."); return; }
+      const lr = await fetch("/api/auth/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
+      });
+      const ld = await lr.json();
+      if (!lr.ok) { setAuthError(ld.error ?? ld.message ?? "Login failed."); return; }
+      authLogin(ld.token);
+      setIsLoggedIn(true);
+      setVerifyEmailStep(false);
+      qc.invalidateQueries();
+    } catch (e: any) {
+      setAuthError(e.message ?? "Verification failed.");
+    } finally {
+      setVerifyLoading(false);
     }
   }
 
@@ -2848,7 +2891,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
           </div>
 
           {/* ── Inline auth gate for guests ── */}
-          {!isLoggedIn && (
+          {!isLoggedIn && !verifyEmailStep && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="px-5 py-4 border-b border-gray-100">
                 <h3 className="font-bold text-gray-900 flex items-center gap-2 text-[15px]">
@@ -2933,6 +2976,35 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                   <Lock size={9} className="inline mr-1 text-green-500" />
                   Your selections are saved. {authMode === "login" ? "Sign in" : "Registration"} won't reset them.
                 </p>
+              </div>
+            </div>
+          )}
+          {!isLoggedIn && verifyEmailStep && (
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm p-5">
+              <h3 className="font-bold text-gray-900 text-[15px]">Verify email code</h3>
+              <p className="text-[12px] text-gray-500 mt-0.5">We sent a code to {authEmail || "your email"}.</p>
+              <div className="mt-4">
+                <label className="text-[11px] text-gray-500 mb-1 block">6-digit code</label>
+                <input value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000" maxLength={6}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] tracking-[0.35em] text-center focus:outline-none"
+                  onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
+              </div>
+              {authError && (
+                <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-600">
+                  <AlertCircle size={13} className="shrink-0 mt-0.5" /> {authError}
+                </div>
+              )}
+              <div className="mt-4 space-y-3">
+                <button onClick={handleVerifyEmail} disabled={verifyLoading || verifyCode.length !== 6}
+                  className="w-full h-12 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+                  style={{ background: `linear-gradient(135deg, ${P} 0%, #6366F1 100%)`, boxShadow: verifyLoading ? "none" : `0 6px 24px ${P}40` }}>
+                  {verifyLoading ? <Loader2 size={16} className="animate-spin" /> : <MailCheck size={15} />}
+                  Verify & Continue
+                </button>
+                <button type="button" onClick={() => { setVerifyEmailStep(false); setAuthError(""); }} className="w-full text-[12px] text-gray-500 hover:text-gray-700">
+                  Back to login
+                </button>
               </div>
             </div>
           )}
