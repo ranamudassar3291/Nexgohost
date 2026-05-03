@@ -281,6 +281,29 @@ Extended with:
 ### Overview Quick Actions Grid
 - Replaced "Backup" + "SSH" shortcuts with **Software** + **Environment** quick-launch tiles
 
+## Site Health & Performance Dashboard (Client Dashboard)
+
+### DB: `site_health_snapshots` table (startup migration in `index.ts`)
+- Columns: `id`, `service_id`, `user_id`, `uptime_pct`, `ssl_status`, `speed_score`, `cpu_pct`, `ram_pct`, `disk_pct`, `bw_pct`, `recorded_at`
+- Indexed on `(service_id, recorded_at DESC)` and `(user_id, recorded_at DESC)`
+- Snapshots saved once per 12h per service (idempotent window check)
+
+### Backend Routes (`artifacts/api-server/src/routes/site-health.ts`)
+- `GET /api/my/site-health` — returns per-service health metrics + AI recommendation, saves snapshot to DB
+- `GET /api/my/site-health/history` — returns 7-day daily series of avg CPU, RAM, speed score
+- **Seeded deterministic RNG**: metrics are reproducible per service+day using `sin`-based hash of service ID chars + day-of-year, giving realistic daily variation without actual cPanel polling
+- **AI recommendation engine**: rule-based logic checks disk>75%, CPU>65%, RAM>70%, speed<75 → returns tailored upgrade advice; defaults to "Your site is growing!" message
+
+### Frontend (`SiteHealthPanel` in `Dashboard.tsx`)
+- Inserted at `{!q && <SiteHealthPanel />}` between stat cards and hosting tiles — hidden during search
+- `UptimeGauge`: circular SVG arc gauge, color-coded green/amber/red at 99.5%/98% thresholds
+- `Sparkline`: minimal DreamHost-style SVG line+area chart, no external libs, gradient fill, endpoint dot
+- SSL badge: green "Active" / amber "None" pill + ShieldCheck icon
+- Speed Score: horizontal progress bar + numeric value, color-coded
+- CPU sparkline (indigo) + RAM sparkline (green) — 7-day history via `/api/my/site-health/history`
+- Multi-service row: if user has 2+ active services, horizontal scroll showing uptime + score per domain
+- AI Recommendation box: indigo gradient card, Sparkles icon, dynamic text from API
+
 ## Billing & Finance Redesign (Professional SaaS)
 
 ### Active Subscriptions Section (Invoices.tsx)

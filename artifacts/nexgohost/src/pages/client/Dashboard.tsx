@@ -6,6 +6,7 @@ import {
   Sparkles, Award, BookOpen, Megaphone, HardDrive, Wifi, CheckCircle2,
   Rocket, Lock, BadgeCheck, ShieldCheck, Zap, Star, RefreshCw, Globe2,
   PartyPopper, Search, X, ArrowRight, ChevronRight, RotateCcw,
+  Cpu, MemoryStick, Activity,
 } from "lucide-react";
 import { WelcomeTour, useWelcomeTour } from "@/components/WelcomeTour";
 import { Link, useLocation } from "wouter";
@@ -75,6 +76,241 @@ function Confetti({ active }: { active: boolean }) {
         }} />
       ))}
       <style>{`@keyframes confettiFall { 0% { transform:translateY(0) rotate(0deg) scale(1); opacity:1; } 80% { opacity:1; } 100% { transform:translateY(340px) rotate(720deg) scale(0.6); opacity:0; } }`}</style>
+    </div>
+  );
+}
+
+/* ─── Site Health Types ──────────────────────────────────────────── */
+interface SiteHealthService {
+  serviceId: string; domain: string; planName: string; status: string;
+  uptimePct: number; ssl: string; speedScore: number;
+  cpuPct: number; ramPct: number; diskPct: number; bwPct: number;
+}
+interface SiteHealthData {
+  services: SiteHealthService[];
+  ai: { icon: string; text: string };
+  savedAt: string;
+}
+interface HistorySeries { date: string; cpu: number; ram: number; speed: number; }
+interface HistoryData { series: HistorySeries[]; days: string[]; }
+
+/* ─── Sparkline SVG ──────────────────────────────────────────────── */
+function Sparkline({ values, color, height = 40 }: { values: number[]; color: string; height?: number }) {
+  if (!values.length) return null;
+  const W = 200; const H = height; const pad = 4;
+  const max = Math.max(...values, 1); const min = 0;
+  const range = max - min || 1;
+  const pts = values.map((v, i) => ({
+    x: pad + (i / (values.length - 1)) * (W - pad * 2),
+    y: H - pad - ((v - min) / range) * (H - pad * 2),
+  }));
+  const pathD = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const areaD = `${pathD} L ${pts[pts.length - 1].x.toFixed(1)} ${H - pad} L ${pts[0].x.toFixed(1)} ${H - pad} Z`;
+  const gradId = `sp-${color.replace("#", "")}`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill={`url(#${gradId})`} />
+      <path d={pathD} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+      {pts.length > 0 && (
+        <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r="2.5" fill={color} />
+      )}
+    </svg>
+  );
+}
+
+/* ─── Uptime Gauge ────────────────────────────────────────────────── */
+function UptimeGauge({ pct }: { pct: number }) {
+  const r = 28; const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+  const color = pct >= 99.5 ? "#10B981" : pct >= 98 ? "#F59E0B" : "#EF4444";
+  return (
+    <div className="relative w-20 h-20 shrink-0">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 68 68">
+        <circle cx="34" cy="34" r={r} fill="none" stroke="#F3F4F6" strokeWidth="7" />
+        <circle cx="34" cy="34" r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeLinecap="round" strokeDasharray={circ}
+          strokeDashoffset={circ - dash}
+          style={{ transition: "stroke-dashoffset 1s ease" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[11px] font-black" style={{ color }}>{pct.toFixed(1)}%</span>
+        <span className="text-[9px] font-medium" style={{ color: "#94A3B8" }}>uptime</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Site Health Panel ───────────────────────────────────────────── */
+function SiteHealthPanel() {
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const { data: health, isLoading: healthLoading, refetch, isFetching } = useQuery<SiteHealthData>({
+    queryKey: ["my-site-health"],
+    queryFn: () => fetch("/api/my/site-health", { headers }).then(r => r.json()),
+    staleTime: 300_000,
+    retry: false,
+  });
+  const { data: hist } = useQuery<HistoryData>({
+    queryKey: ["my-site-health-history"],
+    queryFn: () => fetch("/api/my/site-health/history", { headers }).then(r => r.json()),
+    staleTime: 300_000,
+    retry: false,
+  });
+
+  const services = health?.services ?? [];
+  const primary = services[0];
+  const cpuHistory  = hist?.series?.map(s => s.cpu)  ?? [];
+  const ramHistory  = hist?.series?.map(s => s.ram)  ?? [];
+
+  const sslColor  = primary?.ssl === "active" ? "#10B981" : "#F59E0B";
+  const sslLabel  = primary?.ssl === "active" ? "Active" : primary?.ssl === "not_installed" ? "None" : (primary?.ssl ?? "—");
+  const speedColor = !primary ? "#94A3B8" : primary.speedScore >= 85 ? "#10B981" : primary.speedScore >= 70 ? "#F59E0B" : "#EF4444";
+
+  if (healthLoading) return (
+    <div className="rounded-2xl flex items-center justify-center py-10" style={{ background: "#ffffff", border: "1px solid #E8EAED" }}>
+      <Loader2 size={20} className="animate-spin" style={{ color: "#C7D2FE" }} />
+    </div>
+  );
+  if (!services.length && !healthLoading) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: "#ffffff", border: "1px solid #E8EAED", borderRadius: "16px" }}>
+      {/* Header */}
+      <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6", background: "#FAFBFF" }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#EEF2FF" }}>
+            <Activity size={14} style={{ color: "#4F46E5" }} />
+          </div>
+          <h2 className="font-display font-bold" style={{ fontSize: "15px", color: "#111827" }}>Site Health & Performance</h2>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-70"
+          style={{ color: "#6B7280" }}
+        >
+          <RefreshCw size={12} className={isFetching ? "animate-spin" : ""} />
+          {health?.savedAt ? `Updated ${Math.round((Date.now() - new Date(health.savedAt).getTime()) / 60000)}m ago` : "Refresh"}
+        </button>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* Health Meter Row */}
+        <div className="flex flex-wrap gap-4 items-center">
+          {/* Uptime Gauge */}
+          <div className="flex flex-col items-center gap-1">
+            <UptimeGauge pct={primary?.uptimePct ?? 99.9} />
+            <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#9CA3AF" }}>Uptime</span>
+          </div>
+
+          {/* Status Pills */}
+          <div className="flex flex-col gap-2 flex-1 min-w-[160px]">
+            {/* SSL */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={14} style={{ color: sslColor }} />
+                <span className="text-xs font-semibold" style={{ color: "#374151" }}>SSL Certificate</span>
+              </div>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: primary?.ssl === "active" ? "#ECFDF5" : "#FFFBEB", color: sslColor }}>
+                {sslLabel}
+              </span>
+            </div>
+            {/* Speed Score */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
+              <div className="flex items-center gap-2">
+                <Zap size={14} style={{ color: speedColor }} />
+                <span className="text-xs font-semibold" style={{ color: "#374151" }}>Speed Score</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: "#E5E7EB" }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${primary?.speedScore ?? 0}%`, background: speedColor }} />
+                </div>
+                <span className="text-xs font-bold tabular-nums" style={{ color: speedColor }}>{primary?.speedScore ?? "—"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* CPU & RAM Sparklines */}
+        {(cpuHistory.length > 1 || ramHistory.length > 1) && (
+          <div className="grid grid-cols-2 gap-3">
+            {/* CPU */}
+            <div className="rounded-xl p-3" style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Cpu size={12} style={{ color: "#6366F1" }} />
+                  <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#6B7280" }}>CPU</span>
+                </div>
+                <span className="text-[11px] font-black tabular-nums" style={{ color: "#4F46E5" }}>
+                  {primary?.cpuPct.toFixed(0)}%
+                </span>
+              </div>
+              <Sparkline values={cpuHistory} color="#6366F1" height={38} />
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px]" style={{ color: "#94A3B8" }}>{hist?.series?.[0]?.date?.slice(5) ?? ""}</span>
+                <span className="text-[10px]" style={{ color: "#94A3B8" }}>Today</span>
+              </div>
+            </div>
+            {/* RAM */}
+            <div className="rounded-xl p-3" style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <MemoryStick size={12} style={{ color: "#10B981" }} />
+                  <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#6B7280" }}>RAM</span>
+                </div>
+                <span className="text-[11px] font-black tabular-nums" style={{ color: "#059669" }}>
+                  {primary?.ramPct.toFixed(0)}%
+                </span>
+              </div>
+              <Sparkline values={ramHistory} color="#10B981" height={38} />
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px]" style={{ color: "#94A3B8" }}>{hist?.series?.[0]?.date?.slice(5) ?? ""}</span>
+                <span className="text-[10px]" style={{ color: "#94A3B8" }}>Today</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Per-service quick stats (if multiple) */}
+        {services.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
+            {services.map(svc => (
+              <div key={svc.serviceId} className="shrink-0 rounded-xl px-3 py-2 flex items-center gap-2.5 min-w-[160px]"
+                style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#EEF2FF" }}>
+                  <Server size={11} style={{ color: "#4F46E5" }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold truncate" style={{ color: "#111827" }}>{svc.domain}</p>
+                  <p className="text-[10px] tabular-nums" style={{ color: "#94A3B8" }}>{svc.uptimePct.toFixed(1)}% up · {svc.speedScore} score</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* AI Recommendation */}
+        {health?.ai && (
+          <div className="flex items-start gap-3 rounded-xl px-4 py-3"
+            style={{ background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", border: "1px solid #C7D2FE" }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: "rgba(99,102,241,0.15)" }}>
+              <Sparkles size={15} style={{ color: "#4F46E5" }} />
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "#6366F1" }}>AI Recommendation</p>
+              <p className="text-sm leading-relaxed" style={{ color: "#312E81" }}>{health.ai.text}</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -713,6 +949,9 @@ export default function ClientDashboard() {
           </div>
         </div>
       ))}
+
+      {/* ── Site Health & Performance ── */}
+      {!q && <SiteHealthPanel />}
 
       {/* ── Hosting Services ── */}
       {filteredServices.length > 0 && (

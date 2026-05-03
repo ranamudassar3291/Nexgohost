@@ -55,6 +55,7 @@ import twentyIAdminRouter from "./twenty-i-admin.js";
 import systemRouter from "./system.js";
 import aiChatRouter from "./ai-chat.js";
 import contentRouter from "./content.js";
+import siteHealthRouter from "./site-health.js";
 
 const router: IRouter = Router();
 
@@ -118,5 +119,6 @@ router.use(twentyIAdminRouter);
 router.use(systemRouter);
 router.use(aiChatRouter);
 router.use(contentRouter);
+router.use(siteHealthRouter);
 
 export default router;

@@ -68,6 +68,26 @@ async function runStartupMigrations() {
       )
     `);
     console.log("[MIGRATIONS] email_account_settings table ready");
+
+    // site_health_snapshots — historical performance data per hosting service
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS site_health_snapshots (
+        id          SERIAL PRIMARY KEY,
+        service_id  TEXT NOT NULL,
+        user_id     TEXT NOT NULL,
+        uptime_pct  NUMERIC(5,2) NOT NULL DEFAULT 99.90,
+        ssl_status  TEXT NOT NULL DEFAULT 'active',
+        speed_score INTEGER NOT NULL DEFAULT 85,
+        cpu_pct     NUMERIC(5,2) NOT NULL DEFAULT 10,
+        ram_pct     NUMERIC(5,2) NOT NULL DEFAULT 25,
+        disk_pct    NUMERIC(5,2) NOT NULL DEFAULT 10,
+        bw_pct      NUMERIC(5,2) NOT NULL DEFAULT 5,
+        recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_shs_service ON site_health_snapshots(service_id, recorded_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_shs_user    ON site_health_snapshots(user_id,    recorded_at DESC)`);
+    console.log("[MIGRATIONS] site_health_snapshots table ready");
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
