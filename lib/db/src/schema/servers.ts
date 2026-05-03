@@ -26,6 +26,7 @@ export const serversTable = pgTable("servers", {
   apiConnected: boolean("api_connected").notNull().default(false),
   serverIp: text("server_ip"),
   lastConnected: timestamp("last_connected"),
+  connectionStatusDetail: text("connection_status_detail"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

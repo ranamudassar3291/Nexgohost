@@ -179,6 +179,11 @@ router.get("/admin/twenty-i/server", authenticate, requireAdmin, async (req: Aut
       ns1: server.ns1 ?? "ns1.20i.com",
       ns2: server.ns2 ?? "ns2.20i.com",
       twentyiBaseUrl: server.twentyiBaseUrl ?? null,
+      apiConnected: server.apiConnected ?? false,
+      lastConnected: server.lastConnected ?? null,
+      serverIp: server.serverIp ?? null,
+      proxyUrl: server.proxyUrl ?? null,
+      connectionStatusDetail: server.connectionStatusDetail ?? null,
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

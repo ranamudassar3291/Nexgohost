@@ -24,6 +24,42 @@
   - Both use a lightweight `renderMarkdown()` function (headings, bold, paragraphs) — no external dependency
 - **Section visibility toggles**: Each section in the admin can be toggled off — the public API filters hidden sections, so changes go live immediately on save.
 
+## 20i Dynamic IP / Connection Status System (2026-05-03)
+
+### Problem Solved
+Replit containers get a new outbound IP on every restart, causing 20i to block API requests with 403 IpMatch errors. The old UI showed "Not Connected" with no actionable info.
+
+### DB Changes
+- Added `connection_status_detail TEXT` column to `servers` table via `ALTER TABLE IF NOT EXISTS` (safe idempotent migration in `artifacts/api-server/src/index.ts`)
+
+### Backend Changes
+- **`GET /api/admin/servers`** — now returns `apiConnected`, `lastConnected`, `serverIp`, `proxyUrl`, `keyType`, `connectionStatusDetail` for every server
+- **`GET /api/admin/twenty-i/server`** — now returns the same new fields, used by TwentyIAdmin OverviewTab
+- **`POST /api/admin/servers/:id/test`** (20i path) — completely rebuilt:
+  - Removed the old 30-day cache (live test every time)
+  - Calls `getOutboundIp()` before every test, stores result in `servers.server_ip`
+  - Detects 403/IpMatch/blocked errors and flags `ipBlocked: true`
+  - Returns `outboundIp`, `ipBlocked`, `actionRequired` ("whitelist X.X.X.X at my.20i.com…")
+  - Stores `connectionStatusDetail` = "Request blocked from IP: [IP]" in DB on failure
+  - Clears `connectionStatusDetail` on success
+  - Respects `proxyUrl` DB field when routing the test request
+- **Cron `runTwentyiHealthCheck`** (every 15 min):
+  - Detects outbound IP before every check
+  - On failure: logs "Request blocked from IP: [IP]", stores `apiConnected: false`, `serverIp`, `connectionStatusDetail` in DB
+  - On success: stores `apiConnected: true`, `lastConnected`, `serverIp`, clears `connectionStatusDetail`
+  - WhatsApp alert message now includes the blocked IP when it's an IP mismatch
+
+### Frontend Changes
+- **`TwentyIAdmin.tsx` OverviewTab** — completely rebuilt:
+  - **"Current Outbound IP" card** — polls `GET /api/admin/servers/outbound-ip` every 2 min, with refresh button + Copy button
+  - **"Connection Status" card** — shows Connected/IP Blocked/Not Connected with last working IP + last connected time, inline "Test Now" button
+  - **IP-Blocked alert banner** — amber warning banner with exact IP to whitelist + direct link to my.20i.com → Reseller API → IP Whitelist
+  - **Proxy URL config section** — input field to set a static-IP proxy URL, saves via `PUT /api/admin/servers/:id`, shows active proxy status
+- **`Servers.tsx`** — updated:
+  - 20i server form now has a **"Proxy URL" field** (maps to `proxyUrl` DB column)
+  - 20i server cards now show: Connected (+ IP) / IP Blocked (+ which IP to whitelist) / Not Connected
+  - Test result now shows amber `actionRequired` banner when IP is blocked, with the exact IP
+
 ## Auth & Token System
 
 - **Dual token sync**: `AuthProvider.login()` sets both `token` (client panel) and `noehost_token` (noehost CMS) in localStorage

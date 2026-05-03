@@ -84,6 +84,12 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     groupId: serversTable.groupId,
     isDefault: serversTable.isDefault,
     createdAt: serversTable.createdAt,
+    apiConnected: serversTable.apiConnected,
+    lastConnected: serversTable.lastConnected,
+    serverIp: serversTable.serverIp,
+    proxyUrl: serversTable.proxyUrl,
+    keyType: serversTable.keyType,
+    connectionStatusDetail: serversTable.connectionStatusDetail,
   }).from(serversTable).orderBy(serversTable.name).$dynamic();
   if (type) query = query.where(eq(serversTable.type, type as any));
   const servers = await query;
@@ -113,6 +119,12 @@ router.get("/admin/servers", authenticate, requireAdmin, async (req, res) => {
     ...s,
     hasApiToken: !!apiToken,
     accountCount: accountCounts[s.id] ?? 0,
+    apiConnected: s.apiConnected ?? false,
+    lastConnected: s.lastConnected ?? null,
+    serverIp: s.serverIp ?? null,
+    proxyUrl: s.proxyUrl ?? null,
+    keyType: s.keyType ?? "general",
+    connectionStatusDetail: s.connectionStatusDetail ?? null,
   }));
   res.json(safeServers);
 });
@@ -339,39 +351,48 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
       return;
     }
 
-    // ── Connection cache: if already marked connected within 30 days, skip re-test ──
-    const CACHE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-    const lastOk = server.lastConnected ? new Date(server.lastConnected).getTime() : 0;
-    const cacheValid = server.apiConnected === true && (Date.now() - lastOk) < CACHE_MS;
-    if (cacheValid) {
-      let pkgs: any[] = [];
-      try { pkgs = await twentyiGetPackages(effectiveKey); } catch { /* ignore */ }
-      const elapsed = Math.round((Date.now() - lastOk) / (1000 * 60 * 60));
+    // ── Detect current outbound IP before the test ──
+    let currentIp = "unknown";
+    try { currentIp = await getOutboundIp(); } catch { /* ignore */ }
+
+    // ── Fresh test (no long-term cache — always verify live) ──
+    const result = await (server.proxyUrl
+      ? runWithProxy(server.proxyUrl, () => twentyiTestConnection(effectiveKey))
+      : twentyiTestConnection(effectiveKey));
+
+    if (!result.success) {
+      const msg = result.message ?? "";
+      const isIpBlocked = msg.includes("403") || msg.includes("Forbidden") || msg.includes("IpMatch") || msg.includes("IP") || msg.includes("blocked");
+      const statusDetail = isIpBlocked
+        ? `Request blocked from IP: ${currentIp}`
+        : msg.substring(0, 500);
+      if (isIpBlocked) {
+        console.warn(`[SERVERS] 20i IP blocked — outbound IP: ${currentIp}. Whitelist at my.20i.com → Reseller API → IP Whitelist.`);
+      }
+      await db.update(serversTable)
+        .set({ apiConnected: false, serverIp: currentIp, connectionStatusDetail: statusDetail, updatedAt: new Date() })
+        .where(eq(serversTable.id, server.id));
       res.json({
-        success: true, connected: true,
-        message: `Connected to 20i — ${pkgs.length} hosting package(s) found (cached — verified ${elapsed}h ago)`,
-        packages: pkgs,
+        success: false, connected: false,
+        message: result.message,
+        outboundIp: currentIp,
+        ipBlocked: isIpBlocked,
+        actionRequired: isIpBlocked
+          ? `Action Required: Your outbound IP has changed. Please whitelist ${currentIp} in your 20i/WHM firewall at my.20i.com → Reseller API → IP Whitelist.`
+          : null,
+        packages: [],
       });
       return;
     }
 
-    // ── Fresh test ──
-    const result = await twentyiTestConnection(effectiveKey);
-    if (!result.success) {
-      await db.update(serversTable)
-        .set({ apiConnected: false, updatedAt: new Date() })
-        .where(eq(serversTable.id, server.id));
-      res.json({ success: false, connected: false, message: result.message, packages: [] });
-      return;
-    }
-
-    // Success — persist connection state (no IP tracking needed)
+    // ── Success — persist connection state and current IP ──
     await db.update(serversTable)
-      .set({ apiConnected: true, lastConnected: new Date(), updatedAt: new Date() })
+      .set({ apiConnected: true, lastConnected: new Date(), serverIp: currentIp, connectionStatusDetail: null, updatedAt: new Date() })
       .where(eq(serversTable.id, server.id));
     let pkgs: any[] = [];
     try { pkgs = await twentyiGetPackages(effectiveKey); } catch { /* ignore */ }
-    res.json({ success: true, connected: true, message: result.message, packages: pkgs });
+    console.log(`[SERVERS] 20i connected — outbound IP: ${currentIp}  packages: ${pkgs.length}`);
+    res.json({ success: true, connected: true, message: result.message, outboundIp: currentIp, ipBlocked: false, packages: pkgs });
     return;
   }
 

@@ -149,19 +149,245 @@ type TabId = typeof TABS[number]["id"];
 function OverviewTab({ server, lastSync, onSync, syncing }: {
   server: any; lastSync: string | null; onSync: () => void; syncing: boolean;
 }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string; outboundIp?: string; ipBlocked?: boolean; actionRequired?: string | null } | null>(null);
+  const [proxyUrl, setProxyUrl] = useState<string>(server?.proxyUrl ?? "");
+  const [savingProxy, setSavingProxy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Sync proxy URL when server loads
+  useEffect(() => {
+    if (server?.proxyUrl !== undefined) setProxyUrl(server.proxyUrl ?? "");
+  }, [server?.proxyUrl]);
+
+  // Poll current outbound IP every 2 minutes
+  const { data: ipData, isLoading: ipLoading, refetch: refetchIp } = useQuery({
+    queryKey: ["outbound-ip"],
+    queryFn: () => apiFetch("/api/admin/servers/outbound-ip"),
+    refetchInterval: 2 * 60 * 1000,
+    staleTime: 90 * 1000,
+  });
+  const currentIp: string = ipData?.ip ?? "Detecting…";
+  const proxyActive: boolean = ipData?.proxy?.enabled ?? false;
+
+  function copyIp() {
+    if (currentIp === "Detecting…") return;
+    navigator.clipboard.writeText(currentIp).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleTest() {
+    if (!server?.id) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await apiFetch(`/api/admin/servers/${server.id}/test`, { method: "POST" });
+      setTestResult({
+        ok: r.success !== false && r.connected !== false,
+        msg: r.message ?? (r.connected ? "Connected" : "Connection failed"),
+        outboundIp: r.outboundIp,
+        ipBlocked: r.ipBlocked ?? false,
+        actionRequired: r.actionRequired ?? null,
+      });
+      qc.invalidateQueries({ queryKey: ["20i-server"] });
+      qc.invalidateQueries({ queryKey: ["admin-servers"] });
+      if (r.outboundIp) refetchIp();
+    } catch (e: any) {
+      setTestResult({ ok: false, msg: e.message });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function handleSaveProxy() {
+    if (!server?.id) return;
+    setSavingProxy(true);
+    try {
+      await apiFetch(`/api/admin/servers/${server.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ proxyUrl: proxyUrl.trim() || null }),
+      });
+      toast({ title: "Proxy URL saved", description: proxyUrl.trim() ? `Routing through ${proxyUrl.trim()}` : "Direct connection (no proxy)" });
+      qc.invalidateQueries({ queryKey: ["20i-server"] });
+      qc.invalidateQueries({ queryKey: ["admin-servers"] });
+    } catch (e: any) {
+      toast({ title: "Failed to save proxy", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingProxy(false);
+    }
+  }
+
+  // Determine effective connection state
+  const isIpBlocked = server?.connectionStatusDetail?.includes("blocked") || testResult?.ipBlocked;
+  const isConnected = (testResult ? testResult.ok : server?.apiConnected) && !isIpBlocked;
+  const statusDetail = testResult ? testResult.actionRequired : (server?.connectionStatusDetail ?? null);
+  const displayIp = (testResult?.outboundIp && testResult.outboundIp !== "unknown") ? testResult.outboundIp : currentIp;
+  const lastWorking = server?.serverIp;
+  const lastConnectedTime = server?.lastConnected;
+
   return (
     <div className="space-y-4">
+
+      {/* ── IP-Blocked Alert Banner ───────────────────────────────────────────── */}
+      {isIpBlocked && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+            <AlertTriangle size={16} className="text-amber-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-amber-600 text-sm">Action Required: IP Blocked</p>
+            <p className="text-sm text-foreground/80 mt-1">
+              {statusDetail ?? `Your outbound IP has changed. Whitelist ${displayIp !== "Detecting…" ? displayIp : "the IP above"} at 20i.`}
+            </p>
+            <a
+              href="https://my.20i.com/reseller/api-key"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 mt-2 text-xs text-amber-600 hover:text-amber-700 underline font-medium"
+            >
+              Open my.20i.com → Reseller API → IP Whitelist
+              <ExternalLink size={11} />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* ── Outbound IP + Connection Status (side by side) ───────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {/* Current Outbound IP */}
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Globe2 size={14} className="text-blue-500" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Current Outbound IP</p>
+                <p className="text-[10px] text-muted-foreground/70">{proxyActive ? "Via proxy" : "Direct (dynamic)"}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { refetchIp(); }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Refresh IP"
+            >
+              <RefreshCw size={13} className={ipLoading ? "animate-spin" : ""} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <p className={`font-mono text-lg font-bold tracking-tight ${ipLoading ? "text-muted-foreground animate-pulse" : "text-foreground"}`}>
+              {ipLoading ? "Detecting…" : currentIp}
+            </p>
+            {!ipLoading && currentIp !== "Detecting…" && currentIp !== "unknown" && (
+              <button
+                onClick={copyIp}
+                className="text-xs px-2 py-0.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            )}
+          </div>
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <p className="text-[11px] text-muted-foreground">
+              Whitelist this IP at{" "}
+              <a href="https://my.20i.com/reseller/api-key" target="_blank" rel="noreferrer" className="text-primary underline hover:no-underline">
+                my.20i.com → Reseller API → IP Whitelist
+              </a>
+            </p>
+          </div>
+        </Card>
+
+        {/* Connection Status */}
+        <Card>
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isConnected ? "bg-emerald-500/10" : isIpBlocked ? "bg-amber-500/10" : "bg-red-500/10"}`}>
+                {isConnected ? <CheckCircle size={14} className="text-emerald-500" /> : isIpBlocked ? <AlertTriangle size={14} className="text-amber-500" /> : <XCircle size={14} className="text-red-500" />}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Connection Status</p>
+                <p className={`text-sm font-semibold ${isConnected ? "text-emerald-500" : isIpBlocked ? "text-amber-500" : "text-red-500"}`}>
+                  {isConnected ? "Connected" : isIpBlocked ? "IP Blocked" : "Not Connected"}
+                </p>
+              </div>
+            </div>
+            <PrimaryBtn onClick={handleTest} disabled={testing} small>
+              {testing ? <Spinner size={13} /> : <Wifi size={13} />}
+              {testing ? "Testing…" : "Test Now"}
+            </PrimaryBtn>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            {lastWorking && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Last working IP</span>
+                <span className="font-mono text-foreground/80">{lastWorking}</span>
+              </div>
+            )}
+            {lastConnectedTime && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Last connected</span>
+                <span className="text-foreground/80">{new Date(lastConnectedTime).toLocaleString()}</span>
+              </div>
+            )}
+            {testResult && !testResult.ok && testResult.msg && (
+              <p className="text-red-500/80 truncate" title={testResult.msg}>{testResult.msg}</p>
+            )}
+            {testResult?.ok && (
+              <p className="text-emerald-500/80">✓ {testResult.msg}</p>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* ── Proxy URL Config ─────────────────────────────────────────────────── */}
+      <Card>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Database size={14} className="text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Static IP Proxy (Optional)</p>
+            <p className="text-xs text-muted-foreground">Route 20i API calls through a fixed-IP proxy to avoid IP rotation issues</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={proxyUrl}
+            onChange={e => setProxyUrl(e.target.value)}
+            placeholder="http://user:pass@proxy-host:port  (leave blank for direct)"
+            className="flex-1 px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/40 transition-shadow font-mono"
+          />
+          <PrimaryBtn onClick={handleSaveProxy} disabled={savingProxy}>
+            {savingProxy ? <Spinner size={13} /> : null}
+            {savingProxy ? "Saving…" : "Save"}
+          </PrimaryBtn>
+        </div>
+        {proxyActive && (
+          <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1.5">
+            <CheckCircle size={11} /> Proxy active — {ipData?.proxy?.url}
+          </p>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          Use a static residential/datacenter proxy to keep the same outbound IP permanently.
+          Format: <span className="font-mono">http://user:pass@host:port</span>
+        </p>
+      </Card>
+
+      {/* ── Sync + Info Grid ─────────────────────────────────────────────────── */}
       <Card>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${server?.connected ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
-              {server?.connected ? <CheckCircle size={18} className="text-emerald-500" /> : <XCircle size={18} className="text-red-500" />}
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${server?.connected ? "bg-emerald-500/10" : "bg-secondary"}`}>
+              <Server size={18} className={server?.connected ? "text-emerald-500" : "text-muted-foreground"} />
             </div>
             <div>
               <p className="font-semibold text-foreground">{server?.name ?? "20i Server"}</p>
-              <p className="text-sm text-muted-foreground">
-                {server?.connected ? "Connected via 20i Reseller API" : (server?.error ?? "Not configured")}
-              </p>
+              <p className="text-sm text-muted-foreground">{server?.connected ? `Nameservers: ${server.ns1 ?? "ns1.20i.com"}` : "No 20i server configured"}</p>
             </div>
           </div>
           <PrimaryBtn onClick={onSync} disabled={syncing}>
@@ -169,39 +395,21 @@ function OverviewTab({ server, lastSync, onSync, syncing }: {
             {syncing ? "Syncing…" : "Sync Now"}
           </PrimaryBtn>
         </div>
-        {server?.connected && (
-          <div className="mt-4 pt-4 border-t border-border grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">API Status</p>
-              <p className="font-medium text-emerald-500 mt-1">Active</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Nameservers</p>
-              <p className="font-medium text-foreground mt-1 text-xs">{server.ns1 ?? "ns1.20i.com"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Last Synced</p>
-              <p className="font-medium text-foreground mt-1">{lastSync ? new Date(lastSync).toLocaleTimeString() : "Never"}</p>
-            </div>
+        <div className="mt-4 pt-4 border-t border-border grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <p className="text-xs text-muted-foreground">Health Check</p>
+            <p className="font-medium text-foreground mt-1">Every 15 minutes</p>
           </div>
-        )}
+          <div>
+            <p className="text-xs text-muted-foreground">API Endpoint</p>
+            <p className="font-medium text-foreground mt-1 text-xs">{server?.twentyiBaseUrl ?? "api.20i.com"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Last Synced</p>
+            <p className="font-medium text-foreground mt-1">{lastSync ? new Date(lastSync).toLocaleTimeString() : "Never"}</p>
+          </div>
+        </div>
       </Card>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Auto-sync interval", value: "Every 5 minutes", icon: Clock },
-          { label: "API endpoint", value: "api.20i.com", icon: Zap },
-          { label: "Confirmation guard", value: "Enabled on all actions", icon: Shield },
-        ].map(item => (
-          <Card key={item.label} className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <item.icon size={13} className="text-primary" />
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-            </div>
-            <p className="text-sm font-medium text-foreground">{item.value}</p>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }

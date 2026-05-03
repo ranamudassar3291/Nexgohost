@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe } from "lucide-react";
+import { Server, Plus, Pencil, Trash2, Shield, Loader2, Layers, CheckCircle, XCircle, Wifi, Package, ShieldCheck, HardDrive, Users2, Zap, RotateCcw, Globe, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,8 @@ interface ServerRecord {
   apiConnected?: boolean;
   serverIp?: string | null;
   lastConnected?: string | null;
+  proxyUrl?: string | null;
+  connectionStatusDetail?: string | null;
 }
 interface TwentyIPkg { id: string; label: string; name?: string; }
 
@@ -62,7 +64,7 @@ export default function Servers() {
   const [apiTokenSaved, setApiTokenSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; ipWarning?: boolean; msg: string; packages?: string[]; permissions?: { name: string; api: string; ok: boolean; reason: string }[]; diagnostic?: { detail?: string } | null }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; ipWarning?: boolean; ipBlocked?: boolean; actionRequired?: string | null; msg: string; outboundIp?: string; packages?: string[]; permissions?: { name: string; api: string; ok: boolean; reason: string }[]; diagnostic?: { detail?: string } | null }>>({});
   const [whitelisting, setWhitelisting] = useState<string | null>(null);
   const [whitelistResults, setWhitelistResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
   // 20i in-form test state
@@ -188,12 +190,29 @@ export default function Servers() {
     try {
       const result = await apiFetch(`/api/admin/servers/${id}/test`, { method: "POST" });
       const isOk = result.success !== false && result.connected !== false;
-      setTestResults(r => ({ ...r, [id]: { ok: isOk, msg: result.message, packages: result.packages || [], permissions: result.permissions || [], diagnostic: result.diagnostic } }));
+      const isIpBlocked = result.ipBlocked === true;
+      setTestResults(r => ({
+        ...r,
+        [id]: {
+          ok: isOk,
+          ipBlocked: isIpBlocked,
+          actionRequired: result.actionRequired ?? null,
+          outboundIp: result.outboundIp ?? null,
+          msg: result.message,
+          packages: result.packages || [],
+          permissions: result.permissions || [],
+          diagnostic: result.diagnostic,
+        },
+      }));
       if (isOk) {
-        toast({ title: "Server Connected ✓", description: result.message });
+        toast({ title: "Server Connected ✓", description: `Connected from IP ${result.outboundIp ?? ""}` });
+        qc.invalidateQueries({ queryKey: ["admin-servers"] });
+      } else if (isIpBlocked) {
+        toast({ title: "IP Blocked", description: result.actionRequired ?? `Whitelist ${result.outboundIp ?? "this IP"} at my.20i.com → Reseller API`, variant: "destructive" });
         qc.invalidateQueries({ queryKey: ["admin-servers"] });
       } else {
         toast({ title: "Connection failed", description: result.message, variant: "destructive" });
+        qc.invalidateQueries({ queryKey: ["admin-servers"] });
       }
     } catch (err: any) {
       setTestResults(r => ({ ...r, [id]: { ok: false, msg: err.message, packages: [], permissions: [] } }));
@@ -498,6 +517,19 @@ export default function Servers() {
                 )}
 
                 {is20i && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground/80">Proxy URL <span className="text-muted-foreground font-normal">(Optional)</span></label>
+                    <Input
+                      value={serverForm.proxyUrl}
+                      onChange={setS("proxyUrl")}
+                      placeholder="http://user:pass@proxy-host:port"
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Route 20i API calls through a static-IP proxy to avoid Replit's dynamic IP rotation. Leave blank for direct connection.</p>
+                  </div>
+                )}
+
+                {is20i && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-foreground/80">NS1</label>
@@ -635,11 +667,28 @@ export default function Servers() {
                           <span className="text-xs text-muted-foreground font-medium">{TYPE_LABELS[s.type]}</span>
                           {s.type !== "20i" && s.ns1 && <span className="text-xs text-muted-foreground">NS: {s.ns1}</span>}
                           {s.hasApiToken && s.type !== "20i" && <span className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> API key set</span>}
-                          {s.type === "20i" && (
-                            s.apiConnected
-                              ? <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium"><CheckCircle size={10} /> Connected</span>
-                              : <span className="text-xs text-red-400 flex items-center gap-1 font-medium"><XCircle size={10} /> Not Connected — click Test Connection</span>
-                          )}
+                          {s.type === "20i" && (() => {
+                            const isIpBlocked = s.connectionStatusDetail?.includes("blocked");
+                            if (s.apiConnected && !isIpBlocked) {
+                              return (
+                                <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium">
+                                  <CheckCircle size={10} /> Connected{s.serverIp ? ` · IP: ${s.serverIp}` : ""}
+                                </span>
+                              );
+                            }
+                            if (isIpBlocked) {
+                              return (
+                                <span className="text-xs text-amber-500 flex items-center gap-1 font-medium">
+                                  <AlertTriangle size={10} /> IP Blocked{s.serverIp ? ` — whitelist ${s.serverIp}` : " — click Test to detect IP"}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-xs text-red-400 flex items-center gap-1 font-medium">
+                                <XCircle size={10} /> Not Connected — click Test Connection
+                              </span>
+                            );
+                          })()}
                         </div>
                         {s.type !== "20i" && s.maxAccounts != null && (
                           <div className="mt-2 w-48">
@@ -670,9 +719,15 @@ export default function Servers() {
                         )}
                         {testResults[s.id] && (
                           <div className="mt-2 space-y-1.5">
-                            <div className={`flex items-start gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : "text-red-400"}`}>
-                              {testResults[s.id].ok ? <CheckCircle size={11} className="shrink-0 mt-0.5" /> : <XCircle size={11} className="shrink-0 mt-0.5" />}
-                              <span>{testResults[s.id].msg}</span>
+                            {testResults[s.id].ipBlocked && testResults[s.id].actionRequired && (
+                              <div className="flex items-start gap-1.5 text-xs text-amber-600 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2">
+                                <AlertTriangle size={11} className="shrink-0 mt-0.5 text-amber-500" />
+                                <span>{testResults[s.id].actionRequired}</span>
+                              </div>
+                            )}
+                            <div className={`flex items-start gap-1.5 text-xs ${testResults[s.id].ok ? "text-emerald-400" : testResults[s.id].ipBlocked ? "text-amber-500" : "text-red-400"}`}>
+                              {testResults[s.id].ok ? <CheckCircle size={11} className="shrink-0 mt-0.5" /> : testResults[s.id].ipBlocked ? <AlertTriangle size={11} className="shrink-0 mt-0.5" /> : <XCircle size={11} className="shrink-0 mt-0.5" />}
+                              <span>{testResults[s.id].msg}{testResults[s.id].outboundIp && !testResults[s.id].ok ? ` (IP: ${testResults[s.id].outboundIp})` : ""}</span>
                             </div>
                             {testResults[s.id].ok && (testResults[s.id].packages?.length ?? 0) > 0 && (
                               <div className="flex flex-wrap gap-1 pt-0.5">

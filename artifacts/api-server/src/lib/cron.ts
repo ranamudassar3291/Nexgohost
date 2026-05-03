@@ -21,7 +21,7 @@ import {
   sendEmail,
 } from "./email.js";
 import { serversTable } from "@workspace/db/schema";
-import { twentyiListSites, runWithCtx, twentyiTestConnection } from "./twenty-i.js";
+import { twentyiListSites, runWithCtx, twentyiTestConnection, getOutboundIp } from "./twenty-i.js";
 import { decryptField } from "./fieldCrypto.js";
 import { sendWhatsAppAlert, sendToClientPhone, formatPKPhone } from "./whatsapp.js";
 
@@ -1537,30 +1537,52 @@ export async function runTwentyiHealthCheck(): Promise<void> {
     const apiKey = decryptField(server.apiToken).trim();
     if (!apiKey) return;
 
+    // Detect the current outbound IP before the test
+    let currentIp = "unknown";
+    try { currentIp = await getOutboundIp(); } catch { /* ignore */ }
+
     const result = await runWithCtx(
-      { keyType: (server as any).keyType ?? "general", proxyUrl: (server as any).proxyUrl ?? undefined },
+      { keyType: (server as any).keyType ?? "general", proxyUrl: server.proxyUrl ?? undefined },
       () => twentyiTestConnection(apiKey),
     );
 
     if (!result.success) {
+      const msg = result.message ?? "";
+      const isIpBlocked = msg.includes("403") || msg.includes("Forbidden") || msg.includes("IpMatch") || msg.includes("IP") || msg.includes("blocked");
+      const statusDetail = isIpBlocked
+        ? `Request blocked from IP: ${currentIp}`
+        : msg.substring(0, 500);
+
+      if (isIpBlocked) {
+        console.warn(`[CRON][HEALTH] 20i request blocked — outbound IP: ${currentIp}. Action required: whitelist ${currentIp} at my.20i.com → Reseller API → IP Whitelist.`);
+      } else {
+        console.warn(`[CRON][HEALTH] 20i connection failed — ${msg.substring(0, 200)}`);
+      }
+
+      // Persist failure state + current IP to DB
+      await db.update(serversTable)
+        .set({ apiConnected: false, serverIp: currentIp, connectionStatusDetail: statusDetail, updatedAt: new Date() })
+        .where(eq(serversTable.id, server.id));
+
       const now = Date.now();
       const shouldAlert = !_lastHealthAlertAt || (now - _lastHealthAlertAt) > HEALTH_ALERT_COOLDOWN_MS;
 
       if (shouldAlert) {
         _lastHealthAlertAt = now;
-        await sendWhatsAppAlert(
-          "other",
-          `🚨 *20i API Health Alert — NoePanel*\n\n` +
-          `The 20i connection check has FAILED.\n\n` +
-          `Error: ${result.message?.substring(0, 200) ?? "Unknown error"}\n\n` +
-          `Check Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n` +
-          `_Auto-check runs every 15 minutes_`,
-        );
+        const alertMsg = isIpBlocked
+          ? `🚨 *20i IP Blocked — NoePanel*\n\nRequest blocked from IP: ${currentIp}\n\nAction required: whitelist *${currentIp}* at my.20i.com → Reseller API → IP Whitelist.\n\n_Auto-check runs every 15 minutes_`
+          : `🚨 *20i API Health Alert — NoePanel*\n\nThe 20i connection check has FAILED.\n\nError: ${msg.substring(0, 200) ?? "Unknown error"}\n\nCheck Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n_Auto-check runs every 15 minutes_`;
+        await sendWhatsAppAlert("other", alertMsg);
       }
 
-      await logCron("twentyi:health_check", "failed", result.message?.substring(0, 500));
+      await logCron("twentyi:health_check", "failed", `${statusDetail} (outbound IP: ${currentIp})`);
     } else {
-      await logCron("twentyi:health_check", "success", `OK — ${result.message?.substring(0, 200)}`);
+      // Success — persist connected state + current IP
+      await db.update(serversTable)
+        .set({ apiConnected: true, lastConnected: new Date(), serverIp: currentIp, connectionStatusDetail: null, updatedAt: new Date() })
+        .where(eq(serversTable.id, server.id));
+      console.log(`[CRON][HEALTH] 20i connection OK — outbound IP: ${currentIp}`);
+      await logCron("twentyi:health_check", "success", `OK — outbound IP: ${currentIp} — ${result.message?.substring(0, 150)}`);
     }
   } catch (err: any) {
     console.warn("[CRON] 20i health check error:", err.message);

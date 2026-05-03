@@ -260,6 +260,10 @@ async function runStartupMigrations() {
     `);
     console.log("[MIGRATIONS] admin_config table ready");
 
+    // servers — new columns added after initial deploy
+    await db.execute(sql`ALTER TABLE servers ADD COLUMN IF NOT EXISTS connection_status_detail TEXT`);
+    console.log("[MIGRATIONS] servers.connection_status_detail ready");
+
     // activity_stream — real-time log of advanced tool usage by clients
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS activity_stream (
