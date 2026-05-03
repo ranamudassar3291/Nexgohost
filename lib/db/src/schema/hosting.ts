@@ -94,6 +94,8 @@ export const hostingServicesTable = pgTable("hosting_services", {
   whmcsId: text("whmcs_id"),
   twentyIPackageId: text("twenty_i_package_id"),
   amount: numeric("amount", { precision: 10, scale: 2 }),
+  usageCache: text("usage_cache"),
+  usageCachedAt: timestamp("usage_cached_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

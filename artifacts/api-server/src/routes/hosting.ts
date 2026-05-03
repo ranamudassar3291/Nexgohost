@@ -1795,8 +1795,32 @@ router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, r
       .where(and(eq(hostingServicesTable.id, id), eq(hostingServicesTable.clientId, clientId))).limit(1);
     if (!service) return res.status(404).json({ error: "Service not found" });
 
-    if (!service.serverId || !service.username) {
+    // Guard: username not yet provisioned → 202 instead of trying WHM and getting 500
+    if (!service.username) {
+      console.log(`[USAGE] svc=${id} — no cPanel username yet, returning provisioning status`);
+      return res.status(202).json({
+        provisioning: true,
+        message: "Account provisioning in progress. Usage data will be available once setup is complete.",
+        source: "provisioning",
+        diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0, diskUnlimited: false, bwUnlimited: false,
+      });
+    }
+
+    if (!service.serverId) {
       return res.json({ source: "none", diskUsed: null, diskPct: 0, bwUsed: null, bwPct: 0, diskUnlimited: false, bwUnlimited: false });
+    }
+
+    // ── DB cache: return stored JSON if < 10 minutes old ──────────────────
+    const CACHE_TTL_MS = 10 * 60 * 1000;
+    if (service.usageCache && service.usageCachedAt) {
+      const age = Date.now() - new Date(service.usageCachedAt).getTime();
+      if (age < CACHE_TTL_MS) {
+        try {
+          const cached = JSON.parse(service.usageCache);
+          console.log(`[USAGE] svc=${id} — returning DB cache (age ${Math.round(age / 1000)}s)`);
+          return res.json({ ...cached, source: "db-cache" });
+        } catch { /* corrupt cache — fall through to live fetch */ }
+      }
     }
 
     const [server] = await db.select().from(serversTable).where(eq(serversTable.id, service.serverId)).limit(1);
@@ -1805,6 +1829,7 @@ router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, r
     }
 
     const serverCfg = toServerCfg(server);
+    console.log(`[USAGE] svc=${id} cpanelUser=${service.username} server=${serverCfg.hostname}:${serverCfg.port || 2087} — calling cpanelGetLiveUsage`);
     const {
       diskUsedMB, diskLimitMB, diskUnlimited,
       bwUsedMB, bwLimitMB, bwUnlimited,
@@ -1814,17 +1839,10 @@ router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, r
     const diskPct = (!diskUnlimited && diskLimitMB > 0) ? Math.min(100, Math.round((diskUsedMB / diskLimitMB) * 100)) : 0;
     const bwPct   = (!bwUnlimited   && bwLimitMB   > 0) ? Math.min(100, Math.round((bwUsedMB   / bwLimitMB)   * 100)) : 0;
 
-    // Also persist snapshot to the service record for offline display
+    // Also persist snapshot to the service record for offline display + 10-min cache
     const diskUsedFmt = fmtMB(diskUsedMB);
     const bwUsedFmt   = fmtMB(bwUsedMB);
-    db.update(hostingServicesTable).set({
-      diskUsed: diskUsedFmt,
-      bandwidthUsed: bwUsedFmt,
-      updatedAt: new Date(),
-    }).where(eq(hostingServicesTable.id, id)).catch(() => {});
-
-    res.json({
-      source: "cpanel",
+    const livePayload = {
       diskUsed: diskUsedFmt,
       diskLimit: diskUnlimited ? "Unlimited" : fmtMB(diskLimitMB),
       diskPct,
@@ -1833,7 +1851,16 @@ router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, r
       bwLimit: bwUnlimited ? "Unlimited" : fmtMB(bwLimitMB),
       bwPct,
       bwUnlimited,
-    });
+    };
+    db.update(hostingServicesTable).set({
+      diskUsed: diskUsedFmt,
+      bandwidthUsed: bwUsedFmt,
+      usageCache: JSON.stringify(livePayload),
+      usageCachedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(hostingServicesTable.id, id)).catch(() => {});
+
+    res.json({ source: "cpanel", ...livePayload });
   } catch (err: any) {
     console.warn("[CLIENT] usage fetch error (non-fatal):", err.message);
     // Try to return last-known values from DB on error

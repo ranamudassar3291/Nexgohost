@@ -123,8 +123,8 @@ const Pricing: React.FC = () => {
               whileHover={{ y: -4 }}
               className={`relative flex flex-col p-6 rounded-2xl border transition-all duration-300 ${
                 plan.popular
-                  ? 'border-primary/60 z-10 shadow-2xl shadow-primary/20 bg-[#0d0d2b] mt-0'
-                  : 'border-white/10 bg-[#0a0a1f] hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10'
+                  ? 'border-primary/60 z-10 shadow-2xl shadow-primary/20 bg-white mt-0'
+                  : 'border-slate-200 bg-white hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10'
               }`}
             >
               {plan.popular && (
@@ -134,7 +134,7 @@ const Pricing: React.FC = () => {
               )}
 
               <div className="mb-6">
-                <h3 className="text-xl font-black text-white mb-3">{plan.name}</h3>
+                <h3 className="text-xl font-black text-slate-900 mb-3">{plan.name}</h3>
                 <div className="flex items-baseline gap-1">
                   <span className="text-4xl font-black text-primary tracking-tighter">{convertFromPKR(getPrice(plan))}</span>
                   <span className="text-slate-500 font-bold">/mo</span>
@@ -146,7 +146,7 @@ const Pricing: React.FC = () => {
                       Save {Math.round((1 - plan.yearly / plan.monthly) * 100)}% vs monthly
                     </div>
                     <div className="text-xs text-slate-500 font-semibold">
-                      Billed <span className="text-white font-black">{convertFromPKR(plan._raw.yearlyPrice)}</span>/yr
+                      Billed <span className="text-slate-900 font-black">{convertFromPKR(plan._raw.yearlyPrice)}</span>/yr
                     </div>
                   </div>
                 ) : billingCycle === 'yearly' && (
@@ -164,7 +164,7 @@ const Pricing: React.FC = () => {
                 className={`block w-full py-3.5 rounded-2xl font-black transition-all mb-6 text-sm text-center ${
                   plan.popular
                     ? 'bg-primary text-white hover:bg-primary-600 shadow-lg shadow-primary/40'
-                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
+                    : 'bg-slate-100 text-slate-900 hover:bg-slate-200 border border-slate-200'
                 }`}
               >
                 {plan.btnText || 'Order Now'}
@@ -176,13 +176,13 @@ const Pricing: React.FC = () => {
                   {(plan.features || []).map((feature: string, j: number) => (
                     <li key={j} className="flex items-start gap-3">
                       <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm font-medium leading-tight text-slate-300">{feature}</span>
+                      <span className="text-sm font-medium leading-tight text-slate-700">{feature}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              <div className="mt-6 pt-5 border-t border-white/10">
+              <div className="mt-6 pt-5 border-t border-slate-200">
                 <button
                   onClick={() => setSelectedPlan(plan)}
                   className="text-primary font-black text-sm hover:underline flex items-center gap-2"

@@ -17,7 +17,7 @@ interface ServerConfig {
 }
 
 function resolveToken(cfg: ServerConfig): string {
-  return decryptField(cfg.apiToken ?? "");
+  return decryptField(cfg.apiToken ?? "").trim();
 }
 
 interface CpanelAccount {
@@ -560,27 +560,38 @@ export async function cpanelUapi(
     ...params,
   });
   const url = `https://${server.hostname}:${port}/json-api/cpanel?${query}`;
-  const raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` }, timeoutMs);
+  console.log(`[UAPI] ${module}::${func} user=${cpanelUser} → ${url}`);
+
+  let raw = "";
+  try {
+    raw = await httpsGet(url, { "Authorization": `whm ${authUser}:${resolveToken(server)}` }, timeoutMs);
+  } catch (netErr: any) {
+    console.error(`[UAPI] ${module}::${func} network error for ${cpanelUser}: ${netErr.message}`);
+    throw netErr;
+  }
 
   let data: any;
   try { data = JSON.parse(raw); } catch {
+    console.error(`[UAPI] ${module}::${func} non-JSON response for ${cpanelUser} (first 400): ${raw.substring(0, 400)}`);
     throw new Error(`cPanel UAPI (${module}::${func}) returned non-JSON: ${raw.substring(0, 200)}`);
   }
 
   // WHM-level error
   if (data?.metadata?.result === 0) {
-    throw new Error(data.metadata?.reason || `cPanel UAPI (${module}::${func}) WHM-level error`);
+    const reason = data.metadata?.reason || `cPanel UAPI (${module}::${func}) WHM-level error`;
+    console.error(`[UAPI] ${module}::${func} WHM-level error for ${cpanelUser}: ${reason}`);
+    throw new Error(reason);
   }
 
   // UAPI-level error
   const uapiResult = data?.result ?? data;
   if (uapiResult?.status === 0) {
     const errs: string[] = uapiResult?.errors ?? [];
-    throw new Error(
-      errs.length > 0
-        ? errs.join("; ")
-        : `cPanel UAPI (${module}::${func}) failed — no error message returned`
-    );
+    const msg = errs.length > 0
+      ? errs.join("; ")
+      : `cPanel UAPI (${module}::${func}) failed — no error message returned`;
+    console.error(`[UAPI] ${module}::${func} UAPI-level error for ${cpanelUser}: ${msg}`);
+    throw new Error(msg);
   }
 
   return uapiResult?.data ?? uapiResult;
@@ -696,13 +707,26 @@ export async function cpanelFilelist(
   limit = 200,
   timeoutMs = 10_000,
 ): Promise<FilesystemItem[]> {
-  const data = await cpanelUapi(server, cpanelUser, "Fileman", "list", {
-    dir,
-    include_mime: "1",
-    limit: String(limit),
-    sort_by: "type",
-    sort_order: "asc",
-  }, timeoutMs);
+  let data: any;
+  try {
+    data = await cpanelUapi(server, cpanelUser, "Fileman", "list", {
+      dir,
+      include_mime: "1",
+      limit: String(limit),
+      sort_by: "type",
+      sort_order: "asc",
+    }, timeoutMs);
+  } catch (err: any) {
+    // Empty directories can cause UAPI to return a status:0 error on some cPanel builds.
+    // Treat as empty list rather than propagating a 500.
+    const msg = (err.message ?? "").toLowerCase();
+    if (msg.includes("no files") || msg.includes("empty") || msg.includes("no such file") || msg.includes("failed — no error")) {
+      console.log(`[FILE-MANAGER] cpanelFilelist treating as empty dir (${dir}): ${err.message}`);
+      return [];
+    }
+    throw err;
+  }
+  if (data == null) return [];
   const items: any[] = Array.isArray(data) ? data : (data?.list ?? data?.files ?? []);
   return items.map((item: any) => ({
     file: item.file ?? item.filename ?? "",
@@ -1741,6 +1765,43 @@ export async function cpanelGetLiveUsage(
     // If value looks like blocks (< 500000 and > 0), multiply by 1024
     return n;
   };
+
+  // ── Strategy 0: WHM UAPI /json-api/uapi ResourceUsage::get_usages ────────
+  // Uses the dedicated WHM UAPI endpoint (not the /json-api/cpanel proxy).
+  // URL: https://{host}:2087/json-api/uapi?user={username}&module=ResourceUsage&function=get_usages
+  try {
+    const port = server.port || 2087;
+    const authUser = server.username || "root";
+    const token = resolveToken(server);
+    const query = new URLSearchParams({ user: username, module: "ResourceUsage", function: "get_usages" });
+    const url = `https://${server.hostname}:${port}/json-api/uapi?${query}`;
+    console.log(`[USAGE] Strategy 0 — ResourceUsage::get_usages URL: ${url}`);
+    let rawBody = "";
+    try {
+      rawBody = await httpsGet(url, { "Authorization": `WHM ${authUser}:${token}` }, 15_000);
+      const parsed = JSON.parse(rawBody);
+      const result = parsed?.result ?? parsed;
+      const data: any[] = Array.isArray(result?.data) ? result.data : [];
+      for (const item of data) {
+        const key = (item?.id ?? item?.name ?? "").toLowerCase();
+        const used = parseFloat(item?.usage ?? item?.bytes ?? "0") || 0;
+        const max  = parseFloat(item?.maximum ?? item?.limit ?? "0") || 0;
+        if (key === "diskusage" || key === "disk") {
+          if (used > 0) { diskUsedMB = used / (1024 * 1024); console.log(`[USAGE] Strategy 0 disk: ${diskUsedMB.toFixed(2)} MB`); }
+          if (max  > 0) { diskLimitMB = max / (1024 * 1024); diskUnlimited = false; }
+        }
+        if (key === "bandwidthusage" || key === "bandwidth" || key === "bwusage") {
+          if (used > 0) { bwUsedMB = used / (1024 * 1024); console.log(`[USAGE] Strategy 0 bw: ${bwUsedMB.toFixed(2)} MB`); }
+          if (max  > 0) { bwLimitMB = max / (1024 * 1024); bwUnlimited = false; }
+        }
+      }
+    } catch (innerErr: any) {
+      console.warn(`[USAGE] Strategy 0 network error for ${username}: ${innerErr.message}`);
+      if (rawBody) console.warn(`[USAGE] Strategy 0 raw response (first 400 chars): ${rawBody.substring(0, 400)}`);
+    }
+  } catch (e: any) {
+    console.warn(`[USAGE] Strategy 0 outer error for ${username}: ${e.message}`);
+  }
 
   // ── Strategy 1: UAPI Quota::get_quota_info (FIRST — most reliable on Linux) ─
   // Returns bytes-precision OS-level quota info for the cPanel account.
