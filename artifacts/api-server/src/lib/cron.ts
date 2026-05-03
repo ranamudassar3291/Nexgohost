@@ -647,7 +647,14 @@ export async function runTwentyiStatusSyncCron(): Promise<void> {
 
       let sites: Awaited<ReturnType<typeof twentyiListSites>>;
       try {
-        sites = await runWithCtx({ proxyUrl: server.proxyUrl ?? undefined }, () => twentyiListSites(apiKey));
+        sites = await runWithCtx(
+          {
+            keyType: (server as any).keyType ?? "general",
+            proxyUrl: server.twentyiBaseUrl ?? undefined,
+            baseUrl: server.twentyiBaseUrl ?? undefined,
+          },
+          () => twentyiListSites(apiKey),
+        );
       } catch (apiErr: any) {
         console.warn(`[CRON] 20i status sync failed for server ${server.name}: ${apiErr.message}`);
         continue;
@@ -1542,7 +1549,11 @@ export async function runTwentyiHealthCheck(): Promise<void> {
     try { currentIp = await getOutboundIp(); } catch { /* ignore */ }
 
     const result = await runWithCtx(
-      { keyType: (server as any).keyType ?? "general", proxyUrl: server.proxyUrl ?? undefined },
+      {
+        keyType: (server as any).keyType ?? "general",
+        proxyUrl: server.twentyiBaseUrl ?? undefined,
+        baseUrl: server.twentyiBaseUrl ?? undefined,
+      },
       () => twentyiTestConnection(apiKey),
     );
 

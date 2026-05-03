@@ -168,12 +168,14 @@ router.post("/admin/servers/test-api-key", authenticate, requireAdmin, async (re
       try { pkgs = await twentyiGetPackages(apiKey); } catch { /* empty */ }
       return res.json({ success: true, message: result.message, diagnostic: result.diagnostic ?? null, packages: pkgs, debug });
     };
-    // Run with optional per-request proxy override
-    if (proxyUrl !== undefined) {
-      await runWithProxy(proxyUrl || undefined, runTest);
-    } else {
-      await runTest();
-    }
+    await runWithCtx(
+      {
+        keyType: keyType || "general",
+        proxyUrl: proxyUrl || undefined,
+        baseUrl: proxyUrl || undefined,
+      },
+      runTest,
+    );
     return;
   }
   res.status(400).json({ error: "Pre-save testing is only supported for 20i servers" });
@@ -356,9 +358,14 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
     try { currentIp = await getOutboundIp(); } catch { /* ignore */ }
 
     // ── Fresh test (no long-term cache — always verify live) ──
-    const result = await (server.proxyUrl
-      ? runWithProxy(server.proxyUrl, () => twentyiTestConnection(effectiveKey))
-      : twentyiTestConnection(effectiveKey));
+    const result = await runWithCtx(
+      {
+        keyType: server.keyType ?? "general",
+        proxyUrl: server.twentyiBaseUrl ?? undefined,
+        baseUrl: server.twentyiBaseUrl ?? undefined,
+      },
+      () => twentyiTestConnection(effectiveKey),
+    );
 
     if (!result.success) {
       const msg = result.message ?? "";
@@ -378,7 +385,7 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
         outboundIp: currentIp,
         ipBlocked: isIpBlocked,
         actionRequired: isIpBlocked
-          ? `Action Required: Your outbound IP has changed. Please whitelist ${currentIp} in your 20i/WHM firewall at my.20i.com → Reseller API → IP Whitelist.`
+          ? `Action Required: Set a stable TWENTYI_BASE_URL in the server record to a fixed reverse-proxy endpoint.`
           : null,
         packages: [],
       });

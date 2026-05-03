@@ -135,7 +135,7 @@ async function runWith20i<T>(server: any, fn: () => Promise<T>): Promise<T> {
   return runWithCtx(
     {
       keyType: server?.keyType ?? "general",
-      proxyUrl: server?.proxyUrl ?? undefined,
+      proxyUrl: server?.twentyiBaseUrl ?? undefined,
       baseUrl: server?.twentyiBaseUrl ?? undefined,
     },
     fn,

@@ -533,7 +533,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   const proxyConfig = getProxyConfig();
   const outboundIp = await getOutboundIp();
   const testPath = "/reseller/*/packageTypes";
-  const url = `${BASE_URL}${testPath}`;
+  const url = `${resolveBaseUrl()}${testPath}`;
 
   // Try all three key formats and report each attempt
   const fmts: Array<"before_plus" | "after_plus" | "full"> = ["before_plus", "after_plus", "full"];
