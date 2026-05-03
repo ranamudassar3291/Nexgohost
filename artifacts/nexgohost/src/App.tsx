@@ -234,6 +234,18 @@ function OrderBySlug() {
   return <CheckoutLayout allowGuest><NewOrder initialPackageId={planId} /></CheckoutLayout>;
 }
 
+function ClientOrdersNewRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const pid = params.get("pid") ?? params.get("plan_id") ?? "";
+  const gid = params.get("gid") ?? "";
+  const vpsId = params.get("vps_id") ?? "";
+
+  if (pid) return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
+  if (gid) return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
+  if (vpsId) return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
+  return <Redirect to="/client/orders/new" />;
+}
+
 // /cart — redirect to unified checkout
 function CartRedirect() {
   const params = new URLSearchParams(window.location.search);
@@ -571,6 +583,7 @@ function RouterRoot() {
       <Route path="/order/vps" component={OrderByVpsId}/>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
       <Route path="/order/:slug" component={OrderBySlug}/>
+      <Route path="/client/orders/new" component={ClientOrdersNewRedirect}/>
       {/* /cart — backward compat, redirects to unified checkout */}
       <Route path="/cart" component={CartRedirect}/>
 

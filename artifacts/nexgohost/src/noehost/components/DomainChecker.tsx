@@ -160,7 +160,7 @@ const WhoisModal: React.FC<{ domain: string; onClose: () => void }> = ({ domain,
 
                   <div className="pt-2">
                     <button
-                      onClick={() => window.location.href = `/client/order?type=transfer&domain=${encodeURIComponent(domain)}`}
+                      onClick={() => window.location.href = `/client/orders/new?type=transfer&domain=${encodeURIComponent(domain)}`}
                       className="w-full py-3 bg-primary hover:bg-primary-600 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2"
                     >
                       <RefreshCw size={14} /> Transfer This Domain to NoeHost
@@ -390,7 +390,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                             <Info size={12} /> WHOIS
                           </button>
                           <button
-                            onClick={() => window.location.href = `/client/order?type=transfer&domain=${encodeURIComponent(domainFull)}`}
+                            onClick={() => window.location.href = `/client/orders/new?type=transfer&domain=${encodeURIComponent(domainFull)}`}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all"
                           >
                             <RefreshCw size={12} /> Transfer

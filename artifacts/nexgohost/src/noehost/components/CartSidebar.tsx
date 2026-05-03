@@ -48,7 +48,7 @@ const CartSidebar: React.FC = () => {
   const handleCheckout = () => {
     if (items.length === 0) return;
     closeCart();
-    navigate('/checkout');
+    navigate('/client/orders/new');
   };
 
   const handleContinueShopping = () => {
