@@ -174,7 +174,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
   const Logo = () => {
     if (navData.logoImage) {
-      return <img src={navData.logoImage} alt={navData.logo} className="h-8 w-auto object-contain" />;
+      return <img src={navData.logoImage} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     if (navData.logoUrl) {
       return <img src={navData.logoUrl} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;

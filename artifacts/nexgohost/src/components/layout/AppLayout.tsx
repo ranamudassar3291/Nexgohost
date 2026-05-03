@@ -248,7 +248,7 @@ export function AppLayout({ children, role }: LayoutProps) {
       {/* Logo */}
       <div className="px-5 py-5 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", minHeight: 68 }}>
         {logoUrl ? (
-          <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 40, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} />
+          <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 40, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} referrerPolicy="no-referrer" />
         ) : (
           <>
             <div
@@ -448,7 +448,7 @@ export function AppLayout({ children, role }: LayoutProps) {
       <div className="px-5 py-4 flex items-center gap-3 border-b border-border/50" style={{ minHeight: 64 }}>
         {logoUrl ? (
           <div className="flex items-center min-w-0 max-w-full">
-            <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }} />
+            <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }} referrerPolicy="no-referrer" />
           </div>
         ) : (
           <>
@@ -571,7 +571,7 @@ export function AppLayout({ children, role }: LayoutProps) {
       >
         <div className="flex items-center gap-2.5">
           {logoUrl ? (
-            <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: 180, ...(isClient ? { filter: "brightness(0) invert(1)" } : {}) }} />
+            <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: 180, ...(isClient ? { filter: "brightness(0) invert(1)" } : {}) }} referrerPolicy="no-referrer" />
           ) : (
             <>
               <div

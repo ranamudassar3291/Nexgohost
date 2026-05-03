@@ -26,6 +26,7 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
             alt={siteName}
             className="brand-logo-img"
             style={{ height: "100%", width: "auto", maxWidth: "100%", objectFit: "contain" }}
+            referrerPolicy="no-referrer"
             onError={e => {
               const img = e.target as HTMLImageElement;
               img.style.display = "none";
@@ -76,6 +77,7 @@ export function BrandingLogoIcon({ size = "md" }: { size?: "sm" | "md" | "lg" })
           alt={siteName}
           className="brand-logo-img"
           style={{ height: "100%", width: "auto", maxWidth: "100%", objectFit: "contain" }}
+          referrerPolicy="no-referrer"
         />
       </div>
     );
