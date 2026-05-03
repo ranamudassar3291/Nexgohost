@@ -964,6 +964,80 @@ export default function ClientDashboard() {
         </Link>
       )}
 
+      {/* ── My Services ── */}
+      {(filteredServices.length > 0 || allServices.length === 0) && (
+        <div>
+          <SectionHeader
+            title="My Services"
+            icon={Server}
+            link="/client/hosting"
+            linkLabel="See All"
+            count={allServices.length}
+          />
+          {allServices.length === 0 ? (
+            <div className="py-12 text-center rounded-2xl" style={{ background: "#ffffff", border: "1px solid #E5E7EB", borderRadius: "16px" }}>
+              <Server size={32} className="mx-auto mb-3" style={{ color: "#E5E7EB" }} />
+              <p className="text-sm font-semibold" style={{ color: "#374151" }}>No services yet</p>
+              <p className="text-xs mt-1" style={{ color: "#9CA3AF" }}>Get started with a hosting plan.</p>
+              <Link href="/client/orders/new">
+                <button className="mt-4 h-8 px-4 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#4F46E5,#6366F1)" }}>
+                  Get Hosting
+                </button>
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...filteredServices]
+                .sort((a, b) => {
+                  const ord: Record<string, number> = { active: 0, pending: 1, suspended: 2, terminated: 3 };
+                  return (ord[a.status] ?? 9) - (ord[b.status] ?? 9);
+                })
+                .slice(0, q ? 999 : 6)
+                .map(svc => (
+                  <HostingTile key={svc.id} svc={svc} onSso={handleSsoLogin} ssoLoading={ssoLoading} />
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── My Domains ── */}
+      {(filteredDomains.length > 0 || allDomains.length === 0) && (
+        <div>
+          <SectionHeader
+            title="My Domains"
+            icon={Globe}
+            link="/client/domains"
+            linkLabel="See All"
+            count={allDomains.length}
+          />
+          {allDomains.length === 0 ? (
+            <div className="py-12 text-center rounded-2xl" style={{ background: "#ffffff", border: "1px solid #E5E7EB", borderRadius: "16px" }}>
+              <Globe size={32} className="mx-auto mb-3" style={{ color: "#E5E7EB" }} />
+              <p className="text-sm font-semibold" style={{ color: "#374151" }}>No domains yet</p>
+              <p className="text-xs mt-1" style={{ color: "#9CA3AF" }}>Register or transfer a domain to get started.</p>
+              <Link href="/client/domains">
+                <button className="mt-4 h-8 px-4 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#059669,#10B981)" }}>
+                  Get a Domain
+                </button>
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...filteredDomains]
+                .sort((a, b) => {
+                  const ord: Record<string, number> = { active: 0, pending: 1, suspended: 2, terminated: 3 };
+                  return (ord[a.status] ?? 9) - (ord[b.status] ?? 9);
+                })
+                .slice(0, q ? 999 : 6)
+                .map(domain => (
+                  <DomainTile key={domain.id} domain={domain} navigate={navigate} />
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Setup Wizard ── */}
       {!q && setupProgress && !setupProgress.allComplete && (() => {
         const s1 = setupProgress.step1;
@@ -1093,6 +1167,9 @@ export default function ClientDashboard() {
           })}
         </div>
       )}
+
+      {/* ── Site Health Panel ── */}
+      {!q && <SiteHealthPanel />}
 
       {/* ── Recent Invoices + Orders ── */}
       {!q && (
