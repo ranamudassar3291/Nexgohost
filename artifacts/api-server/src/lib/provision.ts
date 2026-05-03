@@ -187,7 +187,8 @@ export async function provisionHostingService(
   const [service] = await db.select().from(hostingServicesTable)
     .where(eq(hostingServicesTable.id, serviceId)).limit(1);
   if (!service) return { success: false, message: "Service not found" };
-  if (service.status === "active") return { success: false, message: "Service is already active" };
+  // Allow re-provisioning of services that are active but have no username yet (partial success / retry scenario)
+  if (service.status === "active" && service.username) return { success: false, message: "Service is already active" };
 
   const [plan] = await db.select().from(hostingPlansTable)
     .where(eq(hostingPlansTable.id, service.planId)).limit(1);
@@ -281,8 +282,17 @@ export async function provisionHostingService(
     }
 
     // Filter servers that match the module type and are under their account limit
+    // "cpanel" module matches both "cpanel" and "whm" server types (same WHM API family)
+    const isCpanelModule = module === "cpanel" || module === "whm";
     const candidates = allServers.filter(s => {
-      if (module !== "none" && s.type !== module) return false;
+      if (module !== "none") {
+        const sType = (s.type || "").toLowerCase();
+        if (isCpanelModule) {
+          if (sType !== "cpanel" && sType !== "whm") return false;
+        } else if (sType !== module) {
+          return false;
+        }
+      }
       const used = accountCounts[s.id] ?? 0;
       const limit = s.maxAccounts ?? 500;
       return used < limit;   // only include if space available
@@ -307,12 +317,17 @@ export async function provisionHostingService(
   }
 
   // ── Server configuration validation ───────────────────────────────────────
-  if (module === "cpanel" && server) {
+  // Validate that WHM/cPanel servers have the required credentials configured
+  const resolvedPanelType = server ? String(server.type || "").toLowerCase() : "";
+  if ((resolvedPanelType === "cpanel" || resolvedPanelType === "whm") && server) {
     if (!server.hostname) {
       return { success: false, message: "Server configuration incomplete: hostname is missing" };
     }
     if (!server.apiToken) {
       return { success: false, message: "Server configuration incomplete: API token is missing" };
+    }
+    if (!server.apiUsername) {
+      return { success: false, message: "Server configuration incomplete: API username (WHM root user) is missing" };
     }
   }
 
@@ -554,7 +569,7 @@ export async function provisionHostingService(
   // For 20i servers: skip the "hosting is ready" email if the 20i hosting package
   // was not actually created (addWeb failed). Sending a "ready" email when the
   // account doesn't exist yet confuses clients and hides the provisioning error.
-  const skip20iEmail = module === "20i" && !!whmError;
+  const skip20iEmail = server?.type === "20i" && !!whmError;
   try {
     if (skip20iEmail) {
       console.log(`[PROVISION] Skipping welcome email — 20i hosting was not provisioned (whmError: ${whmError})`);

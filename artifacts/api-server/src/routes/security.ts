@@ -27,7 +27,7 @@ router.get("/my/security/health-score", authenticate, async (req: AuthRequest, r
     const clientIp = getClientIp(req);
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-    const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.userId, userId));
+    const services = await db.select().from(hostingServicesTable).where(eq(hostingServicesTable.clientId, userId));
     const unpaidInvoices = await db.select().from(invoicesTable)
       .where(and(eq(invoicesTable.clientId, userId), eq(invoicesTable.status, "unpaid")));
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

@@ -63,12 +63,13 @@ router.get("/my/site-health", authenticate, async (req: AuthRequest, res) => {
     // Save a snapshot for each service (one per day using ON CONFLICT DO NOTHING-ish via time check)
     const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000); // 12h window, don't spam snapshots
     for (const m of metrics) {
-      const [recent] = await db.execute(sql`
+      const recentResult = await db.execute(sql`
         SELECT id FROM site_health_snapshots
         WHERE service_id = ${m.serviceId} AND recorded_at > ${cutoff}
         LIMIT 1
-      `) as any;
-      const hasRecent = (recent as any)?.rows?.length > 0 || (Array.isArray(recent) && recent.length > 0);
+      `);
+      const recentRows: any[] = (recentResult as any)?.rows ?? (Array.isArray(recentResult) ? recentResult : []);
+      const hasRecent = recentRows.length > 0;
       if (!hasRecent) {
         await db.execute(sql`
           INSERT INTO site_health_snapshots
