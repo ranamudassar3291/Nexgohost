@@ -165,10 +165,17 @@ export async function twentyiFindWorkingKeyFormat(
     const authHeader = `Bearer ${token}`;
 
     try {
+      const maskedDetect = authHeader.replace(/Bearer\s+\S+/i, "Bearer ****");
+      console.log(`[20i-KEY-DETECT] format=${fmt} keyLen=${keyVariant.length} Authorization="${maskedDetect}" User-Agent="Nexgohost-Platform/1.0"`);
       const cfg: AxiosRequestConfig = {
         method: "GET",
         url: `${BASE_URL}${testPath}`,
-        headers: { Authorization: authHeader, "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": "Nexgohost-Platform/1.0",
+        },
         timeout: DEFAULT_TIMEOUT_MS,
         validateStatus: () => true,
       };
@@ -306,6 +313,15 @@ async function request<T = any>(
   );
 
   const makeRequest = async (authHeader: string, reqBody?: unknown) => {
+    // Debug log: show exact headers sent, masking the auth token
+    const maskedAuth = authHeader.replace(/Bearer\s+\S+/i, "Bearer ****");
+    console.log(
+      `[20i-HDR] ${method} ${url}` +
+      ` Authorization="${maskedAuth}"` +
+      ` User-Agent="Nexgohost-Platform/1.0"` +
+      ` Content-Type="application/json"`
+    );
+
     const cfg: AxiosRequestConfig = {
       method: method as any,
       url,
@@ -313,8 +329,8 @@ async function request<T = any>(
         Authorization: authHeader,
         "Content-Type": "application/json",
         Accept: "application/json",
+        "User-Agent": "Nexgohost-Platform/1.0",
         // Identify as noehost.com so 20i sees consistent origin in all requests.
-        // This helps when 20i supports domain-based access in addition to IP whitelist.
         Origin: "https://noehost.com",
         Referer: "https://noehost.com/",
       },
@@ -371,10 +387,11 @@ async function request<T = any>(
     const d403 = typeof res.data === "object" && res.data !== null ? (res.data as any) : {};
     const perm = d403?.permission ?? d403?.error?.data?.permission ?? d403?.data?.permission ?? "";
 
+    // Include the FULL 20i JSON body so the admin UI can display it verbatim
     const detail = perm
-      ? ` (permission: ${perm})`
+      ? ` (permission: ${perm}) — full 20i response: ${raw403}`
       : raw403 && raw403 !== "{}" && raw403 !== "null"
-        ? ` — 20i response: ${raw403.substring(0, 300)}`
+        ? ` — full 20i response: ${raw403}`
         : "";
     throw new Error(
       `20i API returned 403 Forbidden${detail}. Check your API key permissions at my.20i.com → Reseller API.`,
@@ -539,6 +556,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           Accept: "application/json",
+          "User-Agent": "Nexgohost-Platform/1.0",
         },
         timeout: DEFAULT_TIMEOUT_MS,
         validateStatus: () => true,
@@ -660,6 +678,7 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
       Authorization: `Bearer ${encodeKeyToBase64(detected.authKey, false)}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "User-Agent": "Nexgohost-Platform/1.0",
     },
     timeout: DEFAULT_TIMEOUT_MS,
     validateStatus: () => true,

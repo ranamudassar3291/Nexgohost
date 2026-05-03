@@ -45,7 +45,7 @@ async function getCachedSites(server: any): Promise<Awaited<ReturnType<typeof tw
   const key = String(server?.apiToken ?? "");
   const cached = _sitesCache.get(key);
   if (cached && Date.now() < cached.expiry) return cached.sites;
-  const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
+  const sites = await runWith20i(server, () => twentyiListSites(decryptApiKey(server)));
   _sitesCache.set(key, { sites, expiry: Date.now() + 60_000 });
   return sites;
 }
@@ -89,6 +89,15 @@ function requireApiKey(server: any, res: any): boolean {
   if (!server) { res.status(400).json({ error: "No active 20i server configured. Add one in Admin → Servers." }); return false; }
   if (!server.apiToken) { res.status(400).json({ error: "20i API key missing. Edit the server in Admin → Servers to add the API key." }); return false; }
   return true;
+}
+
+// Always decrypt the stored API key before passing it to any 20i API function.
+// Without decryption, an encrypted blob ("enc:v1:...") would be sent as the Bearer
+// token, which 20i rejects with 401 when ENCRYPTION_KEY is set.
+// decryptField() is a no-op on plaintext (development without ENCRYPTION_KEY).
+function decryptApiKey(server: any): string {
+  if (!server?.apiToken) throw new Error("No API key configured for this 20i server.");
+  return decryptField(server.apiToken).trim();
 }
 
 // Classify any error thrown by 20i library functions into a human-readable response.
@@ -250,7 +259,7 @@ router.get("/admin/twenty-i/probe", authenticate, requireAdmin, async (req: Auth
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
 
-    const apiKey = server!.apiToken!.trim();
+    const apiKey = decryptApiKey(server);
     const axios = (await import("axios")).default;
     const { sanitiseKey } = await import("../lib/twenty-i.js");
     const cleanKey = sanitiseKey(apiKey);
@@ -290,16 +299,23 @@ router.get("/admin/twenty-i/probe", authenticate, requireAdmin, async (req: Auth
     ];
 
     const makeCall = async (label: string, method: string, path: string, auth: string) => {
+      const maskedAuth = auth.replace(/Bearer\s+\S+/i, "Bearer ****");
+      console.log(`[20i-PROBE] ${method} https://api.20i.com${path} Authorization="${maskedAuth}" User-Agent="Nexgohost-Platform/1.0"`);
       try {
         const r = await axios({
           method: method as any,
           url: `https://api.20i.com${path}`,
-          headers: { Authorization: auth, "Content-Type": "application/json", Accept: "application/json" },
+          headers: {
+            Authorization: auth,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "User-Agent": "Nexgohost-Platform/1.0",
+          },
           timeout: 8_000,
           validateStatus: () => true,
         });
         const rawBody = typeof r.data === "string" ? r.data : JSON.stringify(r.data);
-        return { label, status: r.status, body: rawBody.substring(0, 300) };
+        return { label, status: r.status, body: rawBody.substring(0, 600) };
       } catch (e: any) {
         return { label, status: null, body: `Error: ${e.message}` };
       }
@@ -335,7 +351,7 @@ router.get("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (req
     // (1) /reseller/*/susers — full name/email if the account has stackUsersRead scope
     // (2) /package — site list for site-derived StackUser IDs (uses the in-memory cache when warm)
     const [susersResult, sitesResult] = await Promise.allSettled([
-      runWith20i(server, () => twentyiListStackUsers(server!.apiToken!)),
+      runWith20i(server, () => twentyiListStackUsers(decryptApiKey(server))),
       getCachedSites(server),
     ]);
 
@@ -424,7 +440,7 @@ router.post("/admin/twenty-i/stack-users", authenticate, requireAdmin, async (re
     if (!email || !name) return res.status(400).json({ error: "email and name are required" });
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const user = await twentyiCreateStackUser(server!.apiToken!, email, name);
+    const user = await twentyiCreateStackUser(decryptApiKey(server), email, name);
     res.json(user);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -435,7 +451,7 @@ router.delete("/admin/twenty-i/stack-users/:userId", authenticate, requireAdmin,
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiDeleteStackUser(server!.apiToken!, req.params.userId);
+    await twentyiDeleteStackUser(decryptApiKey(server), req.params.userId);
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -449,7 +465,7 @@ router.post("/admin/twenty-i/stack-users/:userId/reset-password", authenticate, 
     if (!password || password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiSetStackUserPassword(server!.apiToken!, req.params.userId, password);
+    await twentyiSetStackUserPassword(decryptApiKey(server), req.params.userId, password);
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -464,7 +480,7 @@ router.post("/admin/twenty-i/stack-users/with-panel-user", authenticate, require
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
 
-    const stackUser = await twentyiCreateStackUser(server!.apiToken!, email, name);
+    const stackUser = await twentyiCreateStackUser(decryptApiKey(server), email, name);
 
     let panelUserId: string | null = null;
     if (createPanelUser) {
@@ -501,7 +517,7 @@ router.get("/admin/twenty-i/sites", authenticate, requireAdmin, async (req: Auth
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const sites = await runWith20i(server, () => twentyiListSites(server!.apiToken!));
+    const sites = await runWith20i(server, () => twentyiListSites(decryptApiKey(server)));
 
     // Enrich sites with panel client info — wrapped in try/catch so DB issues never break the list
     let enriched: any[] = sites as any[];
@@ -548,7 +564,7 @@ router.post("/admin/twenty-i/sites/:siteId/suspend", authenticate, requireAdmin,
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiSuspend(server!.apiToken!, req.params.siteId);
+    await twentyiSuspend(decryptApiKey(server), req.params.siteId);
     // Mirror in DB
     await db.update(hostingServicesTable)
       .set({ status: "suspended", updatedAt: new Date() })
@@ -563,7 +579,7 @@ router.post("/admin/twenty-i/sites/:siteId/unsuspend", authenticate, requireAdmi
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiUnsuspend(server!.apiToken!, req.params.siteId);
+    await twentyiUnsuspend(decryptApiKey(server), req.params.siteId);
     await db.update(hostingServicesTable)
       .set({ status: "active", updatedAt: new Date() })
       .where(eq(hostingServicesTable.username, req.params.siteId));
@@ -577,7 +593,7 @@ router.delete("/admin/twenty-i/sites/:siteId", authenticate, requireAdmin, async
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiDelete(server!.apiToken!, req.params.siteId);
+    await twentyiDelete(decryptApiKey(server), req.params.siteId);
     await db.update(hostingServicesTable)
       .set({ status: "terminated", updatedAt: new Date() })
       .where(eq(hostingServicesTable.username, req.params.siteId));
@@ -593,7 +609,7 @@ router.post("/admin/twenty-i/sites/:siteId/assign", authenticate, requireAdmin, 
     if (!stackUserId) return res.status(400).json({ error: "stackUserId is required" });
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiAssignSiteToUser(server!.apiToken!, req.params.siteId, stackUserId);
+    await twentyiAssignSiteToUser(decryptApiKey(server), req.params.siteId, stackUserId);
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -604,7 +620,7 @@ router.get("/admin/twenty-i/sites/:siteId/sso", authenticate, requireAdmin, asyn
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const result = await twentyiGetSSOUrl(server!.apiToken!, req.params.siteId);
+    const result = await twentyiGetSSOUrl(decryptApiKey(server), req.params.siteId);
 
     if (result.url) {
       // SSO token obtained — send direct login URL
@@ -634,7 +650,7 @@ router.get("/admin/twenty-i/packages", authenticate, requireAdmin, async (req: A
     if (!requireApiKey(server, res)) return;
 
     // Try /reseller/*/packageTypes first (may 404 on this account type — use site-derived fallback).
-    const packages = await runWith20i(server, () => twentyiGetPackages(server!.apiToken!));
+    const packages = await runWith20i(server, () => twentyiGetPackages(decryptApiKey(server)));
     if (packages.length > 0) return res.json(packages);
 
     // Derive unique package types from cached site list — each site has packageTypeName + typeRef.
@@ -680,8 +696,9 @@ router.post("/admin/twenty-i/provision", authenticate, requireAdmin, async (req:
     if (!client) return res.status(404).json({ error: "Client not found" });
 
     // Create the hosting on 20i
+    const apiKey = decryptApiKey(server);
     const result = await twentyiCreateHosting(
-      server!.apiToken!,
+      apiKey,
       domain,
       client.email,
       packageId || undefined,
@@ -694,7 +711,7 @@ router.post("/admin/twenty-i/provision", authenticate, requireAdmin, async (req:
     let planName = "20i Hosting";
     if (packageId) {
       try {
-        const pkgs = await twentyiGetPackages(server!.apiToken!);
+        const pkgs = await twentyiGetPackages(apiKey);
         const pkg = pkgs.find(p => p.id === packageId);
         if (pkg) planName = pkg.label;
       } catch { /* ignore */ }
@@ -716,7 +733,7 @@ router.post("/admin/twenty-i/provision", authenticate, requireAdmin, async (req:
     // Assign to StackUser if provided
     if (stackUserId) {
       try {
-        await twentyiAssignSiteToUser(server!.apiToken!, result.siteId, stackUserId);
+        await twentyiAssignSiteToUser(apiKey, result.siteId, stackUserId);
       } catch (e: any) {
         console.warn(`[20i] assign site to user failed: ${e.message}`);
       }
@@ -749,7 +766,7 @@ router.get("/admin/twenty-i/migrations", authenticate, requireAdmin, async (req:
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const migrations = await runWith20i(server, () => twentyiListMigrations(server!.apiToken!));
+    const migrations = await runWith20i(server, () => twentyiListMigrations(decryptApiKey(server)));
     res.json(migrations);
   } catch (e: any) {
     const msg: string = e.message ?? "";
@@ -776,7 +793,7 @@ router.post("/admin/twenty-i/migrations", authenticate, requireAdmin, async (req
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
     const result = await twentyiStartMigration(
-      server!.apiToken!,
+      decryptApiKey(server),
       domain,
       sourceType as any,
       host,
@@ -794,7 +811,7 @@ router.get("/admin/twenty-i/migrations/:id", authenticate, requireAdmin, async (
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const status = await twentyiGetMigrationStatus(server!.apiToken!, req.params.id);
+    const status = await twentyiGetMigrationStatus(decryptApiKey(server), req.params.id);
     res.json(status);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -819,7 +836,7 @@ router.post("/admin/twenty-i/smart-migrate", authenticate, requireAdmin, async (
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
 
-    const apiKey = server!.apiToken!;
+    const apiKey = decryptApiKey(server);
     const steps: string[] = [];
 
     // Step 1: Get client from DB
@@ -898,7 +915,7 @@ router.get("/admin/twenty-i/tickets", authenticate, requireAdmin, async (req: Au
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const tickets = await twentyiListTickets(server!.apiToken!);
+    const tickets = await twentyiListTickets(decryptApiKey(server));
     res.json(tickets);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -909,7 +926,7 @@ router.get("/admin/twenty-i/tickets/:id", authenticate, requireAdmin, async (req
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const ticket = await twentyiGetTicket(server!.apiToken!, req.params.id);
+    const ticket = await twentyiGetTicket(decryptApiKey(server), req.params.id);
     res.json(ticket);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -922,7 +939,7 @@ router.post("/admin/twenty-i/tickets", authenticate, requireAdmin, async (req: A
     if (!subject || !body) return res.status(400).json({ error: "subject and body are required" });
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const result = await twentyiCreateTicket(server!.apiToken!, subject, body, (priority as any) ?? "normal");
+    const result = await twentyiCreateTicket(decryptApiKey(server), subject, body, (priority as any) ?? "normal");
     res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -935,7 +952,7 @@ router.post("/admin/twenty-i/tickets/:id/reply", authenticate, requireAdmin, asy
     if (!body) return res.status(400).json({ error: "body is required" });
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    await twentyiReplyTicket(server!.apiToken!, req.params.id, body);
+    await twentyiReplyTicket(decryptApiKey(server), req.params.id, body);
     res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -948,7 +965,7 @@ router.post("/admin/twenty-i/sync", authenticate, requireAdmin, async (req: Auth
   try {
     const server = await get20iServer(req.query?.serverId as string | undefined);
     if (!requireApiKey(server, res)) return;
-    const apiKey = server!.apiToken!;
+    const apiKey = decryptApiKey(server);
     const sites = await twentyiListSites(apiKey);
 
     let synced = 0;

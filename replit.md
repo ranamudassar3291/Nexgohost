@@ -33,6 +33,15 @@
   - `mergeGuestCart()` exported — call it after inline login (NewOrder step 3) to merge without page reload
   - Mount effect auto-merges guest cart when logged in and `noehost_guest_token` exists
 
+## 20i API Integration Fix (2026-05-03)
+
+- **`decryptApiKey(server)`** helper added to `twenty-i-admin.ts` — always decrypts the stored `apiToken` via `decryptField()` before passing to any 20i API function. Without this, an encrypted blob (`enc:v1:…`) was sent as the Bearer token when `ENCRYPTION_KEY` is set in production.
+- **Every route** that passed `server!.apiToken!` directly now uses `decryptApiKey(server)` — covers: listStackUsers, createStackUser, deleteStackUser, setStackUserPassword, listSites, suspend, unsuspend, delete, assignSiteToUser, getSSOUrl, getPackages, createHosting, listMigrations, startMigration, getMigrationStatus, listTickets, getTicket, createTicket, replyTicket, sync, and the probe diagnostic.
+- **`User-Agent: Nexgohost-Platform/1.0`** header added to all outbound 20i axios calls: `request()`, `twentyiFindWorkingKeyFormat()`, `twentyiRawDebug()`, `twentyiTestConnection()`, and the probe route's `makeCall()`.
+- **Debug logging**: Every request now logs `Authorization="Bearer ****"` (masked) and `User-Agent="Nexgohost-Platform/1.0"` before sending.
+- **Full 403 body**: The 403 error message now includes the full raw JSON response from 20i (not truncated to 300 chars) so admin UI gets the complete error detail.
+- **Probe route**: Fixed to use `decryptApiKey(server)` and added `User-Agent` header; body capture increased from 300 → 600 chars.
+
 ## Guest-First Order Flow (Backend-Driven)
 
 - **`/order/add/:packageId`** — public guest order link (NewOrder, `allowGuest=true`). Pre-selects plan by DB ID.
