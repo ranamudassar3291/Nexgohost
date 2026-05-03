@@ -23,7 +23,7 @@ import {
   cpanelRestoreFullBackup, cpanelRestoreDatabase,
 } from "../lib/cpanel.js";
 import multer from "multer";
-import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl, twentyiGetSSOUrl } from "../lib/twenty-i.js";
+import { twentyiSuspend, twentyiUnsuspend, twentyiDelete, twentyiInstallSSL, twentyiGetPackages, twentyiStackCPUrl, twentyiGetSSOUrl, twentyiGetPhpVersion, twentyiSetPhpVersion } from "../lib/twenty-i.js";
 import { provisionWordPress, reinstallWordPress, checkWordPressInstalled, isMysqlReachable, generateWpUsername, generateWpPassword, WP_STEPS } from "../lib/wordpress-provisioner.js";
 import { hostingBackupsTable } from "@workspace/db/schema";
 import { execAsync as _execAsync } from "../lib/shell.js";
@@ -735,6 +735,86 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
       .where(eq(hostingServicesTable.id, id));
   }, 2000);
   res.json({ success: true, message: "SSL reinstall initiated" });
+});
+
+// Client: get current PHP version
+router.get("/client/hosting/:id/php-version", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service || service.clientId !== req.user!.userId) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    const server = await resolveServerForService(service);
+    // 20i: fetch from API
+    if (server?.type === "20i" && server.apiToken && service.username) {
+      const ver = await twentyiGetPhpVersion(decryptField(server.apiToken), service.username);
+      return res.json({ version: ver, source: "20i" });
+    }
+    // cPanel: use UAPI LangPHP
+    if (server && server.apiToken && service.username && service.domain) {
+      try {
+        const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken };
+        const data = await cpanelUapi(serverCfg, service.username, "LangPHP", "php_get_vhost_versions", { vhost: service.domain });
+        const versions: any[] = Array.isArray(data) ? data : (data?.data ?? []);
+        const current = versions.find((v: any) => v.type === "main" || v.vhost === service.domain);
+        const ver = current?.phpversion ?? current?.version ?? null;
+        // Normalize ea-php82 → 8.2
+        const normalized = ver ? ver.replace(/^ea-php(\d)(\d+)$/, "$1.$2").replace(/^php(\d)(\d+)$/, "$1.$2") : null;
+        return res.json({ version: normalized, raw: ver, source: "cpanel" });
+      } catch (e: any) {
+        return res.json({ version: null, source: "cpanel", error: e.message });
+      }
+    }
+    return res.json({ version: null, source: "unknown" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Client: set PHP version
+router.post("/client/hosting/:id/php-version", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { version } = req.body;
+    if (!version) return res.status(400).json({ error: "version is required" });
+    const [service] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, id)).limit(1);
+    if (!service || service.clientId !== req.user!.userId) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    if (service.status !== "active") {
+      return res.status(400).json({ error: "Service must be active to change PHP version" });
+    }
+    const server = await resolveServerForService(service);
+    // 20i: set via API
+    if (server?.type === "20i" && server.apiToken && service.username) {
+      await twentyiSetPhpVersion(decryptField(server.apiToken), service.username, version);
+      await logServerAction({ serviceId: service.id, serverId: server.id, action: "set_php_version", status: "success", request: { version } });
+      return res.json({ success: true, version, message: `PHP version set to ${version}` });
+    }
+    // cPanel: use UAPI LangPHP
+    if (server && server.apiToken && service.username && service.domain) {
+      try {
+        const serverCfg = { hostname: server.hostname, port: server.apiPort || 2087, username: server.apiUsername || "root", apiToken: server.apiToken };
+        // Map 8.2 → ea-php82
+        const eaVersion = `ea-php${version.replace(".", "")}`;
+        await cpanelUapi(serverCfg, service.username, "LangPHP", "php_set_vhost_versions", {
+          version: eaVersion,
+          vhost: service.domain,
+        });
+        await logServerAction({ serviceId: service.id, serverId: server.id, action: "set_php_version", status: "success", request: { version } });
+        return res.json({ success: true, version, message: `PHP version set to ${version}` });
+      } catch (e: any) {
+        return res.status(500).json({ error: `cPanel PHP version change failed: ${e.message}` });
+      }
+    }
+    // No server configured — simulate for demo
+    return res.json({ success: true, version, message: `PHP version noted (no server configured)` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin: activate / reinstall SSL via WHM

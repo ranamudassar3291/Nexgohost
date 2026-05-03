@@ -240,3 +240,43 @@ Extended with:
 - Auto-launches webmail in new tab on load for active services
 - Uses `primaryColor` brand color, shows service domain info
 - Calls `POST /api/client/hosting/:id/email/webmail` for SSO login URL
+
+## Power-User Management Suite (Client Panel — ServiceDetail)
+
+### New Sidebar Sections
+- **Software** (`NavSection = "software"`) — in Hosting group
+- **Environment** (`NavSection = "environment"`) — in Tools group
+
+### SectionSoftware (Software Installers Hub)
+- Three installer cards: **WordPress** (manage/install, links to WordPress section), **Ghost** (external setup guide link), **Custom Node.js App** (links to Node.js section)
+- Each card shows: icon, name, description, status dot, status badge ("Active", "Guide Available", "Ready"), CTA button
+- Softaculous note card at bottom
+- WordPress CTA is primary-colored if not installed; outline if already installed
+
+### SectionEnvironment (PHP / Runtime Selector)
+- PHP version grid: **7.4, 8.0, 8.1, 8.2, 8.3** — click to apply, current version highlighted + checkmark badge + "Optimized" pill
+- Calls `GET /api/client/hosting/:id/php-version` on mount to detect current version
+- Calls `POST /api/client/hosting/:id/php-version` with `{ version }` to apply
+- Runtime Status table shows PHP/Node.js/Python runtime state with active/inactive dot
+
+### SectionSSL (Redesigned — Toggle Switch)
+- Large toggle switch button (green when active) replaces old button
+- "Protected" pulse-animated badge when SSL is active
+- Force HTTPS toggle (local state, UI only)
+- Reinstall/Renew buttons in secondary row when active
+- Features grid (6 items): certificate, auto-renewal, 256-bit encryption, padlock, SEO, PCI
+
+### DiskUsageCard (Shared Component)
+- Horizontal progress bar card showing Disk + Bandwidth usage
+- Color-coded bars: green (<65%), amber (65-85%), red (>85%)
+- Shows striped pattern for unlimited plans
+- Warning text when storage >85%
+- Used at top of **SectionFiles** as a preview card
+
+### PHP Version API (Backend)
+- `GET /api/client/hosting/:id/php-version` — detects current PHP version (20i via `twentyiGetPhpVersion`, cPanel via UAPI `LangPHP.php_get_vhost_versions`)
+- `POST /api/client/hosting/:id/php-version` — sets PHP version (20i via `twentyiSetPhpVersion`, cPanel via UAPI `LangPHP.php_set_vhost_versions` with `ea-phpXX` mapping)
+- `twentyiGetPhpVersion(apiKey, siteId)` added to `artifacts/api-server/src/lib/twenty-i.ts`
+
+### Overview Quick Actions Grid
+- Replaced "Backup" + "SSH" shortcuts with **Software** + **Environment** quick-launch tiles

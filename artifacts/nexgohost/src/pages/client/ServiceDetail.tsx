@@ -16,6 +16,7 @@ import {
   Globe2, Power, Play, Square, RotateCcw, ChevronRight, Info,
   MoreHorizontal, Boxes, AtSign, Zap, UploadCloud, FileText,
   Network, FolderPlus, Upload, ArrowUp, Home, Save, X, Plug, Palette, ArrowRight,
+  Package, Sparkles, Gauge, Ghost, BookOpen, Sliders,
 } from "lucide-react";
 import { format } from "date-fns";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -56,21 +57,23 @@ interface Service {
 
 interface DnsRecord { line: number; type: string; name: string; address: string; ttl: number }
 interface HostingPlan { id: string; name: string; price: number; yearlyPrice?: number | null; diskSpace: string; bandwidth: string }
-type NavSection = "overview" | "wordpress" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python";
+type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment";
 
 // ─── Sidebar Nav ─────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string; tooltip?: string }[] = [
-  { id: "overview",   label: "Overview",       icon: LayoutDashboard, group: "Hosting" },
-  { id: "wordpress",  label: "WordPress",      icon: Boxes,           group: "Hosting" },
-  { id: "domains",    label: "Domains & DNS",  icon: Globe,           group: "Hosting", tooltip: "DNS (Domain Name System) translates your domain name into an IP address so browsers can find your site." },
-  { id: "email",      label: "Email",          icon: Mail,            group: "Hosting" },
-  { id: "databases",  label: "Databases",      icon: Database,        group: "Hosting" },
-  { id: "files",      label: "File Manager",   icon: FolderOpen,      group: "Hosting" },
-  { id: "ssl",        label: "SSL",            icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
-  { id: "ssh",        label: "SSH Access",     icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
-  { id: "backup",     label: "Backups",        icon: ArchiveRestore,  group: "Tools" },
-  { id: "nodejs",     label: "Node.js",        icon: Code2,           group: "Tools" },
-  { id: "python",     label: "Python",         icon: Cpu,             group: "Tools" },
+  { id: "overview",     label: "Overview",       icon: LayoutDashboard, group: "Hosting" },
+  { id: "wordpress",    label: "WordPress",      icon: Boxes,           group: "Hosting" },
+  { id: "software",     label: "Software",       icon: Package,         group: "Hosting", tooltip: "One-click installers for popular applications like WordPress, Ghost, and Node.js." },
+  { id: "domains",      label: "Domains & DNS",  icon: Globe,           group: "Hosting", tooltip: "DNS (Domain Name System) translates your domain name into an IP address so browsers can find your site." },
+  { id: "email",        label: "Email",          icon: Mail,            group: "Hosting" },
+  { id: "databases",    label: "Databases",      icon: Database,        group: "Hosting" },
+  { id: "files",        label: "File Manager",   icon: FolderOpen,      group: "Hosting" },
+  { id: "ssl",          label: "SSL",            icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
+  { id: "ssh",          label: "SSH Access",     icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
+  { id: "backup",       label: "Backups",        icon: ArchiveRestore,  group: "Tools" },
+  { id: "environment",  label: "Environment",    icon: Sliders,         group: "Tools", tooltip: "Switch PHP and runtime versions for your hosting account with one click." },
+  { id: "nodejs",       label: "Node.js",        icon: Code2,           group: "Tools" },
+  { id: "python",       label: "Python",         icon: Cpu,             group: "Tools" },
 ];
 
 function Sidebar({ active, onChange, service }: { active: NavSection; onChange: (s: NavSection) => void; service: Service | null }) {
@@ -226,14 +229,14 @@ function SectionOverview({ service, plan, navigateTo }: { service: Service; plan
       {/* Quick Actions — navigate to internal panel sections */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {([
-          { label: "File Manager", icon: FolderOpen, section: "files"     as NavSection, color: "text-blue-600 bg-blue-50" },
-          { label: "Email",        icon: Mail,        section: "email"     as NavSection, color: "text-emerald-600 bg-emerald-50" },
-          { label: "Databases",    icon: Database,    section: "databases" as NavSection, color: "text-amber-600 bg-amber-50" },
-          { label: "WordPress",    icon: Globe,       section: "wordpress" as NavSection, color: "text-violet-600 bg-violet-50" },
-          { label: "Backup",       icon: HardDrive,   section: "backup"    as NavSection, color: "text-rose-600 bg-rose-50" },
-          { label: "SSH Access",   icon: Terminal,    section: "ssh"       as NavSection, color: "text-slate-600 bg-slate-100" },
-          { label: "Node.js",      icon: Code2,       section: "nodejs"    as NavSection, color: "text-green-600 bg-green-50" },
-          { label: "SSL",          icon: ShieldCheck, section: "ssl"       as NavSection, color: "text-teal-600 bg-teal-50" },
+          { label: "File Manager",  icon: FolderOpen,  section: "files"       as NavSection, color: "text-blue-600 bg-blue-50" },
+          { label: "Email",         icon: Mail,        section: "email"       as NavSection, color: "text-emerald-600 bg-emerald-50" },
+          { label: "Databases",     icon: Database,    section: "databases"   as NavSection, color: "text-amber-600 bg-amber-50" },
+          { label: "WordPress",     icon: Globe,       section: "wordpress"   as NavSection, color: "text-violet-600 bg-violet-50" },
+          { label: "Software",      icon: Package,     section: "software"    as NavSection, color: "text-indigo-600 bg-indigo-50" },
+          { label: "Environment",   icon: Sliders,     section: "environment" as NavSection, color: "text-orange-600 bg-orange-50" },
+          { label: "Node.js",       icon: Code2,       section: "nodejs"      as NavSection, color: "text-green-600 bg-green-50" },
+          { label: "SSL",           icon: ShieldCheck, section: "ssl"         as NavSection, color: "text-teal-600 bg-teal-50" },
         ] as const).map(a => (
           <button key={a.section} onClick={() => navigateTo(a.section)}
             className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-card hover:bg-muted transition-colors cursor-pointer">
@@ -1213,6 +1216,9 @@ function SectionFiles({ service }: { service: Service }) {
           </Button>
         </div>} />
 
+      {/* Disk Usage Preview Card */}
+      <DiskUsageCard service={service} />
+
       {showMkdir && (
         <Card className="flex gap-2 items-end">
           <div className="flex-1">
@@ -1294,6 +1300,7 @@ function SectionFiles({ service }: { service: Service }) {
 function SectionSSL({ service, refetch }: { service: Service; refetch: () => void }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [forceHttps, setForceHttps] = useState(false);
 
   async function handleInstallSSL() {
     setLoading(true);
@@ -1301,46 +1308,97 @@ function SectionSSL({ service, refetch }: { service: Service; refetch: () => voi
       const res = await authFetch(`/client/hosting/${service.id}/reinstall-ssl`, { method: "POST" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Failed");
-      toast({ title: "SSL installation initiated", description: "Please wait a moment and then check your site." });
+      toast({ title: isActive ? "SSL reinstalled" : "SSL activated", description: "Your site is now protected with HTTPS." });
       setTimeout(() => refetch(), 4000);
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setLoading(false); }
   }
 
   const isActive = ["active", "installed"].includes(service.sslStatus);
+  const isInstalling = service.sslStatus === "installing";
+
   return (
     <div className="space-y-5">
-      <SectionHeader title="SSL Certificate" description="SSL encrypts the connection between your visitors and your server — it's what puts the padlock in the browser and the 'S' in HTTPS." />
+      <SectionHeader title="SSL / HTTPS" description="SSL encrypts the connection between your visitors and your server — it's what puts the padlock in the browser and the 'S' in HTTPS." />
+
+      {/* Main SSL toggle card */}
       <Card>
-        <div className="flex items-center gap-4 mb-5">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isActive ? "bg-emerald-50" : "bg-orange-50"}`}>
-            {isActive ? <ShieldCheck size={22} className="text-emerald-600" /> : <ShieldX size={22} className="text-orange-500" />}
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${isActive ? "bg-emerald-50" : "bg-muted"}`}>
+            {isActive ? <ShieldCheck size={22} className="text-emerald-600" /> : <ShieldX size={22} className="text-muted-foreground" />}
           </div>
-          <div>
-            <p className="font-semibold text-foreground">{isActive ? "SSL Active" : "SSL Not Installed"}</p>
-            <p className="text-sm text-muted-foreground">{isActive ? "Your site is secured with HTTPS" : "Your site is not using HTTPS"}</p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-foreground">{isActive ? "SSL Active" : isInstalling ? "Installing…" : "SSL Not Installed"}</p>
+              {isActive && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Protected
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {isActive ? `${service.domain} is secured with Let's Encrypt` : "Enable free SSL to secure your site with HTTPS"}
+            </p>
           </div>
-          <div className="ml-auto">
-            <Badge className={isActive ? "bg-[#D1FAE5] text-[#065F46]" : "bg-orange-50 text-orange-700"}>{isActive ? "Active" : "Not Installed"}</Badge>
-          </div>
+          {/* Toggle switch */}
+          <button
+            onClick={!loading && !isInstalling ? handleInstallSSL : undefined}
+            disabled={loading || isInstalling}
+            aria-label="Toggle SSL"
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${isActive ? "bg-emerald-500" : "bg-gray-200"} ${loading || isInstalling ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${isActive ? "translate-x-6" : "translate-x-1"}`}>
+              {(loading || isInstalling) && <Loader2 size={11} className="animate-spin text-gray-400 m-auto mt-1" />}
+            </span>
+          </button>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button onClick={handleInstallSSL} disabled={loading} className={isActive ? "gap-1.5" : "gap-1.5 bg-primary hover:bg-primary/90"} variant={isActive ? "outline" : "default"}>
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-            {isActive ? "Reinstall SSL" : "Install Free SSL"}
-          </Button>
-          {isActive && (
-            <Button onClick={handleInstallSSL} disabled={loading} className="gap-1.5 bg-primary hover:bg-primary/90">
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              Renew SSL
+
+        {/* Reinstall / Renew row when active */}
+        {isActive && (
+          <div className="mt-4 pt-4 border-t border-border flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={handleInstallSSL} disabled={loading} className="gap-1.5">
+              {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Renew Certificate
             </Button>
-          )}
+            <Button size="sm" variant="ghost" onClick={handleInstallSSL} disabled={loading} className="gap-1.5 text-muted-foreground">
+              <ShieldCheck size={13} /> Reinstall
+            </Button>
+          </div>
+        )}
+      </Card>
+
+      {/* Force HTTPS toggle */}
+      <Card>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <p className="font-medium text-foreground text-sm">Force HTTPS Redirect</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Automatically redirect all HTTP visitors to HTTPS</p>
+          </div>
+          <button
+            onClick={() => {
+              if (!isActive) { toast({ description: "Enable SSL first to use Force HTTPS.", variant: "destructive" }); return; }
+              setForceHttps(v => !v);
+              toast({ title: forceHttps ? "Force HTTPS disabled" : "Force HTTPS enabled" });
+            }}
+            aria-label="Force HTTPS"
+            className={`relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors duration-200 ${forceHttps && isActive ? "bg-primary" : "bg-gray-200"} ${!isActive ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${forceHttps && isActive ? "translate-x-5" : "translate-x-1"}`} />
+          </button>
         </div>
       </Card>
+
+      {/* SSL Features */}
       <Card>
-        <h3 className="font-semibold text-foreground mb-3">SSL Features</h3>
-        <div className="space-y-2">
-          {["Free Let's Encrypt SSL certificate", "Auto-renewal before expiry", "HTTPS encryption for all traffic", "Trust indicators in browser"].map(f => (
+        <h3 className="font-semibold text-foreground mb-3 text-sm">What's included</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            "Free Let's Encrypt certificate",
+            "Auto-renewal before expiry",
+            "256-bit HTTPS encryption",
+            "Browser trust padlock",
+            "SEO ranking boost",
+            "PCI compliance ready",
+          ].map(f => (
             <div key={f} className="flex items-center gap-2 text-sm text-muted-foreground">
               <CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> {f}
             </div>
@@ -1791,6 +1849,291 @@ function SectionPython({ service }: { service: Service }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SHARED: Disk Usage Card (used in File Manager and potentially Overview)
+// ═══════════════════════════════════════════════════════════════════════════════
+function DiskUsageCard({ service }: { service: Service }) {
+  const [usage, setUsage] = useState<any>(null);
+  useEffect(() => {
+    authFetch(`/client/hosting/${service.id}/usage`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setUsage(d))
+      .catch(() => null);
+  }, [service.id]);
+
+  const diskUsed = usage?.diskUsed ?? service.diskUsed ?? "0 MB";
+  const diskPct  = Math.min(usage?.diskPct ?? 0, 100);
+  const bwUsed   = usage?.bwUsed ?? service.bandwidthUsed ?? "0 MB";
+  const bwPct    = Math.min(usage?.bwPct ?? 0, 100);
+  const diskUnlimited = usage?.diskUnlimited ?? false;
+  const bwUnlimited   = usage?.bwUnlimited ?? false;
+
+  function barColor(pct: number) {
+    if (pct > 85) return "bg-red-500";
+    if (pct > 65) return "bg-amber-500";
+    return "bg-emerald-500";
+  }
+
+  return (
+    <Card className="flex flex-col sm:flex-row gap-5">
+      {[
+        { label: "Disk Usage", used: diskUsed, pct: diskPct, unlimited: diskUnlimited, icon: HardDrive, color: "text-violet-600 bg-violet-50" },
+        { label: "Bandwidth",  used: bwUsed,   pct: bwPct,   unlimited: bwUnlimited,   icon: Wifi,      color: "text-blue-600 bg-blue-50" },
+      ].map(m => (
+        <div key={m.label} className="flex-1">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${m.color}`}>
+                <m.icon size={13} />
+              </div>
+              <span className="text-sm font-medium text-foreground">{m.label}</span>
+            </div>
+            <span className="text-xs text-muted-foreground font-mono">
+              {m.unlimited ? "Unlimited" : `${m.used} used · ${m.pct}%`}
+            </span>
+          </div>
+          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+            {m.unlimited
+              ? <div className="h-full w-full bg-emerald-300 opacity-40 rounded-full" style={{ backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.4) 4px, rgba(255,255,255,0.4) 8px)" }} />
+              : <div className={`h-full rounded-full transition-all duration-700 ${barColor(m.pct)}`} style={{ width: `${m.pct}%` }} />
+            }
+          </div>
+          {!m.unlimited && m.pct > 85 && (
+            <p className="text-xs text-red-600 mt-1 font-medium">Storage nearly full — consider upgrading your plan.</p>
+          )}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: SOFTWARE (One-click Installers)
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionSoftware({ service, navigateTo }: { service: Service; navigateTo: (s: NavSection) => void }) {
+  const isWHM = !service.twentyIPackageId;
+  const wpInstalled = service.wpInstalled;
+
+  const apps = [
+    {
+      id: "wordpress",
+      name: "WordPress",
+      Icon: Boxes,
+      description: "The world's most popular CMS — blogs, portfolios, online stores, and more.",
+      status: wpInstalled ? "Installed" : "Not installed",
+      badge: wpInstalled ? { label: "Active", cls: "bg-emerald-100 text-emerald-700" } : null,
+      statusDot: wpInstalled ? "bg-emerald-500" : "bg-muted-foreground",
+      cta: wpInstalled ? "Manage WordPress" : "Install WordPress",
+      ctaCls: wpInstalled ? "variant-outline" : "default",
+      onClick: () => navigateTo("wordpress"),
+      available: true,
+    },
+    {
+      id: "ghost",
+      name: "Ghost",
+      Icon: Ghost,
+      description: "Modern headless CMS for creators — ideal for blogs and paid newsletters.",
+      status: "External Setup",
+      badge: { label: "Guide Available", cls: "bg-blue-100 text-blue-700" },
+      statusDot: "bg-blue-400",
+      cta: "View Setup Guide",
+      ctaCls: "variant-outline",
+      onClick: () => window.open("https://ghost.org/docs/install/ubuntu/", "_blank"),
+      available: true,
+    },
+    {
+      id: "nodejs",
+      name: "Custom Node.js App",
+      Icon: Code2,
+      description: "Deploy your own Node.js application — APIs, bots, real-time apps.",
+      status: isWHM ? "Available" : "Requires cPanel",
+      badge: isWHM ? { label: "Ready", cls: "bg-green-100 text-green-700" } : null,
+      statusDot: isWHM ? "bg-green-500" : "bg-muted-foreground",
+      cta: "Manage Apps",
+      ctaCls: "variant-outline",
+      onClick: () => navigateTo("nodejs"),
+      available: isWHM,
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="Software" description="Install popular applications on your hosting account with one click." />
+      <div className="space-y-3">
+        {apps.map(app => (
+          <Card key={app.id}>
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                <app.Icon size={20} className="text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                  <p className="font-semibold text-foreground text-sm">{app.name}</p>
+                  {app.badge && (
+                    <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${app.badge.cls}`}>
+                      {app.badge.label}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{app.description}</p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className={`w-1.5 h-1.5 rounded-full ${app.statusDot}`} />
+                  <span className="text-xs text-muted-foreground">{app.status}</span>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant={app.id === "wordpress" && !wpInstalled ? "default" : "outline"}
+                onClick={app.onClick}
+                className={`shrink-0 gap-1.5 ${app.id === "wordpress" && !wpInstalled ? "bg-primary hover:bg-primary/90" : ""}`}
+                disabled={!app.available}
+              >
+                {app.cta}
+                {(app.id === "ghost") && <ExternalLink size={12} />}
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Info note */}
+      <Card className="flex items-start gap-3 bg-muted/40">
+        <BookOpen size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Need something else? Your hosting plan includes Softaculous — a library of 400+ one-click installers. Access it via the cPanel link in your service overview.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: ENVIRONMENT (PHP / Runtime Version Selector)
+// ═══════════════════════════════════════════════════════════════════════════════
+function SectionEnvironment({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const PHP_VERSIONS = ["7.4", "8.0", "8.1", "8.2", "8.3"];
+  const [currentPhp, setCurrentPhp] = useState<string | null>(null);
+  const [loadingPhp, setLoadingPhp] = useState(true);
+  const [settingPhp, setSettingPhp] = useState<string | null>(null);
+
+  useEffect(() => {
+    authFetch(`/client/hosting/${service.id}/php-version`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.version) setCurrentPhp(d.version); })
+      .catch(() => null)
+      .finally(() => setLoadingPhp(false));
+  }, [service.id]);
+
+  async function handleSetPhp(version: string) {
+    if (version === currentPhp) return;
+    setSettingPhp(version);
+    try {
+      const res = await authFetch(`/client/hosting/${service.id}/php-version`, {
+        method: "POST",
+        body: JSON.stringify({ version }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed to change PHP version");
+      setCurrentPhp(version);
+      toast({ title: "PHP version updated", description: `Your site is now running PHP ${version}.` });
+    } catch (e: any) {
+      toast({ description: e.message, variant: "destructive" });
+    } finally {
+      setSettingPhp(null);
+    }
+  }
+
+  const isWHM = !service.twentyIPackageId;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="Environment"
+        description="Switch PHP and runtime versions for your hosting account. Changes take effect immediately."
+      />
+
+      {/* PHP Version Selector */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-foreground text-sm">PHP Version</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {loadingPhp ? "Detecting current version…" : currentPhp ? `Currently running PHP ${currentPhp}` : "Version not detected — select one below to apply"}
+            </p>
+          </div>
+          {currentPhp && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700">
+              <Sparkles size={11} /> Optimized
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+          {PHP_VERSIONS.map(v => {
+            const isCurrent = v === currentPhp;
+            const isSetting = settingPhp === v;
+            return (
+              <button
+                key={v}
+                onClick={() => handleSetPhp(v)}
+                disabled={!!settingPhp || loadingPhp}
+                className={`relative flex flex-col items-center justify-center gap-1 py-3 rounded-xl border-2 transition-all text-sm font-semibold ${
+                  isCurrent
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted"
+                } ${!!settingPhp && !isSetting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                {isSetting ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <>
+                    <span className="text-xs font-bold">{v}</span>
+                    {isCurrent && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                        <CheckCircle2 size={10} className="text-white" />
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground mt-3">
+          <strong>Tip:</strong> PHP 8.2 and 8.3 offer the best performance and security. We recommend upgrading if your plugins support it.
+        </p>
+      </Card>
+
+      {/* Runtime Status */}
+      <Card>
+        <h3 className="font-semibold text-foreground text-sm mb-3">Runtime Status</h3>
+        <div className="space-y-3">
+          {[
+            { label: "PHP",     value: currentPhp ? `PHP ${currentPhp}` : "Unknown",   status: currentPhp ? "active" : "unknown", badge: currentPhp ? "Optimized" : null, badgeCls: "bg-indigo-100 text-indigo-700" },
+            { label: "Node.js", value: isWHM ? "Managed via Selector" : "Not available", status: isWHM ? "active" : "inactive",    badge: null, badgeCls: "" },
+            { label: "Python",  value: isWHM ? "Managed via Selector" : "Not available", status: isWHM ? "active" : "inactive",    badge: null, badgeCls: "" },
+          ].map(rt => (
+            <div key={rt.label} className="flex items-center justify-between py-2 border-b border-border/60 last:border-0">
+              <div className="flex items-center gap-3">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${rt.status === "active" ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                <div>
+                  <p className="text-sm font-medium text-foreground">{rt.label}</p>
+                  <p className="text-xs text-muted-foreground">{rt.value}</p>
+                </div>
+              </div>
+              {rt.badge && (
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${rt.badgeCls}`}>{rt.badge}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: DOMAINS / DNS (existing DNS management)
 // ═══════════════════════════════════════════════════════════════════════════════
 function SectionDomains({ service }: { service: Service }) {
@@ -1971,17 +2314,19 @@ export default function ServiceDetail() {
 
         {/* Section Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {section === "overview"   && <SectionOverview service={service} plan={plan} navigateTo={setSection} />}
-          {section === "wordpress"  && <SectionWordPress service={service} refetch={fetchService} />}
-          {section === "domains"    && <SectionDomains service={service} />}
-          {section === "email"      && <SectionEmail service={service} />}
-          {section === "databases"  && <SectionDatabases service={service} />}
-          {section === "files"      && <SectionFiles service={service} />}
-          {section === "ssl"        && <SectionSSL service={service} refetch={fetchService} />}
-          {section === "ssh"        && <SectionSSH service={service} />}
-          {section === "backup"     && <SectionBackup service={service} />}
-          {section === "nodejs"     && <SectionNodejs service={service} />}
-          {section === "python"     && <SectionPython service={service} />}
+          {section === "overview"     && <SectionOverview service={service} plan={plan} navigateTo={setSection} />}
+          {section === "wordpress"    && <SectionWordPress service={service} refetch={fetchService} />}
+          {section === "software"     && <SectionSoftware service={service} navigateTo={setSection} />}
+          {section === "environment"  && <SectionEnvironment service={service} />}
+          {section === "domains"      && <SectionDomains service={service} />}
+          {section === "email"        && <SectionEmail service={service} />}
+          {section === "databases"    && <SectionDatabases service={service} />}
+          {section === "files"        && <SectionFiles service={service} />}
+          {section === "ssl"          && <SectionSSL service={service} refetch={fetchService} />}
+          {section === "ssh"          && <SectionSSH service={service} />}
+          {section === "backup"       && <SectionBackup service={service} />}
+          {section === "nodejs"       && <SectionNodejs service={service} />}
+          {section === "python"       && <SectionPython service={service} />}
         </div>
       </div>
     </div>

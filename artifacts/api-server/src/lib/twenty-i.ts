@@ -1413,7 +1413,20 @@ export async function twentyiReplyTicket(
 }
 
 // ─── PHP Version ──────────────────────────────────────────────────────────────
-// Endpoint: POST /reseller/*/web/{siteId}/phpVersion
+// Endpoint: GET  /package/{siteId}/phpVersion
+// Endpoint: POST /package/{siteId}/phpVersion
+
+export async function twentyiGetPhpVersion(
+  apiKey: string,
+  siteId: string,
+): Promise<string | null> {
+  try {
+    const data = await requestWithRetry<any>(apiKey, "GET", `/package/${siteId}/phpVersion`);
+    return data?.phpVersion ?? data?.version ?? data?.php_version ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function twentyiSetPhpVersion(
   apiKey: string,
