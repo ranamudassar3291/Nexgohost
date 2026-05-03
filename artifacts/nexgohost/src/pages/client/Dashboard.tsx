@@ -934,9 +934,42 @@ export default function ClientDashboard() {
 
       {/* ── Stat Summary Cards ── */}
       {!q && (
-        <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard title="Invoices Due" value={stats.unpaidInvoices} icon={FileText} href="/client/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
           <StatCard title="Support Cases" value={stats.openTickets} icon={Ticket} href="/client/tickets" color="#F59E0B" />
+          <StatCard title="My Services" value={allServices.length} icon={Server} href="/client/hosting" color="#4F46E5" />
+          <StatCard title="My Domains" value={allDomains.length} icon={Globe} href="/client/domains" color="#059669" />
+        </div>
+      )}
+
+      {!q && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link href="/client/hosting">
+            <div className="p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5" style={{ background: "#EEF2FF", border: "1px solid #C7D2FE" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff" }}>
+                  <Server size={20} style={{ color: "#4F46E5" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "#111827" }}>Hosting</p>
+                  <p className="text-xs" style={{ color: "#6B7280" }}>{allServices.length} service{allServices.length === 1 ? "" : "s"}</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link href="/client/domains">
+            <div className="p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5" style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff" }}>
+                  <Globe size={20} style={{ color: "#059669" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "#111827" }}>Domains</p>
+                  <p className="text-xs" style={{ color: "#6B7280" }}>{allDomains.length} domain{allDomains.length === 1 ? "" : "s"}</p>
+                </div>
+              </div>
+            </div>
+          </Link>
         </div>
       )}
 
@@ -960,6 +993,38 @@ export default function ClientDashboard() {
             </div>
           </div>
         </Link>
+      )}
+
+      {/* ── Quick Access Cards ── */}
+      {!q && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link href="/client/hosting">
+            <div className="p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5" style={{ background: "#EEF2FF", border: "1px solid #C7D2FE" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff" }}>
+                  <Server size={20} style={{ color: "#4F46E5" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "#111827" }}>Hosting</p>
+                  <p className="text-xs" style={{ color: "#6B7280" }}>{allServices.length} service{allServices.length === 1 ? "" : "s"}</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link href="/client/domains">
+            <div className="p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5" style={{ background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: "#fff" }}>
+                  <Globe size={20} style={{ color: "#059669" }} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: "#111827" }}>Domains</p>
+                  <p className="text-xs" style={{ color: "#6B7280" }}>{allDomains.length} domain{allDomains.length === 1 ? "" : "s"}</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+        </div>
       )}
 
       {/* ── Setup Wizard ── */}
@@ -1047,6 +1112,28 @@ export default function ClientDashboard() {
         </div>
       )}
 
+      {/* ── Quick Links ── */}
+      {!q && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: "Hosting", href: "/client/hosting", icon: Server },
+            { label: "Domains", href: "/client/domains", icon: Globe },
+            { label: "Orders", href: "/client/orders", icon: ShoppingCart },
+            { label: "Support", href: "/client/tickets", icon: Ticket },
+          ].map(item => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-colors" style={{ background: "#fff", borderColor: "#E5E7EB" }}>
+                  <Icon size={16} style={{ color: "#4F46E5" }} />
+                  <span className="text-sm font-medium" style={{ color: "#111827" }}>{item.label}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── New Client Guide ── */}
       {!q && isNewClient && (
         <div className="rounded-2xl overflow-hidden" style={{ background: "#ffffff", border: "1px solid #E0E7FF", borderRadius: "16px" }}>
@@ -1070,6 +1157,28 @@ export default function ClientDashboard() {
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Fast Links ── */}
+      {!q && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: "Hosting", href: "/client/hosting", icon: Server },
+            { label: "Domains", href: "/client/domains", icon: Globe },
+            { label: "Orders", href: "/client/orders", icon: ShoppingCart },
+            { label: "Support", href: "/client/tickets", icon: Ticket },
+          ].map(item => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-colors" style={{ background: "#fff", borderColor: "#E5E7EB" }}>
+                  <Icon size={16} style={{ color: "#4F46E5" }} />
+                  <span className="text-sm font-medium" style={{ color: "#111827" }}>{item.label}</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
 
