@@ -456,3 +456,39 @@ Extended with:
 - Footer support email uses `supportEmail` (dynamic)
 - CEO signature uses `brandCfg?.ceoName || "Muhammad Arslan"` fallback
 - CEO title uses dynamic `siteName`: "Founder & CEO, {siteName}"
+
+## Advanced Resource Monitoring & Security Guard
+
+### New client nav section: "Resource Guard" (ServiceDetail.tsx)
+- NavSection type extended with `"monitor"` 
+- Nav item added to "Security" group with Gauge icon + tooltip
+- `SectionMonitor` component with 3 sub-panels: Resource Stats, Security Guard, Performance Cache
+
+### Resource Stats Panel
+- 4 animated stat cards: Entry Processes, Inodes, Disk I/O Read, CPU Usage
+- Each card: animated CSS bar (color shifts red/amber/green by threshold), 24h sparkline SVG chart
+- `AnimatedBar` — CSS transition width animation with glow shadow, color-coded danger thresholds
+- `SparkLine` — pure SVG area+line chart with gradient fill, no external library
+
+### Security Guard Panel
+- "Scan & Fix Permissions" button — resets folders to 755, files to 644 via cPanel UAPI or 20i API
+- Scan history table showing last 5 scans with timestamp, dirs/files fixed, pass/fail dot
+- Results saved in `security_scan_logs` PostgreSQL table
+
+### Performance Cache Panel
+- `CacheSwitch` toggle component (DreamHost-style pill switch with icon)
+- Edge Caching (CDN) and Object Cache (Redis) toggles
+- Toggles call 20i `/cdnEdge` and `/objectCache` endpoints, then upsert `hosting_cache_settings` table
+- Settings persisted in DB, loaded on every page open
+
+### New Backend: resource-monitor.ts
+- `GET /client/hosting/:id/resource-monitor` — fetches live stats from 20i or cPanel, saves snapshot to DB, returns cache settings and 24h history
+- `POST /client/hosting/:id/fix-permissions` — calls Fileman::autofix_permissions UAPI (WHM) or 20i fix-permissions, writes to security_scan_logs
+- `GET /client/hosting/:id/scan-history` — returns last 10 scans from security_scan_logs
+- `GET/POST /client/hosting/:id/cache-settings` — reads/upserts hosting_cache_settings
+- Registered in `routes/index.ts`, `requestWithRetry` exported from `lib/twenty-i.ts`
+
+### New PostgreSQL Tables (auto-migrated on startup)
+- `resource_usage_logs` — (id, service_id, disk_io_read, disk_io_write, entry_processes, inodes_used, inodes_limit, cpu_pct, recorded_at)
+- `security_scan_logs` — (id, service_id, scan_type, result, dirs_fixed, files_fixed, source, scanned_at)
+- `hosting_cache_settings` — (service_id PK, edge_cache, object_cache, updated_at)

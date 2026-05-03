@@ -397,7 +397,7 @@ async function request<T = any>(
 }
 
 // Retry up to MAX_RETRIES times using exponential backoff. Skips retry on auth/not-found errors.
-async function requestWithRetry<T = any>(
+export async function requestWithRetry<T = any>(
   apiKey: string,
   method: string,
   path: string,

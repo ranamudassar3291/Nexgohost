@@ -62,6 +62,7 @@ import userPreferencesRouter from "./user-preferences.js";
 import commandCenterRouter from "./command-center.js";
 import seoEngineRouter from "./seo-engine.js";
 import salesFunnelRouter from "./sales-funnel.js";
+import resourceMonitorRouter from "./resource-monitor.js";
 
 const router: IRouter = Router();
 
@@ -132,5 +133,6 @@ router.use(userPreferencesRouter);
 router.use(commandCenterRouter);
 router.use(seoEngineRouter);
 router.use(salesFunnelRouter);
+router.use(resourceMonitorRouter);
 
 export default router;

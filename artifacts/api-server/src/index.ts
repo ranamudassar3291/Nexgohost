@@ -346,6 +346,50 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cart_recovery_user   ON cart_recovery_logs(user_id)`);
     console.log("[MIGRATIONS] cart_recovery_logs table ready");
 
+    // ── Resource Monitor: resource_usage_logs ────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS resource_usage_logs (
+        id               SERIAL PRIMARY KEY,
+        service_id       TEXT NOT NULL,
+        disk_io_read     NUMERIC(12,2),
+        disk_io_write    NUMERIC(12,2),
+        entry_processes  INTEGER,
+        inodes_used      BIGINT,
+        inodes_limit     BIGINT,
+        cpu_pct          NUMERIC(5,2),
+        recorded_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_resource_logs_service ON resource_usage_logs(service_id, recorded_at DESC)`);
+    console.log("[MIGRATIONS] resource_usage_logs table ready");
+
+    // ── Resource Monitor: security_scan_logs ─────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS security_scan_logs (
+        id          SERIAL PRIMARY KEY,
+        service_id  TEXT NOT NULL,
+        scan_type   TEXT NOT NULL DEFAULT 'permissions',
+        result      TEXT NOT NULL DEFAULT 'success',
+        dirs_fixed  INTEGER NOT NULL DEFAULT 0,
+        files_fixed INTEGER NOT NULL DEFAULT 0,
+        source      TEXT NOT NULL DEFAULT 'none',
+        scanned_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_security_scans_service ON security_scan_logs(service_id, scanned_at DESC)`);
+    console.log("[MIGRATIONS] security_scan_logs table ready");
+
+    // ── Resource Monitor: hosting_cache_settings ──────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS hosting_cache_settings (
+        service_id   TEXT PRIMARY KEY,
+        edge_cache   BOOLEAN NOT NULL DEFAULT false,
+        object_cache BOOLEAN NOT NULL DEFAULT false,
+        updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] hosting_cache_settings table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

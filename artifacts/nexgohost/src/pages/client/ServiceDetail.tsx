@@ -57,7 +57,7 @@ interface Service {
 
 interface DnsRecord { line: number; type: string; name: string; address: string; ttl: number }
 interface HostingPlan { id: string; name: string; price: number; yearlyPrice?: number | null; diskSpace: string; bandwidth: string }
-type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment";
+type NavSection = "overview" | "wordpress" | "software" | "domains" | "email" | "databases" | "files" | "ssl" | "backup" | "ssh" | "nodejs" | "python" | "environment" | "monitor";
 
 // ─── Sidebar Nav ─────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group?: string; tooltip?: string }[] = [
@@ -68,8 +68,9 @@ const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType; group
   { id: "email",        label: "Email",          icon: Mail,            group: "Hosting" },
   { id: "databases",    label: "Databases",      icon: Database,        group: "Hosting" },
   { id: "files",        label: "File Manager",   icon: FolderOpen,      group: "Hosting" },
-  { id: "ssl",          label: "SSL",            icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
-  { id: "ssh",          label: "SSH Access",     icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
+  { id: "monitor",      label: "Resource Guard",  icon: Gauge,           group: "Security", tooltip: "Real-time resource monitoring, security permission scanning, and edge/object cache controls for your hosting account." },
+  { id: "ssl",          label: "SSL",             icon: ShieldCheck,     group: "Security", tooltip: "SSL (Secure Sockets Layer) encrypts data between your site and visitors — it's what enables HTTPS and the browser padlock." },
+  { id: "ssh",          label: "SSH Access",      icon: Terminal,        group: "Security", tooltip: "SSH (Secure Shell) lets you connect directly to your server via a command-line terminal for advanced management." },
   { id: "backup",       label: "Backups",        icon: ArchiveRestore,  group: "Tools" },
   { id: "environment",  label: "Environment",    icon: Sliders,         group: "Tools", tooltip: "Switch PHP and runtime versions for your hosting account with one click." },
   { id: "nodejs",       label: "Node.js",        icon: Code2,           group: "Tools" },
@@ -2221,6 +2222,335 @@ function SectionDomains({ service }: { service: Service }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: RESOURCE GUARD (Monitor + Security + Cache)
+// ═══════════════════════════════════════════════════════════════════════════════
+function AnimatedBar({ pct, color, animated = true }: { pct: number; color: string; animated?: boolean }) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setWidth(Math.min(pct, 100)), 120); return () => clearTimeout(t); }, [pct]);
+  const safe = Math.min(pct, 100);
+  const barColor = safe > 85 ? "#EF4444" : safe > 65 ? "#F59E0B" : color;
+  return (
+    <div style={{ height: 8, background: "#F3F4F6", borderRadius: 99, overflow: "hidden", width: "100%" }}>
+      <div style={{
+        height: "100%", width: `${animated ? width : safe}%`,
+        background: `linear-gradient(90deg, ${barColor}cc, ${barColor})`,
+        borderRadius: 99, transition: "width 1.2s cubic-bezier(.4,0,.2,1)",
+        boxShadow: `0 0 8px ${barColor}44`,
+      }} />
+    </div>
+  );
+}
+
+function SparkLine({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length < 2) return <div style={{ height: 40, background: "#F9FAFB", borderRadius: 8 }} />;
+  const max = Math.max(...data, 1);
+  const W = 200; const H = 40; const pad = 4;
+  const pts = data.map((v, i) => {
+    const x = pad + (i / (data.length - 1)) * (W - pad * 2);
+    const y = H - pad - (v / max) * (H - pad * 2);
+    return `${x},${y}`;
+  });
+  const area = `M${pts[0]} L${pts.join(" L")} L${W - pad},${H} L${pad},${H} Z`;
+  return (
+    <svg width={W} height={H} style={{ width: "100%", height: 40 }}>
+      <defs>
+        <linearGradient id={`sg-${color.replace("#", "")}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#sg-${color.replace("#", "")})`} />
+      <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CacheSwitch({ label, description, icon, enabled, onChange, loading }: {
+  label: string; description: string; icon: React.ReactNode;
+  enabled: boolean; onChange: (v: boolean) => void; loading?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+          {icon}
+        </div>
+        <div>
+          <p className="font-medium text-sm text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        </div>
+      </div>
+      <button
+        onClick={() => !loading && onChange(!enabled)}
+        disabled={loading}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${enabled ? "bg-primary" : "bg-muted-foreground/30"} ${loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+      </button>
+    </div>
+  );
+}
+
+function StatCard({ label, used, limit, pct, color, unit, sparkData, icon }: {
+  label: string; used: number | null; limit: number | null;
+  pct: number; color: string; unit?: string; sparkData?: number[]; icon: React.ReactNode;
+}) {
+  const displayUsed  = used  !== null ? `${used.toLocaleString()}${unit ?? ""}` : "—";
+  const displayLimit = limit !== null ? `${limit.toLocaleString()}${unit ?? ""}` : "—";
+  const safe = Math.min(pct, 100);
+  const statusColor = safe > 85 ? "#EF4444" : safe > 65 ? "#F59E0B" : "#10B981";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div style={{ background: `${color}18`, color }} className="w-8 h-8 rounded-lg flex items-center justify-center">{icon}</div>
+          <span className="font-semibold text-sm text-foreground">{label}</span>
+        </div>
+        <span style={{ background: `${statusColor}15`, color: statusColor }} className="text-xs font-bold px-2 py-0.5 rounded-full">
+          {used !== null ? `${Math.round(safe)}%` : "N/A"}
+        </span>
+      </div>
+
+      <AnimatedBar pct={safe} color={color} />
+
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>Used: <strong className="text-foreground">{displayUsed}</strong></span>
+        <span>Limit: <strong className="text-foreground">{displayLimit}</strong></span>
+      </div>
+
+      {sparkData && sparkData.length > 1 && (
+        <div className="mt-1">
+          <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">24h trend</p>
+          <SparkLine data={sparkData} color={color} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionMonitor({ service }: { service: Service }) {
+  const { toast } = useToast();
+  const [data, setData]         = useState<any>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanHistory, setScanHistory] = useState<any[]>([]);
+  const [cacheLoading, setCacheLoading] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh]   = useState<Date | null>(null);
+
+  const load = async () => {
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/resource-monitor`);
+      if (r.ok) { const d = await r.json(); setData(d); setLastRefresh(new Date()); }
+    } catch {}
+  };
+
+  const loadHistory = async () => {
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/scan-history`);
+      if (r.ok) { const d = await r.json(); setScanHistory(d.scans || []); }
+    } catch {}
+  };
+
+  useEffect(() => { load(); loadHistory(); }, [service.id]);
+  // Auto-refresh every 60 s
+  useEffect(() => { const id = setInterval(load, 60_000); return () => clearInterval(id); }, [service.id]);
+
+  const stats       = data?.stats       ?? {};
+  const history     = (data?.history    ?? []) as any[];
+  const cache       = data?.cacheSettings ?? { edge_cache: false, object_cache: false };
+
+  // Build sparkline arrays from history (most recent last)
+  const epSpark     = history.slice().reverse().map((h: any) => Number(h.entry_processes || 0));
+  const inodeSpark  = history.slice().reverse().map((h: any) => Number(h.inodes_used || 0));
+  const cpuSpark    = history.slice().reverse().map((h: any) => Number(h.cpu_pct || 0));
+  const ioSpark     = history.slice().reverse().map((h: any) => Number(h.disk_io_read || 0));
+
+  const epPct = stats.entryProcesses && stats.entryProcessLimit
+    ? Math.min(100, Math.round((stats.entryProcesses / stats.entryProcessLimit) * 100)) : 0;
+  const inodePct = stats.inodesUsed && stats.inodesLimit
+    ? Math.min(100, Math.round((stats.inodesUsed / stats.inodesLimit) * 100)) : 0;
+  const ioPct = stats.diskIoRead ? Math.min(100, Math.round((stats.diskIoRead / 50) * 100)) : 0; // 50 MB/s reference max
+
+  async function handleFixPermissions() {
+    setScanning(true);
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/fix-permissions`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Scan failed");
+      toast({
+        title: d.success ? "Permissions Fixed ✓" : "Scan completed",
+        description: d.success
+          ? `Reset ${d.dirs} directories (755) & ${d.files} files (644).`
+          : d.error || "Completed with warnings.",
+      });
+      loadHistory();
+      load();
+    } catch (e: any) {
+      toast({ title: "Scan Error", description: e.message, variant: "destructive" });
+    } finally { setScanning(false); }
+  }
+
+  async function toggleCache(key: "edge_cache" | "object_cache", value: boolean) {
+    setCacheLoading(key);
+    try {
+      const r = await authFetch(`/client/hosting/${service.id}/cache-settings`, {
+        method: "POST",
+        body: JSON.stringify({ [key]: value }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Failed");
+      setData((prev: any) => ({ ...prev, cacheSettings: d.settings }));
+      toast({ title: value ? `${key === "edge_cache" ? "Edge" : "Object"} Cache Enabled` : "Cache Disabled" });
+    } catch (e: any) {
+      toast({ title: "Cache Error", description: e.message, variant: "destructive" });
+    } finally { setCacheLoading(null); }
+  }
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        title="Resource Guard"
+        description="Live usage metrics, security hardening, and performance cache controls"
+        action={
+          <div className="flex items-center gap-2">
+            {lastRefresh && <span className="text-xs text-muted-foreground">Updated {lastRefresh.toLocaleTimeString()}</span>}
+            <Button variant="outline" size="sm" onClick={load} className="gap-1.5">
+              <RefreshCw size={13} /> Refresh
+            </Button>
+          </div>
+        }
+      />
+
+      {/* ── Source badge ── */}
+      {stats.source && stats.source !== "none" && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${
+            stats.source === "error" ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${stats.source === "error" ? "bg-red-500" : "bg-emerald-500"}`} />
+            {stats.source === "20i" ? "Live via 20i API" : stats.source === "cpanel" ? "Live via cPanel API" : stats.source === "simulated" ? "Demo data" : "Data unavailable"}
+          </span>
+          {stats.error && <span className="text-red-500">{stats.error}</span>}
+        </div>
+      )}
+
+      {/* ── Resource Stats Grid ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StatCard
+          label="Entry Processes"
+          used={stats.entryProcesses ?? null}
+          limit={stats.entryProcessLimit ?? null}
+          pct={epPct}
+          color="#7C3AED"
+          sparkData={epSpark}
+          icon={<Activity size={15} />}
+        />
+        <StatCard
+          label="Inodes"
+          used={stats.inodesUsed ?? null}
+          limit={stats.inodesLimit ?? null}
+          pct={inodePct}
+          color="#2563EB"
+          sparkData={inodeSpark}
+          icon={<HardDrive size={15} />}
+        />
+        <StatCard
+          label="Disk I/O Read"
+          used={stats.diskIoRead ?? null}
+          limit={50}
+          pct={ioPct}
+          color="#0891B2"
+          unit=" MB/s"
+          sparkData={ioSpark}
+          icon={<Zap size={15} />}
+        />
+        <StatCard
+          label="CPU Usage"
+          used={stats.cpuPct != null ? Math.round(stats.cpuPct) : null}
+          limit={100}
+          pct={stats.cpuPct ?? 0}
+          color="#059669"
+          unit="%"
+          sparkData={cpuSpark}
+          icon={<Cpu size={15} />}
+        />
+      </div>
+
+      {/* ── Security Guard ── */}
+      <Card>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="font-semibold text-foreground">Security Guard</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">Reset all file/folder permissions to the most secure defaults (755 for directories, 644 for files).</p>
+          </div>
+          <Button
+            onClick={handleFixPermissions}
+            disabled={scanning}
+            className="gap-2 bg-primary hover:bg-primary/90 shrink-0"
+          >
+            {scanning ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+            {scanning ? "Scanning…" : "Scan & Fix Permissions"}
+          </Button>
+        </div>
+
+        {/* Scan history */}
+        {scanHistory.length > 0 ? (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Scan History</p>
+            <div className="space-y-2">
+              {scanHistory.slice(0, 5).map((scan: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 text-sm py-2 border-b border-border last:border-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${scan.result === "success" ? "bg-emerald-500" : "bg-red-400"}`} />
+                  <span className="text-foreground font-medium capitalize">{scan.scan_type}</span>
+                  <span className="text-muted-foreground text-xs flex-1">
+                    {scan.result === "success"
+                      ? `${scan.dirs_fixed} dirs + ${scan.files_fixed} files fixed`
+                      : "Error"}
+                  </span>
+                  <span className="text-muted-foreground text-xs shrink-0">
+                    {new Date(scan.scanned_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No scans yet — run your first scan above.</p>
+        )}
+      </Card>
+
+      {/* ── Performance Cache ── */}
+      <Card>
+        <h3 className="font-semibold text-foreground mb-1">Performance Cache</h3>
+        <p className="text-sm text-muted-foreground mb-4">Toggle caching layers to boost page speed and reduce server load without touching any code.</p>
+        <div className="space-y-3">
+          <CacheSwitch
+            label="Edge Caching (CDN)"
+            description="Serve static assets from global edge nodes — 3× faster page loads worldwide."
+            icon={<Globe size={16} />}
+            enabled={Boolean(cache.edge_cache)}
+            onChange={v => toggleCache("edge_cache", v)}
+            loading={cacheLoading === "edge_cache"}
+          />
+          <CacheSwitch
+            label="Object Cache (Redis)"
+            description="Cache database queries and PHP objects in memory — ideal for WordPress & dynamic sites."
+            icon={<Database size={16} />}
+            enabled={Boolean(cache.object_cache)}
+            onChange={v => toggleCache("object_cache", v)}
+            loading={cacheLoading === "object_cache"}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1.5">
+          <Info size={12} />
+          Cache settings are applied instantly and saved to your account. Disable before debugging caching issues.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN: ServiceDetail
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ServiceDetail() {
@@ -2327,6 +2657,7 @@ export default function ServiceDetail() {
           {section === "backup"       && <SectionBackup service={service} />}
           {section === "nodejs"       && <SectionNodejs service={service} />}
           {section === "python"       && <SectionPython service={service} />}
+          {section === "monitor"      && <SectionMonitor service={service} />}
         </div>
       </div>
     </div>
