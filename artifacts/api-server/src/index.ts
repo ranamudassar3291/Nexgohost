@@ -649,6 +649,22 @@ async function runStartupMigrations() {
     `);
     console.log("[MIGRATIONS] ai_training_docs table ready");
 
+    // ── Autonomous Support Agent: chat_web_searches ───────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS chat_web_searches (
+        id              SERIAL PRIMARY KEY,
+        session_id      TEXT NOT NULL,
+        query_text      TEXT NOT NULL,
+        search_type     TEXT NOT NULL DEFAULT 'web_search',
+        source_url      TEXT NOT NULL DEFAULT '',
+        result_snippet  TEXT NOT NULL DEFAULT '',
+        results_count   INT NOT NULL DEFAULT 0,
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_web_searches_session ON chat_web_searches(session_id, created_at DESC)`);
+    console.log("[MIGRATIONS] chat_web_searches table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

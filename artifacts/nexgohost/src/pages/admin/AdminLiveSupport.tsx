@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageCircle, Bot, User, Shield, Send, RefreshCw, Search,
-  Clock, CheckCircle, AlertCircle, Phone, X, BookOpen,
-  Plus, Trash2, FileText, Loader2, ChevronDown,
+  Clock, CheckCircle, AlertCircle, X, BookOpen,
+  Plus, Trash2, FileText, Loader2, Globe, Activity,
 } from "lucide-react";
 import Markdown from "react-markdown";
 import { apiFetchAdmin } from "@/lib/api";
@@ -41,6 +41,19 @@ interface TrainingDoc {
   created_at: string;
 }
 
+interface WebSearchLog {
+  id: number;
+  session_id: string;
+  query_text: string;
+  search_type: string;
+  source_url: string;
+  result_snippet: string;
+  results_count: number;
+  created_at: string;
+  client_name?: string;
+  client_email?: string;
+}
+
 const STATUS_CONFIG = {
   ai:       { label: "AI Active",      icon: Bot,          color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
   handover: { label: "Needs Agent",    icon: AlertCircle,  color: "text-amber-600 bg-amber-50 border-amber-200" },
@@ -59,7 +72,7 @@ function timeAgo(dateStr: string) {
 }
 
 export default function AdminLiveSupport() {
-  const [tab, setTab] = useState<"sessions" | "knowledge">("sessions");
+  const [tab, setTab] = useState<"sessions" | "knowledge" | "searchlogs">("sessions");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -75,6 +88,8 @@ export default function AdminLiveSupport() {
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [newDoc, setNewDoc] = useState({ title: "", content: "", doc_type: "faq" });
   const [addingDoc, setAddingDoc] = useState(false);
+  const [searchLogs, setSearchLogs] = useState<WebSearchLog[]>([]);
+  const [searchLogsLoading, setSearchLogsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -88,6 +103,7 @@ export default function AdminLiveSupport() {
 
   useEffect(() => {
     if (tab === "knowledge") loadDocs();
+    if (tab === "searchlogs") loadSearchLogs();
   }, [tab]);
 
   const loadSessions = useCallback(async () => {
@@ -184,6 +200,16 @@ export default function AdminLiveSupport() {
     }
   };
 
+  const loadSearchLogs = async () => {
+    setSearchLogsLoading(true);
+    try {
+      const data = await apiFetchAdmin("/admin/ai/support/search-logs");
+      setSearchLogs(data.logs ?? []);
+    } catch { /* silent */ } finally {
+      setSearchLogsLoading(false);
+    }
+  };
+
   const deleteDoc = async (id: number) => {
     try {
       await apiFetchAdmin(`/admin/ai/support/knowledge/${id}`, { method: "DELETE" });
@@ -232,6 +258,10 @@ export default function AdminLiveSupport() {
         <button onClick={() => setTab("knowledge")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${tab === "knowledge" ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-white border border-slate-200 text-slate-600 hover:border-primary/30"}`}>
           <BookOpen size={14} /> AI Knowledge Base
+        </button>
+        <button onClick={() => setTab("searchlogs")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${tab === "searchlogs" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "bg-white border border-slate-200 text-slate-600 hover:border-indigo-300"}`}>
+          <Globe size={14} /> Web Search Audit
         </button>
       </div>
 
@@ -498,6 +528,122 @@ export default function AdminLiveSupport() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "searchlogs" && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm font-black text-slate-800 flex items-center gap-2">
+                <Globe size={16} className="text-indigo-500" /> Web Search Audit Log
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Every Google search and noehost.com crawl performed by Noe AI — logged automatically
+              </div>
+            </div>
+            <button onClick={loadSearchLogs}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:border-indigo-300 transition-colors text-slate-600">
+              <RefreshCw size={12} className={searchLogsLoading ? "animate-spin" : ""} /> Refresh
+            </button>
+          </div>
+
+          {/* Stats bar */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[
+              {
+                label: "Total Searches",
+                value: searchLogs.length,
+                color: "text-indigo-600", bg: "bg-indigo-50",
+                icon: Activity,
+              },
+              {
+                label: "Web Searches",
+                value: searchLogs.filter(l => l.search_type === "web_search" || l.search_type === "duckduckgo").length,
+                color: "text-emerald-600", bg: "bg-emerald-50",
+                icon: Search,
+              },
+              {
+                label: "Site Crawls",
+                value: searchLogs.filter(l => l.search_type === "website_crawl").length,
+                color: "text-amber-600", bg: "bg-amber-50",
+                icon: Globe,
+              },
+            ].map(({ label, value, color, bg, icon: Icon }) => (
+              <div key={label} className={`${bg} rounded-2xl p-4 flex items-center gap-3`}>
+                <Icon size={18} className={color} />
+                <div>
+                  <div className={`text-2xl font-black ${color}`}>{value}</div>
+                  <div className="text-xs font-semibold text-slate-500">{label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {searchLogsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-indigo-500" />
+            </div>
+          ) : searchLogs.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <Globe size={40} className="mx-auto mb-3 opacity-30" />
+              <div className="text-sm font-semibold">No search logs yet</div>
+              <div className="text-xs mt-1">Searches are logged as clients chat with Noe AI</div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {searchLogs.map(log => {
+                const isWebSearch = log.search_type === "web_search";
+                const isDDG = log.search_type === "duckduckgo";
+                const isCrawl = log.search_type === "website_crawl";
+                const badge = isCrawl
+                  ? { label: "Site Crawl", color: "bg-amber-100 text-amber-700 border-amber-200" }
+                  : isWebSearch
+                  ? { label: "Google Search", color: "bg-emerald-100 text-emerald-700 border-emerald-200" }
+                  : { label: "DuckDuckGo", color: "bg-indigo-100 text-indigo-700 border-indigo-200" };
+                return (
+                  <div key={log.id} className="bg-white border border-slate-200 rounded-2xl p-4 hover:border-indigo-200 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isCrawl ? "bg-amber-100" : "bg-indigo-100"}`}>
+                        {isCrawl ? <Globe size={14} className="text-amber-600" /> : <Search size={14} className="text-indigo-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.color}`}>
+                            {badge.label}
+                          </span>
+                          {log.client_name && (
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              {log.client_name} · {log.client_email}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(log.created_at)}</span>
+                        </div>
+                        <div className="text-sm font-semibold text-slate-800 mb-1 truncate">
+                          "{log.query_text}"
+                        </div>
+                        {log.result_snippet && (
+                          <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-1">
+                            {log.result_snippet}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                          {log.source_url && (
+                            <a href={log.source_url} target="_blank" rel="noopener noreferrer"
+                              className="truncate max-w-[200px] hover:text-indigo-500 transition-colors">
+                              {log.source_url}
+                            </a>
+                          )}
+                          <span>{log.results_count} results</span>
+                          <span>Session: {log.session_id.slice(0, 20)}…</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
