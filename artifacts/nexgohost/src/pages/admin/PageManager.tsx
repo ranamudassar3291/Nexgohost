@@ -253,9 +253,60 @@ const SECTION_DEFS: Record<string, SectionDef[]> = {
       ),
     },
     {
-      key: "values", label: "Core Values", icon: <CheckCircle2 size={13} />,
+      key: "_mission", label: "Mission Section", icon: <Tag size={13} />, isRoot: true,
+      editor: (c, set) => (
+        <div className="space-y-4">
+          <Field label="Badge Text" hint='Small label above heading, e.g. "Our Mission"'>
+            <Inp value={c.missionBadge} onChange={(e: any) => set({ ...c, missionBadge: e.target.value })} placeholder="Our Mission" />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Heading">
+              <Inp value={c.missionTitle} onChange={(e: any) => set({ ...c, missionTitle: e.target.value })} placeholder="Built to" />
+            </Field>
+            <Field label="Heading Highlight (coloured)">
+              <Inp value={c.missionHighlight} onChange={(e: any) => set({ ...c, missionHighlight: e.target.value })} placeholder="Last." />
+            </Field>
+          </div>
+          <Field label="First Paragraph">
+            <Txtarea value={c.missionDesc1} onChange={(e: any) => set({ ...c, missionDesc1: e.target.value })} rows={3} placeholder="Founded with the vision of making enterprise-grade hosting accessible..." />
+          </Field>
+          <Field label="Second Paragraph">
+            <Txtarea value={c.missionDesc2} onChange={(e: any) => set({ ...c, missionDesc2: e.target.value })} rows={3} placeholder="Optional second paragraph..." />
+          </Field>
+          <Field label="Bullet Points" icon={<List size={11} />}>
+            <JsonEditor value={c.missionPoints ?? []} onChange={(v) => set({ ...c, missionPoints: v })} hint='Array of strings: ["Enterprise-grade infrastructure at accessible prices.", ...]' />
+          </Field>
+          <Field label="Stat Cards (right column)" icon={<List size={11} />}>
+            <JsonEditor value={c.missionCards ?? []} onChange={(v) => set({ ...c, missionCards: v })} hint='Array of { "value": "50k+", "label": "Customers" } — shown as metric cards beside the text.' />
+          </Field>
+        </div>
+      ),
+    },
+    {
+      key: "_valuesText", label: "Values Section Heading", icon: <Type size={13} />, isRoot: true,
+      editor: (c, set) => (
+        <div className="space-y-4">
+          <Field label="Section Title">
+            <Inp value={c.valuesTitle} onChange={(e: any) => set({ ...c, valuesTitle: e.target.value })} placeholder="What We Stand For" />
+          </Field>
+          <Field label="Section Description">
+            <Txtarea value={c.valuesDesc} onChange={(e: any) => set({ ...c, valuesDesc: e.target.value })} rows={2} placeholder="Short description under the title" />
+          </Field>
+        </div>
+      ),
+    },
+    {
+      key: "values", label: "Core Values Cards", icon: <CheckCircle2 size={13} />,
       editor: (c, set) => (
         <JsonEditor value={c} onChange={set} hint='Array of { "title": "Reliability", "desc": "99.9% uptime..." } objects.' />
+      ),
+    },
+    {
+      key: "_timelineMeta", label: "Timeline Section Title", icon: <Type size={13} />, isRoot: true,
+      editor: (c, set) => (
+        <Field label="Timeline Section Title">
+          <Inp value={c.timelineTitle} onChange={(e: any) => set({ ...c, timelineTitle: e.target.value })} placeholder="How We Got Here" />
+        </Field>
       ),
     },
     {
@@ -267,7 +318,7 @@ const SECTION_DEFS: Record<string, SectionDef[]> = {
     {
       key: "team", label: "Team Members", icon: <Users size={13} />,
       editor: (c, set) => (
-        <JsonEditor value={c} onChange={set} hint='Array of { "name": "Alex Johnson", "role": "CEO", "bio": "..." } objects.' />
+        <JsonEditor value={c} onChange={set} hint='Array of { "name": "Alex Johnson", "role": "CEO & Co-Founder", "initials": "AJ" } objects. The "initials" field (2–3 chars) is used for the avatar.' />
       ),
     },
     {
