@@ -1,0 +1,26 @@
+Act as a Full-Stack Systems Architect. My 'Page Manager' in the Admin Panel is not loading real data and is missing the 'Add Page' functionality. You must fix the entire CMS bridge between the UI and the PostgreSQL database.
+
+### 1. DATABASE SCHEMA INITIALIZATION:
+- If it doesn't exist, create a table named 'site_pages' in PostgreSQL.
+- Columns MUST include: id (primary key), page_slug (unique), page_title, meta_description, keywords, sections_json (to store Hero, Services, FAQ content), is_visible (boolean), and created_at.
+- IMPORTANT: Seed this table with the existing pages (Home, About, Pricing, Terms, Privacy) so the UI is not empty.
+
+### 2. DYNAMIC CONTENT FETCHING:
+- Update the Admin 'Page Manager' UI to fetch its list of pages and their specific section content (Hero Banner, Testimonials, etc.) directly from the 'site_pages' table.
+- When I click a tab (e.g., 'Home' or 'About'), use an API call to GET the specific row for that page slug from the database.
+
+### 3. ADD PAGE & EDIT FUNCTIONALITY:
+- ADD an "+ Add New Page" button at the top of the Page Manager.
+- This button must open a modal to enter Page Name and Slug, which then creates a new row in the 'site_pages' table.
+- Ensure the "Save Changes" button performs a SQL UPDATE query to save Meta Tags and Section content back to the database.
+
+### 4. FRONTEND SYNC (CRITICAL):
+- The frontend website must NO LONGER use static text files. 
+- Update the Website Controller to fetch content from the 'site_pages' table based on the current URL path.
+- This ensures that when I move to a "New Account", importing the database will automatically restore the entire website design and text.
+
+### 5. PERSISTENCE GUARANTEE:
+- Ensure all "Settings, Page Layouts, and Content Edits are saved in the PostgreSQL database" persistently.
+- No data should be lost on server refresh or account migration.
+
+Please rebuild the Website Admin Controller and the Database Bridge to make Noehost a fully dynamic, database-driven platform.
