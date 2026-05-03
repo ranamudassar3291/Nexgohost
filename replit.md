@@ -281,6 +281,34 @@ Extended with:
 ### Overview Quick Actions Grid
 - Replaced "Backup" + "SSH" shortcuts with **Software** + **Environment** quick-launch tiles
 
+## Secure Team Access (Client Dashboard → /client/team)
+
+### DB Tables (startup migrations in `index.ts`)
+- `team_members` — id, owner_user_id, email, name, role, status, created_at, updated_at
+  - Roles: `support_only`, `billing_only`, `developer`, `full_access`
+  - Unique index on (owner_user_id, email)
+- `team_magic_links` — id, owner_user_id, token (unique UUID), label, expires_at, used_at, used_ip, created_at
+- `team_access_logs` — id, owner_user_id, actor_email, actor_role, ip_address, action, user_agent, created_at
+
+### Backend Routes (`artifacts/api-server/src/routes/team-access.ts`)
+- `GET /api/my/team` — list team members for the account
+- `POST /api/my/team` — add member (validates email uniqueness per account)
+- `PATCH /api/my/team/:id` — update role
+- `DELETE /api/my/team/:id` — remove member
+- `GET /api/my/team/magic-links` — list generated access links
+- `POST /api/my/team/magic-link` — generate 24h token link
+- `DELETE /api/my/team/magic-link/:id` — revoke link
+- `GET /api/my/team/access-logs` — security event log (last 50)
+- `GET /api/team/verify/:token` — PUBLIC: validates token, logs IP+UA, marks first use
+
+### Frontend (`artifacts/nexgohost/src/pages/client/TeamAccess.tsx`)
+- 3-tab layout: Team Members / Magic Links / Access Logs
+- **Team Members**: table with avatar initials, role badge (click to change inline), add modal, remove button
+- **Magic Links**: generate modal with label + security notice, new link highlighted with copy button, expiry countdown, "Used / Expired" status, IP shown on first open
+- **Access Logs**: color-coded event feed (indigo = owner, green = developer), IP + timestamp per row
+- `AddMemberModal`: 4-role grid selector with descriptions, email/name fields, duplicate check
+- All writes auto-log to `team_access_logs` with actor email, role, IP, action text
+
 ## Site Health & Performance Dashboard (Client Dashboard)
 
 ### DB: `site_health_snapshots` table (startup migration in `index.ts`)

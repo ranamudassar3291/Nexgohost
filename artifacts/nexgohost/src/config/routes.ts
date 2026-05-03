@@ -34,6 +34,7 @@ import {
   KeyRound,
   Search,
   LifeBuoy,
+  Users2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -97,6 +98,7 @@ export const clientRoutes: RouteDefinition[] = [
   { path: "/client/affiliate",          label: "Affiliate",       icon: Share2,          inNav: false },
   { path: "/client/credits",            label: "Credits",         icon: Wallet,          inNav: false },
   { path: "/client/security",            label: "Security",        icon: ShieldCheck,     inNav: true  },
+  { path: "/client/team",               label: "Team Access",     icon: Users2,          inNav: true  },
   { path: "/client/domains/transfer",   label: "Transfer Domain", icon: RefreshCw,       inNav: false },
   { path: "/help",                       label: "Help Center",     icon: HelpCircle,      inNav: true  },
 ];

@@ -69,6 +69,7 @@ import ClientOrders from "@/pages/client/Orders";
 import Affiliate from "@/pages/client/Affiliate";
 import Credits from "@/pages/client/Credits";
 import Security from "@/pages/client/Security";
+import TeamAccess from "@/pages/client/TeamAccess";
 import DomainTransfer from "@/pages/client/DomainTransfer";
 import DomainDns from "@/pages/client/DomainDns";
 import DomainSearch from "@/pages/client/DomainSearch";
@@ -526,6 +527,9 @@ function RouterRoot() {
       </Route>
       <Route path="/client/security">
         <ClientPage><Security /></ClientPage>
+      </Route>
+      <Route path="/client/team">
+        <ClientPage><TeamAccess /></ClientPage>
       </Route>
       <Route path="/client/domain-search">
         <Redirect to="/client/domains?tab=order" />

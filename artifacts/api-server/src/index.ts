@@ -88,6 +88,54 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_shs_service ON site_health_snapshots(service_id, recorded_at DESC)`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_shs_user    ON site_health_snapshots(user_id,    recorded_at DESC)`);
     console.log("[MIGRATIONS] site_health_snapshots table ready");
+
+    // ── Secure Team Access tables ─────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS team_members (
+        id              TEXT PRIMARY KEY,
+        owner_user_id   TEXT NOT NULL,
+        email           TEXT NOT NULL,
+        name            TEXT NOT NULL,
+        role            TEXT NOT NULL DEFAULT 'support_only',
+        status          TEXT NOT NULL DEFAULT 'active',
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_team_members_owner ON team_members(owner_user_id)`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_email ON team_members(owner_user_id, email)`);
+    console.log("[MIGRATIONS] team_members table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS team_magic_links (
+        id              TEXT PRIMARY KEY,
+        owner_user_id   TEXT NOT NULL,
+        token           TEXT NOT NULL UNIQUE,
+        label           TEXT NOT NULL DEFAULT 'Developer Access',
+        expires_at      TIMESTAMP NOT NULL,
+        used_at         TIMESTAMP,
+        used_ip         TEXT,
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_team_links_owner ON team_magic_links(owner_user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_team_links_token ON team_magic_links(token)`);
+    console.log("[MIGRATIONS] team_magic_links table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS team_access_logs (
+        id              TEXT PRIMARY KEY,
+        owner_user_id   TEXT NOT NULL,
+        actor_email     TEXT NOT NULL,
+        actor_role      TEXT NOT NULL DEFAULT 'developer',
+        ip_address      TEXT NOT NULL,
+        action          TEXT NOT NULL,
+        user_agent      TEXT,
+        created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_team_logs_owner ON team_access_logs(owner_user_id, created_at DESC)`);
+    console.log("[MIGRATIONS] team_access_logs table ready");
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
