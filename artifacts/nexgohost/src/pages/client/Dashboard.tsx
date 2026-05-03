@@ -753,11 +753,10 @@ export default function ClientDashboard() {
   });
   const [confettiActive, setConfettiActive] = useState(false);
   useEffect(() => {
-    if (setupProgress?.allComplete) {
-      setConfettiActive(true);
-      const t = setTimeout(() => setConfettiActive(false), 3000);
-      return () => clearTimeout(t);
-    }
+    if (!setupProgress?.allComplete) return;
+    setConfettiActive(true);
+    const t = setTimeout(() => setConfettiActive(false), 3000);
+    return () => clearTimeout(t);
   }, [setupProgress?.allComplete]);
 
   const { data: announcements = [] } = useQuery<Announcement[]>({
@@ -935,9 +934,7 @@ export default function ClientDashboard() {
 
       {/* ── Stat Summary Cards ── */}
       {!q && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Services Running" value={stats.activeServices} icon={Server} href="/client/hosting" color="#4F46E5" />
-          <StatCard title="Domains" value={stats.activeDomains} icon={Globe} href="/client/domains" color="#059669" />
+        <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
           <StatCard title="Invoices Due" value={stats.unpaidInvoices} icon={FileText} href="/client/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
           <StatCard title="Support Cases" value={stats.openTickets} icon={Ticket} href="/client/tickets" color="#F59E0B" />
         </div>
@@ -966,7 +963,7 @@ export default function ClientDashboard() {
       )}
 
       {/* ── Setup Wizard ── */}
-      {!q && setupProgress && !setupProgress.allComplete && allDomains.length > 0 && (() => {
+      {!q && setupProgress && !setupProgress.allComplete && (() => {
         const s1 = setupProgress.step1;
         const s2 = setupProgress.step2;
         const steps = [
@@ -983,7 +980,7 @@ export default function ClientDashboard() {
                 <div className="h-full rounded-full transition-all" style={{ width: `${setupProgress.pct}%`, background: "linear-gradient(90deg,#4F46E5,#6366F1)" }} />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x" style={{ divideColor: "#F3F4F6" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x" style={{ borderColor: "#F3F4F6" }}>
               {steps.map((step, i) => (
                 <div key={i} className={`px-5 py-4 flex items-start gap-3 ${step.locked ? "opacity-40" : ""}`}>
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 ${step.done ? "border-green-300 bg-green-50" : step.locked ? "border-gray-200 bg-gray-50" : "border-indigo-300 bg-indigo-50"}`}>
@@ -1034,66 +1031,11 @@ export default function ClientDashboard() {
       )}
 
       {/* ── Free Domain Banners ── */}
-      {!q && freeDomainServices.map(svc => (
-        <div key={svc.id} className="relative rounded-2xl overflow-hidden" style={{ background: "linear-gradient(135deg,#4F46E5,#7A6BFF)", borderRadius: "16px" }}>
-          <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 90% 50%,rgba(255,255,255,0.1),transparent 55%)" }} />
-          <div className="relative px-5 py-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)" }}>
-              <Gift size={22} className="text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-white">A free domain is waiting for you.</p>
-              <p className="text-xs text-white/75 mt-0.5">Your annual plan includes one free domain registration — claim it before it expires.</p>
-            </div>
-            <button onClick={() => navigate(`/client/register-domain?claim_token=${svc.id}`)}
-              className="shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-white border border-white/25 hover:bg-white/10 transition-all">
-              Claim My Domain →
-            </button>
-          </div>
-        </div>
-      ))}
-
       {/* ── IP Unblock Banner ── */}
       {!q && <IpUnblockBanner />}
 
       {/* ── Site Health & Performance ── */}
       {!q && <SiteHealthPanel />}
-
-      {/* ── Hosting Services ── */}
-      {filteredServices.length > 0 && (
-        <div>
-          <SectionHeader
-            title="Your Hosting"
-            icon={Server}
-            link="/client/hosting"
-            linkLabel="View All"
-            count={q ? filteredServices.length : undefined}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredServices.map(svc => (
-              <HostingTile key={svc.id} svc={svc} onSso={handleSsoLogin} ssoLoading={ssoLoading} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Domains ── */}
-      {filteredDomains.length > 0 && (
-        <div>
-          <SectionHeader
-            title="Your Domains"
-            icon={Globe}
-            link="/client/domains"
-            linkLabel="View All"
-            count={q ? filteredDomains.length : undefined}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDomains.map(domain => (
-              <DomainTile key={domain.id} domain={domain} navigate={navigate} />
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── No results ── */}
       {q && !hasResults && (
@@ -1166,7 +1108,7 @@ export default function ClientDashboard() {
                       color: inv.status === "paid" ? "#059669" : inv.status === "unpaid" ? "#B91C1C" : "#1D4ED8",
                     }}
                   >
-                    {inv.status === "payment_pending" ? "Pending" : inv.status}
+                    {inv.status}
                   </span>
                 </div>
               ))}
