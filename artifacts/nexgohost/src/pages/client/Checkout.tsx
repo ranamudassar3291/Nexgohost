@@ -726,85 +726,127 @@ export default function Checkout() {
 
               {/* Payment Methods */}
               <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                <div className="px-5 py-4 border-b border-border">
+                <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                   <h3 className="font-bold text-foreground flex items-center gap-2">
                     <CreditCard size={14} className="text-primary" /> Payment Method
                   </h3>
+                  <span className="text-[10px] text-muted-foreground">256-bit SSL encrypted</span>
                 </div>
-                <div className="p-4 space-y-2.5">
-                  {/* Wallet */}
+                <div className="p-4 space-y-4">
+
+                  {/* ── Wallet Quick Pay ── */}
                   {creditBalance > 0 && (
-                    <button onClick={() => setSelectedPm(selectedPm === "credits" ? "none" : "credits")}
-                      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "credits" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                        <Wallet size={18} className="text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground">Wallet Balance</p>
-                        <p className={`text-xs ${creditBalance >= total ? "text-green-500" : "text-amber-500"}`}>
-                          {formatPrice(creditBalance)} {creditBalance >= total ? "· Enough to pay in full" : `· Short by ${formatPrice(total - creditBalance)}`}
-                        </p>
-                      </div>
-                      {selectedPm === "credits" && <CheckCircle2 size={16} className="text-primary shrink-0" />}
-                    </button>
-                  )}
-
-                  {/* External payment methods */}
-                  {paymentMethods.map(pm => {
-                    const isSel  = selectedPm === pm.id;
-                    const isAuto = ["safepay", "stripe"].includes(pm.type);
-                    return (
-                      <button key={pm.id} onClick={() => setSelectedPm(isSel ? "none" : pm.id)}
-                        className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${isSel ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                        <PayIcon type={pm.type} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-semibold text-foreground">{pm.name}</span>
-                            {isAuto && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-500/15 text-green-500">⚡ Instant</span>}
-                            {pm.isSandbox && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/10 text-amber-500">Sandbox</span>}
-                          </div>
-                          {pm.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{pm.description}</p>}
-                          {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings?.mobileNumber && (
-                            <p className="text-xs text-muted-foreground mt-0.5">Send to: {pm.publicSettings.mobileNumber}</p>
-                          )}
-                          {pm.type === "bank_transfer" && pm.publicSettings?.bankName && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
-                          )}
-                        </div>
-                        {isSel && <CheckCircle2 size={16} className="text-primary shrink-0" />}
-                      </button>
-                    );
-                  })}
-
-                  {/* Pay Later */}
-                  <button onClick={() => setSelectedPm("none")}
-                    className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "none" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
-                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                      <ChevronRight size={18} className="text-muted-foreground" />
-                    </div>
                     <div>
-                      <p className="text-sm font-semibold text-foreground">Pay Later</p>
-                      <p className="text-xs text-muted-foreground">Place order now, pay via invoice</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Instant Pay</p>
+                      <button onClick={() => setSelectedPm(selectedPm === "credits" ? "none" : "credits")}
+                        className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "credits" ? "border-emerald-400 bg-emerald-500/5" : "border-border hover:border-emerald-400/40"}`}>
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <Wallet size={18} className="text-emerald-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground">Wallet Balance</p>
+                          <p className={`text-xs font-semibold ${creditBalance >= total ? "text-emerald-500" : "text-amber-500"}`}>
+                            {formatPrice(creditBalance)} {creditBalance >= total ? "· Covers full amount" : `· Short by ${formatPrice(total - creditBalance)}`}
+                          </p>
+                        </div>
+                        {selectedPm === "credits" && <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />}
+                      </button>
                     </div>
-                    {selectedPm === "none" && <CheckCircle2 size={16} className="text-primary shrink-0 ml-auto" />}
-                  </button>
+                  )}
 
-                  {/* Safepay info */}
-                  {isSafepay && (
-                    <div className="flex gap-2 p-3 rounded-lg border border-green-500/20 bg-green-500/[0.07] text-xs">
-                      <CheckCircle2 size={13} className="text-green-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-green-400 font-semibold">⚡ Instant Automatic Activation</p>
-                        <p className="text-muted-foreground mt-0.5">Hosting activates the moment Safepay confirms your payment — no waiting.</p>
+                  {/* ── Local / Mobile Wallet ── */}
+                  {paymentMethods.filter(pm => ["jazzcash", "easypaisa", "bank_transfer"].includes(pm.type)).length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Local / Mobile Wallet</p>
+                      <div className="space-y-2">
+                        {paymentMethods.filter(pm => ["jazzcash", "easypaisa", "bank_transfer"].includes(pm.type)).map(pm => {
+                          const isSel = selectedPm === pm.id;
+                          const isJazz = pm.type === "jazzcash";
+                          const isEasy = pm.type === "easypaisa";
+                          const accent = isJazz ? "text-[#f0612e]" : isEasy ? "text-[#3bb54a]" : "text-blue-500";
+                          return (
+                            <button key={pm.id} onClick={() => setSelectedPm(isSel ? "none" : pm.id)}
+                              className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${isSel ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                              <PayIcon type={pm.type} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-foreground">{pm.name}</p>
+                                {(pm.type === "jazzcash" || pm.type === "easypaisa") && pm.publicSettings?.mobileNumber && (
+                                  <p className={`text-sm font-black ${accent}`}>{pm.publicSettings.mobileNumber}</p>
+                                )}
+                                {pm.publicSettings?.accountTitle && (pm.type === "jazzcash" || pm.type === "easypaisa") && (
+                                  <p className="text-xs text-muted-foreground">{pm.publicSettings.accountTitle}</p>
+                                )}
+                                {pm.type === "bank_transfer" && pm.publicSettings?.bankName && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
+                                )}
+                                {pm.isSandbox && <span className="text-[10px] font-bold text-amber-500">Sandbox mode</span>}
+                              </div>
+                              {isSel && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
-                  {/* Manual method note */}
+                  {/* ── Card & International ── */}
+                  {paymentMethods.filter(pm => !["jazzcash", "easypaisa", "bank_transfer"].includes(pm.type)).length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Card & International</p>
+                      <div className="space-y-2">
+                        {paymentMethods.filter(pm => !["jazzcash", "easypaisa", "bank_transfer"].includes(pm.type)).map(pm => {
+                          const isSel = selectedPm === pm.id;
+                          const isAuto = ["safepay", "stripe"].includes(pm.type);
+                          return (
+                            <button key={pm.id} onClick={() => setSelectedPm(isSel ? "none" : pm.id)}
+                              className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${isSel ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                              <PayIcon type={pm.type} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-sm font-semibold text-foreground">{pm.name}</span>
+                                  {isAuto && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-green-500/15 text-green-500">⚡ Instant</span>}
+                                  {pm.isSandbox && <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/10 text-amber-500">Sandbox</span>}
+                                </div>
+                                {pm.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{pm.description}</p>}
+                              </div>
+                              {isSel && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Pay Later ── */}
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Other</p>
+                    <button onClick={() => setSelectedPm("none")}
+                      className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all ${selectedPm === "none" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                      <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                        <ChevronRight size={18} className="text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Pay Later</p>
+                        <p className="text-xs text-muted-foreground">Place order now, pay via invoice</p>
+                      </div>
+                      {selectedPm === "none" && <CheckCircle2 size={16} className="text-primary shrink-0 ml-auto" />}
+                    </button>
+                  </div>
+
+                  {/* Context note */}
+                  {isSafepay && (
+                    <div className="flex gap-2 p-3 rounded-xl border border-green-500/20 bg-green-500/[0.06] text-xs">
+                      <CheckCircle2 size={13} className="text-green-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-green-600 font-semibold">⚡ Instant Automatic Activation</p>
+                        <p className="text-muted-foreground mt-0.5">Hosting activates the moment Safepay confirms payment.</p>
+                      </div>
+                    </div>
+                  )}
                   {isManual && (
-                    <div className="flex gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.07] text-xs">
-                      <AlertCircle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-                      <p className="text-muted-foreground">Send payment proof after placing order. Service activates within 24 hours after admin verification.</p>
+                    <div className="flex gap-2 p-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] text-xs">
+                      <AlertCircle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-muted-foreground">Submit your payment proof after placing the order. Service activates within 24 hours of admin verification.</p>
                     </div>
                   )}
                 </div>

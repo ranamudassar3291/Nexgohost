@@ -4,7 +4,8 @@ import {
   FileText, CreditCard, CheckCircle, AlertCircle, Eye, Loader2,
   RefreshCcw, Banknote, Download, Clock, ChevronRight, X, RotateCcw,
   Receipt, ArrowDownCircle, Info, Search, TrendingUp, Wallet, Share2,
-  DollarSign, BadgeCheck, AlertOctagon,
+  BadgeCheck, AlertOctagon, Server, Calendar, HardDrive, Wifi,
+  RefreshCw, Shield, ToggleLeft, ToggleRight, ExternalLink,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,12 @@ interface Invoice {
 interface Transaction {
   id: string; invoiceId?: string; amount: number; method: string;
   status: string; transactionRef?: string; createdAt: string;
+}
+interface HostingService {
+  id: string; planName: string; domain: string; status: string;
+  billingCycle: string; nextDueDate?: string; autoRenew: boolean;
+  diskUsed?: number | null; bandwidthUsed?: number | null;
+  createdAt: string;
 }
 
 function localApiFetch(url: string, opts?: RequestInit) {
@@ -61,6 +68,129 @@ const TX_STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   pending:  { color: "bg-amber-50 text-amber-700 border-amber-200",     label: "Pending" },
   refunded: { color: "bg-purple-50 text-purple-700 border-purple-200",  label: "Refunded" },
 };
+
+/* ── Subscription Card ───────────────────────────────────────────────────────── */
+const CYCLE_LABEL: Record<string, string> = {
+  monthly: "Monthly", quarterly: "Quarterly", semiannual: "6-Month", yearly: "Annual",
+};
+const STATUS_PILL: Record<string, string> = {
+  active:   "bg-green-500/10 text-green-600 border-green-200",
+  suspended:"bg-red-500/10 text-red-600 border-red-200",
+  pending:  "bg-amber-500/10 text-amber-600 border-amber-200",
+  terminated:"bg-secondary text-muted-foreground border-border",
+};
+
+function SubscriptionCard({ svc, onToggleAutoRenew }: { svc: HostingService; onToggleAutoRenew: () => void }) {
+  const [, setLocation] = useLocation();
+  const daysLeft = svc.nextDueDate ? differenceInDays(new Date(svc.nextDueDate), new Date()) : null;
+  const isOverdue = daysLeft !== null && daysLeft < 0;
+  const isUrgent  = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+  const pillCls = STATUS_PILL[svc.status] ?? STATUS_PILL.pending;
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 space-y-4 hover:border-primary/30 transition-colors min-w-[280px] max-w-[320px] flex-shrink-0">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <Server size={18} className="text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-foreground text-sm truncate">{svc.planName || "Hosting Plan"}</p>
+            <p className="text-xs text-muted-foreground font-mono truncate">{svc.domain || "—"}</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${pillCls}`}>
+            {svc.status}
+          </span>
+          {svc.billingCycle && (
+            <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+              {CYCLE_LABEL[svc.billingCycle] ?? svc.billingCycle}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Next Billing Date */}
+      <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${
+        isOverdue ? "bg-red-500/8 border-red-200" : isUrgent ? "bg-amber-500/8 border-amber-200" : "bg-secondary/40 border-border"
+      }`}>
+        <Calendar size={14} className={isOverdue ? "text-red-500" : isUrgent ? "text-amber-500" : "text-muted-foreground"} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Next Billing Date</p>
+          {svc.nextDueDate ? (
+            <p className={`text-sm font-bold ${isOverdue ? "text-red-600" : isUrgent ? "text-amber-600" : "text-foreground"}`}>
+              {format(new Date(svc.nextDueDate), "d MMM yyyy")}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
+        </div>
+        {daysLeft !== null && (
+          <span className={`text-xs font-black px-2 py-1 rounded-lg ${
+            isOverdue ? "bg-red-500 text-white" : isUrgent ? "bg-amber-500 text-white" : "bg-primary/10 text-primary"
+          }`}>
+            {isOverdue ? `${Math.abs(daysLeft)}d overdue` : daysLeft === 0 ? "Today" : `${daysLeft}d`}
+          </span>
+        )}
+      </div>
+
+      {/* Usage Mini-Bars */}
+      {(svc.diskUsed != null || svc.bandwidthUsed != null) && (
+        <div className="space-y-2">
+          {svc.diskUsed != null && (
+            <div className="flex items-center gap-2 text-xs">
+              <HardDrive size={11} className="text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground w-14 shrink-0">Disk</span>
+              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div className="h-full bg-primary/60 rounded-full" style={{ width: `${Math.min(100, (svc.diskUsed / 5120) * 100)}%` }} />
+              </div>
+              <span className="text-muted-foreground font-mono shrink-0">{svc.diskUsed >= 1024 ? `${(svc.diskUsed/1024).toFixed(1)}GB` : `${svc.diskUsed}MB`}</span>
+            </div>
+          )}
+          {svc.bandwidthUsed != null && (
+            <div className="flex items-center gap-2 text-xs">
+              <Wifi size={11} className="text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground w-14 shrink-0">Bandwidth</span>
+              <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-400/60 rounded-full" style={{ width: `${Math.min(100, (svc.bandwidthUsed / 102400) * 100)}%` }} />
+              </div>
+              <span className="text-muted-foreground font-mono shrink-0">{svc.bandwidthUsed >= 1024 ? `${(svc.bandwidthUsed/1024).toFixed(1)}GB` : `${svc.bandwidthUsed}MB`}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Auto-Renew Toggle */}
+      <div className="flex items-center justify-between pt-1 border-t border-border">
+        <div className="flex items-center gap-2">
+          <RefreshCw size={12} className="text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Auto-Renew</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-semibold ${svc.autoRenew ? "text-green-600" : "text-muted-foreground"}`}>
+            {svc.autoRenew ? "On" : "Off"}
+          </span>
+          <button onClick={onToggleAutoRenew} className="focus:outline-none" title="Toggle auto-renew">
+            {svc.autoRenew
+              ? <ToggleRight size={24} className="text-green-500 hover:text-green-600 transition-colors" />
+              : <ToggleLeft size={24} className="text-muted-foreground hover:text-foreground transition-colors" />
+            }
+          </button>
+        </div>
+      </div>
+
+      {/* Manage link */}
+      <button
+        onClick={() => setLocation(`/client/hosting/${svc.id}`)}
+        className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+      >
+        Manage Service <ExternalLink size={11} />
+      </button>
+    </div>
+  );
+}
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 function InvAmount({ inv }: { inv: Invoice }) {
@@ -159,6 +289,18 @@ export default function ClientInvoices() {
   const [refundTarget, setRefundTarget] = useState<Invoice | null>(null);
   const [txSearch, setTxSearch] = useState("");
 
+  const { data: services = [] } = useQuery<HostingService[]>({
+    queryKey: ["client-hosting-billing"],
+    queryFn: () => apiFetch("/api/client/hosting"),
+  });
+
+  const autoRenewMutation = useMutation({
+    mutationFn: ({ id, autoRenew }: { id: string; autoRenew: boolean }) =>
+      apiFetch(`/api/client/hosting/${id}/auto-renew`, { method: "PUT", body: JSON.stringify({ autoRenew }) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["client-hosting-billing"] }),
+    onError: (err: any) => toast({ title: "Failed to update", description: err.message, variant: "destructive" }),
+  });
+
   const initTab = (): BillingTab => {
     const p = new URLSearchParams(window.location.search).get("tab");
     if (p === "credits" || p === "affiliate" || p === "transactions" || p === "refunds") return p;
@@ -235,6 +377,29 @@ export default function ClientInvoices() {
           </div>
         )}
       </div>
+
+      {/* ── Active Subscriptions ── */}
+      {services.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield size={15} className="text-primary" />
+              <h2 className="font-bold text-foreground text-base">Active Subscriptions</h2>
+              <span className="text-xs font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full">{services.length}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Toggle auto-renew per service</p>
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+            {services.map(svc => (
+              <SubscriptionCard
+                key={svc.id}
+                svc={svc}
+                onToggleAutoRenew={() => autoRenewMutation.mutate({ id: svc.id, autoRenew: !svc.autoRenew })}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -496,195 +496,252 @@ export default function InvoiceDetail() {
 
         {/* ── PAYMENT SECTION (HTML only — not printed) ──────────────────────── */}
         {canPay && (
-          <div ref={paymentRef} className="border-t border-slate-200 bg-slate-50 px-8 py-7 print:hidden">
+          <div ref={paymentRef} className="border-t border-slate-200 print:hidden">
 
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-5">Payment Options</p>
-
-            {/* Quick-pay CTAs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-              {/* Wallet Balance CTA */}
-              <button
-                onClick={handlePayWithCredits}
-                disabled={payingWithCredits || creditBalance <= 0}
-                className={`flex items-center gap-3 rounded-xl border-2 px-5 py-4 transition-all ${
-                  creditBalance > 0
-                    ? "border-emerald-400 bg-emerald-50 hover:bg-emerald-100 cursor-pointer"
-                    : "border-slate-200 bg-white opacity-60 cursor-not-allowed"
-                }`}
-              >
-                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                  {payingWithCredits ? <Loader2 size={18} className="animate-spin text-emerald-600" /> : <Wallet size={18} className="text-emerald-600" />}
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-bold text-slate-800">Pay with Wallet Balance</p>
-                  <p className="text-xs text-slate-500">
-                    Available: <span className={`font-semibold ${creditBalance > 0 ? "text-emerald-600" : "text-slate-400"}`}>{formatPrice(creditBalance)}</span>
-                  </p>
-                </div>
-              </button>
-
-              {/* JazzCash / EasyPaisa CTA */}
-              {mobileWalletMethods.length > 0 && (
-                <button
-                  onClick={() => setSelectedGateway(mobileWalletMethods[0].id)}
-                  className={`flex items-center gap-3 rounded-xl border-2 px-5 py-4 transition-all cursor-pointer ${
-                    mobileWalletMethods.some(m => m.id === selectedGateway)
-                      ? "border-[#4F46E5] bg-[#4F46E5]/5"
-                      : "border-slate-200 bg-white hover:border-[#4F46E5]/50"
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xl" style={{ background: "rgba(112,26,254,0.08)" }}>
-                    <Smartphone size={18} style={{ color: BRAND }} />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-slate-800">JazzCash / EasyPaisa</p>
-                    <p className="text-xs text-slate-500">Mobile wallet — instant transfer</p>
-                  </div>
-                </button>
-              )}
+            {/* Section Header */}
+            <div className="px-8 py-5 flex items-center gap-3 border-b border-slate-100 bg-slate-50">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: BRAND + "18" }}>
+                <CreditCard size={15} style={{ color: BRAND }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Complete Payment</p>
+                <p className="text-xs text-slate-500">Choose a payment method to pay {creditApplicable ? invFmt(amountAfterCredit) : invFmt(Number(invoice.total))}</p>
+              </div>
             </div>
 
-            {/* All other payment gateways */}
-            {paymentMethods.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs text-slate-400 font-medium">— or choose a payment method —</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {paymentMethods.map(pm => (
-                    <div
-                      key={pm.id}
-                      onClick={() => setSelectedGateway(selectedGateway === pm.id ? "" : pm.id)}
-                      className={`bg-white border-2 rounded-xl p-4 cursor-pointer transition-all ${
-                        selectedGateway === pm.id ? "border-[#4F46E5] shadow-md shadow-[#4F46E5]/10" : "border-slate-200 hover:border-[#4F46E5]/40"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-2.5">
-                        <span className="text-lg">{TYPE_ICONS[pm.type] ?? "💳"}</span>
-                        <span className="text-sm font-bold text-slate-800">{pm.name}</span>
-                        {selectedGateway === pm.id && <CheckCircle size={14} className="ml-auto" style={{ color: BRAND }} />}
-                      </div>
-                      <PaymentInstructions method={pm} />
-                    </div>
-                  ))}
-                </div>
+            <div className="px-8 py-6 space-y-5">
 
-                {/* Safepay: direct Pay Now button — no manual form */}
-                <AnimatePresence>
-                  {selectedGateway && selectedMethodType === "safepay" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="bg-white border-2 rounded-xl p-5 space-y-4"
-                      style={{ borderColor: BRAND + "33" }}
-                    >
+              {/* ── Quick Pay: Wallet Balance ── */}
+              {creditApplicable && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Instant Pay</p>
+                  <button
+                    onClick={handlePayWithCredits}
+                    disabled={payingWithCredits}
+                    className="w-full flex items-center gap-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-5 py-4 transition-all cursor-pointer group"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-emerald-100 group-hover:bg-emerald-200 flex items-center justify-center shrink-0 transition-colors">
+                      {payingWithCredits ? <Loader2 size={20} className="animate-spin text-emerald-600" /> : <Wallet size={20} className="text-emerald-600" />}
+                    </div>
+                    <div className="text-left flex-1">
+                      <p className="text-sm font-bold text-slate-800">Pay with Wallet Balance</p>
+                      <p className="text-xs text-emerald-600 font-semibold mt-0.5">
+                        {formatPrice(creditBalance)} available
+                        {creditBalance >= Number(invoice.total) ? " · Covers full amount" : ` · Saves ${invFmt(creditApplied)}`}
+                      </p>
+                    </div>
+                    <div className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg shrink-0">
+                      {payingWithCredits ? "Processing…" : "Pay Now"}
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {/* ── Local Payments (JazzCash / EasyPaisa / Bank) ── */}
+              {mobileWalletMethods.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Local / Mobile Wallet</p>
+                  <div className="space-y-2">
+                    {mobileWalletMethods.map(pm => {
+                      const isSel = selectedGateway === pm.id;
+                      const isJazz = pm.type === "jazzcash";
+                      const accentColor = isJazz ? "#f0612e" : "#3bb54a";
+                      const accentBg    = isJazz ? "#f0612e14" : "#3bb54a14";
+                      return (
+                        <div key={pm.id}>
+                          <div
+                            onClick={() => setSelectedGateway(isSel ? "" : pm.id)}
+                            className={`flex items-center gap-4 rounded-2xl border-2 px-5 py-4 cursor-pointer transition-all ${
+                              isSel ? "shadow-md" : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                            style={isSel ? { borderColor: accentColor, background: accentBg } : {}}
+                          >
+                            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: accentColor + "20" }}>
+                              <Smartphone size={20} style={{ color: accentColor }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-slate-800">{pm.name}</p>
+                              {pm.publicSettings?.mobileNumber && (
+                                <p className="text-base font-black mt-0.5" style={{ color: accentColor }}>
+                                  {pm.publicSettings.mobileNumber}
+                                </p>
+                              )}
+                              {pm.publicSettings?.accountTitle && (
+                                <p className="text-xs text-slate-500">{pm.publicSettings.accountTitle}</p>
+                              )}
+                            </div>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isSel ? "border-transparent" : "border-slate-300"
+                            }`} style={isSel ? { background: accentColor } : {}}>
+                              {isSel && <CheckCircle size={12} className="text-white" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── International / Card Payments ── */}
+              {otherMethods.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">Card & International</p>
+                  <div className="space-y-2">
+                    {otherMethods.map(pm => {
+                      const isSel = selectedGateway === pm.id;
+                      const isBank = pm.type === "bank_transfer";
+                      return (
+                        <div key={pm.id}>
+                          <div
+                            onClick={() => setSelectedGateway(isSel ? "" : pm.id)}
+                            className={`flex items-center gap-4 rounded-2xl border-2 px-5 py-4 cursor-pointer transition-all ${
+                              isSel ? "border-[#4F46E5] bg-[#4F46E5]/5 shadow-md shadow-[#4F46E5]/10" : "border-slate-200 bg-white hover:border-[#4F46E5]/30"
+                            }`}
+                          >
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl ${
+                              pm.type === "safepay" ? "bg-[#5046e4]/10" : pm.type === "stripe" ? "bg-[#635bff]/10" : "bg-blue-500/10"
+                            }`}>
+                              {pm.type === "safepay" ? (
+                                <span className="text-[#5046e4] text-lg">🔐</span>
+                              ) : pm.type === "stripe" ? (
+                                <CreditCard size={20} className="text-[#635bff]" />
+                              ) : isBank ? (
+                                <span className="text-blue-500 text-lg">🏦</span>
+                              ) : (
+                                <span className="text-lg">{TYPE_ICONS[pm.type] ?? "💳"}</span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-slate-800">{pm.name}</p>
+                                {["safepay", "stripe"].includes(pm.type) && (
+                                  <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-green-500/15 text-green-600">⚡ Instant</span>
+                                )}
+                              </div>
+                              {pm.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{pm.description}</p>}
+                              {isBank && pm.publicSettings?.bankName && (
+                                <p className="text-xs font-semibold text-slate-600 mt-0.5">{pm.publicSettings.bankName} · {pm.publicSettings.accountTitle}</p>
+                              )}
+                            </div>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isSel ? "bg-[#4F46E5] border-[#4F46E5]" : "border-slate-300"
+                            }`}>
+                              {isSel && <CheckCircle size={12} className="text-white" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Safepay CTA ── */}
+              <AnimatePresence>
+                {selectedGateway && selectedMethodType === "safepay" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="rounded-2xl border border-[#4F46E5]/20 bg-[#4F46E5]/3 p-5 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-bold text-slate-800">Pay Securely via Safepay</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          You'll be redirected to Safepay's secure checkout to complete your payment.
-                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">You'll be redirected to complete payment.</p>
                       </div>
-                      <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-200 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-slate-500">Amount to Pay</span>
-                          <span className="text-base font-black" style={{ color: BRAND }}>
-                            {invFmt(Number(invoice.total))}
-                          </span>
-                        </div>
-                        {invoice.currencyCode && invoice.currencyCode !== "PKR" && (
-                          <p className="text-[11px] text-slate-400 text-right">
-                            Settled as Rs. {Number(invoice.total).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR by Safepay
-                          </p>
-                        )}
-                      </div>
-
-                      <Button
-                        type="button"
-                        disabled={safepayInitiating}
-                        onClick={handleSafepayPay}
-                        className="w-full gap-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: BRAND }}
-                      >
-                        {safepayInitiating
-                          ? <><Loader2 size={15} className="animate-spin" /> Redirecting to Safepay…</>
-                          : <><CreditCard size={15} /> Pay Now with Safepay</>
-                        }
-                      </Button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Manual payment form — only for non-Safepay methods */}
-                <AnimatePresence>
-                  {selectedGateway && selectedMethodType !== "safepay" && (
-                    <motion.form
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      onSubmit={handleSubmitPayment}
-                      className="bg-white border-2 rounded-xl p-5 space-y-4"
-                      style={{ borderColor: BRAND + "33" }}
+                      <span className="text-lg font-black" style={{ color: BRAND }}>{invFmt(Number(invoice.total))}</span>
+                    </div>
+                    {invoice.currencyCode && invoice.currencyCode !== "PKR" && (
+                      <p className="text-[11px] text-slate-400">
+                        Settled as Rs. {Number(invoice.total).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR by Safepay
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      disabled={safepayInitiating}
+                      onClick={handleSafepayPay}
+                      className="w-full gap-2 text-white h-12 rounded-xl font-bold text-sm"
+                      style={{ background: BRAND }}
                     >
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Confirm Your Payment</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          After transferring, fill in the details below and our team will verify shortly.
-                        </p>
+                      {safepayInitiating
+                        ? <><Loader2 size={16} className="animate-spin" /> Redirecting to Safepay…</>
+                        : <><CreditCard size={16} /> Pay {invFmt(Number(invoice.total))} with Safepay</>
+                      }
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* ── Manual Payment Proof Form ── */}
+              <AnimatePresence>
+                {selectedGateway && selectedMethodType !== "safepay" && (
+                  <motion.form
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    onSubmit={handleSubmitPayment}
+                    className="rounded-2xl border border-slate-200 bg-white p-6 space-y-4"
+                  >
+                    <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                      <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-800">
+                        <p className="font-semibold">After transferring payment:</p>
+                        <p className="mt-0.5 text-amber-700">Submit your transaction ID below. Our team verifies within 24 hours and activates your service.</p>
                       </div>
+                    </div>
 
-                      {/* Client name — read-only */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600">Client Name</label>
-                        <Input
-                          value={invoice?.clientName ?? ""}
-                          readOnly
-                          className="border-slate-200 bg-slate-50 text-slate-500 cursor-default"
-                        />
+                    {/* Payment details summary */}
+                    {selectedMethodObj && (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                        <PaymentInstructions method={selectedMethodObj} />
                       </div>
+                    )}
 
-                      {/* Sender WhatsApp/Phone */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600">Your WhatsApp / Phone Number *</label>
-                        <Input
-                          value={senderPhone}
-                          onChange={e => setSenderPhone(e.target.value.replace(/\D/g, ""))}
-                          placeholder="e.g. 923001234567"
-                          inputMode="numeric"
-                          required
-                          className="border-slate-300 font-mono"
-                        />
-                        <p className="text-[11px] text-slate-400">Numbers only — no spaces, dashes or +</p>
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Your WhatsApp / Phone *</label>
+                      <Input
+                        value={senderPhone}
+                        onChange={e => setSenderPhone(e.target.value.replace(/\D/g, ""))}
+                        placeholder="923001234567"
+                        inputMode="numeric"
+                        required
+                        className="border-slate-200 font-mono h-11 rounded-xl"
+                      />
+                    </div>
 
-                      {/* Transaction ID */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600">Transaction ID / Receipt Number *</label>
-                        <Input
-                          value={txRef}
-                          onChange={e => setTxRef(e.target.value)}
-                          placeholder="e.g. JC-1234567890 or TXN#XXXXX"
-                          required
-                          className="border-slate-300 font-mono"
-                        />
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Transaction ID / Receipt Number *</label>
+                      <Input
+                        value={txRef}
+                        onChange={e => setTxRef(e.target.value)}
+                        placeholder="e.g. JC-1234567890"
+                        required
+                        className="border-slate-200 font-mono h-11 rounded-xl"
+                      />
+                    </div>
 
-                      <Button
-                        type="submit"
-                        disabled={submitting || !txRef.trim() || !senderPhone.trim()}
-                        className="w-full gap-2 text-white"
-                        style={{ background: BRAND }}
-                      >
-                        {submitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                        Submit Payment Confirmation
-                      </Button>
-                    </motion.form>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+                    <Button
+                      type="submit"
+                      disabled={submitting || !txRef.trim() || !senderPhone.trim()}
+                      className="w-full gap-2 text-white h-12 rounded-xl font-bold"
+                      style={{ background: BRAND }}
+                    >
+                      {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      Submit Payment Confirmation
+                    </Button>
+                  </motion.form>
+                )}
+              </AnimatePresence>
 
-            {paymentMethods.length === 0 && creditBalance <= 0 && (
-              <p className="text-sm text-slate-500 text-center py-4">No payment methods available. Please contact support.</p>
-            )}
+              {paymentMethods.length === 0 && creditBalance <= 0 && (
+                <div className="text-center py-6">
+                  <CreditCard size={32} className="mx-auto text-slate-200 mb-3" />
+                  <p className="text-sm text-slate-500">No payment methods available. Please contact support.</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

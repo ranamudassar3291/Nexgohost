@@ -280,3 +280,35 @@ Extended with:
 
 ### Overview Quick Actions Grid
 - Replaced "Backup" + "SSH" shortcuts with **Software** + **Environment** quick-launch tiles
+
+## Billing & Finance Redesign (Professional SaaS)
+
+### Active Subscriptions Section (Invoices.tsx)
+- **Horizontal scrollable cards** shown above billing tabs when user has hosting services
+- Each card: plan name, domain (monospace), status pill, billing cycle badge
+- **Next Billing Date** row: color-coded countdown (green → amber at ≤7d → red overdue)
+- **Usage mini-bars**: Disk (MB/GB) and Bandwidth usage progress bars with smart unit conversion
+- **Auto-Renew Toggle**: `ToggleLeft`/`ToggleRight` icons call `PUT /api/client/hosting/:id/auto-renew` with optimistic cache invalidation via `useMutation`
+- Manage Service link navigates to `/client/hosting/:id`
+- Query key: `["client-hosting-billing"]` fetches `/api/client/hosting`
+
+### Invoice Detail Payment Redesign (InvoiceDetail.tsx)
+- Clean section header with brand color icon + amount summary
+- **Instant Pay**: Wallet balance shown as large CTA button (green, prominent "Covers full amount" badge)
+- **Local / Mobile Wallet group**: JazzCash (orange accent `#f0612e`) + EasyPaisa (green `#3bb54a`) — receiver number displayed in large bold colored text
+- **Card & International group**: Safepay (⚡ Instant badge), Stripe, etc.
+- Manual proof form: amber warning banner → payment details → phone → TX ID → Submit
+- Safepay: dedicated CTA block with amount + redirect button
+
+### Checkout Payment Grouping (Checkout.tsx)
+- Payment method section split into labeled groups: **Instant Pay** (wallet), **Local / Mobile Wallet**, **Card & International**, **Other** (Pay Later)
+- JazzCash/EasyPaisa show mobile number in brand colors within checkout
+- SSL encryption note in header
+- Wallet selected state uses emerald border instead of primary
+
+### PDF Generator Branding (invoicePdf.ts)
+- `InvoiceBrandConfig` interface extended with `ceoName?: string`
+- Footer "Thank you" text uses `siteName` (dynamic, not hardcoded)
+- Footer support email uses `supportEmail` (dynamic)
+- CEO signature uses `brandCfg?.ceoName || "Muhammad Arslan"` fallback
+- CEO title uses dynamic `siteName`: "Founder & CEO, {siteName}"
