@@ -39,6 +39,7 @@ import {
 import { eq, desc, sql } from "drizzle-orm";
 import { authenticate, requireRole, type AuthRequest } from "../lib/auth.js";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
+import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -482,6 +483,12 @@ function buildSystemPrompt(opts: {
 
   return `You are Noe — an Autonomous AI Support Agent for Noehost, a professional web hosting and domain management company. You operate in real-time, combining live website data, Google search results, and internal database knowledge to give accurate, professional answers.
 
+⚠️ CRITICAL RULES — NEVER BREAK THESE:
+- NEVER start any message with "Hi", "Hello", "Hi there", "Hey", or any greeting or self-introduction. The user already knows who you are. Jump straight to answering.
+- NEVER repeat "I'm Noe" or introduce yourself in any response after the first message. The greeting is handled separately.
+- NEVER start two consecutive replies with the same word or sentence structure.
+- ALWAYS directly answer the user's specific question in your very first sentence.
+
 YOUR INTELLIGENCE SOURCES (in priority order):
 1. LIVE WEBSITE DATA — freshly crawled from noehost.com
 2. REAL-TIME WEB SEARCH — latest results from Google/web${hasWebSearch ? ` (searched for: "${opts.searchedFor}")` : " (not triggered this turn)"}
@@ -495,7 +502,7 @@ BEHAVIOR RULES:
 - For billing: direct to billing@noehost.com
 - For complex unresolved issues after 2 attempts: suggest human agent with [ACTION: create_ticket]
 - Keep replies concise (3–6 sentences) unless a numbered guide is needed
-- Sign off as "Noe · Noehost AI"
+- Sign off as "— Noe · Noehost AI" only at the very end
 - Vary your phrasing across replies; avoid repeating the same opener, same closing, or same suggestion twice in a row
 - Prefer concrete next steps over generic apologies; when possible offer 2-3 tailored options
 - If the answer is uncertain, say exactly what is known and what should be checked next
@@ -600,6 +607,43 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
       });
     }
 
+    // ── Human handover keyword detection ──────────────────────────────────────
+    // If user explicitly asks for a human, agent, or admin — auto-trigger handover
+    const HUMAN_KEYWORDS = /\b(human|agent|admin|live agent|real person|operator|talk to someone|speak to someone|support staff|escalate|handover|live support|connect me|real support|person|staff|representative|rep)\b/i;
+    if (HUMAN_KEYWORDS.test(message) && session.status !== "handover" && session.status !== "human") {
+      await setSessionStatus(sessionId, "handover");
+      const handoverReply = "🙋 **Human agent requested.** Our support team has been notified and will join this chat shortly. Average response time is 2–5 minutes during business hours.";
+      await saveMessage({ sessionId, role: "assistant", content: handoverReply });
+
+      // Notify all admins in-app
+      try {
+        const adminRows = await db.execute(sql`SELECT id FROM users WHERE role = 'admin'`);
+        for (const admin of (adminRows.rows as any[])) {
+          await createNotification(
+            admin.id,
+            "ticket",
+            "🔔 Live Support Requested",
+            `${session.client_name ?? "A visitor"} is asking for a human agent. Open Live Support to take over.`,
+            "/admin/support/live",
+          ).catch(() => {});
+        }
+      } catch { /* non-fatal */ }
+
+      // WhatsApp alert
+      const waMsg = [
+        "🔔 *Live Support Request*",
+        "",
+        `👤 Client: *${session.client_name ?? "Guest"}*`,
+        `📧 Email: ${session.client_email ?? "unknown"}`,
+        `💬 Session ID: ${sessionId}`,
+        "",
+        "Open Admin → Support → Live Support to take over.",
+      ].join("\n");
+      sendWhatsAppAlert("live_support_request", waMsg).catch(() => {});
+
+      return res.json({ reply: handoverReply, status: "handover", autoHandover: true, webSearched: false });
+    }
+
     // ── Parallel context gathering ────────────────────────────────────────────
     const doSearch = isTechnicalQuery(message);
     const searchQuery = `${message.trim().slice(0, 120)} site:noehost.com OR cPanel OR hosting`;
@@ -646,7 +690,8 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
     let webSearched = doSearch && searchResults.length > 0;
 
     if (!ai) {
-      reply = "Hi! I'm Noe, your Noehost AI assistant. My AI engine is warming up. For immediate help, please contact support@noehost.com or click **Talk to Human Agent** below. 🙏";
+      // AI engine not configured — do NOT return a greeting (that causes the loop)
+      reply = "My AI engine is currently unavailable. For immediate assistance please contact **support@noehost.com** or click **Talk to Human Agent** below — a real person will help you right away.";
       webSearched = false;
     } else {
       try {
@@ -683,6 +728,20 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
       const researchSummary = searchResults.length
         ? `Web search results: ${searchResults.map(r => r.snippet).join(" | ").slice(0, 300)}`
         : "No additional web data found.";
+
+      // Notify all admins in-app
+      try {
+        const adminRows = await db.execute(sql`SELECT id FROM users WHERE role = 'admin'`);
+        for (const admin of (adminRows.rows as any[])) {
+          await createNotification(
+            admin.id,
+            "ticket",
+            "🤖 AI Escalation — Human Agent Needed",
+            `Noe AI could not resolve ${session.client_name ?? "a visitor"}'s issue after multiple attempts. Open Live Support to take over.`,
+            "/admin/support/live",
+          ).catch(() => {});
+        }
+      } catch { /* non-fatal */ }
 
       const waMsg = [
         "🤖 *Noe AI — Human Handover Required*",
@@ -776,6 +835,20 @@ router.post("/ai/support/handover/:id", async (req, res) => {
       role: "assistant",
       content: "🙋 **Human agent requested.** Our support team has been notified and will join this chat shortly. Average response: 2–5 minutes during business hours.",
     });
+
+    // Notify all admins in-app
+    try {
+      const adminRows = await db.execute(sql`SELECT id FROM users WHERE role = 'admin'`);
+      for (const admin of (adminRows.rows as any[])) {
+        await createNotification(
+          admin.id,
+          "ticket",
+          "🔔 Live Support Requested",
+          `${session.client_name ?? "A visitor"} (${session.client_email ?? "unknown"}) has requested a human agent. Open Live Support to take over.`,
+          "/admin/support/live",
+        ).catch(() => {});
+      }
+    } catch { /* non-fatal */ }
 
     const waMsg = [
       "🔔 *Live Support Request*",
