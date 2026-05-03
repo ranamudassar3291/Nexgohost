@@ -21,8 +21,27 @@
 ## Cart System
 
 - **`cart_items` table**: Has columns `item_type`, `domain_name`, `tld`, `quarterly_price`, `semiannual_price`, `yearly_price`, `renewal_price`, `renewal_enabled`
-- **Startup migration**: `artifacts/api-server/src/index.ts` runs `runStartupMigrations()` on startup which safely adds any missing columns to `cart_items` using `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
-- **Cart route** (`artifacts/api-server/src/routes/cart.ts`): Handles `itemType`, `domainName`, `tld` fields from CartContext payload
+- **`guest_cart_items` table**: Same schema but keyed by `guest_session_token` (UUID). Used for guest (unauthenticated) cart persistence in DB.
+- **Startup migration**: `artifacts/api-server/src/index.ts` runs `runStartupMigrations()` on startup which safely creates both tables.
+- **Cart routes** (`artifacts/api-server/src/routes/cart.ts`):
+  - `GET/POST /api/guest/cart` — no auth, uses `guestSessionToken` from body/query
+  - `DELETE /api/guest/cart/:planId?token=TOKEN` — remove guest item
+  - `POST /api/cart/merge-guest` — auth required, merges guest items into user cart, deletes guest rows
+- **CartContext** (`src/context/CartContext.tsx`):
+  - Generates `guestSessionToken` UUID on first load, stored in `localStorage["noehost_guest_token"]`
+  - `addItem` pushes to `/api/guest/cart` when not logged in
+  - `mergeGuestCart()` exported — call it after inline login (NewOrder step 3) to merge without page reload
+  - Mount effect auto-merges guest cart when logged in and `noehost_guest_token` exists
+
+## Guest-First Order Flow (Backend-Driven)
+
+- **`/order/add/:packageId`** — public guest order link (NewOrder, `allowGuest=true`). Pre-selects plan by DB ID.
+- **`/order/group/:groupId`** — public group-filtered plan listing.
+- **`/client/orders/new`** — also public now (`allowGuest=true`) — auth gate is embedded at step 3.
+- **`/checkout`** — redirects to `/order` (static NoeCheckout bypassed).
+- **Noehost marketing pages** (`SharedHosting`, `WordPressHosting`, `ResellerHosting`): "Order Now" buttons navigate via `window.location.href = /order/add/:planId` — no more local modal.
+- **Auth gate in NewOrder step 3**: Inline login/register form. After `authLogin()`, call `mergeGuestCart()` if needed.
+- **Login `?next=` param**: CheckoutLayout's "Sign in" link passes `?next=<currentPath>` so post-login redirect returns to checkout.
 
 ## Register Redirect Chains
 

@@ -104,7 +104,6 @@ import NoeDomains from "@/noehost/components/pages/Domains";
 import NoeAboutUs from "@/noehost/components/pages/AboutUs";
 import NoeContactUs from "@/noehost/components/pages/ContactUs";
 import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
-import NoeCheckout from "@/noehost/components/pages/Checkout";
 
 import { queryClient } from "@/lib/query-client";
 import { useApiHealth } from "@/hooks/use-api-health";
@@ -523,7 +522,7 @@ function RouterRoot() {
       <Route path="/cart" component={WhmcsCartRedirect}/>
 
       <Route path="/client/orders/new">
-        <CheckoutLayout><NewOrder /></CheckoutLayout>
+        <CheckoutLayout allowGuest><NewOrder /></CheckoutLayout>
       </Route>
       <Route path="/client/orders">
         <ClientPage><ClientOrders /></ClientPage>
@@ -584,9 +583,9 @@ function RouterRoot() {
       <Route path="/admin/domain-extensions">
         <Redirect to="/admin/domains?tab=extensions" />
       </Route>
-      {/* ── Public checkout — no auth required, auth embedded in flow ── */}
+      {/* ── Static checkout bypassed — redirect to the backend-driven order flow ── */}
       <Route path="/checkout">
-        <NoeHostLayout><NoeCheckout /></NoeHostLayout>
+        <Redirect to="/order" />
       </Route>
 
       {/* ── Noehost public marketing pages ── */}

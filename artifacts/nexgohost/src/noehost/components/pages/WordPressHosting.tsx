@@ -5,7 +5,6 @@ import { Check, ArrowRight, Zap, Shield, RefreshCw, LifeBuoy, ChevronDown, Chevr
 import { useContent } from '../../ContentContext';
 import { useCurrency } from '../../CurrencyContext';
 import { usePackagesByGroup } from '../../hooks/usePackages';
-import OrderModal, { OrderPlan } from '../OrderModal';
 
 const WP_DEFAULT: any = {
   hero: {
@@ -56,22 +55,13 @@ const WordPressHosting: React.FC = () => {
   const { convertFromPKR } = useCurrency();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [yearly, setYearly] = useState(false);
-  const [orderPlan, setOrderPlan] = useState<OrderPlan | null>(null);
-
   const handleOrderNow = (plan: any) => {
-    const raw = plan._raw || plan;
-    setOrderPlan({
-      id: raw.id || '',
-      name: raw.name || plan.name,
-      description: raw.description || plan.desc || '',
-      monthlyPrice: Number(raw.price || plan.monthly || 0),
-      yearlyPrice: raw.yearlyPrice != null ? Number(raw.yearlyPrice) : null,
-      quarterlyPrice: raw.quarterlyPrice != null ? Number(raw.quarterlyPrice) : null,
-      semiannualPrice: raw.semiannualPrice != null ? Number(raw.semiannualPrice) : null,
-      type: 'hosting',
-      features: plan.specs || [],
-      defaultCycle: yearly ? 'yearly' : 'monthly',
-    });
+    const planId = plan._planId || plan._raw?.id || plan.id || '';
+    if (planId) {
+      window.location.href = `/order/add/${planId}`;
+    } else {
+      window.location.href = '/order';
+    }
   };
 
   const { plans: apiPlans, loading: plansLoading } = usePackagesByGroup('wordpress-hosting');
@@ -259,9 +249,6 @@ const WordPressHosting: React.FC = () => {
         </section>
       )}
 
-      {orderPlan && (
-        <OrderModal plan={orderPlan} onClose={() => setOrderPlan(null)} />
-      )}
     </div>
   );
 };

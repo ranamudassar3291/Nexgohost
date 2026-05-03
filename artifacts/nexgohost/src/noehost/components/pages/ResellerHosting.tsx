@@ -5,7 +5,6 @@ import { Check, ArrowRight, Users, Shield, Globe, Zap, DollarSign, ChevronDown, 
 import { useContent } from '../../ContentContext';
 import { useCurrency } from '../../CurrencyContext';
 import { usePackagesByGroup } from '../../hooks/usePackages';
-import OrderModal, { OrderPlan } from '../OrderModal';
 
 const RS_DEFAULT: any = {
   hero: {
@@ -73,22 +72,13 @@ const ResellerHosting: React.FC = () => {
   const [yearly, setYearly] = useState(false);
   const [clients, setClients] = useState(20);
   const [avgPrice, setAvgPrice] = useState(15);
-  const [orderPlan, setOrderPlan] = useState<OrderPlan | null>(null);
-
   const handleOrderNow = (plan: any) => {
-    const raw = plan._raw || plan;
-    setOrderPlan({
-      id: raw.id || '',
-      name: raw.name || plan.name,
-      description: raw.description || plan.desc || '',
-      monthlyPrice: Number(raw.price || plan.monthly || 0),
-      yearlyPrice: raw.yearlyPrice != null ? Number(raw.yearlyPrice) : null,
-      quarterlyPrice: raw.quarterlyPrice != null ? Number(raw.quarterlyPrice) : null,
-      semiannualPrice: raw.semiannualPrice != null ? Number(raw.semiannualPrice) : null,
-      type: 'hosting',
-      features: plan.topFeatures || [],
-      defaultCycle: yearly ? 'yearly' : 'monthly',
-    });
+    const planId = plan._planId || plan._raw?.id || plan.id || '';
+    if (planId) {
+      window.location.href = `/order/add/${planId}`;
+    } else {
+      window.location.href = '/order';
+    }
   };
 
   const { plans: apiPlans, loading: plansLoading } = usePackagesByGroup('reseller-hosting');
@@ -361,9 +351,6 @@ const ResellerHosting: React.FC = () => {
         </section>
       )}
 
-      {orderPlan && (
-        <OrderModal plan={orderPlan} onClose={() => setOrderPlan(null)} />
-      )}
     </div>
   );
 };

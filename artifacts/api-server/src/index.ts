@@ -53,6 +53,30 @@ async function runStartupMigrations() {
     }
     console.log("[MIGRATIONS] cart_items schema up to date");
 
+    // guest_cart_items — guest session shopping cart (no auth required)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS guest_cart_items (
+        id TEXT PRIMARY KEY,
+        guest_session_token TEXT NOT NULL,
+        plan_id TEXT NOT NULL,
+        plan_name TEXT NOT NULL,
+        item_type TEXT DEFAULT 'hosting',
+        billing_cycle TEXT NOT NULL DEFAULT 'monthly',
+        monthly_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+        quarterly_price NUMERIC(10,2),
+        semiannual_price NUMERIC(10,2),
+        yearly_price NUMERIC(10,2),
+        renewal_price NUMERIC(10,2),
+        renewal_enabled TEXT DEFAULT 'false',
+        domain_name TEXT,
+        tld TEXT,
+        added_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_guest_cart_token ON guest_cart_items(guest_session_token)`);
+    console.log("[MIGRATIONS] guest_cart_items table ready");
+
     // email_account_settings table — persists spam/forward prefs per email address
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS email_account_settings (

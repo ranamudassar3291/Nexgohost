@@ -20,11 +20,14 @@ interface CartContextType {
   removeItem: (planId: string) => void;
   updateCycle: (planId: string, cycle: BillingCycle) => void;
   clearCart: () => void;
+  mergeGuestCart: () => Promise<void>;
   count: number;
   synced: boolean;
+  guestToken: string;
 }
 
 const STORAGE_KEY = "noehost_cart";
+const GUEST_TOKEN_KEY = "noehost_guest_token";
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const CartContext = createContext<CartContextType>({
@@ -33,8 +36,10 @@ const CartContext = createContext<CartContextType>({
   removeItem: () => {},
   updateCycle: () => {},
   clearCart: () => {},
+  mergeGuestCart: async () => {},
   count: 0,
   synced: false,
+  guestToken: "",
 });
 
 function loadLocalCart(): CartItem[] {
@@ -50,6 +55,19 @@ function saveLocalCart(items: CartItem[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {}
+}
+
+function getOrCreateGuestToken(): string {
+  try {
+    let token = localStorage.getItem(GUEST_TOKEN_KEY);
+    if (!token) {
+      token = crypto.randomUUID();
+      localStorage.setItem(GUEST_TOKEN_KEY, token);
+    }
+    return token;
+  } catch {
+    return "";
+  }
 }
 
 function getToken(): string | null {
@@ -85,6 +103,7 @@ function rowToItem(row: any): CartItem {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(loadLocalCart);
   const [synced, setSynced] = useState(false);
+  const [guestToken] = useState<string>(getOrCreateGuestToken);
   const syncInProgress = useRef(false);
 
   // ─── On mount: if logged in, fetch DB cart and use it as source of truth ──
@@ -119,6 +138,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
             }
           }
         }
+
+        // If there is a guest token with items, merge them into user cart now
+        if (!cancelled) {
+          const gToken = localStorage.getItem(GUEST_TOKEN_KEY);
+          if (gToken) {
+            await fetch(`${BASE}/api/cart/merge-guest`, {
+              method: "POST",
+              headers: authHeaders(),
+              body: JSON.stringify({ guestToken: gToken }),
+            }).catch(() => {});
+            localStorage.removeItem(GUEST_TOKEN_KEY);
+            // Reload merged cart from DB
+            const merged = await fetch(`${BASE}/api/client/cart`, { headers: authHeaders() }).catch(() => null);
+            if (merged?.ok) {
+              const mergedRows = await merged.json();
+              if (!cancelled && Array.isArray(mergedRows) && mergedRows.length > 0) {
+                const mergedItems = mergedRows.map(rowToItem);
+                setItems(mergedItems);
+                saveLocalCart(mergedItems);
+              }
+            }
+          }
+        }
       } catch {
         // Network error — keep local cart
       } finally {
@@ -134,7 +176,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     saveLocalCart(items);
   }, [items]);
 
-  // ─── addItem: update state, localStorage, and DB ─────────────────────────
+  // ─── addItem: update state, localStorage, and DB/guest-cart ──────────────
   const addItem = useCallback((item: CartItem) => {
     setItems(prev => {
       const existing = prev.findIndex(i => i.planId === item.planId);
@@ -154,6 +196,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         headers: authHeaders(),
         body: JSON.stringify(item),
       }).catch(() => {});
+    } else {
+      // Guest — persist to guest_cart_items via API
+      const gToken = localStorage.getItem(GUEST_TOKEN_KEY);
+      if (gToken) {
+        fetch(`${BASE}/api/guest/cart`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...item, guestSessionToken: gToken }),
+        }).catch(() => {});
+      }
     }
   }, []);
 
@@ -166,6 +218,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         method: "DELETE",
         headers: authHeaders(),
       }).catch(() => {});
+    } else {
+      const gToken = localStorage.getItem(GUEST_TOKEN_KEY);
+      if (gToken) {
+        fetch(`${BASE}/api/guest/cart/${encodeURIComponent(planId)}?token=${encodeURIComponent(gToken)}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      }
     }
   }, []);
 
@@ -194,8 +253,37 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // ─── mergeGuestCart: explicitly merge guest cart into user account ────────
+  // Call this immediately after a user logs in (e.g. on the Login page).
+  // The mount-effect already handles merge on page load; this handles inline
+  // login scenarios (e.g. NewOrder step-3 inline auth gate) without reload.
+  const mergeGuestCart = useCallback(async () => {
+    const gToken = localStorage.getItem(GUEST_TOKEN_KEY);
+    if (!gToken || !isLoggedIn()) return;
+    try {
+      await fetch(`${BASE}/api/cart/merge-guest`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ guestToken: gToken }),
+      });
+      localStorage.removeItem(GUEST_TOKEN_KEY);
+      // Reload cart from DB
+      const res = await fetch(`${BASE}/api/client/cart`, { headers: authHeaders() });
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          const merged = rows.map(rowToItem);
+          setItems(merged);
+          saveLocalCart(merged);
+        }
+      }
+    } catch {
+      // Non-fatal — local cart still intact
+    }
+  }, []);
+
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateCycle, clearCart, count: items.length, synced }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateCycle, clearCart, mergeGuestCart, count: items.length, synced, guestToken }}>
       {children}
     </CartContext.Provider>
   );

@@ -9,7 +9,6 @@ import {
 import { useContent } from '../../ContentContext';
 import { useCurrency } from '../../CurrencyContext';
 import { usePackagesByGroup } from '../../hooks/usePackages';
-import OrderModal, { OrderPlan } from '../OrderModal';
 import { JsonLd } from '../JsonLd';
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -115,22 +114,13 @@ const SharedHosting: React.FC = () => {
   const { convertFromPKR } = useCurrency();
   const [yearly, setYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [orderPlan, setOrderPlan] = useState<OrderPlan | null>(null);
-
   const handleOrderNow = (plan: any) => {
-    const raw = plan._raw || plan;
-    setOrderPlan({
-      id: raw.id || '',
-      name: raw.name || plan.name,
-      description: raw.description || plan.desc || '',
-      monthlyPrice: Number(raw.price || plan.monthly || 0),
-      yearlyPrice: raw.yearlyPrice != null ? Number(raw.yearlyPrice) : null,
-      quarterlyPrice: raw.quarterlyPrice != null ? Number(raw.quarterlyPrice) : null,
-      semiannualPrice: raw.semiannualPrice != null ? Number(raw.semiannualPrice) : null,
-      type: 'hosting',
-      features: plan.topFeatures || [],
-      defaultCycle: yearly ? 'yearly' : 'monthly',
-    });
+    const planId = plan._planId || plan._raw?.id || plan.id || '';
+    if (planId) {
+      window.location.href = `/order/add/${planId}`;
+    } else {
+      window.location.href = '/order';
+    }
   };
 
   const renderLink = (to: string, children: React.ReactNode, className: string) => {
@@ -517,9 +507,6 @@ const SharedHosting: React.FC = () => {
         </section>
       )}
 
-      {orderPlan && (
-        <OrderModal plan={orderPlan} onClose={() => setOrderPlan(null)} />
-      )}
     </div>
     </>
   );
