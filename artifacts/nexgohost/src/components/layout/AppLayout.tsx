@@ -9,6 +9,9 @@ import {
   LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight,
   AlertTriangle, Plus, Settings, HelpCircle,
   ExternalLink, BookOpen, Server, Globe,
+  LayoutDashboard, ShoppingCart, Receipt, TrendingUp,
+  ShieldCheck, Users2, Ticket, User, Share2, Wallet,
+  BarChart3, Zap, MessageSquare, CreditCard, Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routesByRole } from "@/config/routes";
@@ -132,10 +135,41 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-/* ─── Client nav: pinned shortcuts at top, rest of nav below ─── */
-const CLIENT_NAV_TOP      = ["/client/dashboard", "/client/billing", "/client/orders"];
-const CLIENT_NAV_SERVICES = ["/client/hosting", "/client/domains"];
-const CLIENT_NAV_BOTTOM   = ["/client/tickets", "/client/growth", "/client/security", "/client/team", "/client/affiliate", "/client/credits", "/client/help", "/client/account"];
+/* ─── Client sidebar nav groups ─── */
+const CLIENT_SIDEBAR_GROUPS = [
+  {
+    label: "Main",
+    items: [
+      { name: "Dashboard",  href: "/client/dashboard", icon: LayoutDashboard },
+      { name: "Orders",     href: "/client/orders",    icon: ShoppingCart    },
+      { name: "Billing",    href: "/client/billing",   icon: Receipt         },
+    ],
+  },
+  {
+    label: "Services",
+    items: [
+      { name: "My Hosting", href: "/client/hosting", icon: Server },
+      { name: "My Domains", href: "/client/domains", icon: Globe  },
+    ],
+  },
+  {
+    label: "Tools & Growth",
+    items: [
+      { name: "SEO Toolkit",  href: "/client/growth",    icon: TrendingUp, accent: "#10B981" },
+      { name: "Security",     href: "/client/security",  icon: ShieldCheck, accent: "#F59E0B" },
+      { name: "Team Access",  href: "/client/team",      icon: Users2      },
+      { name: "Support",      href: "/client/tickets",   icon: Ticket      },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { name: "My Account", href: "/client/account",   icon: User  },
+      { name: "Affiliate",  href: "/client/affiliate", icon: Share2  },
+      { name: "Credits",    href: "/client/credits",   icon: Wallet  },
+    ],
+  },
+];
 
 export function AppLayout({ children, role }: LayoutProps) {
   const { user, logout } = useAuth();
@@ -145,10 +179,6 @@ export function AppLayout({ children, role }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [helpOpen, setHelpOpen] = useState(false);
-  const [servicesOpen, setServicesOpen] = useState(
-    () => location.startsWith("/client/hosting") || location.startsWith("/client/domains")
-  );
-
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
     if (faviconUrl && link) link.href = faviconUrl;
@@ -189,15 +219,6 @@ export function AppLayout({ children, role }: LayoutProps) {
   const toggleGroup = (label: string) => {
     setCollapsedGroups(prev => ({ ...prev, [label]: !prev[label] }));
   };
-
-  const allClientLinks = routesByRole.client
-    .filter(r => r.inNav)
-    .filter(r => r.path !== "/client/migrations" || (user as any)?.canMigrate === true)
-    .map(r => ({ name: r.label, href: r.path, icon: r.icon }));
-
-  const clientLinksTop      = allClientLinks.filter(l => CLIENT_NAV_TOP.includes(l.href));
-  const clientLinksServices = allClientLinks.filter(l => CLIENT_NAV_SERVICES.includes(l.href));
-  const clientLinksBottom   = allClientLinks.filter(l => CLIENT_NAV_BOTTOM.includes(l.href));
 
   const helpContextKey = Object.keys(HELP_CONTEXT).find(k => location.startsWith(k));
   const helpContext = helpContextKey ? HELP_CONTEXT[helpContextKey] : DEFAULT_HELP;
@@ -245,198 +266,158 @@ export function AppLayout({ children, role }: LayoutProps) {
 
   /* ─── Client Sidebar Content ─── */
   const clientSidebarContent = (
-    <div className="flex flex-col h-full" style={{ background: "#1A202C" }}>
-      {/* Logo */}
-      <div className="px-5 py-5 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", minHeight: 68 }}>
+    <div className="flex flex-col h-full" style={{ background: "#0F172A" }}>
+
+      {/* ── Logo ── */}
+      <div className="px-5 py-4 flex items-center gap-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", minHeight: 64 }}>
         {logoUrl ? (
-          <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 40, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} referrerPolicy="no-referrer" />
+          <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} referrerPolicy="no-referrer" />
         ) : (
           <>
-            <div
-              className="brand-logo-container w-9 h-9 rounded-xl font-black text-white text-base flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 14px rgba(91,95,239,0.4)" }}
-            >
+            <div className="brand-logo-container w-9 h-9 rounded-xl font-black text-white text-base flex items-center justify-center shrink-0"
+              style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", boxShadow: "0 4px 14px rgba(99,102,241,0.45)" }}>
               {siteName?.[0] ?? "N"}
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="font-display font-extrabold text-lg text-white tracking-tight leading-none">{siteName}</span>
+              <span className="font-extrabold text-[15px] text-white tracking-tight leading-none">{siteName}</span>
               <span className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#6366F1" }}>Client Portal</span>
             </div>
           </>
         )}
       </div>
 
-      {/* Order Now CTA */}
-      <div className="px-4 pt-5 pb-3">
+      {/* ── New Order CTA ── */}
+      <div className="px-4 pt-4 pb-2 flex-shrink-0">
         <Link href="/client/orders/new">
-          <div
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer font-bold text-sm text-white transition-opacity hover:opacity-90"
-            style={{ background: "linear-gradient(135deg, #5B5FEF 0%, #7A6BFF 100%)", boxShadow: "0 4px 16px rgba(91,95,239,0.35)" }}
-          >
-            <Plus size={15} />
+          <div onClick={() => setMobileMenuOpen(false)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer font-bold text-[13px] text-white select-none"
+            style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", boxShadow: "0 4px 18px rgba(99,102,241,0.4)" }}>
+            <Plus size={14} />
             New Order
           </div>
         </Link>
       </div>
 
-      {/* Main Nav */}
-      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-0.5">
-        {/* Primary nav items */}
-        <p className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>Main</p>
-        {clientLinksTop.map(link => {
-          const active = isActive(link.href);
-          const Icon = link.icon;
-          return (
-            <Link key={link.name} href={link.href}>
-              <div
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group"
-                style={{
-                  background: active ? "rgba(99,102,241,0.22)" : "transparent",
-                  color: active ? "#fff" : "rgba(255,255,255,0.55)",
-                }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; }}
-                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"; } }}
-              >
-                <Icon
-                  size={17}
-                  style={{ color: active ? "#818CF8" : "inherit", flexShrink: 0 }}
-                />
-                <span className="text-sm font-medium">{link.name}</span>
-                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#6366F1" }} />}
-              </div>
-            </Link>
-          );
-        })}
+      {/* ── Nav Groups ── */}
+      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1 scrollbar-hide">
+        {CLIENT_SIDEBAR_GROUPS.map(group => (
+          <div key={group.label} className="pt-3">
+            {/* Section label */}
+            <p className="px-3 pb-1.5 text-[9.5px] font-black uppercase tracking-[0.12em]"
+              style={{ color: "rgba(255,255,255,0.22)", letterSpacing: "0.12em" }}>
+              {group.label}
+            </p>
 
-        {/* ── Services sub-menu ── */}
-        <div className="mt-1">
-          <button
-            onClick={() => setServicesOpen(s => !s)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-150 cursor-pointer"
-            style={{ color: "rgba(255,255,255,0.28)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.28)"}
-          >
-            <span className="text-[10px] font-bold uppercase tracking-widest flex-1 text-left">Services</span>
-            <motion.span animate={{ rotate: servicesOpen ? 0 : -90 }} transition={{ duration: 0.18 }} style={{ display: "inline-flex" }}>
-              <ChevronDown size={11} />
-            </motion.span>
-          </button>
-          <AnimatePresence initial={false}>
-            {servicesOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: "easeInOut" }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-0.5 mt-0.5">
-                  {clientLinksServices.map(link => {
-                    const active = isActive(link.href);
-                    const Icon = link.icon;
-                    return (
-                      <Link key={link.name} href={link.href}>
-                        <div
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer"
-                          style={{
-                            background: active ? "rgba(99,102,241,0.22)" : "transparent",
-                            color: active ? "#fff" : "rgba(255,255,255,0.55)",
-                          }}
-                          onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; } }}
-                          onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"; } }}
-                        >
-                          <Icon size={17} style={{ color: active ? "#818CF8" : "inherit", flexShrink: 0 }} />
-                          <span className="text-sm font-medium">{link.name}</span>
-                          {active && <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#6366F1" }} />}
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+            {/* Items */}
+            <div className="space-y-0.5">
+              {group.items.map(link => {
+                const active = isActive(link.href);
+                const Icon = link.icon;
+                const accentColor = (link as any).accent;
+                const iconColor = active ? "#A5B4FC" : accentColor ?? "rgba(255,255,255,0.45)";
+                return (
+                  <Link key={link.href} href={link.href}>
+                    <div
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 group"
+                      style={{
+                        background: active ? "rgba(99,102,241,0.18)" : "transparent",
+                        color: active ? "#E0E7FF" : "rgba(255,255,255,0.58)",
+                      }}
+                      onMouseEnter={e => {
+                        if (!active) {
+                          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+                          (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.88)";
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!active) {
+                          (e.currentTarget as HTMLElement).style.background = "transparent";
+                          (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.58)";
+                        }
+                      }}
+                    >
+                      {/* Active bar */}
+                      {active && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full" style={{ background: "#6366F1" }} />
+                      )}
 
-        <p className="px-3 pt-5 pb-1.5 text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>Account</p>
-        {clientLinksBottom.map(link => {
-          const active = isActive(link.href);
-          const Icon = link.icon;
-          return (
-            <Link key={link.name} href={link.href}>
-              <div
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer"
-                style={{
-                  background: active ? "rgba(99,102,241,0.22)" : "transparent",
-                  color: active ? "#fff" : "rgba(255,255,255,0.55)",
-                }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; }}
-                onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.55)"; } }}
-              >
-                <Icon size={17} style={{ color: active ? "#818CF8" : "inherit", flexShrink: 0 }} />
-                <span className="text-sm font-medium">{link.name}</span>
-                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#6366F1" }} />}
-              </div>
-            </Link>
-          );
-        })}
+                      {/* Icon container */}
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                        style={{
+                          background: active
+                            ? "rgba(99,102,241,0.28)"
+                            : accentColor
+                              ? `${accentColor}18`
+                              : "rgba(255,255,255,0.06)",
+                        }}>
+                        <Icon size={14} style={{ color: iconColor, flexShrink: 0 }} />
+                      </div>
+
+                      <span className="text-[13px] font-medium flex-1 leading-none">{link.name}</span>
+
+                      {active && (
+                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#6366F1" }} />
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* User Footer */}
-      <div className="p-4" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-        {/* Currency */}
+      {/* ── User Footer ── */}
+      <div className="flex-shrink-0 p-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        {/* Currency selector */}
         <div className="flex items-center gap-2 px-1 mb-3">
-          <span className="text-[11px] font-medium shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>Currency</span>
+          <span className="text-[11px] font-semibold shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>Currency</span>
           <select
             value={currency.code}
-            onChange={e => {
-              const found = allCurrencies.find(c => c.code === e.target.value);
-              if (found) setCurrency(found);
-            }}
-            className="flex-1 text-xs rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-1"
+            onChange={e => { const found = allCurrencies.find(c => c.code === e.target.value); if (found) setCurrency(found); }}
+            className="flex-1 text-xs rounded-lg px-2 py-1.5 cursor-pointer focus:outline-none"
             style={{
               background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "rgba(255,255,255,0.75)",
-              focusRingColor: "#6366F1",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.7)",
             }}
           >
             {allCurrencies.map(c => (
-              <option key={c.code} value={c.code} style={{ background: "#1A202C" }}>{c.code} ({c.symbol})</option>
+              <option key={c.code} value={c.code} style={{ background: "#0F172A" }}>{c.code} ({c.symbol})</option>
             ))}
           </select>
         </div>
 
         {/* User card */}
-        <div className="flex items-center gap-3 p-2.5 rounded-xl mb-2" style={{ background: "rgba(255,255,255,0.06)" }}>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
-            style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", color: "#fff" }}
-          >
+        <div className="flex items-center gap-3 p-2.5 rounded-xl mb-2.5"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 text-white"
+            style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)" }}>
             {user?.firstName?.[0]}{user?.lastName?.[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{user?.firstName} {user?.lastName}</p>
-            <p className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.4)" }}>{user?.email}</p>
+            <p className="text-[12px] font-semibold text-white truncate leading-none mb-0.5">{user?.firstName} {user?.lastName}</p>
+            <p className="text-[10px] truncate leading-none" style={{ color: "rgba(255,255,255,0.38)" }}>{user?.email}</p>
           </div>
           <Link href="/client/account">
-            <Settings size={14} style={{ color: "rgba(255,255,255,0.35)" }} className="hover:opacity-80 cursor-pointer" />
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer"
+              style={{ background: "rgba(255,255,255,0.06)" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.2)"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"}>
+              <Settings size={12} style={{ color: "rgba(255,255,255,0.45)" }} />
+            </div>
           </Link>
         </div>
 
-        <button
-          onClick={logout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
-          style={{ color: "rgba(255,255,255,0.4)" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.12)"; (e.currentTarget as HTMLElement).style.color = "rgba(252,165,165,0.9)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.4)"; }}
+        {/* Sign out */}
+        <button onClick={logout}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] font-medium transition-all duration-150"
+          style={{ color: "rgba(255,255,255,0.35)" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.1)"; (e.currentTarget as HTMLElement).style.color = "#FCA5A5"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.35)"; }}
         >
-          <LogOut size={14} />
+          <LogOut size={13} />
           Sign Out
         </button>
       </div>
