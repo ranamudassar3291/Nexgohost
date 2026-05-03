@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict KxNjTZFZvv4pY0xa7qXsaVdqyQd2LLfKu1rjfMvebP7MvaXXQP3xwNPEcKl1pYL
+\restrict 9BT3AJyIS3EAFpvqtV0zqCWUbHjAM6mbeehWNqTTWa0FnrhZ9YMuaSQN8PXQC5R
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -18,318 +18,24 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
-ALTER TABLE IF EXISTS ONLY public.keyword_positions DROP CONSTRAINT IF EXISTS keyword_positions_keyword_id_fkey;
-ALTER TABLE IF EXISTS ONLY public.kb_articles DROP CONSTRAINT IF EXISTS kb_articles_category_id_kb_categories_id_fk;
-DROP TRIGGER IF EXISTS trg_invoice_base_currency ON public.invoices;
-DROP INDEX IF EXISTS public.idx_wa_client_notif_user;
-DROP INDEX IF EXISTS public.idx_team_members_owner;
-DROP INDEX IF EXISTS public.idx_team_members_email;
-DROP INDEX IF EXISTS public.idx_team_logs_owner;
-DROP INDEX IF EXISTS public.idx_team_links_token;
-DROP INDEX IF EXISTS public.idx_team_links_owner;
-DROP INDEX IF EXISTS public.idx_staging_sync_service;
-DROP INDEX IF EXISTS public.idx_staging_sites_service;
-DROP INDEX IF EXISTS public.idx_shs_user;
-DROP INDEX IF EXISTS public.idx_shs_service;
-DROP INDEX IF EXISTS public.idx_seo_scans_user;
-DROP INDEX IF EXISTS public.idx_security_scans_service;
-DROP INDEX IF EXISTS public.idx_resource_logs_service;
-DROP INDEX IF EXISTS public.idx_kw_tracking_user;
-DROP INDEX IF EXISTS public.idx_kw_positions_keyword;
-DROP INDEX IF EXISTS public.idx_guest_cart_token;
-DROP INDEX IF EXISTS public.idx_flash_sales_slug;
-DROP INDEX IF EXISTS public.idx_flash_sales_active;
-DROP INDEX IF EXISTS public.idx_cart_recovery_user;
-DROP INDEX IF EXISTS public.idx_cart_recovery_status;
-DROP INDEX IF EXISTS public.idx_blog_posts_slug;
-DROP INDEX IF EXISTS public.idx_blog_posts_published;
-DROP INDEX IF EXISTS public.idx_ai_convo_user;
-DROP INDEX IF EXISTS public.idx_ai_convo_service;
-DROP INDEX IF EXISTS public.feature_flags_user_idx;
-DROP INDEX IF EXISTS public.feature_flags_global_idx;
-ALTER TABLE IF EXISTS ONLY public.whatsapp_logs DROP CONSTRAINT IF EXISTS whatsapp_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.whatsapp_client_notifications DROP CONSTRAINT IF EXISTS whatsapp_client_notifications_pkey;
-ALTER TABLE IF EXISTS ONLY public.vps_plans DROP CONSTRAINT IF EXISTS vps_plans_pkey;
-ALTER TABLE IF EXISTS ONLY public.vps_os_templates DROP CONSTRAINT IF EXISTS vps_os_templates_pkey;
-ALTER TABLE IF EXISTS ONLY public.vps_locations DROP CONSTRAINT IF EXISTS vps_locations_pkey;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_username_key;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_pkey;
-ALTER TABLE IF EXISTS ONLY public.users DROP CONSTRAINT IF EXISTS users_email_unique;
-ALTER TABLE IF EXISTS ONLY public.user_preferences DROP CONSTRAINT IF EXISTS user_preferences_pkey;
-ALTER TABLE IF EXISTS ONLY public.uploaded_modules DROP CONSTRAINT IF EXISTS uploaded_modules_slug_unique;
-ALTER TABLE IF EXISTS ONLY public.uploaded_modules DROP CONSTRAINT IF EXISTS uploaded_modules_pkey;
-ALTER TABLE IF EXISTS ONLY public.transactions DROP CONSTRAINT IF EXISTS transactions_pkey;
-ALTER TABLE IF EXISTS ONLY public.tickets DROP CONSTRAINT IF EXISTS tickets_ticket_number_unique;
-ALTER TABLE IF EXISTS ONLY public.tickets DROP CONSTRAINT IF EXISTS tickets_pkey;
-ALTER TABLE IF EXISTS ONLY public.ticket_messages DROP CONSTRAINT IF EXISTS ticket_messages_pkey;
-ALTER TABLE IF EXISTS ONLY public.ticket_drafts DROP CONSTRAINT IF EXISTS ticket_drafts_user_id_key;
-ALTER TABLE IF EXISTS ONLY public.ticket_drafts DROP CONSTRAINT IF EXISTS ticket_drafts_pkey;
-ALTER TABLE IF EXISTS ONLY public.team_members DROP CONSTRAINT IF EXISTS team_members_pkey;
-ALTER TABLE IF EXISTS ONLY public.team_magic_links DROP CONSTRAINT IF EXISTS team_magic_links_token_key;
-ALTER TABLE IF EXISTS ONLY public.team_magic_links DROP CONSTRAINT IF EXISTS team_magic_links_pkey;
-ALTER TABLE IF EXISTS ONLY public.team_access_logs DROP CONSTRAINT IF EXISTS team_access_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.staging_sync_logs DROP CONSTRAINT IF EXISTS staging_sync_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.staging_sites DROP CONSTRAINT IF EXISTS staging_sites_service_id_key;
-ALTER TABLE IF EXISTS ONLY public.staging_sites DROP CONSTRAINT IF EXISTS staging_sites_pkey;
-ALTER TABLE IF EXISTS ONLY public.site_pages DROP CONSTRAINT IF EXISTS site_pages_pkey;
-ALTER TABLE IF EXISTS ONLY public.site_health_snapshots DROP CONSTRAINT IF EXISTS site_health_snapshots_pkey;
-ALTER TABLE IF EXISTS ONLY public.settings DROP CONSTRAINT IF EXISTS settings_pkey;
-ALTER TABLE IF EXISTS ONLY public.servers DROP CONSTRAINT IF EXISTS servers_pkey;
-ALTER TABLE IF EXISTS ONLY public.server_nodes DROP CONSTRAINT IF EXISTS server_nodes_pkey;
-ALTER TABLE IF EXISTS ONLY public.server_logs DROP CONSTRAINT IF EXISTS server_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.server_groups DROP CONSTRAINT IF EXISTS server_groups_pkey;
-ALTER TABLE IF EXISTS ONLY public.seo_scans DROP CONSTRAINT IF EXISTS seo_scans_user_id_domain_key;
-ALTER TABLE IF EXISTS ONLY public.seo_scans DROP CONSTRAINT IF EXISTS seo_scans_pkey;
-ALTER TABLE IF EXISTS ONLY public.security_scan_logs DROP CONSTRAINT IF EXISTS security_scan_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.security_logs DROP CONSTRAINT IF EXISTS security_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.resource_usage_logs DROP CONSTRAINT IF EXISTS resource_usage_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.promo_codes DROP CONSTRAINT IF EXISTS promo_codes_pkey;
-ALTER TABLE IF EXISTS ONLY public.promo_codes DROP CONSTRAINT IF EXISTS promo_codes_code_unique;
-ALTER TABLE IF EXISTS ONLY public.product_groups DROP CONSTRAINT IF EXISTS product_groups_slug_unique;
-ALTER TABLE IF EXISTS ONLY public.product_groups DROP CONSTRAINT IF EXISTS product_groups_pkey;
-ALTER TABLE IF EXISTS ONLY public.payment_methods DROP CONSTRAINT IF EXISTS payment_methods_pkey;
-ALTER TABLE IF EXISTS ONLY public.password_resets DROP CONSTRAINT IF EXISTS password_resets_pkey;
-ALTER TABLE IF EXISTS ONLY public.orders DROP CONSTRAINT IF EXISTS orders_pkey;
-ALTER TABLE IF EXISTS ONLY public.notifications DROP CONSTRAINT IF EXISTS notifications_pkey;
-ALTER TABLE IF EXISTS ONLY public.migrations_requests DROP CONSTRAINT IF EXISTS migrations_requests_pkey;
-ALTER TABLE IF EXISTS ONLY public.migration_whitelist DROP CONSTRAINT IF EXISTS migration_whitelist_pkey;
-ALTER TABLE IF EXISTS ONLY public.migration_whitelist DROP CONSTRAINT IF EXISTS migration_whitelist_ip_address_unique;
-ALTER TABLE IF EXISTS ONLY public.keyword_tracking DROP CONSTRAINT IF EXISTS keyword_tracking_pkey;
-ALTER TABLE IF EXISTS ONLY public.keyword_positions DROP CONSTRAINT IF EXISTS keyword_positions_pkey;
-ALTER TABLE IF EXISTS ONLY public.kb_deflections DROP CONSTRAINT IF EXISTS kb_deflections_pkey;
-ALTER TABLE IF EXISTS ONLY public.kb_categories DROP CONSTRAINT IF EXISTS kb_categories_slug_unique;
-ALTER TABLE IF EXISTS ONLY public.kb_categories DROP CONSTRAINT IF EXISTS kb_categories_pkey;
-ALTER TABLE IF EXISTS ONLY public.kb_articles DROP CONSTRAINT IF EXISTS kb_articles_slug_unique;
-ALTER TABLE IF EXISTS ONLY public.kb_articles DROP CONSTRAINT IF EXISTS kb_articles_pkey;
-ALTER TABLE IF EXISTS ONLY public.ip_whitelist DROP CONSTRAINT IF EXISTS ip_whitelist_pkey;
-ALTER TABLE IF EXISTS ONLY public.ip_whitelist DROP CONSTRAINT IF EXISTS ip_whitelist_ip_address_unique;
-ALTER TABLE IF EXISTS ONLY public.ip_unblock_logs DROP CONSTRAINT IF EXISTS ip_unblock_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.invoices DROP CONSTRAINT IF EXISTS invoices_pkey;
-ALTER TABLE IF EXISTS ONLY public.invoices DROP CONSTRAINT IF EXISTS invoices_invoice_number_unique;
-ALTER TABLE IF EXISTS ONLY public.hosting_services DROP CONSTRAINT IF EXISTS hosting_services_pkey;
-ALTER TABLE IF EXISTS ONLY public.hosting_plans DROP CONSTRAINT IF EXISTS hosting_plans_pkey;
-ALTER TABLE IF EXISTS ONLY public.hosting_cache_settings DROP CONSTRAINT IF EXISTS hosting_cache_settings_pkey;
-ALTER TABLE IF EXISTS ONLY public.hosting_backups DROP CONSTRAINT IF EXISTS hosting_backups_pkey;
-ALTER TABLE IF EXISTS ONLY public.guest_cart_items DROP CONSTRAINT IF EXISTS guest_cart_items_pkey;
-ALTER TABLE IF EXISTS ONLY public.google_drive_tokens DROP CONSTRAINT IF EXISTS google_drive_tokens_pkey;
-ALTER TABLE IF EXISTS ONLY public.fraud_logs DROP CONSTRAINT IF EXISTS fraud_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.flash_sales DROP CONSTRAINT IF EXISTS flash_sales_slug_key;
-ALTER TABLE IF EXISTS ONLY public.flash_sales DROP CONSTRAINT IF EXISTS flash_sales_pkey;
-ALTER TABLE IF EXISTS ONLY public.feature_flags DROP CONSTRAINT IF EXISTS feature_flags_pkey;
-ALTER TABLE IF EXISTS ONLY public.email_unsubscribes DROP CONSTRAINT IF EXISTS email_unsubscribes_token_unique;
-ALTER TABLE IF EXISTS ONLY public.email_unsubscribes DROP CONSTRAINT IF EXISTS email_unsubscribes_pkey;
-ALTER TABLE IF EXISTS ONLY public.email_unsubscribes DROP CONSTRAINT IF EXISTS email_unsubscribes_email_unique;
-ALTER TABLE IF EXISTS ONLY public.email_templates DROP CONSTRAINT IF EXISTS email_templates_slug_unique;
-ALTER TABLE IF EXISTS ONLY public.email_templates DROP CONSTRAINT IF EXISTS email_templates_pkey;
-ALTER TABLE IF EXISTS ONLY public.email_logs DROP CONSTRAINT IF EXISTS email_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.email_campaigns DROP CONSTRAINT IF EXISTS email_campaigns_pkey;
-ALTER TABLE IF EXISTS ONLY public.email_account_settings DROP CONSTRAINT IF EXISTS email_account_settings_pkey;
-ALTER TABLE IF EXISTS ONLY public.email_account_settings DROP CONSTRAINT IF EXISTS email_account_settings_hosting_service_id_email_key;
-ALTER TABLE IF EXISTS ONLY public.drive_backup_logs DROP CONSTRAINT IF EXISTS drive_backup_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.domains DROP CONSTRAINT IF EXISTS domains_pkey;
-ALTER TABLE IF EXISTS ONLY public.domain_transfers DROP CONSTRAINT IF EXISTS domain_transfers_pkey;
-ALTER TABLE IF EXISTS ONLY public.domain_registrars DROP CONSTRAINT IF EXISTS domain_registrars_pkey;
-ALTER TABLE IF EXISTS ONLY public.domain_pricing DROP CONSTRAINT IF EXISTS domain_pricing_tld_unique;
-ALTER TABLE IF EXISTS ONLY public.domain_pricing DROP CONSTRAINT IF EXISTS domain_pricing_pkey;
-ALTER TABLE IF EXISTS ONLY public.domain_extensions DROP CONSTRAINT IF EXISTS domain_extensions_pkey;
-ALTER TABLE IF EXISTS ONLY public.domain_extensions DROP CONSTRAINT IF EXISTS domain_extensions_extension_unique;
-ALTER TABLE IF EXISTS ONLY public.domain_activation_logs DROP CONSTRAINT IF EXISTS domain_activation_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.dns_records DROP CONSTRAINT IF EXISTS dns_records_pkey;
-ALTER TABLE IF EXISTS ONLY public.currencies DROP CONSTRAINT IF EXISTS currencies_pkey;
-ALTER TABLE IF EXISTS ONLY public.currencies DROP CONSTRAINT IF EXISTS currencies_code_unique;
-ALTER TABLE IF EXISTS ONLY public.cron_logs DROP CONSTRAINT IF EXISTS cron_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.credit_transactions DROP CONSTRAINT IF EXISTS credit_transactions_pkey;
-ALTER TABLE IF EXISTS ONLY public.cart_sessions DROP CONSTRAINT IF EXISTS cart_sessions_pkey;
-ALTER TABLE IF EXISTS ONLY public.cart_recovery_logs DROP CONSTRAINT IF EXISTS cart_recovery_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.cart_items DROP CONSTRAINT IF EXISTS cart_items_pkey;
-ALTER TABLE IF EXISTS ONLY public.blog_posts DROP CONSTRAINT IF EXISTS blog_posts_slug_key;
-ALTER TABLE IF EXISTS ONLY public.blog_posts DROP CONSTRAINT IF EXISTS blog_posts_pkey;
-ALTER TABLE IF EXISTS ONLY public.blocked_ips DROP CONSTRAINT IF EXISTS blocked_ips_pkey;
-ALTER TABLE IF EXISTS ONLY public.blocked_ips DROP CONSTRAINT IF EXISTS blocked_ips_ip_address_unique;
-ALTER TABLE IF EXISTS ONLY public.announcements DROP CONSTRAINT IF EXISTS announcements_pkey;
-ALTER TABLE IF EXISTS ONLY public.ai_conversations DROP CONSTRAINT IF EXISTS ai_conversations_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliates DROP CONSTRAINT IF EXISTS affiliates_user_id_unique;
-ALTER TABLE IF EXISTS ONLY public.affiliates DROP CONSTRAINT IF EXISTS affiliates_referral_code_unique;
-ALTER TABLE IF EXISTS ONLY public.affiliates DROP CONSTRAINT IF EXISTS affiliates_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliate_withdrawals DROP CONSTRAINT IF EXISTS affiliate_withdrawals_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliate_referrals DROP CONSTRAINT IF EXISTS affiliate_referrals_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliate_plan_commissions DROP CONSTRAINT IF EXISTS affiliate_plan_commissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliate_group_commissions DROP CONSTRAINT IF EXISTS affiliate_group_commissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliate_group_commissions DROP CONSTRAINT IF EXISTS affiliate_group_commissions_group_id_unique;
-ALTER TABLE IF EXISTS ONLY public.affiliate_commissions DROP CONSTRAINT IF EXISTS affiliate_commissions_pkey;
-ALTER TABLE IF EXISTS ONLY public.affiliate_clicks DROP CONSTRAINT IF EXISTS affiliate_clicks_pkey;
-ALTER TABLE IF EXISTS ONLY public.admin_logs DROP CONSTRAINT IF EXISTS admin_logs_pkey;
-ALTER TABLE IF EXISTS ONLY public.admin_config DROP CONSTRAINT IF EXISTS admin_config_pkey;
-ALTER TABLE IF EXISTS ONLY public.activity_stream DROP CONSTRAINT IF EXISTS activity_stream_pkey;
-ALTER TABLE IF EXISTS ONLY public.activity_logs DROP CONSTRAINT IF EXISTS activity_logs_pkey;
-ALTER TABLE IF EXISTS public.whatsapp_client_notifications ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.staging_sync_logs ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.staging_sites ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.site_health_snapshots ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.seo_scans ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.security_scan_logs ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.resource_usage_logs ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.keyword_tracking ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.keyword_positions ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.feature_flags ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.blog_posts ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.ai_conversations ALTER COLUMN id DROP DEFAULT;
-ALTER TABLE IF EXISTS public.activity_stream ALTER COLUMN id DROP DEFAULT;
-DROP TABLE IF EXISTS public.whatsapp_logs;
-DROP SEQUENCE IF EXISTS public.whatsapp_client_notifications_id_seq;
-DROP TABLE IF EXISTS public.whatsapp_client_notifications;
-DROP TABLE IF EXISTS public.vps_plans;
-DROP TABLE IF EXISTS public.vps_os_templates;
-DROP TABLE IF EXISTS public.vps_locations;
-DROP TABLE IF EXISTS public.users;
-DROP TABLE IF EXISTS public.user_preferences;
-DROP TABLE IF EXISTS public.uploaded_modules;
-DROP TABLE IF EXISTS public.transactions;
-DROP TABLE IF EXISTS public.tickets;
-DROP TABLE IF EXISTS public.ticket_messages;
-DROP TABLE IF EXISTS public.ticket_drafts;
-DROP TABLE IF EXISTS public.team_members;
-DROP TABLE IF EXISTS public.team_magic_links;
-DROP TABLE IF EXISTS public.team_access_logs;
-DROP SEQUENCE IF EXISTS public.staging_sync_logs_id_seq;
-DROP TABLE IF EXISTS public.staging_sync_logs;
-DROP SEQUENCE IF EXISTS public.staging_sites_id_seq;
-DROP TABLE IF EXISTS public.staging_sites;
-DROP TABLE IF EXISTS public.site_pages;
-DROP SEQUENCE IF EXISTS public.site_health_snapshots_id_seq;
-DROP TABLE IF EXISTS public.site_health_snapshots;
-DROP TABLE IF EXISTS public.settings;
-DROP TABLE IF EXISTS public.servers;
-DROP TABLE IF EXISTS public.server_nodes;
-DROP TABLE IF EXISTS public.server_logs;
-DROP TABLE IF EXISTS public.server_groups;
-DROP SEQUENCE IF EXISTS public.seo_scans_id_seq;
-DROP TABLE IF EXISTS public.seo_scans;
-DROP SEQUENCE IF EXISTS public.security_scan_logs_id_seq;
-DROP TABLE IF EXISTS public.security_scan_logs;
-DROP TABLE IF EXISTS public.security_logs;
-DROP SEQUENCE IF EXISTS public.resource_usage_logs_id_seq;
-DROP TABLE IF EXISTS public.resource_usage_logs;
-DROP TABLE IF EXISTS public.promo_codes;
-DROP TABLE IF EXISTS public.product_groups;
-DROP TABLE IF EXISTS public.payment_methods;
-DROP TABLE IF EXISTS public.password_resets;
-DROP TABLE IF EXISTS public.orders;
-DROP TABLE IF EXISTS public.notifications;
-DROP TABLE IF EXISTS public.migrations_requests;
-DROP TABLE IF EXISTS public.migration_whitelist;
-DROP SEQUENCE IF EXISTS public.keyword_tracking_id_seq;
-DROP TABLE IF EXISTS public.keyword_tracking;
-DROP SEQUENCE IF EXISTS public.keyword_positions_id_seq;
-DROP TABLE IF EXISTS public.keyword_positions;
-DROP TABLE IF EXISTS public.kb_deflections;
-DROP TABLE IF EXISTS public.kb_categories;
-DROP TABLE IF EXISTS public.kb_articles;
-DROP TABLE IF EXISTS public.ip_whitelist;
-DROP TABLE IF EXISTS public.ip_unblock_logs;
-DROP TABLE IF EXISTS public.invoices;
-DROP TABLE IF EXISTS public.hosting_services;
-DROP TABLE IF EXISTS public.hosting_plans;
-DROP TABLE IF EXISTS public.hosting_cache_settings;
-DROP TABLE IF EXISTS public.hosting_backups;
-DROP TABLE IF EXISTS public.guest_cart_items;
-DROP TABLE IF EXISTS public.google_drive_tokens;
-DROP TABLE IF EXISTS public.fraud_logs;
-DROP TABLE IF EXISTS public.flash_sales;
-DROP SEQUENCE IF EXISTS public.feature_flags_id_seq;
-DROP TABLE IF EXISTS public.feature_flags;
-DROP TABLE IF EXISTS public.email_unsubscribes;
-DROP TABLE IF EXISTS public.email_templates;
-DROP TABLE IF EXISTS public.email_logs;
-DROP TABLE IF EXISTS public.email_campaigns;
-DROP TABLE IF EXISTS public.email_account_settings;
-DROP TABLE IF EXISTS public.drive_backup_logs;
-DROP TABLE IF EXISTS public.domains;
-DROP TABLE IF EXISTS public.domain_transfers;
-DROP TABLE IF EXISTS public.domain_registrars;
-DROP TABLE IF EXISTS public.domain_pricing;
-DROP TABLE IF EXISTS public.domain_extensions;
-DROP TABLE IF EXISTS public.domain_activation_logs;
-DROP TABLE IF EXISTS public.dns_records;
-DROP TABLE IF EXISTS public.currencies;
-DROP TABLE IF EXISTS public.cron_logs;
-DROP TABLE IF EXISTS public.credit_transactions;
-DROP TABLE IF EXISTS public.cart_sessions;
-DROP TABLE IF EXISTS public.cart_recovery_logs;
-DROP TABLE IF EXISTS public.cart_items;
-DROP SEQUENCE IF EXISTS public.blog_posts_id_seq;
-DROP TABLE IF EXISTS public.blog_posts;
-DROP TABLE IF EXISTS public.blocked_ips;
-DROP TABLE IF EXISTS public.announcements;
-DROP SEQUENCE IF EXISTS public.ai_conversations_id_seq;
-DROP TABLE IF EXISTS public.ai_conversations;
-DROP TABLE IF EXISTS public.affiliates;
-DROP TABLE IF EXISTS public.affiliate_withdrawals;
-DROP TABLE IF EXISTS public.affiliate_referrals;
-DROP TABLE IF EXISTS public.affiliate_plan_commissions;
-DROP TABLE IF EXISTS public.affiliate_group_commissions;
-DROP TABLE IF EXISTS public.affiliate_commissions;
-DROP TABLE IF EXISTS public.affiliate_clicks;
-DROP TABLE IF EXISTS public.admin_logs;
-DROP TABLE IF EXISTS public.admin_config;
-DROP SEQUENCE IF EXISTS public.activity_stream_id_seq;
-DROP TABLE IF EXISTS public.activity_stream;
-DROP TABLE IF EXISTS public.activity_logs;
-DROP FUNCTION IF EXISTS public.set_invoice_base_currency_amount();
-DROP TYPE IF EXISTS public.withdrawal_status;
-DROP TYPE IF EXISTS public.wa_event_type;
-DROP TYPE IF EXISTS public.user_status;
-DROP TYPE IF EXISTS public.user_role;
-DROP TYPE IF EXISTS public.transfer_status;
-DROP TYPE IF EXISTS public.transaction_status;
-DROP TYPE IF EXISTS public.ticket_status;
-DROP TYPE IF EXISTS public.ticket_priority;
-DROP TYPE IF EXISTS public.server_type;
-DROP TYPE IF EXISTS public.server_status;
-DROP TYPE IF EXISTS public.sender_role;
-DROP TYPE IF EXISTS public.security_event;
-DROP TYPE IF EXISTS public.registrar_type;
-DROP TYPE IF EXISTS public.referral_status;
-DROP TYPE IF EXISTS public.payout_method;
-DROP TYPE IF EXISTS public.payment_method;
-DROP TYPE IF EXISTS public.order_type;
-DROP TYPE IF EXISTS public.order_status;
-DROP TYPE IF EXISTS public.notification_type;
-DROP TYPE IF EXISTS public.module_type;
-DROP TYPE IF EXISTS public.module_status;
-DROP TYPE IF EXISTS public.migration_status_enum;
-DROP TYPE IF EXISTS public.migration_source_type;
-DROP TYPE IF EXISTS public.invoice_status;
-DROP TYPE IF EXISTS public.hosting_status;
-DROP TYPE IF EXISTS public.fraud_status;
-DROP TYPE IF EXISTS public.extension_status;
-DROP TYPE IF EXISTS public.domain_status;
-DROP TYPE IF EXISTS public.cron_status;
-DROP TYPE IF EXISTS public.credit_tx_type;
-DROP TYPE IF EXISTS public.commission_type;
-DROP TYPE IF EXISTS public.commission_status;
-DROP TYPE IF EXISTS public.billing_cycle;
-DROP TYPE IF EXISTS public.affiliate_status;
-DROP TYPE IF EXISTS public.admin_permission;
-DROP TYPE IF EXISTS public.activity_type;
-DROP TYPE IF EXISTS public.activity_status;
--- *not* dropping schema, since initdb creates it
 --
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
+-- Name: public; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
 -- *not* creating schema, since initdb creates it
 
 
+ALTER SCHEMA public OWNER TO postgres;
+
 --
--- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: postgres
 --
 
 COMMENT ON SCHEMA public IS '';
 
 
 --
--- Name: activity_status; Type: TYPE; Schema: public; Owner: -
+-- Name: activity_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.activity_status AS ENUM (
@@ -338,8 +44,10 @@ CREATE TYPE public.activity_status AS ENUM (
 );
 
 
+ALTER TYPE public.activity_status OWNER TO postgres;
+
 --
--- Name: activity_type; Type: TYPE; Schema: public; Owner: -
+-- Name: activity_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.activity_type AS ENUM (
@@ -354,8 +62,10 @@ CREATE TYPE public.activity_type AS ENUM (
 );
 
 
+ALTER TYPE public.activity_type OWNER TO postgres;
+
 --
--- Name: admin_permission; Type: TYPE; Schema: public; Owner: -
+-- Name: admin_permission; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.admin_permission AS ENUM (
@@ -366,8 +76,10 @@ CREATE TYPE public.admin_permission AS ENUM (
 );
 
 
+ALTER TYPE public.admin_permission OWNER TO postgres;
+
 --
--- Name: affiliate_status; Type: TYPE; Schema: public; Owner: -
+-- Name: affiliate_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.affiliate_status AS ENUM (
@@ -377,8 +89,10 @@ CREATE TYPE public.affiliate_status AS ENUM (
 );
 
 
+ALTER TYPE public.affiliate_status OWNER TO postgres;
+
 --
--- Name: billing_cycle; Type: TYPE; Schema: public; Owner: -
+-- Name: billing_cycle; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.billing_cycle AS ENUM (
@@ -387,8 +101,10 @@ CREATE TYPE public.billing_cycle AS ENUM (
 );
 
 
+ALTER TYPE public.billing_cycle OWNER TO postgres;
+
 --
--- Name: commission_status; Type: TYPE; Schema: public; Owner: -
+-- Name: commission_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.commission_status AS ENUM (
@@ -399,8 +115,10 @@ CREATE TYPE public.commission_status AS ENUM (
 );
 
 
+ALTER TYPE public.commission_status OWNER TO postgres;
+
 --
--- Name: commission_type; Type: TYPE; Schema: public; Owner: -
+-- Name: commission_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.commission_type AS ENUM (
@@ -409,8 +127,10 @@ CREATE TYPE public.commission_type AS ENUM (
 );
 
 
+ALTER TYPE public.commission_type OWNER TO postgres;
+
 --
--- Name: credit_tx_type; Type: TYPE; Schema: public; Owner: -
+-- Name: credit_tx_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.credit_tx_type AS ENUM (
@@ -422,8 +142,10 @@ CREATE TYPE public.credit_tx_type AS ENUM (
 );
 
 
+ALTER TYPE public.credit_tx_type OWNER TO postgres;
+
 --
--- Name: cron_status; Type: TYPE; Schema: public; Owner: -
+-- Name: cron_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.cron_status AS ENUM (
@@ -433,8 +155,10 @@ CREATE TYPE public.cron_status AS ENUM (
 );
 
 
+ALTER TYPE public.cron_status OWNER TO postgres;
+
 --
--- Name: domain_status; Type: TYPE; Schema: public; Owner: -
+-- Name: domain_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.domain_status AS ENUM (
@@ -453,8 +177,10 @@ CREATE TYPE public.domain_status AS ENUM (
 );
 
 
+ALTER TYPE public.domain_status OWNER TO postgres;
+
 --
--- Name: extension_status; Type: TYPE; Schema: public; Owner: -
+-- Name: extension_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.extension_status AS ENUM (
@@ -463,8 +189,10 @@ CREATE TYPE public.extension_status AS ENUM (
 );
 
 
+ALTER TYPE public.extension_status OWNER TO postgres;
+
 --
--- Name: fraud_status; Type: TYPE; Schema: public; Owner: -
+-- Name: fraud_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.fraud_status AS ENUM (
@@ -474,8 +202,10 @@ CREATE TYPE public.fraud_status AS ENUM (
 );
 
 
+ALTER TYPE public.fraud_status OWNER TO postgres;
+
 --
--- Name: hosting_status; Type: TYPE; Schema: public; Owner: -
+-- Name: hosting_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.hosting_status AS ENUM (
@@ -487,8 +217,10 @@ CREATE TYPE public.hosting_status AS ENUM (
 );
 
 
+ALTER TYPE public.hosting_status OWNER TO postgres;
+
 --
--- Name: invoice_status; Type: TYPE; Schema: public; Owner: -
+-- Name: invoice_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.invoice_status AS ENUM (
@@ -502,8 +234,10 @@ CREATE TYPE public.invoice_status AS ENUM (
 );
 
 
+ALTER TYPE public.invoice_status OWNER TO postgres;
+
 --
--- Name: migration_source_type; Type: TYPE; Schema: public; Owner: -
+-- Name: migration_source_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.migration_source_type AS ENUM (
@@ -512,8 +246,10 @@ CREATE TYPE public.migration_source_type AS ENUM (
 );
 
 
+ALTER TYPE public.migration_source_type OWNER TO postgres;
+
 --
--- Name: migration_status_enum; Type: TYPE; Schema: public; Owner: -
+-- Name: migration_status_enum; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.migration_status_enum AS ENUM (
@@ -524,8 +260,10 @@ CREATE TYPE public.migration_status_enum AS ENUM (
 );
 
 
+ALTER TYPE public.migration_status_enum OWNER TO postgres;
+
 --
--- Name: module_status; Type: TYPE; Schema: public; Owner: -
+-- Name: module_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.module_status AS ENUM (
@@ -535,8 +273,10 @@ CREATE TYPE public.module_status AS ENUM (
 );
 
 
+ALTER TYPE public.module_status OWNER TO postgres;
+
 --
--- Name: module_type; Type: TYPE; Schema: public; Owner: -
+-- Name: module_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.module_type AS ENUM (
@@ -546,8 +286,10 @@ CREATE TYPE public.module_type AS ENUM (
 );
 
 
+ALTER TYPE public.module_type OWNER TO postgres;
+
 --
--- Name: notification_type; Type: TYPE; Schema: public; Owner: -
+-- Name: notification_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.notification_type AS ENUM (
@@ -562,8 +304,10 @@ CREATE TYPE public.notification_type AS ENUM (
 );
 
 
+ALTER TYPE public.notification_type OWNER TO postgres;
+
 --
--- Name: order_status; Type: TYPE; Schema: public; Owner: -
+-- Name: order_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.order_status AS ENUM (
@@ -577,8 +321,10 @@ CREATE TYPE public.order_status AS ENUM (
 );
 
 
+ALTER TYPE public.order_status OWNER TO postgres;
+
 --
--- Name: order_type; Type: TYPE; Schema: public; Owner: -
+-- Name: order_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.order_type AS ENUM (
@@ -589,8 +335,10 @@ CREATE TYPE public.order_type AS ENUM (
 );
 
 
+ALTER TYPE public.order_type OWNER TO postgres;
+
 --
--- Name: payment_method; Type: TYPE; Schema: public; Owner: -
+-- Name: payment_method; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.payment_method AS ENUM (
@@ -605,8 +353,10 @@ CREATE TYPE public.payment_method AS ENUM (
 );
 
 
+ALTER TYPE public.payment_method OWNER TO postgres;
+
 --
--- Name: payout_method; Type: TYPE; Schema: public; Owner: -
+-- Name: payout_method; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.payout_method AS ENUM (
@@ -615,8 +365,10 @@ CREATE TYPE public.payout_method AS ENUM (
 );
 
 
+ALTER TYPE public.payout_method OWNER TO postgres;
+
 --
--- Name: referral_status; Type: TYPE; Schema: public; Owner: -
+-- Name: referral_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.referral_status AS ENUM (
@@ -626,8 +378,10 @@ CREATE TYPE public.referral_status AS ENUM (
 );
 
 
+ALTER TYPE public.referral_status OWNER TO postgres;
+
 --
--- Name: registrar_type; Type: TYPE; Schema: public; Owner: -
+-- Name: registrar_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.registrar_type AS ENUM (
@@ -642,8 +396,10 @@ CREATE TYPE public.registrar_type AS ENUM (
 );
 
 
+ALTER TYPE public.registrar_type OWNER TO postgres;
+
 --
--- Name: security_event; Type: TYPE; Schema: public; Owner: -
+-- Name: security_event; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.security_event AS ENUM (
@@ -657,8 +413,10 @@ CREATE TYPE public.security_event AS ENUM (
 );
 
 
+ALTER TYPE public.security_event OWNER TO postgres;
+
 --
--- Name: sender_role; Type: TYPE; Schema: public; Owner: -
+-- Name: sender_role; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.sender_role AS ENUM (
@@ -667,8 +425,10 @@ CREATE TYPE public.sender_role AS ENUM (
 );
 
 
+ALTER TYPE public.sender_role OWNER TO postgres;
+
 --
--- Name: server_status; Type: TYPE; Schema: public; Owner: -
+-- Name: server_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.server_status AS ENUM (
@@ -678,8 +438,10 @@ CREATE TYPE public.server_status AS ENUM (
 );
 
 
+ALTER TYPE public.server_status OWNER TO postgres;
+
 --
--- Name: server_type; Type: TYPE; Schema: public; Owner: -
+-- Name: server_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.server_type AS ENUM (
@@ -691,8 +453,10 @@ CREATE TYPE public.server_type AS ENUM (
 );
 
 
+ALTER TYPE public.server_type OWNER TO postgres;
+
 --
--- Name: ticket_priority; Type: TYPE; Schema: public; Owner: -
+-- Name: ticket_priority; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.ticket_priority AS ENUM (
@@ -703,8 +467,10 @@ CREATE TYPE public.ticket_priority AS ENUM (
 );
 
 
+ALTER TYPE public.ticket_priority OWNER TO postgres;
+
 --
--- Name: ticket_status; Type: TYPE; Schema: public; Owner: -
+-- Name: ticket_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.ticket_status AS ENUM (
@@ -715,8 +481,10 @@ CREATE TYPE public.ticket_status AS ENUM (
 );
 
 
+ALTER TYPE public.ticket_status OWNER TO postgres;
+
 --
--- Name: transaction_status; Type: TYPE; Schema: public; Owner: -
+-- Name: transaction_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.transaction_status AS ENUM (
@@ -727,8 +495,10 @@ CREATE TYPE public.transaction_status AS ENUM (
 );
 
 
+ALTER TYPE public.transaction_status OWNER TO postgres;
+
 --
--- Name: transfer_status; Type: TYPE; Schema: public; Owner: -
+-- Name: transfer_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.transfer_status AS ENUM (
@@ -741,8 +511,10 @@ CREATE TYPE public.transfer_status AS ENUM (
 );
 
 
+ALTER TYPE public.transfer_status OWNER TO postgres;
+
 --
--- Name: user_role; Type: TYPE; Schema: public; Owner: -
+-- Name: user_role; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.user_role AS ENUM (
@@ -751,8 +523,10 @@ CREATE TYPE public.user_role AS ENUM (
 );
 
 
+ALTER TYPE public.user_role OWNER TO postgres;
+
 --
--- Name: user_status; Type: TYPE; Schema: public; Owner: -
+-- Name: user_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.user_status AS ENUM (
@@ -761,8 +535,10 @@ CREATE TYPE public.user_status AS ENUM (
 );
 
 
+ALTER TYPE public.user_status OWNER TO postgres;
+
 --
--- Name: wa_event_type; Type: TYPE; Schema: public; Owner: -
+-- Name: wa_event_type; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.wa_event_type AS ENUM (
@@ -779,8 +555,10 @@ CREATE TYPE public.wa_event_type AS ENUM (
 );
 
 
+ALTER TYPE public.wa_event_type OWNER TO postgres;
+
 --
--- Name: withdrawal_status; Type: TYPE; Schema: public; Owner: -
+-- Name: withdrawal_status; Type: TYPE; Schema: public; Owner: postgres
 --
 
 CREATE TYPE public.withdrawal_status AS ENUM (
@@ -791,8 +569,10 @@ CREATE TYPE public.withdrawal_status AS ENUM (
 );
 
 
+ALTER TYPE public.withdrawal_status OWNER TO postgres;
+
 --
--- Name: set_invoice_base_currency_amount(); Type: FUNCTION; Schema: public; Owner: -
+-- Name: set_invoice_base_currency_amount(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
 CREATE FUNCTION public.set_invoice_base_currency_amount() RETURNS trigger
@@ -807,12 +587,14 @@ END;
 $$;
 
 
+ALTER FUNCTION public.set_invoice_base_currency_amount() OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
 --
--- Name: activity_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: activity_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.activity_logs (
@@ -827,8 +609,10 @@ CREATE TABLE public.activity_logs (
 );
 
 
+ALTER TABLE public.activity_logs OWNER TO postgres;
+
 --
--- Name: activity_stream; Type: TABLE; Schema: public; Owner: -
+-- Name: activity_stream; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.activity_stream (
@@ -842,8 +626,10 @@ CREATE TABLE public.activity_stream (
 );
 
 
+ALTER TABLE public.activity_stream OWNER TO postgres;
+
 --
--- Name: activity_stream_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: activity_stream_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.activity_stream_id_seq
@@ -855,15 +641,17 @@ CREATE SEQUENCE public.activity_stream_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.activity_stream_id_seq OWNER TO postgres;
+
 --
--- Name: activity_stream_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: activity_stream_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.activity_stream_id_seq OWNED BY public.activity_stream.id;
 
 
 --
--- Name: admin_config; Type: TABLE; Schema: public; Owner: -
+-- Name: admin_config; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.admin_config (
@@ -874,8 +662,10 @@ CREATE TABLE public.admin_config (
 );
 
 
+ALTER TABLE public.admin_config OWNER TO postgres;
+
 --
--- Name: admin_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: admin_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.admin_logs (
@@ -892,8 +682,10 @@ CREATE TABLE public.admin_logs (
 );
 
 
+ALTER TABLE public.admin_logs OWNER TO postgres;
+
 --
--- Name: affiliate_clicks; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliate_clicks; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliate_clicks (
@@ -905,8 +697,10 @@ CREATE TABLE public.affiliate_clicks (
 );
 
 
+ALTER TABLE public.affiliate_clicks OWNER TO postgres;
+
 --
--- Name: affiliate_commissions; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliate_commissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliate_commissions (
@@ -922,8 +716,10 @@ CREATE TABLE public.affiliate_commissions (
 );
 
 
+ALTER TABLE public.affiliate_commissions OWNER TO postgres;
+
 --
--- Name: affiliate_group_commissions; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliate_group_commissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliate_group_commissions (
@@ -938,8 +734,10 @@ CREATE TABLE public.affiliate_group_commissions (
 );
 
 
+ALTER TABLE public.affiliate_group_commissions OWNER TO postgres;
+
 --
--- Name: affiliate_plan_commissions; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliate_plan_commissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliate_plan_commissions (
@@ -957,8 +755,10 @@ CREATE TABLE public.affiliate_plan_commissions (
 );
 
 
+ALTER TABLE public.affiliate_plan_commissions OWNER TO postgres;
+
 --
--- Name: affiliate_referrals; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliate_referrals; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliate_referrals (
@@ -971,8 +771,10 @@ CREATE TABLE public.affiliate_referrals (
 );
 
 
+ALTER TABLE public.affiliate_referrals OWNER TO postgres;
+
 --
--- Name: affiliate_withdrawals; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliate_withdrawals; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliate_withdrawals (
@@ -991,8 +793,10 @@ CREATE TABLE public.affiliate_withdrawals (
 );
 
 
+ALTER TABLE public.affiliate_withdrawals OWNER TO postgres;
+
 --
--- Name: affiliates; Type: TABLE; Schema: public; Owner: -
+-- Name: affiliates; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.affiliates (
@@ -1015,8 +819,10 @@ CREATE TABLE public.affiliates (
 );
 
 
+ALTER TABLE public.affiliates OWNER TO postgres;
+
 --
--- Name: ai_conversations; Type: TABLE; Schema: public; Owner: -
+-- Name: ai_conversations; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.ai_conversations (
@@ -1030,8 +836,10 @@ CREATE TABLE public.ai_conversations (
 );
 
 
+ALTER TABLE public.ai_conversations OWNER TO postgres;
+
 --
--- Name: ai_conversations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: ai_conversations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.ai_conversations_id_seq
@@ -1043,15 +851,17 @@ CREATE SEQUENCE public.ai_conversations_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.ai_conversations_id_seq OWNER TO postgres;
+
 --
--- Name: ai_conversations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: ai_conversations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.ai_conversations_id_seq OWNED BY public.ai_conversations.id;
 
 
 --
--- Name: announcements; Type: TABLE; Schema: public; Owner: -
+-- Name: announcements; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.announcements (
@@ -1066,8 +876,10 @@ CREATE TABLE public.announcements (
 );
 
 
+ALTER TABLE public.announcements OWNER TO postgres;
+
 --
--- Name: blocked_ips; Type: TABLE; Schema: public; Owner: -
+-- Name: blocked_ips; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.blocked_ips (
@@ -1080,8 +892,10 @@ CREATE TABLE public.blocked_ips (
 );
 
 
+ALTER TABLE public.blocked_ips OWNER TO postgres;
+
 --
--- Name: blog_posts; Type: TABLE; Schema: public; Owner: -
+-- Name: blog_posts; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.blog_posts (
@@ -1104,8 +918,10 @@ CREATE TABLE public.blog_posts (
 );
 
 
+ALTER TABLE public.blog_posts OWNER TO postgres;
+
 --
--- Name: blog_posts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: blog_posts_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.blog_posts_id_seq
@@ -1117,15 +933,17 @@ CREATE SEQUENCE public.blog_posts_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.blog_posts_id_seq OWNER TO postgres;
+
 --
--- Name: blog_posts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: blog_posts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.blog_posts_id_seq OWNED BY public.blog_posts.id;
 
 
 --
--- Name: cart_items; Type: TABLE; Schema: public; Owner: -
+-- Name: cart_items; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.cart_items (
@@ -1148,8 +966,10 @@ CREATE TABLE public.cart_items (
 );
 
 
+ALTER TABLE public.cart_items OWNER TO postgres;
+
 --
--- Name: cart_recovery_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: cart_recovery_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.cart_recovery_logs (
@@ -1166,8 +986,10 @@ CREATE TABLE public.cart_recovery_logs (
 );
 
 
+ALTER TABLE public.cart_recovery_logs OWNER TO postgres;
+
 --
--- Name: cart_sessions; Type: TABLE; Schema: public; Owner: -
+-- Name: cart_sessions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.cart_sessions (
@@ -1187,8 +1009,10 @@ CREATE TABLE public.cart_sessions (
 );
 
 
+ALTER TABLE public.cart_sessions OWNER TO postgres;
+
 --
--- Name: credit_transactions; Type: TABLE; Schema: public; Owner: -
+-- Name: credit_transactions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.credit_transactions (
@@ -1204,8 +1028,10 @@ CREATE TABLE public.credit_transactions (
 );
 
 
+ALTER TABLE public.credit_transactions OWNER TO postgres;
+
 --
--- Name: cron_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: cron_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.cron_logs (
@@ -1217,8 +1043,10 @@ CREATE TABLE public.cron_logs (
 );
 
 
+ALTER TABLE public.cron_logs OWNER TO postgres;
+
 --
--- Name: currencies; Type: TABLE; Schema: public; Owner: -
+-- Name: currencies; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.currencies (
@@ -1233,8 +1061,10 @@ CREATE TABLE public.currencies (
 );
 
 
+ALTER TABLE public.currencies OWNER TO postgres;
+
 --
--- Name: dns_records; Type: TABLE; Schema: public; Owner: -
+-- Name: dns_records; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.dns_records (
@@ -1251,8 +1081,10 @@ CREATE TABLE public.dns_records (
 );
 
 
+ALTER TABLE public.dns_records OWNER TO postgres;
+
 --
--- Name: domain_activation_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: domain_activation_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.domain_activation_logs (
@@ -1276,8 +1108,10 @@ CREATE TABLE public.domain_activation_logs (
 );
 
 
+ALTER TABLE public.domain_activation_logs OWNER TO postgres;
+
 --
--- Name: domain_extensions; Type: TABLE; Schema: public; Owner: -
+-- Name: domain_extensions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.domain_extensions (
@@ -1301,8 +1135,10 @@ CREATE TABLE public.domain_extensions (
 );
 
 
+ALTER TABLE public.domain_extensions OWNER TO postgres;
+
 --
--- Name: domain_pricing; Type: TABLE; Schema: public; Owner: -
+-- Name: domain_pricing; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.domain_pricing (
@@ -1316,8 +1152,10 @@ CREATE TABLE public.domain_pricing (
 );
 
 
+ALTER TABLE public.domain_pricing OWNER TO postgres;
+
 --
--- Name: domain_registrars; Type: TABLE; Schema: public; Owner: -
+-- Name: domain_registrars; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.domain_registrars (
@@ -1335,8 +1173,10 @@ CREATE TABLE public.domain_registrars (
 );
 
 
+ALTER TABLE public.domain_registrars OWNER TO postgres;
+
 --
--- Name: domain_transfers; Type: TABLE; Schema: public; Owner: -
+-- Name: domain_transfers; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.domain_transfers (
@@ -1355,8 +1195,10 @@ CREATE TABLE public.domain_transfers (
 );
 
 
+ALTER TABLE public.domain_transfers OWNER TO postgres;
+
 --
--- Name: domains; Type: TABLE; Schema: public; Owner: -
+-- Name: domains; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.domains (
@@ -1383,8 +1225,10 @@ CREATE TABLE public.domains (
 );
 
 
+ALTER TABLE public.domains OWNER TO postgres;
+
 --
--- Name: drive_backup_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: drive_backup_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.drive_backup_logs (
@@ -1407,8 +1251,10 @@ CREATE TABLE public.drive_backup_logs (
 );
 
 
+ALTER TABLE public.drive_backup_logs OWNER TO postgres;
+
 --
--- Name: email_account_settings; Type: TABLE; Schema: public; Owner: -
+-- Name: email_account_settings; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.email_account_settings (
@@ -1423,8 +1269,10 @@ CREATE TABLE public.email_account_settings (
 );
 
 
+ALTER TABLE public.email_account_settings OWNER TO postgres;
+
 --
--- Name: email_campaigns; Type: TABLE; Schema: public; Owner: -
+-- Name: email_campaigns; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.email_campaigns (
@@ -1443,8 +1291,10 @@ CREATE TABLE public.email_campaigns (
 );
 
 
+ALTER TABLE public.email_campaigns OWNER TO postgres;
+
 --
--- Name: email_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: email_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.email_logs (
@@ -1460,8 +1310,10 @@ CREATE TABLE public.email_logs (
 );
 
 
+ALTER TABLE public.email_logs OWNER TO postgres;
+
 --
--- Name: email_templates; Type: TABLE; Schema: public; Owner: -
+-- Name: email_templates; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.email_templates (
@@ -1477,8 +1329,10 @@ CREATE TABLE public.email_templates (
 );
 
 
+ALTER TABLE public.email_templates OWNER TO postgres;
+
 --
--- Name: email_unsubscribes; Type: TABLE; Schema: public; Owner: -
+-- Name: email_unsubscribes; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.email_unsubscribes (
@@ -1490,8 +1344,10 @@ CREATE TABLE public.email_unsubscribes (
 );
 
 
+ALTER TABLE public.email_unsubscribes OWNER TO postgres;
+
 --
--- Name: feature_flags; Type: TABLE; Schema: public; Owner: -
+-- Name: feature_flags; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.feature_flags (
@@ -1505,8 +1361,10 @@ CREATE TABLE public.feature_flags (
 );
 
 
+ALTER TABLE public.feature_flags OWNER TO postgres;
+
 --
--- Name: feature_flags_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: feature_flags_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.feature_flags_id_seq
@@ -1518,15 +1376,17 @@ CREATE SEQUENCE public.feature_flags_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.feature_flags_id_seq OWNER TO postgres;
+
 --
--- Name: feature_flags_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: feature_flags_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.feature_flags_id_seq OWNED BY public.feature_flags.id;
 
 
 --
--- Name: flash_sales; Type: TABLE; Schema: public; Owner: -
+-- Name: flash_sales; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.flash_sales (
@@ -1550,8 +1410,10 @@ CREATE TABLE public.flash_sales (
 );
 
 
+ALTER TABLE public.flash_sales OWNER TO postgres;
+
 --
--- Name: fraud_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: fraud_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.fraud_logs (
@@ -1568,8 +1430,10 @@ CREATE TABLE public.fraud_logs (
 );
 
 
+ALTER TABLE public.fraud_logs OWNER TO postgres;
+
 --
--- Name: google_drive_tokens; Type: TABLE; Schema: public; Owner: -
+-- Name: google_drive_tokens; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.google_drive_tokens (
@@ -1586,8 +1450,10 @@ CREATE TABLE public.google_drive_tokens (
 );
 
 
+ALTER TABLE public.google_drive_tokens OWNER TO postgres;
+
 --
--- Name: guest_cart_items; Type: TABLE; Schema: public; Owner: -
+-- Name: guest_cart_items; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.guest_cart_items (
@@ -1610,8 +1476,10 @@ CREATE TABLE public.guest_cart_items (
 );
 
 
+ALTER TABLE public.guest_cart_items OWNER TO postgres;
+
 --
--- Name: hosting_backups; Type: TABLE; Schema: public; Owner: -
+-- Name: hosting_backups; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.hosting_backups (
@@ -1630,8 +1498,10 @@ CREATE TABLE public.hosting_backups (
 );
 
 
+ALTER TABLE public.hosting_backups OWNER TO postgres;
+
 --
--- Name: hosting_cache_settings; Type: TABLE; Schema: public; Owner: -
+-- Name: hosting_cache_settings; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.hosting_cache_settings (
@@ -1642,8 +1512,10 @@ CREATE TABLE public.hosting_cache_settings (
 );
 
 
+ALTER TABLE public.hosting_cache_settings OWNER TO postgres;
+
 --
--- Name: hosting_plans; Type: TABLE; Schema: public; Owner: -
+-- Name: hosting_plans; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.hosting_plans (
@@ -1678,8 +1550,10 @@ CREATE TABLE public.hosting_plans (
 );
 
 
+ALTER TABLE public.hosting_plans OWNER TO postgres;
+
 --
--- Name: hosting_services; Type: TABLE; Schema: public; Owner: -
+-- Name: hosting_services; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.hosting_services (
@@ -1745,8 +1619,10 @@ CREATE TABLE public.hosting_services (
 );
 
 
+ALTER TABLE public.hosting_services OWNER TO postgres;
+
 --
--- Name: invoices; Type: TABLE; Schema: public; Owner: -
+-- Name: invoices; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.invoices (
@@ -1775,8 +1651,10 @@ CREATE TABLE public.invoices (
 );
 
 
+ALTER TABLE public.invoices OWNER TO postgres;
+
 --
--- Name: ip_unblock_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: ip_unblock_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.ip_unblock_logs (
@@ -1789,8 +1667,10 @@ CREATE TABLE public.ip_unblock_logs (
 );
 
 
+ALTER TABLE public.ip_unblock_logs OWNER TO postgres;
+
 --
--- Name: ip_whitelist; Type: TABLE; Schema: public; Owner: -
+-- Name: ip_whitelist; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.ip_whitelist (
@@ -1802,8 +1682,10 @@ CREATE TABLE public.ip_whitelist (
 );
 
 
+ALTER TABLE public.ip_whitelist OWNER TO postgres;
+
 --
--- Name: kb_articles; Type: TABLE; Schema: public; Owner: -
+-- Name: kb_articles; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.kb_articles (
@@ -1829,8 +1711,10 @@ CREATE TABLE public.kb_articles (
 );
 
 
+ALTER TABLE public.kb_articles OWNER TO postgres;
+
 --
--- Name: kb_categories; Type: TABLE; Schema: public; Owner: -
+-- Name: kb_categories; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.kb_categories (
@@ -1850,8 +1734,10 @@ CREATE TABLE public.kb_categories (
 );
 
 
+ALTER TABLE public.kb_categories OWNER TO postgres;
+
 --
--- Name: kb_deflections; Type: TABLE; Schema: public; Owner: -
+-- Name: kb_deflections; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.kb_deflections (
@@ -1865,8 +1751,10 @@ CREATE TABLE public.kb_deflections (
 );
 
 
+ALTER TABLE public.kb_deflections OWNER TO postgres;
+
 --
--- Name: keyword_positions; Type: TABLE; Schema: public; Owner: -
+-- Name: keyword_positions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.keyword_positions (
@@ -1878,8 +1766,10 @@ CREATE TABLE public.keyword_positions (
 );
 
 
+ALTER TABLE public.keyword_positions OWNER TO postgres;
+
 --
--- Name: keyword_positions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: keyword_positions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.keyword_positions_id_seq
@@ -1891,15 +1781,17 @@ CREATE SEQUENCE public.keyword_positions_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.keyword_positions_id_seq OWNER TO postgres;
+
 --
--- Name: keyword_positions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: keyword_positions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.keyword_positions_id_seq OWNED BY public.keyword_positions.id;
 
 
 --
--- Name: keyword_tracking; Type: TABLE; Schema: public; Owner: -
+-- Name: keyword_tracking; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.keyword_tracking (
@@ -1911,8 +1803,10 @@ CREATE TABLE public.keyword_tracking (
 );
 
 
+ALTER TABLE public.keyword_tracking OWNER TO postgres;
+
 --
--- Name: keyword_tracking_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: keyword_tracking_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.keyword_tracking_id_seq
@@ -1924,15 +1818,17 @@ CREATE SEQUENCE public.keyword_tracking_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.keyword_tracking_id_seq OWNER TO postgres;
+
 --
--- Name: keyword_tracking_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: keyword_tracking_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.keyword_tracking_id_seq OWNED BY public.keyword_tracking.id;
 
 
 --
--- Name: migration_whitelist; Type: TABLE; Schema: public; Owner: -
+-- Name: migration_whitelist; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.migration_whitelist (
@@ -1944,8 +1840,10 @@ CREATE TABLE public.migration_whitelist (
 );
 
 
+ALTER TABLE public.migration_whitelist OWNER TO postgres;
+
 --
--- Name: migrations_requests; Type: TABLE; Schema: public; Owner: -
+-- Name: migrations_requests; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.migrations_requests (
@@ -1968,8 +1866,10 @@ CREATE TABLE public.migrations_requests (
 );
 
 
+ALTER TABLE public.migrations_requests OWNER TO postgres;
+
 --
--- Name: notifications; Type: TABLE; Schema: public; Owner: -
+-- Name: notifications; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.notifications (
@@ -1984,8 +1884,10 @@ CREATE TABLE public.notifications (
 );
 
 
+ALTER TABLE public.notifications OWNER TO postgres;
+
 --
--- Name: orders; Type: TABLE; Schema: public; Owner: -
+-- Name: orders; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.orders (
@@ -2012,8 +1914,10 @@ CREATE TABLE public.orders (
 );
 
 
+ALTER TABLE public.orders OWNER TO postgres;
+
 --
--- Name: password_resets; Type: TABLE; Schema: public; Owner: -
+-- Name: password_resets; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.password_resets (
@@ -2025,8 +1929,10 @@ CREATE TABLE public.password_resets (
 );
 
 
+ALTER TABLE public.password_resets OWNER TO postgres;
+
 --
--- Name: payment_methods; Type: TABLE; Schema: public; Owner: -
+-- Name: payment_methods; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.payment_methods (
@@ -2042,8 +1948,10 @@ CREATE TABLE public.payment_methods (
 );
 
 
+ALTER TABLE public.payment_methods OWNER TO postgres;
+
 --
--- Name: product_groups; Type: TABLE; Schema: public; Owner: -
+-- Name: product_groups; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.product_groups (
@@ -2058,8 +1966,10 @@ CREATE TABLE public.product_groups (
 );
 
 
+ALTER TABLE public.product_groups OWNER TO postgres;
+
 --
--- Name: promo_codes; Type: TABLE; Schema: public; Owner: -
+-- Name: promo_codes; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.promo_codes (
@@ -2082,8 +1992,10 @@ CREATE TABLE public.promo_codes (
 );
 
 
+ALTER TABLE public.promo_codes OWNER TO postgres;
+
 --
--- Name: resource_usage_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: resource_usage_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.resource_usage_logs (
@@ -2099,8 +2011,10 @@ CREATE TABLE public.resource_usage_logs (
 );
 
 
+ALTER TABLE public.resource_usage_logs OWNER TO postgres;
+
 --
--- Name: resource_usage_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: resource_usage_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.resource_usage_logs_id_seq
@@ -2112,15 +2026,17 @@ CREATE SEQUENCE public.resource_usage_logs_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.resource_usage_logs_id_seq OWNER TO postgres;
+
 --
--- Name: resource_usage_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: resource_usage_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.resource_usage_logs_id_seq OWNED BY public.resource_usage_logs.id;
 
 
 --
--- Name: security_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: security_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.security_logs (
@@ -2137,8 +2053,10 @@ CREATE TABLE public.security_logs (
 );
 
 
+ALTER TABLE public.security_logs OWNER TO postgres;
+
 --
--- Name: security_scan_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: security_scan_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.security_scan_logs (
@@ -2153,8 +2071,10 @@ CREATE TABLE public.security_scan_logs (
 );
 
 
+ALTER TABLE public.security_scan_logs OWNER TO postgres;
+
 --
--- Name: security_scan_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: security_scan_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.security_scan_logs_id_seq
@@ -2166,15 +2086,17 @@ CREATE SEQUENCE public.security_scan_logs_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.security_scan_logs_id_seq OWNER TO postgres;
+
 --
--- Name: security_scan_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: security_scan_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.security_scan_logs_id_seq OWNED BY public.security_scan_logs.id;
 
 
 --
--- Name: seo_scans; Type: TABLE; Schema: public; Owner: -
+-- Name: seo_scans; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.seo_scans (
@@ -2200,8 +2122,10 @@ CREATE TABLE public.seo_scans (
 );
 
 
+ALTER TABLE public.seo_scans OWNER TO postgres;
+
 --
--- Name: seo_scans_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: seo_scans_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.seo_scans_id_seq
@@ -2213,15 +2137,17 @@ CREATE SEQUENCE public.seo_scans_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.seo_scans_id_seq OWNER TO postgres;
+
 --
--- Name: seo_scans_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: seo_scans_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.seo_scans_id_seq OWNED BY public.seo_scans.id;
 
 
 --
--- Name: server_groups; Type: TABLE; Schema: public; Owner: -
+-- Name: server_groups; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.server_groups (
@@ -2233,8 +2159,10 @@ CREATE TABLE public.server_groups (
 );
 
 
+ALTER TABLE public.server_groups OWNER TO postgres;
+
 --
--- Name: server_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: server_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.server_logs (
@@ -2250,8 +2178,10 @@ CREATE TABLE public.server_logs (
 );
 
 
+ALTER TABLE public.server_logs OWNER TO postgres;
+
 --
--- Name: server_nodes; Type: TABLE; Schema: public; Owner: -
+-- Name: server_nodes; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.server_nodes (
@@ -2268,8 +2198,10 @@ CREATE TABLE public.server_nodes (
 );
 
 
+ALTER TABLE public.server_nodes OWNER TO postgres;
+
 --
--- Name: servers; Type: TABLE; Schema: public; Owner: -
+-- Name: servers; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.servers (
@@ -2299,8 +2231,10 @@ CREATE TABLE public.servers (
 );
 
 
+ALTER TABLE public.servers OWNER TO postgres;
+
 --
--- Name: settings; Type: TABLE; Schema: public; Owner: -
+-- Name: settings; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.settings (
@@ -2310,8 +2244,10 @@ CREATE TABLE public.settings (
 );
 
 
+ALTER TABLE public.settings OWNER TO postgres;
+
 --
--- Name: site_health_snapshots; Type: TABLE; Schema: public; Owner: -
+-- Name: site_health_snapshots; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.site_health_snapshots (
@@ -2329,8 +2265,10 @@ CREATE TABLE public.site_health_snapshots (
 );
 
 
+ALTER TABLE public.site_health_snapshots OWNER TO postgres;
+
 --
--- Name: site_health_snapshots_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: site_health_snapshots_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.site_health_snapshots_id_seq
@@ -2342,15 +2280,17 @@ CREATE SEQUENCE public.site_health_snapshots_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.site_health_snapshots_id_seq OWNER TO postgres;
+
 --
--- Name: site_health_snapshots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: site_health_snapshots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.site_health_snapshots_id_seq OWNED BY public.site_health_snapshots.id;
 
 
 --
--- Name: site_pages; Type: TABLE; Schema: public; Owner: -
+-- Name: site_pages; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.site_pages (
@@ -2362,8 +2302,10 @@ CREATE TABLE public.site_pages (
 );
 
 
+ALTER TABLE public.site_pages OWNER TO postgres;
+
 --
--- Name: staging_sites; Type: TABLE; Schema: public; Owner: -
+-- Name: staging_sites; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.staging_sites (
@@ -2379,8 +2321,10 @@ CREATE TABLE public.staging_sites (
 );
 
 
+ALTER TABLE public.staging_sites OWNER TO postgres;
+
 --
--- Name: staging_sites_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: staging_sites_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.staging_sites_id_seq
@@ -2392,15 +2336,17 @@ CREATE SEQUENCE public.staging_sites_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.staging_sites_id_seq OWNER TO postgres;
+
 --
--- Name: staging_sites_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: staging_sites_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.staging_sites_id_seq OWNED BY public.staging_sites.id;
 
 
 --
--- Name: staging_sync_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: staging_sync_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.staging_sync_logs (
@@ -2414,8 +2360,10 @@ CREATE TABLE public.staging_sync_logs (
 );
 
 
+ALTER TABLE public.staging_sync_logs OWNER TO postgres;
+
 --
--- Name: staging_sync_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: staging_sync_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.staging_sync_logs_id_seq
@@ -2427,15 +2375,17 @@ CREATE SEQUENCE public.staging_sync_logs_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.staging_sync_logs_id_seq OWNER TO postgres;
+
 --
--- Name: staging_sync_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: staging_sync_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.staging_sync_logs_id_seq OWNED BY public.staging_sync_logs.id;
 
 
 --
--- Name: team_access_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: team_access_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.team_access_logs (
@@ -2450,8 +2400,10 @@ CREATE TABLE public.team_access_logs (
 );
 
 
+ALTER TABLE public.team_access_logs OWNER TO postgres;
+
 --
--- Name: team_magic_links; Type: TABLE; Schema: public; Owner: -
+-- Name: team_magic_links; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.team_magic_links (
@@ -2466,8 +2418,10 @@ CREATE TABLE public.team_magic_links (
 );
 
 
+ALTER TABLE public.team_magic_links OWNER TO postgres;
+
 --
--- Name: team_members; Type: TABLE; Schema: public; Owner: -
+-- Name: team_members; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.team_members (
@@ -2482,8 +2436,10 @@ CREATE TABLE public.team_members (
 );
 
 
+ALTER TABLE public.team_members OWNER TO postgres;
+
 --
--- Name: ticket_drafts; Type: TABLE; Schema: public; Owner: -
+-- Name: ticket_drafts; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.ticket_drafts (
@@ -2497,8 +2453,10 @@ CREATE TABLE public.ticket_drafts (
 );
 
 
+ALTER TABLE public.ticket_drafts OWNER TO postgres;
+
 --
--- Name: ticket_messages; Type: TABLE; Schema: public; Owner: -
+-- Name: ticket_messages; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.ticket_messages (
@@ -2513,8 +2471,10 @@ CREATE TABLE public.ticket_messages (
 );
 
 
+ALTER TABLE public.ticket_messages OWNER TO postgres;
+
 --
--- Name: tickets; Type: TABLE; Schema: public; Owner: -
+-- Name: tickets; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.tickets (
@@ -2532,8 +2492,10 @@ CREATE TABLE public.tickets (
 );
 
 
+ALTER TABLE public.tickets OWNER TO postgres;
+
 --
--- Name: transactions; Type: TABLE; Schema: public; Owner: -
+-- Name: transactions; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.transactions (
@@ -2548,8 +2510,10 @@ CREATE TABLE public.transactions (
 );
 
 
+ALTER TABLE public.transactions OWNER TO postgres;
+
 --
--- Name: uploaded_modules; Type: TABLE; Schema: public; Owner: -
+-- Name: uploaded_modules; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.uploaded_modules (
@@ -2570,8 +2534,10 @@ CREATE TABLE public.uploaded_modules (
 );
 
 
+ALTER TABLE public.uploaded_modules OWNER TO postgres;
+
 --
--- Name: user_preferences; Type: TABLE; Schema: public; Owner: -
+-- Name: user_preferences; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.user_preferences (
@@ -2582,8 +2548,10 @@ CREATE TABLE public.user_preferences (
 );
 
 
+ALTER TABLE public.user_preferences OWNER TO postgres;
+
 --
--- Name: users; Type: TABLE; Schema: public; Owner: -
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.users (
@@ -2614,8 +2582,10 @@ CREATE TABLE public.users (
 );
 
 
+ALTER TABLE public.users OWNER TO postgres;
+
 --
--- Name: vps_locations; Type: TABLE; Schema: public; Owner: -
+-- Name: vps_locations; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.vps_locations (
@@ -2632,8 +2602,10 @@ CREATE TABLE public.vps_locations (
 );
 
 
+ALTER TABLE public.vps_locations OWNER TO postgres;
+
 --
--- Name: vps_os_templates; Type: TABLE; Schema: public; Owner: -
+-- Name: vps_os_templates; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.vps_os_templates (
@@ -2647,8 +2619,10 @@ CREATE TABLE public.vps_os_templates (
 );
 
 
+ALTER TABLE public.vps_os_templates OWNER TO postgres;
+
 --
--- Name: vps_plans; Type: TABLE; Schema: public; Owner: -
+-- Name: vps_plans; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.vps_plans (
@@ -2675,8 +2649,10 @@ CREATE TABLE public.vps_plans (
 );
 
 
+ALTER TABLE public.vps_plans OWNER TO postgres;
+
 --
--- Name: whatsapp_client_notifications; Type: TABLE; Schema: public; Owner: -
+-- Name: whatsapp_client_notifications; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.whatsapp_client_notifications (
@@ -2691,8 +2667,10 @@ CREATE TABLE public.whatsapp_client_notifications (
 );
 
 
+ALTER TABLE public.whatsapp_client_notifications OWNER TO postgres;
+
 --
--- Name: whatsapp_client_notifications_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: whatsapp_client_notifications_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
 CREATE SEQUENCE public.whatsapp_client_notifications_id_seq
@@ -2704,15 +2682,17 @@ CREATE SEQUENCE public.whatsapp_client_notifications_id_seq
     CACHE 1;
 
 
+ALTER SEQUENCE public.whatsapp_client_notifications_id_seq OWNER TO postgres;
+
 --
--- Name: whatsapp_client_notifications_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: whatsapp_client_notifications_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
 ALTER SEQUENCE public.whatsapp_client_notifications_id_seq OWNED BY public.whatsapp_client_notifications.id;
 
 
 --
--- Name: whatsapp_logs; Type: TABLE; Schema: public; Owner: -
+-- Name: whatsapp_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
 CREATE TABLE public.whatsapp_logs (
@@ -2725,99 +2705,101 @@ CREATE TABLE public.whatsapp_logs (
 );
 
 
+ALTER TABLE public.whatsapp_logs OWNER TO postgres;
+
 --
--- Name: activity_stream id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: activity_stream id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.activity_stream ALTER COLUMN id SET DEFAULT nextval('public.activity_stream_id_seq'::regclass);
 
 
 --
--- Name: ai_conversations id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: ai_conversations id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ai_conversations ALTER COLUMN id SET DEFAULT nextval('public.ai_conversations_id_seq'::regclass);
 
 
 --
--- Name: blog_posts id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: blog_posts id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.blog_posts ALTER COLUMN id SET DEFAULT nextval('public.blog_posts_id_seq'::regclass);
 
 
 --
--- Name: feature_flags id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: feature_flags id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.feature_flags ALTER COLUMN id SET DEFAULT nextval('public.feature_flags_id_seq'::regclass);
 
 
 --
--- Name: keyword_positions id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: keyword_positions id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.keyword_positions ALTER COLUMN id SET DEFAULT nextval('public.keyword_positions_id_seq'::regclass);
 
 
 --
--- Name: keyword_tracking id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: keyword_tracking id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.keyword_tracking ALTER COLUMN id SET DEFAULT nextval('public.keyword_tracking_id_seq'::regclass);
 
 
 --
--- Name: resource_usage_logs id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: resource_usage_logs id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.resource_usage_logs ALTER COLUMN id SET DEFAULT nextval('public.resource_usage_logs_id_seq'::regclass);
 
 
 --
--- Name: security_scan_logs id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: security_scan_logs id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.security_scan_logs ALTER COLUMN id SET DEFAULT nextval('public.security_scan_logs_id_seq'::regclass);
 
 
 --
--- Name: seo_scans id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: seo_scans id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.seo_scans ALTER COLUMN id SET DEFAULT nextval('public.seo_scans_id_seq'::regclass);
 
 
 --
--- Name: site_health_snapshots id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: site_health_snapshots id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.site_health_snapshots ALTER COLUMN id SET DEFAULT nextval('public.site_health_snapshots_id_seq'::regclass);
 
 
 --
--- Name: staging_sites id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: staging_sites id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.staging_sites ALTER COLUMN id SET DEFAULT nextval('public.staging_sites_id_seq'::regclass);
 
 
 --
--- Name: staging_sync_logs id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: staging_sync_logs id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.staging_sync_logs ALTER COLUMN id SET DEFAULT nextval('public.staging_sync_logs_id_seq'::regclass);
 
 
 --
--- Name: whatsapp_client_notifications id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: whatsapp_client_notifications id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.whatsapp_client_notifications ALTER COLUMN id SET DEFAULT nextval('public.whatsapp_client_notifications_id_seq'::regclass);
 
 
 --
--- Data for Name: activity_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: activity_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.activity_logs (id, user_id, action, ip, user_agent, status, note, created_at) FROM stdin;
@@ -3055,7 +3037,7 @@ abb23495-4aa1-4257-b317-137e313b7962	8b6b18bb-f8be-4801-95c7-565557c40820	login_
 
 
 --
--- Data for Name: activity_stream; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: activity_stream; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.activity_stream (id, user_id, user_email, user_name, action, meta, created_at) FROM stdin;
@@ -3065,7 +3047,7 @@ COPY public.activity_stream (id, user_id, user_email, user_name, action, meta, c
 
 
 --
--- Data for Name: admin_config; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: admin_config; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.admin_config (key, value, updated_by, updated_at) FROM stdin;
@@ -3085,7 +3067,7 @@ upsell.banner_default	Your site is growing steadily! Upgrading to NVMe SSD stora
 
 
 --
--- Data for Name: admin_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: admin_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.admin_logs (id, user_id, email, action, method, status, ip_address, user_agent, details, created_at) FROM stdin;
@@ -3093,7 +3075,7 @@ COPY public.admin_logs (id, user_id, email, action, method, status, ip_address, 
 
 
 --
--- Data for Name: affiliate_clicks; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliate_clicks; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliate_clicks (id, affiliate_id, ip_address, user_agent, created_at) FROM stdin;
@@ -3101,7 +3083,7 @@ COPY public.affiliate_clicks (id, affiliate_id, ip_address, user_agent, created_
 
 
 --
--- Data for Name: affiliate_commissions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliate_commissions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliate_commissions (id, affiliate_id, referred_user_id, order_id, amount, status, description, paid_at, created_at) FROM stdin;
@@ -3109,7 +3091,7 @@ COPY public.affiliate_commissions (id, affiliate_id, referred_user_id, order_id,
 
 
 --
--- Data for Name: affiliate_group_commissions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliate_group_commissions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliate_group_commissions (id, group_id, group_name, commission_type_gc, commission_value_gc, is_active, created_at, updated_at) FROM stdin;
@@ -3117,7 +3099,7 @@ COPY public.affiliate_group_commissions (id, group_id, group_name, commission_ty
 
 
 --
--- Data for Name: affiliate_plan_commissions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliate_plan_commissions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliate_plan_commissions (id, plan_id, plan_name, plan_type, commission_type_pc, commission_value_pc, is_active, yearly_only, yearly_price, created_at, updated_at) FROM stdin;
@@ -3135,7 +3117,7 @@ b2c270b2-f3f8-4419-9f89-52d9bc6e860e	0ebb3299-4219-4eca-9330-9db9ee0cc061	WordPr
 
 
 --
--- Data for Name: affiliate_referrals; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliate_referrals; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliate_referrals (id, affiliate_id, referred_user_id, status, ip_address, created_at) FROM stdin;
@@ -3143,7 +3125,7 @@ COPY public.affiliate_referrals (id, affiliate_id, referred_user_id, status, ip_
 
 
 --
--- Data for Name: affiliate_withdrawals; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliate_withdrawals; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliate_withdrawals (id, affiliate_id, amount, status, payout_method, paypal_email, account_title, account_number, bank_name, admin_notes, created_at, updated_at) FROM stdin;
@@ -3151,7 +3133,7 @@ COPY public.affiliate_withdrawals (id, affiliate_id, amount, status, payout_meth
 
 
 --
--- Data for Name: affiliates; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: affiliates; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.affiliates (id, user_id, referral_code, status, commission_type, commission_value, total_earnings, pending_earnings, paid_earnings, total_clicks, total_signups, total_conversions, paypal_email, notes, created_at, updated_at) FROM stdin;
@@ -3162,7 +3144,7 @@ df93dd90-06f9-493c-80d5-9e7b7fde5487	7feee05c-461b-447c-9fd1-bdda74ad1646	gabrie
 
 
 --
--- Data for Name: ai_conversations; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: ai_conversations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.ai_conversations (id, user_id, service_id, role, content, metadata_json, created_at) FROM stdin;
@@ -3170,7 +3152,7 @@ COPY public.ai_conversations (id, user_id, service_id, role, content, metadata_j
 
 
 --
--- Data for Name: announcements; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: announcements; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.announcements (id, title, message, type, is_active, priority, created_at, updated_at) FROM stdin;
@@ -3179,7 +3161,7 @@ fcb8b934-d238-476c-99f6-2a480d1311df	🚀 Welcome to Noehost!	Experience 99.9% U
 
 
 --
--- Data for Name: blocked_ips; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: blocked_ips; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.blocked_ips (id, ip_address, reason, failed_attempts, blocked_until, created_at) FROM stdin;
@@ -3187,7 +3169,7 @@ COPY public.blocked_ips (id, ip_address, reason, failed_attempts, blocked_until,
 
 
 --
--- Data for Name: blog_posts; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: blog_posts; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.blog_posts (id, title, slug, content, excerpt, category, cover_image, author_name, published, published_at, meta_title, meta_description, focus_keyword, read_time_mins, created_at, updated_at) FROM stdin;
@@ -3195,7 +3177,7 @@ COPY public.blog_posts (id, title, slug, content, excerpt, category, cover_image
 
 
 --
--- Data for Name: cart_items; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: cart_items; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.cart_items (id, user_id, plan_id, plan_name, billing_cycle, monthly_price, quarterly_price, semiannual_price, yearly_price, renewal_price, renewal_enabled, added_at, updated_at, item_type, domain_name, tld) FROM stdin;
@@ -3203,7 +3185,7 @@ COPY public.cart_items (id, user_id, plan_id, plan_name, billing_cycle, monthly_
 
 
 --
--- Data for Name: cart_recovery_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: cart_recovery_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.cart_recovery_logs (id, user_id, email, plan_name, plan_id, cart_value, discount_code, status, converted_at, created_at) FROM stdin;
@@ -3212,7 +3194,7 @@ COPY public.cart_recovery_logs (id, user_id, email, plan_name, plan_id, cart_val
 
 
 --
--- Data for Name: cart_sessions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: cart_sessions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.cart_sessions (id, user_id, package_id, package_name, domain_name, billing_cycle, completed, reminder_sent, promo_code, abandoned_at, completed_at, reminder_sent_at, created_at) FROM stdin;
@@ -3220,7 +3202,7 @@ COPY public.cart_sessions (id, user_id, package_id, package_name, domain_name, b
 
 
 --
--- Data for Name: credit_transactions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: credit_transactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.credit_transactions (id, user_id, amount, type, description, invoice_id, withdrawal_id, performed_by, created_at) FROM stdin;
@@ -3231,7 +3213,7 @@ c1113466-3216-443d-9607-7df1d6e40b6a	7feee05c-461b-447c-9fd1-bdda74ad1646	1200.0
 
 
 --
--- Data for Name: cron_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: cron_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.cron_logs (id, task, status, message, executed_at) FROM stdin;
@@ -29445,11 +29427,40 @@ d67ad7b9-7193-444e-a978-12404231ce96	billing:invoice_generation	success	Created 
 3c907761-b5f0-46d7-bdf6-396efae45bfd	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-03 09:45:10.233828
 98eb7e9c-218b-429c-9f4f-8368426ae2b7	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-03 09:45:10.266005
 e4ab8c20-bad6-4ee7-92d2-b26bc62e51a2	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-03 09:45:10.574073
+d1ba4c78-3a43-4cd4-af62-d68dc355dc30	backup:daily	skipped	MySQL not reachable — skipping backup (dev/sim mode)	2026-05-03 09:49:51.105786
+5891e57c-b94a-4fed-9b25-5fcdb7cc6cae	domain_lifecycle	success	Processed 355 expired domains — 0 status updates, 0 alert emails sent	2026-05-03 09:49:51.106546
+f632d4cd-0927-4874-8861-4ba5dec61894	wa:suspension_warning	success	Sent 0 suspension warning(s)	2026-05-03 09:49:51.113753
+43d0a2c3-ea4e-4330-9074-c1f6eb5d8207	billing:mark_overdue	success	Marked 0 invoice(s) as overdue	2026-05-03 09:49:51.117635
+097edd8d-1b0f-44b9-b4c5-2af9fdd18e81	billing:invoice_generation	success	Created 0 invoice(s) for 2 due service(s)	2026-05-03 09:49:51.128669
+41d2d4ec-ada7-4caf-8d9f-120897755528	cart_abandonment	skipped	No abandoned carts found	2026-05-03 09:49:51.131492
+67054232-f4b1-4a64-bded-ff6b02ae7d75	billing:auto_suspend	success	Suspended 0 overdue service(s)	2026-05-03 09:49:51.131763
+a99fec34-eb25-4f82-9bab-2dd7a3b6b5c3	emails:hosting_renewal_reminder	success	Sent 0 hosting/VPS renewal reminder(s)	2026-05-03 09:49:51.13234
+74037093-57d1-470d-81d7-8f6603395cd6	emails:invoice_reminders	success	Sent 0 invoice reminder email(s)	2026-05-03 09:49:51.155358
+1b87891a-4b64-4041-8678-e5cd2949fbdc	vps:power_off_overdue	success	Powered off 0 overdue VPS service(s)	2026-05-03 09:49:51.156021
+a97d7016-ad76-4507-b5fc-683684a19c2f	domains:renewal_check	success	Renewed: 0, Reminded: 0 of 8 expiring domain(s)	2026-05-03 09:49:51.288028
+83b0afc8-1b55-4a03-a257-1c0d6bc40bd9	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-03 09:49:51.30027
+0dad3ce3-e1ed-4ba9-b78e-f90524be476a	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-03 09:49:51.323883
+bc8d6797-a38e-43cc-af09-8bcfd7ccd5ea	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-03 09:49:51.595746
+5e10619f-8a45-49e5-a6d5-c82ac57526c8	backup:daily	skipped	MySQL not reachable — skipping backup (dev/sim mode)	2026-05-03 09:50:10.113513
+79a71c7e-06c1-4119-87cc-6cd53558b47d	billing:auto_suspend	success	Suspended 0 overdue service(s)	2026-05-03 09:50:10.115974
+ea8eb7c4-6b9d-40c6-b8b9-d5b781eac393	domain_lifecycle	success	Processed 355 expired domains — 0 status updates, 0 alert emails sent	2026-05-03 09:50:10.116474
+81315367-3487-4d7e-ab72-e0eb689a637d	wa:suspension_warning	success	Sent 0 suspension warning(s)	2026-05-03 09:50:10.122787
+c386a47e-b576-4ddd-bb7a-5659ed4d8f5b	billing:mark_overdue	success	Marked 0 invoice(s) as overdue	2026-05-03 09:50:10.12861
+e02f6fcc-6c8c-4308-863a-6c8528c14965	cart_abandonment	skipped	No abandoned carts found	2026-05-03 09:50:10.130822
+66dedb3e-24ff-49e2-8c82-c91b2a73ece5	emails:hosting_renewal_reminder	success	Sent 0 hosting/VPS renewal reminder(s)	2026-05-03 09:50:10.132922
+eb1b78c8-1b1f-4555-803d-1a711698ac1d	billing:invoice_generation	success	Created 0 invoice(s) for 2 due service(s)	2026-05-03 09:50:10.143479
+ad8a5b8e-a471-421b-b7e6-a9eb38e40b7a	vps:power_off_overdue	success	Powered off 0 overdue VPS service(s)	2026-05-03 09:50:10.156531
+f4b3dc38-0c8f-42c7-a843-9533bd833357	emails:invoice_reminders	success	Sent 0 invoice reminder email(s)	2026-05-03 09:50:10.161406
+a315ef78-b951-4428-993f-0c98a336ceea	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-03 09:50:10.167867
+e4632d4a-4d46-43d9-a2a9-16dbdc611eed	domains:renewal_check	success	Renewed: 0, Reminded: 0 of 8 expiring domain(s)	2026-05-03 09:50:10.170474
+bbb54797-4e32-4189-a16a-a25352e308f4	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-03 09:50:10.205637
+c57c7f9f-96b5-480c-91d2-d8ed1d216f83	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-03 09:50:10.618742
+0a88ceaf-b94e-4d53-a4ba-92c563fb56a8	twentyi:health_check	failed	Request blocked from IP: 34.14.161.57 (outbound IP: 34.14.161.57)	2026-05-03 09:52:52.446723
 \.
 
 
 --
--- Data for Name: currencies; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: currencies; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.currencies (id, code, name, symbol, exchange_rate, is_default, is_active, created_at) FROM stdin;
@@ -29465,7 +29476,7 @@ f2e85bbc-6410-48fb-8505-a4cb84c01d5f	PKR	Pakistani Rupee	Rs.	1.0000	t	t	2026-03-
 
 
 --
--- Data for Name: dns_records; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: dns_records; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.dns_records (id, service_id, domain, type, name, value, ttl, priority, created_at, updated_at) FROM stdin;
@@ -29485,7 +29496,7 @@ e1c41e87-2b82-4c0f-b587-8460af6f66e5	efcebf4a-8df1-4773-880a-02721fc136ca	earnbl
 
 
 --
--- Data for Name: domain_activation_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: domain_activation_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.domain_activation_logs (id, order_id, domain_id, client_id, domain_fqdn, registrar_id, registrar_name, registrar_type, cost_usd, cost_pkr, client_paid_pkr, profit_pkr, usd_to_pkr, api_success, api_error, notes, activated_at) FROM stdin;
@@ -29493,7 +29504,7 @@ COPY public.domain_activation_logs (id, order_id, domain_id, client_id, domain_f
 
 
 --
--- Data for Name: domain_extensions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: domain_extensions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.domain_extensions (id, extension, register_price, register_2_year_price, register_3_year_price, renewal_price, renew_2_year_price, renew_3_year_price, transfer_price, privacy_enabled, is_free_with_hosting, transfer_allowed, sort_order, show_in_suggestions, status, created_at, updated_at) FROM stdin;
@@ -29533,7 +29544,7 @@ bdb1be85-25df-419e-b833-9e8d5de00588	.ae	15000.00	\N	\N	30000.00	\N	\N	30000.00	
 
 
 --
--- Data for Name: domain_pricing; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: domain_pricing; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.domain_pricing (id, tld, registration_price, renewal_price, transfer_price, created_at, updated_at) FROM stdin;
@@ -29572,7 +29583,7 @@ c2a0f40c-0a39-4bf7-877d-2f0cb5530f4c	.website	1000.00	5000.00	5000.00	2026-03-25
 
 
 --
--- Data for Name: domain_registrars; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: domain_registrars; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.domain_registrars (id, name, type, description, config, is_active, is_default, last_tested_at, last_test_result, created_at, updated_at) FROM stdin;
@@ -29580,7 +29591,7 @@ COPY public.domain_registrars (id, name, type, description, config, is_active, i
 
 
 --
--- Data for Name: domain_transfers; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: domain_transfers; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.domain_transfers (id, client_id, domain_name, epp, status, validation_message, admin_notes, price, invoice_id, order_id, created_at, updated_at) FROM stdin;
@@ -29588,7 +29599,7 @@ COPY public.domain_transfers (id, client_id, domain_name, epp, status, validatio
 
 
 --
--- Data for Name: domains; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: domains; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.domains (id, client_id, name, tld, registrar, registration_date, expiry_date, next_due_date, status, lock_status, auto_renew, nameservers, module_server_id, transfer_id, is_free_domain, epp_code, last_lock_change, lock_override_by_admin, created_at, updated_at) FROM stdin;
@@ -30721,7 +30732,7 @@ d2526c77-9b95-4013-9477-d7ab048300e0	56782f33-d987-448c-aece-a97c4a63a334	unityw
 
 
 --
--- Data for Name: drive_backup_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: drive_backup_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.drive_backup_logs (id, status, triggered_by, db_file_id, db_file_name, files_file_id, files_file_name, db_size_kb, files_size_kb, drive_used_mb, drive_total_mb, drive_db_folder_id, drive_files_folder_id, error_message, started_at, completed_at) FROM stdin;
@@ -30729,7 +30740,7 @@ COPY public.drive_backup_logs (id, status, triggered_by, db_file_id, db_file_nam
 
 
 --
--- Data for Name: email_account_settings; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: email_account_settings; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.email_account_settings (id, hosting_service_id, email, spam_filter, auto_forward, forward_to, created_at, updated_at) FROM stdin;
@@ -30737,7 +30748,7 @@ COPY public.email_account_settings (id, hosting_service_id, email, spam_filter, 
 
 
 --
--- Data for Name: email_campaigns; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: email_campaigns; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.email_campaigns (id, name, subject, html_body, recipient_type, recipient_ids, sent_count, failed_count, status, created_by, sent_at, created_at) FROM stdin;
@@ -30745,7 +30756,7 @@ COPY public.email_campaigns (id, name, subject, html_body, recipient_type, recip
 
 
 --
--- Data for Name: email_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: email_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.email_logs (id, client_id, email, email_type, subject, reference_id, status, error_message, sent_at) FROM stdin;
@@ -31157,7 +31168,7 @@ b433e6a6-76c0-4782-b6c2-9c00f8a9a26c	d1e835fc-b176-4598-9b4b-e45df5a1d4ca	saraha
 
 
 --
--- Data for Name: email_templates; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: email_templates; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.email_templates (id, name, slug, subject, body, variables, is_active, created_at, updated_at) FROM stdin;
@@ -31185,7 +31196,7 @@ cc4c002c-c9f3-4505-90a8-2bdc371f6542	Cancellation Confirmation	service-cancelled
 
 
 --
--- Data for Name: email_unsubscribes; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: email_unsubscribes; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.email_unsubscribes (id, email, user_id, token, created_at) FROM stdin;
@@ -31194,7 +31205,7 @@ COPY public.email_unsubscribes (id, email, user_id, token, created_at) FROM stdi
 
 
 --
--- Data for Name: feature_flags; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: feature_flags; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.feature_flags (id, feature_key, user_id, enabled, updated_by, updated_at, created_at) FROM stdin;
@@ -31202,7 +31213,7 @@ COPY public.feature_flags (id, feature_key, user_id, enabled, updated_by, update
 
 
 --
--- Data for Name: flash_sales; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: flash_sales; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.flash_sales (id, title, slug, headline, subheadline, badge_text, cta_text, cta_url, original_price, sale_price, currency, ends_at, bg_color, accent_color, is_active, created_at, updated_at) FROM stdin;
@@ -31210,7 +31221,7 @@ COPY public.flash_sales (id, title, slug, headline, subheadline, badge_text, cta
 
 
 --
--- Data for Name: fraud_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: fraud_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.fraud_logs (id, order_id, client_id, ip_address, email, risk_score, reasons, status, created_at, reviewed_at) FROM stdin;
@@ -31218,7 +31229,7 @@ COPY public.fraud_logs (id, order_id, client_id, ip_address, email, risk_score, 
 
 
 --
--- Data for Name: google_drive_tokens; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: google_drive_tokens; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.google_drive_tokens (id, email, access_token, refresh_token, expires_at, root_folder_id, db_folder_id, files_folder_id, created_at, updated_at) FROM stdin;
@@ -31226,7 +31237,7 @@ COPY public.google_drive_tokens (id, email, access_token, refresh_token, expires
 
 
 --
--- Data for Name: guest_cart_items; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: guest_cart_items; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.guest_cart_items (id, guest_session_token, plan_id, plan_name, item_type, billing_cycle, monthly_price, quarterly_price, semiannual_price, yearly_price, renewal_price, renewal_enabled, domain_name, tld, added_at, updated_at) FROM stdin;
@@ -31235,7 +31246,7 @@ COPY public.guest_cart_items (id, guest_session_token, plan_id, plan_name, item_
 
 
 --
--- Data for Name: hosting_backups; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: hosting_backups; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.hosting_backups (id, service_id, client_id, domain, file_path, sql_path, size_mb, status, error_message, type, created_at, completed_at) FROM stdin;
@@ -31244,7 +31255,7 @@ e776c47f-f344-4295-a712-705516d69b72	29bbe0c8-52e2-4292-bd42-9063cdb77c63	bd2cfb
 
 
 --
--- Data for Name: hosting_cache_settings; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: hosting_cache_settings; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.hosting_cache_settings (service_id, edge_cache, object_cache, updated_at) FROM stdin;
@@ -31252,7 +31263,7 @@ COPY public.hosting_cache_settings (service_id, edge_cache, object_cache, update
 
 
 --
--- Data for Name: hosting_plans; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: hosting_plans; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.hosting_plans (id, name, description, price, yearly_price, quarterly_price, semiannual_price, billing_cycle, group_id, module, module_server_id, module_server_group_id, module_plan_id, module_plan_name, disk_space, bandwidth, email_accounts, databases, subdomains, ftp_accounts, is_active, features, renewal_enabled, renewal_price, free_domain_enabled, free_domain_tlds, save_amount, created_at) FROM stdin;
@@ -31271,7 +31282,7 @@ da93ab5b-4618-4d39-ab1b-0be042a9f4aa	Geek	Great for small to medium businesses	4
 
 
 --
--- Data for Name: hosting_services; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: hosting_services; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.hosting_services (id, client_id, order_id, plan_id, plan_name, domain, username, password, server_id, server_ip, status, billing_cycle, next_due_date, ssl_status, start_date, expiry_date, disk_used, bandwidth_used, cpanel_url, webmail_url, cancel_requested, cancel_reason, cancel_requested_at, auto_renew, free_domain_available, wp_installed, wp_url, wp_username, wp_password, wp_email, wp_site_title, wp_db_name, wp_container_id, wp_port, wp_provision_status, wp_provision_step, wp_provision_error, wp_provisioned_at, wp_install_path, wp_password_revealed, service_type, vps_plan_id, vps_os_template, vps_location, vps_hostname, vps_root_user, vps_root_password, vps_image_id, vps_auto_renew, vps_weekly_backups, vps_provision_status, vps_provisioned_at, vps_provision_notes, whmcs_id, twenty_i_package_id, amount, created_at, updated_at, free_domain_id) FROM stdin;
@@ -32195,7 +32206,7 @@ d576b10b-2e6c-4d15-a5fe-9bc33c3a7aa7	3f33aff2-c959-4566-82f4-012d3fb6c5d0	b35d61
 
 
 --
--- Data for Name: invoices; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: invoices; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.invoices (id, invoice_number, client_id, order_id, service_id, invoice_type, amount, tax, total, status, due_date, paid_date, items, payment_ref, payment_gateway_id, payment_notes, currency_code, currency_symbol, currency_rate, created_at, updated_at, base_currency_amount) FROM stdin;
@@ -34069,7 +34080,7 @@ e03f9c67-031f-4afb-8c13-b495d68f9e05	INV-20260503-5NU513	8b6b18bb-f8be-4801-95c7
 
 
 --
--- Data for Name: ip_unblock_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: ip_unblock_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.ip_unblock_logs (id, user_id, ip_address, label, status, created_at) FROM stdin;
@@ -34079,7 +34090,7 @@ ulg-1777780837146-15so83	3f33aff2-c959-4566-82f4-012d3fb6c5d0	103.251.255.220	Se
 
 
 --
--- Data for Name: ip_whitelist; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: ip_whitelist; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.ip_whitelist (id, ip_address, label, added_by, created_at) FROM stdin;
@@ -34088,7 +34099,7 @@ COPY public.ip_whitelist (id, ip_address, label, added_by, created_at) FROM stdi
 
 
 --
--- Data for Name: kb_articles; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: kb_articles; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.kb_articles (id, category_id, title, title_ur, title_ar, slug, content, excerpt, excerpt_ur, excerpt_ar, seo_title, seo_description, is_featured, is_published, views, helpful_yes, helpful_no, created_at, updated_at) FROM stdin;
@@ -34134,7 +34145,7 @@ cb5f69f7-d6c2-4f56-8892-208b55de969c	4c6ccab9-1547-4e1e-930a-c98700adfd71	How to
 
 
 --
--- Data for Name: kb_categories; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: kb_categories; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.kb_categories (id, name, name_ur, name_ar, slug, description, description_ur, description_ar, icon, sort_order, is_published, created_at, updated_at) FROM stdin;
@@ -34151,7 +34162,7 @@ bdc39ee7-b4e0-4d60-83ca-2361530f8119	VPS Hosting	VPS ہوسٹنگ	استضافة
 
 
 --
--- Data for Name: kb_deflections; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: kb_deflections; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.kb_deflections (id, client_id, article_id, article_title, article_slug, ticket_subject, created_at) FROM stdin;
@@ -34159,7 +34170,7 @@ COPY public.kb_deflections (id, client_id, article_id, article_title, article_sl
 
 
 --
--- Data for Name: keyword_positions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: keyword_positions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.keyword_positions (id, keyword_id, "position", url, checked_at) FROM stdin;
@@ -34167,7 +34178,7 @@ COPY public.keyword_positions (id, keyword_id, "position", url, checked_at) FROM
 
 
 --
--- Data for Name: keyword_tracking; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: keyword_tracking; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.keyword_tracking (id, user_id, keyword, domain, created_at) FROM stdin;
@@ -34175,7 +34186,7 @@ COPY public.keyword_tracking (id, user_id, keyword, domain, created_at) FROM std
 
 
 --
--- Data for Name: migration_whitelist; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: migration_whitelist; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.migration_whitelist (id, ip_address, label, added_by, created_at) FROM stdin;
@@ -34183,7 +34194,7 @@ COPY public.migration_whitelist (id, ip_address, label, added_by, created_at) FR
 
 
 --
--- Data for Name: migrations_requests; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: migrations_requests; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.migrations_requests (id, client_id, domain, old_hosting_provider, old_cpanel_host, old_cpanel_username, old_cpanel_password, source_type, whm_account, twentyi_job_id, twentyi_site_id, status, progress, notes, requested_at, completed_at) FROM stdin;
@@ -34193,7 +34204,7 @@ COPY public.migrations_requests (id, client_id, domain, old_hosting_provider, ol
 
 
 --
--- Data for Name: notifications; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: notifications; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.notifications (id, user_id, type, title, message, link, is_read, created_at) FROM stdin;
@@ -34288,7 +34299,7 @@ dddc47c0-bfff-467c-8b78-ce820ca8d47f	8b6b18bb-f8be-4801-95c7-565557c40820	order	
 
 
 --
--- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: orders; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.orders (id, client_id, type, item_id, item_name, domain, amount, billing_cycle, due_date, module_type, module_plan_id, module_plan_name, module_server_id, payment_status, invoice_id, status, notes, whmcs_id, created_at, updated_at) FROM stdin;
@@ -34317,7 +34328,7 @@ b18915aa-a8d0-4765-869b-89022ddacc3d	8b6b18bb-f8be-4801-95c7-565557c40820	hostin
 
 
 --
--- Data for Name: password_resets; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: password_resets; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.password_resets (token, user_id, expires_at, used_at, created_at) FROM stdin;
@@ -34326,7 +34337,7 @@ COPY public.password_resets (token, user_id, expires_at, used_at, created_at) FR
 
 
 --
--- Data for Name: payment_methods; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: payment_methods; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.payment_methods (id, name, type, description, is_active, is_sandbox, settings, created_at, updated_at) FROM stdin;
@@ -34338,7 +34349,7 @@ COPY public.payment_methods (id, name, type, description, is_active, is_sandbox,
 
 
 --
--- Data for Name: product_groups; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: product_groups; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.product_groups (id, name, slug, description, is_active, sort_order, created_at, updated_at) FROM stdin;
@@ -34350,7 +34361,7 @@ e1deef82-2be7-463f-a33e-9d92134ed229	Shared Hosting	shared-hosting		t	1	2026-03-
 
 
 --
--- Data for Name: promo_codes; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: promo_codes; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.promo_codes (id, code, description, discount_type, discount_percent, fixed_amount, is_active, usage_limit, used_count, expires_at, applicable_to, applicable_group_id, applicable_domain_tld, applicable_plan_id, billing_cycle_lock, created_at) FROM stdin;
@@ -34359,7 +34370,7 @@ c0789b31-3e9b-404a-bf54-69291a46f1c7	SAVE20	\N	percentage	20	700.00	t	100	1	2026
 
 
 --
--- Data for Name: resource_usage_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: resource_usage_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.resource_usage_logs (id, service_id, disk_io_read, disk_io_write, entry_processes, inodes_used, inodes_limit, cpu_pct, recorded_at) FROM stdin;
@@ -34368,7 +34379,7 @@ COPY public.resource_usage_logs (id, service_id, disk_io_read, disk_io_write, en
 
 
 --
--- Data for Name: security_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: security_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.security_logs (id, event, ip_address, user_agent, email, path, details, country, blocked, created_at) FROM stdin;
@@ -34546,7 +34557,7 @@ f3c05ec1-2478-4c0b-a180-04254d710d45	bot_blocked	::1	curl/8.14.1	\N	/api/pages/t
 
 
 --
--- Data for Name: security_scan_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: security_scan_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.security_scan_logs (id, service_id, scan_type, result, dirs_fixed, files_fixed, source, scanned_at) FROM stdin;
@@ -34554,7 +34565,7 @@ COPY public.security_scan_logs (id, service_id, scan_type, result, dirs_fixed, f
 
 
 --
--- Data for Name: seo_scans; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: seo_scans; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.seo_scans (id, user_id, domain, title, meta_description, og_title, og_description, og_image, twitter_card, twitter_image, sitemap_ok, robots_ok, canonical, h1_count, https_ok, viewport_ok, score, fetch_ok, scanned_at) FROM stdin;
@@ -34564,7 +34575,7 @@ COPY public.seo_scans (id, user_id, domain, title, meta_description, og_title, o
 
 
 --
--- Data for Name: server_groups; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: server_groups; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.server_groups (id, name, description, created_at, updated_at) FROM stdin;
@@ -34576,7 +34587,7 @@ d788fab5-a3ad-4391-8a29-c3fef1f58752	20i	\N	2026-04-01 18:31:50.908199	2026-04-0
 
 
 --
--- Data for Name: server_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: server_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.server_logs (id, service_id, server_id, action, status, request, response, error_message, created_at) FROM stdin;
@@ -34630,7 +34641,7 @@ c9a835a0-719b-4b49-aa28-b946ce24f972	9679169b-ef52-44cc-88fe-53284c87460d	938dda
 
 
 --
--- Data for Name: server_nodes; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: server_nodes; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.server_nodes (id, name, type, host, port, check_type, is_active, sort_order, created_at, updated_at) FROM stdin;
@@ -34639,7 +34650,7 @@ COPY public.server_nodes (id, name, type, host, port, check_type, is_active, sor
 
 
 --
--- Data for Name: servers; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: servers; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.servers (id, name, hostname, ip_address, type, api_username, api_token, key_type, api_port, proxy_url, twentyi_base_url, ns1, ns2, max_accounts, status, group_id, is_default, created_at, updated_at, api_connected, server_ip, last_connected, connection_status_detail) FROM stdin;
@@ -34668,12 +34679,12 @@ c74082b8-2336-47fc-b187-2095ba35f68a	sunrise	sunrise.hostns.io	109.70.148.43	cpa
 5b637dd9-a1b5-4658-a8f9-04b3a87db92e	WHM	server.shodns.in	103.98.62.201	cpanel	root	\N	general	2087	\N	\N	\N	\N	500	active	3b6e6a3e-0dfd-44d2-b855-06461544b1ac	f	2026-03-25 07:24:13.058529	2026-03-25 13:18:23.967594	f	\N	\N	\N
 e4c9bce7-6242-4fc2-ab35-f306598d8d06	Noehost SPG	spg1.cloudpowerdns.com	176.9.63.151	cpanel	noehostspg	4BAOEDC538V95G06E9JA9M5Z230VX04X	general	2087	\N	\N	dns1.cloudpowerdns.com	dns2.cloudpowerdns.com	300	active	5c0260a7-1e23-4696-9bc4-6044f27f5d50	t	2026-03-29 04:45:54.408255	2026-03-29 04:59:56.492	f	\N	\N	\N
 8c9c44af-cac1-484c-b62f-68503121198c	NoePanel 20i	api.20i.com		20i	\N	c3a79b850ed5272df+c8c17b65358b03df0	combined	\N	\N	\N	ns1.stackdns.com	ns2.stackdns.com	500	inactive	d788fab5-a3ad-4391-8a29-c3fef1f58752	f	2026-03-14 04:44:24.851776	2026-04-04 15:40:06.501	f	\N	\N	\N
-938dda20-7c7c-4fe8-be9b-93ead9a9bdcc	Noehost 20i	api.20i.com		20i	\N	enc:v1:0a367f3a3667e96960647e81:a90cef1767a54b0a5029c01fc2b6feee:e36a85c505f0326249b4e0b6dece49c299	combined	\N	\N	\N	ns1.stackdns.com	ns2.stackdns.com	500	active	d788fab5-a3ad-4391-8a29-c3fef1f58752	f	2026-04-01 18:33:21.766799	2026-05-03 09:37:51.992	f	34.14.161.57	2026-04-09 05:17:13.098	Request blocked from IP: 34.14.161.57
+938dda20-7c7c-4fe8-be9b-93ead9a9bdcc	Noehost 20i	api.20i.com		20i	\N	enc:v1:0a367f3a3667e96960647e81:a90cef1767a54b0a5029c01fc2b6feee:e36a85c505f0326249b4e0b6dece49c299	combined	\N	\N	\N	ns1.stackdns.com	ns2.stackdns.com	500	active	d788fab5-a3ad-4391-8a29-c3fef1f58752	f	2026-04-01 18:33:21.766799	2026-05-03 09:52:52.413	f	34.14.161.57	2026-04-09 05:17:13.098	Request blocked from IP: 34.14.161.57
 \.
 
 
 --
--- Data for Name: settings; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: settings; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.settings (key, value, updated_at) FROM stdin;
@@ -34706,7 +34717,7 @@ site_content_v1	{"config":{"topbar":{"show":true,"email":"support@noehost.com","
 
 
 --
--- Data for Name: site_health_snapshots; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: site_health_snapshots; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.site_health_snapshots (id, service_id, user_id, uptime_pct, ssl_status, speed_score, cpu_pct, ram_pct, disk_pct, bw_pct, recorded_at) FROM stdin;
@@ -34714,7 +34725,7 @@ COPY public.site_health_snapshots (id, service_id, user_id, uptime_pct, ssl_stat
 
 
 --
--- Data for Name: site_pages; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: site_pages; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.site_pages (page_id, section_name, content_json, is_visible, last_updated) FROM stdin;
@@ -34743,7 +34754,7 @@ privacy	content	{"body":"At Noehost, we are committed to protecting your persona
 
 
 --
--- Data for Name: staging_sites; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: staging_sites; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.staging_sites (id, service_id, staging_subdomain, staging_url, status, provider, remote_id, created_at, updated_at) FROM stdin;
@@ -34751,7 +34762,7 @@ COPY public.staging_sites (id, service_id, staging_subdomain, staging_url, statu
 
 
 --
--- Data for Name: staging_sync_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: staging_sync_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.staging_sync_logs (id, service_id, action, status, steps_json, note, logged_at) FROM stdin;
@@ -34759,7 +34770,7 @@ COPY public.staging_sync_logs (id, service_id, action, status, steps_json, note,
 
 
 --
--- Data for Name: team_access_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: team_access_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.team_access_logs (id, owner_user_id, actor_email, actor_role, ip_address, action, user_agent, created_at) FROM stdin;
@@ -34767,7 +34778,7 @@ COPY public.team_access_logs (id, owner_user_id, actor_email, actor_role, ip_add
 
 
 --
--- Data for Name: team_magic_links; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: team_magic_links; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.team_magic_links (id, owner_user_id, token, label, expires_at, used_at, used_ip, created_at) FROM stdin;
@@ -34775,7 +34786,7 @@ COPY public.team_magic_links (id, owner_user_id, token, label, expires_at, used_
 
 
 --
--- Data for Name: team_members; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: team_members; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.team_members (id, owner_user_id, email, name, role, status, created_at, updated_at) FROM stdin;
@@ -34783,7 +34794,7 @@ COPY public.team_members (id, owner_user_id, email, name, role, status, created_
 
 
 --
--- Data for Name: ticket_drafts; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: ticket_drafts; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.ticket_drafts (id, user_id, subject, message, department, priority, updated_at) FROM stdin;
@@ -34791,7 +34802,7 @@ COPY public.ticket_drafts (id, user_id, subject, message, department, priority, 
 
 
 --
--- Data for Name: ticket_messages; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: ticket_messages; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.ticket_messages (id, ticket_id, sender_id, sender_name, sender_role, message, attachments, created_at) FROM stdin;
@@ -37128,7 +37139,7 @@ d236b299-d040-4b53-9671-8ccc4124a6ed	384ae428-f077-418b-8f71-368cebe7df52	5957e1
 
 
 --
--- Data for Name: tickets; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: tickets; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.tickets (id, ticket_number, client_id, subject, status, priority, department, messages_count, last_reply, created_at, updated_at) FROM stdin;
@@ -37602,7 +37613,7 @@ cde8f1e6-4c20-457e-ac9e-5b5c6dbdcc09	TKT-1774505944724	3f33aff2-c959-4566-82f4-0
 
 
 --
--- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.transactions (id, client_id, invoice_id, amount, method, status, transaction_ref, created_at) FROM stdin;
@@ -37617,7 +37628,7 @@ b25182d0-9557-438d-9189-4be88b1b39bd	7feee05c-461b-447c-9fd1-bdda74ad1646	073bcd
 
 
 --
--- Data for Name: uploaded_modules; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: uploaded_modules; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.uploaded_modules (id, name, slug, type, version, description, config_fields, config, hooks, folder_path, status, is_active, uploaded_at, updated_at) FROM stdin;
@@ -37626,7 +37637,7 @@ COPY public.uploaded_modules (id, name, slug, type, version, description, config
 
 
 --
--- Data for Name: user_preferences; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: user_preferences; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.user_preferences (user_id, theme, created_at, updated_at) FROM stdin;
@@ -37635,7 +37646,7 @@ COPY public.user_preferences (user_id, theme, created_at, updated_at) FROM stdin
 
 
 --
--- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.users (id, first_name, last_name, email, password_hash, company, phone, role, status, admin_permission, email_verified, verification_code, verification_expires_at, two_factor_secret, two_factor_enabled, google_id, credit_balance, country, billing_currency, stack_user_id, can_migrate, created_at, updated_at, username) FROM stdin;
@@ -38611,7 +38622,7 @@ d1e835fc-b176-4598-9b4b-e45df5a1d4ca	sarah	andrew	sarahandrew6499@gmail.com	$2b$
 
 
 --
--- Data for Name: vps_locations; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: vps_locations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.vps_locations (id, country_name, country_code, flag_icon, city, datacenter, network_speed, latency_ms, is_active, created_at) FROM stdin;
@@ -38636,7 +38647,7 @@ afb0f4b5-ddc0-4293-98b4-2456c08f94a6	Brazil	BR	🇧🇷	São Paulo	Equinix SP2	1
 
 
 --
--- Data for Name: vps_os_templates; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: vps_os_templates; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.vps_os_templates (id, name, version, icon_url, image_id, is_active, created_at) FROM stdin;
@@ -38666,7 +38677,7 @@ fd7f7041-8cf7-4a0b-8554-da97b5dfbeb7	Fedora	39	https://cdn.simpleicons.org/fedor
 
 
 --
--- Data for Name: vps_plans; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: vps_plans; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.vps_plans (id, name, description, price, quarterly_price, semiannual_price, yearly_price, biennial_price, cpu_cores, ram_gb, storage_gb, bandwidth_tb, virtualization, features, os_template_ids, location_ids, save_amount, is_active, sort_order, created_at) FROM stdin;
@@ -38680,7 +38691,7 @@ COPY public.vps_plans (id, name, description, price, quarterly_price, semiannual
 
 
 --
--- Data for Name: whatsapp_client_notifications; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: whatsapp_client_notifications; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.whatsapp_client_notifications (id, user_id, phone, event_type, message, status, error, sent_at) FROM stdin;
@@ -38688,7 +38699,7 @@ COPY public.whatsapp_client_notifications (id, user_id, phone, event_type, messa
 
 
 --
--- Data for Name: whatsapp_logs; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: whatsapp_logs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.whatsapp_logs (id, event_type, message, status, error_message, sent_at) FROM stdin;
@@ -38766,98 +38777,98 @@ c87a5a3a-a2c8-4689-a097-2e7078e8832a	other	🚨 *20i API Health Alert — NoePan
 
 
 --
--- Name: activity_stream_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: activity_stream_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.activity_stream_id_seq', 2, true);
 
 
 --
--- Name: ai_conversations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: ai_conversations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.ai_conversations_id_seq', 1, false);
 
 
 --
--- Name: blog_posts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: blog_posts_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.blog_posts_id_seq', 1, false);
 
 
 --
--- Name: feature_flags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: feature_flags_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.feature_flags_id_seq', 1, false);
 
 
 --
--- Name: keyword_positions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: keyword_positions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.keyword_positions_id_seq', 1, false);
 
 
 --
--- Name: keyword_tracking_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: keyword_tracking_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.keyword_tracking_id_seq', 1, false);
 
 
 --
--- Name: resource_usage_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: resource_usage_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.resource_usage_logs_id_seq', 1, true);
 
 
 --
--- Name: security_scan_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: security_scan_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.security_scan_logs_id_seq', 1, false);
 
 
 --
--- Name: seo_scans_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: seo_scans_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.seo_scans_id_seq', 3, true);
 
 
 --
--- Name: site_health_snapshots_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: site_health_snapshots_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.site_health_snapshots_id_seq', 1, false);
 
 
 --
--- Name: staging_sites_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: staging_sites_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.staging_sites_id_seq', 1, false);
 
 
 --
--- Name: staging_sync_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: staging_sync_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.staging_sync_logs_id_seq', 1, false);
 
 
 --
--- Name: whatsapp_client_notifications_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: whatsapp_client_notifications_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
 SELECT pg_catalog.setval('public.whatsapp_client_notifications_id_seq', 1, false);
 
 
 --
--- Name: activity_logs activity_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: activity_logs activity_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.activity_logs
@@ -38865,7 +38876,7 @@ ALTER TABLE ONLY public.activity_logs
 
 
 --
--- Name: activity_stream activity_stream_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: activity_stream activity_stream_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.activity_stream
@@ -38873,7 +38884,7 @@ ALTER TABLE ONLY public.activity_stream
 
 
 --
--- Name: admin_config admin_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: admin_config admin_config_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.admin_config
@@ -38881,7 +38892,7 @@ ALTER TABLE ONLY public.admin_config
 
 
 --
--- Name: admin_logs admin_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: admin_logs admin_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.admin_logs
@@ -38889,7 +38900,7 @@ ALTER TABLE ONLY public.admin_logs
 
 
 --
--- Name: affiliate_clicks affiliate_clicks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_clicks affiliate_clicks_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_clicks
@@ -38897,7 +38908,7 @@ ALTER TABLE ONLY public.affiliate_clicks
 
 
 --
--- Name: affiliate_commissions affiliate_commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_commissions affiliate_commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_commissions
@@ -38905,7 +38916,7 @@ ALTER TABLE ONLY public.affiliate_commissions
 
 
 --
--- Name: affiliate_group_commissions affiliate_group_commissions_group_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_group_commissions affiliate_group_commissions_group_id_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_group_commissions
@@ -38913,7 +38924,7 @@ ALTER TABLE ONLY public.affiliate_group_commissions
 
 
 --
--- Name: affiliate_group_commissions affiliate_group_commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_group_commissions affiliate_group_commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_group_commissions
@@ -38921,7 +38932,7 @@ ALTER TABLE ONLY public.affiliate_group_commissions
 
 
 --
--- Name: affiliate_plan_commissions affiliate_plan_commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_plan_commissions affiliate_plan_commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_plan_commissions
@@ -38929,7 +38940,7 @@ ALTER TABLE ONLY public.affiliate_plan_commissions
 
 
 --
--- Name: affiliate_referrals affiliate_referrals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_referrals affiliate_referrals_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_referrals
@@ -38937,7 +38948,7 @@ ALTER TABLE ONLY public.affiliate_referrals
 
 
 --
--- Name: affiliate_withdrawals affiliate_withdrawals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliate_withdrawals affiliate_withdrawals_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliate_withdrawals
@@ -38945,7 +38956,7 @@ ALTER TABLE ONLY public.affiliate_withdrawals
 
 
 --
--- Name: affiliates affiliates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliates affiliates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliates
@@ -38953,7 +38964,7 @@ ALTER TABLE ONLY public.affiliates
 
 
 --
--- Name: affiliates affiliates_referral_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliates affiliates_referral_code_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliates
@@ -38961,7 +38972,7 @@ ALTER TABLE ONLY public.affiliates
 
 
 --
--- Name: affiliates affiliates_user_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: affiliates affiliates_user_id_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.affiliates
@@ -38969,7 +38980,7 @@ ALTER TABLE ONLY public.affiliates
 
 
 --
--- Name: ai_conversations ai_conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ai_conversations ai_conversations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ai_conversations
@@ -38977,7 +38988,7 @@ ALTER TABLE ONLY public.ai_conversations
 
 
 --
--- Name: announcements announcements_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: announcements announcements_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.announcements
@@ -38985,7 +38996,7 @@ ALTER TABLE ONLY public.announcements
 
 
 --
--- Name: blocked_ips blocked_ips_ip_address_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: blocked_ips blocked_ips_ip_address_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.blocked_ips
@@ -38993,7 +39004,7 @@ ALTER TABLE ONLY public.blocked_ips
 
 
 --
--- Name: blocked_ips blocked_ips_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: blocked_ips blocked_ips_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.blocked_ips
@@ -39001,7 +39012,7 @@ ALTER TABLE ONLY public.blocked_ips
 
 
 --
--- Name: blog_posts blog_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: blog_posts blog_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.blog_posts
@@ -39009,7 +39020,7 @@ ALTER TABLE ONLY public.blog_posts
 
 
 --
--- Name: blog_posts blog_posts_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: blog_posts blog_posts_slug_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.blog_posts
@@ -39017,7 +39028,7 @@ ALTER TABLE ONLY public.blog_posts
 
 
 --
--- Name: cart_items cart_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: cart_items cart_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.cart_items
@@ -39025,7 +39036,7 @@ ALTER TABLE ONLY public.cart_items
 
 
 --
--- Name: cart_recovery_logs cart_recovery_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: cart_recovery_logs cart_recovery_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.cart_recovery_logs
@@ -39033,7 +39044,7 @@ ALTER TABLE ONLY public.cart_recovery_logs
 
 
 --
--- Name: cart_sessions cart_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: cart_sessions cart_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.cart_sessions
@@ -39041,7 +39052,7 @@ ALTER TABLE ONLY public.cart_sessions
 
 
 --
--- Name: credit_transactions credit_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: credit_transactions credit_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.credit_transactions
@@ -39049,7 +39060,7 @@ ALTER TABLE ONLY public.credit_transactions
 
 
 --
--- Name: cron_logs cron_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: cron_logs cron_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.cron_logs
@@ -39057,7 +39068,7 @@ ALTER TABLE ONLY public.cron_logs
 
 
 --
--- Name: currencies currencies_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: currencies currencies_code_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.currencies
@@ -39065,7 +39076,7 @@ ALTER TABLE ONLY public.currencies
 
 
 --
--- Name: currencies currencies_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: currencies currencies_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.currencies
@@ -39073,7 +39084,7 @@ ALTER TABLE ONLY public.currencies
 
 
 --
--- Name: dns_records dns_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: dns_records dns_records_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.dns_records
@@ -39081,7 +39092,7 @@ ALTER TABLE ONLY public.dns_records
 
 
 --
--- Name: domain_activation_logs domain_activation_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_activation_logs domain_activation_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_activation_logs
@@ -39089,7 +39100,7 @@ ALTER TABLE ONLY public.domain_activation_logs
 
 
 --
--- Name: domain_extensions domain_extensions_extension_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_extensions domain_extensions_extension_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_extensions
@@ -39097,7 +39108,7 @@ ALTER TABLE ONLY public.domain_extensions
 
 
 --
--- Name: domain_extensions domain_extensions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_extensions domain_extensions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_extensions
@@ -39105,7 +39116,7 @@ ALTER TABLE ONLY public.domain_extensions
 
 
 --
--- Name: domain_pricing domain_pricing_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_pricing domain_pricing_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_pricing
@@ -39113,7 +39124,7 @@ ALTER TABLE ONLY public.domain_pricing
 
 
 --
--- Name: domain_pricing domain_pricing_tld_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_pricing domain_pricing_tld_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_pricing
@@ -39121,7 +39132,7 @@ ALTER TABLE ONLY public.domain_pricing
 
 
 --
--- Name: domain_registrars domain_registrars_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_registrars domain_registrars_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_registrars
@@ -39129,7 +39140,7 @@ ALTER TABLE ONLY public.domain_registrars
 
 
 --
--- Name: domain_transfers domain_transfers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domain_transfers domain_transfers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domain_transfers
@@ -39137,7 +39148,7 @@ ALTER TABLE ONLY public.domain_transfers
 
 
 --
--- Name: domains domains_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: domains domains_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.domains
@@ -39145,7 +39156,7 @@ ALTER TABLE ONLY public.domains
 
 
 --
--- Name: drive_backup_logs drive_backup_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: drive_backup_logs drive_backup_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.drive_backup_logs
@@ -39153,7 +39164,7 @@ ALTER TABLE ONLY public.drive_backup_logs
 
 
 --
--- Name: email_account_settings email_account_settings_hosting_service_id_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_account_settings email_account_settings_hosting_service_id_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_account_settings
@@ -39161,7 +39172,7 @@ ALTER TABLE ONLY public.email_account_settings
 
 
 --
--- Name: email_account_settings email_account_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_account_settings email_account_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_account_settings
@@ -39169,7 +39180,7 @@ ALTER TABLE ONLY public.email_account_settings
 
 
 --
--- Name: email_campaigns email_campaigns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_campaigns email_campaigns_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_campaigns
@@ -39177,7 +39188,7 @@ ALTER TABLE ONLY public.email_campaigns
 
 
 --
--- Name: email_logs email_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_logs email_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_logs
@@ -39185,7 +39196,7 @@ ALTER TABLE ONLY public.email_logs
 
 
 --
--- Name: email_templates email_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_templates email_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_templates
@@ -39193,7 +39204,7 @@ ALTER TABLE ONLY public.email_templates
 
 
 --
--- Name: email_templates email_templates_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_templates email_templates_slug_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_templates
@@ -39201,7 +39212,7 @@ ALTER TABLE ONLY public.email_templates
 
 
 --
--- Name: email_unsubscribes email_unsubscribes_email_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_unsubscribes email_unsubscribes_email_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_unsubscribes
@@ -39209,7 +39220,7 @@ ALTER TABLE ONLY public.email_unsubscribes
 
 
 --
--- Name: email_unsubscribes email_unsubscribes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_unsubscribes email_unsubscribes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_unsubscribes
@@ -39217,7 +39228,7 @@ ALTER TABLE ONLY public.email_unsubscribes
 
 
 --
--- Name: email_unsubscribes email_unsubscribes_token_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: email_unsubscribes email_unsubscribes_token_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.email_unsubscribes
@@ -39225,7 +39236,7 @@ ALTER TABLE ONLY public.email_unsubscribes
 
 
 --
--- Name: feature_flags feature_flags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: feature_flags feature_flags_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.feature_flags
@@ -39233,7 +39244,7 @@ ALTER TABLE ONLY public.feature_flags
 
 
 --
--- Name: flash_sales flash_sales_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: flash_sales flash_sales_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.flash_sales
@@ -39241,7 +39252,7 @@ ALTER TABLE ONLY public.flash_sales
 
 
 --
--- Name: flash_sales flash_sales_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: flash_sales flash_sales_slug_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.flash_sales
@@ -39249,7 +39260,7 @@ ALTER TABLE ONLY public.flash_sales
 
 
 --
--- Name: fraud_logs fraud_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: fraud_logs fraud_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.fraud_logs
@@ -39257,7 +39268,7 @@ ALTER TABLE ONLY public.fraud_logs
 
 
 --
--- Name: google_drive_tokens google_drive_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: google_drive_tokens google_drive_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.google_drive_tokens
@@ -39265,7 +39276,7 @@ ALTER TABLE ONLY public.google_drive_tokens
 
 
 --
--- Name: guest_cart_items guest_cart_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: guest_cart_items guest_cart_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.guest_cart_items
@@ -39273,7 +39284,7 @@ ALTER TABLE ONLY public.guest_cart_items
 
 
 --
--- Name: hosting_backups hosting_backups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: hosting_backups hosting_backups_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.hosting_backups
@@ -39281,7 +39292,7 @@ ALTER TABLE ONLY public.hosting_backups
 
 
 --
--- Name: hosting_cache_settings hosting_cache_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: hosting_cache_settings hosting_cache_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.hosting_cache_settings
@@ -39289,7 +39300,7 @@ ALTER TABLE ONLY public.hosting_cache_settings
 
 
 --
--- Name: hosting_plans hosting_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: hosting_plans hosting_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.hosting_plans
@@ -39297,7 +39308,7 @@ ALTER TABLE ONLY public.hosting_plans
 
 
 --
--- Name: hosting_services hosting_services_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: hosting_services hosting_services_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.hosting_services
@@ -39305,7 +39316,7 @@ ALTER TABLE ONLY public.hosting_services
 
 
 --
--- Name: invoices invoices_invoice_number_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: invoices invoices_invoice_number_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.invoices
@@ -39313,7 +39324,7 @@ ALTER TABLE ONLY public.invoices
 
 
 --
--- Name: invoices invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: invoices invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.invoices
@@ -39321,7 +39332,7 @@ ALTER TABLE ONLY public.invoices
 
 
 --
--- Name: ip_unblock_logs ip_unblock_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ip_unblock_logs ip_unblock_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ip_unblock_logs
@@ -39329,7 +39340,7 @@ ALTER TABLE ONLY public.ip_unblock_logs
 
 
 --
--- Name: ip_whitelist ip_whitelist_ip_address_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ip_whitelist ip_whitelist_ip_address_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ip_whitelist
@@ -39337,7 +39348,7 @@ ALTER TABLE ONLY public.ip_whitelist
 
 
 --
--- Name: ip_whitelist ip_whitelist_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ip_whitelist ip_whitelist_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ip_whitelist
@@ -39345,7 +39356,7 @@ ALTER TABLE ONLY public.ip_whitelist
 
 
 --
--- Name: kb_articles kb_articles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: kb_articles kb_articles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.kb_articles
@@ -39353,7 +39364,7 @@ ALTER TABLE ONLY public.kb_articles
 
 
 --
--- Name: kb_articles kb_articles_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: kb_articles kb_articles_slug_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.kb_articles
@@ -39361,7 +39372,7 @@ ALTER TABLE ONLY public.kb_articles
 
 
 --
--- Name: kb_categories kb_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: kb_categories kb_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.kb_categories
@@ -39369,7 +39380,7 @@ ALTER TABLE ONLY public.kb_categories
 
 
 --
--- Name: kb_categories kb_categories_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: kb_categories kb_categories_slug_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.kb_categories
@@ -39377,7 +39388,7 @@ ALTER TABLE ONLY public.kb_categories
 
 
 --
--- Name: kb_deflections kb_deflections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: kb_deflections kb_deflections_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.kb_deflections
@@ -39385,7 +39396,7 @@ ALTER TABLE ONLY public.kb_deflections
 
 
 --
--- Name: keyword_positions keyword_positions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: keyword_positions keyword_positions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.keyword_positions
@@ -39393,7 +39404,7 @@ ALTER TABLE ONLY public.keyword_positions
 
 
 --
--- Name: keyword_tracking keyword_tracking_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: keyword_tracking keyword_tracking_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.keyword_tracking
@@ -39401,7 +39412,7 @@ ALTER TABLE ONLY public.keyword_tracking
 
 
 --
--- Name: migration_whitelist migration_whitelist_ip_address_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: migration_whitelist migration_whitelist_ip_address_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.migration_whitelist
@@ -39409,7 +39420,7 @@ ALTER TABLE ONLY public.migration_whitelist
 
 
 --
--- Name: migration_whitelist migration_whitelist_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: migration_whitelist migration_whitelist_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.migration_whitelist
@@ -39417,7 +39428,7 @@ ALTER TABLE ONLY public.migration_whitelist
 
 
 --
--- Name: migrations_requests migrations_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: migrations_requests migrations_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.migrations_requests
@@ -39425,7 +39436,7 @@ ALTER TABLE ONLY public.migrations_requests
 
 
 --
--- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: notifications notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.notifications
@@ -39433,7 +39444,7 @@ ALTER TABLE ONLY public.notifications
 
 
 --
--- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: orders orders_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.orders
@@ -39441,7 +39452,7 @@ ALTER TABLE ONLY public.orders
 
 
 --
--- Name: password_resets password_resets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: password_resets password_resets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.password_resets
@@ -39449,7 +39460,7 @@ ALTER TABLE ONLY public.password_resets
 
 
 --
--- Name: payment_methods payment_methods_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: payment_methods payment_methods_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.payment_methods
@@ -39457,7 +39468,7 @@ ALTER TABLE ONLY public.payment_methods
 
 
 --
--- Name: product_groups product_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: product_groups product_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.product_groups
@@ -39465,7 +39476,7 @@ ALTER TABLE ONLY public.product_groups
 
 
 --
--- Name: product_groups product_groups_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: product_groups product_groups_slug_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.product_groups
@@ -39473,7 +39484,7 @@ ALTER TABLE ONLY public.product_groups
 
 
 --
--- Name: promo_codes promo_codes_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: promo_codes promo_codes_code_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.promo_codes
@@ -39481,7 +39492,7 @@ ALTER TABLE ONLY public.promo_codes
 
 
 --
--- Name: promo_codes promo_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: promo_codes promo_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.promo_codes
@@ -39489,7 +39500,7 @@ ALTER TABLE ONLY public.promo_codes
 
 
 --
--- Name: resource_usage_logs resource_usage_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: resource_usage_logs resource_usage_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.resource_usage_logs
@@ -39497,7 +39508,7 @@ ALTER TABLE ONLY public.resource_usage_logs
 
 
 --
--- Name: security_logs security_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: security_logs security_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.security_logs
@@ -39505,7 +39516,7 @@ ALTER TABLE ONLY public.security_logs
 
 
 --
--- Name: security_scan_logs security_scan_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: security_scan_logs security_scan_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.security_scan_logs
@@ -39513,7 +39524,7 @@ ALTER TABLE ONLY public.security_scan_logs
 
 
 --
--- Name: seo_scans seo_scans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: seo_scans seo_scans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.seo_scans
@@ -39521,7 +39532,7 @@ ALTER TABLE ONLY public.seo_scans
 
 
 --
--- Name: seo_scans seo_scans_user_id_domain_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: seo_scans seo_scans_user_id_domain_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.seo_scans
@@ -39529,7 +39540,7 @@ ALTER TABLE ONLY public.seo_scans
 
 
 --
--- Name: server_groups server_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: server_groups server_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.server_groups
@@ -39537,7 +39548,7 @@ ALTER TABLE ONLY public.server_groups
 
 
 --
--- Name: server_logs server_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: server_logs server_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.server_logs
@@ -39545,7 +39556,7 @@ ALTER TABLE ONLY public.server_logs
 
 
 --
--- Name: server_nodes server_nodes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: server_nodes server_nodes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.server_nodes
@@ -39553,7 +39564,7 @@ ALTER TABLE ONLY public.server_nodes
 
 
 --
--- Name: servers servers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: servers servers_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.servers
@@ -39561,7 +39572,7 @@ ALTER TABLE ONLY public.servers
 
 
 --
--- Name: settings settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: settings settings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.settings
@@ -39569,7 +39580,7 @@ ALTER TABLE ONLY public.settings
 
 
 --
--- Name: site_health_snapshots site_health_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: site_health_snapshots site_health_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.site_health_snapshots
@@ -39577,7 +39588,7 @@ ALTER TABLE ONLY public.site_health_snapshots
 
 
 --
--- Name: site_pages site_pages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: site_pages site_pages_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.site_pages
@@ -39585,7 +39596,7 @@ ALTER TABLE ONLY public.site_pages
 
 
 --
--- Name: staging_sites staging_sites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: staging_sites staging_sites_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.staging_sites
@@ -39593,7 +39604,7 @@ ALTER TABLE ONLY public.staging_sites
 
 
 --
--- Name: staging_sites staging_sites_service_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: staging_sites staging_sites_service_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.staging_sites
@@ -39601,7 +39612,7 @@ ALTER TABLE ONLY public.staging_sites
 
 
 --
--- Name: staging_sync_logs staging_sync_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: staging_sync_logs staging_sync_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.staging_sync_logs
@@ -39609,7 +39620,7 @@ ALTER TABLE ONLY public.staging_sync_logs
 
 
 --
--- Name: team_access_logs team_access_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: team_access_logs team_access_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.team_access_logs
@@ -39617,7 +39628,7 @@ ALTER TABLE ONLY public.team_access_logs
 
 
 --
--- Name: team_magic_links team_magic_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: team_magic_links team_magic_links_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.team_magic_links
@@ -39625,7 +39636,7 @@ ALTER TABLE ONLY public.team_magic_links
 
 
 --
--- Name: team_magic_links team_magic_links_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: team_magic_links team_magic_links_token_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.team_magic_links
@@ -39633,7 +39644,7 @@ ALTER TABLE ONLY public.team_magic_links
 
 
 --
--- Name: team_members team_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: team_members team_members_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.team_members
@@ -39641,7 +39652,7 @@ ALTER TABLE ONLY public.team_members
 
 
 --
--- Name: ticket_drafts ticket_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ticket_drafts ticket_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ticket_drafts
@@ -39649,7 +39660,7 @@ ALTER TABLE ONLY public.ticket_drafts
 
 
 --
--- Name: ticket_drafts ticket_drafts_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ticket_drafts ticket_drafts_user_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ticket_drafts
@@ -39657,7 +39668,7 @@ ALTER TABLE ONLY public.ticket_drafts
 
 
 --
--- Name: ticket_messages ticket_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: ticket_messages ticket_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.ticket_messages
@@ -39665,7 +39676,7 @@ ALTER TABLE ONLY public.ticket_messages
 
 
 --
--- Name: tickets tickets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: tickets tickets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.tickets
@@ -39673,7 +39684,7 @@ ALTER TABLE ONLY public.tickets
 
 
 --
--- Name: tickets tickets_ticket_number_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: tickets tickets_ticket_number_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.tickets
@@ -39681,7 +39692,7 @@ ALTER TABLE ONLY public.tickets
 
 
 --
--- Name: transactions transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: transactions transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.transactions
@@ -39689,7 +39700,7 @@ ALTER TABLE ONLY public.transactions
 
 
 --
--- Name: uploaded_modules uploaded_modules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: uploaded_modules uploaded_modules_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.uploaded_modules
@@ -39697,7 +39708,7 @@ ALTER TABLE ONLY public.uploaded_modules
 
 
 --
--- Name: uploaded_modules uploaded_modules_slug_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: uploaded_modules uploaded_modules_slug_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.uploaded_modules
@@ -39705,7 +39716,7 @@ ALTER TABLE ONLY public.uploaded_modules
 
 
 --
--- Name: user_preferences user_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: user_preferences user_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.user_preferences
@@ -39713,7 +39724,7 @@ ALTER TABLE ONLY public.user_preferences
 
 
 --
--- Name: users users_email_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_email_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -39721,7 +39732,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -39729,7 +39740,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.users
@@ -39737,7 +39748,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: vps_locations vps_locations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: vps_locations vps_locations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.vps_locations
@@ -39745,7 +39756,7 @@ ALTER TABLE ONLY public.vps_locations
 
 
 --
--- Name: vps_os_templates vps_os_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: vps_os_templates vps_os_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.vps_os_templates
@@ -39753,7 +39764,7 @@ ALTER TABLE ONLY public.vps_os_templates
 
 
 --
--- Name: vps_plans vps_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: vps_plans vps_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.vps_plans
@@ -39761,7 +39772,7 @@ ALTER TABLE ONLY public.vps_plans
 
 
 --
--- Name: whatsapp_client_notifications whatsapp_client_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: whatsapp_client_notifications whatsapp_client_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.whatsapp_client_notifications
@@ -39769,7 +39780,7 @@ ALTER TABLE ONLY public.whatsapp_client_notifications
 
 
 --
--- Name: whatsapp_logs whatsapp_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: whatsapp_logs whatsapp_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.whatsapp_logs
@@ -39777,196 +39788,196 @@ ALTER TABLE ONLY public.whatsapp_logs
 
 
 --
--- Name: feature_flags_global_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: feature_flags_global_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX feature_flags_global_idx ON public.feature_flags USING btree (feature_key) WHERE (user_id IS NULL);
 
 
 --
--- Name: feature_flags_user_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: feature_flags_user_idx; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX feature_flags_user_idx ON public.feature_flags USING btree (feature_key, user_id) WHERE (user_id IS NOT NULL);
 
 
 --
--- Name: idx_ai_convo_service; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_ai_convo_service; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_ai_convo_service ON public.ai_conversations USING btree (service_id, created_at DESC);
 
 
 --
--- Name: idx_ai_convo_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_ai_convo_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_ai_convo_user ON public.ai_conversations USING btree (user_id, created_at DESC);
 
 
 --
--- Name: idx_blog_posts_published; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_blog_posts_published; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_blog_posts_published ON public.blog_posts USING btree (published, published_at DESC);
 
 
 --
--- Name: idx_blog_posts_slug; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_blog_posts_slug; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_blog_posts_slug ON public.blog_posts USING btree (slug);
 
 
 --
--- Name: idx_cart_recovery_status; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_cart_recovery_status; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_cart_recovery_status ON public.cart_recovery_logs USING btree (status, created_at DESC);
 
 
 --
--- Name: idx_cart_recovery_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_cart_recovery_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_cart_recovery_user ON public.cart_recovery_logs USING btree (user_id);
 
 
 --
--- Name: idx_flash_sales_active; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_flash_sales_active; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_flash_sales_active ON public.flash_sales USING btree (is_active, ends_at);
 
 
 --
--- Name: idx_flash_sales_slug; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_flash_sales_slug; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_flash_sales_slug ON public.flash_sales USING btree (slug);
 
 
 --
--- Name: idx_guest_cart_token; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_guest_cart_token; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_guest_cart_token ON public.guest_cart_items USING btree (guest_session_token);
 
 
 --
--- Name: idx_kw_positions_keyword; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_kw_positions_keyword; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_kw_positions_keyword ON public.keyword_positions USING btree (keyword_id, checked_at DESC);
 
 
 --
--- Name: idx_kw_tracking_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_kw_tracking_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_kw_tracking_user ON public.keyword_tracking USING btree (user_id);
 
 
 --
--- Name: idx_resource_logs_service; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_resource_logs_service; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_resource_logs_service ON public.resource_usage_logs USING btree (service_id, recorded_at DESC);
 
 
 --
--- Name: idx_security_scans_service; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_security_scans_service; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_security_scans_service ON public.security_scan_logs USING btree (service_id, scanned_at DESC);
 
 
 --
--- Name: idx_seo_scans_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_seo_scans_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_seo_scans_user ON public.seo_scans USING btree (user_id);
 
 
 --
--- Name: idx_shs_service; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_shs_service; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_shs_service ON public.site_health_snapshots USING btree (service_id, recorded_at DESC);
 
 
 --
--- Name: idx_shs_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_shs_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_shs_user ON public.site_health_snapshots USING btree (user_id, recorded_at DESC);
 
 
 --
--- Name: idx_staging_sites_service; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_staging_sites_service; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_staging_sites_service ON public.staging_sites USING btree (service_id);
 
 
 --
--- Name: idx_staging_sync_service; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_staging_sync_service; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_staging_sync_service ON public.staging_sync_logs USING btree (service_id, logged_at DESC);
 
 
 --
--- Name: idx_team_links_owner; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_team_links_owner; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_team_links_owner ON public.team_magic_links USING btree (owner_user_id);
 
 
 --
--- Name: idx_team_links_token; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_team_links_token; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_team_links_token ON public.team_magic_links USING btree (token);
 
 
 --
--- Name: idx_team_logs_owner; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_team_logs_owner; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_team_logs_owner ON public.team_access_logs USING btree (owner_user_id, created_at DESC);
 
 
 --
--- Name: idx_team_members_email; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_team_members_email; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE UNIQUE INDEX idx_team_members_email ON public.team_members USING btree (owner_user_id, email);
 
 
 --
--- Name: idx_team_members_owner; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_team_members_owner; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_team_members_owner ON public.team_members USING btree (owner_user_id);
 
 
 --
--- Name: idx_wa_client_notif_user; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_wa_client_notif_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
 CREATE INDEX idx_wa_client_notif_user ON public.whatsapp_client_notifications USING btree (user_id, sent_at DESC);
 
 
 --
--- Name: invoices trg_invoice_base_currency; Type: TRIGGER; Schema: public; Owner: -
+-- Name: invoices trg_invoice_base_currency; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER trg_invoice_base_currency BEFORE INSERT ON public.invoices FOR EACH ROW EXECUTE FUNCTION public.set_invoice_base_currency_amount();
 
 
 --
--- Name: kb_articles kb_articles_category_id_kb_categories_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: kb_articles kb_articles_category_id_kb_categories_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.kb_articles
@@ -39974,7 +39985,7 @@ ALTER TABLE ONLY public.kb_articles
 
 
 --
--- Name: keyword_positions keyword_positions_keyword_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: keyword_positions keyword_positions_keyword_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.keyword_positions
@@ -39982,8 +39993,16 @@ ALTER TABLE ONLY public.keyword_positions
 
 
 --
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+GRANT CREATE ON SCHEMA public TO PUBLIC;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict KxNjTZFZvv4pY0xa7qXsaVdqyQd2LLfKu1rjfMvebP7MvaXXQP3xwNPEcKl1pYL
+\unrestrict 9BT3AJyIS3EAFpvqtV0zqCWUbHjAM6mbeehWNqTTWa0FnrhZ9YMuaSQN8PXQC5R
 
