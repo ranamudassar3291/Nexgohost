@@ -184,7 +184,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         <img
           src="/logo.png"
           alt="Noehost"
-          className="h-12 w-auto object-contain"
+          className="h-10 w-auto object-contain"
           style={{
             clipPath: 'inset(0 55% 0 0)',
             filter: 'brightness(1.1)',
@@ -195,6 +195,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           style={{
             color: isScrolled ? '#0f172a' : '#ffffff',
             transition: 'color 0.3s ease',
+            letterSpacing: '-0.02em',
           }}
         >
           NOEHOST
