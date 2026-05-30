@@ -1,0 +1,53 @@
+You are an elite Lead Full-Stack Architect and System Engineer. Your objective is to design, code, and fully deploy a production-ready, highly secure, and automated "Enterprise Domain Reseller Module" for our platform. 
+
+The system must seamlessly tie together a Public Landing Page, an automated Client Dashboard, and a master Admin Control Panel. 
+
+---
+### 1. PLATFORM ARCHITECTURE & TECH STACK REQUIREMENT
+- Stack: Node.js (Express), React (Vite + Tailwind CSS), PostgreSQL (with clean relational tables).
+- Aesthetic Theme: Replicate the strict premium, flat white corporate aesthetic (#ffffff) over an ultra-light gray backdrop (#fafafa). Use hairline micro-borders (border-gray-100), subtle soft layers (shadow-[0_8px_30px_rgba(0,0,0,0.02)]), and a vibrant solid purple (#7C3AED) as the ONLY primary accent color for active state toggles, badges, and triggers. Completely ban all robotic status pills, telemetry readouts, or dark-mode blocks.
+- White-Label Automation: All internal core calls must route through background white-labeled configurations mapped to imap.20i.com and smtp.20i.com inside the logic layer. Absolutely NO reference to "20i" or internal DB properties must leak into frontend views, tooltips, placeholders, or logging screens. Brand every component exclusively as part of our ecosystem.
+
+---
+### 2. COMPONENT STEP-BY-STEP SPECIFICATIONS
+
+#### A. The Public Corporate Landing Page (`/domain-reseller`)
+- Navigation: Add a clean, minimal, responsive text link named "Domain Reseller" into the site's main header component.
+- Hero Section: High-end spacious typography stating our core value proposition with a single prominent purple call-to-action button: "[Apply Now]".
+- Real-time Pricing Margin Table Matrix: Create a highly polished comparison table component. It must fetch active data dynamically from the database and visually map: TLD | Standard Retail Price | Reseller Discounted Price | "You Save" Percentage Badge.
+  * THE PRICING AUTOMATION ENGINE: Frontend code must auto-calculate user savings in real-time based on database variables.
+- Features/Benefits Card Matrix: A grid of flat white rounded-2xl cards outlining: Whitelabel API Node Access, Tiered/Slab Volume Pricing Discounts, and Instant automated DNS/EPP Management.
+- Workflow: Clicking "[Apply Now]" triggers an auth-check modal. If the user is unauthenticated, route them smoothly to login. If logged in, open a clean inline form asking for "Business Entity Name" and "Expected Monthly Domain Registrations", creating a `pending` state inside the database.
+
+#### B. The Client Reseller Dashboard Integration (`/dashboard/reseller`)
+If the logged-in client has an `active` status flag inside `reseller_profiles`, render an ultra-clean modular dashboard framework composed of three functional tabs:
+
+1. Tab 1: Credit Balance & Ledger ("Credit Add System")
+   - Displays a large, minimalist numerical card showcasing "Available Reseller Funds Balance" (e.g., $0.00).
+   - Features a clean funding widget providing instant credit top-up buttons ($50, $100, $250) along with a custom manual entry field. This system must log all successful deposit mutations securely to the backend transaction table.
+2. Tab 2: Domain Portfolio & Orders Management
+   - A high-density, flat data grid pulling from the `reseller_orders` table. Columns: Domain Name, Extension (TLD), Action, Operational Cost, Status, and Event Timestamp.
+   - Every table row must contain clear, working action triggers: [Manage Nameservers], [Fetch EPP/Auth Code], and [Renew Domain]. 
+   - CRITICAL SYSTEM RULE: Renewals must automatically verify if the user's `reseller_funds` balance covers their designated pricing tier before allowing execution, updating balances synchronously.
+3. Tab 3: API Credentials & Live Web-Dev Tools
+   - A highly secure layout container displaying the client's unique `api_key` in a masked input element, accompanied by a clean "Copy to clipboard" icon and a purple secondary action button: "[🔄 Regenerate API Key]".
+   - Include a beautifully structured, styled code snippet area demonstrating an example `curl` request for a real-time domain availability lookup using JSON structures.
+
+#### C. The Master Admin Administration Dashboard (`/admin/resellers`)
+A centralized routing screen accessible exclusively by platform administrators to oversee and override the entire module:
+- Applications Pipeline Table: Lists all `pending` reseller program signups showing user account details, with clean validation triggers: [Approve Application] (instantly changes status to `active` and generates their initial secure API entry string) and [Decline].
+- Global TLD Base Price Configurator Form: An interactive grid layout enabling the admin to modify standard retail vs. reseller pricing structures for extensions (.com, .net, .org, .xyz) globally. Saving changes must instantly update the `reseller_domain_pricing` database table and refresh the public pricing comparison layout dynamically.
+- Account Balance Manual Override Panel: A utility component letting the admin look up any reseller's email and manually append or debit funds to handle transaction errors or custom balances securely.
+
+---
+### 3. DATABASE RELATIONAL SCHEMA & DATA INTELLIGENCE
+Generate and apply clean, optimized PostgreSQL DDL execution blocks for the following structural schemas:
+1. `reseller_profiles`: `id` (PK), `user_id` (FK), `business_name`, `status` ('pending', 'active', 'suspended'), `api_key` (Unique Hash), `discount_slab_tier` (1, 2, or 3), `created_at`.
+2. `reseller_funds`: `id` (PK), `user_id` (FK), `balance` (DECIMAL 10,2 DEFAULT 0.00), `currency` (DEFAULT 'USD'), `updated_at`.
+3. `reseller_domain_pricing`: `id` (PK), `tld` (VARCHAR, e.g., '.com'), `retail_price` (DECIMAL 10,2), `reseller_price` (DECIMAL 10,2).
+4. `reseller_orders`: `id` (PK), `user_id` (FK), `domain_name`, `action_type` ('register', 'transfer', 'renew'), `cost` (DECIMAL 10,2), `status` ('completed', 'failed', 'processing'), `created_at`.
+
+---
+### 4. REPLIT WORKSPACE EXECUTION COMPLIANCE
+- Ensure all API backend controllers implement comprehensive async try/catch wrapper logic and respond with structured JSON states.
+- Do not use shortcuts, mocked placeholders, truncated code segments, or static layouts. Build the entire working integration fully connected across the backend endpoints, controllers, UI views, and database operations.
