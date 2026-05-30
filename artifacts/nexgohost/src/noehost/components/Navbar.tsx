@@ -180,8 +180,25 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
       return <img src={navData.logoUrl} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
-      <div className={`flex items-center gap-3 px-3 py-1.5 rounded-xl transition-colors ${isScrolled ? 'bg-transparent' : 'bg-white/10 backdrop-blur-sm'}`}>
-        <img src="/logo.png" alt="Noehost" className="h-9 w-auto object-contain" />
+      <div className="flex items-center gap-3">
+        <img
+          src="/logo.png"
+          alt="Noehost"
+          className="h-12 w-auto object-contain"
+          style={{
+            clipPath: 'inset(0 55% 0 0)',
+            filter: 'brightness(1.1)',
+          }}
+        />
+        <span
+          className="text-[22px] font-black tracking-tighter"
+          style={{
+            color: isScrolled ? '#0f172a' : '#ffffff',
+            transition: 'color 0.3s ease',
+          }}
+        >
+          NOEHOST
+        </span>
       </div>
     );
   };
