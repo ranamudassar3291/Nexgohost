@@ -180,15 +180,29 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
       return <img src={navData.logoUrl} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
-      <img
-        src="/logo.png"
-        alt="Noehost"
-        className="h-10 w-auto object-contain"
-        style={{
-          filter: isScrolled ? 'none' : 'invert(1) brightness(1.5)',
-          transition: 'filter 0.3s ease',
-        }}
-      />
+      <div className="flex items-center gap-3">
+        {/* Icon - cropped from logo, purple on dark, normal on light */}
+        <img
+          src="/logo.png"
+          alt="Noehost"
+          className="h-10 w-auto object-contain"
+          style={{
+            clipPath: 'inset(0 55% 0 0)',
+            filter: isScrolled ? 'none' : 'brightness(1.3)',
+            transition: 'filter 0.3s ease',
+          }}
+        />
+        {/* Text - white on dark, black on light */}
+        <span
+          className="text-[22px] font-black tracking-tighter"
+          style={{
+            color: isScrolled ? '#0f172a' : '#ffffff',
+            transition: 'color 0.3s ease',
+          }}
+        >
+          NOEHOST
+        </span>
+      </div>
     );
   };
 
