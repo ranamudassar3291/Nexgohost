@@ -192,16 +192,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             transition: 'filter 0.3s ease',
           }}
         />
-        {/* Text - white on dark, black on light */}
-        <span
-          className="text-[22px] font-black tracking-tighter"
-          style={{
-            color: isScrolled ? '#0f172a' : '#ffffff',
-            transition: 'color 0.3s ease',
-          }}
-        >
-          NOEHOST
-        </span>
       </div>
     );
   };
