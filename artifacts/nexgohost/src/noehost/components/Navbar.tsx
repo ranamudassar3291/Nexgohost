@@ -188,7 +188,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           className="h-10 w-auto object-contain"
           style={{
             clipPath: 'inset(0 55% 0 0)',
-            filter: isScrolled ? 'none' : 'brightness(1.3)',
+            filter: isScrolled ? 'none' : 'brightness(0) invert(1)',
             transition: 'filter 0.3s ease',
           }}
         />
