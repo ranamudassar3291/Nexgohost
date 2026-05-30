@@ -13,11 +13,11 @@ export default function MaintenancePage({ onRetry }: Props) {
           className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8"
           style={{
             background: "rgba(99,102,241,0.15)",
-            border: "1px solid rgba(99,102,241,0.3)",
+            border: "1px solid rgba(107,70,193,0.3)",
             boxShadow: "0 0 40px rgba(99,102,241,0.15)",
           }}
         >
-          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
           </svg>
         </div>
@@ -77,7 +77,7 @@ export default function MaintenancePage({ onRetry }: Props) {
           <button
             onClick={onRetry ?? (() => window.location.reload())}
             className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)", boxShadow: "0 4px 20px rgba(99,102,241,0.3)" }}
+            style={{ background: "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 100%)", boxShadow: "0 4px 20px rgba(107,70,193,0.3)" }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>

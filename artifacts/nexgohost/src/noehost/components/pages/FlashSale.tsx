@@ -57,7 +57,7 @@ export default function FlashSale() {
   if (isLoading) {
     return (
       <div style={{ minHeight: "100vh", background: "#0F172A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 40, height: 40, border: "3px solid #6366F1", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+        <div style={{ width: 40, height: 40, border: "3px solid #7C5DE2", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
@@ -69,7 +69,7 @@ export default function FlashSale() {
         <Zap size={56} style={{ color: "#4B5563", marginBottom: 20 }} />
         <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>This deal has ended</h1>
         <p style={{ color: "#9CA3AF", marginBottom: 28 }}>Check out our latest hosting plans — great deals available every day!</p>
-        <Link to="/shared-hosting" style={{ background: "#6366F1", color: "#fff", padding: "12px 28px", borderRadius: 12, fontWeight: 700, textDecoration: "none", fontSize: 15 }}>
+        <Link to="/shared-hosting" style={{ background: "#7C5DE2", color: "#fff", padding: "12px 28px", borderRadius: 12, fontWeight: 700, textDecoration: "none", fontSize: 15 }}>
           See All Plans →
         </Link>
       </div>
@@ -77,7 +77,7 @@ export default function FlashSale() {
   }
 
   const bg      = sale.bg_color      || "#0F172A";
-  const accent  = sale.accent_color  || "#6366F1";
+  const accent  = sale.accent_color  || "#7C5DE2";
   const savings = sale.original_price && sale.sale_price
     ? Math.round((1 - Number(sale.sale_price) / Number(sale.original_price)) * 100)
     : null;

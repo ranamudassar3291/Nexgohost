@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-const BRAND = "#4F46E5";
+const BRAND = "#6B46C1";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ApiKeyData {

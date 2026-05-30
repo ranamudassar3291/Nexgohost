@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 
-const P = "#4F46E5";
+const P = "#6B46C1";
 
 function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token") ?? "";

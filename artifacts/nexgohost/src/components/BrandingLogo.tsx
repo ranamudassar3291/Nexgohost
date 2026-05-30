@@ -39,8 +39,8 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
       <div
         className={`${s.icon} rounded-xl items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
         style={{
-          background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)",
-          boxShadow: "0 0 14px rgba(91,95,239,0.35)",
+          background: "linear-gradient(135deg, #6B46C1, #8B5CF6)",
+          boxShadow: "0 0 14px rgba(107,70,193,0.35)",
           display: logoUrl ? "none" : "flex",
         }}
       >
@@ -50,12 +50,12 @@ export function BrandingLogo({ size = "md", showText = true, subtext, textClassN
         <div className="flex flex-col justify-center">
           <h1
             className={`font-display font-bold tracking-tight leading-none ${s.text} ${textClassName ?? ""}`}
-            style={!textClassName ? { background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } : undefined}
+            style={!textClassName ? { background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } : undefined}
           >
             {siteName}
           </h1>
           {subtext && (
-            <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#5B5FEF" }}>
+            <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#6B46C1" }}>
               {subtext}
             </p>
           )}
@@ -86,7 +86,7 @@ export function BrandingLogoIcon({ size = "md" }: { size?: "sm" | "md" | "lg" })
   return (
     <div
       className={`${s.icon} rounded-xl flex items-center justify-center font-bold text-white shadow-lg shrink-0 ${s.fallbackText}`}
-      style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 14px rgba(91,95,239,0.35)" }}
+      style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)", boxShadow: "0 0 14px rgba(107,70,193,0.35)" }}
     >
       {siteName?.[0] ?? "N"}
     </div>

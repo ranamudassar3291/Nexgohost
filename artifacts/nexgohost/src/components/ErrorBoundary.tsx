@@ -61,7 +61,7 @@ function CrashScreen({ error, onRetry }: { error: Error | null; onRetry: () => v
           <button
             onClick={onRetry}
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}
+            style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
           >
             Try again
           </button>

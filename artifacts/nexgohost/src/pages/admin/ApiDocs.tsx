@@ -5,7 +5,7 @@ import {
   Shield, CreditCard, Bell, Settings, Play, Loader2, AlertCircle,
 } from "lucide-react";
 
-const BRAND = "#4F46E5";
+const BRAND = "#6B46C1";
 const BASE = "https://api.noehost.com";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

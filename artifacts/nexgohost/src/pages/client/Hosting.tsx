@@ -48,7 +48,7 @@ async function apiFetch(url: string, opts: RequestInit = {}) {
   return res.json();
 }
 
-const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
+const BRAND_GRADIENT = "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)";
 
 const statusConfig: Record<string, { dot: string; badge: string; label: string; pulse: boolean }> = {
   active:    { dot: "bg-emerald-500",  badge: "bg-[#D1FAE5] text-[#065F46] border-[#A7F3D0]",       label: "Active",    pulse: true  },
@@ -84,7 +84,7 @@ function PaginationBar({ page, totalPages, total, setPage }: { page: number; tot
           return (
             <button key={p} onClick={() => setPage(p)}
               className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
-              style={p === page ? { background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" } : {}}>
+              style={p === page ? { background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" } : {}}>
               {p}
             </button>
           );

@@ -181,9 +181,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
     }
     return (
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
-          <Server size={20} />
-        </div>
+        <img src="/logo.png" alt="Noehost" className="h-8 w-auto object-contain" />
         <span className={`text-xl font-black tracking-tighter ${isScrolled ? 'text-slate-900' : 'text-white'}`}>{navData.logo}</span>
       </div>
     );

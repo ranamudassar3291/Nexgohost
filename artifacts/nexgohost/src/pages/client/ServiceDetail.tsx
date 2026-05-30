@@ -559,7 +559,7 @@ function MailToggle({ checked, onChange, loading }: { checked: boolean; onChange
       onClick={() => !loading && onChange(!checked)}
       disabled={loading}
       className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-all duration-200 focus:outline-none disabled:opacity-50 cursor-pointer"
-      style={{ background: checked ? "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" : "rgba(0,0,0,0.15)" }}
+      style={{ background: checked ? "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" : "rgba(0,0,0,0.15)" }}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? "translate-x-6" : "translate-x-1"}`} />
     </button>
@@ -698,7 +698,7 @@ function SectionEmail({ service }: { service: Service }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm"
-            style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+            style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
             <Mail size={20} className="text-white" />
           </div>
           <div>
@@ -768,10 +768,10 @@ function SectionEmail({ service }: { service: Service }) {
           <div className="relative overflow-hidden p-8"
             style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(99,102,241,0.02) 100%)" }}>
             <div className="absolute top-0 right-0 w-40 h-40 opacity-[0.04]"
-              style={{ background: "radial-gradient(circle, #6366F1 0%, transparent 70%)", transform: "translate(20%, -20%)" }} />
+              style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)", transform: "translate(20%, -20%)" }} />
             <div className="flex items-start gap-5">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
-                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
                 <AtSign size={24} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
@@ -791,7 +791,7 @@ function SectionEmail({ service }: { service: Service }) {
                 </div>
                 <button onClick={() => setShowCreate(true)}
                   className="mt-5 inline-flex items-center gap-2 h-9 px-5 rounded-xl text-sm font-semibold text-white shadow-md hover:opacity-90 transition-opacity"
-                  style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                  style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
                   <Plus size={14} /> Create Your First Email
                 </button>
               </div>
@@ -821,7 +821,7 @@ function SectionEmail({ service }: { service: Service }) {
                     {/* Email avatar + info */}
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shrink-0"
-                        style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.15), rgba(99,102,241,0.1))", color: "#6366F1" }}>
+                        style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.15), rgba(99,102,241,0.1))", color: "#8B5CF6" }}>
                         {acc.email.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">

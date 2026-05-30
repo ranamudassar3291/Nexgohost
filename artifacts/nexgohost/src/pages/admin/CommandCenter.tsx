@@ -207,7 +207,7 @@ function FeatureTogglesTab() {
                       return (
                         <div key={client.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
                           <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold text-white"
-                            style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)" }}>
+                            style={{ background: "linear-gradient(135deg,#6B46C1,#7C3AED)" }}>
                             {client.firstName?.[0]}{client.lastName?.[0]}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -478,7 +478,7 @@ function LiveActivityTab() {
               onClick={() => setFilter(opt)}
               className="text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all"
               style={filter === opt
-                ? { background: "rgba(99,102,241,0.18)", borderColor: "rgba(99,102,241,0.4)", color: "#818CF8" }
+                ? { background: "rgba(99,102,241,0.18)", borderColor: "rgba(99,102,241,0.4)", color: "#8B5CF6" }
                 : { background: "transparent", borderColor: "rgba(255,255,255,0.1)", color: "var(--muted-foreground)" }
               }
             >
@@ -527,7 +527,7 @@ function LiveActivityTab() {
                   <div className="col-span-4 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold text-white"
-                        style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)", flexShrink: 0 }}>
+                        style={{ background: "linear-gradient(135deg,#6B46C1,#7C3AED)", flexShrink: 0 }}>
                         {event.user_name ? event.user_name[0]?.toUpperCase() : <User size={10} />}
                       </div>
                       <div className="min-w-0">

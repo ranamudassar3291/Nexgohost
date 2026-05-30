@@ -2,7 +2,7 @@
 import React from 'react';
 import { BillingCycle, PricingPlan, FAQItem, Testimonial } from './types';
 
-export const PRIMARY_COLOR = '#6A62FE';
+export const PRIMARY_COLOR = '#6B46C1';
 
 export const PLANS: PricingPlan[] = [
   {

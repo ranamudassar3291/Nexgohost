@@ -12,8 +12,8 @@ import { useCurrency } from "@/context/CurrencyProvider";
 import { useAuth } from "@/hooks/use-auth";
 import CaptchaWidget from "@/components/CaptchaWidget";
 
-const BRAND = "#4F46E5";
-const BRAND_GRADIENT = "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)";
+const BRAND = "#6B46C1";
+const BRAND_GRADIENT = "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)";
 
 type BillingCycle = "yearly";
 

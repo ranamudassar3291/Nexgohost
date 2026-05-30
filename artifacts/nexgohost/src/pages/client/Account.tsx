@@ -54,7 +54,7 @@ function ThemeSwitcher() {
           onClick={() => setTheme("light")}
           style={{
             flex: 1, padding: "14px 16px", borderRadius: 16,
-            border: `2px solid ${!isDark ? "#6366F1" : "#E5E7EB"}`,
+            border: `2px solid ${!isDark ? "#6B46C1" : "#E5E7EB"}`,
             background: !isDark ? "#EEF2FF" : "#FAFAFA",
             cursor: "pointer", display: "flex", flexDirection: "column",
             alignItems: "center", gap: 8, transition: "all 0.2s",
@@ -62,21 +62,21 @@ function ThemeSwitcher() {
         >
           <div style={{
             width: 44, height: 44, borderRadius: 14,
-            background: !isDark ? "linear-gradient(135deg,#6366F1,#4F46E5)" : "#E5E7EB",
+            background: !isDark ? "linear-gradient(135deg,#6B46C1,#6B46C1)" : "#E5E7EB",
             display: "flex", alignItems: "center", justifyContent: "center",
             transition: "all 0.2s",
           }}>
             <Sun size={20} color={!isDark ? "#fff" : "#9CA3AF"} />
           </div>
           <div>
-            <p style={{ fontSize: 13, fontWeight: 800, color: !isDark ? "#4F46E5" : "#374151", margin: "0 0 1px", textAlign: "center" }}>
+            <p style={{ fontSize: 13, fontWeight: 800, color: !isDark ? "#6B46C1" : "#374151", margin: "0 0 1px", textAlign: "center" }}>
               Light Mode
             </p>
             <p style={{ fontSize: 10, color: "#9CA3AF", margin: 0, textAlign: "center" }}>Clean & bright</p>
           </div>
           {!isDark && (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-              style={{ width: 20, height: 20, borderRadius: "50%", background: "#6366F1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              style={{ width: 20, height: 20, borderRadius: "50%", background: "#6B46C1", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <CheckCircle2 size={14} color="#fff" />
             </motion.div>
           )}
@@ -87,7 +87,7 @@ function ThemeSwitcher() {
           onClick={() => setTheme("dark")}
           style={{
             flex: 1, padding: "14px 16px", borderRadius: 16,
-            border: `2px solid ${isDark ? "#6366F1" : "#E5E7EB"}`,
+            border: `2px solid ${isDark ? "#6B46C1" : "#E5E7EB"}`,
             background: isDark ? "#1E1B4B" : "#FAFAFA",
             cursor: "pointer", display: "flex", flexDirection: "column",
             alignItems: "center", gap: 8, transition: "all 0.2s",
@@ -95,7 +95,7 @@ function ThemeSwitcher() {
         >
           <div style={{
             width: 44, height: 44, borderRadius: 14,
-            background: isDark ? "linear-gradient(135deg,#4F46E5,#1E1B4B)" : "#E5E7EB",
+            background: isDark ? "linear-gradient(135deg,#6B46C1,#1E1B4B)" : "#E5E7EB",
             display: "flex", alignItems: "center", justifyContent: "center",
             transition: "all 0.2s",
           }}>
@@ -105,11 +105,11 @@ function ThemeSwitcher() {
             <p style={{ fontSize: 13, fontWeight: 800, color: isDark ? "#A5B4FC" : "#374151", margin: "0 0 1px", textAlign: "center" }}>
               Executive Dark
             </p>
-            <p style={{ fontSize: 10, color: isDark ? "#6366F1" : "#9CA3AF", margin: 0, textAlign: "center" }}>Elegant & focused</p>
+            <p style={{ fontSize: 10, color: isDark ? "#6B46C1" : "#9CA3AF", margin: 0, textAlign: "center" }}>Elegant & focused</p>
           </div>
           {isDark && (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-              style={{ width: 20, height: 20, borderRadius: "50%", background: "#6366F1", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              style={{ width: 20, height: 20, borderRadius: "50%", background: "#6B46C1", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <CheckCircle2 size={14} color="#fff" />
             </motion.div>
           )}
@@ -272,7 +272,7 @@ export default function ClientAccount() {
           display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16,
         }}>
           {[
-            { icon: Calendar,   label: "Member Since",    value: memberSince,                 color: "#6366F1" },
+            { icon: Calendar,   label: "Member Since",    value: memberSince,                 color: "#6B46C1" },
             { icon: TierIcon,   label: "VIP Level",       value: tier.label,                  color: tier.color },
             { icon: Server,     label: "Active Hosting",  value: `${serviceCount} service${serviceCount !== 1 ? "s" : ""}`, color: "#0891B2" },
             { icon: Globe,      label: "Active Domains",  value: `${domainCount} domain${domainCount !== 1 ? "s" : ""}`,   color: "#059669" },
@@ -367,7 +367,7 @@ export default function ClientAccount() {
       <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <div style={{ width: 32, height: 32, borderRadius: 10, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <User size={15} color="#4F46E5" />
+            <User size={15} color="#6B46C1" />
           </div>
           <div>
             <h3 className="text-foreground" style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>Personal Information</h3>

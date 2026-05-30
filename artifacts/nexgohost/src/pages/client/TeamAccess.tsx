@@ -487,7 +487,7 @@ export default function TeamAccess() {
                   {logs.map(log => {
                     const isOwner = log.actor_role === "owner";
                     const isDev   = log.actor_role === "developer";
-                    const dotColor = isOwner ? "#4F46E5" : isDev ? "#10B981" : "#F59E0B";
+                    const dotColor = isOwner ? "#6B46C1" : isDev ? "#10B981" : "#F59E0B";
                     return (
                       <div key={log.id} className="flex items-start gap-3.5 px-5 py-3.5">
                         <div className="w-2 h-2 rounded-full mt-2 shrink-0" style={{ backgroundColor: dotColor }} />

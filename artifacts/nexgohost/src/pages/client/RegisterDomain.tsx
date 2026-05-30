@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 
-const BRAND = "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)";
-const BRAND_SOLID = "#4F46E5";
+const BRAND = "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 60%, #8B5CF6 100%)";
+const BRAND_SOLID = "#6B46C1";
 
-const CONFETTI_COLORS = ["#4F46E5", "#6366F1", "#818CF8", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
+const CONFETTI_COLORS = ["#6B46C1", "#7C5DE2", "#8B5CF6", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
 
 function Confetti({ active }: { active: boolean }) {
   if (!active) return null;
@@ -186,7 +186,7 @@ export default function RegisterDomain() {
   if (claimed) {
     return (
       <div className="max-w-lg mx-auto py-12">
-        <div className="relative rounded-3xl overflow-hidden border border-violet-500/30 text-center p-10 space-y-5"
+        <div className="relative rounded-3xl overflow-hidden border border-purple-500/30 text-center p-10 space-y-5"
           style={{ background: "linear-gradient(135deg, #0f0523 0%, #1a0540 40%, #2d0a6b 100%)" }}>
           <Confetti active={confettiActive} />
           <div className="absolute inset-0 pointer-events-none"
@@ -198,10 +198,10 @@ export default function RegisterDomain() {
             </div>
             <div>
               <h2 className="text-2xl font-black text-white tracking-tight">Domain Claimed! 🎉</h2>
-              <p className="text-violet-200 text-sm mt-2">
+              <p className="text-purple-300 text-sm mt-2">
                 <span className="font-mono font-bold text-white">{claimed}</span> has been successfully registered and linked to your hosting plan.
               </p>
-              <p className="text-violet-300/70 text-xs mt-2">
+              <p className="text-purple-300/70 text-xs mt-2">
                 Your domain will be activated within a few minutes. You can manage it from the Domains section.
               </p>
             </div>
@@ -211,7 +211,7 @@ export default function RegisterDomain() {
                 <Globe size={14} /> Manage Domains
               </Button>
               <Button onClick={() => navigate("/client/dashboard")} variant="outline"
-                className="gap-2 border-violet-500/30 text-violet-200 hover:bg-violet-500/10">
+                className="gap-2 border-purple-500/30 text-purple-300 hover:bg-purple-500/10">
                 <ArrowLeft size={14} /> Dashboard
               </Button>
             </div>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
 
-const P = "#4F46E5";
+const P = "#6B46C1";
 
 function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token") ?? "";

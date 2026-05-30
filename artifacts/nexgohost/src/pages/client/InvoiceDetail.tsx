@@ -69,18 +69,18 @@ function PaymentInstructions({ method }: { method: PaymentMethod }) {
     <div className="space-y-2">
       {/* Receiver name + number — always bold and prominent */}
       {(s.accountTitle || s.mobileNumber || s.accountNumber) && (
-        <div className="rounded-lg bg-[#4F46E5]/5 border border-[#4F46E5]/20 p-3 space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#4F46E5]/70">
+        <div className="rounded-lg bg-[#6B46C1]/5 border border-[#6B46C1]/20 p-3 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#6B46C1]/70">
             {isWallet ? "Send Payment To" : "Transfer To"}
           </p>
           {s.accountTitle && (
             <p className="text-sm font-extrabold text-slate-900">{s.accountTitle}</p>
           )}
           {s.mobileNumber && (
-            <p className="text-base font-black text-[#4F46E5] tracking-wide">{s.mobileNumber}</p>
+            <p className="text-base font-black text-[#6B46C1] tracking-wide">{s.mobileNumber}</p>
           )}
           {s.accountNumber && !s.mobileNumber && (
-            <p className="text-base font-black text-[#4F46E5] tracking-wide">{s.accountNumber}</p>
+            <p className="text-base font-black text-[#6B46C1] tracking-wide">{s.accountNumber}</p>
           )}
           {s.bankName && (
             <p className="text-xs text-slate-500">{s.bankName}</p>
@@ -322,7 +322,7 @@ export default function InvoiceDetail() {
           <Button
             variant="outline" size="sm"
             onClick={handleDownloadPdf} disabled={downloading}
-            className="gap-2 border-[#4F46E5]/30 text-[#4F46E5] hover:bg-[#4F46E5]/5"
+            className="gap-2 border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#6B46C1]/5"
           >
             {downloading ? <Loader2 size={15} className="animate-spin" /> : <FileDown size={15} />}
             {downloading ? "Generating…" : "Download PDF"}
@@ -596,7 +596,7 @@ export default function InvoiceDetail() {
                           <div
                             onClick={() => setSelectedGateway(isSel ? "" : pm.id)}
                             className={`flex items-center gap-4 rounded-2xl border-2 px-5 py-4 cursor-pointer transition-all ${
-                              isSel ? "border-[#4F46E5] bg-[#4F46E5]/5 shadow-md shadow-[#4F46E5]/10" : "border-slate-200 bg-white hover:border-[#4F46E5]/30"
+                              isSel ? "border-[#6B46C1] bg-[#6B46C1]/5 shadow-md shadow-[#6B46C1]/10" : "border-slate-200 bg-white hover:border-[#6B46C1]/30"
                             }`}
                           >
                             <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl ${
@@ -625,7 +625,7 @@ export default function InvoiceDetail() {
                               )}
                             </div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                              isSel ? "bg-[#4F46E5] border-[#4F46E5]" : "border-slate-300"
+                              isSel ? "bg-[#6B46C1] border-[#6B46C1]" : "border-slate-300"
                             }`}>
                               {isSel && <CheckCircle size={12} className="text-white" />}
                             </div>
@@ -644,7 +644,7 @@ export default function InvoiceDetail() {
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    className="rounded-2xl border border-[#4F46E5]/20 bg-[#4F46E5]/3 p-5 space-y-4"
+                    className="rounded-2xl border border-[#6B46C1]/20 bg-[#6B46C1]/3 p-5 space-y-4"
                   >
                     <div className="flex items-center justify-between">
                       <div>

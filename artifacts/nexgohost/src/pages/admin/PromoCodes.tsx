@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-const P = "#4F46E5";
+const P = "#6B46C1";
 
 interface ProductGroup { id: string; name: string; }
 interface HostingPlan { id: string; name: string; price: number; }

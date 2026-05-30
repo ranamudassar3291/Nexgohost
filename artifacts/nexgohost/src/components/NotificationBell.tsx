@@ -27,7 +27,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
   ticket:   { icon: Ticket,      color: "#DB2777", bg: "#FDF2F8", label: "Support"   },
   hosting:  { icon: RefreshCw,   color: "#0891B2", bg: "#ECFEFF", label: "Hosting"   },
   security: { icon: ShieldAlert, color: "#DC2626", bg: "#FEF2F2", label: "Security"  },
-  system:   { icon: Sparkles,    color: "#6366F1", bg: "#EEF2FF", label: "System"    },
+  system:   { icon: Sparkles,    color: "#7C5DE2", bg: "#F3F0FF", label: "System"    },
 };
 const DEFAULT_TYPE = { icon: Info, color: "#6B7280", bg: "#F9FAFB", label: "Notice" };
 
@@ -131,13 +131,13 @@ export function NotificationBell() {
           width: 36, height: 36,
           borderRadius: 10,
           border: "none",
-          background: open ? "#EEF2FF" : "transparent",
-          color: open ? "#4F46E5" : "#94A3B8",
+          background: open ? "#F3F0FF" : "transparent",
+          color: open ? "#6B46C1" : "#94A3B8",
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: "pointer",
           transition: "all 0.15s",
         }}
-        onMouseEnter={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = "#F8FAFF"; (e.currentTarget as HTMLElement).style.color = "#4F46E5"; } }}
+        onMouseEnter={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = "#F8F5FF"; (e.currentTarget as HTMLElement).style.color = "#6B46C1"; } }}
         onMouseLeave={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#94A3B8"; } }}
       >
         <Bell size={18} />
@@ -188,7 +188,7 @@ export function NotificationBell() {
             {/* ── Header ── */}
             <div style={{
               padding: "14px 18px",
-              background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+              background: "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 100%)",
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -241,7 +241,7 @@ export function NotificationBell() {
                 <div style={{ padding: "40px 20px", textAlign: "center" }}>
                   <div style={{
                     width: 52, height: 52, borderRadius: 18,
-                    background: "linear-gradient(135deg, #EEF2FF, #E0E7FF)",
+                    background: "linear-gradient(135deg, #F3F0FF, #E0E7FF)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     margin: "0 auto 14px",
                   }}>
@@ -267,14 +267,14 @@ export function NotificationBell() {
                         transition: "background 0.15s",
                         position: "relative",
                       }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#F8FAFF"}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#F8F5FF"}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = n.isRead ? "transparent" : "#FAFBFF"}
                     >
                       {/* Unread stripe */}
                       {!n.isRead && (
                         <div style={{
                           position: "absolute", left: 0, top: 0, bottom: 0,
-                          width: 3, background: "linear-gradient(180deg,#6366F1,#8B5CF6)", borderRadius: "0 2px 2px 0",
+                          width: 3, background: "linear-gradient(180deg,#7C5DE2,#8B5CF6)", borderRadius: "0 2px 2px 0",
                         }} />
                       )}
 
@@ -314,7 +314,7 @@ export function NotificationBell() {
                               <button
                                 onClick={e => { e.stopPropagation(); markRead(n.id); }}
                                 title="Mark read"
-                                style={{ width: 22, height: 22, border: "none", borderRadius: 6, background: "#EEF2FF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366F1" }}
+                                style={{ width: 22, height: 22, border: "none", borderRadius: 6, background: "#F3F0FF", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#7C5DE2" }}
                               >
                                 <Check size={11} />
                               </button>
@@ -334,7 +334,7 @@ export function NotificationBell() {
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <span style={{ fontSize: 10, color: "#9CA3AF" }}>{timeAgo(n.createdAt)}</span>
                           {n.link && !n.isRead && (
-                            <span style={{ fontSize: 10, color: "#6366F1", fontWeight: 700, display: "flex", alignItems: "center", gap: 2 }}>
+                            <span style={{ fontSize: 10, color: "#7C5DE2", fontWeight: 700, display: "flex", alignItems: "center", gap: 2 }}>
                               View <ArrowRight size={9} />
                             </span>
                           )}

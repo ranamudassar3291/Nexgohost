@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
-const BRAND = "#4F46E5";
+const BRAND = "#6B46C1";
 
 async function apiFetch(url: string, opts: RequestInit = {}) {
   const token = localStorage.getItem("token");

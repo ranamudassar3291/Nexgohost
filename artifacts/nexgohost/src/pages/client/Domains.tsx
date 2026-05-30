@@ -562,9 +562,9 @@ export default function ClientDomains() {
               {tldPricing.some(t => t.tld === ".com") && (
                 <div className="relative overflow-hidden rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 border border-primary/25"
                   style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.10) 0%, rgba(155,81,224,0.06) 100%)" }}>
-                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #6366F1 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 2px 2px, #8B5CF6 1px, transparent 0)", backgroundSize: "24px 24px" }} />
                   <div className="flex items-center gap-3 relative">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                       <Tag size={15} className="text-white" />
                     </div>
                     <div>
@@ -688,7 +688,7 @@ export default function ClientDomains() {
                                           onClick={() => addToCart(result)}
                                           disabled={cart.some(c => c.name === searchData.name && c.tld === result.tld)}
                                           className="ml-auto h-7 px-3 rounded-lg text-xs font-bold text-white disabled:opacity-50"
-                                          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                                          style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}
                                         >
                                           {cart.some(c => c.name === searchData.name && c.tld === result.tld) ? "Added ✓" : "+ Add"}
                                         </button>
@@ -806,7 +806,7 @@ export default function ClientDomains() {
                 style={{ background: "linear-gradient(135deg, rgba(112,26,254,0.06) 0%, rgba(155,81,224,0.03) 100%)" }}>
                 <div className="px-5 py-3.5 flex items-center justify-between border-b border-primary/10">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                       <Globe size={13} className="text-white" />
                     </div>
                     <div>
@@ -817,7 +817,7 @@ export default function ClientDomains() {
                   <div className="flex items-center gap-2">
                     <div className="w-28 h-2 bg-border rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%`, background: "linear-gradient(90deg, #4F46E5, #6366F1)" }} />
+                        style={{ width: `${pct}%`, background: "linear-gradient(90deg, #6B46C1, #8B5CF6)" }} />
                     </div>
                     <span className="text-xs font-bold text-primary">{pct}%</span>
                   </div>
@@ -834,7 +834,7 @@ export default function ClientDomains() {
                         {step.cta && (
                           <button onClick={() => navigate("/client/orders/new")}
                             className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-white"
-                            style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                            style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                             Buy Now →
                           </button>
                         )}
@@ -925,7 +925,7 @@ export default function ClientDomains() {
                             <button
                               onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
                               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
-                              style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)' }}
+                              style={{ background: 'linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)' }}
                             >
                               Manage <ChevronRight size={14} />
                             </button>
@@ -960,7 +960,7 @@ export default function ClientDomains() {
                             key={p}
                             onClick={() => setPortfolioPage(p)}
                             className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors ${p === page ? "text-white border-transparent" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
-                            style={p === page ? { background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" } : {}}
+                            style={p === page ? { background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" } : {}}
                           >
                             {p}
                           </button>
@@ -1079,11 +1079,11 @@ export default function ClientDomains() {
             {/* Gradient accent header */}
             <div className="relative px-6 pt-6 pb-5 border-b border-border overflow-hidden">
               <div className="absolute inset-0 opacity-[0.06]"
-                style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }} />
+                style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }} />
               <div className="relative flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-md"
-                    style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                    style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
                     <Server size={22} className="text-white" />
                   </div>
                   <div>
@@ -1115,12 +1115,12 @@ export default function ClientDomains() {
                 <div className="rounded-2xl border border-primary/25 p-5 relative overflow-hidden"
                   style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.04) 0%, rgba(99,102,241,0.02) 100%)" }}>
                   <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.05]"
-                    style={{ background: "radial-gradient(circle, #6366F1 0%, transparent 70%)" }} />
+                    style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }} />
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div>
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest text-white"
-                          style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}>
+                          style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
                           Recommended
                         </span>
                       </div>
@@ -1167,7 +1167,7 @@ export default function ClientDomains() {
                       navigate(`/client/orders/new?plan=${bestSharedPlan.id}&domain=${encodeURIComponent(upsellDomain.name + upsellDomain.tld)}`);
                     }}
                     className="w-full h-11 rounded-xl text-sm font-bold text-white shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                    style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                    style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}
                   >
                     <Zap size={15} />
                     Get Hosting for {upsellDomain.name}{upsellDomain.tld}
@@ -1181,7 +1181,7 @@ export default function ClientDomains() {
                   <button
                     onClick={() => { setUpsellDomain(null); navigate("/client/orders/new"); }}
                     className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold text-white inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
-                    style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                    style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}
                   >
                     <Sparkles size={13} /> View All Plans
                   </button>
@@ -1279,7 +1279,7 @@ export default function ClientDomains() {
                             {step.cta && (
                               <button onClick={() => { setManageDomainModal(null); navigate("/client/orders/new"); }}
                                 className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white shrink-0"
-                                style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                                style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                                 Buy Now →
                               </button>
                             )}
@@ -1374,7 +1374,7 @@ export default function ClientDomains() {
                       {(mdDaysLeft === null || mdDaysLeft < 60) && (
                         <button onClick={() => handleRenewDomain(md)} disabled={renewLoading}
                           className="mt-3 px-4 py-1.5 rounded-lg text-xs font-bold text-white"
-                          style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                          style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                           {renewLoading ? "Processing…" : "Renew Now →"}
                         </button>
                       )}

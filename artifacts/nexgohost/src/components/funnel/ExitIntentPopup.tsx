@@ -111,12 +111,12 @@ export function ExitIntentPopup() {
 
         {/* Emoji + badge */}
         <div style={{ fontSize: 52, marginBottom: 12 }}>🎁</div>
-        <div style={{ display: "inline-block", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", padding: "4px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: 1, marginBottom: 16 }}>
+        <div style={{ display: "inline-block", background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", padding: "4px 16px", borderRadius: 20, fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: 1, marginBottom: 16 }}>
           WAIT — EXCLUSIVE OFFER
         </div>
 
         <h2 style={{ fontSize: 28, fontWeight: 800, color: "#F9FAFB", lineHeight: 1.2, margin: "0 0 12px" }}>
-          Don't leave without your <span style={{ color: "#818CF8" }}>10% discount!</span>
+          Don't leave without your <span style={{ color: "#8B5CF6" }}>10% discount!</span>
         </h2>
         <p style={{ color: "#9CA3AF", fontSize: 15, lineHeight: 1.6, marginBottom: 28 }}>
           We noticed you were about to leave. Complete your order in the next 15 minutes and save 10% — just copy the code below.
@@ -124,11 +124,11 @@ export function ExitIntentPopup() {
 
         {/* Code box */}
         <div style={{
-          background: "rgba(99,102,241,.12)", border: "2px dashed #6366F1",
+          background: "rgba(99,102,241,.12)", border: "2px dashed #6B46C1",
           borderRadius: 14, padding: "18px 24px", marginBottom: 24,
           cursor: "pointer", animation: "pulse 2s ease infinite",
         }} onClick={copyCode}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#6366F1", letterSpacing: 2, marginBottom: 6 }}>YOUR DISCOUNT CODE</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B46C1", letterSpacing: 2, marginBottom: 6 }}>YOUR DISCOUNT CODE</div>
           <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: 6, color: "#F9FAFB", fontFamily: "monospace" }}>{DISCOUNT_CODE}</div>
           <div style={{ fontSize: 12, color: copied ? "#10B981" : "#9CA3AF", marginTop: 8 }}>
             {copied ? "✓ Copied!" : "Click to copy"}
@@ -138,7 +138,7 @@ export function ExitIntentPopup() {
         {/* CTAs */}
         <div style={{ display: "flex", gap: 12, flexDirection: "column" }}>
           <button onClick={copyCode} style={{
-            background: "linear-gradient(135deg,#6366F1,#4F46E5)", color: "#fff",
+            background: "linear-gradient(135deg,#6B46C1,#5B36B1)", color: "#fff",
             border: "none", borderRadius: 12, padding: "14px 24px",
             fontWeight: 700, fontSize: 15, cursor: "pointer", width: "100%",
           }}>

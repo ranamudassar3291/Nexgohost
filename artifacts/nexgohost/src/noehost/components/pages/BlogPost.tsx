@@ -24,7 +24,7 @@ function renderMarkdown(md: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g,    '<em>$1</em>')
     .replace(/`(.+?)`/g,      '<code style="background:#F3F4F6;padding:2px 6px;border-radius:5px;font-size:0.9em;font-family:monospace">$1</code>')
-    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#4F46E5;font-weight:600;text-decoration:underline">$1</a>')
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#6B46C1;font-weight:600;text-decoration:underline">$1</a>')
     .replace(/^- (.+)$/gm,    '<li style="margin:4px 0;color:#374151">$1</li>')
     .replace(/(<li[^>]*>.*<\/li>\n?)+/g, '<ul style="margin:12px 0 12px 20px;list-style:disc">$&</ul>')
     .replace(/^\d+\. (.+)$/gm,'<li style="margin:4px 0;color:#374151">$1</li>')
@@ -34,7 +34,7 @@ function renderMarkdown(md: string): string {
 }
 
 const CAT_COLORS: Record<string, { bg: string; text: string }> = {
-  "Hosting Guides": { bg: "#EEF2FF", text: "#4F46E5" },
+  "Hosting Guides": { bg: "#F3F0FF", text: "#6B46C1" },
   "WordPress":      { bg: "#FCE7F3", text: "#9D174D" },
   "Security":       { bg: "#FEF3C7", text: "#92400E" },
   "SEO":            { bg: "#D1FAE5", text: "#065F46" },
@@ -135,7 +135,7 @@ export default function BlogPost() {
 
         {isLoading && (
           <div style={{ padding: 80, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid #C7D2FE", borderTopColor: "#4F46E5", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid #C7B8FE", borderTopColor: "#6B46C1", animation: "spin 0.8s linear infinite" }} />
             <p style={{ color: "#9CA3AF", fontSize: 14 }}>Loading article…</p>
           </div>
         )}
@@ -145,7 +145,7 @@ export default function BlogPost() {
             <AlertCircle size={48} color="#FCA5A5" style={{ margin: "0 auto 16px" }} />
             <h2 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: "0 0 8px" }}>Article Not Found</h2>
             <p style={{ color: "#9CA3AF", fontSize: 14, margin: "0 0 20px" }}>This post may have been moved or deleted.</p>
-            <Link to="/blog" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, background: "#4F46E5", color: "#fff", fontWeight: 700, textDecoration: "none", fontSize: 14 }}>
+            <Link to="/blog" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, background: "#6B46C1", color: "#fff", fontWeight: 700, textDecoration: "none", fontSize: 14 }}>
               <ArrowLeft size={14} /> Back to Blog
             </Link>
           </div>
@@ -168,7 +168,7 @@ export default function BlogPost() {
 
             {/* Author + meta row */}
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid #F3F4F6" }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#7C5DE2,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>{post.author_name[0]}</span>
               </div>
               <div>
@@ -190,7 +190,7 @@ export default function BlogPost() {
 
             {/* Excerpt */}
             {post.excerpt && (
-              <div style={{ background: "#EEF2FF", border: "1px solid #C7D2FE", borderRadius: 12, padding: "14px 18px", marginBottom: 24 }}>
+              <div style={{ background: "#F3F0FF", border: "1px solid #C7B8FE", borderRadius: 12, padding: "14px 18px", marginBottom: 24 }}>
                 <p style={{ fontSize: 15, color: "#3730A3", fontWeight: 600, margin: 0, lineHeight: 1.6, fontStyle: "italic" }}>{post.excerpt}</p>
               </div>
             )}
@@ -207,14 +207,14 @@ export default function BlogPost() {
                 <Tag size={14} color="#9CA3AF" />
                 <span style={{ fontSize: 12, color: "#9CA3AF" }}>Keywords:</span>
                 {post.focus_keyword.split(",").map(kw => (
-                  <span key={kw} style={{ fontSize: 12, padding: "3px 10px", background: "#EEF2FF", color: "#4F46E5", borderRadius: 20, fontWeight: 700 }}>{kw.trim()}</span>
+                  <span key={kw} style={{ fontSize: 12, padding: "3px 10px", background: "#F3F0FF", color: "#6B46C1", borderRadius: 20, fontWeight: 700 }}>{kw.trim()}</span>
                 ))}
               </div>
             )}
 
             {/* Back to blog */}
             <div style={{ marginTop: 32 }}>
-              <Link to="/blog" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#4F46E5", textDecoration: "none" }}>
+              <Link to="/blog" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: "#6B46C1", textDecoration: "none" }}>
                 <ArrowLeft size={14} /> Back to Blog
               </Link>
             </div>
@@ -223,10 +223,10 @@ export default function BlogPost() {
             <RelatedPosts currentSlug={post.slug} category={post.category} />
 
             {/* CTA */}
-            <div style={{ marginTop: 48, background: "linear-gradient(135deg,#4F46E5,#7C3AED)", borderRadius: 18, padding: "28px 28px", textAlign: "center" }}>
+            <div style={{ marginTop: 48, background: "linear-gradient(135deg,#6B46C1,#7C3AED)", borderRadius: 18, padding: "28px 28px", textAlign: "center" }}>
               <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 8px" }}>Get Fast, Reliable Hosting</h3>
               <p style={{ fontSize: 14, color: "rgba(255,255,255,0.8)", margin: "0 0 18px" }}>Free SSL, cPanel, and 24/7 expert support. No setup fees.</p>
-              <Link to="/shared-hosting" style={{ display: "inline-block", padding: "11px 24px", borderRadius: 10, background: "#fff", color: "#4F46E5", fontWeight: 800, fontSize: 14, textDecoration: "none" }}>
+              <Link to="/shared-hosting" style={{ display: "inline-block", padding: "11px 24px", borderRadius: 10, background: "#fff", color: "#6B46C1", fontWeight: 800, fontSize: 14, textDecoration: "none" }}>
                 View Plans →
               </Link>
             </div>

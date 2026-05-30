@@ -119,7 +119,7 @@ export function SocialProofToast() {
         {/* Avatar / Emoji */}
         <div style={{
           width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-          background: "linear-gradient(135deg,#6366F1,#8B5CF6)",
+          background: "linear-gradient(135deg,#6B46C1,#8B5CF6)",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 22,
         }}>
@@ -129,7 +129,7 @@ export function SocialProofToast() {
         {/* Text */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", lineHeight: 1.3 }}>
-            Someone from <span style={{ color: "#4F46E5" }}>{current.city}</span> just purchased
+            Someone from <span style={{ color: "#6B46C1" }}>{current.city}</span> just purchased
           </div>
           <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {current.plan_name}

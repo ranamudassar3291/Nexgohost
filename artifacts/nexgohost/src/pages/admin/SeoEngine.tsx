@@ -95,7 +95,7 @@ function BlogEditor({
               {form.published ? "Published" : "Draft"}
             </label>
             <button onClick={handleSave} disabled={saving}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}>
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: "#6B46C1", color: "#fff", fontWeight: 700, fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? "Saving…" : "Save Post"}
             </button>
@@ -122,7 +122,7 @@ function BlogEditor({
               <label style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>URL Slug *</label>
               <div style={{ position: "relative", marginTop: 4 }}>
                 <input className={inputCls} value={form.slug} onChange={e => set("slug", slugify(e.target.value))} placeholder="best-nodejs-hosting-pakistan" style={{ paddingRight: 80 }} />
-                <button onClick={() => set("slug", slugify(form.title))} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "#EEF2FF", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#4F46E5", cursor: "pointer", fontWeight: 700 }}>
+                <button onClick={() => set("slug", slugify(form.title))} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "#F3F0FF", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#6B46C1", cursor: "pointer", fontWeight: 700 }}>
                   Auto
                 </button>
               </div>
@@ -251,7 +251,7 @@ function BlogManagerTab() {
           {CATEGORIES.map(c => <option key={c}>{c}</option>)}
         </select>
         <button onClick={() => setEditing("new")}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 10, border: "none", background: "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 10, border: "none", background: "#6B46C1", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
           <Plus size={14} /> New Post
         </button>
       </div>
@@ -272,7 +272,7 @@ function BlogManagerTab() {
           </p>
           {posts.length === 0 && (
             <button onClick={() => setEditing("new")}
-              style={{ marginTop: 14, padding: "9px 20px", borderRadius: 10, border: "none", background: "#4F46E5", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              style={{ marginTop: 14, padding: "9px 20px", borderRadius: 10, border: "none", background: "#6B46C1", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
               <Plus size={14} style={{ display: "inline", marginRight: 6 }} />Write First Post
             </button>
           )}
@@ -291,7 +291,7 @@ function BlogManagerTab() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
                   <span style={{ fontSize: 11, color: "#9CA3AF" }}>/{p.slug}</span>
                   {p.focus_keyword && (
-                    <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 20, background: "#EEF2FF", color: "#6366F1", fontWeight: 700 }}>
+                    <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 20, background: "#F3F0FF", color: "#7C5DE2", fontWeight: 700 }}>
                       🎯 {p.focus_keyword}
                     </span>
                   )}
@@ -369,8 +369,8 @@ function SchemaTab() {
       {/* Sitemap card */}
       <div style={{ background: "#fff", border: "1px solid #E8EAED", borderRadius: 16, overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", background: "#FAFBFF", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Map size={16} color="#4F46E5" />
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: "#F3F0FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Map size={16} color="#6B46C1" />
           </div>
           <div>
             <p style={{ fontSize: 14, fontWeight: 800, color: "#111827", margin: 0 }}>Auto-Generated Sitemap</p>
@@ -379,23 +379,23 @@ function SchemaTab() {
         </div>
         <div style={{ padding: "16px 18px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px" }}>
-            <Link2 size={14} color="#6366F1" />
+            <Link2 size={14} color="#7C5DE2" />
             <code style={{ fontSize: 13, color: "#374151", flex: 1 }}>{sitemapUrl}</code>
             <a href={sitemapUrl} target="_blank" rel="noreferrer"
-              style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#4F46E5", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none" }}>
+              style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#6B46C1", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none" }}>
               View XML
             </a>
           </div>
           <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
             {["/", "/shared-hosting", "/wordpress-hosting", "/reseller-hosting", "/vps-hosting", "/domains", "/blog"].map(p => (
-              <span key={p} style={{ fontSize: 11, padding: "3px 9px", background: "#EEF2FF", color: "#4F46E5", borderRadius: 20, fontWeight: 600 }}>{p}</span>
+              <span key={p} style={{ fontSize: 11, padding: "3px 9px", background: "#F3F0FF", color: "#6B46C1", borderRadius: 20, fontWeight: 600 }}>{p}</span>
             ))}
             <span style={{ fontSize: 11, padding: "3px 9px", background: "#D1FAE5", color: "#065F46", borderRadius: 20, fontWeight: 600 }}>+ blog posts</span>
           </div>
           <div style={{ marginTop: 12, padding: "10px 14px", background: "#FFF9C4", border: "1px solid #FDE68A", borderRadius: 10 }}>
             <p style={{ fontSize: 12, color: "#92400E", margin: 0, fontWeight: 600 }}>
               Next step: Submit <strong>{sitemapUrl}</strong> to{" "}
-              <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer" style={{ color: "#4F46E5" }}>Google Search Console</a>
+              <a href="https://search.google.com/search-console" target="_blank" rel="noreferrer" style={{ color: "#6B46C1" }}>Google Search Console</a>
               {" "}→ Sitemaps for instant indexing of all your pages and blog posts.
             </p>
           </div>
@@ -428,7 +428,7 @@ function SchemaTab() {
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={() => checkSchema(page.slug)} disabled={isChecking}
-                      style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#fff", fontSize: 12, fontWeight: 700, color: "#4F46E5", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                      style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#fff", fontSize: 12, fontWeight: 700, color: "#6B46C1", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
                       {isChecking ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
                       {isChecking ? "Checking…" : data ? "Re-check" : "Check Schema"}
                     </button>
@@ -483,8 +483,8 @@ export default function SeoEngine() {
       {/* Header */}
       <div style={{ marginBottom: 26, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 14, background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Search size={20} color="#4F46E5" />
+          <div style={{ width: 40, height: 40, borderRadius: 14, background: "linear-gradient(135deg,#F3F0FF,#E0E7FF)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Search size={20} color="#6B46C1" />
           </div>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 900, color: "#111827", margin: 0 }}>SEO & Marketing Engine</h1>
@@ -508,7 +508,7 @@ export default function SeoEngine() {
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer",
               fontWeight: 700, fontSize: 13, transition: "all 0.2s",
-              background: tab === t.id ? "#fff" : "transparent", color: tab === t.id ? "#4F46E5" : "#6B7280",
+              background: tab === t.id ? "#fff" : "transparent", color: tab === t.id ? "#6B46C1" : "#6B7280",
               boxShadow: tab === t.id ? "0 1px 6px rgba(0,0,0,0.10)" : "none" }}>
             <t.icon size={14} />{t.label}
           </button>
@@ -530,7 +530,7 @@ function BlogStatsRow() {
     staleTime: 10_000,
   });
   const stats = [
-    { label: "Total Posts",  value: posts.length,                              color: "#4F46E5", bg: "#EEF2FF" },
+    { label: "Total Posts",  value: posts.length,                              color: "#6B46C1", bg: "#F3F0FF" },
     { label: "Published",    value: posts.filter(p => p.published).length,     color: "#10B981", bg: "#D1FAE5" },
     { label: "Drafts",       value: posts.filter(p => !p.published).length,    color: "#F59E0B", bg: "#FEF3C7" },
     { label: "Keywords",     value: new Set(posts.map(p => p.focus_keyword).filter(Boolean)).size, color: "#8B5CF6", bg: "#EDE9FE" },

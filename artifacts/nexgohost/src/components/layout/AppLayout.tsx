@@ -275,12 +275,12 @@ export function AppLayout({ children, role }: LayoutProps) {
         ) : (
           <>
             <div className="brand-logo-container w-9 h-9 rounded-xl font-black text-white text-base flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", boxShadow: "0 4px 14px rgba(99,102,241,0.45)" }}>
+              style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", boxShadow: "0 4px 14px rgba(107,70,193,0.45)" }}>
               {siteName?.[0] ?? "N"}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-extrabold text-[15px] text-white tracking-tight leading-none">{siteName}</span>
-              <span className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#6366F1" }}>Client Portal</span>
+              <span className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#7C5DE2" }}>Client Portal</span>
             </div>
           </>
         )}
@@ -291,7 +291,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         <Link href="/client/orders/new">
           <div onClick={() => setMobileMenuOpen(false)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer font-bold text-[13px] text-white select-none"
-            style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)", boxShadow: "0 4px 18px rgba(99,102,241,0.4)" }}>
+            style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", boxShadow: "0 4px 18px rgba(107,70,193,0.4)" }}>
             <Plus size={14} />
             New Order
           </div>
@@ -339,7 +339,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                     >
                       {/* Active bar */}
                       {active && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full" style={{ background: "#6366F1" }} />
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full" style={{ background: "#7C5DE2" }} />
                       )}
 
                       {/* Icon container */}
@@ -357,7 +357,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                       <span className="text-[13px] font-medium flex-1 leading-none">{link.name}</span>
 
                       {active && (
-                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#6366F1" }} />
+                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#7C5DE2" }} />
                       )}
                     </div>
                   </Link>
@@ -393,7 +393,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         <div className="flex items-center gap-3 p-2.5 rounded-xl mb-2.5"
           style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 text-white"
-            style={{ background: "linear-gradient(135deg,#6366F1,#8B5CF6)" }}>
+            style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)" }}>
             {user?.firstName?.[0]}{user?.lastName?.[0]}
           </div>
           <div className="flex-1 min-w-0">
@@ -436,13 +436,13 @@ export function AppLayout({ children, role }: LayoutProps) {
           <>
             <div
               className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0 flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 0 14px rgba(91,95,239,0.35)" }}
+              style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)", boxShadow: "0 0 14px rgba(107,70,193,0.35)" }}
             >
               {siteName?.[0] ?? "N"}
             </div>
             <div className="flex flex-col justify-center min-w-0">
-              <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#5B5FEF,#7A6BFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
-              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#5B5FEF" }}>NoePanel</p>
+              <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
+              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#7C5DE2" }}>NoePanel</p>
             </div>
           </>
         )}
@@ -558,7 +558,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             <>
               <div
                 className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}
+                style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
               >
                 {siteName?.[0] ?? "N"}
               </div>
@@ -572,7 +572,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             <Link href="/client/orders/new">
               <button
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow mr-1"
-                style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)" }}
+                style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
               >
                 <Plus size={13} />
                 Order
@@ -655,7 +655,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                 <Link href="/client/orders/new">
                   <button
                     className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow transition-opacity hover:opacity-90"
-                    style={{ background: "linear-gradient(135deg, #5B5FEF, #7A6BFF)", boxShadow: "0 4px 14px rgba(91,95,239,0.25)" }}
+                    style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)", boxShadow: "0 4px 14px rgba(107,70,193,0.25)" }}
                   >
                     <Plus size={15} /> New Order
                   </button>
@@ -665,7 +665,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                   onClick={() => setHelpOpen(s => !s)}
                   title="Help & Guides"
                   className="relative p-2 rounded-xl transition-colors"
-                  style={{ color: helpOpen ? "#4F46E5" : "#94A3B8", background: helpOpen ? "#EEF2FF" : "transparent" }}
+                  style={{ color: helpOpen ? "#6B46C1" : "#94A3B8", background: helpOpen ? "#F3F0FF" : "transparent" }}
                   onMouseEnter={e => { if (!helpOpen) (e.currentTarget as HTMLElement).style.color = "#1A202C"; }}
                   onMouseLeave={e => { if (!helpOpen) (e.currentTarget as HTMLElement).style.color = "#94A3B8"; }}
                 >
@@ -676,7 +676,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             <div
               className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs"
               style={isClient
-                ? { background: "#EEF2FF", color: "#4F46E5", border: "2px solid #C7D2FE" }
+                ? { background: "#F3F0FF", color: "#6B46C1", border: "2px solid #C7B8FE" }
                 : { background: "hsl(var(--primary)/0.1)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary)/0.2)" }
               }
             >
@@ -765,8 +765,8 @@ export function AppLayout({ children, role }: LayoutProps) {
               {/* Drawer header */}
               <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #F0F0F5" }}>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#EEF2FF" }}>
-                    <BookOpen size={15} style={{ color: "#4F46E5" }} />
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "#F3F0FF" }}>
+                    <BookOpen size={15} style={{ color: "#6B46C1" }} />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold" style={{ color: "#1A202C" }}>{helpContext.title}</h3>
@@ -797,8 +797,8 @@ export function AppLayout({ children, role }: LayoutProps) {
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#F0F0F5"; (e.currentTarget as HTMLElement).style.background = "#FAFAFA"; }}
                   >
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-colors"
-                      style={{ background: "#EEF2FF" }}>
-                      <BookOpen size={14} style={{ color: "#4F46E5" }} />
+                      style={{ background: "#F3F0FF" }}>
+                      <BookOpen size={14} style={{ color: "#6B46C1" }} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold leading-snug" style={{ color: "#1A202C" }}>{art.label}</p>
@@ -814,7 +814,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                   <Link href="/client/tickets" onClick={() => setHelpOpen(false)}>
                     <div
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
-                      style={{ background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)" }}
+                      style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}
                     >
                       <Server size={14} />
                       Open a Support Ticket

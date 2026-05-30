@@ -6,7 +6,7 @@ import {
   LogOut, AlertTriangle, ShieldCheck, ExternalLink, Download,
 } from "lucide-react";
 
-const BRAND = "linear-gradient(135deg, #4F46E5 0%, #6366F1 60%, #818CF8 100%)";
+const BRAND = "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 60%, #8B5CF6 100%)";
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 const apiFetch = (path: string, opts?: RequestInit) => {

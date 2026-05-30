@@ -2,21 +2,21 @@
 
 @theme {
   --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  /* ── NoeHost Brand Purple #673de6 — unified across all portals ── */
-  --color-primary: #673de6;
+  /* ── NoeHost Brand Purple #6B46C1 — Logo Match ── */
+  --color-primary: #6B46C1;
   --color-primary-50:  #f3f0ff;
   --color-primary-100: #e5dfff;
   --color-primary-200: #c9bcff;
   --color-primary-300: #a888f5;
-  --color-primary-400: #8b6ff0;
-  --color-primary-500: #673de6;
-  --color-primary-600: #5228cc;
-  --color-primary-700: #3d1faa;
-  --color-primary-800: #2d1585;
-  --color-primary-900: #1d0a60;
+  --color-primary-400: #8B5CF6;
+  --color-primary-500: #6B46C1;
+  --color-primary-600: #5B36B1;
+  --color-primary-700: #4B26A1;
+  --color-primary-800: #3B1681;
+  --color-primary-900: #2B0661;
   --color-secondary: #0e0e11;
   --color-dark: #050505;
-  --color-accent: #00d1ff;
+  --color-accent: #8B5CF6;
   --color-surface: #ffffff;
 }
 

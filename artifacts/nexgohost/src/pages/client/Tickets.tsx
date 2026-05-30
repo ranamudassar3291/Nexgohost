@@ -755,13 +755,13 @@ export default function ClientTickets() {
               {/* Sidebar header */}
               <div className="px-4 py-3 flex items-center gap-2 border-b border-border/40"
                 style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.04))" }}>
-                <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "rgba(99,102,241,0.15)" }}>
-                  <Brain size={13} style={{ color: "#6366F1" }} />
+                <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: "rgba(107,70,193,0.15)" }}>
+                  <Brain size={13} style={{ color: "#7C5DE2" }} />
                 </div>
                 <p className="text-xs font-bold text-foreground flex-1">AI Knowledge Base</p>
                 {aiSource === "ai" && (
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                    style={{ background: "rgba(99,102,241,0.15)", color: "#818CF8" }}>
+                    style={{ background: "rgba(107,70,193,0.15)", color: "#8B5CF6" }}>
                     AI
                   </span>
                 )}
@@ -789,8 +789,8 @@ export default function ClientTickets() {
                 {!aiLoading && aiSuggestions.length === 0 && (
                   <div className="py-6 text-center">
                     <div className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center"
-                      style={{ background: "rgba(99,102,241,0.1)" }}>
-                      <Wand2 size={18} style={{ color: "#818CF8" }} />
+                      style={{ background: "rgba(107,70,193,0.1)" }}>
+                      <Wand2 size={18} style={{ color: "#8B5CF6" }} />
                     </div>
                     <p className="text-xs font-semibold text-foreground mb-1">Smart suggestions</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
@@ -809,8 +809,8 @@ export default function ClientTickets() {
                     className="flex items-start gap-2.5 p-3 rounded-xl border border-border/50 hover:border-primary/40 hover:bg-secondary/40 transition-all group block"
                   >
                     <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 transition-colors"
-                      style={{ background: i === 0 ? "rgba(79,70,229,0.12)" : "rgba(99,102,241,0.08)" }}>
-                      <BookOpen size={12} style={{ color: "#6366F1" }} />
+                      style={{ background: i === 0 ? "rgba(107,70,193,0.12)" : "rgba(99,102,241,0.08)" }}>
+                      <BookOpen size={12} style={{ color: "#7C5DE2" }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">

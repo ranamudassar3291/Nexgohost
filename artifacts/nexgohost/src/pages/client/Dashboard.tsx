@@ -54,7 +54,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return res.json();
 }
 
-const CONFETTI_COLORS = ["#4F46E5", "#6366F1", "#818CF8", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
+const CONFETTI_COLORS = ["#6B46C1", "#7C5DE2", "#8B5CF6", "#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#F97316"];
 function Confetti({ active }: { active: boolean }) {
   if (!active) return null;
   const pieces = Array.from({ length: 32 }, (_, i) => ({
@@ -197,10 +197,10 @@ function IpUnblockBanner() {
           background: isDone ? "rgba(16,185,129,0.2)" : isError ? "rgba(239,68,68,0.2)" : "rgba(99,102,241,0.22)",
           border: `1px solid ${isDone ? "rgba(16,185,129,0.4)" : isError ? "rgba(239,68,68,0.35)" : "rgba(139,92,246,0.4)"}`,
         }}>
-          {status === "loading" ? <Loader2 size={22} className="animate-spin" style={{color:"#818CF8"}} />
+          {status === "loading" ? <Loader2 size={22} className="animate-spin" style={{color:"#8B5CF6"}} />
             : isDone             ? <CheckCircle2 size={22} style={{color:"#10B981"}} />
             : isError            ? <WifiOff size={22} style={{color:"#F87171"}} />
-            :                      <UnlockKeyhole size={22} style={{color:"#818CF8"}} />}
+            :                      <UnlockKeyhole size={22} style={{color:"#8B5CF6"}} />}
         </div>
 
         {/* Copy */}
@@ -290,7 +290,7 @@ function SiteHealthPanel() {
       <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6", background: "#FAFBFF" }}>
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#EEF2FF" }}>
-            <Activity size={14} style={{ color: "#4F46E5" }} />
+            <Activity size={14} style={{ color: "#6B46C1" }} />
           </div>
           <h2 className="font-display font-bold" style={{ fontSize: "15px", color: "#111827" }}>Site Health & Performance</h2>
         </div>
@@ -349,14 +349,14 @@ function SiteHealthPanel() {
             <div className="rounded-xl p-3" style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Cpu size={12} style={{ color: "#6366F1" }} />
+                  <Cpu size={12} style={{ color: "#7C5DE2" }} />
                   <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "#6B7280" }}>CPU</span>
                 </div>
-                <span className="text-[11px] font-black tabular-nums" style={{ color: "#4F46E5" }}>
+                <span className="text-[11px] font-black tabular-nums" style={{ color: "#6B46C1" }}>
                   {primary?.cpuPct.toFixed(0)}%
                 </span>
               </div>
-              <Sparkline values={cpuHistory} color="#6366F1" height={38} />
+              <Sparkline values={cpuHistory} color="#7C5DE2" height={38} />
               <div className="flex justify-between mt-1">
                 <span className="text-[10px]" style={{ color: "#94A3B8" }}>{hist?.series?.[0]?.date?.slice(5) ?? ""}</span>
                 <span className="text-[10px]" style={{ color: "#94A3B8" }}>Today</span>
@@ -389,7 +389,7 @@ function SiteHealthPanel() {
               <div key={svc.serviceId} className="shrink-0 rounded-xl px-3 py-2 flex items-center gap-2.5 min-w-[160px]"
                 style={{ background: "#F8FAFC", border: "1px solid #E8EAED" }}>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#EEF2FF" }}>
-                  <Server size={11} style={{ color: "#4F46E5" }} />
+                  <Server size={11} style={{ color: "#6B46C1" }} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold truncate" style={{ color: "#111827" }}>{svc.domain}</p>
@@ -405,10 +405,10 @@ function SiteHealthPanel() {
           <div className="flex items-start gap-3 rounded-xl px-4 py-3"
             style={{ background: "linear-gradient(135deg,#EEF2FF,#E0E7FF)", border: "1px solid #C7D2FE" }}>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: "rgba(99,102,241,0.15)" }}>
-              <Sparkles size={15} style={{ color: "#4F46E5" }} />
+              <Sparkles size={15} style={{ color: "#6B46C1" }} />
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "#6366F1" }}>AI Recommendation</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "#7C5DE2" }}>AI Recommendation</p>
               <p className="text-sm leading-relaxed" style={{ color: "#312E81" }}>{health.ai.text}</p>
             </div>
           </div>
@@ -432,7 +432,7 @@ function ServiceUsageBar({ serviceId }: { serviceId: string }) {
   return (
     <div className="mt-3 space-y-1.5">
       {[
-        { label: "Disk", pct: usage.disk.pct, used: usage.disk.usedFmt, limit: usage.disk.limitFmt, color: "#6366F1" },
+        { label: "Disk", pct: usage.disk.pct, used: usage.disk.usedFmt, limit: usage.disk.limitFmt, color: "#7C5DE2" },
         { label: "BW", pct: usage.bandwidth.pct, used: usage.bandwidth.usedFmt, limit: usage.bandwidth.limitFmt, color: "#10B981" },
       ].map(bar => (
         <div key={bar.label}>
@@ -498,7 +498,7 @@ function HostingTile({ svc, onSso, ssoLoading }: {
             className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
             style={{ background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)" }}
           >
-            <Server size={20} style={{ color: "#4F46E5" }} />
+            <Server size={20} style={{ color: "#6B46C1" }} />
           </div>
           <StatusBadge status={svc.status} />
         </div>
@@ -528,7 +528,7 @@ function HostingTile({ svc, onSso, ssoLoading }: {
           <button
             className="w-full h-8 rounded-lg text-xs font-semibold transition-all"
             style={{
-              background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+              background: "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 100%)",
               color: "#fff",
               boxShadow: "0 2px 8px rgba(99,102,241,0.25)",
             }}
@@ -618,7 +618,7 @@ function DomainTile({ domain, navigate }: { domain: DomainItem; navigate: (path:
           onClick={() => navigate(`/client/domains`)}
           className="flex-1 h-8 rounded-lg text-xs font-semibold transition-all"
           style={{
-            background: "linear-gradient(135deg,#4F46E5 0%,#6366F1 100%)",
+            background: "linear-gradient(135deg,#6B46C1 0%,#7C5DE2 100%)",
             color: "#fff",
             boxShadow: "0 2px 8px rgba(99,102,241,0.25)",
           }}
@@ -678,7 +678,7 @@ function SectionHeader({ title, icon: Icon, link, linkLabel, count }: {
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#EEF2FF" }}>
-          <Icon size={15} style={{ color: "#4F46E5" }} />
+          <Icon size={15} style={{ color: "#6B46C1" }} />
         </div>
         <h2 className="font-display font-bold" style={{ fontSize: "15px", color: "#111827" }}>
           {title}
@@ -691,7 +691,7 @@ function SectionHeader({ title, icon: Icon, link, linkLabel, count }: {
       </div>
       {link && linkLabel && (
         <Link href={link}>
-          <span className="text-xs font-semibold flex items-center gap-1 transition-colors hover:opacity-70" style={{ color: "#4F46E5" }}>
+          <span className="text-xs font-semibold flex items-center gap-1 transition-colors hover:opacity-70" style={{ color: "#6B46C1" }}>
             {linkLabel} <ArrowRight size={12} />
           </span>
         </Link>
@@ -847,7 +847,7 @@ export default function ClientDashboard() {
               color: "#111827",
               boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
             }}
-            onFocus={e => { e.currentTarget.style.border = "1.5px solid #6366F1"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
+            onFocus={e => { e.currentTarget.style.border = "1.5px solid #7C5DE2"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
             onBlur={e => { e.currentTarget.style.border = "1px solid #E5E7EB"; e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04)"; }}
           />
           {searchQuery && (
@@ -864,7 +864,7 @@ export default function ClientDashboard() {
           className="flex items-center rounded-xl overflow-hidden"
           style={{ background: "#EEF2FF", border: "1px solid #C7D2FE" }}
         >
-          <div className="flex items-center gap-1.5 shrink-0 px-4 py-2.5 font-bold text-xs uppercase tracking-widest whitespace-nowrap" style={{ color: "#4F46E5", borderRight: "1px solid #C7D2FE" }}>
+          <div className="flex items-center gap-1.5 shrink-0 px-4 py-2.5 font-bold text-xs uppercase tracking-widest whitespace-nowrap" style={{ color: "#6B46C1", borderRight: "1px solid #C7D2FE" }}>
             <Megaphone className="h-3.5 w-3.5" />
             <span>News</span>
           </div>
@@ -910,7 +910,7 @@ export default function ClientDashboard() {
               <div key={i} className="flex items-center justify-between px-5 py-3" style={{ borderBottom: i < expiryAlerts.length - 1 ? "1px solid #F3F4F6" : "none" }}>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: alert.type === "Hosting" ? "#EEF2FF" : "#F0FDF4" }}>
-                    {alert.type === "Hosting" ? <Server size={14} style={{ color: "#4F46E5" }} /> : <Globe size={14} style={{ color: "#059669" }} />}
+                    {alert.type === "Hosting" ? <Server size={14} style={{ color: "#6B46C1" }} /> : <Globe size={14} style={{ color: "#059669" }} />}
                   </div>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: "#111827" }}>{alert.name}</p>
@@ -935,7 +935,7 @@ export default function ClientDashboard() {
       {/* ── Stat Summary Cards ── */}
       {!q && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="My Services" value={allServices.length} icon={Server} href="/client/hosting" color="#4F46E5" />
+          <StatCard title="My Services" value={allServices.length} icon={Server} href="/client/hosting" color="#6B46C1" />
           <StatCard title="Domains" value={allDomains.length} icon={Globe} href="/client/domains" color="#059669" />
           <StatCard title="Invoices" value={stats.unpaidInvoices} icon={FileText} href="/client/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
           <StatCard title="Support Ticket" value={stats.openTickets} icon={Ticket} href="/client/tickets" color="#F59E0B" />
@@ -980,7 +980,7 @@ export default function ClientDashboard() {
               <p className="text-sm font-semibold" style={{ color: "#374151" }}>No services yet</p>
               <p className="text-xs mt-1" style={{ color: "#9CA3AF" }}>Get started with a hosting plan.</p>
               <Link href="/client/orders/new">
-                <button className="mt-4 h-8 px-4 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#4F46E5,#6366F1)" }}>
+                <button className="mt-4 h-8 px-4 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#6B46C1,#7C5DE2)" }}>
                   Get Hosting
                 </button>
               </Link>
@@ -1050,24 +1050,24 @@ export default function ClientDashboard() {
         return (
           <div className="rounded-2xl overflow-hidden" style={{ background: "#ffffff", border: "1px solid #E0E7FF", borderRadius: "16px" }}>
             <div className="flex items-center gap-3 px-5 py-3.5" style={{ background: "#EEF2FF", borderBottom: "1px solid #E0E7FF" }}>
-              <Rocket size={15} style={{ color: "#4F46E5" }} />
+              <Rocket size={15} style={{ color: "#6B46C1" }} />
               <p className="text-sm font-bold" style={{ color: "#312E81" }}>You're {setupProgress.pct}% of the way to launch — keep going.</p>
               <div className="flex-1 mx-4 h-1.5 rounded-full overflow-hidden" style={{ background: "#C7D2FE" }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${setupProgress.pct}%`, background: "linear-gradient(90deg,#4F46E5,#6366F1)" }} />
+                <div className="h-full rounded-full transition-all" style={{ width: `${setupProgress.pct}%`, background: "linear-gradient(90deg,#6B46C1,#7C5DE2)" }} />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x" style={{ borderColor: "#F3F4F6" }}>
               {steps.map((step, i) => (
                 <div key={i} className={`px-5 py-4 flex items-start gap-3 ${step.locked ? "opacity-40" : ""}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 ${step.done ? "border-green-300 bg-green-50" : step.locked ? "border-gray-200 bg-gray-50" : "border-indigo-300 bg-indigo-50"}`}>
-                    {step.done ? <CheckCircle2 size={16} style={{ color: "#059669" }} /> : step.locked ? <Lock size={14} style={{ color: "#9CA3AF" }} /> : <step.icon size={14} style={{ color: "#4F46E5" }} />}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 ${step.done ? "border-green-300 bg-green-50" : step.locked ? "border-gray-200 bg-gray-50" : "border-purple-300 bg-purple-50"}`}>
+                    {step.done ? <CheckCircle2 size={16} style={{ color: "#059669" }} /> : step.locked ? <Lock size={14} style={{ color: "#9CA3AF" }} /> : <step.icon size={14} style={{ color: "#6B46C1" }} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold" style={{ color: "#111827" }}>{step.label}</p>
                     <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>{step.desc}</p>
                     {step.cta && (
                       <Link href={step.cta.href}>
-                        <button className="mt-2 h-7 px-3 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#4F46E5,#6366F1)" }}>
+                        <button className="mt-2 h-7 px-3 rounded-lg text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,#6B46C1,#7C5DE2)" }}>
                           {step.cta.label} →
                         </button>
                       </Link>
@@ -1086,20 +1086,20 @@ export default function ClientDashboard() {
           <Confetti active={confettiActive} />
           <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 60% at 50% 0%,rgba(112,26,254,0.45),transparent 70%)" }} />
           <div className="relative z-[1] p-8 text-center flex flex-col items-center gap-5">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#4F46E5,#6366F1)", boxShadow: "0 0 40px rgba(99,102,241,0.6)" }}>
+            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#6B46C1,#7C5DE2)", boxShadow: "0 0 40px rgba(99,102,241,0.6)" }}>
               <PartyPopper size={28} className="text-white" />
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">You're Live!</h2>
-              <p className="text-violet-200 font-semibold mt-1">Your site is live and the world can find you.</p>
+              <p className="text-purple-300 font-semibold mt-1">Your site is live and the world can find you.</p>
               {setupProgress.primaryDomain && (
-                <a href={setupProgress.siteUrl ?? "#"} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-300 hover:text-white transition-colors underline underline-offset-2 mt-1 block">
+                <a href={setupProgress.siteUrl ?? "#"} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-300 hover:text-white transition-colors underline underline-offset-2 mt-1 block">
                   {setupProgress.primaryDomain}
                 </a>
               )}
             </div>
             <div className="flex flex-wrap justify-center gap-3">
-              <Link href="/client/hosting"><button className="px-5 py-2.5 rounded-xl text-sm font-bold text-white border border-white/20" style={{ background: "linear-gradient(135deg,#4F46E5,#6366F1)" }}>Manage Website</button></Link>
+              <Link href="/client/hosting"><button className="px-5 py-2.5 rounded-xl text-sm font-bold text-white border border-white/20" style={{ background: "linear-gradient(135deg,#6B46C1,#7C5DE2)" }}>Manage Website</button></Link>
               {setupProgress.siteUrl && <a href={setupProgress.siteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white border border-white/20 hover:bg-white/10 transition-all"><ExternalLink size={14} /> Open Site</a>}
             </div>
           </div>
@@ -1116,7 +1116,7 @@ export default function ClientDashboard() {
           <Search size={32} className="mx-auto mb-3" style={{ color: "#D1D5DB" }} />
           <p className="text-sm font-semibold" style={{ color: "#374151" }}>Nothing matches "{searchQuery}"</p>
           <p className="text-xs mt-1" style={{ color: "#9CA3AF" }}>Try a different name or browse your services above.</p>
-          <button onClick={() => setSearchQuery("")} className="mt-4 text-sm font-semibold" style={{ color: "#4F46E5" }}>Clear search</button>
+          <button onClick={() => setSearchQuery("")} className="mt-4 text-sm font-semibold" style={{ color: "#6B46C1" }}>Clear search</button>
         </div>
       )}
 
@@ -1124,7 +1124,7 @@ export default function ClientDashboard() {
       {!q && isNewClient && (
         <div className="rounded-2xl overflow-hidden" style={{ background: "#ffffff", border: "1px solid #E0E7FF", borderRadius: "16px" }}>
           <div className="flex items-center gap-3 px-5 py-3.5" style={{ background: "#EEF2FF", borderBottom: "1px solid #E0E7FF" }}>
-            <Sparkles size={15} style={{ color: "#4F46E5" }} />
+            <Sparkles size={15} style={{ color: "#6B46C1" }} />
             <p className="text-sm font-bold" style={{ color: "#312E81" }}>New around here? Let us show you the ropes.</p>
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1136,7 +1136,7 @@ export default function ClientDashboard() {
             ].map(g => (
               <Link key={g.label} href={g.href}
                 className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                style={{ background: "#F8F8FF", border: "1px solid #E0E7FF", color: "#4F46E5" }}
+                style={{ background: "#F8F8FF", border: "1px solid #E0E7FF", color: "#6B46C1" }}
               >
                 <BookOpen size={13} className="shrink-0" />
                 {g.label}
@@ -1159,7 +1159,7 @@ export default function ClientDashboard() {
             return (
               <Link key={item.href} href={item.href}>
                 <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-colors" style={{ background: "#fff", borderColor: "#E5E7EB" }}>
-                  <Icon size={16} style={{ color: "#4F46E5" }} />
+                  <Icon size={16} style={{ color: "#6B46C1" }} />
                   <span className="text-sm font-medium" style={{ color: "#111827" }}>{item.label}</span>
                 </div>
               </Link>
@@ -1183,7 +1183,7 @@ export default function ClientDashboard() {
                 </div>
                 <h3 className="font-display font-bold text-sm" style={{ color: "#111827" }}>Recent Invoices</h3>
               </div>
-              <Link href="/client/billing"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#4F46E5" }}>View All <ArrowRight size={11} /></span></Link>
+              <Link href="/client/billing"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
             </div>
             <div>
               {!stats.recentInvoices?.length ? (
@@ -1218,11 +1218,11 @@ export default function ClientDashboard() {
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F3F4F6" }}>
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "#EEF2FF" }}>
-                  <ShoppingCart size={15} style={{ color: "#4F46E5" }} />
+                  <ShoppingCart size={15} style={{ color: "#6B46C1" }} />
                 </div>
                 <h3 className="font-display font-bold text-sm" style={{ color: "#111827" }}>Recent Orders</h3>
               </div>
-              <Link href="/client/orders"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#4F46E5" }}>View All <ArrowRight size={11} /></span></Link>
+              <Link href="/client/orders"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
             </div>
             <div>
               {recentOrders.length === 0 ? (
@@ -1266,7 +1266,7 @@ export default function ClientDashboard() {
               </div>
               <h3 className="font-display font-bold text-sm" style={{ color: "#111827" }}>Support Tickets</h3>
             </div>
-            <Link href="/client/tickets"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#4F46E5" }}>View All <ArrowRight size={11} /></span></Link>
+            <Link href="/client/tickets"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
           </div>
           <div>
             {stats.recentTickets.map((ticket, i) => (

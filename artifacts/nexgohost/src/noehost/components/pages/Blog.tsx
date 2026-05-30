@@ -18,7 +18,7 @@ function timeAgo(iso: string) {
 }
 
 const CAT_COLORS: Record<string, { bg: string; text: string }> = {
-  "Hosting Guides": { bg: "#EEF2FF", text: "#4F46E5" },
+  "Hosting Guides": { bg: "#F3F0FF", text: "#6B46C1" },
   "WordPress":      { bg: "#FCE7F3", text: "#9D174D" },
   "Security":       { bg: "#FEF3C7", text: "#92400E" },
   "SEO":            { bg: "#D1FAE5", text: "#065F46" },
@@ -39,7 +39,7 @@ function PostCard({ post }: { post: BlogPost }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 8px 30px rgba(79,70,229,0.12)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.transform = "none"; }}>
         {/* Cover */}
-        <div style={{ height: 180, background: post.cover_image ? undefined : "linear-gradient(135deg,#EEF2FF 0%,#E0E7FF 100%)", position: "relative", overflow: "hidden" }}>
+        <div style={{ height: 180, background: post.cover_image ? undefined : "linear-gradient(135deg,#F3F0FF 0%,#E0E7FF 100%)", position: "relative", overflow: "hidden" }}>
           {post.cover_image ? (
             <img src={post.cover_image} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
@@ -64,7 +64,7 @@ function PostCard({ post }: { post: BlogPost }) {
           )}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#7C5DE2,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{post.author_name[0]}</span>
               </div>
               <div>
@@ -90,7 +90,7 @@ function FeaturedPost({ post }: { post: BlogPost }) {
       <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1px solid #E8EAED", display: "grid", gridTemplateColumns: "1fr 1fr", transition: "box-shadow 0.2s", cursor: "pointer" }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 12px 40px rgba(79,70,229,0.14)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-        <div style={{ minHeight: 260, background: post.cover_image ? undefined : "linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%)", position: "relative" }}>
+        <div style={{ minHeight: 260, background: post.cover_image ? undefined : "linear-gradient(135deg,#6B46C1 0%,#7C3AED 100%)", position: "relative" }}>
           {post.cover_image ? (
             <img src={post.cover_image} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
@@ -108,7 +108,7 @@ function FeaturedPost({ post }: { post: BlogPost }) {
           {post.excerpt && <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 16px", lineHeight: 1.65 }}>{post.excerpt}</p>}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg,#7C5DE2,#8B5CF6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>{post.author_name[0]}</span>
               </div>
               <div>
@@ -116,7 +116,7 @@ function FeaturedPost({ post }: { post: BlogPost }) {
                 <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>{timeAgo(post.published_at)}</p>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "#4F46E5" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "#6B46C1" }}>
               Read More <ChevronRight size={14} />
             </div>
           </div>
@@ -173,9 +173,9 @@ export default function Blog() {
 
         {/* Hero */}
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", background: "#EEF2FF", borderRadius: 20, marginBottom: 14 }}>
-            <Rss size={13} color="#4F46E5" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#4F46E5" }}>Noehost Blog</span>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", background: "#F3F0FF", borderRadius: 20, marginBottom: 14 }}>
+            <Rss size={13} color="#6B46C1" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#6B46C1" }}>Noehost Blog</span>
           </div>
           <h1 style={{ fontSize: 42, fontWeight: 900, color: "#111827", margin: "0 0 12px", lineHeight: 1.2 }}>
             Hosting Guides & SEO Tips
@@ -194,12 +194,12 @@ export default function Blog() {
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={() => { setCategory(""); setPage(0); }}
-              style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${!category ? "#4F46E5" : "#E5E7EB"}`, background: !category ? "#4F46E5" : "#fff", color: !category ? "#fff" : "#6B7280", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${!category ? "#6B46C1" : "#E5E7EB"}`, background: !category ? "#6B46C1" : "#fff", color: !category ? "#fff" : "#6B7280", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
               All
             </button>
             {categories.map(cat => (
               <button key={cat} onClick={() => { setCategory(cat); setPage(0); }}
-                style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${category === cat ? "#4F46E5" : "#E5E7EB"}`, background: category === cat ? "#4F46E5" : "#fff", color: category === cat ? "#fff" : "#6B7280", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${category === cat ? "#6B46C1" : "#E5E7EB"}`, background: category === cat ? "#6B46C1" : "#fff", color: category === cat ? "#fff" : "#6B7280", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 {cat}
               </button>
             ))}
@@ -208,7 +208,7 @@ export default function Blog() {
 
         {isLoading ? (
           <div style={{ padding: 80, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid #C7D2FE", borderTopColor: "#4F46E5", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid #C7D2FE", borderTopColor: "#6B46C1", animation: "spin 0.8s linear infinite" }} />
             <p style={{ color: "#9CA3AF", fontSize: 14 }}>Loading guides…</p>
           </div>
         ) : filtered.length === 0 ? (
@@ -233,7 +233,7 @@ export default function Blog() {
               <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 40 }}>
                 {Array.from({ length: totalPages }, (_, i) => (
                   <button key={i} onClick={() => setPage(i)}
-                    style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${i === page ? "#4F46E5" : "#E5E7EB"}`, background: i === page ? "#4F46E5" : "#fff", color: i === page ? "#fff" : "#6B7280", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${i === page ? "#6B46C1" : "#E5E7EB"}`, background: i === page ? "#6B46C1" : "#fff", color: i === page ? "#fff" : "#6B7280", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                     {i + 1}
                   </button>
                 ))}
@@ -243,10 +243,10 @@ export default function Blog() {
         )}
 
         {/* CTA */}
-        <div style={{ marginTop: 60, background: "linear-gradient(135deg,#4F46E5,#7C3AED)", borderRadius: 20, padding: "40px 32px", textAlign: "center" }}>
+        <div style={{ marginTop: 60, background: "linear-gradient(135deg,#6B46C1,#7C3AED)", borderRadius: 20, padding: "40px 32px", textAlign: "center" }}>
           <h2 style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: "0 0 10px" }}>Ready to Launch Your Website?</h2>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.8)", margin: "0 0 22px" }}>Get blazing-fast hosting with free SSL, cPanel, and 24/7 support.</p>
-          <Link to="/shared-hosting" style={{ display: "inline-block", padding: "13px 28px", borderRadius: 12, background: "#fff", color: "#4F46E5", fontWeight: 800, fontSize: 15, textDecoration: "none" }}>
+          <Link to="/shared-hosting" style={{ display: "inline-block", padding: "13px 28px", borderRadius: 12, background: "#fff", color: "#6B46C1", fontWeight: 800, fontSize: 15, textDecoration: "none" }}>
             View Hosting Plans →
           </Link>
         </div>

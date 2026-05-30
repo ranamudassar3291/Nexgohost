@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-const P = "#4F46E5";
+const P = "#6B46C1";
 
 function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token") ?? "";

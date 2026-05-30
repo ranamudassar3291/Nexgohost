@@ -76,13 +76,12 @@
   --color-accent-gold: #FFD700;
 }
 
-/* ── NoeHost Design System — noehost.com Brand Colors ───────────────────────
-   Matches the main noehost.com website exactly.
-   Primary:     #5B5FEF  — NoeHost Indigo (noehost.com brand color)
-   Primary Lg:  #7A6BFF  — Lighter indigo for gradients
+/* ── NoeHost Design System — Brand Colors (Updated to Match Logo) ───────────
+   Primary:     #6B46C1  — Logo Purple (violet-blue)
+   Primary Lg:  #8B5CF6  — Lighter violet for gradients
    Background:  #F8F9FD  — Off-white blue-tinted page bg
    Cards:       #FFFFFF  — Pure white with soft shadow
-   Sidebar:     #FFFFFF  — White sidebar, #5B5FEF active links
+   Sidebar:     #FFFFFF  — White sidebar, #6B46C1 active links
    Text dark:   #1A1A2E  — Near-black headings
    Text muted:  #6B7280  — Gray for secondary text
    Borders:     #E5E7EB  — Very light separator
@@ -99,16 +98,16 @@
   --popover-foreground: 240 37% 14%;
   --popover-border: 220 13% 91%;
 
-  --primary: 238 82% 65%;                /* #5B5FEF — NoeHost indigo */
+  --primary: 262 56% 52%;                /* #6B46C1 — Logo Purple */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 238 60% 96%;              /* very soft indigo tint surface */
-  --secondary-foreground: 238 50% 30%;
+  --secondary: 262 60% 96%;              /* very soft purple tint surface */
+  --secondary-foreground: 262 50% 30%;
 
   --muted: 220 14% 93%;
   --muted-foreground: 220 9% 46%;        /* #6B7280 — neutral gray */
 
-  --accent: 238 82% 65%;                 /* same brand indigo for accent */
+  --accent: 262 56% 52%;                 /* same brand purple for accent */
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84% 60%;             /* #EF4444 — standard red */
@@ -127,7 +126,7 @@
   --sidebar: 0 0% 100%;                 /* #FFFFFF — pure white sidebar */
   --sidebar-foreground: 240 37% 14%;
   --sidebar-border: 220 13% 91%;
-  --sidebar-primary: 238 82% 65%;       /* #5B5FEF — active nav links */
+  --sidebar-primary: 238 82% 65%;       /* #6B46C1 — active nav links */
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 238 60% 96%;        /* soft indigo hover bg */
   --sidebar-accent-foreground: 238 82% 65%;
@@ -142,8 +141,8 @@
   --elevate-2: rgba(0, 0, 0, 0.06);
 
   /* Brand gradient */
-  --gradient-primary: linear-gradient(135deg, #5B5FEF, #7A6BFF);
-  --gradient-primary-hover: linear-gradient(135deg, #4f53d9, #6B5EEF);
+  --gradient-primary: linear-gradient(135deg, #6B46C1, #8B5CF6);
+  --gradient-primary-hover: linear-gradient(135deg, #5B35A8, #7C5DE2);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -157,7 +156,7 @@
 /* ── Dark Theme — matches noehost.com website exactly ───────────────────────
    Background:  #020617  — deep navy (user's bg-dark)
    Card/Nav:    #0F172A  — dark navy (user's bg-secondary)
-   Primary:     #6A62FE  — indigo purple (user's brand color)
+   Primary:     #6B46C1  — logo purple (brand color)
    Text:        slate-300 / slate-400 for muted
    ─────────────────────────────────────────────────────────────────────────── */
 .dark {
@@ -172,7 +171,7 @@
   --popover-foreground: 214 32% 90%;
   --popover-border: 222 20% 17%;
 
-  --primary: 244 98% 68%;                 /* #6A62FE — user's brand indigo */
+  --primary: 262 56% 52%;                 /* #6B46C1 — logo purple */
   --primary-foreground: 0 0% 100%;
 
   --secondary: 222 20% 14%;               /* #1A2131 — elevated surface */
@@ -181,7 +180,7 @@
   --muted: 222 20% 14%;
   --muted-foreground: 215 16% 65%;        /* slate-400 #94a3b8 */
 
-  --accent: 244 98% 68%;
+  --accent: 262 56% 52%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84% 60%;
@@ -189,9 +188,9 @@
 
   --border: 222 20% 17%;
   --input: 222 20% 17%;
-  --ring: 244 98% 68%;
+  --ring: 262 56% 52%;
 
-  --chart-1: 244 98% 68%;
+  --chart-1: 262 56% 52%;
   --chart-2: 152 69% 42%;
   --chart-3: 217 91% 60%;
   --chart-4: 38 92% 50%;
@@ -200,17 +199,17 @@
   --sidebar: 222 30% 5%;                  /* #0A0D18 — deepest panel */
   --sidebar-foreground: 214 32% 90%;
   --sidebar-border: 222 20% 13%;
-  --sidebar-primary: 244 98% 68%;
+  --sidebar-primary: 262 56% 52%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 222 20% 14%;
-  --sidebar-accent-foreground: 244 98% 75%;
-  --sidebar-ring: 244 98% 68%;
+  --sidebar-accent-foreground: 262 56% 65%;
+  --sidebar-ring: 262 56% 52%;
 
-  --gradient-primary: linear-gradient(135deg, #6A62FE, #8B7FFF);
-  --gradient-primary-hover: linear-gradient(135deg, #554ce0, #7A6BFF);
+  --gradient-primary: linear-gradient(135deg, #6B46C1, #8B5CF6);
+  --gradient-primary-hover: linear-gradient(135deg, #5B36B1, #7B4CE6);
 
-  --button-outline: rgba(106, 98, 254, 0.15);
-  --badge-outline: rgba(106, 98, 254, 0.10);
+  --button-outline: rgba(107, 70, 193, 0.15);
+  --badge-outline: rgba(107, 70, 193, 0.10);
   --elevate-1: rgba(0, 0, 0, 0.3);
   --elevate-2: rgba(0, 0, 0, 0.5);
 
@@ -506,7 +505,7 @@
 
   /* ── NoeHost button styles ────────────────────────────────────────────── */
   .btn-noe-primary {
-    background: #5B5FEF;
+    background: #6B46C1;
     color: #FFFFFF;
     border: none;
     font-weight: 600;
@@ -514,22 +513,22 @@
     transition: all 0.2s ease;
   }
   .btn-noe-primary:hover {
-    background: #4f53d9;
-    box-shadow: 0 4px 16px rgba(91, 95, 239, 0.35);
+    background: #5B35A8;
+    box-shadow: 0 4px 16px rgba(107, 70, 193, 0.35);
     transform: translateY(-1px);
   }
 
   .btn-noe-outline {
     background: transparent;
-    color: #5B5FEF;
-    border: 1px solid rgba(91, 95, 239, 0.35);
+    color: #6B46C1;
+    border: 1px solid rgba(107, 70, 193, 0.35);
     font-weight: 600;
     border-radius: 0.75rem;
     transition: all 0.2s ease;
   }
   .btn-noe-outline:hover {
     background: rgba(91, 95, 239, 0.06);
-    border-color: #5B5FEF;
+    border-color: #6B46C1;
     box-shadow: 0 2px 8px rgba(91, 95, 239, 0.15);
   }
 
@@ -572,13 +571,13 @@
 
   /* ── Gradient text ───────────────────────────────────────────────────── */
   .text-gradient {
-    background: linear-gradient(135deg, #5B5FEF, #7A6BFF);
+    background: linear-gradient(135deg, #6B46C1, #8B5CF6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   .text-gradient-primary {
-    background: linear-gradient(135deg, #5B5FEF, #4338CA);
+    background: linear-gradient(135deg, #6B46C1, #4338CA);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -586,7 +585,7 @@
 
   /* ── Primary action gradient button ─────────────────────────────────── */
   .btn-gradient {
-    background: linear-gradient(135deg, #5B5FEF, #7A6BFF);
+    background: linear-gradient(135deg, #6B46C1, #8B5CF6);
     color: #FFFFFF;
     border: none;
     font-weight: 600;
@@ -594,8 +593,8 @@
     transition: all 0.2s ease;
   }
   .btn-gradient:hover {
-    background: linear-gradient(135deg, #4f53d9, #6B5EEF);
-    box-shadow: 0 6px 20px rgba(91, 95, 239, 0.40);
+    background: linear-gradient(135deg, #5B35A8, #7C5DE2);
+    box-shadow: 0 6px 20px rgba(107, 70, 193, 0.40);
     transform: translateY(-1px);
   }
 
@@ -607,9 +606,9 @@
   /* ── Sidebar active item left accent bar ─────────────────────────────── */
   .nav-item-active {
     background: linear-gradient(135deg, rgba(91, 95, 239, 0.10), rgba(122, 107, 255, 0.06));
-    color: #5B5FEF;
+    color: #6B46C1;
     border: 1px solid rgba(91, 95, 239, 0.18);
-    border-left: 2px solid #5B5FEF;
+    border-left: 2px solid #6B46C1;
     font-weight: 600;
   }
   .nav-item-inactive {

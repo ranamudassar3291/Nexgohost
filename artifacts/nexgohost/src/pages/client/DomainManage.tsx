@@ -340,7 +340,7 @@ export default function DomainManage() {
           <button
             onClick={() => navigate("/client/invoices")}
             className="shrink-0 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
-            style={{ background: "linear-gradient(135deg,#4F46E5,#6366F1)" }}
+            style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)" }}
           >
             Pay Invoice →
           </button>
@@ -461,7 +461,7 @@ export default function DomainManage() {
           style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.05) 0%, rgba(99,102,241,0.02) 100%)" }}>
           <div className="px-5 py-3.5 border-b border-primary/10 flex items-center gap-2.5">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+              style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
               <Globe size={12} className="text-white" />
             </div>
             <p className="text-sm font-bold text-foreground">Website Setup</p>
@@ -766,7 +766,7 @@ export default function DomainManage() {
                     className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
                   <button onClick={handleSaveNameservers} disabled={nsSaving || !domain.canManage}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-60"
-                    style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                    style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                     {nsSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                     Save
                   </button>
@@ -813,7 +813,7 @@ export default function DomainManage() {
             </div>
             <button onClick={() => setShowAddDns(v => !v)} disabled={!domain.canManage}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+              style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
               <Plus size={12} /> Add Record
             </button>
           </div>
@@ -853,7 +853,7 @@ export default function DomainManage() {
                 <button onClick={() => setShowAddDns(false)} className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5">Cancel</button>
                 <button onClick={handleAddDns} disabled={dnsAdding || !domain.canManage}
                   className="flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg text-white disabled:opacity-60"
-                  style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                  style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                   {dnsAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save Record
                 </button>
               </div>
@@ -952,7 +952,7 @@ export default function DomainManage() {
           <div className="w-full max-w-sm bg-background border border-border rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}>
+                style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                 <Key size={14} className="text-white" />
               </div>
               <div>
@@ -991,7 +991,7 @@ export default function DomainManage() {
                   onClick={handleConfirmEppReason}
                   disabled={!eppReason || eppFetching}
                   className="flex-1 px-4 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}
+                  style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
                 >
                   {eppFetching ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
                   Reveal EPP Code

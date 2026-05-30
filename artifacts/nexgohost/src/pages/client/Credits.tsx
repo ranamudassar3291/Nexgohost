@@ -11,7 +11,7 @@ import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
-const P = "#4F46E5";
+const P = "#6B46C1";
 
 interface CreditTransaction {
   id: string;
