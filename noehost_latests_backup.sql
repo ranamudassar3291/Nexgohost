@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Eox8CzVXrguhAWFFpMgk2lkAJZCt78xgjtR88syhYMDdhQhmfhPgBHk1pUc9q1M
+\restrict 5c02hWhWLPqy6JK5thAJnpm6vAudBtSNQxIa0VfKqofv5BMCfuLY12RP4gzGgV8
 
 -- Dumped from database version 16.10
 -- Dumped by pg_dump version 16.10
@@ -34024,6 +34024,64 @@ c6f49df2-254c-4322-a6dc-dbb2395d094f	domains:renewal_check	success	Renewed: 0, R
 97cc79fd-7dfa-4448-9c6c-1332a5da411b	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-31 13:07:00.065666
 8762f8cb-fd84-42e8-b020-1a544ab95944	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-31 13:07:00.700467
 dbd0a79f-eeed-4b8d-8a56-0372ab96e515	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-31 13:07:00.733141
+659d62b3-a458-480f-b0c9-463e5e5b2302	twentyi:health_check	failed	Cannot reach 20i API. Check your internet connection and try again. (outbound IP: 34.47.171.121)	2026-05-31 13:10:00.889467
+78fe41b9-f4c7-4a39-ba4c-0afb0ab373bd	twentyi:health_check	failed	Cannot reach 20i API. Check your internet connection and try again. (outbound IP: 34.47.171.121)	2026-05-31 13:10:00.924672
+60ed9710-a12e-4698-ad74-8e33666fcf86	billing:invoice_generation	success	Created 0 invoice(s) for 0 due service(s)	2026-05-31 13:11:59.640241
+4665103f-563d-4bbb-bcaa-ffb95d0a6320	domain_lifecycle	success	Processed 362 expired domains — 0 status updates, 0 alert emails sent	2026-05-31 13:11:59.645581
+ed4bbfd3-b622-4b8c-abf1-5b72950ab6be	backup:daily	skipped	MySQL not reachable — skipping backup (dev/sim mode)	2026-05-31 13:11:59.645653
+ff9a839b-05c8-455c-8efb-4ab134e2a5f6	wa:suspension_warning	success	Sent 0 suspension warning(s)	2026-05-31 13:11:59.649436
+7cdc568d-bd5d-44bc-9a56-896a9bac56d5	billing:auto_suspend	success	Suspended 0 overdue service(s)	2026-05-31 13:11:59.654269
+7a4bb5d7-dfc3-4468-9785-1bc998cd760e	emails:hosting_renewal_reminder	success	Sent 0 hosting/VPS renewal reminder(s)	2026-05-31 13:11:59.662691
+d4bbd45c-3283-4e9c-a717-0d6e4fe5fd3a	billing:mark_overdue	success	Marked 0 invoice(s) as overdue	2026-05-31 13:11:59.66534
+883d23b9-473f-40bf-9bb3-25c0fd616b26	cart_abandonment	skipped	No abandoned carts found	2026-05-31 13:11:59.665326
+2e837117-fce0-472a-91eb-7e034b7a3040	vps:power_off_overdue	success	Powered off 0 overdue VPS service(s)	2026-05-31 13:11:59.692318
+80afad9f-868d-4530-b8c8-e6df8ed12ee5	emails:invoice_reminders	success	Sent 0 invoice reminder email(s)	2026-05-31 13:11:59.691799
+bfd56b88-1a63-4d65-acce-02b244bcd615	domains:renewal_check	success	Renewed: 0, Reminded: 0 of 6 expiring domain(s)	2026-05-31 13:11:59.692897
+374d3745-f028-4508-8918-155bb67c6ba2	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-31 13:11:59.736707
+dc03a7aa-4922-45b1-85c7-55eb460b9dd2	backup:daily	skipped	MySQL not reachable — skipping backup (dev/sim mode)	2026-05-31 13:11:59.754487
+4494d933-cbe3-4749-bb84-aacdd673379a	billing:invoice_generation	success	Created 0 invoice(s) for 0 due service(s)	2026-05-31 13:11:59.756644
+f4188a60-ddf5-438a-8859-3dada6995a13	billing:mark_overdue	success	Marked 0 invoice(s) as overdue	2026-05-31 13:11:59.757255
+e645d3ea-56e1-4df3-91eb-0c9cf0aa419f	domain_lifecycle	success	Processed 362 expired domains — 0 status updates, 0 alert emails sent	2026-05-31 13:11:59.76214
+dc88d0bc-e301-4410-9e4a-a0d9abee6eb4	cart_abandonment	skipped	No abandoned carts found	2026-05-31 13:11:59.763109
+e0913eb5-0e96-4983-9fcf-c1a314c1e8fc	wa:suspension_warning	success	Sent 0 suspension warning(s)	2026-05-31 13:11:59.767464
+a572416f-4fed-42e9-bce3-74ec5e9ef550	emails:hosting_renewal_reminder	success	Sent 0 hosting/VPS renewal reminder(s)	2026-05-31 13:11:59.767736
+d23e8508-3489-4e8a-bf74-eb4f890a4a4f	billing:auto_suspend	success	Suspended 0 overdue service(s)	2026-05-31 13:11:59.768512
+68fe8107-ab8d-4ac1-8ea3-9686bd6750f3	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-31 13:11:59.778816
+c4576c35-091f-4ec9-92ac-a4ad2c381ee1	vps:power_off_overdue	success	Powered off 0 overdue VPS service(s)	2026-05-31 13:11:59.821516
+beb95809-35ca-498d-b1e7-422e4ac91c89	domains:renewal_check	success	Renewed: 0, Reminded: 0 of 6 expiring domain(s)	2026-05-31 13:11:59.826193
+64f26754-ad23-44e4-af6f-4e4d5e45d019	emails:invoice_reminders	success	Sent 0 invoice reminder email(s)	2026-05-31 13:11:59.826519
+90cfff94-48ff-403b-a25a-4c81f5014342	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-31 13:11:59.844913
+319cf58f-db44-4e2d-a0ab-f7ca29736b6c	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-31 13:11:59.874996
+bb00a6ff-90b9-477b-b951-b93ef28c94a4	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-31 13:12:00.103862
+f9a8fc14-24ae-43f1-bc6c-6511a46e4f05	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-31 13:12:00.229093
+4b76385d-2f76-484a-a816-ed4e472d2a5c	backup:daily	skipped	MySQL not reachable — skipping backup (dev/sim mode)	2026-05-31 13:16:59.644265
+5e14a2b5-8e44-474b-9a0b-a2cdba4202f9	billing:invoice_generation	success	Created 0 invoice(s) for 0 due service(s)	2026-05-31 13:16:59.647398
+40591214-44c4-4e2a-a30f-3d9c34b9fc3e	domain_lifecycle	success	Processed 362 expired domains — 0 status updates, 0 alert emails sent	2026-05-31 13:16:59.647865
+01d316a6-3401-4919-a234-341e8a30b3c3	wa:suspension_warning	success	Sent 0 suspension warning(s)	2026-05-31 13:16:59.650071
+66f4c345-0070-493d-983e-2b8eb7d0b2a2	billing:auto_suspend	success	Suspended 0 overdue service(s)	2026-05-31 13:16:59.652581
+01d358ff-51c3-4df0-8e03-e8c585a3c4fc	billing:mark_overdue	success	Marked 0 invoice(s) as overdue	2026-05-31 13:16:59.655828
+e1b5059d-0cc8-481a-b438-08d8aafe21b7	emails:hosting_renewal_reminder	success	Sent 0 hosting/VPS renewal reminder(s)	2026-05-31 13:16:59.659254
+d38f727f-ae62-4237-bcbf-695cde7e05e1	cart_abandonment	skipped	No abandoned carts found	2026-05-31 13:16:59.665201
+cbad4393-bf99-4cdf-9757-6d7293a13121	emails:invoice_reminders	success	Sent 0 invoice reminder email(s)	2026-05-31 13:16:59.71342
+cd1e5e2e-f074-49e2-ad7f-e1912ac14e82	vps:power_off_overdue	success	Powered off 0 overdue VPS service(s)	2026-05-31 13:16:59.730789
+3e8fa002-f855-4285-8bb4-7b83c2d03137	domains:renewal_check	success	Renewed: 0, Reminded: 0 of 6 expiring domain(s)	2026-05-31 13:16:59.735138
+d188dbc8-a52b-43b8-9202-762d06df832c	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-31 13:16:59.743011
+c09dd91c-5773-4bdd-9e85-0708eacea513	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-31 13:16:59.775347
+b13e4ddf-ebcd-4435-95bd-3b7620a8c559	backup:daily	skipped	MySQL not reachable — skipping backup (dev/sim mode)	2026-05-31 13:16:59.811554
+6e9a5673-edfd-4009-a4dc-0e22734a04e9	cart_abandonment	skipped	No abandoned carts found	2026-05-31 13:16:59.813043
+5e6d0bf1-530e-44fa-8713-2a65b2449f84	wa:suspension_warning	success	Sent 0 suspension warning(s)	2026-05-31 13:16:59.814128
+51c6ca58-0c3b-4ef7-a56f-5c2c82655464	domain_lifecycle	success	Processed 362 expired domains — 0 status updates, 0 alert emails sent	2026-05-31 13:16:59.81444
+de15cef1-5b51-47c3-95ec-128b7deab4be	emails:hosting_renewal_reminder	success	Sent 0 hosting/VPS renewal reminder(s)	2026-05-31 13:16:59.817008
+85a3ad93-3cb4-415a-9a50-242e3c258a67	billing:invoice_generation	success	Created 0 invoice(s) for 0 due service(s)	2026-05-31 13:16:59.818497
+c53cb5ca-6cdd-4723-8e73-8936e5cf7efc	billing:mark_overdue	success	Marked 0 invoice(s) as overdue	2026-05-31 13:16:59.819344
+86a98749-5108-4065-9a52-3a47c1228d4f	billing:auto_suspend	success	Suspended 0 overdue service(s)	2026-05-31 13:16:59.819718
+12776d4f-9815-47a3-adf2-740d4fd6710c	domains:renewal_check	success	Renewed: 0, Reminded: 0 of 6 expiring domain(s)	2026-05-31 13:16:59.854702
+2233a850-d2ed-401e-b467-889a07bf596b	emails:invoice_reminders	success	Sent 0 invoice reminder email(s)	2026-05-31 13:16:59.858799
+afa3dbde-7f37-43c4-8ad2-dbeed3c190d0	vps:power_off_overdue	success	Powered off 0 overdue VPS service(s)	2026-05-31 13:16:59.860783
+03ec7a65-378c-40c4-8398-a331a357998e	billing:auto_terminate	success	Pending termination: 0, Warnings sent: 0	2026-05-31 13:16:59.877645
+9bafc4a6-d1a6-4c2d-b323-731518dcf641	billing:auto_unsuspend	success	Unsuspended 0 service(s)	2026-05-31 13:16:59.905793
+5172fc6d-b2db-4854-ad05-2d5bacddf93b	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-31 13:17:00.399839
+ac7f559f-a8fc-46ba-bfb7-706beec45a12	twentyi:status_sync	success	Checked 0 service(s) across 1 server(s) — 0 status update(s)	2026-05-31 13:17:00.409089
 \.
 
 
@@ -39380,7 +39438,7 @@ c74082b8-2336-47fc-b187-2095ba35f68a	sunrise	sunrise.hostns.io	109.70.148.43	cpa
 5b637dd9-a1b5-4658-a8f9-04b3a87db92e	WHM	server.shodns.in	103.98.62.201	cpanel	root	\N	general	2087	\N	\N	\N	\N	500	active	3b6e6a3e-0dfd-44d2-b855-06461544b1ac	f	f	\N	\N	\N	2026-03-25 07:24:13.058529	2026-03-25 13:18:23.967594
 e4c9bce7-6242-4fc2-ab35-f306598d8d06	Noehost SPG	spg1.cloudpowerdns.com	176.9.63.151	cpanel	noehostspg	4BAOEDC538V95G06E9JA9M5Z230VX04X	general	2087	\N	\N	dns1.cloudpowerdns.com	dns2.cloudpowerdns.com	300	active	5c0260a7-1e23-4696-9bc4-6044f27f5d50	t	f	\N	\N	\N	2026-03-29 04:45:54.408255	2026-03-29 04:59:56.492
 8c9c44af-cac1-484c-b62f-68503121198c	NoePanel 20i	api.20i.com		20i	\N	c3a79b850ed5272df+c8c17b65358b03df0	combined	\N	\N	\N	ns1.stackdns.com	ns2.stackdns.com	500	inactive	d788fab5-a3ad-4391-8a29-c3fef1f58752	f	f	\N	\N	\N	2026-03-14 04:44:24.851776	2026-04-04 15:40:06.501
-938dda20-7c7c-4fe8-be9b-93ead9a9bdcc	Noehost 20i	api.20i.com		20i	\N	enc:v1:0a367f3a3667e96960647e81:a90cef1767a54b0a5029c01fc2b6feee:e36a85c505f0326249b4e0b6dece49c299	combined	\N	\N	\N	ns1.stackdns.com	ns2.stackdns.com	500	active	d788fab5-a3ad-4391-8a29-c3fef1f58752	f	f	34.93.161.84	2026-04-09 05:17:13.098	Cannot reach 20i API. Check your internet connection and try again.	2026-04-01 18:33:21.766799	2026-05-31 12:47:10.363
+938dda20-7c7c-4fe8-be9b-93ead9a9bdcc	Noehost 20i	api.20i.com		20i	\N	enc:v1:0a367f3a3667e96960647e81:a90cef1767a54b0a5029c01fc2b6feee:e36a85c505f0326249b4e0b6dece49c299	combined	\N	\N	\N	ns1.stackdns.com	ns2.stackdns.com	500	active	d788fab5-a3ad-4391-8a29-c3fef1f58752	f	f	34.47.171.121	2026-04-09 05:17:13.098	Cannot reach 20i API. Check your internet connection and try again.	2026-04-01 18:33:21.766799	2026-05-31 13:10:00.915
 \.
 
 
@@ -43546,6 +43604,8 @@ a247b802-a476-407d-aa0f-86d748ed15e4	other	🚨 *20i API Health Alert — NoePan
 0b56ef5d-19a6-4f6d-b18d-48df26e1dde9	other	🚨 *20i API Health Alert — NoePanel*\n\nThe 20i connection check has FAILED.\n\nError: Cannot reach 20i API. Check your internet connection and try again.\n\nCheck Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n_Auto-check runs every 15 minutes_	failed	WhatsApp not connected	2026-05-31 11:20:45.967953
 b0525e78-2f75-454e-ba2c-8d9083ee94c5	other	🚨 *20i API Health Alert — NoePanel*\n\nThe 20i connection check has FAILED.\n\nError: Cannot reach 20i API. Check your internet connection and try again.\n\nCheck Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n_Auto-check runs every 15 minutes_	failed	WhatsApp not connected	2026-05-31 11:35:45.473114
 df13d20d-88c6-4d49-98d6-c7c5e173c77f	other	🚨 *20i API Health Alert — NoePanel*\n\nThe 20i connection check has FAILED.\n\nError: Cannot reach 20i API. Check your internet connection and try again.\n\nCheck Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n_Auto-check runs every 15 minutes_	failed	WhatsApp not connected	2026-05-31 12:32:09.94592
+95ee410b-0dfd-47af-9b81-27ade218b52f	other	🚨 *20i API Health Alert — NoePanel*\n\nThe 20i connection check has FAILED.\n\nError: Cannot reach 20i API. Check your internet connection and try again.\n\nCheck Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n_Auto-check runs every 15 minutes_	failed	WhatsApp not connected	2026-05-31 13:10:00.8825
+0e50a66a-9e0a-4b3c-ab4d-95120ce393ba	other	🚨 *20i API Health Alert — NoePanel*\n\nThe 20i connection check has FAILED.\n\nError: Cannot reach 20i API. Check your internet connection and try again.\n\nCheck Admin → Servers → 20i server and verify the API key at my.20i.com → Reseller API.\n\n_Auto-check runs every 15 minutes_	failed	WhatsApp not connected	2026-05-31 13:10:00.920397
 \.
 
 
@@ -45168,5 +45228,5 @@ GRANT CREATE ON SCHEMA public TO PUBLIC;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Eox8CzVXrguhAWFFpMgk2lkAJZCt78xgjtR88syhYMDdhQhmfhPgBHk1pUc9q1M
+\unrestrict 5c02hWhWLPqy6JK5thAJnpm6vAudBtSNQxIa0VfKqofv5BMCfuLY12RP4gzGgV8
 
