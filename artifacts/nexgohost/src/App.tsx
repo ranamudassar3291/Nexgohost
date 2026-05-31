@@ -111,6 +111,8 @@ import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
 import NoeN8nHosting from "@/noehost/components/pages/N8nHosting";
 import NoeBusinessEmail from "@/noehost/components/pages/BusinessEmail";
 import NoeKnowledgeBase from "@/noehost/components/pages/KnowledgeBase";
+import NoeKbCategory from "@/noehost/components/pages/KbCategory";
+import NoeKbArticle from "@/noehost/components/pages/KbArticle";
 
 import { queryClient } from "@/lib/query-client";
 import { useApiHealth } from "@/hooks/use-api-health";
@@ -690,6 +692,12 @@ function RouterRoot() {
       </Route>
       <Route path="/knowledge-base">
         <NoeHostLayout><NoeKnowledgeBase /></NoeHostLayout>
+      </Route>
+      <Route path="/knowledge-base/:categorySlug/:articleSlug">
+        <NoeHostLayout><NoeKbArticle /></NoeHostLayout>
+      </Route>
+      <Route path="/knowledge-base/:categorySlug">
+        <NoeHostLayout><NoeKbCategory /></NoeHostLayout>
       </Route>
       <Route path="/shared-hosting">
         <NoeHostLayout><NoeSharedHosting /></NoeHostLayout>

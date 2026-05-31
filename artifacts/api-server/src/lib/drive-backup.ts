@@ -22,12 +22,14 @@ import { execAsync } from "./shell.js";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath as _ftuDB } from "node:url";
 import { getAppUrl } from "./app-url.js";
+const __dirname_db = path.dirname(_ftuDB(import.meta.url));
 
-const TMP_DIR = path.resolve(__dirname, "../../tmp/backups");
-const MODULES_DIR = path.resolve(__dirname, "../../modules");
-const UPLOADS_DIR = path.resolve(__dirname, "../../uploads");
-const CONFIG_DIR = path.resolve(__dirname, "../../config");
+const TMP_DIR = path.resolve(__dirname_db, "../../tmp/backups");
+const MODULES_DIR = path.resolve(__dirname_db, "../../modules");
+const UPLOADS_DIR = path.resolve(__dirname_db, "../../uploads");
+const CONFIG_DIR = path.resolve(__dirname_db, "../../config");
 
 // ─── OAuth2 client factory ────────────────────────────────────────────────────
 

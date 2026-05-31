@@ -8,11 +8,13 @@ import { settingsTable, emailLogsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { desc, eq } from "drizzle-orm";
 import { encryptField, decryptField } from "../lib/fieldCrypto.js";
+import { fileURLToPath as _ftuSettings } from "node:url";
+const __dirname_settings = path.dirname(_ftuSettings(import.meta.url));
 
 const ENCRYPTED_SETTING_KEYS = new Set(["smtp_pass", "google_client_secret", "safepay_live_secret", "safepay_sandbox_secret", "stripe_secret_key"]);
 
 
-const BRANDING_DIR = path.join(__dirname, "../../../nexgohost/public/uploads/branding");
+const BRANDING_DIR = path.join(__dirname_settings, "../../../nexgohost/public/uploads/branding");
 fs.mkdirSync(BRANDING_DIR, { recursive: true });
 
 const brandingStorage = multer.diskStorage({

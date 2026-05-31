@@ -119,8 +119,9 @@ function dt(iso: string | null | undefined): string {
 }
 
 // ── Logo loader (falls back to null silently) ─────────────────────────────────
-const __filename_pdf = __filename;
-const __dirname_pdf  = __dirname;
+import { fileURLToPath as _ftu } from "node:url";
+const __filename_pdf = _ftu(import.meta.url);
+const __dirname_pdf  = path.dirname(__filename_pdf);
 const LOGO_PATH      = path.join(__dirname_pdf, "../../../nexgohost/public/uploads/branding/logo.png");
 const LOGO_FALLBACK  = path.join(__dirname_pdf, "../../../nexgohost/public/images/logo-standard-black.png");
 

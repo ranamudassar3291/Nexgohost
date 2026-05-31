@@ -124,15 +124,12 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
   const [domainsOpen, setDomainsOpen] = useState(false);
   const [mobileDomainsOpen, setMobileDomainsOpen] = useState(false);
-  const [exploreOpen, setExploreOpen] = useState(false);
-  const [mobileExploreOpen, setMobileExploreOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [mobileSupportOpen, setMobileSupportOpen] = useState(false);
   const { itemCount, openCart } = useCart();
   const hostingRef = useRef<HTMLDivElement>(null);
   const servicesRef = useRef<HTMLDivElement>(null);
   const domainsRef = useRef<HTMLDivElement>(null);
-  const exploreRef = useRef<HTMLDivElement>(null);
   const supportRef = useRef<HTMLDivElement>(null);
   const { content } = useContent();
   const location = useLocation();
@@ -149,7 +146,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
       if (hostingRef.current && !hostingRef.current.contains(e.target as Node)) setHostingOpen(false);
       if (servicesRef.current && !servicesRef.current.contains(e.target as Node)) setServicesOpen(false);
       if (domainsRef.current && !domainsRef.current.contains(e.target as Node)) setDomainsOpen(false);
-      if (exploreRef.current && !exploreRef.current.contains(e.target as Node)) setExploreOpen(false);
       if (supportRef.current && !supportRef.current.contains(e.target as Node)) setSupportOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -442,43 +438,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               )}
             </div>
 
-            {/* Explore Dropdown */}
-            <div ref={exploreRef} className="relative">
-              <button
-                onClick={() => setExploreOpen(o => !o)}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
-              >
-                <span className="text-amber-400 group-hover:scale-110 transition-transform">
-                  <Briefcase size={18} />
-                </span>
-                Explore
-                <ChevronDown size={14} className={`transition-transform duration-200 ${exploreOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {exploreOpen && (
-                <div className="absolute top-full left-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden" style={{ minWidth: '300px', background: '#131318', border: '1px solid rgba(103,61,230,0.3)' }}>
-                  <div className="px-5 pt-5 pb-2">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Company</span>
-                  </div>
-                  <div className="px-2 pb-3">
-                    {[
-                      { to: '/about-us', icon: <Info size={17} />, color: 'text-amber-400', bg: 'bg-amber-400/10 group-hover:bg-amber-400/20', label: 'About Us', desc: 'Our story, mission, and the team behind Noehost' },
-                      { to: '/contact-us', icon: <Phone size={17} />, color: 'text-rose-400', bg: 'bg-rose-400/10 group-hover:bg-rose-400/20', label: 'Contact Us', desc: 'Get in touch — sales, billing, or general enquiries' },
-                      { to: '/server-status', icon: <Activity size={17} />, color: 'text-emerald-400', bg: 'bg-emerald-400/10 group-hover:bg-emerald-400/20', label: 'Server Status', desc: 'Live uptime and incident reports' },
-                    ].map(item => (
-                      <Link key={item.to} to={item.to} onClick={() => setExploreOpen(false)}
-                        className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bg} transition-all ${item.color}`}>{item.icon}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-bold text-slate-200 group-hover:${item.color} transition-colors mb-0.5`}>{item.label}</p>
-                          <p className="text-xs text-slate-500 font-medium leading-snug">{item.desc}</p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Support Dropdown */}
             <div ref={supportRef} className="relative">
               <button
@@ -499,9 +458,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                   <div className="px-2 pb-3">
                     {[
                       { to: '/knowledge-base', icon: <Monitor size={17} />, color: 'text-violet-400', bg: 'bg-violet-400/10 group-hover:bg-violet-400/20', label: 'Knowledge Base', desc: 'Advice and answers to all of your FAQs' },
-                      { to: '/knowledge-base#tutorials', icon: <Video size={17} />, color: 'text-blue-400', bg: 'bg-blue-400/10 group-hover:bg-blue-400/20', label: 'Tutorials', desc: 'Videos and articles to help you succeed online' },
-                      { to: '/knowledge-base#learning', icon: <BookOpen size={17} />, color: 'text-emerald-400', bg: 'bg-emerald-400/10 group-hover:bg-emerald-400/20', label: 'Learning Lab', desc: 'Step-by-step guides to launch and grow your project' },
-                      { to: '/contact-us', icon: <Headphones size={17} />, color: 'text-cyan-400', bg: 'bg-cyan-400/10 group-hover:bg-cyan-400/20', label: 'Contact Support', desc: 'How to reach us — live chat, tickets, email' },
+                      { to: '/about-us', icon: <Info size={17} />, color: 'text-amber-400', bg: 'bg-amber-400/10 group-hover:bg-amber-400/20', label: 'About Us', desc: 'Our story, mission, and the team behind Noehost' },
+                      { to: '/contact-us', icon: <Headphones size={17} />, color: 'text-cyan-400', bg: 'bg-cyan-400/10 group-hover:bg-cyan-400/20', label: 'Contact Us', desc: 'Get in touch — live chat, tickets, or email' },
                     ].map(item => (
                       <Link key={item.label} to={item.to} onClick={() => setSupportOpen(false)}
                         className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group">
@@ -742,35 +700,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             )}
           </div>
 
-          {/* Mobile Explore Group */}
-          <div>
-            <button onClick={() => setMobileExploreOpen(o => !o)} className="flex items-center gap-4 group w-full">
-              <div className="p-3 rounded-xl bg-white/5 text-amber-400 group-hover:bg-amber-500 group-hover:text-white transition-all">
-                <Briefcase size={18} />
-              </div>
-              <span className="text-sm font-black text-slate-200 group-hover:text-amber-400 transition-colors uppercase tracking-widest flex-1 text-left">Explore</span>
-              <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileExploreOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {mobileExploreOpen && (
-              <div className="mt-3 flex flex-col gap-1">
-                {[
-                  { to: '/about-us', icon: <Info size={16} />, color: 'text-amber-400', label: 'About Us', desc: 'Our story, mission, and the team' },
-                  { to: '/contact-us', icon: <Phone size={16} />, color: 'text-rose-400', label: 'Contact Us', desc: 'Sales, billing, or general enquiries' },
-                  { to: '/server-status', icon: <Activity size={16} />, color: 'text-emerald-400', label: 'Server Status', desc: 'Live uptime and incident reports' },
-                ].map(item => (
-                  <Link key={item.to} to={item.to} onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 ${item.color}`}>{item.icon}</div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">{item.label}</p>
-                      <p className="text-xs text-slate-500 font-medium">{item.desc}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Mobile Support Group */}
           <div>
             <button onClick={() => setMobileSupportOpen(o => !o)} className="flex items-center gap-4 group w-full">
@@ -784,9 +713,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <div className="mt-3 flex flex-col gap-1">
                 {[
                   { to: '/knowledge-base', icon: <Monitor size={16} />, color: 'text-violet-400', label: 'Knowledge Base', desc: 'Advice and answers to all FAQs' },
-                  { to: '/knowledge-base#tutorials', icon: <Video size={16} />, color: 'text-blue-400', label: 'Tutorials', desc: 'Videos and articles for success' },
-                  { to: '/knowledge-base#learning', icon: <BookOpen size={16} />, color: 'text-emerald-400', label: 'Learning Lab', desc: 'Step-by-step guides to grow' },
-                  { to: '/contact-us', icon: <Headphones size={16} />, color: 'text-cyan-400', label: 'Contact Support', desc: 'Live chat, tickets, email' },
+                  { to: '/about-us', icon: <Info size={16} />, color: 'text-amber-400', label: 'About Us', desc: 'Our story, mission, and the team' },
+                  { to: '/contact-us', icon: <Headphones size={16} />, color: 'text-cyan-400', label: 'Contact Us', desc: 'Live chat, tickets, or email' },
                 ].map(item => (
                   <Link key={item.label} to={item.to} onClick={() => setMobileMenuOpen(false)}
                     className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group">

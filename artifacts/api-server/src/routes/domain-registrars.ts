@@ -26,7 +26,9 @@ import multer from "multer";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import path from "path";
-const REGISTRAR_MODULES_DIR = path.resolve(__dirname, "../../modules/registrars");
+import { fileURLToPath as _ftuDR } from "node:url";
+const __dirname_dr = path.dirname(_ftuDR(import.meta.url));
+const REGISTRAR_MODULES_DIR = path.resolve(__dirname_dr, "../../modules/registrars");
 fs.mkdirSync(REGISTRAR_MODULES_DIR, { recursive: true });
 
 const zipUpload = multer({

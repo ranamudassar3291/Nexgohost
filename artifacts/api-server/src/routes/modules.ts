@@ -15,7 +15,9 @@ import multer from "multer";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import path from "path";
-const MODULES_DIR = path.resolve(__dirname, "../../modules");
+import { fileURLToPath as _ftuModules } from "node:url";
+const __dirname_modules = path.dirname(_ftuModules(import.meta.url));
+const MODULES_DIR = path.resolve(__dirname_modules, "../../modules");
 
 // Ensure module dirs exist
 fs.mkdirSync(path.join(MODULES_DIR, "servers"),    { recursive: true });
