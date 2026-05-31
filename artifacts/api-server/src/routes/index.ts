@@ -69,6 +69,7 @@ import aiSupportRouter from "./ai-support.js";
 import pagesRouter from "./pages.js";
 import abuseRouter from "./abuse.js";
 import resellerRouter from "./reseller.js";
+import noEmailRouter from "./noemail.js";
 
 const router: IRouter = Router();
 
@@ -146,5 +147,6 @@ router.use(aiSupportRouter);
 router.use(pagesRouter);
 router.use(abuseRouter);
 router.use(resellerRouter);
+router.use(noEmailRouter);
 
 export default router;

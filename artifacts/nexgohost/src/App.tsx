@@ -52,6 +52,7 @@ import SeoEngine from "@/pages/admin/SeoEngine";
 import SalesFunnel from "@/pages/admin/SalesFunnel";
 import AbuseDashboard from "@/pages/admin/AbuseDashboard";
 import ResellerAdmin from "@/pages/admin/ResellerAdmin";
+import NoeMail from "@/pages/admin/NoeMail";
 import ResellerDashboard from "@/pages/client/ResellerDashboard";
 import DomainReseller from "@/pages/public/DomainReseller";
 import Status from "@/pages/public/Status";
@@ -87,6 +88,8 @@ import DomainDns from "@/pages/client/DomainDns";
 import DomainSearch from "@/pages/client/DomainSearch";
 import RegisterDomain from "@/pages/client/RegisterDomain";
 import VpsManage from "@/pages/client/VpsManage";
+import NoEmailManage from "@/pages/client/NoEmailManage";
+import EmailHostingCheckout from "@/pages/client/EmailHostingCheckout";
 import HelpCenter from "@/pages/client/HelpCenter";
 import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
 import Homepage from "@/pages/public/Homepage";
@@ -544,6 +547,9 @@ function RouterRoot() {
       <Route path="/admin/resellers">
         <AdminPage><ResellerAdmin /></AdminPage>
       </Route>
+      <Route path="/admin/noemail">
+        <AdminPage><NoeMail /></AdminPage>
+      </Route>
 
       {/* ── Client routes (each individually guarded) ── */}
       <Route path="/client/dashboard">
@@ -551,6 +557,12 @@ function RouterRoot() {
       </Route>
       <Route path="/client/vps/:id">
         <ClientPage><VpsManage /></ClientPage>
+      </Route>
+      <Route path="/dashboard/noemail/manage/:order_id">
+        <ClientPage><NoEmailManage /></ClientPage>
+      </Route>
+      <Route path="/checkout/email-hosting">
+        <EmailHostingCheckout />
       </Route>
       <Route path="/client/hosting/:id/webmail">
         <ClientPage><ClientWebmail /></ClientPage>

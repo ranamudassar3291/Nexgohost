@@ -567,14 +567,14 @@ export default function BusinessEmail() {
 
                     {/* CTA button */}
                     <button
-                      onClick={() => window.location.href = '/client/orders/new'}
+                      onClick={() => window.location.href = '/checkout/email-hosting'}
                       className="w-full py-3 rounded-xl text-sm font-bold mb-7 transition-all hover:opacity-90"
                       style={{
                         background: plan.popular ? '#673DE6' : '#F3F4F6',
                         color: plan.popular ? '#fff' : '#374151',
                         border: plan.popular ? 'none' : '1px solid #E5E7EB',
                       }}>
-                      Add to cart
+                      Get Started
                     </button>
 
                     {/* Features */}

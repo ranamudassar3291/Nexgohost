@@ -871,6 +871,65 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cart_sessions_user ON cart_sessions(user_id)`);
     console.log("[MIGRATIONS] cart_sessions table ready");
 
+    // ── NoeMail: Business Email Hosting ──────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS admin_email_packages (
+        id                 TEXT PRIMARY KEY,
+        name               TEXT NOT NULL,
+        max_storage_gb     INTEGER NOT NULL DEFAULT 10,
+        max_mailboxes      INTEGER NOT NULL DEFAULT 5,
+        price              NUMERIC(10,2) NOT NULL DEFAULT 0,
+        yearly_price       NUMERIC(10,2),
+        remote_package_id  TEXT,
+        is_popular         BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at         TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] admin_email_packages table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS email_orders (
+        id             TEXT PRIMARY KEY,
+        user_id        TEXT NOT NULL,
+        package_id     TEXT,
+        domain_name    TEXT NOT NULL,
+        billing_cycle  TEXT NOT NULL DEFAULT 'monthly',
+        amount_paid    NUMERIC(10,2) NOT NULL DEFAULT 0,
+        status         TEXT NOT NULL DEFAULT 'pending_dns',
+        remote_hosting_id TEXT,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_email_orders_user ON email_orders(user_id)`);
+    console.log("[MIGRATIONS] email_orders table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS synced_mailboxes (
+        id             TEXT PRIMARY KEY,
+        order_id       TEXT NOT NULL,
+        email_address  TEXT NOT NULL,
+        quota_mb       INTEGER NOT NULL DEFAULT 1024,
+        status         TEXT NOT NULL DEFAULT 'active',
+        remote_id      TEXT,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(order_id, email_address)
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_synced_mailboxes_order ON synced_mailboxes(order_id)`);
+    console.log("[MIGRATIONS] synced_mailboxes table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS email_storage_usage (
+        order_id    TEXT PRIMARY KEY,
+        used_mb     INTEGER NOT NULL DEFAULT 0,
+        quota_mb    INTEGER NOT NULL DEFAULT 10240,
+        updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] email_storage_usage table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

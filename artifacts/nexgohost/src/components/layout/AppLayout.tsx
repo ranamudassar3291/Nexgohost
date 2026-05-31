@@ -106,6 +106,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { name: "Hosting",    href: "/admin/hosting",    icon: (() => null) as any },
       { name: "Orders",     href: "/admin/orders",     icon: (() => null) as any },
       { name: "Resellers",  href: "/admin/resellers",  icon: (() => null) as any },
+      { name: "NoeMail",    href: "/admin/noemail",    icon: (() => null) as any },
     ],
   },
   {
