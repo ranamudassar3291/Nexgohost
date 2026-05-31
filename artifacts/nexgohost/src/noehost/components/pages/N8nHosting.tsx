@@ -7,81 +7,7 @@ import {
   MessageSquare, Bot, Workflow, Play
 } from 'lucide-react';
 import { useCurrency } from '../../CurrencyContext';
-
-const PLANS_PKR = [
-  {
-    name: 'KVM 1',
-    badge: '',
-    popular: false,
-    savePercent: 17,
-    monthlyPKR: 1500,
-    yearlyPKR: 1250,
-    cpu: '2 vCPU',
-    ram: '4 GB RAM',
-    storage: '50 GB NVMe',
-    bandwidth: '4 TB Bandwidth',
-    features: [
-      'n8n Pre-installed',
-      'Free SSL Certificate',
-      'Unlimited Workflows',
-      'Unlimited Executions',
-      'Community Nodes Access',
-      'Daily Backups',
-      'Managed Updates',
-      'Full Root Access',
-    ],
-  },
-  {
-    name: 'KVM 2',
-    badge: 'MOST POPULAR',
-    popular: true,
-    savePercent: 17,
-    monthlyPKR: 2500,
-    yearlyPKR: 2083,
-    cpu: '4 vCPU',
-    ram: '8 GB RAM',
-    storage: '100 GB NVMe',
-    bandwidth: '8 TB Bandwidth',
-    features: [
-      'n8n Pre-installed',
-      'Free SSL Certificate',
-      'Unlimited Workflows',
-      'Unlimited Executions',
-      'Community Nodes Access',
-      'Daily Backups',
-      'Managed Updates',
-      'Full Root Access',
-      'Priority Support 24/7',
-      'Custom Domain Included',
-    ],
-  },
-  {
-    name: 'KVM 3',
-    badge: '',
-    popular: false,
-    savePercent: 17,
-    monthlyPKR: 4500,
-    yearlyPKR: 3750,
-    cpu: '6 vCPU',
-    ram: '12 GB RAM',
-    storage: '200 GB NVMe',
-    bandwidth: '12 TB Bandwidth',
-    features: [
-      'n8n Pre-installed',
-      'Free SSL Certificate',
-      'Unlimited Workflows',
-      'Unlimited Executions',
-      'Community Nodes Access',
-      'Hourly Backups + Restore',
-      'Managed Updates',
-      'Full Root Access',
-      'Dedicated Support Manager',
-      'Custom Domain Included',
-      'White-label Ready',
-      'Custom SMTP Integration',
-    ],
-  },
-];
+import { useVpsPlans, type VpsPlan } from '../../hooks/usePackages';
 
 const FAQS = [
   {
@@ -114,6 +40,30 @@ const N8nHosting: React.FC = () => {
   const [yearly, setYearly] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { convertFromPKR, currency } = useCurrency();
+  const { plans: vpsPlans, loading: plansLoading } = useVpsPlans();
+
+  const maxSavePercent = vpsPlans.reduce((max, p) => {
+    if (!p.yearlyPrice || !p.price) return max;
+    const save = Math.round((1 - p.yearlyPrice / p.price) * 100);
+    return save > max ? save : max;
+  }, 17);
+
+  const fmtSpec = (plan: VpsPlan) => ({
+    cpu: `${plan.cpuCores} vCPU`,
+    ram: `${plan.ramGb} GB RAM`,
+    storage: `${plan.storageGb} GB NVMe`,
+    bandwidth: plan.bandwidthTb ? `${plan.bandwidthTb} TB Bandwidth` : 'Unmetered',
+    popular: vpsPlans.length >= 3 && vpsPlans.indexOf(plan) === 1,
+    badge: vpsPlans.length >= 3 && vpsPlans.indexOf(plan) === 1 ? 'MOST POPULAR' : '',
+    savePercent: plan.yearlyPrice && plan.price
+      ? Math.round((1 - plan.yearlyPrice / plan.price) * 100)
+      : 0,
+    monthlyPrice: plan.price,
+    yearlyPrice: plan.yearlyPrice ?? plan.price,
+    features: plan.features && plan.features.length > 0
+      ? plan.features
+      : ['n8n Pre-installed', 'Free SSL Certificate', 'Unlimited Workflows', 'Unlimited Executions', 'Full Root Access'],
+  });
 
   return (
     <div className="min-h-screen text-white" style={{ background: '#000000' }}>
@@ -138,7 +88,7 @@ const N8nHosting: React.FC = () => {
               <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full text-sm font-bold"
                 style={{ background: 'rgba(109,40,217,0.15)', border: '1px solid rgba(139,92,246,0.4)', color: '#C4B5FD' }}>
                 <Zap size={13} className="fill-violet-400 text-violet-400" />
-                Up to <span className="text-white font-black">17% off</span> n8n self-hosting
+                Up to <span className="text-white font-black">{maxSavePercent}% off</span> n8n self-hosting
               </div>
 
               {/* Headline */}
@@ -380,102 +330,123 @@ const N8nHosting: React.FC = () => {
                 onClick={() => setYearly(true)}
                 className={`text-sm font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${yearly ? 'text-white bg-white/10' : 'text-gray-500'}`}>
                 Yearly
-                <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.2)', color: '#818CF8' }}>Save up to 17%</span>
+                {maxSavePercent > 0 && (
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.2)', color: '#818CF8' }}>
+                    Save up to {maxSavePercent}%
+                  </span>
+                )}
               </button>
             </div>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-5">
-            {PLANS_PKR.map((plan, i) => {
-              const price = yearly ? plan.yearlyPKR : plan.monthlyPKR;
-              const displayPrice = convertFromPKR(price);
-              const origPrice = convertFromPKR(plan.monthlyPKR);
+          {/* Loading skeleton */}
+          {plansLoading && (
+            <div className="grid md:grid-cols-3 gap-5">
+              {[1,2,3].map(i => (
+                <div key={i} className="rounded-2xl h-[480px] animate-pulse" style={{ background: '#111111', border: '1px solid rgba(255,255,255,0.08)' }} />
+              ))}
+            </div>
+          )}
 
-              return (
-                <motion.div
-                  key={plan.name}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                  className="relative flex flex-col rounded-2xl overflow-hidden"
-                  style={{
-                    background: plan.popular
-                      ? 'linear-gradient(180deg, #1e1b4b 0%, #0f0e1a 100%)'
-                      : '#111111',
-                    border: plan.popular
-                      ? '1.5px solid rgba(99,102,241,0.5)'
-                      : '1px solid rgba(255,255,255,0.08)',
-                  }}>
+          {!plansLoading && (
+            <div className="grid md:grid-cols-3 gap-5">
+              {vpsPlans.map((plan, i) => {
+                const spec = fmtSpec(plan);
+                const price = yearly ? spec.yearlyPrice : spec.monthlyPrice;
+                const displayPrice = convertFromPKR(price);
+                const origPrice = convertFromPKR(spec.monthlyPrice);
 
-                  {/* % off badge */}
-                  <div className="absolute top-4 right-4 text-[11px] font-black px-2.5 py-1 rounded-full"
-                    style={{ background: plan.popular ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)', color: '#D1D5DB' }}>
-                    {plan.savePercent}% off
-                  </div>
+                return (
+                  <motion.div
+                    key={plan.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    className="relative flex flex-col rounded-2xl overflow-hidden"
+                    style={{
+                      background: spec.popular
+                        ? 'linear-gradient(180deg, #1e1b4b 0%, #0f0e1a 100%)'
+                        : '#111111',
+                      border: spec.popular
+                        ? '1.5px solid rgba(99,102,241,0.5)'
+                        : '1px solid rgba(255,255,255,0.08)',
+                    }}>
 
-                  {/* MOST POPULAR badge */}
-                  {plan.badge && (
-                    <div className="py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-white"
-                      style={{ background: 'linear-gradient(90deg, #6D28D9, #7C3AED)' }}>
-                      {plan.badge}
-                    </div>
-                  )}
-
-                  <div className="p-7 flex flex-col flex-1">
-                    <h3 className="text-lg font-black text-white mb-1">{plan.name}</h3>
-
-                    {/* Specs pills */}
-                    <div className="flex flex-wrap gap-1.5 mb-5">
-                      {[plan.cpu, plan.ram, plan.storage].map(spec => (
-                        <span key={spec} className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-                          style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          {spec}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Price */}
-                    <div className="mb-6">
-                      <div className="flex items-end gap-2 mb-1">
-                        <span className="font-black text-white" style={{ fontSize: '2.2rem', lineHeight: 1 }}>
-                          {displayPrice}
-                        </span>
-                        <span className="text-sm pb-1" style={{ color: '#6B7280' }}>/mo</span>
+                    {/* % off badge */}
+                    {spec.savePercent > 0 && yearly && (
+                      <div className="absolute top-4 right-4 text-[11px] font-black px-2.5 py-1 rounded-full"
+                        style={{ background: spec.popular ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)', color: '#D1D5DB' }}>
+                        {spec.savePercent}% off
                       </div>
-                      {yearly && (
-                        <p className="text-xs" style={{ color: '#6B7280' }}>
-                          {origPrice}/mo regular price
-                        </p>
+                    )}
+
+                    {/* MOST POPULAR badge */}
+                    {spec.badge && (
+                      <div className="py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-white"
+                        style={{ background: 'linear-gradient(90deg, #6D28D9, #7C3AED)' }}>
+                        {spec.badge}
+                      </div>
+                    )}
+
+                    <div className="p-7 flex flex-col flex-1">
+                      <h3 className="text-lg font-black text-white mb-1">{plan.name}</h3>
+                      {plan.description && (
+                        <p className="text-xs mb-3" style={{ color: '#6B7280' }}>{plan.description}</p>
                       )}
+
+                      {/* Specs pills */}
+                      <div className="flex flex-wrap gap-1.5 mb-5">
+                        {[spec.cpu, spec.ram, spec.storage, spec.bandwidth].map(s => (
+                          <span key={s} className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                            style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Price */}
+                      <div className="mb-6">
+                        <div className="flex items-end gap-2 mb-1">
+                          <span className="font-black text-white" style={{ fontSize: '2.2rem', lineHeight: 1 }}>
+                            {displayPrice}
+                          </span>
+                          <span className="text-sm pb-1" style={{ color: '#6B7280' }}>/mo</span>
+                        </div>
+                        {yearly && spec.savePercent > 0 && (
+                          <p className="text-xs" style={{ color: '#6B7280' }}>
+                            {origPrice}/mo regular price
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => window.location.href = '/client/orders/new'}
+                        className="w-full py-3 rounded-xl font-bold text-[14px] text-white mb-7 transition-all hover:opacity-90"
+                        style={{
+                          background: spec.popular
+                            ? 'linear-gradient(135deg, #7C3AED, #6D28D9)'
+                            : 'rgba(255,255,255,0.08)',
+                          border: spec.popular ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                        }}>
+                        Choose your plan
+                      </button>
+
+                      {/* Features */}
+                      <ul className="space-y-2.5 flex-1">
+                        {spec.features.map((f, fi) => (
+                          <li key={fi} className="flex items-start gap-2.5 text-[13px]" style={{ color: '#D1D5DB' }}>
+                            <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#7C3AED' }} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-
-                    <button
-                      onClick={() => window.location.href = '/client/orders/new'}
-                      className="w-full py-3 rounded-xl font-bold text-[14px] text-white mb-7 transition-all hover:opacity-90"
-                      style={{
-                        background: plan.popular
-                          ? 'linear-gradient(135deg, #7C3AED, #6D28D9)'
-                          : 'rgba(255,255,255,0.08)',
-                        border: plan.popular ? 'none' : '1px solid rgba(255,255,255,0.12)',
-                      }}>
-                      Choose your plan
-                    </button>
-
-                    {/* Features */}
-                    <ul className="space-y-2.5 flex-1">
-                      {plan.features.map(f => (
-                        <li key={f} className="flex items-start gap-2.5 text-[13px]" style={{ color: '#D1D5DB' }}>
-                          <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#7C3AED' }} />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
 
           <p className="text-center text-sm mt-8" style={{ color: '#6B7280' }}>
             Need something custom?{' '}
