@@ -178,25 +178,34 @@ router.post("/my/reseller/orders/:id/renew", authenticate, async (req, res) => {
       return;
     }
 
-    await db.execute(sql`
-      UPDATE reseller_funds SET balance = balance - ${cost}, updated_at = NOW()
-      WHERE user_id = ${userId}
-    `);
-
-    await db.execute(sql`
-      INSERT INTO reseller_transactions (user_id, type, amount, notes)
-      VALUES (${userId}, 'debit', ${cost}, ${"Domain renewal: " + order.rows[0].domain_name + order.rows[0].tld})
-    `);
-
+    // ── Transaction: balance deduction + ledger entry + order must all succeed ──
     const renewId = crypto.randomUUID();
-    await db.execute(sql`
-      INSERT INTO reseller_orders (id, user_id, domain_name, tld, action_type, cost, status)
-      VALUES (${renewId}, ${userId}, ${order.rows[0].domain_name}, ${order.rows[0].tld}, 'renew', ${cost}, 'processing')
-    `);
+    const renewNotes = "Domain renewal: " + order.rows[0].domain_name + order.rows[0].tld;
+    await db.execute(sql`BEGIN`);
+    try {
+      await db.execute(sql`
+        UPDATE reseller_funds SET balance = balance - ${cost}, updated_at = NOW()
+        WHERE user_id = ${userId}
+      `);
+      await db.execute(sql`
+        INSERT INTO reseller_transactions (user_id, type, amount, notes)
+        VALUES (${userId}, 'debit', ${cost}, ${renewNotes})
+      `);
+      await db.execute(sql`
+        INSERT INTO reseller_orders (id, user_id, domain_name, tld, action_type, cost, status)
+        VALUES (${renewId}, ${userId}, ${order.rows[0].domain_name}, ${order.rows[0].tld}, 'renew', ${cost}, 'processing')
+      `);
+      await db.execute(sql`COMMIT`);
+    } catch (txErr: any) {
+      await db.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[RESELLER RENEW] Transaction rolled back — balance NOT deducted:", txErr);
+      throw txErr;
+    }
 
     res.json({ success: true, orderId: renewId });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[RESELLER RENEW] raw error:", err);
+    res.status(500).json({ error: "Domain renewal could not be processed. Your balance has not been charged. Please try again." });
   }
 });
 

@@ -906,6 +906,11 @@ async function runStartupMigrations() {
     await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS remote_hosting_id TEXT`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_email_orders_user ON email_orders(user_id)`);
+    // ── Safe Migration: guarantee all email_orders columns exist in older environments ──
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly'`);
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS remote_hosting_id TEXT`);
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     console.log("[MIGRATIONS] email_orders table ready");
 
     await db.execute(sql`
@@ -931,7 +936,33 @@ async function runStartupMigrations() {
         updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    // ── Safe Migration: guarantee email_storage_usage columns ──
+    await db.execute(sql`ALTER TABLE email_storage_usage ADD COLUMN IF NOT EXISTS used_mb INTEGER NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE email_storage_usage ADD COLUMN IF NOT EXISTS quota_mb INTEGER NOT NULL DEFAULT 10240`);
+    await db.execute(sql`ALTER TABLE email_storage_usage ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     console.log("[MIGRATIONS] email_storage_usage table ready");
+
+    // ── Safe Migration: reseller tables ─────────────────────────────────────────
+    await db.execute(sql`ALTER TABLE reseller_funds ADD COLUMN IF NOT EXISTS balance NUMERIC(10,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE reseller_funds ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'USD'`);
+    await db.execute(sql`ALTER TABLE reseller_funds ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
+    await db.execute(sql`ALTER TABLE reseller_orders ADD COLUMN IF NOT EXISTS tld TEXT NOT NULL DEFAULT ''`);
+    await db.execute(sql`ALTER TABLE reseller_orders ADD COLUMN IF NOT EXISTS action_type TEXT NOT NULL DEFAULT 'register'`);
+    await db.execute(sql`ALTER TABLE reseller_orders ADD COLUMN IF NOT EXISTS cost NUMERIC(10,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE reseller_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'processing'`);
+    await db.execute(sql`ALTER TABLE reseller_orders ADD COLUMN IF NOT EXISTS nameservers TEXT`);
+    await db.execute(sql`ALTER TABLE reseller_orders ADD COLUMN IF NOT EXISTS epp_code TEXT`);
+    await db.execute(sql`ALTER TABLE reseller_transactions ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'credit'`);
+    await db.execute(sql`ALTER TABLE reseller_transactions ADD COLUMN IF NOT EXISTS amount NUMERIC(10,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE reseller_transactions ADD COLUMN IF NOT EXISTS notes TEXT`);
+    console.log("[MIGRATIONS] reseller tables schema self-healed");
+
+    // ── Safe Migration: admin_email_packages ─────────────────────────────────────
+    await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS yearly_price NUMERIC(10,2)`);
+    await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS remote_package_id TEXT`);
+    await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS is_popular BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
+    console.log("[MIGRATIONS] admin_email_packages schema self-healed");
 
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);

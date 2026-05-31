@@ -1,0 +1,38 @@
+You are an expert Lead Full-Stack Architect and State Management Engineer. We need to permanently fix the broken domain purchasing flow across all search modules.
+
+THE BUG DESCRIPTION:
+Currently, when a user clicks "Add to Cart" on the Single Domain Search, Bulk Domain Search, or Bulk Domain Transfer sections, and then clicks "Checkout Now", the system routes them to `client/order/new` as a completely blank state. This forces the user to manually re-type and re-search their domains inside the dashboard, causing a terrible user experience and cart abandonment.
+
+Refactor the system to implement a seamless, unified local-to-backend persistent cart engine.
+
+---
+### 1. THE MANDATORY PRODUCTION WORKFLOW
+1. Unified Search Capture: Whether it is a single domain lookup, a multi-line Bulk Search, or a Bulk Transfer list, clicking "Add to Cart" must instantly parse the domain strings, extension TLDs, and the intended action ('register' or 'transfer').
+2. Session/Database Sync: Immediately push these items into a global frontend context/localStorage AND send a background POST request to save them under a unique browser `session_token` in the database.
+3. Order First, Login Last: Clicking "Checkout Now" must route the user directly to the `/checkout/domain` or `/client/order/new` layout with the domain details PRE-FILLED and pricing calculations fully displayed.
+4. Late Auth Hook: Do NOT require a login to see the checkout page. Display the order breakdown first, and place an elegant inline [Login / Register] form split directly at the bottom of the checkout screen. Once authenticated, merge the session domains to the active user profile instantly and finalize the gateway order.
+
+---
+### 2. SPECIFIC CODE & COMPONENT REFACTORING TASKS
+
+#### Task A: Fix Frontend Search Components (Single, Bulk Search, Bulk Transfer)
+- Locate the handlers for "Add to Cart" in all three views: Single Search, Bulk Search, and Bulk Domain Transfer.
+- Modify the state handler so it compiles an array of objects: `[{ domain: 'example.com', action: 'register' }, { domain: 'transferme.net', action: 'transfer' }]`.
+- Store this array in `localStorage.setItem('noehost_cart', JSON.stringify(cartItems))` dynamically so that navigating between pages never clears the user's choices.
+
+#### Task B: Fix the "Checkout Now" Button Router & Data Pull
+- Update the action on the "Checkout Now" button. Instead of sending an empty redirect, it must route to the checkout viewport while passing or preserving the cart payload.
+- On the checkout page component (`client/order/new`), read the domains directly from `localStorage` or the background session database table on initial mount (`useEffect`).
+- Render the domains cleanly with clear line items, operational costs, and action labels ('Registration' vs 'Transfer') pre-populated. **CRITICAL:** Completely remove any redundant domain search bars or blank input screens from this stage of the checkout path.
+
+#### Task C: Database Schema Enforcement (Zero Data Loss Guard)
+Ensure your backend order processing table safely accepts the transaction structures using safe migrations:
+```sql
+CREATE TABLE IF NOT EXISTS temporary_cart_items (
+    id SERIAL PRIMARY KEY,
+    session_token VARCHAR(255) NOT NULL,
+    domain_name VARCHAR(255) NOT NULL,
+    action_type VARCHAR(50) DEFAULT 'register', -- 'register' or 'transfer'
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

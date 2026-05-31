@@ -248,7 +248,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
         } catch (err) { console.warn("[CHECKOUT TRANSFER RECORD]", err); }
       }
 
-      // Auto-pay with credits (full or partial)
+      // Auto-pay with credits (full or partial) — wrapped in transaction
       if ((paymentMethodId === "credits" || applyCredits) && finalAmount > 0) {
         const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
@@ -259,17 +259,22 @@ async function handleCheckout(req: AuthRequest, res: any) {
         const deducted = parseFloat(Math.min(bal, finalAmount).toFixed(2));
         const remaining = parseFloat((finalAmount - deducted).toFixed(2));
         if (deducted > 0) {
-          await db.update(usersTable).set({ creditBalance: String((bal - deducted).toFixed(2)), updatedAt: new Date() })
-            .where(eq(usersTable.id, req.user!.userId));
-          await db.insert(creditTransactionsTable).values({
-            userId: req.user!.userId, amount: String(deducted.toFixed(2)), type: "invoice_payment",
-            description: `Wallet payment for ${domain} order`, invoiceId: invoice.id,
+          await db.transaction(async (tx) => {
+            await tx.update(usersTable).set({ creditBalance: String((bal - deducted).toFixed(2)), updatedAt: new Date() })
+              .where(eq(usersTable.id, req.user!.userId));
+            await tx.insert(creditTransactionsTable).values({
+              userId: req.user!.userId, amount: String(deducted.toFixed(2)), type: "invoice_payment",
+              description: `Wallet payment for ${domain} order`, invoiceId: invoice.id,
+            });
+            await tx.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
+              .where(eq(invoicesTable.id, invoice.id));
+            if (remaining === 0) {
+              await tx.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+                .where(eq(invoicesTable.id, invoice.id));
+              await tx.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+            }
           });
-          // Update invoice: reduce amount owed to remaining
-          await db.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
-            .where(eq(invoicesTable.id, invoice.id));
-        }
-        if (remaining === 0) {
+        } else if (remaining === 0) {
           await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
             .where(eq(invoicesTable.id, invoice.id));
           await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
@@ -427,23 +432,29 @@ async function handleCheckout(req: AuthRequest, res: any) {
 
       await db.update(invoicesTable).set({ serviceId: service.id, updatedAt: new Date() }).where(eq(invoicesTable.id, invoice.id));
 
-      // Auto-pay with credits (full or partial)
+      // Auto-pay with credits (full or partial) — wrapped in transaction
       if ((paymentMethodId === "credits" || applyCredits) && finalVpsAmount > 0) {
         const bal = parseFloat((await db.select({ creditBalance: usersTable.creditBalance })
           .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1).then(r => r[0]?.creditBalance ?? "0")));
         const deducted = parseFloat(Math.min(bal, finalVpsAmount).toFixed(2));
         const remaining = parseFloat((finalVpsAmount - deducted).toFixed(2));
         if (deducted > 0) {
-          await db.update(usersTable).set({ creditBalance: String((bal - deducted).toFixed(2)), updatedAt: new Date() })
-            .where(eq(usersTable.id, req.user!.userId));
-          await db.insert(creditTransactionsTable).values({
-            userId: req.user!.userId, amount: String(deducted.toFixed(2)), type: "invoice_payment",
-            description: `Wallet payment for VPS order: ${vpsPlan.name}`, invoiceId: invoice.id,
+          await db.transaction(async (tx) => {
+            await tx.update(usersTable).set({ creditBalance: String((bal - deducted).toFixed(2)), updatedAt: new Date() })
+              .where(eq(usersTable.id, req.user!.userId));
+            await tx.insert(creditTransactionsTable).values({
+              userId: req.user!.userId, amount: String(deducted.toFixed(2)), type: "invoice_payment",
+              description: `Wallet payment for VPS order: ${vpsPlan.name}`, invoiceId: invoice.id,
+            });
+            await tx.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
+              .where(eq(invoicesTable.id, invoice.id));
+            if (remaining === 0) {
+              await tx.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
+                .where(eq(invoicesTable.id, invoice.id));
+              await tx.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+            }
           });
-          await db.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
-            .where(eq(invoicesTable.id, invoice.id));
-        }
-        if (remaining === 0) {
+        } else if (remaining === 0) {
           await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
             .where(eq(invoicesTable.id, invoice.id));
           await db.update(ordersTable).set({ status: "approved", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
@@ -770,7 +781,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
         .where(eq(hostingServicesTable.id, service.id));
     }
 
-    // 5b. Auto-pay with credits (full or partial wallet)
+    // 5b. Auto-pay with credits (full or partial wallet) — wrapped in transaction
     let paidWithCredits = false;
     if ((paymentMethodId === "credits" || applyCredits) && finalAmount > 0) {
       const freshUser = await db.select({ creditBalance: usersTable.creditBalance })
@@ -786,21 +797,31 @@ async function handleCheckout(req: AuthRequest, res: any) {
       const deducted = parseFloat(Math.min(balance, finalAmount).toFixed(2));
       const remaining = parseFloat((finalAmount - deducted).toFixed(2));
       if (deducted > 0) {
-        await db.update(usersTable)
-          .set({ creditBalance: String((balance - deducted).toFixed(2)), updatedAt: new Date() })
-          .where(eq(usersTable.id, req.user!.userId));
-        await db.insert(creditTransactionsTable).values({
-          userId: req.user!.userId,
-          amount: String(deducted.toFixed(2)),
-          type: "invoice_payment",
-          description: `Wallet payment for ${plan.name} order #${order.id.slice(0, 8).toUpperCase()}`,
-          invoiceId: invoice.id,
+        await db.transaction(async (tx) => {
+          await tx.update(usersTable)
+            .set({ creditBalance: String((balance - deducted).toFixed(2)), updatedAt: new Date() })
+            .where(eq(usersTable.id, req.user!.userId));
+          await tx.insert(creditTransactionsTable).values({
+            userId: req.user!.userId,
+            amount: String(deducted.toFixed(2)),
+            type: "invoice_payment",
+            description: `Wallet payment for ${plan.name} order #${order.id.slice(0, 8).toUpperCase()}`,
+            invoiceId: invoice.id,
+          });
+          await tx.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
+            .where(eq(invoicesTable.id, invoice.id));
+          if (remaining === 0) {
+            await tx.update(invoicesTable).set({
+              status: "paid", paidDate: new Date(), updatedAt: new Date(),
+            }).where(eq(invoicesTable.id, invoice.id));
+            await tx.update(ordersTable).set({ status: "approved", updatedAt: new Date() })
+              .where(eq(ordersTable.id, order.id));
+            await tx.update(hostingServicesTable).set({ status: "active", updatedAt: new Date() })
+              .where(eq(hostingServicesTable.id, service.id));
+            paidWithCredits = true;
+          }
         });
-        // Reduce invoice amount owed to remainder
-        await db.update(invoicesTable).set({ amount: String(remaining.toFixed(2)), updatedAt: new Date() })
-          .where(eq(invoicesTable.id, invoice.id));
-      }
-      if (remaining === 0) {
+      } else if (remaining === 0) {
         await db.update(invoicesTable).set({
           status: "paid", paidDate: new Date(), updatedAt: new Date(),
         }).where(eq(invoicesTable.id, invoice.id));

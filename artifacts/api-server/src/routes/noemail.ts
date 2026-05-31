@@ -204,22 +204,34 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
     if (!pkg) return res.status(404).json({ error: "Package not found" });
 
     const id = randomUUID();
-    const price = billing_cycle === "yearly" && pkg.yearly_price ? pkg.yearly_price : pkg.price;
-    await db.execute(sql`
-      INSERT INTO email_orders (id, user_id, package_id, domain_name, billing_cycle, amount_paid, status, created_at, updated_at)
-      VALUES (${id}, ${userId}, ${package_id}, ${domainClean}, ${billing_cycle ?? "monthly"}, ${price}, 'pending_dns', NOW(), NOW())
-    `);
+    const cycle = (billing_cycle === "yearly" || billing_cycle === "monthly") ? billing_cycle : "monthly";
+    const price = cycle === "yearly" && pkg.yearly_price != null
+      ? parseFloat(pkg.yearly_price)
+      : parseFloat(pkg.price);
 
-    // Seed storage quota — used_mb starts at 0
-    await db.execute(sql`
-      INSERT INTO email_storage_usage (order_id, used_mb, quota_mb, updated_at)
-      VALUES (${id}, 0, ${(pkg.max_storage_gb ?? 10) * 1024}, NOW())
-      ON CONFLICT (order_id) DO NOTHING
-    `);
+    // ── Transaction: order row + storage quota must succeed together ───────────
+    await db.execute(sql`BEGIN`);
+    try {
+      await db.execute(sql`
+        INSERT INTO email_orders (id, user_id, package_id, domain_name, billing_cycle, amount_paid, status, created_at, updated_at)
+        VALUES (${id}, ${userId}, ${package_id}, ${domainClean}, ${cycle}, ${price}, 'pending_dns', NOW(), NOW())
+      `);
+      await db.execute(sql`
+        INSERT INTO email_storage_usage (order_id, used_mb, quota_mb, updated_at)
+        VALUES (${id}, 0, ${(pkg.max_storage_gb ?? 10) * 1024}, NOW())
+        ON CONFLICT (order_id) DO NOTHING
+      `);
+      await db.execute(sql`COMMIT`);
+    } catch (txErr: any) {
+      await db.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[EMAIL ORDER] Transaction rolled back:", txErr);
+      throw txErr;
+    }
 
     res.json({ id, domain_name: domainClean, status: "pending_dns", package: pkg });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("[EMAIL ORDER CREATE] raw error:", err);
+    res.status(500).json({ error: "We were unable to place your order. Please try again or contact support." });
   }
 });
 
