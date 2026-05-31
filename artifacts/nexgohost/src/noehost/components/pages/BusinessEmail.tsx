@@ -1,88 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Shield, ChevronDown, ChevronUp,
   Mail, Bot, Lock, Globe, Smartphone, Headphones,
   Star, Check, Zap, Users, HardDrive, RefreshCw,
   Send, Trash2, Folder, FileText, Search, Inbox,
-  ArrowRight, BadgeCheck, Clock, Building2
+  ArrowRight, BadgeCheck, Clock, Building2, Loader2
 } from 'lucide-react';
 import { useCurrency } from '../../CurrencyContext';
 
-/* ─── DATA ───────────────────────────────────────────────────────────────── */
+/* ─── TYPES ──────────────────────────────────────────────────────────────── */
 
-const PLANS = [
-  {
-    key: 'starter',
-    name: 'Business Starter',
-    popular: false,
-    monthlyPKR: 1099,
-    annualPKR: 599,
-    storage: '10 GB',
-    mailboxes: '1 mailbox',
-    save: 45,
-    features: [
-      '1 email address',
-      '10 GB storage per mailbox',
-      'Free domain email',
-      'Webmail access',
-      'iOS & Android apps',
-      'Spam & virus protection',
-      'SSL encryption',
-      '24/7 support',
-    ],
-  },
-  {
-    key: 'business',
-    name: 'Business',
-    popular: true,
-    monthlyPKR: 1999,
-    annualPKR: 1199,
-    storage: '50 GB',
-    mailboxes: 'Up to 10 mailboxes',
-    save: 40,
-    features: [
-      'Up to 10 email addresses',
-      '50 GB storage per mailbox',
-      'Free domain email',
-      'Webmail access',
-      'iOS & Android apps',
-      'Spam & virus protection',
-      'SSL encryption',
-      '24/7 priority support',
-      'Email aliases',
-      'Auto-responder',
-      'Email forwarding',
-      'Catch-all email',
-    ],
-  },
-  {
-    key: 'enterprise',
-    name: 'Business Enterprise',
-    popular: false,
-    monthlyPKR: 2999,
-    annualPKR: 1799,
-    storage: '100 GB',
-    mailboxes: 'Unlimited mailboxes',
-    save: 40,
-    features: [
-      'Unlimited email addresses',
-      '100 GB storage per mailbox',
-      'Free domain email',
-      'Webmail access',
-      'iOS & Android apps',
-      'Advanced spam & virus protection',
-      'SSL encryption',
-      'Dedicated support manager',
-      'Email aliases (unlimited)',
-      'Auto-responder',
-      'Email forwarding',
-      'Catch-all email',
-      'Custom email signatures',
-      'Admin control panel',
-      'Priority migration support',
-    ],
-  },
+interface DbPlan {
+  id: string;
+  name: string;
+  max_storage_gb: number;
+  max_mailboxes: number;
+  price: number;
+  yearly_price: number | null;
+  is_popular: boolean;
+}
+
+function buildFeatures(plan: DbPlan): string[] {
+  const mb = plan.max_mailboxes >= 999 ? 'Unlimited mailboxes' : `${plan.max_mailboxes} mailbox${plan.max_mailboxes > 1 ? 'es' : ''}`;
+  const base = [
+    `${mb}`,
+    `${plan.max_storage_gb} GB storage per mailbox`,
+    'Custom domain email',
+    'Webmail access',
+    'iOS & Android apps',
+    'Spam & virus protection',
+    'SSL encryption',
+    '24/7 support',
+  ];
+  if (plan.max_mailboxes >= 5) base.push('Email aliases', 'Auto-responder', 'Email forwarding', 'Catch-all email');
+  if (plan.max_mailboxes >= 20 || plan.max_mailboxes >= 999) base.push('Dedicated support manager', 'Email aliases (unlimited)');
+  return base;
+}
+
+/* ─── STATIC FALLBACK DATA ───────────────────────────────────────────────── */
+
+const FALLBACK_PLANS: DbPlan[] = [
+  { id: '', name: 'Business Starter', max_storage_gb: 10, max_mailboxes: 1, price: 1099, yearly_price: 7188, is_popular: false },
+  { id: '', name: 'Business', max_storage_gb: 50, max_mailboxes: 10, price: 1999, yearly_price: 14388, is_popular: true },
+  { id: '', name: 'Business Enterprise', max_storage_gb: 100, max_mailboxes: 999, price: 2999, yearly_price: 21588, is_popular: false },
 ];
 
 const WHY_ITEMS = [
@@ -163,6 +124,16 @@ export default function BusinessEmail() {
   const [annual, setAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { convertFromPKR } = useCurrency();
+  const [plans, setPlans] = useState<DbPlan[]>(FALLBACK_PLANS);
+  const [plansLoading, setPlansLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/email-packages')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data) && data.length > 0) setPlans(data); })
+      .catch(() => {})
+      .finally(() => setPlansLoading(false));
+  }, []);
 
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#111827', background: '#fff' }}>
@@ -513,84 +484,101 @@ export default function BusinessEmail() {
           </motion.div>
 
           {/* Plan cards */}
-          <div className="grid md:grid-cols-3 gap-5">
-            {PLANS.map((plan, i) => {
-              const price = annual ? plan.annualPKR : plan.monthlyPKR;
-              const original = plan.monthlyPKR;
-              const displayPrice = convertFromPKR(price);
-              const displayOriginal = convertFromPKR(original);
+          {plansLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 size={28} className="animate-spin" style={{ color: '#673DE6' }} />
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-5">
+              {plans.map((plan, i) => {
+                const monthlyPKR = Number(plan.price);
+                const yearlyPerMonth = plan.yearly_price ? Number(plan.yearly_price) / 12 : monthlyPKR;
+                const price = annual && plan.yearly_price ? yearlyPerMonth : monthlyPKR;
+                const save = plan.yearly_price
+                  ? Math.round((1 - yearlyPerMonth / monthlyPKR) * 100)
+                  : null;
+                const displayPrice = convertFromPKR(price);
+                const displayOriginal = convertFromPKR(monthlyPKR);
+                const mailboxLabel = plan.max_mailboxes >= 999 ? 'Unlimited mailboxes' : `${plan.max_mailboxes} mailbox${plan.max_mailboxes > 1 ? 'es' : ''}`;
+                const features = buildFeatures(plan);
+                const checkoutUrl = plan.id
+                  ? `/checkout/email-hosting?plan=${plan.id}`
+                  : '/checkout/email-hosting';
 
-              return (
-                <motion.div key={plan.key}
-                  initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-                  className="relative flex flex-col rounded-2xl overflow-hidden"
-                  style={{
-                    background: '#fff',
-                    border: plan.popular ? '2px solid #673DE6' : '1px solid #E5E7EB',
-                    boxShadow: plan.popular ? '0 4px 32px rgba(103,61,230,0.14)' : 'none',
-                  }}>
+                return (
+                  <motion.div key={plan.id || plan.name}
+                    initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                    className="relative flex flex-col rounded-2xl overflow-hidden"
+                    style={{
+                      background: '#fff',
+                      border: plan.is_popular ? '2px solid #673DE6' : '1px solid #E5E7EB',
+                      boxShadow: plan.is_popular ? '0 4px 32px rgba(103,61,230,0.14)' : 'none',
+                    }}>
 
-                  {/* Most popular badge */}
-                  {plan.popular && (
-                    <div className="text-center py-2 text-[10px] font-black uppercase tracking-widest text-white"
-                      style={{ background: 'linear-gradient(90deg, #5B21B6, #673DE6)' }}>
-                      ★ Most popular
-                    </div>
-                  )}
-
-                  <div className="p-7 flex flex-col flex-1">
-                    {/* Plan name */}
-                    <div className="mb-5">
-                      <h3 className="font-black mb-0.5" style={{ fontSize: 17, color: '#111827' }}>{plan.name}</h3>
-                      <p className="text-xs" style={{ color: '#6B7280' }}>{plan.mailboxes} · {plan.storage}/mailbox</p>
-                    </div>
-
-                    {/* Price */}
-                    <div className="mb-6">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="font-black" style={{ fontSize: '2.2rem', lineHeight: 1, color: '#111827' }}>{displayPrice}</span>
-                        <span className="text-sm font-medium" style={{ color: '#6B7280' }}>/mo</span>
+                    {/* Most popular badge */}
+                    {plan.is_popular && (
+                      <div className="text-center py-2 text-[10px] font-black uppercase tracking-widest text-white"
+                        style={{ background: 'linear-gradient(90deg, #5B21B6, #673DE6)' }}>
+                        ★ Most popular
                       </div>
-                      {annual ? (
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-xs line-through" style={{ color: '#9CA3AF' }}>{displayOriginal}/mo</span>
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#673DE6' }}>
-                            -{plan.save}%
-                          </span>
+                    )}
+
+                    <div className="p-7 flex flex-col flex-1">
+                      {/* Plan name */}
+                      <div className="mb-5">
+                        <h3 className="font-black mb-0.5" style={{ fontSize: 17, color: '#111827' }}>{plan.name}</h3>
+                        <p className="text-xs" style={{ color: '#6B7280' }}>{mailboxLabel} · {plan.max_storage_gb} GB/mailbox</p>
+                      </div>
+
+                      {/* Price */}
+                      <div className="mb-6">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="font-black" style={{ fontSize: '2.2rem', lineHeight: 1, color: '#111827' }}>{displayPrice}</span>
+                          <span className="text-sm font-medium" style={{ color: '#6B7280' }}>/mo</span>
                         </div>
-                      ) : (
-                        <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
-                          or {convertFromPKR(plan.annualPKR)}/mo billed annually
-                        </p>
-                      )}
+                        {annual && plan.yearly_price ? (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-xs line-through" style={{ color: '#9CA3AF' }}>{displayOriginal}/mo</span>
+                            {save && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#673DE6' }}>
+                                -{save}%
+                              </span>
+                            )}
+                          </div>
+                        ) : plan.yearly_price ? (
+                          <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
+                            or {convertFromPKR(Number(plan.yearly_price) / 12)}/mo billed annually
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {/* CTA button */}
+                      <button
+                        onClick={() => window.location.href = checkoutUrl}
+                        className="w-full py-3 rounded-xl text-sm font-bold mb-7 transition-all hover:opacity-90"
+                        style={{
+                          background: plan.is_popular ? '#673DE6' : '#F3F4F6',
+                          color: plan.is_popular ? '#fff' : '#374151',
+                          border: plan.is_popular ? 'none' : '1px solid #E5E7EB',
+                        }}>
+                        Get Started
+                      </button>
+
+                      {/* Features */}
+                      <ul className="space-y-2.5 flex-1">
+                        {features.map(f => (
+                          <li key={f} className="flex items-start gap-2.5 text-xs" style={{ color: '#374151' }}>
+                            <Check size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#673DE6' }} />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-
-                    {/* CTA button */}
-                    <button
-                      onClick={() => window.location.href = '/checkout/email-hosting'}
-                      className="w-full py-3 rounded-xl text-sm font-bold mb-7 transition-all hover:opacity-90"
-                      style={{
-                        background: plan.popular ? '#673DE6' : '#F3F4F6',
-                        color: plan.popular ? '#fff' : '#374151',
-                        border: plan.popular ? 'none' : '1px solid #E5E7EB',
-                      }}>
-                      Get Started
-                    </button>
-
-                    {/* Features */}
-                    <ul className="space-y-2.5 flex-1">
-                      {plan.features.map(f => (
-                        <li key={f} className="flex items-start gap-2.5 text-xs" style={{ color: '#374151' }}>
-                          <Check size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#673DE6' }} />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Trust badges below pricing */}
           <div className="flex flex-wrap items-center justify-center gap-8 mt-10">

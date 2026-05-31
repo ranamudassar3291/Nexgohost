@@ -156,8 +156,8 @@ export default function EmailHostingCheckout() {
           billing_cycle: billing,
         }),
       });
-      toast({ title: "Order placed! Redirecting to setup…" });
-      navigate(`/dashboard/noemail/manage/${order.id}`);
+      toast({ title: "Order placed! Configuring DNS…" });
+      navigate(`/checkout/email-hosting/dns/${order.id}`);
     } catch (e: any) {
       toast({ title: "Order failed", description: e.message, variant: "destructive" });
     } finally {

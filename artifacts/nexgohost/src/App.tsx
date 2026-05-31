@@ -91,6 +91,8 @@ import VpsManage from "@/pages/client/VpsManage";
 import VpsOrderPage from "@/pages/client/VpsOrderPage";
 import NoEmailManage from "@/pages/client/NoEmailManage";
 import EmailHostingCheckout from "@/pages/client/EmailHostingCheckout";
+import EmailDnsSetup from "@/pages/client/EmailDnsSetup";
+import ClientEmailOrders from "@/pages/client/ClientEmailOrders";
 import HelpCenter from "@/pages/client/HelpCenter";
 import HelpCenterArticle from "@/pages/client/HelpCenterArticle";
 import Homepage from "@/pages/public/Homepage";
@@ -565,8 +567,14 @@ function RouterRoot() {
       <Route path="/dashboard/noemail/manage/:order_id">
         <ClientPage><NoEmailManage /></ClientPage>
       </Route>
+      <Route path="/checkout/email-hosting/dns/:order_id">
+        <ClientPage><EmailDnsSetup /></ClientPage>
+      </Route>
       <Route path="/checkout/email-hosting">
         <EmailHostingCheckout />
+      </Route>
+      <Route path="/client/email">
+        <ClientPage><ClientEmailOrders /></ClientPage>
       </Route>
       <Route path="/client/hosting/:id/webmail">
         <ClientPage><ClientWebmail /></ClientPage>

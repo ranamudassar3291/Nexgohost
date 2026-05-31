@@ -4,6 +4,7 @@ import {
   Mail, Plus, Pencil, Trash2, Save, X, HardDrive, Users,
   DollarSign, Package, Loader2, CheckCircle, AlertCircle,
   Star, ToggleLeft, ToggleRight, Globe, RefreshCw, Eye, BarChart3,
+  ChevronDown, Server,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,6 +79,8 @@ export default function NoeMail() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<EmailPackage>>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<{ id: string; name: string; storage_gb: number | null; max_mailboxes: number | null }[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   const loadPackages = () =>
     apiFetch(`${API}/admin/email-packages`).then(setPackages).catch(() => {});
@@ -93,6 +96,11 @@ export default function NoeMail() {
     setForm(EMPTY_FORM);
     setEditingId(null);
     setShowForm(true);
+    setTemplatesLoading(true);
+    apiFetch(`${API}/admin/email-packages/20i-templates`)
+      .then(d => setTemplates(d.templates ?? []))
+      .catch(() => setTemplates([]))
+      .finally(() => setTemplatesLoading(false));
   }
 
   function openEdit(pkg: EmailPackage) {
@@ -362,11 +370,42 @@ export default function NoeMail() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Internal Package ID</label>
-                  <Input placeholder="Maps to hosting provider package (optional)"
-                    value={form.remote_package_id ?? ""}
-                    onChange={e => setForm(f => ({ ...f, remote_package_id: e.target.value }))} />
-                  <p className="text-xs text-muted-foreground mt-1">Internal reference — never shown to clients.</p>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center gap-1.5">
+                    <Server className="w-3.5 h-3.5" /> Link to Provider Package Template
+                  </label>
+                  {templatesLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading templates from provider…
+                    </div>
+                  ) : templates.length > 0 ? (
+                    <div className="space-y-2">
+                      <select
+                        className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2.5 text-foreground outline-none focus:border-indigo-500"
+                        value={form.remote_package_id ?? ""}
+                        onChange={e => {
+                          const t = templates.find(t => t.id === e.target.value);
+                          setForm(f => ({
+                            ...f,
+                            remote_package_id: e.target.value,
+                            ...(t?.storage_gb ? { max_storage_gb: t.storage_gb } : {}),
+                            ...(t?.max_mailboxes ? { max_mailboxes: t.max_mailboxes } : {}),
+                          }));
+                        }}>
+                        <option value="">— None (manual configuration) —</option>
+                        {templates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">Selecting a template auto-fills storage &amp; mailbox limits. Internal only — not shown to clients.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Input placeholder="e.g. pkg_abc123 (optional)"
+                        value={form.remote_package_id ?? ""}
+                        onChange={e => setForm(f => ({ ...f, remote_package_id: e.target.value }))} />
+                      <p className="text-xs text-muted-foreground">No provider templates found — enter ID manually if needed. Internal reference only.</p>
+                    </div>
+                  )}
                 </div>
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <button type="button"

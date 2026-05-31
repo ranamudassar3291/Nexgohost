@@ -133,6 +133,29 @@ router.delete("/admin/email-packages/:id", authenticate, requireAdmin, async (re
   }
 });
 
+// ── Admin: Fetch 20i email package templates ──────────────────────────────────
+
+// GET /api/admin/email-packages/20i-templates
+router.get("/admin/email-packages/20i-templates", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const server = await get20iServer();
+    if (!server) return res.json({ templates: [], error: "No 20i server configured" });
+    const data = await call20i(server, "get", "/package-types/email");
+    const templates = Array.isArray(data)
+      ? data.map((t: any) => ({
+          id: String(t.id ?? t.packageTypeId ?? t.ref ?? ""),
+          name: t.name ?? t.label ?? String(t.id ?? ""),
+          storage_gb: t.storage ?? t.diskSpace ?? null,
+          max_mailboxes: t.mailboxes ?? t.maxMailboxes ?? null,
+        }))
+      : [];
+    res.json({ templates });
+  } catch (err: any) {
+    // 20i may not have email-specific package types — return empty with note
+    res.json({ templates: [], error: err.message });
+  }
+});
+
 // ── Public: Email Packages ────────────────────────────────────────────────────
 
 // GET /api/email-packages  (public, no auth needed for checkout display)
