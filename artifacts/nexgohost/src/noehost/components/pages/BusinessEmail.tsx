@@ -1,293 +1,436 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Check, ArrowRight, Shield, Zap, Star,
-  ChevronDown, ChevronUp, Mail, Bot, Inbox,
-  Send, Trash2, Folder, Users, Search,
-  Lock, Globe, RefreshCw, LifeBuoy, Smartphone,
-  CheckCircle2, MessageSquare, Calendar, FileText
+  CheckCircle2, Shield, ChevronDown, ChevronUp,
+  Mail, Bot, Lock, Globe, Smartphone, Headphones,
+  Star, Check, Zap, Users, HardDrive, RefreshCw,
+  Send, Trash2, Folder, FileText, Search, Inbox,
+  ArrowRight, BadgeCheck, Clock, Building2
 } from 'lucide-react';
 import { useCurrency } from '../../CurrencyContext';
 
-const PLANS_PKR = [
+/* ─── DATA ───────────────────────────────────────────────────────────────── */
+
+const PLANS = [
   {
+    key: 'starter',
     name: 'Business Starter',
-    badge: '',
     popular: false,
-    savePercent: 42,
-    monthlyPKR: 1199,
-    yearlyPKR: 699,
-    storage: '10 GB / mailbox',
-    users: '1 user',
+    monthlyPKR: 1099,
+    annualPKR: 599,
+    storage: '10 GB',
+    mailboxes: '1 mailbox',
+    save: 45,
     features: [
-      'Professional email address',
-      'Custom domain email',
-      '10 GB mailbox storage',
+      '1 email address',
+      '10 GB storage per mailbox',
+      'Free domain email',
       'Webmail access',
-      'Mobile & desktop apps',
-      'Free SSL security',
+      'iOS & Android apps',
       'Spam & virus protection',
-      '24/7 email support',
+      'SSL encryption',
+      '24/7 support',
     ],
   },
   {
-    name: 'Business Pro',
-    badge: 'MOST POPULAR',
+    key: 'business',
+    name: 'Business',
     popular: true,
-    savePercent: 40,
     monthlyPKR: 1999,
-    yearlyPKR: 1199,
-    storage: '50 GB / mailbox',
-    users: 'Up to 10 users',
+    annualPKR: 1199,
+    storage: '50 GB',
+    mailboxes: 'Up to 10 mailboxes',
+    save: 40,
     features: [
-      'Professional email address',
-      'Custom domain email',
-      '50 GB mailbox storage',
+      'Up to 10 email addresses',
+      '50 GB storage per mailbox',
+      'Free domain email',
       'Webmail access',
-      'Mobile & desktop apps',
-      'Free SSL security',
+      'iOS & Android apps',
       'Spam & virus protection',
+      'SSL encryption',
       '24/7 priority support',
       'Email aliases',
-      'Auto-responders',
+      'Auto-responder',
       'Email forwarding',
+      'Catch-all email',
     ],
   },
   {
+    key: 'enterprise',
     name: 'Business Enterprise',
-    badge: '',
     popular: false,
-    savePercent: 43,
-    monthlyPKR: 3499,
-    yearlyPKR: 1999,
-    storage: '100 GB / mailbox',
-    users: 'Unlimited users',
+    monthlyPKR: 2999,
+    annualPKR: 1799,
+    storage: '100 GB',
+    mailboxes: 'Unlimited mailboxes',
+    save: 40,
     features: [
-      'Professional email address',
-      'Custom domain email',
-      '100 GB mailbox storage',
+      'Unlimited email addresses',
+      '100 GB storage per mailbox',
+      'Free domain email',
       'Webmail access',
-      'Mobile & desktop apps',
-      'Free SSL security',
-      'Advanced spam protection',
+      'iOS & Android apps',
+      'Advanced spam & virus protection',
+      'SSL encryption',
       'Dedicated support manager',
       'Email aliases (unlimited)',
-      'Auto-responders',
+      'Auto-responder',
       'Email forwarding',
+      'Catch-all email',
       'Custom email signatures',
       'Admin control panel',
+      'Priority migration support',
     ],
   },
 ];
 
-const FEATURES = [
-  { icon: <Bot size={26} />, color: '#7C3AED', bg: 'rgba(124,58,237,0.1)', title: 'AI-Powered Inbox', desc: 'Smart AI summarizes long threads, suggests replies, and helps you compose professional emails in seconds.' },
-  { icon: <Globe size={26} />, color: '#0EA5E9', bg: 'rgba(14,165,233,0.1)', title: 'Custom Domain Email', desc: 'Send emails from you@yourbusiness.com — build credibility and trust with every message you send.' },
-  { icon: <Lock size={26} />, color: '#10B981', bg: 'rgba(16,185,129,0.1)', title: 'Enterprise Security', desc: 'SSL encryption, advanced spam filtering, and virus protection keep your mailbox safe and clean.' },
-  { icon: <Smartphone size={26} />, color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', title: 'Works Everywhere', desc: 'Access your email on any device — webmail, iOS, Android, Outlook, or any IMAP/SMTP client.' },
-  { icon: <RefreshCw size={26} />, color: '#EC4899', bg: 'rgba(236,72,153,0.1)', title: 'Auto-Backup & Recovery', desc: 'Daily backups ensure your emails are never lost. Restore deleted messages anytime with one click.' },
-  { icon: <LifeBuoy size={26} />, color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)', title: '24/7 Expert Support', desc: 'Our email specialists are available around the clock to help with setup, migration, and troubleshooting.' },
+const WHY_ITEMS = [
+  {
+    icon: <Bot size={24} />,
+    color: '#7C3AED',
+    bg: '#F5F3FF',
+    title: 'Built-in AI assistant',
+    desc: 'Draft replies, summarize long threads, and compose professional emails in seconds — all without leaving your inbox.',
+  },
+  {
+    icon: <Globe size={24} />,
+    color: '#0EA5E9',
+    bg: '#F0F9FF',
+    title: 'Your own domain',
+    desc: 'Send from name@yourbusiness.com. A branded address instantly looks more credible to clients and partners.',
+  },
+  {
+    icon: <Lock size={24} />,
+    color: '#10B981',
+    bg: '#F0FDF4',
+    title: 'Spam-free & secure',
+    desc: 'Enterprise-grade spam filtering, antivirus scanning, and end-to-end SSL encryption protect every message.',
+  },
+  {
+    icon: <Smartphone size={24} />,
+    color: '#F59E0B',
+    bg: '#FFFBEB',
+    title: 'Any device, anywhere',
+    desc: 'Works on iPhone, Android, Outlook, Gmail app, Thunderbird, and our own fast webmail. Always in sync.',
+  },
+  {
+    icon: <HardDrive size={24} />,
+    color: '#8B5CF6',
+    bg: '#F5F3FF',
+    title: 'Generous storage',
+    desc: 'Up to 100 GB per mailbox — no more "storage full" alerts. Keep every email without deleting anything.',
+  },
+  {
+    icon: <Headphones size={24} />,
+    color: '#EC4899',
+    bg: '#FDF2F8',
+    title: '24/7 expert support',
+    desc: 'Our email specialists are online around the clock to help with setup, migration, or any question.',
+  },
 ];
 
 const FAQS = [
-  { q: 'What is a professional business email?', a: 'A business email uses your own domain name (e.g. john@yourcompany.com) instead of a generic address like Gmail or Yahoo. It looks more professional, builds brand trust, and is essential for any serious business.' },
-  { q: 'Can I use my existing domain?', a: 'Yes! You can connect any domain you already own to your business email. We\'ll walk you through the simple DNS setup — it takes about 5 minutes.' },
-  { q: 'How many email accounts can I create?', a: 'It depends on your plan. Business Starter supports 1 user, Business Pro supports up to 10 users, and Business Enterprise supports unlimited users with no extra charge per mailbox.' },
-  { q: 'Can I access email on my phone?', a: 'Absolutely. Your business email works with any mail client including iPhone Mail, Gmail app, Outlook, Thunderbird, and our own webmail — all synced in real-time.' },
-  { q: 'Is email migration from Gmail or Outlook included?', a: 'Yes. We provide free email migration assistance. You can import all your existing emails, contacts, and calendar data without losing anything.' },
-  { q: 'Is there a money-back guarantee?', a: 'Yes — all plans include a 30-day money-back guarantee. If you\'re not completely satisfied, contact our support team within 30 days for a full refund.' },
+  {
+    q: 'What is business email hosting?',
+    a: 'Business email hosting lets you send and receive emails using your own domain name (e.g. john@yourcompany.com) rather than a generic Gmail or Yahoo address. It\'s hosted on professional mail servers with high uptime, security, and storage.',
+  },
+  {
+    q: 'Can I use my existing domain name?',
+    a: 'Yes. You can connect any domain you already own by updating its MX records — we provide step-by-step instructions. The setup takes about 5–10 minutes and usually propagates within an hour.',
+  },
+  {
+    q: 'How do I access my business email?',
+    a: 'You can access it via our webmail at any browser, the iOS or Android mail apps, or any IMAP/SMTP client like Outlook, Apple Mail, or Thunderbird. All mailboxes sync in real-time across devices.',
+  },
+  {
+    q: 'Can I migrate my existing emails from Gmail or Outlook?',
+    a: 'Yes — we include free email migration assistance. You can import all your existing emails, contacts, and calendar events without any data loss.',
+  },
+  {
+    q: 'How many email accounts can I create?',
+    a: 'Business Starter supports 1 mailbox, Business supports up to 10 mailboxes, and Business Enterprise supports unlimited mailboxes with no extra charge per address.',
+  },
+  {
+    q: 'Is there a money-back guarantee?',
+    a: 'Absolutely. All plans come with a 30-day money-back guarantee. If you\'re not satisfied for any reason, contact support within 30 days for a full refund — no questions asked.',
+  },
 ];
 
-const BusinessEmail: React.FC = () => {
-  const [yearly, setYearly] = useState(true);
+/* ─── COMPONENT ─────────────────────────────────────────────────────────── */
+
+export default function BusinessEmail() {
+  const [annual, setAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { convertFromPKR } = useCurrency();
 
   return (
-    <div className="min-h-screen text-gray-900" style={{ background: '#FFFFFF' }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#111827', background: '#fff' }}>
 
-      {/* ── HERO ── */}
-      <section className="relative overflow-hidden pt-36 pb-0" style={{ background: '#FFFFFF' }}>
-        {/* Top-right purple shape like Hostinger */}
-        <div className="absolute top-0 right-0 w-[55%] h-[400px] rounded-bl-[80px] pointer-events-none"
-          style={{ background: 'linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%)', zIndex: 0 }} />
+      {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden" style={{ background: '#fff', paddingTop: 100 }}>
+        {/* Purple shape — top right, exact Hostinger style */}
+        <div className="absolute top-0 right-0 pointer-events-none" style={{
+          width: '52%', height: 420,
+          background: 'linear-gradient(145deg, #EDE9FE 0%, #DDD6FE 60%, #C4B5FD 100%)',
+          borderBottomLeftRadius: 80, zIndex: 0,
+        }} />
 
-        <div className="max-w-[1200px] mx-auto px-6 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-10">
+        <div className="relative z-10 max-w-6xl mx-auto px-6 pb-0">
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-4">
 
-            {/* LEFT */}
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:w-[440px] flex-shrink-0 pb-20">
-              <p className="text-sm font-bold mb-3" style={{ color: '#7C3AED' }}>Business email</p>
-              <h1 className="font-black leading-[1.08] tracking-tight mb-7 text-gray-900"
-                style={{ fontSize: 'clamp(2.2rem, 5vw, 3.6rem)' }}>
+            {/* Left column */}
+            <div className="lg:w-[420px] flex-shrink-0 pb-16 lg:pb-24">
+              <p className="text-sm font-bold mb-4" style={{ color: '#7C3AED', letterSpacing: '0.01em' }}>
+                Business email
+              </p>
+              <h1 style={{
+                fontSize: 'clamp(2.1rem, 5vw, 3.5rem)',
+                fontWeight: 900,
+                lineHeight: 1.06,
+                letterSpacing: '-0.02em',
+                color: '#111827',
+                marginBottom: 24,
+              }}>
                 Build trust with<br />every email
               </h1>
+
               <ul className="space-y-3 mb-8">
-                {['Work faster with built-in AI', 'Look professional with a personal domain'].map(f => (
-                  <li key={f} className="flex items-center gap-3 text-[15px] text-gray-600">
-                    <CheckCircle2 size={17} style={{ color: '#7C3AED', flexShrink: 0 }} />
-                    {f}
+                {[
+                  'Work faster with built-in AI',
+                  'Look professional with a personal domain',
+                ].map(txt => (
+                  <li key={txt} className="flex items-center gap-3 text-sm" style={{ color: '#374151' }}>
+                    <CheckCircle2 size={16} style={{ color: '#7C3AED', flexShrink: 0 }} />
+                    {txt}
                   </li>
                 ))}
               </ul>
-              <div className="flex flex-wrap items-center gap-4">
-                <a href="#email-plans"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-bold text-[15px] text-white transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg, #7C3AED, #6D28D9)' }}>
-                  Choose plan
-                </a>
-              </div>
-              <p className="flex items-center gap-2 mt-5 text-sm text-gray-500">
-                <Shield size={14} className="text-gray-400" />
-                30-day money-back guarantee
-              </p>
-            </motion.div>
 
-            {/* RIGHT — Email client mockup */}
-            <motion.div initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="flex-1 relative pt-8">
-              <div className="rounded-2xl shadow-2xl overflow-hidden border border-gray-100 relative z-10"
-                style={{ background: '#FFFFFF', maxWidth: 640, marginLeft: 'auto' }}>
-                {/* Titlebar */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100" style={{ background: '#F9FAFB' }}>
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
-                  <div className="ml-3 flex items-center gap-2 flex-1">
-                    <span className="text-xs font-bold text-gray-400">NOEHOST</span>
-                    <span className="text-xs text-gray-400">|</span>
-                    <span className="text-xs font-bold text-gray-600">Mail</span>
+              <a
+                href="#pricing"
+                className="inline-flex items-center gap-2 font-bold text-sm text-white transition-opacity hover:opacity-90"
+                style={{
+                  background: '#673DE6',
+                  padding: '13px 28px',
+                  borderRadius: 10,
+                }}
+              >
+                Choose plan
+              </a>
+
+              <div className="flex items-center gap-2 mt-5 text-sm" style={{ color: '#6B7280' }}>
+                <Shield size={14} style={{ color: '#9CA3AF' }} />
+                30-day money-back guarantee
+              </div>
+            </div>
+
+            {/* Right column — email mockup */}
+            <div className="flex-1 flex justify-end relative pt-6 pb-0">
+              <div
+                className="w-full rounded-xl overflow-hidden shadow-2xl"
+                style={{
+                  maxWidth: 620,
+                  border: '1px solid #E5E7EB',
+                  background: '#fff',
+                  fontSize: 12,
+                }}
+              >
+                {/* Window chrome */}
+                <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-gray-100" style={{ background: '#F9FAFB' }}>
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FC5C5C' }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FCBC3D' }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#27C840' }} />
+                  <div className="flex items-center gap-2 ml-2 flex-1">
+                    <span className="font-black text-[10px]" style={{ color: '#673DE6' }}>NOEHOST</span>
+                    <span style={{ color: '#D1D5DB' }}>|</span>
+                    <span className="font-semibold text-[10px]" style={{ color: '#6B7280' }}>Mail</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Search size={14} className="text-gray-400" />
-                    <span className="text-xs text-gray-400">Search mail</span>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <div className="flex items-center gap-1 px-2 py-1 rounded border border-gray-200 text-[9px] text-gray-400">
+                      <Search size={9} /> Search mail
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex">
+                <div className="flex" style={{ height: 300 }}>
                   {/* Sidebar */}
-                  <div className="w-48 border-r border-gray-100 py-3" style={{ background: '#FAFAFA' }}>
-                    <button className="w-full mx-3 px-3 py-2 rounded-lg text-xs font-bold text-white flex items-center gap-2 mb-4"
-                      style={{ background: '#7C3AED', width: 'calc(100% - 24px)' }}>
-                      <Mail size={13} /> New message
-                    </button>
+                  <div className="flex-shrink-0 border-r border-gray-100 flex flex-col py-2" style={{ width: 150, background: '#FAFAFA' }}>
+                    <div className="px-2 mb-3">
+                      <button className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-bold text-white" style={{ background: '#673DE6' }}>
+                        <Send size={9} /> New message
+                      </button>
+                    </div>
                     {[
-                      { icon: <Inbox size={14} />, label: 'Inbox', count: 4, active: true },
-                      { icon: <FileText size={14} />, label: 'Drafts', count: null, active: false },
-                      { icon: <Send size={14} />, label: 'Sent', count: null, active: false },
-                      { icon: <MessageSquare size={14} />, label: 'Spam', count: null, active: false },
-                      { icon: <Trash2 size={14} />, label: 'Trash', count: null, active: false },
-                      { icon: <Folder size={14} />, label: 'Folders', count: null, active: false },
-                      { icon: <Users size={14} />, label: 'Contacts', count: null, active: false },
-                    ].map(item => (
-                      <div key={item.label} className={`flex items-center justify-between px-4 py-2 text-xs font-medium cursor-pointer ${item.active ? 'text-gray-900 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
+                      { icon: <Inbox size={11} />, label: 'Inbox', badge: 4 },
+                      { icon: <FileText size={11} />, label: 'Drafts' },
+                      { icon: <Send size={11} />, label: 'Sent' },
+                      { icon: <Trash2 size={11} />, label: 'Spam' },
+                      { icon: <Trash2 size={11} />, label: 'Trash' },
+                      { icon: <Folder size={11} />, label: 'Folders', action: '+' },
+                      { icon: <Users size={11} />, label: 'Contacts' },
+                    ].map((item, i) => (
+                      <div key={item.label}
+                        className="flex items-center justify-between px-3 py-1.5 cursor-pointer text-[10px]"
+                        style={{ color: i === 0 ? '#111827' : '#6B7280', fontWeight: i === 0 ? 700 : 500 }}>
                         <div className="flex items-center gap-2">
-                          <span style={{ color: item.active ? '#7C3AED' : '#9CA3AF' }}>{item.icon}</span>
+                          <span style={{ color: i === 0 ? '#673DE6' : '#9CA3AF' }}>{item.icon}</span>
                           {item.label}
                         </div>
-                        {item.count && <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full text-white" style={{ background: '#7C3AED' }}>{item.count}</span>}
+                        {item.badge && (
+                          <span className="text-[9px] font-black text-white px-1.5 rounded-full" style={{ background: '#673DE6' }}>{item.badge}</span>
+                        )}
+                        {item.action && <span className="text-gray-400">{item.action}</span>}
                       </div>
                     ))}
                   </div>
 
                   {/* Email list */}
-                  <div className="flex-1 border-r border-gray-100">
-                    <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
-                      <span className="text-xs font-black text-gray-700">All mail</span>
-                      <span className="text-xs text-gray-400 px-2 py-0.5 rounded-full bg-gray-100">Unread</span>
-                      <span className="text-xs text-gray-400 px-2 py-0.5 rounded-full bg-gray-100">Read</span>
+                  <div className="flex-shrink-0 border-r border-gray-100 overflow-hidden" style={{ width: 195 }}>
+                    <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-100">
+                      <span className="text-[10px] font-bold" style={{ color: '#111827' }}>All mail</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded text-gray-400 bg-gray-100 ml-1">Unread</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded text-gray-400 bg-gray-100">Read</span>
                     </div>
                     {[
-                      { name: 'Sara Okafor', date: 'Oct 23', starred: false, attach: true },
-                      { name: 'Lucas Taylor', date: 'Jun 3', starred: false, attach: false },
-                      { name: 'Ethan Williams', date: '10:12 AM', starred: true, attach: true },
-                      { name: 'Sophia Johnson', date: '12:34 PM', starred: false, attach: true },
-                      { name: 'Liam Davis', date: 'Oct 24', starred: false, attach: false },
+                      { name: 'Sara Okafor', sub: 'Final files are ready...', date: 'Oct 23', avatar: '#673DE6', attach: true },
+                      { name: 'Lucas Taylor', sub: 'Thanks for the update!', date: 'Jun 3', avatar: '#0EA5E9' },
+                      { name: 'Ethan Williams', sub: 'Project proposal attached', date: '10:12 AM', avatar: '#10B981', star: true, attach: true },
+                      { name: 'Sophia Johnson', sub: 'Invoice #1042 — paid ✓', date: '12:34 PM', avatar: '#F59E0B', attach: true },
+                      { name: 'Liam Davis', sub: 'Quick question about...', date: 'Oct 24', avatar: '#EC4899' },
                     ].map((email, i) => (
-                      <div key={email.name} className={`flex items-center gap-2 px-3 py-2.5 border-b border-gray-50 cursor-pointer hover:bg-purple-50/50 text-xs ${i === 0 ? 'bg-purple-50/30' : ''}`}>
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0"
-                          style={{ background: ['#7C3AED','#0EA5E9','#10B981','#F59E0B','#EC4899'][i] }}>
+                      <div key={email.name}
+                        className="flex items-start gap-2 px-3 py-2 border-b border-gray-50 cursor-pointer"
+                        style={{ background: i === 0 ? '#F9F8FF' : 'transparent' }}>
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white flex-shrink-0 mt-0.5"
+                          style={{ background: email.avatar }}>
                           {email.name[0]}
                         </div>
-                        <span className="flex-1 font-medium text-gray-700 truncate">{email.name}</span>
-                        {email.starred && <Star size={11} className="text-amber-400 fill-amber-400 flex-shrink-0" />}
-                        {email.attach && <span className="text-gray-400 flex-shrink-0">📎</span>}
-                        <span className="text-gray-400 flex-shrink-0 text-[10px]">{email.date}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold truncate" style={{ color: '#111827', maxWidth: 90 }}>{email.name}</span>
+                            <div className="flex items-center gap-1">
+                              {email.star && <Star size={8} className="fill-amber-400 text-amber-400" />}
+                              {email.attach && <span className="text-gray-400 text-[9px]">📎</span>}
+                              <span className="text-[9px] text-gray-400">{email.date}</span>
+                            </div>
+                          </div>
+                          <p className="text-[9px] text-gray-400 truncate mt-0.5">{email.sub}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
 
                   {/* Email detail */}
-                  <div className="flex-1 p-4 hidden xl:block">
-                    <div className="text-xs font-bold text-gray-800 mb-3">Logo Project — Final Files Delivered</div>
-                    <div className="text-xs text-gray-500 mb-3">From Sara Okafor<br /><span className="text-gray-400">to me</span></div>
-                    <div className="text-[11px] text-gray-600 leading-relaxed mb-4">
-                      Hi Tom,<br /><br />
-                      The final logo files are ready. You'll find all formats (SVG, PNG, PDF) in the <span className="text-purple-600 underline cursor-pointer">shared folder</span>.<br />
-                      Let me know if you need any adjustments.<br /><br />
-                      Best,<br />Sara Okafor<br />
-                      <span className="text-gray-400">sara@saraokafor.com</span>
+                  <div className="flex-1 p-4 overflow-hidden hidden sm:block">
+                    <div className="flex items-start justify-between mb-3">
+                      <span className="text-[11px] font-bold leading-snug" style={{ color: '#111827' }}>Logo Project — Final Files Delivered</span>
+                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <button className="text-[9px] px-2 py-0.5 rounded border border-gray-200 text-gray-500 hover:bg-gray-50">Summarize</button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button className="text-[10px] px-3 py-1.5 rounded-lg font-bold text-gray-600 border border-gray-200 hover:bg-gray-50">↩ Reply</button>
-                      <button className="text-[10px] px-3 py-1.5 rounded-lg font-bold text-gray-600 border border-gray-200 hover:bg-gray-50">→ Forward</button>
+                    <div className="text-[9px] mb-3" style={{ color: '#6B7280' }}>
+                      <span className="font-semibold">From Sara Okafor</span><br />
+                      to me ▾
+                    </div>
+                    <div className="text-[10px] leading-relaxed" style={{ color: '#374151' }}>
+                      Hi Tom,<br /><br />
+                      The final logo files are ready. You'll find all formats (SVG, PNG, PDF) in the{' '}
+                      <span className="underline cursor-pointer" style={{ color: '#673DE6' }}>shared folder</span>.
+                      <br />Let me know if you need adjustments.<br /><br />
+                      Best,<br />Sara Okafor<br />
+                      <span style={{ color: '#9CA3AF', fontSize: 9 }}>Brand Designer · sara@saraokafor.com</span>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      <button className="text-[9px] px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 font-medium">↩ Reply</button>
+                      <button className="text-[9px] px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 font-medium">→ Forward</button>
                     </div>
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
+
           </div>
         </div>
       </section>
 
-      {/* ── TRUSTPILOT ── */}
-      <section className="py-10 border-y border-gray-100" style={{ background: '#FFFFFF' }}>
-        <div className="max-w-[1200px] mx-auto px-6 flex flex-wrap items-center justify-center gap-3">
-          <span className="font-semibold text-gray-800 text-base">Excellent</span>
+      {/* ══ TRUSTPILOT ════════════════════════════════════════════════════════ */}
+      <section className="py-8 border-y border-gray-100">
+        <div className="max-w-6xl mx-auto px-6 flex flex-wrap items-center justify-center gap-2.5">
+          <span className="font-semibold text-sm text-gray-800">Excellent</span>
           <div className="flex gap-0.5">
-            {[1,2,3,4,5].map(i => (
-              <div key={i} className="w-6 h-6 flex items-center justify-center" style={{ background: '#00B67A' }}>
-                <Star size={14} className="fill-white text-white" />
+            {[0,1,2,3,4].map(i => (
+              <div key={i} className="w-5 h-5 flex items-center justify-center" style={{ background: i < 4 ? '#00B67A' : '#DBEAFE' }}>
+                <Star size={12} className={i < 4 ? 'fill-white text-white' : 'fill-[#00B67A] text-[#00B67A]'} />
               </div>
             ))}
           </div>
-          <span className="text-sm underline text-gray-500 cursor-pointer hover:text-gray-700">68,298 reviews on</span>
-          <div className="flex items-center gap-1.5">
+          <span className="text-sm text-gray-500">
+            <span className="underline cursor-pointer">68,298 reviews</span> on
+          </span>
+          <div className="flex items-center gap-1">
             <div className="flex gap-0.5">
-              {[1,2,3,4,5].map(i => (
-                <div key={i} className="w-4 h-4" style={{ background: '#00B67A' }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} className="w-4 h-4 flex items-center justify-center" style={{ background: '#00B67A' }}>
                   <Star size={10} className="fill-white text-white" />
                 </div>
               ))}
             </div>
-            <span className="font-black text-sm text-gray-800">Trustpilot</span>
+            <span className="font-black text-sm" style={{ color: '#191919' }}>Trustpilot</span>
           </div>
         </div>
       </section>
 
-      {/* ── MAKE THE RIGHT IMPRESSION ── */}
+      {/* ══ MAKE THE RIGHT IMPRESSION ═════════════════════════════════════════ */}
       <section className="py-20" style={{ background: '#12113A' }}>
-        <div className="max-w-[1200px] mx-auto px-6 text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <h2 className="font-black text-white mb-5" style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', lineHeight: 1.1 }}>
-              Make the right impression
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <h2 style={{
+              fontSize: 'clamp(2.2rem, 5vw, 3.8rem)',
+              fontWeight: 900,
+              letterSpacing: '-0.025em',
+              lineHeight: 1.05,
+              color: '#fff',
+              marginBottom: 20,
+            }}>
+              Make the right<br />
+              <span style={{ color: '#A78BFA' }}>impression</span>
             </h2>
-            <p className="text-lg mb-12 max-w-2xl mx-auto" style={{ color: '#A5B4FC' }}>
+            <p className="text-base mb-14 mx-auto" style={{ color: '#94A3B8', maxWidth: 560 }}>
               Every email you send says something about your business. Stand out with a professional address that matches your brand and builds lasting trust.
             </p>
-            <div className="grid md:grid-cols-3 gap-6">
+
+            <div className="grid md:grid-cols-3 gap-5 text-left">
               {[
-                { icon: <Mail size={28} />, title: 'Your name, your brand', desc: 'hello@yourbusiness.com looks infinitely more professional than yourname123@gmail.com — and clients notice.', color: '#818CF8' },
-                { icon: <Bot size={28} />, title: 'AI writes for you', desc: 'Built-in AI assistant helps you compose, summarize, and respond to emails faster than ever before.', color: '#34D399' },
-                { icon: <Shield size={28} />, title: 'Secure & reliable', desc: 'Enterprise-grade spam filtering, virus protection, and SSL encryption keep your inbox clean and safe.', color: '#FBBF24' },
-              ].map((card, i) => (
-                <motion.div key={card.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                  className="p-7 rounded-2xl text-left" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
-                    style={{ background: 'rgba(255,255,255,0.07)', color: card.color }}>
-                    {card.icon}
+                {
+                  icon: <Mail size={22} />,
+                  color: '#A78BFA',
+                  title: 'Your name, your brand',
+                  desc: 'hello@yourbusiness.com looks infinitely more professional than a free email — and clients notice immediately.',
+                },
+                {
+                  icon: <Bot size={22} />,
+                  color: '#34D399',
+                  title: 'AI writes for you',
+                  desc: 'Built-in AI drafts, summarizes, and polishes your emails so you spend less time writing and more time running your business.',
+                },
+                {
+                  icon: <Shield size={22} />,
+                  color: '#FBBF24',
+                  title: 'Secure & reliable',
+                  desc: 'Enterprise spam filters, antivirus protection, and SSL encryption keep your inbox clean, private, and always available.',
+                },
+              ].map((c, i) => (
+                <motion.div key={c.title}
+                  initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                  className="p-6 rounded-2xl"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-5"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: c.color }}>
+                    {c.icon}
                   </div>
-                  <h3 className="font-bold text-white text-base mb-2">{card.title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{card.desc}</p>
+                  <h3 className="font-bold text-white mb-2" style={{ fontSize: 15 }}>{c.title}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{c.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -295,78 +438,150 @@ const BusinessEmail: React.FC = () => {
         </div>
       </section>
 
-      {/* ── PRICING ── */}
-      <section id="email-plans" className="py-20" style={{ background: '#FFFFFF' }}>
-        <div className="max-w-[1200px] mx-auto px-6">
+      {/* ══ WHY BUSINESS EMAIL ════════════════════════════════════════════════ */}
+      <section className="py-20" style={{ background: '#fff' }}>
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="mb-12">
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#7C3AED' }}>Why business email</p>
+            <h2 style={{ fontSize: 'clamp(1.7rem, 3.5vw, 2.5rem)', fontWeight: 900, letterSpacing: '-0.02em', color: '#111827', marginBottom: 12 }}>
+              Everything your team needs
+            </h2>
+            <p className="text-sm" style={{ color: '#6B7280', maxWidth: 440 }}>
+              Professional tools built for businesses of every size — from solo founders to enterprise teams.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {WHY_ITEMS.map((item, i) => (
+              <motion.div key={item.title}
+                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
+                className="group flex gap-4 p-5 rounded-2xl transition-all hover:shadow-md"
+                style={{ border: '1px solid #F3F4F6' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+                  style={{ background: item.bg, color: item.color }}>
+                  {item.icon}
+                </div>
+                <div>
+                  <h3 className="font-bold mb-1 text-sm" style={{ color: '#111827' }}>{item.title}</h3>
+                  <p className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>{item.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══ PRICING ═══════════════════════════════════════════════════════════ */}
+      <section id="pricing" className="py-20" style={{ background: '#FAFAFA' }}>
+        <div className="max-w-6xl mx-auto px-6">
+
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <h2 className="font-black text-gray-900 mb-4" style={{ fontSize: 'clamp(1.8rem, 4vw, 2.6rem)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#7C3AED' }}>Pricing</p>
+            <h2 style={{ fontSize: 'clamp(1.7rem, 3.5vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.02em', color: '#111827', marginBottom: 10 }}>
               Get business email today
             </h2>
-            <p className="text-gray-500 text-base">Professional email at a price that fits every business.</p>
+            <p className="text-sm mb-8" style={{ color: '#6B7280' }}>Professional email at a price that fits every business.</p>
 
-            <div className="flex items-center justify-center gap-4 mt-8">
-              <button onClick={() => setYearly(false)}
-                className={`text-sm font-bold px-4 py-2 rounded-lg transition-all ${!yearly ? 'text-gray-900 bg-gray-100' : 'text-gray-400'}`}>
+            {/* Billing toggle — pill style like Hostinger */}
+            <div className="inline-flex items-center rounded-full p-1" style={{ background: '#E5E7EB' }}>
+              <button
+                onClick={() => setAnnual(false)}
+                className="px-5 py-2 rounded-full text-sm font-semibold transition-all"
+                style={{
+                  background: !annual ? '#fff' : 'transparent',
+                  color: !annual ? '#111827' : '#6B7280',
+                  boxShadow: !annual ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+                }}
+              >
                 Monthly
               </button>
-              <button onClick={() => setYearly(true)}
-                className={`text-sm font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${yearly ? 'text-gray-900 bg-gray-100' : 'text-gray-400'}`}>
-                Yearly
-                <span className="text-[11px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#7C3AED' }}>Save up to 43%</span>
+              <button
+                onClick={() => setAnnual(true)}
+                className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-all"
+                style={{
+                  background: annual ? '#fff' : 'transparent',
+                  color: annual ? '#111827' : '#6B7280',
+                  boxShadow: annual ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+                }}
+              >
+                Annual
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#673DE6' }}>
+                  Save up to 45%
+                </span>
               </button>
             </div>
           </motion.div>
 
+          {/* Plan cards */}
           <div className="grid md:grid-cols-3 gap-5">
-            {PLANS_PKR.map((plan, i) => {
-              const price = yearly ? plan.yearlyPKR : plan.monthlyPKR;
+            {PLANS.map((plan, i) => {
+              const price = annual ? plan.annualPKR : plan.monthlyPKR;
+              const original = plan.monthlyPKR;
               const displayPrice = convertFromPKR(price);
-              const origPrice = convertFromPKR(plan.monthlyPKR);
+              const displayOriginal = convertFromPKR(original);
+
               return (
-                <motion.div key={plan.name} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                <motion.div key={plan.key}
+                  initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
                   className="relative flex flex-col rounded-2xl overflow-hidden"
                   style={{
-                    border: plan.popular ? '2px solid #7C3AED' : '1px solid #E5E7EB',
-                    background: plan.popular ? 'linear-gradient(180deg, #F5F3FF 0%, #FFFFFF 100%)' : '#FFFFFF',
-                    boxShadow: plan.popular ? '0 8px 40px rgba(124,58,237,0.15)' : 'none',
+                    background: '#fff',
+                    border: plan.popular ? '2px solid #673DE6' : '1px solid #E5E7EB',
+                    boxShadow: plan.popular ? '0 4px 32px rgba(103,61,230,0.14)' : 'none',
                   }}>
-                  {plan.badge && (
-                    <div className="py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-white"
-                      style={{ background: 'linear-gradient(90deg, #6D28D9, #7C3AED)' }}>
-                      {plan.badge}
+
+                  {/* Most popular badge */}
+                  {plan.popular && (
+                    <div className="text-center py-2 text-[10px] font-black uppercase tracking-widest text-white"
+                      style={{ background: 'linear-gradient(90deg, #5B21B6, #673DE6)' }}>
+                      ★ Most popular
                     </div>
                   )}
-                  <div className="p-7 flex flex-col flex-1">
-                    <div className="text-[11px] font-black uppercase tracking-widest text-gray-400 mb-1">{plan.users}</div>
-                    <h3 className="text-lg font-black text-gray-900 mb-1">{plan.name}</h3>
-                    <div className="text-xs text-gray-500 mb-5">{plan.storage}</div>
 
+                  <div className="p-7 flex flex-col flex-1">
+                    {/* Plan name */}
+                    <div className="mb-5">
+                      <h3 className="font-black mb-0.5" style={{ fontSize: 17, color: '#111827' }}>{plan.name}</h3>
+                      <p className="text-xs" style={{ color: '#6B7280' }}>{plan.mailboxes} · {plan.storage}/mailbox</p>
+                    </div>
+
+                    {/* Price */}
                     <div className="mb-6">
-                      <div className="flex items-end gap-2 mb-1">
-                        <span className="font-black text-gray-900" style={{ fontSize: '2.2rem', lineHeight: 1 }}>{displayPrice}</span>
-                        <span className="text-sm pb-1 text-gray-400">/mo</span>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="font-black" style={{ fontSize: '2.2rem', lineHeight: 1, color: '#111827' }}>{displayPrice}</span>
+                        <span className="text-sm font-medium" style={{ color: '#6B7280' }}>/mo</span>
                       </div>
-                      {yearly ? (
-                        <p className="text-xs text-gray-400">{origPrice}/mo regular · <span className="font-bold" style={{ color: '#7C3AED' }}>Save {plan.savePercent}%</span></p>
+                      {annual ? (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs line-through" style={{ color: '#9CA3AF' }}>{displayOriginal}/mo</span>
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#673DE6' }}>
+                            -{plan.save}%
+                          </span>
+                        </div>
                       ) : (
-                        <p className="text-xs text-gray-400">or {convertFromPKR(plan.yearlyPKR)}/mo billed yearly</p>
+                        <p className="text-xs mt-1.5" style={{ color: '#6B7280' }}>
+                          or {convertFromPKR(plan.annualPKR)}/mo billed annually
+                        </p>
                       )}
                     </div>
 
-                    <button onClick={() => window.location.href = '/client/orders/new'}
-                      className="w-full py-3 rounded-xl font-bold text-[14px] mb-7 transition-all hover:opacity-90"
+                    {/* CTA button */}
+                    <button
+                      onClick={() => window.location.href = '/client/orders/new'}
+                      className="w-full py-3 rounded-xl text-sm font-bold mb-7 transition-all hover:opacity-90"
                       style={{
-                        background: plan.popular ? 'linear-gradient(135deg, #7C3AED, #6D28D9)' : '#F3F4F6',
-                        color: plan.popular ? '#FFFFFF' : '#374151',
+                        background: plan.popular ? '#673DE6' : '#F3F4F6',
+                        color: plan.popular ? '#fff' : '#374151',
                         border: plan.popular ? 'none' : '1px solid #E5E7EB',
                       }}>
-                      Choose plan
+                      Add to cart
                     </button>
 
+                    {/* Features */}
                     <ul className="space-y-2.5 flex-1">
                       {plan.features.map(f => (
-                        <li key={f} className="flex items-start gap-2.5 text-[13px] text-gray-600">
-                          <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#7C3AED' }} />
+                        <li key={f} className="flex items-start gap-2.5 text-xs" style={{ color: '#374151' }}>
+                          <Check size={13} className="flex-shrink-0 mt-0.5" style={{ color: '#673DE6' }} />
                           {f}
                         </li>
                       ))}
@@ -376,126 +591,164 @@ const BusinessEmail: React.FC = () => {
               );
             })}
           </div>
-          <p className="text-center text-sm mt-8 text-gray-400">
-            Need a custom solution?{' '}
-            <a href="/contact-us" className="underline hover:text-gray-600 transition-colors" style={{ color: '#7C3AED' }}>Contact our sales team</a>
-          </p>
-        </div>
-      </section>
 
-      {/* ── FEATURES ── */}
-      <section className="py-20" style={{ background: '#F9FAFB' }}>
-        <div className="max-w-[1200px] mx-auto px-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-            <h2 className="font-black text-gray-900 mb-3" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)' }}>Everything your team needs</h2>
-            <p className="text-gray-500 text-base">Professional tools built for businesses of every size.</p>
-          </motion.div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map((f, i) => (
-              <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.07 }}
-                className="p-6 rounded-2xl bg-white border border-gray-100 hover:shadow-md transition-all hover:border-purple-100 group">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform"
-                  style={{ background: f.bg, color: f.color }}>
-                  {f.icon}
-                </div>
-                <h3 className="font-bold text-gray-900 text-[15px] mb-2">{f.title}</h3>
-                <p className="text-sm leading-relaxed text-gray-500">{f.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ── */}
-      <section className="py-20" style={{ background: '#FFFFFF' }}>
-        <div className="max-w-[1200px] mx-auto px-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-            <h2 className="font-black text-gray-900 mb-3" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)' }}>Up and running in minutes</h2>
-            <p className="text-gray-500">Set up your business email in just a few simple steps.</p>
-          </motion.div>
-          <div className="grid md:grid-cols-4 gap-4">
+          {/* Trust badges below pricing */}
+          <div className="flex flex-wrap items-center justify-center gap-8 mt-10">
             {[
-              { num: '1', icon: <Mail size={22} />, color: '#7C3AED', title: 'Choose your plan', desc: 'Pick the email plan that fits your team size and needs.' },
-              { num: '2', icon: <Globe size={22} />, color: '#0EA5E9', title: 'Connect your domain', desc: 'Link your existing domain or register a new one in minutes.' },
-              { num: '3', icon: <Users size={22} />, color: '#10B981', title: 'Create mailboxes', desc: 'Set up email addresses for every team member instantly.' },
-              { num: '4', icon: <Send size={22} />, color: '#F59E0B', title: 'Start sending', desc: 'Use webmail, your phone, or any desktop email client.' },
-            ].map((s, i) => (
-              <motion.div key={s.num} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                className="relative text-center p-7 rounded-2xl border border-gray-100 bg-white hover:shadow-md transition-all">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black mb-5 mx-auto text-white"
-                  style={{ background: s.color }}>
-                  {s.num}
+              { icon: <Shield size={16} />, text: '30-Day Money-Back Guarantee' },
+              { icon: <RefreshCw size={16} />, text: 'Free Email Migration' },
+              { icon: <Zap size={16} />, text: 'Setup in Minutes' },
+            ].map(b => (
+              <div key={b.text} className="flex items-center gap-2 text-sm" style={{ color: '#6B7280' }}>
+                <span style={{ color: '#673DE6' }}>{b.icon}</span>
+                {b.text}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══ WHAT'S INCLUDED (feature comparison) ═════════════════════════════ */}
+      <section className="py-20" style={{ background: '#fff' }}>
+        <div className="max-w-6xl mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
+            <h2 style={{ fontSize: 'clamp(1.7rem, 3.5vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.02em', color: '#111827', marginBottom: 10 }}>
+              What's included in every plan
+            </h2>
+            <p className="text-sm" style={{ color: '#6B7280' }}>Professional email hosting features built for reliability and productivity.</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { icon: <Globe size={20} />, color: '#673DE6', bg: '#F5F3FF', title: 'Custom domain email', desc: 'your@business.com' },
+              { icon: <Lock size={20} />, color: '#10B981', bg: '#F0FDF4', title: 'SSL encryption', desc: 'End-to-end security' },
+              { icon: <Smartphone size={20} />, color: '#0EA5E9', bg: '#F0F9FF', title: 'iOS & Android apps', desc: 'Email on any device' },
+              { icon: <BadgeCheck size={20} />, color: '#F59E0B', bg: '#FFFBEB', title: 'Spam protection', desc: 'Powered by AI filters' },
+              { icon: <RefreshCw size={20} />, color: '#8B5CF6', bg: '#F5F3FF', title: 'Daily backups', desc: 'Never lose a message' },
+              { icon: <Clock size={20} />, color: '#EC4899', bg: '#FDF2F8', title: '99.9% uptime', desc: 'Always-on reliability' },
+              { icon: <Building2 size={20} />, color: '#0EA5E9', bg: '#F0F9FF', title: 'Admin panel', desc: 'Manage your team' },
+              { icon: <Headphones size={20} />, color: '#10B981', bg: '#F0FDF4', title: '24/7 support', desc: 'We\'re always here' },
+            ].map((card, i) => (
+              <motion.div key={card.title}
+                initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.04 }}
+                className="flex items-start gap-3 p-5 rounded-xl"
+                style={{ background: '#FAFAFA', border: '1px solid #F3F4F6' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: card.bg, color: card.color }}>
+                  {card.icon}
                 </div>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 mx-auto"
-                  style={{ background: '#F3F4F6', color: s.color }}>
-                  {s.icon}
+                <div>
+                  <p className="font-semibold text-xs" style={{ color: '#111827' }}>{card.title}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>{card.desc}</p>
                 </div>
-                <h3 className="font-bold text-gray-900 text-[14px] mb-2">{s.title}</h3>
-                <p className="text-xs text-gray-500 leading-relaxed">{s.desc}</p>
-                {i < 3 && <div className="hidden md:block absolute top-10 -right-3 text-gray-300 text-lg font-bold">→</div>}
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── FAQ ── */}
-      <section className="py-20" style={{ background: '#F9FAFB' }}>
-        <div className="max-w-[760px] mx-auto px-6">
+      {/* ══ HOW IT WORKS ══════════════════════════════════════════════════════ */}
+      <section className="py-20" style={{ background: '#FAFAFA' }}>
+        <div className="max-w-6xl mx-auto px-6">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <h2 className="font-black text-gray-900 mb-3" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.2rem)' }}>Frequently asked questions</h2>
-            <p className="text-gray-500">Everything you need to know about business email hosting.</p>
+            <h2 style={{ fontSize: 'clamp(1.7rem, 3.5vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.02em', color: '#111827', marginBottom: 10 }}>
+              Set up in minutes
+            </h2>
+            <p className="text-sm" style={{ color: '#6B7280' }}>From purchase to your first professional email in 4 simple steps.</p>
           </motion.div>
+
+          <div className="grid md:grid-cols-4 gap-4 relative">
+            {[
+              { n: '01', icon: <Mail size={20} />, color: '#673DE6', bg: '#F5F3FF', title: 'Choose a plan', desc: 'Pick the plan that matches your team size.' },
+              { n: '02', icon: <Globe size={20} />, color: '#0EA5E9', bg: '#F0F9FF', title: 'Connect your domain', desc: 'Link your domain or register a new one.' },
+              { n: '03', icon: <Users size={20} />, color: '#10B981', bg: '#F0FDF4', title: 'Create mailboxes', desc: 'Add email addresses for every team member.' },
+              { n: '04', icon: <Send size={20} />, color: '#F59E0B', bg: '#FFFBEB', title: 'Start emailing', desc: 'Use webmail, phone, or any mail client.' },
+            ].map((step, i) => (
+              <motion.div key={step.n}
+                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                className="relative text-center p-6 rounded-2xl"
+                style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+                <div className="text-[10px] font-black mb-4" style={{ color: '#9CA3AF', letterSpacing: '0.1em' }}>{step.n}</div>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  style={{ background: step.bg, color: step.color }}>
+                  {step.icon}
+                </div>
+                <h3 className="font-bold mb-1.5 text-sm" style={{ color: '#111827' }}>{step.title}</h3>
+                <p className="text-xs leading-relaxed" style={{ color: '#6B7280' }}>{step.desc}</p>
+                {i < 3 && (
+                  <div className="hidden md:flex absolute top-1/2 -right-3 -translate-y-1/2 z-10 w-6 h-6 items-center justify-center">
+                    <ArrowRight size={14} style={{ color: '#D1D5DB' }} />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══ FAQ ═══════════════════════════════════════════════════════════════ */}
+      <section className="py-20" style={{ background: '#fff' }}>
+        <div className="max-w-2xl mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-10">
+            <h2 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 900, letterSpacing: '-0.02em', color: '#111827', marginBottom: 8 }}>
+              Frequently asked questions
+            </h2>
+            <p className="text-sm" style={{ color: '#6B7280' }}>Everything you need to know about business email hosting.</p>
+          </motion.div>
+
           <div className="space-y-2">
             {FAQS.map((faq, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
-                <button onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full text-left flex items-center justify-between gap-4 px-5 py-4 rounded-xl transition-all"
-                  style={{
-                    background: openFaq === i ? '#F5F3FF' : '#FFFFFF',
-                    border: openFaq === i ? '1px solid #DDD6FE' : '1px solid #E5E7EB',
-                  }}>
-                  <span className="font-semibold text-[14px]" style={{ color: openFaq === i ? '#6D28D9' : '#111827' }}>{faq.q}</span>
+              <div key={i} style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full text-left flex items-center justify-between gap-4 px-5 py-4 transition-colors"
+                  style={{ background: openFaq === i ? '#F9F8FF' : '#fff' }}>
+                  <span className="font-semibold text-sm" style={{ color: '#111827' }}>{faq.q}</span>
                   {openFaq === i
-                    ? <ChevronUp size={16} style={{ color: '#7C3AED', flexShrink: 0 }} />
+                    ? <ChevronUp size={16} style={{ color: '#673DE6', flexShrink: 0 }} />
                     : <ChevronDown size={16} style={{ color: '#9CA3AF', flexShrink: 0 }} />
                   }
                 </button>
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                   {openFaq === i && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                      style={{ borderLeft: '1px solid #DDD6FE', borderRight: '1px solid #DDD6FE', borderBottom: '1px solid #DDD6FE', borderRadius: '0 0 12px 12px' }}>
-                      <div className="px-5 py-4 text-sm leading-relaxed text-gray-500" style={{ background: '#FDFCFF' }}>{faq.a}</div>
+                    <motion.div
+                      initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      style={{ overflow: 'hidden' }}>
+                      <div className="px-5 py-4 text-sm leading-relaxed"
+                        style={{ color: '#6B7280', borderTop: '1px solid #F3F4F6' }}>
+                        {faq.a}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── CTA ── */}
+      {/* ══ BOTTOM CTA ════════════════════════════════════════════════════════ */}
       <section className="py-20" style={{ background: '#12113A' }}>
-        <div className="max-w-[760px] mx-auto px-6 text-center">
+        <div className="max-w-2xl mx-auto px-6 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <p className="text-sm font-semibold mb-3" style={{ color: '#818CF8' }}>Professional business email</p>
-            <h2 className="font-black text-white mb-4" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: '#A78BFA' }}>Get started today</p>
+            <h2 style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)', fontWeight: 900, letterSpacing: '-0.02em', color: '#fff', marginBottom: 12 }}>
               Start building trust with every email
             </h2>
-            <p className="mb-8 text-sm" style={{ color: '#94A3B8' }}>
-              Get your professional business email today. Set up in minutes, 30-day money-back guarantee.
+            <p className="text-sm mb-8" style={{ color: '#94A3B8' }}>
+              Professional business email, set up in minutes. 30-day money-back guarantee.
             </p>
-            <a href="#email-plans"
-              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold text-[15px] text-white transition-all hover:opacity-90"
-              style={{ background: 'linear-gradient(135deg, #7C3AED, #6D28D9)' }}>
-              Get started <ArrowRight size={16} />
+            <a
+              href="#pricing"
+              className="inline-flex items-center gap-2 font-bold text-sm text-white transition-opacity hover:opacity-90"
+              style={{ background: '#673DE6', padding: '13px 32px', borderRadius: 10 }}>
+              Choose your plan <ArrowRight size={15} />
             </a>
-            <div className="flex flex-wrap gap-6 justify-center mt-7">
+            <div className="flex flex-wrap gap-6 justify-center mt-8">
               {['30-Day Money-Back', 'Custom Domain Email', 'Cancel Anytime'].map(f => (
                 <span key={f} className="flex items-center gap-2 text-xs" style={{ color: '#94A3B8' }}>
-                  <Shield size={13} style={{ color: '#818CF8' }} /> {f}
+                  <Check size={12} style={{ color: '#A78BFA' }} /> {f}
                 </span>
               ))}
             </div>
@@ -505,6 +758,4 @@ const BusinessEmail: React.FC = () => {
 
     </div>
   );
-};
-
-export default BusinessEmail;
+}
