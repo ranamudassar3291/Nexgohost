@@ -118,8 +118,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hostingOpen, setHostingOpen] = useState(false);
   const [mobileHostingOpen, setMobileHostingOpen] = useState(false);
+  const [domainsOpen, setDomainsOpen] = useState(false);
+  const [mobileDomainsOpen, setMobileDomainsOpen] = useState(false);
   const { itemCount, openCart } = useCart();
   const hostingRef = useRef<HTMLDivElement>(null);
+  const domainsRef = useRef<HTMLDivElement>(null);
   const { content } = useContent();
   const location = useLocation();
   const navigate = useNavigate();
@@ -134,6 +137,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
     const handleClickOutside = (e: MouseEvent) => {
       if (hostingRef.current && !hostingRef.current.contains(e.target as Node)) {
         setHostingOpen(false);
+      }
+      if (domainsRef.current && !domainsRef.current.contains(e.target as Node)) {
+        setDomainsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -174,16 +180,16 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
   const Logo = () => {
     if (navData.logoImage) {
-      return <img src={navData.logoImage} alt={navData.logo} className="h-9 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoImage} alt={navData.logo} className="h-14 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     if (navData.logoUrl) {
-      return <img src={navData.logoUrl} alt={navData.logo} className="h-9 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoUrl} alt={navData.logo} className="h-14 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
       <img
         src="/noehost-logo.png"
         alt="Noehost"
-        className="h-9 w-auto object-contain"
+        className="h-14 w-auto object-contain"
         style={{ filter: isScrolled ? 'brightness(0)' : 'none', transition: 'filter 0.3s ease' }}
       />
     );
@@ -298,8 +304,60 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               </div>
             )}
 
-            {/* Remaining links: Domains, About, Contact */}
-            {otherLinks.filter((l: any) => l.name.toLowerCase() !== 'home').map((link: any, idx: number) => (
+            {/* Domains Dropdown */}
+            <div ref={domainsRef} className="relative">
+              <button
+                onClick={() => setDomainsOpen(o => !o)}
+                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
+              >
+                <span className="text-primary group-hover:scale-110 transition-transform">
+                  <Globe size={18} />
+                </span>
+                Domains
+                <ChevronDown size={14} className={`transition-transform duration-200 ${domainsOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {domainsOpen && (
+                <div
+                  className="absolute top-full left-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                  style={{ minWidth: '260px', background: '#131318', border: '1px solid rgba(103,61,230,0.3)' }}
+                >
+                  <div className="px-5 pt-5 pb-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Domain Services</span>
+                  </div>
+                  <div className="px-2 pb-3">
+                    <Link
+                      to="/domains"
+                      onClick={() => setDomainsOpen(false)}
+                      className="flex items-start gap-3 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                        <Search size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors">Domain Registration</p>
+                        <p className="text-xs text-slate-500 font-medium leading-snug">Search and register new domains</p>
+                      </div>
+                    </Link>
+                    <Link
+                      to="/domain-reseller"
+                      onClick={() => setDomainsOpen(false)}
+                      className="flex items-start gap-3 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                        <Layers size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors">Domain Reseller</p>
+                        <p className="text-xs text-slate-500 font-medium leading-snug">Sell domains under your own brand</p>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Remaining links: About, Contact (excluding Home and Domains) */}
+            {otherLinks.filter((l: any) => l.name.toLowerCase() !== 'home' && l.name.toLowerCase() !== 'domains').map((link: any, idx: number) => (
               <Link
                 key={idx}
                 to={link.href}
@@ -311,16 +369,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 {link.name}
               </Link>
             ))}
-            {/* Static: Domain Reseller */}
-            <Link
-              to="/domain-reseller"
-              className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
-            >
-              <span className="text-primary group-hover:scale-110 transition-transform">
-                <Globe size={18} />
-              </span>
-              Domain Reseller
-            </Link>
           </div>
         </div>
 
@@ -452,8 +500,52 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             </div>
           )}
 
-          {/* Remaining mobile links: Domains, About, Contact */}
-          {otherLinks.filter((l: any) => l.name.toLowerCase() !== 'home').map((link: any, idx: number) => (
+          {/* Mobile Domains Group */}
+          <div>
+            <button
+              onClick={() => setMobileDomainsOpen(o => !o)}
+              className="flex items-center gap-4 group w-full"
+            >
+              <div className="p-3 rounded-xl bg-white/5 text-primary group-hover:bg-primary group-hover:text-white transition-all">
+                <Globe size={18} />
+              </div>
+              <span className="text-sm font-black text-slate-200 group-hover:text-primary transition-colors uppercase tracking-widest flex-1 text-left">Domains</span>
+              <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileDomainsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileDomainsOpen && (
+              <div className="mt-3 flex flex-col gap-1">
+                <Link
+                  to="/domains"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
+                >
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 group-hover:bg-primary/20 transition-all text-primary">
+                    <Search size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors">Domain Registration</p>
+                    <p className="text-xs text-slate-500 font-medium">Search and register new domains</p>
+                  </div>
+                </Link>
+                <Link
+                  to="/domain-reseller"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
+                >
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 group-hover:bg-primary/20 transition-all text-primary">
+                    <Layers size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-200 group-hover:text-primary transition-colors">Domain Reseller</p>
+                    <p className="text-xs text-slate-500 font-medium">Sell domains under your own brand</p>
+                  </div>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Remaining mobile links: About, Contact (excluding Home and Domains) */}
+          {otherLinks.filter((l: any) => l.name.toLowerCase() !== 'home' && l.name.toLowerCase() !== 'domains').map((link: any, idx: number) => (
             <Link
               key={idx}
               to={link.href}
