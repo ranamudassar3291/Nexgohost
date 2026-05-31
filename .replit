@@ -31,12 +31,12 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
+args = "pnpm --filter @workspace/api-server run dev & PORT=5000 pnpm --filter @workspace/nexgohost run dev"
+waitForPort = 5000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
