@@ -204,13 +204,20 @@ export default function DomainSearch() {
   function addToCart(r: SearchResult, action: "register" | "transfer" = "register") {
     const { price, original, period: p } = getPrice(r, r.domain, isPk(r.domain) ? 2 : period);
     if (!price) return;
-    let already = false;
-    setCart(prev => {
-      if (prev.find(c => c.domain === r.domain)) { already = true; return prev; }
-      return [...prev, { domain: r.domain, period: p, price, originalPrice: original, isFreeWithHosting: r.isFreeWithHosting ?? false, action }];
-    });
-    if (!already) toast({ title: action === "transfer" ? "Transfer queued!" : "Added to cart!", description: r.domain });
-    setCartOpen(true);
+
+    // Load existing localStorage cart (persists across pages)
+    let existing: CartItem[] = [];
+    try { const raw = localStorage.getItem(DOMAIN_CART_KEY); if (raw) existing = JSON.parse(raw); } catch {}
+
+    // Append if not already present
+    if (!existing.find(c => c.domain === r.domain)) {
+      existing = [...existing, { domain: r.domain, period: p, price, originalPrice: original, isFreeWithHosting: r.isFreeWithHosting ?? false, action }];
+      localStorage.setItem(DOMAIN_CART_KEY, JSON.stringify(existing));
+      setCart(existing); // keep local state in sync for sidebar
+    }
+
+    // Go directly to checkout — inline login/register is there
+    setLocation("/checkout/domains");
   }
 
   function goTransfer(domain: string) {
@@ -272,8 +279,8 @@ export default function DomainSearch() {
             <>
               <Badge className="bg-green-500/15 text-green-500 border-green-500/25 text-xs hidden sm:flex">Available</Badge>
               {inCart
-                ? <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setCartOpen(true)}><ShoppingCart size={12} /> In Cart</Button>
-                : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r, xfer ? "transfer" : "register")}><Plus size={12} /> Add to Cart</Button>}
+                ? <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setLocation("/checkout/domains")}><ShoppingCart size={12} /> Checkout</Button>
+                : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r, xfer ? "transfer" : "register")}><Plus size={12} /> Register Now</Button>}
             </>
           ) : tak ? (
             <>
@@ -281,8 +288,8 @@ export default function DomainSearch() {
               <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => openWhois(r)}><BadgeInfo size={12} /> WHOIS</Button>
               {xfer
                 ? (inCart
-                    ? <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setCartOpen(true)}><ShoppingCart size={12} /> In Cart</Button>
-                    : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r, "transfer")}><Plus size={12} /> Add Transfer</Button>)
+                    ? <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setLocation("/checkout/domains")}><ShoppingCart size={12} /> Checkout</Button>
+                    : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r, "transfer")}><ArrowRightLeft size={12} /> Transfer Now</Button>)
                 : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => goTransfer(r.domain)}><ArrowRightLeft size={12} /> Transfer</Button>}
             </>
           ) : (
@@ -313,9 +320,9 @@ export default function DomainSearch() {
         <Tab m="bulk" icon={<List size={14} />} label="Bulk Search" />
         <Tab m="bulk-transfer" icon={<ArrowRightLeft size={14} />} label="Bulk Transfer" />
         {cart.length > 0 && (
-          <button onClick={() => setCartOpen(true)}
+          <button onClick={() => setLocation("/checkout/domains")}
             className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-card border border-border hover:border-primary/40 transition-all">
-            <ShoppingCart size={14} /> Cart
+            <ShoppingCart size={14} /> Checkout
             <span className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center" style={{ background: BRAND }}>{cart.length}</span>
           </button>
         )}
@@ -399,7 +406,7 @@ export default function DomainSearch() {
                             <span className="font-mono text-xs font-medium truncate">{r.domain}</span>
                           </div>
                           {ok
-                            ? <button onClick={() => addToCart(r)} className="text-[10px] font-bold text-white px-2.5 py-1 rounded-lg shrink-0 ml-2" style={{ background: BRAND }}>Add</button>
+                            ? <button onClick={() => addToCart(r)} className="text-[10px] font-bold text-white px-2.5 py-1 rounded-lg shrink-0 ml-2" style={{ background: BRAND }}>Register</button>
                             : <span className="text-[10px] text-muted-foreground shrink-0 ml-2">Taken</span>}
                         </div>
                       );
@@ -420,8 +427,8 @@ export default function DomainSearch() {
                     </div>
                   </div>
                   {cart.length > 0 && (
-                    <Button className="w-full h-9 text-xs gap-2" style={{ background: BRAND, border: "none" }} onClick={() => setCartOpen(true)}>
-                      <ShoppingCart size={13} /> View Cart ({cart.length})
+                    <Button className="w-full h-9 text-xs gap-2" style={{ background: BRAND, border: "none" }} onClick={() => setLocation("/checkout/domains")}>
+                      <ShoppingCart size={13} /> Checkout ({cart.length}) <ChevronRight size={12} />
                     </Button>
                   )}
                 </div>
@@ -502,8 +509,8 @@ export default function DomainSearch() {
               <p className="text-sm text-muted-foreground">{bulkResults.length} domains checked</p>
               {bulkResults.map(r => <Row key={r.domain} r={r} />)}
               {cart.length > 0 && (
-                <Button className="w-full gap-2" style={{ background: BRAND, border: "none" }} onClick={() => setCartOpen(true)}>
-                  <ShoppingCart size={15} /> View Cart ({cart.length})
+                <Button className="w-full gap-2" style={{ background: BRAND, border: "none" }} onClick={() => setLocation("/checkout/domains")}>
+                  <ShoppingCart size={15} /> Proceed to Checkout ({cart.length}) <ChevronRight size={14} />
                 </Button>
               )}
             </div>
