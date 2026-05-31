@@ -186,12 +186,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
       return <img src={navData.logoUrl} alt={navData.logo} className="h-14 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
-      <img
-        src="/noehost-logo.png"
-        alt="Noehost"
-        className="h-14 w-auto object-contain"
-        style={{ filter: isScrolled ? 'brightness(0)' : 'none', transition: 'filter 0.3s ease' }}
-      />
+      <div
+        style={isScrolled
+          ? { background: 'linear-gradient(135deg,#1e1b4b,#312e81)', borderRadius: '12px', padding: '4px 12px', transition: 'all 0.3s ease' }
+          : { background: 'transparent', borderRadius: '12px', padding: '4px 12px', transition: 'all 0.3s ease' }
+        }
+      >
+        <img
+          src="/noehost-logo.png"
+          alt="Noehost"
+          className="h-14 w-auto object-contain"
+        />
+      </div>
     );
   };
 
