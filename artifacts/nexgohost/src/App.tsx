@@ -108,6 +108,7 @@ import NoeDomains from "@/noehost/components/pages/Domains";
 import NoeAboutUs from "@/noehost/components/pages/AboutUs";
 import NoeContactUs from "@/noehost/components/pages/ContactUs";
 import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
+import NoeN8nHosting from "@/noehost/components/pages/N8nHosting";
 
 import { queryClient } from "@/lib/query-client";
 import { useApiHealth } from "@/hooks/use-api-health";
@@ -679,6 +680,9 @@ function RouterRoot() {
       </Route>
 
       {/* ── Noehost public marketing pages ── */}
+      <Route path="/n8n-hosting">
+        <NoeHostLayout><NoeN8nHosting /></NoeHostLayout>
+      </Route>
       <Route path="/shared-hosting">
         <NoeHostLayout><NoeSharedHosting /></NoeHostLayout>
       </Route>
