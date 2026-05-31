@@ -202,22 +202,16 @@ export default function DomainSearch() {
   }
 
   function addToCart(r: SearchResult, action: "register" | "transfer" = "register") {
-    const { price, original, period: p } = getPrice(r, r.domain, isPk(r.domain) ? 2 : period);
+    const { price, period: p } = getPrice(r, r.domain, isPk(r.domain) ? 2 : period);
     if (!price) return;
-
-    // Load existing localStorage cart (persists across pages)
-    let existing: CartItem[] = [];
-    try { const raw = localStorage.getItem(DOMAIN_CART_KEY); if (raw) existing = JSON.parse(raw); } catch {}
-
-    // Append if not already present
-    if (!existing.find(c => c.domain === r.domain)) {
-      existing = [...existing, { domain: r.domain, period: p, price, originalPrice: original, isFreeWithHosting: r.isFreeWithHosting ?? false, action }];
-      localStorage.setItem(DOMAIN_CART_KEY, JSON.stringify(existing));
-      setCart(existing); // keep local state in sync for sidebar
-    }
-
-    // Go directly to checkout — inline login/register is there
-    setLocation("/checkout/domains");
+    // Direct to /order/domain — no cart, no localStorage
+    const qs = new URLSearchParams({
+      domain: r.domain,
+      action,
+      period: String(p),
+      price: String(price),
+    });
+    setLocation(`/order/domain?${qs.toString()}`);
   }
 
   function goTransfer(domain: string) {
