@@ -205,16 +205,33 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
 
     const id = randomUUID();
     const cycle = (billing_cycle === "yearly" || billing_cycle === "monthly") ? billing_cycle : "monthly";
-    const price = cycle === "yearly" && pkg.yearly_price != null
+    const rawPrice = cycle === "yearly" && pkg.yearly_price != null
       ? parseFloat(pkg.yearly_price)
       : parseFloat(pkg.price);
+    // Guard: NaN or missing price would produce a broken SQL placeholder
+    if (!rawPrice || isNaN(rawPrice) || rawPrice <= 0) {
+      return res.status(400).json({ error: "Package price is not configured. Please contact support." });
+    }
+    const price = rawPrice;
+
+    // Coerce to guaranteed-non-undefined types before SQL binding
+    const safeId: string         = String(id);
+    const safeUserId: string     = String(userId);
+    const safePkgId: number      = parseInt(String(package_id), 10);
+    const safeDomain: string     = String(domainClean);
+    const safeCycle: string      = String(cycle);
+    const safePrice: number      = price;
+
+    if (isNaN(safePkgId)) {
+      return res.status(400).json({ error: "Invalid package_id." });
+    }
 
     // ── Transaction: order row + storage quota must succeed together ───────────
     await db.execute(sql`BEGIN`);
     try {
       await db.execute(sql`
         INSERT INTO email_orders (id, user_id, package_id, domain_name, billing_cycle, amount_paid, status, created_at, updated_at)
-        VALUES (${id}, ${userId}, ${package_id}, ${domainClean}, ${cycle}, ${price}, 'pending_dns', NOW(), NOW())
+        VALUES (${safeId}, ${safeUserId}, ${safePkgId}, ${safeDomain}, ${safeCycle}, ${safePrice}, 'pending_dns', NOW(), NOW())
       `);
       await db.execute(sql`
         INSERT INTO email_storage_usage (order_id, used_mb, quota_mb, updated_at)
