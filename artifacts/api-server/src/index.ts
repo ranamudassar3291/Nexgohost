@@ -1019,33 +1019,95 @@ app.listen(port, async () => {
     console.warn("[TEMPLATES] Seed failed (non-fatal):", err.message);
   });
 
-  // Update existing VPS plans to new specs/prices (idempotent — runs on every startup)
+  // Ensure VPS tables exist before seeding/updating
   (async () => {
     try {
       await db.execute(sql`
-        UPDATE vps_plans SET
-          price = '1500.00', yearly_price = '15000.00',
-          cpu_cores = 2, ram_gb = 4, storage_gb = 50, bandwidth_tb = '4.00',
-          save_amount = '3000.00'
-        WHERE name = 'VPS 1'
+        CREATE TABLE IF NOT EXISTS vps_plans (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+          name TEXT NOT NULL,
+          description TEXT,
+          price NUMERIC(10,2) NOT NULL,
+          quarterly_price NUMERIC(10,2),
+          semiannual_price NUMERIC(10,2),
+          yearly_price NUMERIC(10,2),
+          biennial_price NUMERIC(10,2),
+          cpu_cores INTEGER NOT NULL DEFAULT 1,
+          ram_gb INTEGER NOT NULL DEFAULT 1,
+          storage_gb INTEGER NOT NULL DEFAULT 20,
+          bandwidth_tb NUMERIC(5,2) DEFAULT 1,
+          virtualization TEXT DEFAULT 'KVM',
+          features TEXT[] DEFAULT '{}',
+          os_template_ids TEXT[] DEFAULT '{}',
+          location_ids TEXT[] DEFAULT '{}',
+          save_amount NUMERIC(10,2),
+          is_active BOOLEAN DEFAULT TRUE,
+          sort_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
       `);
       await db.execute(sql`
-        UPDATE vps_plans SET
-          price = '2500.00', yearly_price = '25000.00',
-          cpu_cores = 4, ram_gb = 8, storage_gb = 100, bandwidth_tb = '8.00',
-          save_amount = '5000.00'
-        WHERE name = 'VPS 2'
+        CREATE TABLE IF NOT EXISTS vps_os_templates (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+          name TEXT NOT NULL,
+          version TEXT NOT NULL,
+          icon_url TEXT,
+          image_id TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
       `);
       await db.execute(sql`
-        UPDATE vps_plans SET
-          price = '4500.00', yearly_price = '45000.00',
-          cpu_cores = 6, ram_gb = 12, storage_gb = 200, bandwidth_tb = '12.00',
-          save_amount = '9000.00'
-        WHERE name = 'VPS 3'
+        CREATE TABLE IF NOT EXISTS vps_locations (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+          country_name TEXT NOT NULL,
+          country_code TEXT NOT NULL,
+          flag_icon TEXT,
+          city TEXT,
+          datacenter TEXT,
+          network_speed TEXT DEFAULT '1 Gbps',
+          latency_ms INTEGER DEFAULT 10,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
       `);
-      console.log("[VPS] Plan prices/specs updated to new values");
+      console.log("[VPS] Tables ensured");
     } catch (err: any) {
-      console.warn("[VPS] Plan update failed (non-fatal):", err.message);
+      console.warn("[VPS] Table creation failed (non-fatal):", err.message);
+    }
+  })();
+
+  // Sync VPS plans — keep exactly 3 plans (idempotent: delete old rows, upsert by name)
+  (async () => {
+    try {
+      // Remove any stale/duplicate plans, keep only canonical VPS 1/2/3
+      await db.execute(sql`DELETE FROM vps_plans WHERE name NOT IN ('VPS 1','VPS 2','VPS 3')`);
+      await db.execute(sql`DELETE FROM vps_plans WHERE name = 'VPS 1' AND id NOT IN (SELECT MIN(id) FROM vps_plans WHERE name = 'VPS 1')`);
+      await db.execute(sql`DELETE FROM vps_plans WHERE name = 'VPS 2' AND id NOT IN (SELECT MIN(id) FROM vps_plans WHERE name = 'VPS 2')`);
+      await db.execute(sql`DELETE FROM vps_plans WHERE name = 'VPS 3' AND id NOT IN (SELECT MIN(id) FROM vps_plans WHERE name = 'VPS 3')`);
+      // Insert missing plans
+      await db.execute(sql`
+        INSERT INTO vps_plans (id, name, description, price, yearly_price, cpu_cores, ram_gb, storage_gb, bandwidth_tb, virtualization, features, save_amount, is_active, sort_order)
+        SELECT gen_random_uuid()::TEXT,'VPS 1','Entry-level KVM server for small projects and testing.','1500.00','15000.00',2,4,50,'4.00','KVM',ARRAY['Full Root Access','DDoS Protection','Dedicated IP','99.9% Uptime SLA','Instant Provisioning'],'3000.00',TRUE,1
+        WHERE NOT EXISTS (SELECT 1 FROM vps_plans WHERE name='VPS 1')
+      `);
+      await db.execute(sql`
+        INSERT INTO vps_plans (id, name, description, price, yearly_price, cpu_cores, ram_gb, storage_gb, bandwidth_tb, virtualization, features, save_amount, is_active, sort_order)
+        SELECT gen_random_uuid()::TEXT,'VPS 2','Balanced cloud server for growing web applications.','2500.00','25000.00',4,8,100,'8.00','KVM',ARRAY['Full Root Access','DDoS Protection','Dedicated IP','99.9% Uptime SLA','Instant Provisioning','Free cPanel License'],'5000.00',TRUE,2
+        WHERE NOT EXISTS (SELECT 1 FROM vps_plans WHERE name='VPS 2')
+      `);
+      await db.execute(sql`
+        INSERT INTO vps_plans (id, name, description, price, yearly_price, cpu_cores, ram_gb, storage_gb, bandwidth_tb, virtualization, features, save_amount, is_active, sort_order)
+        SELECT gen_random_uuid()::TEXT,'VPS 3','High-performance server for demanding workloads and databases.','4500.00','45000.00',6,12,200,'12.00','KVM',ARRAY['Full Root Access','DDoS Protection','Dedicated IP','99.9% Uptime SLA','Instant Provisioning','Free cPanel License','Priority Support'],'9000.00',TRUE,3
+        WHERE NOT EXISTS (SELECT 1 FROM vps_plans WHERE name='VPS 3')
+      `);
+      // Always update specs to latest values
+      await db.execute(sql`UPDATE vps_plans SET price='1500.00',yearly_price='15000.00',cpu_cores=2,ram_gb=4,storage_gb=50,bandwidth_tb='4.00',save_amount='3000.00',sort_order=1 WHERE name='VPS 1'`);
+      await db.execute(sql`UPDATE vps_plans SET price='2500.00',yearly_price='25000.00',cpu_cores=4,ram_gb=8,storage_gb=100,bandwidth_tb='8.00',save_amount='5000.00',sort_order=2 WHERE name='VPS 2'`);
+      await db.execute(sql`UPDATE vps_plans SET price='4500.00',yearly_price='45000.00',cpu_cores=6,ram_gb=12,storage_gb=200,bandwidth_tb='12.00',save_amount='9000.00',sort_order=3 WHERE name='VPS 3'`);
+      console.log("[VPS] Plans synced (3 canonical plans)");
+    } catch (err: any) {
+      console.warn("[VPS] Plan sync failed (non-fatal):", err.message);
     }
   })();
 
