@@ -51,6 +51,9 @@ import CommandCenter from "@/pages/admin/CommandCenter";
 import SeoEngine from "@/pages/admin/SeoEngine";
 import SalesFunnel from "@/pages/admin/SalesFunnel";
 import AbuseDashboard from "@/pages/admin/AbuseDashboard";
+import ResellerAdmin from "@/pages/admin/ResellerAdmin";
+import ResellerDashboard from "@/pages/client/ResellerDashboard";
+import DomainReseller from "@/pages/public/DomainReseller";
 import Status from "@/pages/public/Status";
 import NoeBlog from "@/noehost/components/pages/Blog";
 import NoeBlogPost from "@/noehost/components/pages/BlogPost";
@@ -533,6 +536,9 @@ function RouterRoot() {
       <Route path="/admin/firewall">
         <Redirect to="/admin/system?tab=firewall" />
       </Route>
+      <Route path="/admin/resellers">
+        <AdminPage><ResellerAdmin /></AdminPage>
+      </Route>
 
       {/* ── Client routes (each individually guarded) ── */}
       <Route path="/client/dashboard">
@@ -632,6 +638,9 @@ function RouterRoot() {
       <Route path="/client/growth">
         <ClientPage><GrowthSuite /></ClientPage>
       </Route>
+      <Route path="/client/reseller">
+        <ClientPage><ResellerDashboard /></ClientPage>
+      </Route>
       <Route path="/client/domain-search">
         <ClientPage><DomainSearch /></ClientPage>
       </Route>
@@ -708,6 +717,9 @@ function RouterRoot() {
       </Route>
       <Route path="/sale/:slug">
         <NoeHostLayout><NoeFlashSale /></NoeHostLayout>
+      </Route>
+      <Route path="/domain-reseller">
+        <NoeHostLayout><DomainReseller /></NoeHostLayout>
       </Route>
 
       {/* ── Legal pages ── */}

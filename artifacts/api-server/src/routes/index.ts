@@ -68,6 +68,7 @@ import aiSpecialistRouter from "./ai-specialist.js";
 import aiSupportRouter from "./ai-support.js";
 import pagesRouter from "./pages.js";
 import abuseRouter from "./abuse.js";
+import resellerRouter from "./reseller.js";
 
 const router: IRouter = Router();
 
@@ -144,5 +145,6 @@ router.use(aiSpecialistRouter);
 router.use(aiSupportRouter);
 router.use(pagesRouter);
 router.use(abuseRouter);
+router.use(resellerRouter);
 
 export default router;

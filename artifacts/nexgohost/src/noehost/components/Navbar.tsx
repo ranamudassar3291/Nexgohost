@@ -327,6 +327,16 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 {link.name}
               </Link>
             ))}
+            {/* Static: Domain Reseller */}
+            <Link
+              to="/domain-reseller"
+              className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
+            >
+              <span className="text-primary group-hover:scale-110 transition-transform">
+                <Globe size={18} />
+              </span>
+              Domain Reseller
+            </Link>
           </div>
         </div>
 

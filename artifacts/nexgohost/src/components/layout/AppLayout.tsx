@@ -102,9 +102,10 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     label: "Services",
     items: [
-      { name: "Domains",   href: "/admin/domains",  icon: (() => null) as any },
-      { name: "Hosting",   href: "/admin/hosting",  icon: (() => null) as any },
-      { name: "Orders",    href: "/admin/orders",   icon: (() => null) as any },
+      { name: "Domains",    href: "/admin/domains",    icon: (() => null) as any },
+      { name: "Hosting",    href: "/admin/hosting",    icon: (() => null) as any },
+      { name: "Orders",     href: "/admin/orders",     icon: (() => null) as any },
+      { name: "Resellers",  href: "/admin/resellers",  icon: (() => null) as any },
     ],
   },
   {
@@ -148,8 +149,9 @@ const CLIENT_SIDEBAR_GROUPS = [
   {
     label: "Services",
     items: [
-      { name: "My Hosting", href: "/client/hosting", icon: Server },
-      { name: "My Domains", href: "/client/domains", icon: Globe  },
+      { name: "My Hosting",      href: "/client/hosting",   icon: Server },
+      { name: "My Domains",      href: "/client/domains",   icon: Globe  },
+      { name: "Domain Reseller", href: "/client/reseller",  icon: Globe  },
     ],
   },
   {

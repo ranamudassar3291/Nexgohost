@@ -665,6 +665,87 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_chat_web_searches_session ON chat_web_searches(session_id, created_at DESC)`);
     console.log("[MIGRATIONS] chat_web_searches table ready");
 
+    // ── Domain Reseller Module ────────────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reseller_profiles (
+        id               TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id          TEXT NOT NULL UNIQUE,
+        business_name    TEXT NOT NULL,
+        monthly_volume   TEXT,
+        status           TEXT NOT NULL DEFAULT 'pending',
+        api_key          TEXT UNIQUE,
+        discount_slab_tier INTEGER NOT NULL DEFAULT 1,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_profiles_user ON reseller_profiles(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_profiles_status ON reseller_profiles(status)`);
+    console.log("[MIGRATIONS] reseller_profiles table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reseller_funds (
+        id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id    TEXT NOT NULL UNIQUE,
+        balance    NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+        currency   TEXT NOT NULL DEFAULT 'USD',
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] reseller_funds table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reseller_domain_pricing (
+        id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        tld           VARCHAR(32) NOT NULL UNIQUE,
+        retail_price  NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+        reseller_price NUMERIC(10,2) NOT NULL DEFAULT 0.00
+      )
+    `);
+    await db.execute(sql`
+      INSERT INTO reseller_domain_pricing (tld, retail_price, reseller_price) VALUES
+        ('.com',  15.99, 9.99),
+        ('.net',  14.99, 9.49),
+        ('.org',  13.99, 8.99),
+        ('.xyz',   9.99, 5.99),
+        ('.io',   39.99, 27.99),
+        ('.co',   29.99, 19.99),
+        ('.store', 12.99, 7.99),
+        ('.online', 8.99, 4.99)
+      ON CONFLICT (tld) DO NOTHING
+    `);
+    console.log("[MIGRATIONS] reseller_domain_pricing table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reseller_orders (
+        id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id     TEXT NOT NULL,
+        domain_name TEXT NOT NULL,
+        tld         TEXT NOT NULL DEFAULT '',
+        action_type TEXT NOT NULL DEFAULT 'register',
+        cost        NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+        status      TEXT NOT NULL DEFAULT 'processing',
+        nameservers TEXT,
+        epp_code    TEXT,
+        created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_orders_user ON reseller_orders(user_id, created_at DESC)`);
+    console.log("[MIGRATIONS] reseller_orders table ready");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reseller_transactions (
+        id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id    TEXT NOT NULL,
+        type       TEXT NOT NULL DEFAULT 'credit',
+        amount     NUMERIC(10,2) NOT NULL,
+        notes      TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_txn_user ON reseller_transactions(user_id, created_at DESC)`);
+    console.log("[MIGRATIONS] reseller_transactions table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
