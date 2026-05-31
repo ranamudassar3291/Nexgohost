@@ -196,7 +196,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
       <img
         src="/logo.png"
         alt="Noehost"
-        className="h-16 w-auto object-contain max-w-[200px]"
+        className="h-10 w-auto object-contain"
         style={{ transition: 'opacity 0.3s ease' }}
       />
     );
