@@ -174,34 +174,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
   const Logo = () => {
     if (navData.logoImage) {
-      return <img src={navData.logoImage} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoImage} alt={navData.logo} className="h-9 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     if (navData.logoUrl) {
-      return <img src={navData.logoUrl} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoUrl} alt={navData.logo} className="h-9 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
-      <div className="flex items-center gap-2">
-        {/* Icon - left portion of new logo */}
-        <img
-          src="/logo_new.png"
-          alt="Noehost"
-          className="h-10 w-auto object-contain"
-          style={{
-            clipPath: 'inset(0 62% 0 0)',
-            transition: 'filter 0.3s ease',
-          }}
-        />
-        {/* Noehost text - always white on dark, dark on scrolled */}
-        <span
-          className="text-[20px] font-bold tracking-tight"
-          style={{
-            color: isScrolled ? '#0f172a' : '#ffffff',
-            transition: 'color 0.3s ease',
-          }}
-        >
-          Noehost
-        </span>
-      </div>
+      <img
+        src="/noehost-logo.png"
+        alt="Noehost"
+        className="h-9 w-auto object-contain"
+        style={{ filter: isScrolled ? 'brightness(0)' : 'none', transition: 'filter 0.3s ease' }}
+      />
     );
   };
 

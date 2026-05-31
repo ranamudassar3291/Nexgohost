@@ -275,16 +275,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         {logoUrl ? (
           <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} referrerPolicy="no-referrer" />
         ) : (
-          <>
-            <div className="brand-logo-container w-9 h-9 rounded-xl font-black text-white text-base flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", boxShadow: "0 4px 14px rgba(107,70,193,0.45)" }}>
-              {siteName?.[0] ?? "N"}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-extrabold text-[15px] text-white tracking-tight leading-none">{siteName}</span>
-              <span className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#7C5DE2" }}>Client Portal</span>
-            </div>
-          </>
+          <img src="/noehost-logo.png" alt="Noehost" style={{ height: 34, width: "auto", objectFit: "contain" }} />
         )}
       </div>
 
@@ -435,18 +426,9 @@ export function AppLayout({ children, role }: LayoutProps) {
             <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 44, width: "auto", maxWidth: "100%" }} referrerPolicy="no-referrer" />
           </div>
         ) : (
-          <>
-            <div
-              className="brand-logo-container w-10 h-10 rounded-xl font-bold text-white text-base shadow-lg shrink-0 flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)", boxShadow: "0 0 14px rgba(107,70,193,0.35)" }}
-            >
-              {siteName?.[0] ?? "N"}
-            </div>
-            <div className="flex flex-col justify-center min-w-0">
-              <h1 className="font-display font-bold text-xl tracking-tight leading-none" style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{siteName}</h1>
-              <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: "#7C5DE2" }}>NoePanel</p>
-            </div>
-          </>
+          <div className="flex items-center px-2 py-1.5 rounded-xl" style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)" }}>
+            <img src="/noehost-logo.png" alt="Noehost" style={{ height: 32, width: "auto", objectFit: "contain" }} />
+          </div>
         )}
       </div>
 
@@ -556,16 +538,12 @@ export function AppLayout({ children, role }: LayoutProps) {
         <div className="flex items-center gap-2.5">
           {logoUrl ? (
             <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: 180, ...(isClient ? { filter: "brightness(0) invert(1)" } : {}) }} referrerPolicy="no-referrer" />
+          ) : isClient ? (
+            <img src="/noehost-logo.png" alt="Noehost" style={{ height: 32, width: "auto", objectFit: "contain" }} />
           ) : (
-            <>
-              <div
-                className="brand-logo-container w-9 h-9 rounded-lg font-bold text-white text-sm shadow flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
-              >
-                {siteName?.[0] ?? "N"}
-              </div>
-              <span className="font-display font-bold text-lg tracking-tight text-white">{siteName}</span>
-            </>
+            <div className="flex items-center px-2 py-1 rounded-xl" style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)" }}>
+              <img src="/noehost-logo.png" alt="Noehost" style={{ height: 28, width: "auto", objectFit: "contain" }} />
+            </div>
           )}
         </div>
 
