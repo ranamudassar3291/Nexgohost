@@ -902,6 +902,9 @@ async function runStartupMigrations() {
         updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly'`);
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE email_orders ADD COLUMN IF NOT EXISTS remote_hosting_id TEXT`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_email_orders_user ON email_orders(user_id)`);
     console.log("[MIGRATIONS] email_orders table ready");
 

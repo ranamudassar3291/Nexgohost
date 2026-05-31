@@ -63,7 +63,7 @@ export default function EmailHostingCheckout() {
   const [packages, setPackages] = useState<EmailPackage[]>([]);
   const [pkgLoading, setPkgLoading] = useState(true);
   const [selectedPkg, setSelectedPkg] = useState<EmailPackage | null>(null);
-  const [billing, setBilling] = useState<"monthly" | "yearly">("yearly");
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [domain, setDomain] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -387,6 +387,23 @@ export default function EmailHostingCheckout() {
                     <CreditCard className="w-5 h-5" style={{ color: "#7C3AED" }} /> Order Review
                   </h2>
 
+                  {/* Billing period toggle — visible on review step too */}
+                  <div className="flex items-center justify-between p-3 rounded-xl mb-4"
+                    style={{ background: "#F9F9FF", border: "1px solid #EDE9FE" }}>
+                    <div className="text-sm font-semibold text-gray-700">Billing period</div>
+                    <div className="flex items-center gap-2.5">
+                      <span className={`text-xs font-semibold ${billing === "monthly" ? "text-gray-900" : "text-gray-400"}`}>Monthly</span>
+                      <button onClick={() => setBilling(b => b === "monthly" ? "yearly" : "monthly")}
+                        className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+                        style={{ background: billing === "yearly" ? "#7C3AED" : "#D1D5DB" }}>
+                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${billing === "yearly" ? "translate-x-5" : "translate-x-0.5"}`} />
+                      </button>
+                      <span className={`text-xs font-semibold ${billing === "yearly" ? "text-violet-700" : "text-gray-400"}`}>
+                        Yearly {selectedPkg.yearly_price ? <span className="text-violet-500">(Save {getSave(selectedPkg)}%)</span> : null}
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Line items */}
                   <div className="space-y-3 mb-5">
                     <div className="flex justify-between items-start">
@@ -402,7 +419,7 @@ export default function EmailHostingCheckout() {
                         </div>
                         {billing === "yearly" && selectedPkg.yearly_price && (
                           <div className="text-xs text-gray-400">
-                            PKR {Number(selectedPkg.yearly_price).toLocaleString()} billed now
+                            PKR {Number(selectedPkg.yearly_price).toLocaleString()} billed annually
                           </div>
                         )}
                       </div>
@@ -414,7 +431,12 @@ export default function EmailHostingCheckout() {
                   </div>
 
                   <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
-                    <span className="font-bold text-gray-700">Total due today</span>
+                    <div>
+                      <div className="font-bold text-gray-700">Total due today</div>
+                      <div className="text-xs text-gray-400">
+                        {billing === "yearly" ? "One annual payment" : "First monthly payment"}
+                      </div>
+                    </div>
                     <span className="text-2xl font-black" style={{ color: "#111827" }}>
                       PKR {totalPrice.toLocaleString()}
                     </span>
