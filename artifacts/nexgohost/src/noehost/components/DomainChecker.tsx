@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Globe, Search, XCircle, Loader2, ShoppingCart, RefreshCw, Info,
   Calendar, Building2, Server, CheckCircle2, AlertCircle, Copy, ExternalLink,
-  Layers, ArrowRightLeft, Check, Plus, Trash2, Tag, Zap
+  Layers, ArrowRightLeft, Check, Plus, Trash2, Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrency } from '../CurrencyContext';
@@ -310,26 +310,29 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     }).filter(d => d.baseName.length >= 2);
     setBulkResults(domains.map(d => ({ domain: d.domain, available: null, checking: true, baseName: d.baseName, tld: d.tld })));
     setBulkSearching(true);
-    for (let i = 0; i < domains.length; i++) {
-      const { domain, baseName, tld } = domains[i];
-      try {
-        const res = await fetch(`/api/domains/availability?domain=${encodeURIComponent(baseName)}`);
-        const data = await res.json();
-        const match = (data.results ?? []).find((r: TldResult) => r.tld === tld);
-        setBulkResults(prev => prev.map((p, idx) => idx === i ? { ...p, checking: false, available: match?.available ?? null, price: match?.registrationPrice ?? 0, tld } : p));
-      } catch {
-        setBulkResults(prev => prev.map((p, idx) => idx === i ? { ...p, checking: false, available: null } : p));
-      }
-    }
+
+    // Check all domains in parallel — results arrive all at once
+    const checkAll = domains.map(({ baseName, tld }, i) =>
+      fetch(`/api/domains/availability?domain=${encodeURIComponent(baseName)}`)
+        .then(r => r.json())
+        .then(data => {
+          const match = (data.results ?? []).find((r: TldResult) => r.tld === tld);
+          return { i, checking: false, available: match?.available ?? null, price: match?.registrationPrice ?? 0, tld };
+        })
+        .catch(() => ({ i, checking: false, available: null as null, price: 0, tld }))
+    );
+    const settled = await Promise.all(checkAll);
+    setBulkResults(prev => {
+      const next = [...prev];
+      settled.forEach(({ i, ...rest }) => { next[i] = { ...next[i], ...rest }; });
+      return next;
+    });
     setBulkSearching(false);
   };
 
-  const addBulkToCart = async (r: BulkResult) => {
+  const addBulkToCart = (r: BulkResult) => {
     if (!r.available || !r.price) return;
-    const price = isPkDomain(r.tld ?? '') ? 4000 : r.price;
-    await addItem({ type: 'domain', planId: `domain-${r.domain}`, name: r.domain, billingCycle: isPkDomain(r.tld ?? '') ? 'biennially' : 'yearly', monthlyPrice: price, quarterlyPrice: null, semiannualPrice: null, yearlyPrice: price, domainName: r.domain, tld: r.tld ?? '' });
-    setBulkResults(prev => prev.map(p => p.domain === r.domain ? { ...p, added: true } : p));
-    openCart();
+    handleRegisterNow(r.tld ?? '', r.price, r.baseName);
   };
 
   const handleTransferParse = () => {
@@ -445,14 +448,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                             onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
                             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 transition-all"
                           >
-                            <Zap size={15} /> Register Now →
-                          </button>
-                          <button
-                            onClick={() => handleAddToCart(primaryAvail.tld, primaryAvail.registrationPrice)}
-                            disabled={addedDomains.has(`${searched}${primaryAvail.tld}`)}
-                            className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl font-semibold text-sm transition-all border mt-2 ${addedDomains.has(`${searched}${primaryAvail.tld}`) ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-purple-200 hover:border-purple-400 text-purple-600 hover:bg-purple-50'}`}
-                          >
-                            {addedDomains.has(`${searched}${primaryAvail.tld}`) ? <><Check size={13} /> Added to Cart</> : <><ShoppingCart size={13} /> Add to Cart</>}
+                            <ShoppingCart size={15} /> Add to Cart →
                           </button>
 
                           <p className="mt-3 text-[11px] text-slate-400 font-medium leading-snug">
@@ -484,7 +480,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               </p>
 
                               <button
-                                onClick={() => bundleAlts.forEach(b => handleAddToCart(b.tld, b.registrationPrice))}
+                                onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
                                 className="flex items-center justify-center gap-2 w-full py-3 bg-white hover:bg-slate-100 border-2 border-purple-200 hover:border-purple-400 text-purple-700 rounded-xl font-black text-sm transition-all"
                               >
                                 <ShoppingCart size={15} /> Add Bundle to Cart

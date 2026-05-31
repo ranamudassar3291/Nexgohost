@@ -183,7 +183,7 @@ const Domains: React.FC = () => {
             href="/client/domains?tab=order"
             className="inline-flex items-center gap-2 px-10 py-4 bg-white text-primary font-black rounded-2xl hover:bg-slate-50 transition-all shadow-xl uppercase tracking-widest text-sm"
           >
-            Register Now <ArrowRight size={18} />
+            Add to Cart <ArrowRight size={18} />
           </a>
         </div>
       </section>
