@@ -1,0 +1,50 @@
+You are an expert Backend Engineer and Database Administrator. Fix the syntax error in the database query immediately as shown in image_7c4357.png on the checkout route.
+
+---
+### 1. THE CRITICAL BUG IN YOUR QUERY (Look at image_7c4357.png)
+In the red error container, your raw executed SQL query reveals a broken structural comma mismatch:
+`VALUES ($1, , $2, $3, $4, $5, 'pending_dns', NOW(), NOW())`
+
+Notice the double commas with an empty space between them: `$1, , $2`. This syntax anomaly breaks PostgreSQL completely because you either didn't pass a variable in the array or added an accidental duplicate comma in the query string.
+
+---
+### 2. THE EXACT BACKEND CONTROLLER FIX (`/api/orders/email` or checkout route)
+
+Locate the file where the `INSERT INTO email_orders` query is written and refactor it EXACTLY like this to ensure clean parameter mapping:
+
+```javascript
+// 1. Ensure the backend extracts all fields correctly from request body / session
+const { package_id, domain_name, billing_cycle, amount_paid } = req.body;
+const user_id = req.user.id; // Or your auth session variable
+
+// 2. Strict, clean SQL template string with NO trailing or empty commas
+const checkoutQuery = `
+  INSERT INTO email_orders (
+    user_id, 
+    package_id, 
+    domain_name, 
+    billing_cycle, 
+    amount_paid, 
+    status, 
+    created_at, 
+    updated_at
+  ) VALUES ($1, $2, $3, $4, $5, 'pending_dns', NOW(), NOW())
+  RETURNING *;
+`;
+
+// 3. Array elements must match the order of $1, $2, $3, $4, $5 exactly with NO missing fields
+const queryParameters = [
+  user_id,         // maps to $1
+  package_id,      // maps to $2
+  domain_name,     // maps to $3
+  billing_cycle,   // maps to $4
+  amount_paid      // maps to $5
+];
+
+try {
+  const result = await db.query(checkoutQuery, queryParameters);
+  return res.status(200).json({ success: true, order: result.rows[0] });
+} catch (error) {
+  console.error("Database Error:", error);
+  return res.status(500).json({ success: false, message: "Order generation failed securely." });
+}

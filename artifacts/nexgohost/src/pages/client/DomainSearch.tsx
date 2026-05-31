@@ -41,8 +41,11 @@ interface SearchResult {
   registerPrice: number | null; register2YearPrice: number | null; register3YearPrice: number | null;
   renewPrice: number | null; isFreeWithHosting: boolean; extension: string; checkedVia: string;
 }
+const DOMAIN_CART_KEY = "noehost_domain_cart_v1";
+
 interface CartItem {
-  domain: string; period: number; price: number; originalPrice: number | null; isFreeWithHosting: boolean;
+  domain: string; period: number; price: number; originalPrice: number | null;
+  isFreeWithHosting: boolean; action: "register" | "transfer";
 }
 
 type Period = 1 | 2 | 3;
@@ -198,15 +201,15 @@ export default function DomainSearch() {
     }
   }
 
-  function addToCart(r: SearchResult) {
+  function addToCart(r: SearchResult, action: "register" | "transfer" = "register") {
     const { price, original, period: p } = getPrice(r, r.domain, isPk(r.domain) ? 2 : period);
     if (!price) return;
     let already = false;
     setCart(prev => {
       if (prev.find(c => c.domain === r.domain)) { already = true; return prev; }
-      return [...prev, { domain: r.domain, period: p, price, originalPrice: original, isFreeWithHosting: r.isFreeWithHosting ?? false }];
+      return [...prev, { domain: r.domain, period: p, price, originalPrice: original, isFreeWithHosting: r.isFreeWithHosting ?? false, action }];
     });
-    if (!already) toast({ title: "Added to cart!", description: r.domain });
+    if (!already) toast({ title: action === "transfer" ? "Transfer queued!" : "Added to cart!", description: r.domain });
     setCartOpen(true);
   }
 
@@ -270,13 +273,17 @@ export default function DomainSearch() {
               <Badge className="bg-green-500/15 text-green-500 border-green-500/25 text-xs hidden sm:flex">Available</Badge>
               {inCart
                 ? <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setCartOpen(true)}><ShoppingCart size={12} /> In Cart</Button>
-                : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r)}><Plus size={12} /> Add to Cart</Button>}
+                : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r, xfer ? "transfer" : "register")}><Plus size={12} /> Add to Cart</Button>}
             </>
           ) : tak ? (
             <>
               <Badge variant="secondary" className="text-xs">{xfer ? "Transferable" : "Taken"}</Badge>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => openWhois(r)}><BadgeInfo size={12} /> WHOIS</Button>
-              <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => goTransfer(r.domain)}><ArrowRightLeft size={12} /> Transfer</Button>
+              {xfer
+                ? (inCart
+                    ? <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setCartOpen(true)}><ShoppingCart size={12} /> In Cart</Button>
+                    : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => addToCart(r, "transfer")}><Plus size={12} /> Add Transfer</Button>)
+                : <Button size="sm" className="gap-1.5 text-xs h-8" style={{ background: BRAND, border: "none" }} onClick={() => goTransfer(r.domain)}><ArrowRightLeft size={12} /> Transfer</Button>}
             </>
           ) : (
             <a href={`https://lookup.icann.org/en/lookup?name=${encodeURIComponent(r.domain)}`} target="_blank" rel="noopener noreferrer">
@@ -666,16 +673,13 @@ export default function DomainSearch() {
               <Button className="w-full h-11 gap-2 font-semibold" style={{ background: BRAND, border: "none" }}
                 onClick={() => {
                   if (!cart.length) return;
-                  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token");
-                  if (!token) {
-                    setCartOpen(false);
-                    setLocation(`/client/login?redirect=${encodeURIComponent("/client/domains/search")}`);
-                    return;
-                  }
+                  // Persist the full cart (all domains + action types) to localStorage
+                  localStorage.setItem(DOMAIN_CART_KEY, JSON.stringify(cart));
                   setCartOpen(false);
-                  setLocation(`/client/domains?tab=order&domain=${encodeURIComponent(cart[0].domain)}`);
+                  // Route to dedicated domain checkout — no login required upfront
+                  setLocation("/checkout/domains");
                 }}>
-                Proceed to Checkout <ChevronRight size={16} />
+                Checkout Now <ChevronRight size={16} />
               </Button>
             </div>
           </div>

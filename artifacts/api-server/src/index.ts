@@ -964,6 +964,24 @@ async function runStartupMigrations() {
     await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     console.log("[MIGRATIONS] admin_email_packages schema self-healed");
 
+    // ── Safe Migration: domain cart session table ─────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS domain_cart_items (
+        id            SERIAL PRIMARY KEY,
+        session_token VARCHAR(255) NOT NULL,
+        domain_name   VARCHAR(255) NOT NULL,
+        action_type   VARCHAR(50)  NOT NULL DEFAULT 'register',
+        tld           VARCHAR(50),
+        period        INTEGER      NOT NULL DEFAULT 1,
+        price         NUMERIC(10,2),
+        user_id       TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_domain_cart_session ON domain_cart_items(session_token)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_domain_cart_user ON domain_cart_items(user_id)`);
+    console.log("[MIGRATIONS] domain_cart_items table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
