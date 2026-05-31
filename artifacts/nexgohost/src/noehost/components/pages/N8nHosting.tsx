@@ -393,12 +393,14 @@ const N8nHosting: React.FC = () => {
                       </div>
                     )}
 
-                    {/* MOST POPULAR badge */}
-                    {spec.badge && (
+                    {/* MOST POPULAR badge — spacer keeps all cards aligned */}
+                    {spec.badge ? (
                       <div className="py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-white"
                         style={{ background: 'linear-gradient(90deg, #6D28D9, #7C3AED)' }}>
                         {spec.badge}
                       </div>
+                    ) : (
+                      <div className="py-2 text-[11px] invisible select-none" aria-hidden="true">placeholder</div>
                     )}
 
                     <div className="p-7 flex flex-col flex-1">

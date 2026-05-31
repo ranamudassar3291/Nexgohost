@@ -211,6 +211,12 @@ export default function DomainSearch() {
   }
 
   function goTransfer(domain: string) {
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token");
+    if (!token) {
+      const returnPath = `/client/domains/transfer?domain=${encodeURIComponent(domain)}`;
+      setLocation(`/client/login?redirect=${encodeURIComponent(returnPath)}`);
+      return;
+    }
     setLocation(`/client/domains/transfer?domain=${encodeURIComponent(domain)}`);
   }
 
@@ -338,6 +344,9 @@ export default function DomainSearch() {
                 {p === 3 && <span className={`ml-1 text-[10px] font-bold ${period === 3 ? "text-yellow-300" : "text-primary"}`}>DEAL</span>}
               </button>
             ))}
+            {results.some(r => isPk(r.domain)) && (
+              <span className="text-[11px] text-amber-500 font-medium ml-1">· .pk domains are 2-year only</span>
+            )}
           </div>
 
           {error && (
@@ -655,7 +664,17 @@ export default function DomainSearch() {
                 <span className="font-bold text-foreground">{formatPrice(cart.reduce((s, c) => s + c.price, 0))}</span>
               </div>
               <Button className="w-full h-11 gap-2 font-semibold" style={{ background: BRAND, border: "none" }}
-                onClick={() => { if (cart.length) setLocation(`/client/domains?tab=order&domain=${encodeURIComponent(cart[0].domain)}`); }}>
+                onClick={() => {
+                  if (!cart.length) return;
+                  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token");
+                  if (!token) {
+                    setCartOpen(false);
+                    setLocation(`/client/login?redirect=${encodeURIComponent("/client/domains/search")}`);
+                    return;
+                  }
+                  setCartOpen(false);
+                  setLocation(`/client/domains?tab=order&domain=${encodeURIComponent(cart[0].domain)}`);
+                }}>
                 Proceed to Checkout <ChevronRight size={16} />
               </Button>
             </div>

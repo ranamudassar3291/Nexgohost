@@ -56,13 +56,19 @@ const CartSidebar: React.FC = () => {
 
     const token = localStorage.getItem('noehost_token') || localStorage.getItem('token');
 
-    if (transferItems.length > 0) {
-      if (!token) {
-        closeCart();
-        navigate(`/client/login?redirect=${encodeURIComponent(window.location.pathname + '#transfer')}`);
-        return;
-      }
+    // Always check login first — redirect with proper return path
+    if (!token) {
+      closeCart();
+      const returnPath = transferItems.length > 0
+        ? '/client/domains/transfer'
+        : items.some(i => i.type === 'domain')
+          ? '/client/domains/search'
+          : '/client/orders/new';
+      navigate(`/client/login?redirect=${encodeURIComponent(returnPath)}`);
+      return;
+    }
 
+    if (transferItems.length > 0) {
       setProcessingTransfers(true);
       const epps: Record<string, string> = JSON.parse(localStorage.getItem('noehost_transfer_epps') || '{}');
       const transfers = transferItems.map(i => ({
@@ -92,7 +98,16 @@ const CartSidebar: React.FC = () => {
     }
 
     closeCart();
-    navigate('/client/orders/new');
+
+    // Domain-only cart → go to domain search/order page
+    const domainOnlyItems = otherItems.filter(i => i.type === 'domain');
+    const hostingItems = otherItems.filter(i => i.type !== 'domain');
+
+    if (domainOnlyItems.length > 0 && hostingItems.length === 0) {
+      navigate('/client/domains/search');
+    } else {
+      navigate('/client/orders/new');
+    }
   };
 
   const handleContinueShopping = () => {
