@@ -1,0 +1,1 @@
+- [API Server Startup](api-server-startup.md) — artifact workflow always times out; use `Start application` with direct npx tsx command instead
