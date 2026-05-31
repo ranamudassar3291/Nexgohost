@@ -291,6 +291,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
     const vpsImageId      = req.body.vpsImageId ?? null;
     const vpsAutoRenew    = req.body.vpsAutoRenew !== false;
     const vpsWeeklyBackups = req.body.vpsWeeklyBackups === true;
+    const vpsBackupAddon  = req.body.vpsBackupAddon === true;
+    const BACKUP_MONTHLY_PKR = 299;
 
     if (vpsPlanId) {
       const [vpsPlan] = await db.select().from(vpsPlansTable)
@@ -323,7 +325,9 @@ async function handleCheckout(req: AuthRequest, res: any) {
           vpsDiscount = Math.round(vpsAmount * (Number(promo.discountPercent) / 100) * 100) / 100;
         }
       }
-      const finalVpsAmount = Math.max(0, vpsAmount - vpsDiscount);
+      const cycleMonthsMap: Record<string,number> = { monthly:1, quarterly:3, semiannual:6, yearly:12, biennial:24 };
+      const backupCycleAmount = (vpsWeeklyBackups || vpsBackupAddon) ? BACKUP_MONTHLY_PKR * (cycleMonthsMap[cycle] ?? 1) : 0;
+      const finalVpsAmount = Math.max(0, vpsAmount - vpsDiscount + backupCycleAmount);
 
       // Credits pre-check (full-credits mode only)
       if (paymentMethodId === "credits" && finalVpsAmount > 0) {
@@ -380,7 +384,10 @@ async function handleCheckout(req: AuthRequest, res: any) {
         total: String(finalVpsAmount.toFixed(2)),
         status: "unpaid",
         dueDate,
-        items: [{ description: `VPS Hosting: ${vpsPlan.name} (${cycle})`, quantity: 1, unitPrice: vpsAmount, total: finalVpsAmount }],
+        items: [
+          { description: `VPS Hosting: ${vpsPlan.name} (${cycle})`, quantity: 1, unitPrice: vpsAmount, total: vpsAmount - vpsDiscount },
+          ...(backupCycleAmount > 0 ? [{ description: `Daily Automatic Backups (${cycle})`, quantity: 1, unitPrice: backupCycleAmount, total: backupCycleAmount }] : []),
+        ],
         currencyCode: invoiceCurrencyCode,
         currencySymbol: invoiceCurrencySymbol,
         currencyRate: String(invoiceCurrencyRate),

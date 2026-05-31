@@ -9,7 +9,6 @@ import {
 import { useContent } from '../../ContentContext';
 import { useCurrency } from '../../CurrencyContext';
 import { useVpsPlans } from '../../hooks/usePackages';
-import OrderModal, { OrderPlan } from '../OrderModal';
 
 const UC_ICONS: any = { 'Development & Testing': <Code size={22} />, 'High-Traffic Websites': <Globe size={22} />, 'Database Servers': <Database size={22} />, 'Game Servers': <Monitor size={22} />, 'VPN & Security': <Shield size={22} />, 'Analytics & APIs': <Activity size={22} /> };
 const SEC_ICONS: any = { 'DDoS Mitigation': <Shield size={24} />, 'Firewall Control': <Lock size={24} />, 'Root SSH Access': <Terminal size={24} />, 'Snapshot Backups': <RefreshCw size={24} /> };
@@ -97,23 +96,16 @@ const VPSHosting: React.FC = () => {
   const datacenters = pg.datacenters || [];
   const securityItems = pg.securityItems || [];
 
-  const [orderPlan, setOrderPlan] = useState<OrderPlan | null>(null);
   const [yearly, setYearly] = useState(false);
 
   const handleOrderNow = (plan: any) => {
     const raw = plan._raw || plan;
-    setOrderPlan({
-      id: raw.id || '',
-      name: raw.name || plan.name,
-      description: raw.description || plan.desc || '',
-      monthlyPrice: Number(raw.price || plan.price || 0),
-      yearlyPrice: raw.yearlyPrice != null ? Number(raw.yearlyPrice) : null,
-      quarterlyPrice: raw.quarterlyPrice != null ? Number(raw.quarterlyPrice) : null,
-      semiannualPrice: raw.semiannualPrice != null ? Number(raw.semiannualPrice) : null,
-      defaultCycle: yearly ? 'yearly' : 'monthly',
-      type: 'vps',
-      features: [plan.cpu, plan.ram, plan.storage, plan.bandwidth].filter(Boolean),
-    });
+    const planId = raw.id || '';
+    if (planId) {
+      window.location.href = `/order/vps/${planId}`;
+    } else {
+      window.location.href = '/client/orders/new';
+    }
   };
 
   const { plans: apiVps, loading: plansLoading } = useVpsPlans();
@@ -368,9 +360,6 @@ const VPSHosting: React.FC = () => {
         </section>
       )}
 
-      {orderPlan && (
-        <OrderModal plan={orderPlan} onClose={() => setOrderPlan(null)} />
-      )}
     </div>
   );
 };

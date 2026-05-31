@@ -88,6 +88,7 @@ import DomainDns from "@/pages/client/DomainDns";
 import DomainSearch from "@/pages/client/DomainSearch";
 import RegisterDomain from "@/pages/client/RegisterDomain";
 import VpsManage from "@/pages/client/VpsManage";
+import VpsOrderPage from "@/pages/client/VpsOrderPage";
 import NoEmailManage from "@/pages/client/NoEmailManage";
 import EmailHostingCheckout from "@/pages/client/EmailHostingCheckout";
 import HelpCenter from "@/pages/client/HelpCenter";
@@ -186,16 +187,19 @@ function OrderByPid() {
   return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
 }
 
-// VPS direct-link: /order/vps/:planId — pre-select a VPS plan
+// VPS direct-link: /order/vps/:planId — Hostinger-style VPS configure + order page
 function OrderByVpsPlan() {
-  const { planId } = useParams<{ planId: string }>();
-  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={planId}/></CheckoutLayout>;
+  return <VpsOrderPage/>;
 }
 
 // WHMCS-style VPS: /order/config/index.php?vps_id=UUID
 function OrderByVpsId() {
   const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
-  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
+  if (vpsId) {
+    window.location.replace(`/order/vps/${vpsId}`);
+    return null;
+  }
+  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId=""/></CheckoutLayout>;
 }
 
 // /buy/:planId  — clean short link: UUID or slug → resolves to NewOrder

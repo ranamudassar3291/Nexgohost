@@ -1,0 +1,46 @@
+You are an elite Senior Full-Stack Engineer and API Integration Expert. Review the active Admin Panel configuration from image_8889dd.png under path `/admin/noemail`. 
+
+Our server already has the 20i API credentials globally connected. Your task is to build out the full automated backend linkages, database relationships, the public landing page packages, a Spaceship-style order process, and the custom 1:1 frontend clone inspired directly by the sleek, minimalist interface of spacemail.com.
+
+---
+### 1. PLATFORM THEME & VISUAL RESTRICTION
+- UI Aesthetic: Follow the flat white premium styling seen in image_8889dd.png. Solid white surfaces (#ffffff) running on an ultra-light uniform background (#fafafa), fine subtle borders (border-gray-100), and vibrant purple (#7C3AED) as the primary accent indicator for active states, buttons, and selections.
+- White-Label Engine: Hardcode all API executions behind the scenes to 20i servers. ABSOLUTELY NO trace of "20i", "StackCP", or original server host markers must ever appear anywhere on the customer frontend, placeholders, or user settings.
+
+---
+### 2. COMPONENT AUTOMATION & WORKFLOW SYNC
+
+#### STEP A: Admin Package & Frontend Sync Architecture
+- Map the functionality of the "+ New Package" button visible in image_8889dd.png. When clicked, it must open a clean modal requiring: Package Title, Total Mailboxes Allowed, Storage Size per Mailbox (GB), Pricing (PKR/USD), and a dropdown field selector containing active Package Templates fetched straight from our connected 20i API.
+- Saving this must populate the database. The public website's business email hosting page must dynamically query this database table and automatically render these packages as premium pricing cards in real-time.
+
+#### STEP B: Spaceship.com Style Order & Checkout Flow
+- When a user chooses a package from the website, initiate a single-canvas multi-step wizard mirroring spaceship.com:
+  1. Domain Picker: Clean inline box asking the client to: "Connect an existing domain or configure a new one for NoeMail".
+  2. Order Review Grid: Display itemized layout subtotals cleanly.
+  3. Final Authentication Gate: Right below the review panel, render an elegant inline split wrapper containing [Sign In] and [Register Account] forms. 
+  - SYSTEM LINK RULE: Completing authentication must seamlessly bind the active cart row session to the newly authenticated customer profile ID inside the database without losing any input states or breaking the checkout loop.
+
+#### STEP C: Post-Purchase Automated DNS Screen
+- Right after an order invoice status resolves to paid, route the client to a sleek confirmation page showing two distinct, minimal action buttons:
+  * Button 1: "[⚙️ Configure DNS Records Now]" – Drops down a high-density matrix displaying the exact custom MX Records, SPF strings, and DKIM parameters needed to point their domain to our mail ecosystem.
+  * Button 2: "[➡️ Setup Later / Go to Dashboard]" – Smoothly redirects the user directly into their core customer workspace.
+
+#### STEP D: Custom White-Label Webmail Dashboard & Token Login
+- Path: `/dashboard/noemail/manage/:order_id`
+- Render the exact 1:1 functional frontend framework clone of spacemail.com:
+  * Storage Meter Component: A thin minimalist track bar displaying layout storage capacity.
+  * Core Grid Table: Lists all active mailboxes created (`sales@yourdomain.com`).
+  * Creation Flow: Clicking "[+] Add New Mailbox" opens an inline slide-over panel that creates the user account on the 20i cluster dynamically using the connected server credentials.
+  * THE PASSWORDLESS AUTOLOGIN TRICK: Next to every active email record row, include a clean gray-bordered button labeled "[🚀 Login to Webmail]". Clicking this must retrieve a secure single-sign-on token via the server-side API, and seamlessly launch the client browser directly into our proprietary webmail application layer hosted at `noemail.noehost.com` without requiring manual passwords.
+
+---
+### 3. DATABASE RELATIONAL STRUCTURAL SCHEMAS
+Ensure all PostgreSQL migrations map properly:
+1. `email_hosting_packages`: `id` (PK), `package_name`, `max_mailboxes`, `mailbox_quota_gb`, `price`, `mapped_20i_template_id`.
+2. `email_hosting_orders`: `id` (PK), `user_id` (FK), `package_id` (FK), `domain_name`, `status` ('pending_dns', 'active', 'suspended'), `created_at`.
+3. `registered_mailboxes`: `id` (PK), `order_id` (FK), `local_mailbox_prefix`, `created_at`.
+
+---
+### 4. REPLIT WORKSPACE EXECUTION MANDATE
+Implement robust error catching try/catch blocks across all Express route endpoints. Do not truncate components, provide placeholders, or break structural workflows. Write out the fully unified code logic across all files now.

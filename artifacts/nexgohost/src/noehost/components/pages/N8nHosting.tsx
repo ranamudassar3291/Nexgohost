@@ -433,7 +433,7 @@ const N8nHosting: React.FC = () => {
                       </div>
 
                       <button
-                        onClick={() => window.location.href = '/client/orders/new'}
+                        onClick={() => window.location.href = `/order/vps/${plan.id}`}
                         className="w-full py-3 rounded-xl font-bold text-[14px] text-white mb-7 transition-all hover:opacity-90"
                         style={{
                           background: spec.popular
@@ -441,7 +441,7 @@ const N8nHosting: React.FC = () => {
                             : 'rgba(255,255,255,0.08)',
                           border: spec.popular ? 'none' : '1px solid rgba(255,255,255,0.12)',
                         }}>
-                        Choose your plan
+                        Deploy Now
                       </button>
 
                       {/* Features */}
