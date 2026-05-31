@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 
 export interface CartItem {
   id: string;
-  type: 'hosting' | 'domain' | 'vps';
+  type: 'hosting' | 'domain' | 'vps' | 'domain_transfer';
   planId: string;
   name: string;
   billingCycle: 'monthly' | 'quarterly' | 'semiannual' | 'yearly';
@@ -12,6 +12,7 @@ export interface CartItem {
   yearlyPrice: number | null;
   domainName?: string;
   tld?: string;
+  eppCode?: string;
 }
 
 interface CartContextType {
@@ -57,7 +58,7 @@ async function apiFetch(method: string, path: string, body?: any) {
 
 function mapBackendItem(b: any, idx: number): CartItem {
   const rawType = b.itemType || b.item_type || 'hosting';
-  const type = (['hosting', 'domain', 'vps'].includes(rawType) ? rawType : 'hosting') as CartItem['type'];
+  const type = (['hosting', 'domain', 'vps', 'domain_transfer'].includes(rawType) ? rawType : 'hosting') as CartItem['type'];
   const domainName = b.domainName || b.domain_name || undefined;
   const tld = b.tld || (domainName ? '.' + domainName.split('.').slice(1).join('.') : undefined);
 

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingCart, Trash2, ArrowRight, Package, Globe, ChevronRight, ShieldCheck, Tag, ArrowLeft } from 'lucide-react';
+import { X, ShoppingCart, Trash2, ArrowRight, Package, Globe, ChevronRight, ShieldCheck, Tag, ArrowLeft, ArrowRightLeft, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { useCart, CartItem } from '../context/CartContext';
 import { useCurrency } from '../CurrencyContext';
 import { useNavigate } from 'react-router-dom';
@@ -39,20 +39,66 @@ function availableCycles(item: CartItem): CartItem['billingCycle'][] {
   });
 }
 
-
 const CartSidebar: React.FC = () => {
   const { items, removeItem, updateBillingCycle, isCartOpen, closeCart, getTotal } = useCart();
   const { convertFromPKR } = useCurrency();
   const navigate = useNavigate();
 
-  const handleCheckout = () => {
+  const [processingTransfers, setProcessingTransfers] = useState(false);
+  const [transferResults, setTransferResults] = useState<{ domain: string; success: boolean; error?: string }[]>([]);
+  const [showTransferResults, setShowTransferResults] = useState(false);
+
+  const transferItems = items.filter(i => i.type === 'domain_transfer');
+  const otherItems = items.filter(i => i.type !== 'domain_transfer');
+
+  const handleCheckout = async () => {
     if (items.length === 0) return;
+
+    const token = localStorage.getItem('noehost_token') || localStorage.getItem('token');
+
+    if (transferItems.length > 0) {
+      if (!token) {
+        closeCart();
+        navigate(`/client/login?redirect=${encodeURIComponent(window.location.pathname + '#transfer')}`);
+        return;
+      }
+
+      setProcessingTransfers(true);
+      const epps: Record<string, string> = JSON.parse(localStorage.getItem('noehost_transfer_epps') || '{}');
+      const transfers = transferItems.map(i => ({
+        domain: i.domainName!,
+        epp: epps[i.domainName!] || i.eppCode || '',
+      }));
+
+      try {
+        const res = await fetch('/api/my/domain-transfers/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ transfers }),
+        });
+        const data = await res.json();
+        setTransferResults(data.results || []);
+        setShowTransferResults(true);
+        for (const item of transferItems) await removeItem(item.id);
+        localStorage.removeItem('noehost_transfer_epps');
+      } catch {
+        setTransferResults(transferItems.map(i => ({ domain: i.domainName!, success: false, error: 'Network error' })));
+        setShowTransferResults(true);
+      } finally {
+        setProcessingTransfers(false);
+      }
+
+      if (otherItems.length === 0) return;
+    }
+
     closeCart();
     navigate('/client/orders/new');
   };
 
   const handleContinueShopping = () => {
     closeCart();
+    setShowTransferResults(false);
+    setTransferResults([]);
   };
 
   return (
@@ -99,6 +145,28 @@ const CartSidebar: React.FC = () => {
               </button>
             </div>
 
+            {/* Transfer Results Panel */}
+            {showTransferResults && (
+              <div className="px-4 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)' }}>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Transfer Results</p>
+                <div className="space-y-2">
+                  {transferResults.map(r => (
+                    <div key={r.domain} className={`flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold ${r.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                      {r.success ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                      <span className="flex-1 truncate">{r.domain}</span>
+                      <span>{r.success ? 'Initiated' : (r.error || 'Failed')}</span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => { setShowTransferResults(false); setTransferResults([]); }}
+                  className="mt-3 text-xs text-slate-500 hover:text-slate-300 font-medium transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* Items */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
               {items.length === 0 ? (
@@ -119,25 +187,33 @@ const CartSidebar: React.FC = () => {
                 </div>
               ) : (
                 items.map(item => {
+                  const isTransfer = item.type === 'domain_transfer';
                   const cycles = availableCycles(item);
                   const price = getItemPrice(item);
                   return (
                     <div
                       key={item.id}
                       className="rounded-2xl p-4 space-y-3"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${isTransfer ? 'rgba(251,146,60,0.2)' : 'rgba(255,255,255,0.08)'}` }}
                     >
                       {/* Item header */}
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-                          {item.type === 'domain' ? <Globe size={18} className="text-primary" /> : <Package size={18} className="text-primary" />}
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isTransfer ? 'bg-orange-500/15' : 'bg-primary/15'}`}>
+                          {isTransfer
+                            ? <ArrowRightLeft size={18} className="text-orange-400" />
+                            : item.type === 'domain'
+                              ? <Globe size={18} className="text-primary" />
+                              : <Package size={18} className="text-primary" />
+                          }
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-black text-white text-sm truncate">{item.name}</p>
                           {item.domainName && (
                             <p className="text-xs text-slate-400 font-mono">{item.domainName}</p>
                           )}
-                          <p className="text-xs text-slate-500 capitalize">{item.type === 'hosting' ? 'Hosting Package' : item.type === 'vps' ? 'VPS Hosting' : 'Domain'}</p>
+                          <p className={`text-xs capitalize ${isTransfer ? 'text-orange-400' : 'text-slate-500'}`}>
+                            {isTransfer ? '🔄 Domain Transfer' : item.type === 'hosting' ? 'Hosting Package' : item.type === 'vps' ? 'VPS Hosting' : 'Domain Registration'}
+                          </p>
                         </div>
                         <button
                           onClick={() => removeItem(item.id)}
@@ -148,8 +224,15 @@ const CartSidebar: React.FC = () => {
                         </button>
                       </div>
 
-                      {/* Billing Cycle Selector */}
-                      {cycles.length > 1 && (
+                      {/* Transfer note */}
+                      {isTransfer && (
+                        <p className="text-[10px] text-orange-300/70 font-medium px-1">
+                          EPP code saved. Transfer will be initiated at checkout.
+                        </p>
+                      )}
+
+                      {/* Billing Cycle Selector — skip for transfers */}
+                      {!isTransfer && cycles.length > 1 && (
                         <div>
                           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Billing Cycle</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -187,13 +270,15 @@ const CartSidebar: React.FC = () => {
                       )}
 
                       {/* Price */}
-                      <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span className="text-xs text-slate-500 font-medium">{CYCLE_LABELS[item.billingCycle]} price</span>
-                        <span className="text-base font-black text-white">
-                          {convertFromPKR(price)}
-                          <span className="text-xs font-bold text-slate-500">{CYCLE_SUFFIX[item.billingCycle]}</span>
-                        </span>
-                      </div>
+                      {!isTransfer && (
+                        <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span className="text-xs text-slate-500 font-medium">{CYCLE_LABELS[item.billingCycle]} price</span>
+                          <span className="text-base font-black text-white">
+                            {convertFromPKR(price)}
+                            <span className="text-xs font-bold text-slate-500">{CYCLE_SUFFIX[item.billingCycle]}</span>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -203,13 +288,22 @@ const CartSidebar: React.FC = () => {
             {/* Footer */}
             {items.length > 0 && (
               <div className="px-4 py-4 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
-                {/* Summary */}
-                <div className="flex justify-between items-center px-1">
-                  <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">
-                    <Tag size={13} className="text-primary" /> Subtotal
+                {/* Transfer notice */}
+                {transferItems.length > 0 && otherItems.length === 0 && (
+                  <div className="text-xs text-orange-300/70 text-center font-medium px-2 pb-1">
+                    {transferItems.length} domain transfer{transferItems.length > 1 ? 's' : ''} ready — login required to proceed
                   </div>
-                  <span className="text-xl font-black text-white">{convertFromPKR(getTotal())}</span>
-                </div>
+                )}
+
+                {/* Summary — only for non-transfer items */}
+                {otherItems.length > 0 && (
+                  <div className="flex justify-between items-center px-1">
+                    <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">
+                      <Tag size={13} className="text-primary" /> Subtotal
+                    </div>
+                    <span className="text-xl font-black text-white">{convertFromPKR(getTotal())}</span>
+                  </div>
+                )}
 
                 {/* Trust badges */}
                 <div className="flex items-center justify-center gap-3 text-xs text-slate-500 font-medium py-1">
@@ -223,10 +317,16 @@ const CartSidebar: React.FC = () => {
                 {/* Checkout Button */}
                 <button
                   onClick={handleCheckout}
-                  className="w-full py-3.5 rounded-2xl text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-xl hover:brightness-110 active:scale-[0.99]"
+                  disabled={processingTransfers}
+                  className="w-full py-3.5 rounded-2xl text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-xl hover:brightness-110 active:scale-[0.99] disabled:opacity-70"
                   style={{ background: 'linear-gradient(135deg, #673de6 0%, #4c22cc 100%)', boxShadow: '0 8px 24px rgba(103,61,230,0.35)' }}
                 >
-                  Checkout Now <ChevronRight size={17} />
+                  {processingTransfers
+                    ? <><Loader2 size={16} className="animate-spin" /> Processing transfers...</>
+                    : transferItems.length > 0 && otherItems.length === 0
+                      ? <><ArrowRightLeft size={16} /> Proceed with Transfers <ChevronRight size={17} /></>
+                      : <>Checkout Now <ChevronRight size={17} /></>
+                  }
                 </button>
 
                 {/* Continue Shopping */}

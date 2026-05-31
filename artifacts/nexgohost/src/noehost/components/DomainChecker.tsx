@@ -348,12 +348,11 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     const finalPrice = isPkDomain(tld) ? 4000 : r.price;
     await addItem({
       type: 'domain', planId: `domain-${r.domain}`, name: r.domain,
-      billingCycle: isPkDomain(tld) ? 'biennially' : 'yearly',
+      billingCycle: isPkDomain(tld) ? 'yearly' : 'yearly',
       monthlyPrice: finalPrice, quarterlyPrice: null, semiannualPrice: null,
       yearlyPrice: finalPrice, domainName: r.domain, tld,
     });
     setBulkResults(prev => prev.map(p => p.domain === r.domain ? { ...p, added: true } : p));
-    openCart();
   };
 
   const selectAllAvailableBulk = () => {
@@ -391,29 +390,27 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     }
     setTransferEppErrors(new Set());
 
-    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
-    if (!token) {
-      localStorage.setItem('bulk_domain_transfers', JSON.stringify(
-        pending.map(d => ({ domain: d, epp: transferEppCodes[d] }))
-      ));
-      window.location.href = `/client/login?redirect=${encodeURIComponent('/domains#transfer')}`;
-      return;
-    }
+    localStorage.setItem('noehost_transfer_epps', JSON.stringify(transferEppCodes));
 
     setTransferSubmitting(true);
-    try {
-      const res = await fetch('/api/my/domain-transfers/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ transfers: pending.map(d => ({ domain: d, epp: transferEppCodes[d].trim() })) }),
+    for (const domain of pending) {
+      const tld = '.' + domain.split('.').slice(1).join('.');
+      await addItem({
+        type: 'domain_transfer' as any,
+        planId: `transfer-${domain}`,
+        name: `Transfer: ${domain}`,
+        billingCycle: 'yearly',
+        monthlyPrice: 0,
+        quarterlyPrice: null,
+        semiannualPrice: null,
+        yearlyPrice: 0,
+        domainName: domain,
+        tld,
+        eppCode: transferEppCodes[domain]?.trim(),
       });
-      const data = await res.json();
-      setTransferResults(data.results || []);
-    } catch {
-      setTransferResults(pending.map(d => ({ domain: d, success: false, error: 'Network error. Please try again.' })));
-    } finally {
-      setTransferSubmitting(false);
     }
+    setTransferSubmitting(false);
+    openCart();
   };
 
   const handleTransferParse = () => {
@@ -529,7 +526,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                           </p>
 
                           <button
-                            onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
+                            onClick={() => handleAddToCart(primaryAvail.tld, primaryAvail.registrationPrice)}
                             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 transition-all"
                           >
                             <ShoppingCart size={15} /> Add to Cart →
@@ -564,7 +561,13 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               </p>
 
                               <button
-                                onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
+                                onClick={async () => {
+                                  await handleAddToCart(primaryAvail.tld, primaryAvail.registrationPrice);
+                                  for (const b of bundleAlts) {
+                                    await handleAddToCart(b.tld, b.registrationPrice);
+                                  }
+                                  openCart();
+                                }}
                                 className="flex items-center justify-center gap-2 w-full py-3 bg-white hover:bg-slate-100 border-2 border-purple-200 hover:border-purple-400 text-purple-700 rounded-xl font-black text-sm transition-all"
                               >
                                 <ShoppingCart size={15} /> Add Bundle to Cart
@@ -641,7 +644,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               {/* Right: action button */}
                               <div className="flex-shrink-0">
                                 {r.available ? (
-                                  <button onClick={() => handleRegisterNow(r.tld, r.registrationPrice)} disabled={isAdded} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap ${isAdded ? 'bg-green-500 text-white' : 'border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-700'}`}>
+                                  <button onClick={() => handleAddToCart(r.tld, r.registrationPrice)} disabled={isAdded} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap ${isAdded ? 'bg-green-500 text-white' : 'border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-700'}`}>
                                     {isAdded ? <><Check size={12} />Added</> : <><ShoppingCart size={12} />Add to cart</>}
                                   </button>
                                 ) : (
@@ -862,8 +865,8 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                         className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-orange-500/20"
                       >
                         {transferSubmitting
-                          ? <><Loader2 size={16} className="animate-spin" />Processing transfers...</>
-                          : <><ArrowRightLeft size={16} />Transfer All {transferList.filter(d => !transferResults.find(r => r.domain === d && r.success)).length} Domains</>
+                          ? <><Loader2 size={16} className="animate-spin" />Adding to cart...</>
+                          : <><ShoppingCart size={16} />Add {transferList.filter(d => !transferResults.find(r => r.domain === d && r.success)).length} Transfer{transferList.filter(d => !transferResults.find(r => r.domain === d && r.success)).length > 1 ? 's' : ''} to Cart</>
                         }
                       </button>
                     </div>
