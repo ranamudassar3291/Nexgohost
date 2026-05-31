@@ -3,7 +3,6 @@ import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { db } from "@workspace/db";
 import { settingsTable, emailLogsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -12,8 +11,6 @@ import { encryptField, decryptField } from "../lib/fieldCrypto.js";
 
 const ENCRYPTED_SETTING_KEYS = new Set(["smtp_pass", "google_client_secret", "safepay_live_secret", "safepay_sandbox_secret", "stripe_secret_key"]);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
 
 const BRANDING_DIR = path.join(__dirname, "../../../nexgohost/public/uploads/branding");
 fs.mkdirSync(BRANDING_DIR, { recursive: true });

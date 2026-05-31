@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 /**
  * Noehost — Professional Single-Page Invoice PDF
  *
@@ -120,8 +119,8 @@ function dt(iso: string | null | undefined): string {
 }
 
 // ── Logo loader (falls back to null silently) ─────────────────────────────────
-const __filename_pdf = fileURLToPath(import.meta.url);
-const __dirname_pdf  = path.dirname(__filename_pdf);
+const __filename_pdf = __filename;
+const __dirname_pdf  = __dirname;
 const LOGO_PATH      = path.join(__dirname_pdf, "../../../nexgohost/public/uploads/branding/logo.png");
 const LOGO_FALLBACK  = path.join(__dirname_pdf, "../../../nexgohost/public/images/logo-standard-black.png");
 

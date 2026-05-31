@@ -8,8 +8,7 @@ import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail } fr
 import { sendToClientPhone } from "../lib/whatsapp.js";
 import { getSecurityConfig, verifyCaptcha, recordFailedAttempt, isIpBlockedInDb, getClientIp } from "../lib/security.js";
 import crypto from "node:crypto";
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
+const _require = require;
 const _otplib = _require("otplib") as any;
 const { TOTP: OtpTOTP, generateSecret: otpGenerateSecret, NobleCryptoPlugin, ScureBase32Plugin, verify: otpVerify } = _otplib;
 function _makeTotp(secret: string) {

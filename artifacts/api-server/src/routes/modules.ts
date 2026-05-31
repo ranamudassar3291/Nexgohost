@@ -15,9 +15,6 @@ import multer from "multer";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MODULES_DIR = path.resolve(__dirname, "../../modules");
 
 // Ensure module dirs exist

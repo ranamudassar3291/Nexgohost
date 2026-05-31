@@ -22,10 +22,8 @@ import { execAsync } from "./shell.js";
 import AdmZip from "adm-zip";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { getAppUrl } from "./app-url.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TMP_DIR = path.resolve(__dirname, "../../tmp/backups");
 const MODULES_DIR = path.resolve(__dirname, "../../modules");
 const UPLOADS_DIR = path.resolve(__dirname, "../../uploads");
