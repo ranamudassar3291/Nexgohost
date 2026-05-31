@@ -44,26 +44,32 @@ const N8nHosting: React.FC = () => {
 
   const maxSavePercent = vpsPlans.reduce((max, p) => {
     if (!p.yearlyPrice || !p.price) return max;
-    const save = Math.round((1 - p.yearlyPrice / p.price) * 100);
-    return save > max ? save : max;
-  }, 17);
+    const yearlyMonthly = p.yearlyPrice / 12;
+    const save = Math.round((1 - yearlyMonthly / p.price) * 100);
+    return save > 0 && save > max ? save : max;
+  }, 0);
 
-  const fmtSpec = (plan: VpsPlan) => ({
-    cpu: `${plan.cpuCores} vCPU`,
-    ram: `${plan.ramGb} GB RAM`,
-    storage: `${plan.storageGb} GB NVMe`,
-    bandwidth: plan.bandwidthTb ? `${plan.bandwidthTb} TB Bandwidth` : 'Unmetered',
-    popular: vpsPlans.length >= 3 && vpsPlans.indexOf(plan) === 1,
-    badge: vpsPlans.length >= 3 && vpsPlans.indexOf(plan) === 1 ? 'MOST POPULAR' : '',
-    savePercent: plan.yearlyPrice && plan.price
-      ? Math.round((1 - plan.yearlyPrice / plan.price) * 100)
-      : 0,
-    monthlyPrice: plan.price,
-    yearlyPrice: plan.yearlyPrice ?? plan.price,
-    features: plan.features && plan.features.length > 0
-      ? plan.features
-      : ['n8n Pre-installed', 'Free SSL Certificate', 'Unlimited Workflows', 'Unlimited Executions', 'Full Root Access'],
-  });
+  const fmtSpec = (plan: VpsPlan) => {
+    const yearlyMonthly = plan.yearlyPrice ? +(plan.yearlyPrice / 12).toFixed(2) : null;
+    const savePercent = yearlyMonthly && plan.price && yearlyMonthly < plan.price
+      ? Math.round((1 - yearlyMonthly / plan.price) * 100)
+      : 0;
+    return {
+      cpu: `${plan.cpuCores} vCPU`,
+      ram: `${plan.ramGb} GB RAM`,
+      storage: `${plan.storageGb} GB NVMe`,
+      bandwidth: plan.bandwidthTb ? `${plan.bandwidthTb} TB Bandwidth` : 'Unmetered',
+      popular: vpsPlans.length >= 3 && vpsPlans.indexOf(plan) === 1,
+      badge: vpsPlans.length >= 3 && vpsPlans.indexOf(plan) === 1 ? 'MOST POPULAR' : '',
+      savePercent,
+      monthlyPrice: plan.price,
+      yearlyMonthly: yearlyMonthly ?? plan.price,
+      yearlyTotal: plan.yearlyPrice,
+      features: plan.features && plan.features.length > 0
+        ? plan.features
+        : ['n8n Pre-installed', 'Free SSL Certificate', 'Unlimited Workflows', 'Unlimited Executions', 'Full Root Access'],
+    };
+  };
 
   return (
     <div className="min-h-screen text-white" style={{ background: '#000000' }}>
@@ -348,11 +354,17 @@ const N8nHosting: React.FC = () => {
             </div>
           )}
 
-          {!plansLoading && (
+          {!plansLoading && vpsPlans.length === 0 && (
+            <div className="text-center py-12" style={{ color: '#6B7280' }}>
+              <p className="text-base">Plans temporarily unavailable. Please try again shortly.</p>
+            </div>
+          )}
+
+          {!plansLoading && vpsPlans.length > 0 && (
             <div className="grid md:grid-cols-3 gap-5">
               {vpsPlans.map((plan, i) => {
                 const spec = fmtSpec(plan);
-                const price = yearly ? spec.yearlyPrice : spec.monthlyPrice;
+                const price = yearly ? spec.yearlyMonthly : spec.monthlyPrice;
                 const displayPrice = convertFromPKR(price);
                 const origPrice = convertFromPKR(spec.monthlyPrice);
 
