@@ -1,0 +1,50 @@
+You are an elite Senior Full-Stack Architect and System Automation Expert. Your task is to build and deploy a production-ready, 100% white-labeled Business Email Hosting module named "NoeMail" (a product of Noehost). 
+
+The module hooks directly into the 20i Reseller API and meticulously mirrors the flat, spacious, ultra-clean white visual language and operational flow of Spaceship's SpaceMail.
+
+---
+### 1. PLATFORM ARCHITECTURE & STACK RULES
+- Stack: Node.js (Express), React (Vite + Tailwind CSS), and PostgreSQL.
+- Theme: Pristine flat white layout surfaces (#ffffff) running on a subtle light uniform background canvas (#fafafa). Micro hairline boundaries (border-gray-100), fine layout depth shadows (shadow-[0_8px_30px_rgba(0,0,0,0.02)]), and vibrant purple (#7C3AED) exclusively for primary action triggers and active states. 
+- White-Label Compliance: Hardcode all remote integrations to 20i API endpoints internally. ABSOLUTELY NO trace of the string "20i", "StackCP", or database credentials must ever leak into frontend screens, customer labels, instructions, or placeholders.
+
+---
+### 2. CORE SYSTEM MODULES TO IMPLEMENT
+
+#### PHASE A: Admin Panel Email Package Management
+- Path: `/admin/packages/email`
+- Interface: Build a symmetrical configuration control page. It must allow the Admin to create and save mail hosting tiers (e.g., Solo Plan, Premium Enterprise).
+- Inputs: Package Title, Allocation Disk Storage (GB), Total Allowable Mailboxes, Price in Currency, and a direct mapping hook to the internal 20i Package ID template.
+- Persistence: Store configuration rows into a dedicated database table (`admin_email_packages`).
+
+#### PHASE B: Spaceship-style Domain Integration & Checkout Flow
+- Path: `/checkout/email-hosting`
+- Step 1 (Domain Alignment Box): When a client selects an email hosting tier from the main landing page, present a clean white-card setup query asking: "Link your domain to NoeMail". Include an elegant text input field supporting real-time string syntax checking.
+- Step 2 (The Order Review Pane): Instead of redirecting to a generic screen, load an elegant inline line-item pricing summary sheet right over the user canvas.
+- Step 3 (The Late Authentication Gate): At the bottom margin of the active order view, if the visitor session is unauthenticated, render a clean inline toggle card containing specialized: **[Sign In to Profile]** or **[Create New Account]** registration inputs. Authenticating must seamlessly link the active domain cart row in the database directly to the newly activated customer account ID instantly without requiring any re-search loops.
+
+#### PHASE C: Post-Purchase Dual-Option DNS Setup Screen
+- Path: `client/order/confirmation`
+- Right after an invoice transaction state updates to complete, mount a beautifully spaced screen providing the exact post-purchase Spaceship flow:
+  1. Header Context: Clear bold heading reading: "Finish Setting Up Your Domain Email Infrastructure".
+  2. Option Row A: A crisp purple secondary button labeled **"[⚙️ Configure DNS Records Now]"**. Clicking this opens an absolute detailed lookup grid presenting the exact MX records, SPF records, and DKIM configuration targets that need to be pointed to our hidden mail cluster nodes.
+  3. Option Row B: A flat link item labeled **"[➡️ Skip for Now / Setup Later]"** which routes the user straight into their primary customer workspace area smoothly.
+
+#### PHASE D: Client Portal Email Control Desk & Autologin Token Route
+- Path: `/dashboard/noemail/manage/:order_id`
+- Provide a responsive management grid displaying: 
+  * Storage Allocation Tracker Gauge: A fine accent tracking bar reading "X MB of Max Plan Limit Used".
+  * Create Account Modal Trigger: An active inline button "[+] Create New Mailbox Account" that handles an immediate `POST` call to register the account onto the backend 20i API space synchronously.
+  * Active Mailbox Data Grid Table: Columns showing: Active Email Profile Address | Status Pillar ('Active') | Storage Allocation Capacity.
+  * THE AUTOLOGIN SYSTEM FLOW: Every single line record row must feature a prominent, clean gray-stroke button labeled **"[🚀 Login to Webmail]"**. Clicking this must fire a backend request to retrieve/validate a secure authentication token, and instantly redirect the customer browser smoothly into our separate premium white custom interface at `noemail.noehost.com` bypassing any manual credential password entry constraints!
+
+---
+### 3. RELATIONAL POSTGRESQL SCHEMAS
+Generate and initialize the following transactional layout arrays securely:
+1. `admin_email_packages`: `id` (PK), `name`, `max_storage_gb`, `max_mailboxes`, `price`, `remote_20i_package_id`.
+2. `email_orders`: `id` (PK), `user_id` (FK), `package_id` (FK), `domain_name`, `status` ('pending_dns', 'active', 'suspended'), `created_at`.
+3. `synced_mailboxes`: `id` (PK), `order_id` (FK), `email_address`, `quota_mb`, `created_at`.
+
+---
+### 4. REPLIT INTEGRATION RULES
+Ensure all server controllers encapsulate full error-catching blocks, handle data synchronization boundaries beautifully, and maintain absolute 1:1 functional design copy parity. Do not truncate components or emit empty markup boxes. Generate the entire connected ecosystem workflow now.
