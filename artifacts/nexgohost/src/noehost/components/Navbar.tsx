@@ -104,13 +104,14 @@ const IconMap: any = {
   Chrome: <Chrome size={18} />,
 };
 
-const HOSTING_NAMES = ['shared', 'vps', 'reseller', 'wordpress'];
+const HOSTING_NAMES = ['shared', 'vps', 'reseller', 'wordpress', 'n8n'];
 
 const HOSTING_META: Record<string, { desc: string; badge?: string; badgeColor?: string }> = {
   shared:    { desc: 'Secure, speedy, reliable services', badge: 'POPULAR', badgeColor: 'bg-primary/10 text-primary' },
   vps:       { desc: 'Full root access with dedicated resources', badge: 'POPULAR', badgeColor: 'bg-primary/10 text-primary' },
   reseller:  { desc: 'White-label hosting for your business' },
   wordpress: { desc: 'Optimized for the world\'s most popular CMS' },
+  n8n:       { desc: 'Self-hosted automation on your own server', badge: 'NEW', badgeColor: 'bg-violet-500/10 text-violet-400' },
 };
 
 const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
@@ -164,6 +165,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
       { name: 'VPS', href: '/vps-hosting', icon: 'Cpu', color: 'text-purple-500' },
       { name: 'Reseller', href: '/reseller-hosting', icon: 'Users', color: 'text-rose-500' },
       { name: 'WordPress', href: '/wordpress-hosting', icon: 'Layout', color: 'text-emerald-500' },
+      { name: 'N8n', href: '/n8n-hosting', icon: 'Workflow', color: 'text-violet-400' },
       { name: 'Domains', href: '/domains', icon: 'Globe', color: 'text-cyan-500' },
       { name: 'About', href: '/about', icon: 'Info', color: 'text-sky-500' },
       { name: 'Contact', href: '/contact', icon: 'Mail', color: 'text-teal-500' },
@@ -278,7 +280,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                                   {link.name === 'Shared' ? 'Shared Hosting' :
                                    link.name === 'VPS' ? 'VPS Hosting' :
                                    link.name === 'Reseller' ? 'Reseller Hosting' :
-                                   link.name === 'WordPress' ? 'WordPress Hosting' : link.name}
+                                   link.name === 'WordPress' ? 'WordPress Hosting' :
+                                   link.name === 'N8n' ? 'n8n Hosting' : link.name}
                                 </span>
                                 {meta.badge && (
                                   <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/15 text-primary">
@@ -487,7 +490,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                               {link.name === 'Shared' ? 'Shared Hosting' :
                                link.name === 'VPS' ? 'VPS Hosting' :
                                link.name === 'Reseller' ? 'Reseller Hosting' :
-                               link.name === 'WordPress' ? 'WordPress Hosting' : link.name}
+                               link.name === 'WordPress' ? 'WordPress Hosting' :
+                               link.name === 'N8n' ? 'n8n Hosting' : link.name}
                             </span>
                             {meta.badge && (
                               <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/15 text-primary">
