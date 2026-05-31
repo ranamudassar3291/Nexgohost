@@ -51,12 +51,14 @@ const DEFAULT_PLANS = [
 ];
 
 const DEFAULT_OS_TEMPLATES = [
-  { name: "Ubuntu", version: "22.04 LTS",      iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420",   isActive: true },
-  { name: "Ubuntu", version: "20.04 LTS",      iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420",   isActive: true },
-  { name: "Debian", version: "12 Bookworm",    iconUrl: "https://cdn.simpleicons.org/debian/A81D33",   isActive: true },
-  { name: "CentOS", version: "7",              iconUrl: "https://cdn.simpleicons.org/centos/262577",   isActive: true },
-  { name: "AlmaLinux", version: "9",           iconUrl: "https://cdn.simpleicons.org/almalinux/ACE3B0", isActive: true },
-  { name: "Windows Server", version: "2022",   iconUrl: "https://cdn.simpleicons.org/windows/0078D4", isActive: true },
+  { name: "Ubuntu",        version: "22.04 LTS",    iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420",    isActive: true },
+  { name: "Ubuntu",        version: "20.04 LTS",    iconUrl: "https://cdn.simpleicons.org/ubuntu/E95420",    isActive: true },
+  { name: "Debian",        version: "12 Bookworm",  iconUrl: "https://cdn.simpleicons.org/debian/A81D33",    isActive: true },
+  { name: "CentOS",        version: "7",            iconUrl: "https://cdn.simpleicons.org/centos/262577",    isActive: true },
+  { name: "AlmaLinux",     version: "9",            iconUrl: "https://cdn.simpleicons.org/almalinux/ACE3B0", isActive: true },
+  { name: "Rocky Linux",   version: "9",            iconUrl: "https://cdn.simpleicons.org/rockylinux/10B981",isActive: true },
+  { name: "Windows Server",version: "2022",         iconUrl: "https://cdn.simpleicons.org/windows/0078D4",  isActive: true },
+  { name: "n8n",           version: "Latest",       iconUrl: "https://n8n.io/favicon.ico",                  isActive: true },
 ];
 
 const DEFAULT_LOCATIONS = [
