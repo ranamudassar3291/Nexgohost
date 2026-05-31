@@ -119,135 +119,217 @@ const N8nHosting: React.FC = () => {
     <div className="min-h-screen text-white" style={{ background: '#000000' }}>
 
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden pt-36 pb-20" style={{ background: '#000000' }}>
-        {/* Subtle grid bg */}
-        <div className="absolute inset-0 opacity-[0.035]"
-          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-        {/* Purple glow top-right */}
-        <div className="absolute top-0 right-0 w-[700px] h-[700px] rounded-full blur-[200px] pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 65%)' }} />
+      <section className="relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #0a0614 0%, #000000 100%)', paddingTop: '100px', paddingBottom: '80px' }}>
+        {/* Background glow blobs */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full blur-[160px] pointer-events-none opacity-40"
+          style={{ background: 'radial-gradient(ellipse, rgba(109,40,217,0.5) 0%, rgba(99,102,241,0.2) 40%, transparent 70%)' }} />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[120px] pointer-events-none opacity-25"
+          style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.6) 0%, transparent 65%)' }} />
 
         <div className="max-w-[1200px] mx-auto px-6 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
+          <div className="flex flex-col lg:flex-row items-center gap-16 lg:gap-12">
 
             {/* LEFT */}
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:w-[480px] flex-shrink-0">
-              <p className="text-sm font-semibold mb-5" style={{ color: '#7C3AED' }}>
-                Up to <span className="font-black">17% off</span> n8n self hosting
-              </p>
-              <h1 className="font-black leading-[1.08] tracking-tight mb-7"
-                style={{ fontSize: 'clamp(2.2rem, 5vw, 3.2rem)', color: '#FFFFFF' }}>
-                Self-hosted n8n:<br />No-code AI workflows
+            <motion.div
+              initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}
+              className="flex-1 max-w-[580px]"
+            >
+              {/* Offer badge */}
+              <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full text-sm font-bold"
+                style={{ background: 'rgba(109,40,217,0.15)', border: '1px solid rgba(139,92,246,0.4)', color: '#C4B5FD' }}>
+                <Zap size={13} className="fill-violet-400 text-violet-400" />
+                Up to <span className="text-white font-black">17% off</span> n8n self-hosting
+              </div>
+
+              {/* Headline */}
+              <h1 className="font-black leading-[1.06] tracking-tight mb-6 text-white"
+                style={{ fontSize: 'clamp(2.6rem, 5.5vw, 4rem)' }}>
+                Self-hosted n8n.<br />
+                <span style={{ backgroundImage: 'linear-gradient(135deg, #a78bfa 0%, #818cf8 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  Zero limits. Full control.
+                </span>
               </h1>
-              <ul className="space-y-3 mb-8">
+
+              {/* Sub-headline */}
+              <p className="text-lg mb-8 leading-relaxed" style={{ color: '#9CA3AF' }}>
+                Run unlimited AI workflows on your own server. No per-execution fees, no data leaving your infrastructure — just pure automation power.
+              </p>
+
+              {/* Feature checklist */}
+              <ul className="space-y-3 mb-10">
                 {[
-                  'Unlock unlimited workflows',
-                  'Launch unlimited concurrent executions',
-                  'Access community nodes',
+                  'Unlimited workflows & concurrent executions',
+                  'Free SSL + custom domain included',
+                  '400+ integrations — Slack, WhatsApp, Gmail & more',
+                  'Managed updates, daily backups, full root access',
                 ].map(f => (
                   <li key={f} className="flex items-center gap-3 text-[15px]" style={{ color: '#D1D5DB' }}>
-                    <Check size={16} className="flex-shrink-0" style={{ color: '#7C3AED' }} />
+                    <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'rgba(109,40,217,0.25)', border: '1px solid rgba(139,92,246,0.5)' }}>
+                      <Check size={11} style={{ color: '#A78BFA' }} />
+                    </span>
                     {f}
                   </li>
                 ))}
               </ul>
-              <div className="flex flex-wrap items-center gap-4">
+
+              {/* CTA row */}
+              <div className="flex flex-wrap items-center gap-4 mb-6">
                 <a href="#n8n-plans"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-bold text-[15px] text-white transition-all hover:opacity-90"
-                  style={{ background: 'linear-gradient(135deg, #7C3AED, #6D28D9)' }}>
-                  Choose your plan
+                  className="inline-flex items-center gap-2.5 px-8 py-4 rounded-xl font-bold text-base text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)', boxShadow: '0 8px 32px rgba(109,40,217,0.45)' }}>
+                  Get started
+                  <ArrowRight size={16} />
+                </a>
+                <a href="#n8n-plans"
+                  className="inline-flex items-center gap-2 px-6 py-4 rounded-xl font-semibold text-sm transition-all hover:bg-white/5"
+                  style={{ color: '#C4B5FD', border: '1px solid rgba(139,92,246,0.3)' }}>
+                  View all plans
                 </a>
               </div>
-              <p className="flex items-center gap-2 mt-5 text-sm" style={{ color: '#9CA3AF' }}>
-                <Shield size={14} style={{ color: '#9CA3AF' }} />
-                30-day money-back guarantee
-              </p>
+
+              {/* Trust row */}
+              <div className="flex flex-wrap items-center gap-5 text-sm" style={{ color: '#6B7280' }}>
+                <span className="flex items-center gap-1.5">
+                  <Shield size={14} style={{ color: '#6B7280' }} />
+                  30-day money-back guarantee
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Zap size={14} style={{ color: '#6B7280' }} />
+                  n8n live in under 2 minutes
+                </span>
+              </div>
             </motion.div>
 
-            {/* RIGHT — n8n workflow diagram */}
-            <motion.div initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="flex-1 flex items-center justify-center">
-              <div className="relative w-full max-w-[520px] h-[340px]">
-                {/* BG card */}
-                <div className="absolute bottom-0 left-4 right-4 h-[200px] rounded-2xl"
-                  style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', border: '1px solid rgba(99,102,241,0.3)' }} />
+            {/* RIGHT — n8n dashboard mockup */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.65, delay: 0.1 }}
+              className="flex-1 flex items-center justify-center w-full max-w-[560px]"
+            >
+              <div className="relative w-full" style={{ aspectRatio: '1.25' }}>
+                {/* Main dashboard card */}
+                <div className="absolute inset-0 rounded-2xl overflow-hidden"
+                  style={{ background: 'linear-gradient(145deg, #13111f 0%, #0d0b1a 100%)', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 60px rgba(99,102,241,0.12)' }}>
 
-                {/* n8n logo node (large, center-bottom) */}
-                <motion.div
-                  animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
-                  className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center justify-center rounded-2xl shadow-2xl"
-                  style={{ width: 220, height: 72, background: '#1a1a2e', border: '1.5px solid rgba(99,102,241,0.5)', zIndex: 10 }}>
-                  {/* n8n logo SVG */}
-                  <svg width="80" height="32" viewBox="0 0 80 32" fill="none">
-                    <circle cx="8" cy="16" r="7" fill="none" stroke="#666" strokeWidth="2"/>
-                    <circle cx="8" cy="16" r="3" fill="#666"/>
-                    <line x1="15" y1="16" x2="25" y2="16" stroke="#888" strokeWidth="2"/>
-                    <circle cx="30" cy="16" r="5" fill="none" stroke="#888" strokeWidth="2"/>
-                    <line x1="35" y1="16" x2="45" y2="16" stroke="#888" strokeWidth="2"/>
-                    <circle cx="50" cy="16" r="7" fill="none" stroke="#666" strokeWidth="2"/>
-                    <circle cx="50" cy="16" r="3" fill="#666"/>
-                    <line x1="57" y1="16" x2="67" y2="16" stroke="#888" strokeWidth="2"/>
-                    <circle cx="72" cy="16" r="5" fill="none" stroke="#888" strokeWidth="2"/>
-                  </svg>
-                </motion.div>
-
-                {/* Chat bubble node (top-left) */}
-                <motion.div
-                  animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut', delay: 0.5 }}
-                  className="absolute top-8 left-8 flex items-center justify-center rounded-2xl shadow-xl"
-                  style={{ width: 80, height: 80, background: '#111827', border: '1.5px solid rgba(255,255,255,0.12)', zIndex: 10 }}>
-                  <MessageSquare size={32} style={{ color: '#9CA3AF' }} />
-                </motion.div>
-
-                {/* Zap node (top-left connector) */}
-                <motion.div
-                  animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 3.2, ease: 'easeInOut', delay: 0.2 }}
-                  className="absolute top-[60px] left-[68px] flex items-center justify-center rounded-full shadow-lg"
-                  style={{ width: 36, height: 36, background: '#1e1b4b', border: '1.5px solid rgba(99,102,241,0.5)', zIndex: 20 }}>
-                  <Zap size={16} style={{ color: '#818CF8' }} />
-                </motion.div>
-
-                {/* AI Agent node (top-center) */}
-                <motion.div
-                  animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 3.8, ease: 'easeInOut', delay: 0.3 }}
-                  className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-5 rounded-2xl shadow-2xl"
-                  style={{ height: 72, background: '#1e1b4b', border: '1.5px solid rgba(99,102,241,0.6)', minWidth: 200, zIndex: 15 }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(99,102,241,0.2)' }}>
-                    <Bot size={20} style={{ color: '#818CF8' }} />
+                  {/* Window chrome */}
+                  <div className="flex items-center gap-2 px-5 py-3.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                    <div className="w-3 h-3 rounded-full bg-red-500/70" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                    <div className="flex-1 mx-4 h-6 rounded-md flex items-center px-3 text-xs" style={{ background: 'rgba(255,255,255,0.05)', color: '#6B7280' }}>
+                      n8n.yourdomain.com
+                    </div>
+                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-[10px] font-semibold text-emerald-400">LIVE</span>
                   </div>
-                  <span className="font-bold text-white text-[15px]">AI Agent</span>
-                </motion.div>
 
-                {/* Edit/pencil node (top-right) */}
+                  {/* Canvas area */}
+                  <div className="relative p-5" style={{ height: 'calc(100% - 52px)' }}>
+                    {/* Grid dots bg */}
+                    <div className="absolute inset-0 opacity-[0.04]"
+                      style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+
+                    {/* Workflow nodes */}
+                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none', zIndex: 1 }}>
+                      <path d="M 110 100 C 155 100 145 158 190 158" stroke="rgba(139,92,246,0.5)" strokeWidth="2" fill="none" strokeDasharray="6 4"/>
+                      <path d="M 110 100 C 155 100 145 230 190 230" stroke="rgba(139,92,246,0.35)" strokeWidth="2" fill="none" strokeDasharray="6 4"/>
+                      <path d="M 310 158 C 345 158 345 158 380 158" stroke="rgba(139,92,246,0.5)" strokeWidth="2" fill="none" strokeDasharray="6 4"/>
+                      <path d="M 310 230 C 345 230 345 158 380 158" stroke="rgba(139,92,246,0.35)" strokeWidth="2" fill="none" strokeDasharray="6 4"/>
+                      <circle cx="110" cy="100" r="5" fill="rgba(139,92,246,0.8)"/>
+                      <circle cx="190" cy="158" r="5" fill="rgba(139,92,246,0.6)"/>
+                      <circle cx="190" cy="230" r="5" fill="rgba(139,92,246,0.6)"/>
+                      <circle cx="310" cy="158" r="5" fill="rgba(139,92,246,0.6)"/>
+                      <circle cx="310" cy="230" r="5" fill="rgba(139,92,246,0.4)"/>
+                      <circle cx="380" cy="158" r="5" fill="rgba(99,102,241,0.9)"/>
+                    </svg>
+
+                    {/* Trigger node */}
+                    <motion.div
+                      animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
+                      className="absolute flex items-center gap-2.5 px-4 py-2.5 rounded-xl z-10"
+                      style={{ top: '18%', left: '4%', background: '#1e1a30', border: '1.5px solid rgba(139,92,246,0.6)', boxShadow: '0 4px 20px rgba(109,40,217,0.3)' }}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.2)' }}>
+                        <Zap size={14} style={{ color: '#A78BFA' }} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white">Webhook Trigger</p>
+                        <p className="text-[9px]" style={{ color: '#7C3AED' }}>● Active</p>
+                      </div>
+                    </motion.div>
+
+                    {/* AI Agent node */}
+                    <motion.div
+                      animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay: 0.4 }}
+                      className="absolute flex items-center gap-2.5 px-4 py-2.5 rounded-xl z-10"
+                      style={{ top: '32%', left: '35%', background: '#151228', border: '1.5px solid rgba(99,102,241,0.7)', boxShadow: '0 4px 24px rgba(79,70,229,0.35)' }}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.2)' }}>
+                        <Bot size={14} style={{ color: '#818CF8' }} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white">AI Agent</p>
+                        <p className="text-[9px]" style={{ color: '#818CF8' }}>GPT-4 • Running</p>
+                      </div>
+                    </motion.div>
+
+                    {/* HTTP node */}
+                    <motion.div
+                      animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut', delay: 0.8 }}
+                      className="absolute flex items-center gap-2.5 px-4 py-2.5 rounded-xl z-10"
+                      style={{ top: '55%', left: '35%', background: '#121c18', border: '1.5px solid rgba(16,185,129,0.5)' }}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                        <Globe size={14} style={{ color: '#34D399' }} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white">HTTP Request</p>
+                        <p className="text-[9px]" style={{ color: '#34D399' }}>200 OK</p>
+                      </div>
+                    </motion.div>
+
+                    {/* Send Message node */}
+                    <motion.div
+                      animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 3.8, ease: 'easeInOut', delay: 0.2 }}
+                      className="absolute flex items-center gap-2.5 px-4 py-2.5 rounded-xl z-10"
+                      style={{ top: '32%', right: '4%', background: '#161521', border: '1.5px solid rgba(139,92,246,0.5)' }}>
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(139,92,246,0.15)' }}>
+                        <MessageSquare size={14} style={{ color: '#A78BFA' }} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white">Send Message</p>
+                        <p className="text-[9px]" style={{ color: '#A78BFA' }}>Slack • Done</p>
+                      </div>
+                    </motion.div>
+
+                    {/* Executions counter badge */}
+                    <motion.div
+                      animate={{ scale: [1, 1.04, 1] }} transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                      className="absolute bottom-4 left-4 flex items-center gap-3 px-4 py-2.5 rounded-xl z-20"
+                      style={{ background: 'rgba(15,12,28,0.95)', border: '1px solid rgba(99,102,241,0.3)', backdropFilter: 'blur(8px)' }}>
+                      <Activity size={14} style={{ color: '#818CF8' }} />
+                      <div>
+                        <p className="text-[10px] font-semibold" style={{ color: '#6B7280' }}>Executions today</p>
+                        <p className="text-sm font-black text-white">1,248 <span className="text-[10px] text-emerald-400 font-bold">+12%</span></p>
+                      </div>
+                    </motion.div>
+                  </div>
+                </div>
+
+                {/* Floating badge — integrations */}
                 <motion.div
-                  animate={{ y: [0, -7, 0] }} transition={{ repeat: Infinity, duration: 3.3, ease: 'easeInOut', delay: 0.7 }}
-                  className="absolute top-4 right-8 flex items-center justify-center rounded-2xl shadow-xl"
-                  style={{ width: 72, height: 72, background: '#1e1b4b', border: '1.5px solid rgba(99,102,241,0.5)', zIndex: 10 }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(129,140,248,0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
+                  animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 4.5, ease: 'easeInOut', delay: 1 }}
+                  className="absolute -top-5 -right-4 px-4 py-2.5 rounded-xl z-20 flex items-center gap-2"
+                  style={{ background: 'linear-gradient(135deg, #1e1b4b, #2d2460)', border: '1px solid rgba(99,102,241,0.5)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                  <Workflow size={14} style={{ color: '#818CF8' }} />
+                  <span className="text-xs font-bold text-white">400+ Integrations</span>
                 </motion.div>
 
-                {/* Arrow/cursor (right side) */}
+                {/* Floating badge — no limits */}
                 <motion.div
-                  animate={{ x: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
-                  className="absolute top-20 right-2"
-                  style={{ zIndex: 20 }}>
-                  <svg width="32" height="40" viewBox="0 0 32 40" fill="none">
-                    <path d="M4 4L4 32L12 24L18 36L22 34L16 22L28 22L4 4Z" fill="white" stroke="rgba(0,0,0,0.3)" strokeWidth="1"/>
-                  </svg>
+                  animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 3.8, ease: 'easeInOut', delay: 0.3 }}
+                  className="absolute -bottom-4 -left-4 px-4 py-2.5 rounded-xl z-20 flex items-center gap-2"
+                  style={{ background: 'linear-gradient(135deg, #0f2a1a, #122b1f)', border: '1px solid rgba(16,185,129,0.4)', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                  <RefreshCw size={13} style={{ color: '#34D399' }} />
+                  <span className="text-xs font-bold text-white">Unlimited Executions</span>
                 </motion.div>
-
-                {/* Connecting lines (SVG overlay) */}
-                <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none', zIndex: 5 }}>
-                  {/* Chat to Zap */}
-                  <line x1="108" y1="88" x2="86" y2="96" stroke="rgba(99,102,241,0.4)" strokeWidth="2" strokeDasharray="5 4"/>
-                  {/* AI Agent down to n8n node */}
-                  <line x1="260" y1="76" x2="260" y2="228" stroke="rgba(99,102,241,0.35)" strokeWidth="2" strokeDasharray="5 4"/>
-                  {/* Edit node down */}
-                  <line x1="410" y1="76" x2="350" y2="228" stroke="rgba(99,102,241,0.3)" strokeWidth="2" strokeDasharray="5 4"/>
-                </svg>
               </div>
             </motion.div>
           </div>

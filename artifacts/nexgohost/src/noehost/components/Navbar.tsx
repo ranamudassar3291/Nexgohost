@@ -204,31 +204,24 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
   return (
     <nav
-      className={`transition-all duration-300 w-full z-[100] ${
-        isScrolled
-          ? 'bg-[#0e0e11] shadow-xl shadow-primary/10 py-3'
-          : 'bg-[#0e0e11]/80 backdrop-blur-sm py-5'
-      }`}
-      style={{ borderBottom: isScrolled ? '1px solid rgba(103,61,230,0.15)' : 'none' }}
+      className="transition-all duration-300 w-full z-[100] bg-[#0e0e11]/95 backdrop-blur-md border-b border-white/5"
+      style={{ boxShadow: isScrolled ? '0 1px 20px rgba(0,0,0,0.4)' : 'none' }}
     >
-      <div className="container mx-auto px-6 flex items-center justify-between">
-        <div className="flex items-center gap-12">
-          <Link to="/" className="flex items-center gap-2">
+      <div className="max-w-[1280px] mx-auto px-6 flex items-center justify-between h-16">
+        <div className="flex items-center gap-10">
+          <Link to="/" className="flex items-center flex-shrink-0">
             <Logo />
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden lg:flex items-center gap-6">
+          <div className="hidden lg:flex items-center gap-1">
             {/* Home link first */}
             {otherLinks.filter((l: any) => l.name.toLowerCase() === 'home').map((link: any, idx: number) => (
               <Link
                 key={idx}
                 to={link.href}
-                className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
+                className="px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
               >
-                <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
-                  {IconMap[link.icon] || <Zap size={18} />}
-                </span>
                 {link.name}
               </Link>
             ))}
@@ -238,11 +231,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               <div ref={hostingRef} className="relative">
                 <button
                   onClick={() => setHostingOpen(o => !o)}
-                  className="flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                 >
-                  <span className="text-primary group-hover:scale-110 transition-transform">
-                    <Server size={18} />
-                  </span>
                   Hosting
                   <ChevronDown size={14} className={`transition-transform duration-200 ${hostingOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -316,11 +306,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             <div ref={servicesRef} className="relative">
               <button
                 onClick={() => setServicesOpen(o => !o)}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white`}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
               >
-                <span className="text-sky-400 group-hover:scale-110 transition-transform">
-                  <Layers size={18} />
-                </span>
                 Services
                 <ChevronDown size={14} className={`transition-transform duration-200 ${servicesOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -385,11 +372,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             <div ref={domainsRef} className="relative">
               <button
                 onClick={() => setDomainsOpen(o => !o)}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white`}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
               >
-                <span className="text-primary group-hover:scale-110 transition-transform">
-                  <Globe size={18} />
-                </span>
                 Domains
                 <ChevronDown size={14} className={`transition-transform duration-200 ${domainsOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -437,11 +421,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             <div ref={supportRef} className="relative">
               <button
                 onClick={() => setSupportOpen(o => !o)}
-                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group text-slate-300 hover:text-white`}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
               >
-                <span className="text-cyan-400 group-hover:scale-110 transition-transform">
-                  <Headphones size={18} />
-                </span>
                 Support
                 <ChevronDown size={14} className={`transition-transform duration-200 ${supportOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -472,46 +453,46 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           </div>
         </div>
 
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-3">
           <button
             onClick={openCart}
-            className="p-3 rounded-xl transition-all border relative group bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/30"
+            className="p-2 rounded-lg transition-all relative text-slate-400 hover:text-white hover:bg-white/5"
             title="Cart"
           >
-            <ShoppingCart size={20} />
+            <ShoppingCart size={18} />
             {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-lg">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                 {itemCount > 9 ? '9+' : itemCount}
               </span>
             )}
           </button>
           {user ? (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <a
                 href={user.role === 'admin' ? '/admin/noe' : '/client/'}
-                className="flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/20"
+                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-sm transition-all"
               >
-                {user.role === 'admin' ? <Shield size={18} /> : <LayoutDashboard size={18} />}
+                {user.role === 'admin' ? <Shield size={15} /> : <LayoutDashboard size={15} />}
                 Dashboard
               </a>
               <button
                 onClick={handleLogout}
-                className="p-3 rounded-xl transition-all border bg-white/5 border-white/5 text-slate-400 hover:text-red-500"
+                className="p-2 rounded-lg transition-all text-slate-400 hover:text-red-400 hover:bg-white/5"
               >
-                <LogOut size={20} />
+                <LogOut size={17} />
               </button>
             </div>
           ) : (
             <>
               <a
                 href="/client/login"
-                className={`font-black text-sm transition-colors uppercase tracking-widest text-slate-200 hover:text-white`}
+                className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
               >
                 Log In
               </a>
               <a
                 href="/register"
-                className="px-10 py-3.5 bg-primary hover:bg-primary-600 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-primary/30 uppercase tracking-widest"
+                className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20"
               >
                 Sign Up
               </a>
@@ -522,7 +503,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
         {/* Mobile Toggle */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className={`lg:hidden p-2 rounded-xl transition-all ${isScrolled ? 'text-slate-700 bg-gray-100 hover:bg-gray-200' : 'text-white bg-white/10 hover:bg-white/20'}`}
+          className="lg:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-all"
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
