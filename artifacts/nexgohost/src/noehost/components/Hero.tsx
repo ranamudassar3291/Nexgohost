@@ -135,6 +135,9 @@ const Hero: React.FC = () => {
       .then((list: any[]) => {
         if (!Array.isArray(list)) return;
         const mapped = FEATURED_EXTS.map(ext => {
+          if (ext === '.pk') {
+            return { name: ext, price: 'PKR 4,000/2yrs' };
+          }
           const found = list.find((d: any) => {
             const e = (d.extension || d.ext || '').trim();
             return (e.startsWith('.') ? e : `.${e}`) === ext;

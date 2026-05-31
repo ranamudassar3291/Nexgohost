@@ -160,7 +160,7 @@ const WhoisModal: React.FC<{ domain: string; onClose: () => void }> = ({ domain,
 
                   <div className="pt-2">
                     <button
-                      onClick={() => window.location.href = `/client/orders/new?type=transfer&domain=${encodeURIComponent(domain)}`}
+                      onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(domain)}`}
                       className="w-full py-3 bg-primary hover:bg-primary-600 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2"
                     >
                       <RefreshCw size={14} /> Transfer This Domain to NoeHost
@@ -221,17 +221,25 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     }
   };
 
+  const isPk = (tld: string) => /\.(pk|com\.pk|net\.pk|org\.pk)$/i.test(tld);
+
+  const getDisplayPrice = (r: TldResult): string => {
+    if (isPk(r.tld)) return 'PKR 4,000 / 2 yrs';
+    return `${convertFromPKR(r.registrationPrice)}/yr`;
+  };
+
   const handleAddToCart = async (r: TldResult) => {
     const domainFull = `${searched}${r.tld}`;
+    const price = isPk(r.tld) ? 4000 : r.registrationPrice;
     await addItem({
       type: 'domain',
       planId: `domain-${domainFull}`,
       name: domainFull,
-      billingCycle: 'yearly',
-      monthlyPrice: r.registrationPrice,
+      billingCycle: isPk(r.tld) ? 'biennially' : 'yearly',
+      monthlyPrice: price,
       quarterlyPrice: null,
       semiannualPrice: null,
-      yearlyPrice: r.registrationPrice,
+      yearlyPrice: price,
       domainName: domainFull,
       tld: r.tld,
     });
@@ -251,7 +259,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
               <input
                 type="text"
                 placeholder={placeholder}
-                className="w-full py-5 text-xl font-bold text-slate-800 focus:outline-none placeholder:text-slate-300"
+                className="w-full py-5 text-xl font-bold text-slate-800 focus:outline-none focus-visible:outline-none focus-visible:ring-0 border-0 focus:border-0 placeholder:text-slate-300"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
               />
@@ -364,7 +372,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="text-sm font-black text-slate-700">
-                        {convertFromPKR(r.registrationPrice)}/yr
+                        {getDisplayPrice(r)}
                       </span>
                       {r.available && (
                         <button
@@ -390,7 +398,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                             <Info size={12} /> WHOIS
                           </button>
                           <button
-                            onClick={() => window.location.href = `/client/orders/new?type=transfer&domain=${encodeURIComponent(domainFull)}`}
+                            onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(domainFull)}`}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all"
                           >
                             <RefreshCw size={12} /> Transfer
