@@ -944,8 +944,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     const cycles = (["monthly","quarterly","semiannual","yearly"] as BillingCycle[])
       .filter(c => planPrice(plan, c) > 0);
     const cycle: BillingCycle = cycles.includes("yearly") ? "yearly" : (cycles[0] ?? "yearly");
-    setPendingPlan(plan);
-    setPendingCycle(cycle);
+    // Only set selectedPlan (already confirmed), don't set pendingPlan
     setSelectedPlan(plan);
     setSelectedCycle(cycle);
     addItem({ id: plan.id, name: plan.name, price: planPrice(plan, cycle), cycle });
@@ -980,7 +979,8 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const isDomainOnly = !selectedPlan && !!cartDomain;
 
   // Step completion gates
-  const step1Complete = !!pendingPlan;
+  // step1 is complete if a plan is pending (billing panel open) OR already confirmed
+  const step1Complete = !!pendingPlan || !!selectedPlan;
   const step2Complete = domainMode !== null;
   const _vpsPrice = selectedVpsPlan ? vpsPriceForCycle(selectedVpsPlan, vpsSelectedCycle) : 0;
   const _step3Total = service === "vps" && selectedVpsPlan
@@ -1019,8 +1019,12 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     if (pendingPlan?.id === plan.id) { setPendingPlan(null); return; }
     setPendingPlan(plan);
     const cycles = planCycles(plan);
-    // Default to yearly if available (best value)
-    setPendingCycle(cycles.includes("yearly") ? "yearly" : cycles[0]);
+    // If re-selecting the already-confirmed plan, restore its confirmed cycle
+    if (selectedPlan?.id === plan.id) {
+      setPendingCycle(selectedCycle);
+    } else {
+      setPendingCycle(cycles.includes("yearly") ? "yearly" : cycles[0]);
+    }
   }
 
   function confirmStep1() {
@@ -1037,6 +1041,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     });
     setSelectedPlan(pendingPlan);
     setSelectedCycle(pendingCycle);
+    setPendingPlan(null);
     setFreeDomainClaimed(false);
     setDomainMode(null); setCartDomain(null); setDomResults(null);
     setPromoApplied(false); setPromoDiscount(0); setPromoCode(""); setPromoError("");
@@ -1081,7 +1086,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   }
 
   function handleSidebarContinue() {
-    if (step === 1 && service === "hosting") confirmStep1();
+    if (step === 1 && service === "hosting") {
+      if (pendingPlan) confirmStep1();
+      else if (selectedPlan) setStep(2); // plan already confirmed, just advance
+    }
     else if (step === 1 && service === "vps") { if (selectedVpsPlan) setStep(2); }
     else if (step === 2) setStep(3);
     else if (step === 3) { setOrderError(""); orderMutation.mutate(); }
@@ -1383,8 +1391,9 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
           }`}>
             {displayPlans.map((plan, idx) => {
-              const isRec   = displayPlans.length > 1 && idx === Math.floor(displayPlans.length / 2);
-              const isSel   = pendingPlan?.id === plan.id;
+              const isRec       = displayPlans.length > 1 && idx === Math.floor(displayPlans.length / 2);
+              const isSel       = pendingPlan?.id === plan.id;
+              const isConfirmed = selectedPlan?.id === plan.id && !isSel;
               const monthly = plan.price;
               const dispPrice = planPrice(plan, isSel ? pendingCycle : "monthly");
 
@@ -1392,12 +1401,17 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                 <button key={plan.id} onClick={() => clickPlan(plan)}
                   className="relative flex flex-col text-left rounded-2xl bg-white transition-all focus:outline-none"
                   style={{
-                    border: isSel ? `2px solid ${P}` : isRec ? `2px solid ${P}` : "1px solid #E5E7EB",
-                    boxShadow: isSel ? `0 0 0 4px ${P}18, 0 8px 24px ${P}16` : isRec ? `0 4px 20px ${P}14` : "",
+                    border: isSel ? `2px solid ${P}` : isConfirmed ? `2px solid #16a34a` : isRec ? `2px solid ${P}` : "1px solid #E5E7EB",
+                    boxShadow: isSel ? `0 0 0 4px ${P}18, 0 8px 24px ${P}16` : isConfirmed ? `0 0 0 4px #16a34a18, 0 8px 24px #16a34a16` : isRec ? `0 4px 20px ${P}14` : "",
                   }}>
 
                   {/* Badge */}
-                  {(isRec || isSel) && !isSel && (
+                  {isConfirmed && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap px-3.5 py-1 text-white text-[11px] font-bold rounded-full shadow-md flex items-center gap-1" style={{ background: "#16a34a" }}>
+                      <Check size={10} strokeWidth={2.5}/> Plan Confirmed — Click to Change
+                    </div>
+                  )}
+                  {(isRec || isSel) && !isSel && !isConfirmed && (
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap px-3.5 py-1 text-white text-[11px] font-bold rounded-full shadow-md flex items-center gap-1" style={{ background: P }}>
                       <Star size={9} strokeWidth={3}/> Recommended
                     </div>
@@ -1456,8 +1470,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                     <div className={`w-full py-2.5 rounded-xl text-[13px] font-bold flex items-center justify-center gap-1.5 transition-all`}
                       style={isSel
                         ? { background: P, color: "#fff" }
-                        : { background: "#F8F9FA", color: P, border: `1.5px solid ${P}30` }}>
-                      {isSel ? <><Check size={13} strokeWidth={2.5}/> Selected</> : "Select Plan"}
+                        : isConfirmed
+                          ? { background: "#16a34a", color: "#fff" }
+                          : { background: "#F8F9FA", color: P, border: `1.5px solid ${P}30` }}>
+                      {isSel ? <><Check size={13} strokeWidth={2.5}/> Selected — Pick Billing</> : isConfirmed ? <><Check size={13} strokeWidth={2.5}/> Confirmed — {CYCLE_LABELS[selectedCycle]}</> : "Select Plan"}
                     </div>
                   </div>
                 </button>

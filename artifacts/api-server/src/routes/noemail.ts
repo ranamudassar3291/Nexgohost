@@ -173,7 +173,7 @@ router.get("/email-packages", async (_req, res) => {
 // GET /api/my/email-orders  — client's own orders
 router.get("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const rows = await db.execute(sql`
       SELECT eo.*, ep.name as package_name, ep.max_storage_gb, ep.max_mailboxes, ep.price
       FROM email_orders eo
@@ -190,7 +190,7 @@ router.get("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
 // POST /api/my/email-orders  — create new email order
 router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { package_id, domain_name, billing_cycle } = req.body;
     if (!package_id || !domain_name) {
       return res.status(400).json({ error: "package_id and domain_name are required" });
@@ -255,7 +255,7 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
 // GET /api/my/email-orders/:id  — order detail + DNS records
 router.get("/my/email-orders/:id", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { id } = req.params;
     const rows = await db.execute(sql`
       SELECT eo.*, ep.name as package_name, ep.max_storage_gb, ep.max_mailboxes, ep.price,
@@ -280,7 +280,7 @@ router.get("/my/email-orders/:id", authenticate, async (req: AuthRequest, res) =
 // GET /api/my/email-orders/:id/mailboxes
 router.get("/my/email-orders/:id/mailboxes", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { id } = req.params;
 
     // Verify order ownership
@@ -327,7 +327,7 @@ router.get("/my/email-orders/:id/mailboxes", authenticate, async (req: AuthReque
 // POST /api/my/email-orders/:id/mailboxes  — create mailbox
 router.post("/my/email-orders/:id/mailboxes", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { id } = req.params;
     const { local_part, password, quota_mb } = req.body;
 
@@ -386,7 +386,7 @@ router.post("/my/email-orders/:id/mailboxes", authenticate, async (req: AuthRequ
 // DELETE /api/my/email-orders/:orderId/mailboxes/:mbId
 router.delete("/my/email-orders/:orderId/mailboxes/:mbId", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { orderId, mbId } = req.params;
 
     const orderRows = await db.execute(sql`SELECT * FROM email_orders WHERE id = ${orderId} AND user_id = ${userId}`);
@@ -415,7 +415,7 @@ router.delete("/my/email-orders/:orderId/mailboxes/:mbId", authenticate, async (
 // POST /api/my/email-orders/:id/webmail-login  — get webmail SSO token / redirect
 router.post("/my/email-orders/:id/webmail-login", authenticate, async (req: AuthRequest, res) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user!.userId;
     const { id } = req.params;
     const { email_address } = req.body;
 
