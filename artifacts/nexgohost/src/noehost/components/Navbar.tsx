@@ -14,7 +14,7 @@ import {
   Mail as MailIcon, ExternalLink, Github, Twitter, Linkedin, 
   Facebook, Instagram, Youtube, Slack, Twitch, 
   Figma, Chrome, Github as GithubIcon, MessageCircle,
-  ShoppingCart, Workflow
+  ShoppingCart, Workflow, BookOpen
 } from 'lucide-react';
 import { useContent } from '../ContentContext';
 import { useCart } from '../context/CartContext';
@@ -124,10 +124,16 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
   const [domainsOpen, setDomainsOpen] = useState(false);
   const [mobileDomainsOpen, setMobileDomainsOpen] = useState(false);
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const [mobileExploreOpen, setMobileExploreOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [mobileSupportOpen, setMobileSupportOpen] = useState(false);
   const { itemCount, openCart } = useCart();
   const hostingRef = useRef<HTMLDivElement>(null);
   const servicesRef = useRef<HTMLDivElement>(null);
   const domainsRef = useRef<HTMLDivElement>(null);
+  const exploreRef = useRef<HTMLDivElement>(null);
+  const supportRef = useRef<HTMLDivElement>(null);
   const { content } = useContent();
   const location = useLocation();
   const navigate = useNavigate();
@@ -140,15 +146,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (hostingRef.current && !hostingRef.current.contains(e.target as Node)) {
-        setHostingOpen(false);
-      }
-      if (servicesRef.current && !servicesRef.current.contains(e.target as Node)) {
-        setServicesOpen(false);
-      }
-      if (domainsRef.current && !domainsRef.current.contains(e.target as Node)) {
-        setDomainsOpen(false);
-      }
+      if (hostingRef.current && !hostingRef.current.contains(e.target as Node)) setHostingOpen(false);
+      if (servicesRef.current && !servicesRef.current.contains(e.target as Node)) setServicesOpen(false);
+      if (domainsRef.current && !domainsRef.current.contains(e.target as Node)) setDomainsOpen(false);
+      if (exploreRef.current && !exploreRef.current.contains(e.target as Node)) setExploreOpen(false);
+      if (supportRef.current && !supportRef.current.contains(e.target as Node)) setSupportOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -325,8 +327,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 onClick={() => setServicesOpen(o => !o)}
                 className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
               >
-                <span className="text-emerald-400 group-hover:scale-110 transition-transform">
-                  <Mail size={18} />
+                <span className="text-sky-400 group-hover:scale-110 transition-transform">
+                  <Layers size={18} />
                 </span>
                 Services
                 <ChevronDown size={14} className={`transition-transform duration-200 ${servicesOpen ? 'rotate-180' : ''}`} />
@@ -440,19 +442,80 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               )}
             </div>
 
-            {/* Remaining links: About, Contact (excluding Home and Domains) */}
-            {otherLinks.filter((l: any) => l.name.toLowerCase() !== 'home' && l.name.toLowerCase() !== 'domains').map((link: any, idx: number) => (
-              <Link
-                key={idx}
-                to={link.href}
+            {/* Explore Dropdown */}
+            <div ref={exploreRef} className="relative">
+              <button
+                onClick={() => setExploreOpen(o => !o)}
                 className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
               >
-                <span className={`${link.color || 'text-primary'} group-hover:scale-110 transition-transform`}>
-                  {IconMap[link.icon] || <Zap size={18} />}
+                <span className="text-amber-400 group-hover:scale-110 transition-transform">
+                  <Briefcase size={18} />
                 </span>
-                {link.name}
-              </Link>
-            ))}
+                Explore
+                <ChevronDown size={14} className={`transition-transform duration-200 ${exploreOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {exploreOpen && (
+                <div className="absolute top-full left-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden" style={{ minWidth: '300px', background: '#131318', border: '1px solid rgba(103,61,230,0.3)' }}>
+                  <div className="px-5 pt-5 pb-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Company</span>
+                  </div>
+                  <div className="px-2 pb-3">
+                    {[
+                      { to: '/about-us', icon: <Info size={17} />, color: 'text-amber-400', bg: 'bg-amber-400/10 group-hover:bg-amber-400/20', label: 'About Us', desc: 'Our story, mission, and the team behind Noehost' },
+                      { to: '/contact-us', icon: <Phone size={17} />, color: 'text-rose-400', bg: 'bg-rose-400/10 group-hover:bg-rose-400/20', label: 'Contact Us', desc: 'Get in touch — sales, billing, or general enquiries' },
+                      { to: '/server-status', icon: <Activity size={17} />, color: 'text-emerald-400', bg: 'bg-emerald-400/10 group-hover:bg-emerald-400/20', label: 'Server Status', desc: 'Live uptime and incident reports' },
+                    ].map(item => (
+                      <Link key={item.to} to={item.to} onClick={() => setExploreOpen(false)}
+                        className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bg} transition-all ${item.color}`}>{item.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-bold text-slate-200 group-hover:${item.color} transition-colors mb-0.5`}>{item.label}</p>
+                          <p className="text-xs text-slate-500 font-medium leading-snug">{item.desc}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Support Dropdown */}
+            <div ref={supportRef} className="relative">
+              <button
+                onClick={() => setSupportOpen(o => !o)}
+                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
+              >
+                <span className="text-cyan-400 group-hover:scale-110 transition-transform">
+                  <Headphones size={18} />
+                </span>
+                Support
+                <ChevronDown size={14} className={`transition-transform duration-200 ${supportOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {supportOpen && (
+                <div className="absolute top-full right-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden" style={{ minWidth: '320px', background: '#131318', border: '1px solid rgba(103,61,230,0.3)' }}>
+                  <div className="px-5 pt-5 pb-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Support</span>
+                  </div>
+                  <div className="px-2 pb-3">
+                    {[
+                      { to: '/knowledge-base', icon: <Monitor size={17} />, color: 'text-violet-400', bg: 'bg-violet-400/10 group-hover:bg-violet-400/20', label: 'Knowledge Base', desc: 'Advice and answers to all of your FAQs' },
+                      { to: '/knowledge-base#tutorials', icon: <Video size={17} />, color: 'text-blue-400', bg: 'bg-blue-400/10 group-hover:bg-blue-400/20', label: 'Tutorials', desc: 'Videos and articles to help you succeed online' },
+                      { to: '/knowledge-base#learning', icon: <BookOpen size={17} />, color: 'text-emerald-400', bg: 'bg-emerald-400/10 group-hover:bg-emerald-400/20', label: 'Learning Lab', desc: 'Step-by-step guides to launch and grow your project' },
+                      { to: '/contact-us', icon: <Headphones size={17} />, color: 'text-cyan-400', bg: 'bg-cyan-400/10 group-hover:bg-cyan-400/20', label: 'Contact Support', desc: 'How to reach us — live chat, tickets, email' },
+                    ].map(item => (
+                      <Link key={item.label} to={item.to} onClick={() => setSupportOpen(false)}
+                        className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bg} transition-all ${item.color}`}>{item.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors mb-0.5">{item.label}</p>
+                          <p className="text-xs text-slate-500 font-medium leading-snug">{item.desc}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -591,10 +654,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               onClick={() => setMobileServicesOpen(o => !o)}
               className="flex items-center gap-4 group w-full"
             >
-              <div className="p-3 rounded-xl bg-white/5 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                <Mail size={18} />
+              <div className="p-3 rounded-xl bg-white/5 text-sky-400 group-hover:bg-sky-500 group-hover:text-white transition-all">
+                <Layers size={18} />
               </div>
-              <span className="text-sm font-black text-slate-200 group-hover:text-emerald-400 transition-colors uppercase tracking-widest flex-1 text-left">Services</span>
+              <span className="text-sm font-black text-slate-200 group-hover:text-sky-400 transition-colors uppercase tracking-widest flex-1 text-left">Services</span>
               <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileServicesOpen ? 'rotate-180' : ''}`} />
             </button>
             {mobileServicesOpen && (
@@ -679,20 +742,64 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             )}
           </div>
 
-          {/* Remaining mobile links: About, Contact (excluding Home and Domains) */}
-          {otherLinks.filter((l: any) => l.name.toLowerCase() !== 'home' && l.name.toLowerCase() !== 'domains').map((link: any, idx: number) => (
-            <Link
-              key={idx}
-              to={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-4 group"
-            >
-              <div className={`p-3 rounded-xl bg-white/5 ${link.color || 'text-primary'} group-hover:bg-primary group-hover:text-white transition-all`}>
-                {IconMap[link.icon] || <Zap size={18} />}
+          {/* Mobile Explore Group */}
+          <div>
+            <button onClick={() => setMobileExploreOpen(o => !o)} className="flex items-center gap-4 group w-full">
+              <div className="p-3 rounded-xl bg-white/5 text-amber-400 group-hover:bg-amber-500 group-hover:text-white transition-all">
+                <Briefcase size={18} />
               </div>
-              <span className="text-sm font-black text-slate-200 group-hover:text-primary transition-colors uppercase tracking-widest">{link.name}</span>
-            </Link>
-          ))}
+              <span className="text-sm font-black text-slate-200 group-hover:text-amber-400 transition-colors uppercase tracking-widest flex-1 text-left">Explore</span>
+              <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileExploreOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileExploreOpen && (
+              <div className="mt-3 flex flex-col gap-1">
+                {[
+                  { to: '/about-us', icon: <Info size={16} />, color: 'text-amber-400', label: 'About Us', desc: 'Our story, mission, and the team' },
+                  { to: '/contact-us', icon: <Phone size={16} />, color: 'text-rose-400', label: 'Contact Us', desc: 'Sales, billing, or general enquiries' },
+                  { to: '/server-status', icon: <Activity size={16} />, color: 'text-emerald-400', label: 'Server Status', desc: 'Live uptime and incident reports' },
+                ].map(item => (
+                  <Link key={item.to} to={item.to} onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 ${item.color}`}>{item.icon}</div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">{item.label}</p>
+                      <p className="text-xs text-slate-500 font-medium">{item.desc}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Support Group */}
+          <div>
+            <button onClick={() => setMobileSupportOpen(o => !o)} className="flex items-center gap-4 group w-full">
+              <div className="p-3 rounded-xl bg-white/5 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-white transition-all">
+                <Headphones size={18} />
+              </div>
+              <span className="text-sm font-black text-slate-200 group-hover:text-cyan-400 transition-colors uppercase tracking-widest flex-1 text-left">Support</span>
+              <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileSupportOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSupportOpen && (
+              <div className="mt-3 flex flex-col gap-1">
+                {[
+                  { to: '/knowledge-base', icon: <Monitor size={16} />, color: 'text-violet-400', label: 'Knowledge Base', desc: 'Advice and answers to all FAQs' },
+                  { to: '/knowledge-base#tutorials', icon: <Video size={16} />, color: 'text-blue-400', label: 'Tutorials', desc: 'Videos and articles for success' },
+                  { to: '/knowledge-base#learning', icon: <BookOpen size={16} />, color: 'text-emerald-400', label: 'Learning Lab', desc: 'Step-by-step guides to grow' },
+                  { to: '/contact-us', icon: <Headphones size={16} />, color: 'text-cyan-400', label: 'Contact Support', desc: 'Live chat, tickets, email' },
+                ].map(item => (
+                  <Link key={item.label} to={item.to} onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/5 ${item.color}`}>{item.icon}</div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors">{item.label}</p>
+                      <p className="text-xs text-slate-500 font-medium">{item.desc}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           <hr className="border-white/10" />
           {user ? (

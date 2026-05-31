@@ -110,6 +110,7 @@ import NoeContactUs from "@/noehost/components/pages/ContactUs";
 import NoeServerStatus from "@/noehost/components/pages/ServerStatus";
 import NoeN8nHosting from "@/noehost/components/pages/N8nHosting";
 import NoeBusinessEmail from "@/noehost/components/pages/BusinessEmail";
+import NoeKnowledgeBase from "@/noehost/components/pages/KnowledgeBase";
 
 import { queryClient } from "@/lib/query-client";
 import { useApiHealth } from "@/hooks/use-api-health";
@@ -686,6 +687,9 @@ function RouterRoot() {
       </Route>
       <Route path="/business-email">
         <NoeHostLayout><NoeBusinessEmail /></NoeHostLayout>
+      </Route>
+      <Route path="/knowledge-base">
+        <NoeHostLayout><NoeKnowledgeBase /></NoeHostLayout>
       </Route>
       <Route path="/shared-hosting">
         <NoeHostLayout><NoeSharedHosting /></NoeHostLayout>
