@@ -966,6 +966,36 @@ app.listen(port, async () => {
     console.warn("[TEMPLATES] Seed failed (non-fatal):", err.message);
   });
 
+  // Update existing VPS plans to new specs/prices (idempotent — runs on every startup)
+  (async () => {
+    try {
+      await db.execute(sql`
+        UPDATE vps_plans SET
+          price = '1500.00', yearly_price = '15000.00',
+          cpu_cores = 2, ram_gb = 4, storage_gb = 50, bandwidth_tb = '4.00',
+          save_amount = '3000.00'
+        WHERE name = 'VPS 1'
+      `);
+      await db.execute(sql`
+        UPDATE vps_plans SET
+          price = '2500.00', yearly_price = '25000.00',
+          cpu_cores = 4, ram_gb = 8, storage_gb = 100, bandwidth_tb = '8.00',
+          save_amount = '5000.00'
+        WHERE name = 'VPS 2'
+      `);
+      await db.execute(sql`
+        UPDATE vps_plans SET
+          price = '4500.00', yearly_price = '45000.00',
+          cpu_cores = 6, ram_gb = 12, storage_gb = 200, bandwidth_tb = '12.00',
+          save_amount = '9000.00'
+        WHERE name = 'VPS 3'
+      `);
+      console.log("[VPS] Plan prices/specs updated to new values");
+    } catch (err: any) {
+      console.warn("[VPS] Plan update failed (non-fatal):", err.message);
+    }
+  })();
+
   // Seed default VPS plans / OS templates / locations (only if empty)
   seedVpsData().catch((err: any) => {
     console.warn("[VPS] Seed failed (non-fatal):", err.message);

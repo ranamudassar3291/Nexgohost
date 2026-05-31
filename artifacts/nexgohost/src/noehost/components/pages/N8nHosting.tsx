@@ -13,10 +13,10 @@ const PLANS_PKR = [
     name: 'KVM 1',
     badge: '',
     popular: false,
-    savePercent: 63,
-    monthlyPKR: 2499,
-    yearlyPKR: 1499,
-    cpu: '1 vCPU',
+    savePercent: 17,
+    monthlyPKR: 1500,
+    yearlyPKR: 1250,
+    cpu: '2 vCPU',
     ram: '4 GB RAM',
     storage: '50 GB NVMe',
     bandwidth: '4 TB Bandwidth',
@@ -35,10 +35,10 @@ const PLANS_PKR = [
     name: 'KVM 2',
     badge: 'MOST POPULAR',
     popular: true,
-    savePercent: 62,
-    monthlyPKR: 4999,
-    yearlyPKR: 2999,
-    cpu: '2 vCPU',
+    savePercent: 17,
+    monthlyPKR: 2500,
+    yearlyPKR: 2083,
+    cpu: '4 vCPU',
     ram: '8 GB RAM',
     storage: '100 GB NVMe',
     bandwidth: '8 TB Bandwidth',
@@ -56,16 +56,16 @@ const PLANS_PKR = [
     ],
   },
   {
-    name: 'KVM 4',
+    name: 'KVM 3',
     badge: '',
     popular: false,
-    savePercent: 69,
-    monthlyPKR: 9999,
-    yearlyPKR: 5999,
-    cpu: '4 vCPU',
-    ram: '16 GB RAM',
+    savePercent: 17,
+    monthlyPKR: 4500,
+    yearlyPKR: 3750,
+    cpu: '6 vCPU',
+    ram: '12 GB RAM',
     storage: '200 GB NVMe',
-    bandwidth: '16 TB Bandwidth',
+    bandwidth: '12 TB Bandwidth',
     features: [
       'n8n Pre-installed',
       'Free SSL Certificate',
@@ -133,7 +133,7 @@ const N8nHosting: React.FC = () => {
             {/* LEFT */}
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:w-[480px] flex-shrink-0">
               <p className="text-sm font-semibold mb-5" style={{ color: '#7C3AED' }}>
-                Up to <span className="font-black">69% off</span> n8n self hosting
+                Up to <span className="font-black">17% off</span> n8n self hosting
               </p>
               <h1 className="font-black leading-[1.08] tracking-tight mb-7"
                 style={{ fontSize: 'clamp(2.2rem, 5vw, 3.2rem)', color: '#FFFFFF' }}>
@@ -298,7 +298,7 @@ const N8nHosting: React.FC = () => {
                 onClick={() => setYearly(true)}
                 className={`text-sm font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${yearly ? 'text-white bg-white/10' : 'text-gray-500'}`}>
                 Yearly
-                <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.2)', color: '#818CF8' }}>Save up to 69%</span>
+                <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.2)', color: '#818CF8' }}>Save up to 17%</span>
               </button>
             </div>
           </motion.div>
