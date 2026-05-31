@@ -64,6 +64,9 @@ SERVER_HOSTNAME = "noehost.com"
 ENCRYPTION_KEY = "85c7248771b95111543eb554d1eaaa88b6455508f431e22b5a5c66f24d333674"
 ADMIN_LOGIN_SLUG = "noe"
 
+[userenv.production]
+ADMIN_RESET_TOKEN = "noehost-reset-2026"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
