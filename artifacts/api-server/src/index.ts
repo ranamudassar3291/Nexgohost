@@ -764,6 +764,113 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wcs_created ON website_cart_sessions(created_at DESC)`);
     console.log("[MIGRATIONS] website_cart_sessions table ready");
 
+    // domain_extensions — columns added in schema but missing from older backups
+    const domainExtCols = [
+      "ALTER TABLE domain_extensions ADD COLUMN IF NOT EXISTS transfer_allowed BOOLEAN NOT NULL DEFAULT true",
+      "ALTER TABLE domain_extensions ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 999",
+      "ALTER TABLE domain_extensions ADD COLUMN IF NOT EXISTS show_in_suggestions BOOLEAN NOT NULL DEFAULT true",
+    ];
+    for (const stmt of domainExtCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] domain_extensions schema up to date");
+
+    // hosting_services — columns added in schema but missing from older backups
+    const hostingServiceCols = [
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_hostname TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_root_user TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_root_password TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_image_id TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_auto_renew BOOLEAN DEFAULT true",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_weekly_backups BOOLEAN DEFAULT false",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_provision_status TEXT DEFAULT 'not_started'",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_provisioned_at TIMESTAMP",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS vps_provision_notes TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS whmcs_id TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS twenty_i_package_id TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS amount NUMERIC(10,2)",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS usage_cache TEXT",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS usage_cached_at TIMESTAMP",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS free_domain_id TEXT",
+    ];
+    for (const stmt of hostingServiceCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] hosting_services schema up to date");
+
+    // domains — columns added in schema but missing from older backups
+    const domainCols = [
+      "ALTER TABLE domains ADD COLUMN IF NOT EXISTS is_free_domain BOOLEAN DEFAULT false",
+      "ALTER TABLE domains ADD COLUMN IF NOT EXISTS epp_code TEXT",
+      "ALTER TABLE domains ADD COLUMN IF NOT EXISTS last_lock_change TIMESTAMP",
+      "ALTER TABLE domains ADD COLUMN IF NOT EXISTS lock_override_by_admin BOOLEAN DEFAULT false",
+    ];
+    for (const stmt of domainCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] domains schema up to date");
+
+    // invoices — currency columns added in schema but missing from older backups
+    const invoiceCols = [
+      "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency_code TEXT DEFAULT 'PKR'",
+      "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency_symbol TEXT DEFAULT 'Rs.'",
+      "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency_rate NUMERIC(12,6) DEFAULT 1",
+      "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS base_currency_amount NUMERIC(10,2)",
+    ];
+    for (const stmt of invoiceCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] invoices schema up to date");
+
+    // servers — columns added in schema but missing from older backups
+    const serverCols = [
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS key_type TEXT DEFAULT 'general'",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS proxy_url TEXT",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS twentyi_base_url TEXT",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS api_connected BOOLEAN DEFAULT false",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS server_ip TEXT",
+      "ALTER TABLE servers ADD COLUMN IF NOT EXISTS last_connected TIMESTAMP",
+    ];
+    for (const stmt of serverCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] servers schema up to date");
+
+    // users — columns added in schema but missing from older backups
+    const userCols = [
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_permission TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_currency TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS stack_user_id TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_migrate BOOLEAN DEFAULT false",
+    ];
+    for (const stmt of userCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    console.log("[MIGRATIONS] users schema up to date");
+
+    // cart_sessions — may not exist in older backups
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS cart_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        package_id TEXT,
+        package_name TEXT,
+        domain_name TEXT,
+        billing_cycle TEXT DEFAULT 'monthly',
+        completed BOOLEAN NOT NULL DEFAULT false,
+        reminder_sent BOOLEAN NOT NULL DEFAULT false,
+        promo_code TEXT,
+        abandoned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP,
+        reminder_sent_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_cart_sessions_user ON cart_sessions(user_id)`);
+    console.log("[MIGRATIONS] cart_sessions table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
