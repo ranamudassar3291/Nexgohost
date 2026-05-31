@@ -477,6 +477,145 @@ router.post("/domains/transfer", authenticate, async (req: AuthRequest, res) => 
   }
 });
 
+// ── Client: Bulk Domain Transfer ──────────────────────────────────────────────
+router.post("/domains/transfers/bulk", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { transfers } = req.body as { transfers: { domain: string; epp: string }[] };
+    if (!Array.isArray(transfers) || transfers.length === 0) {
+      res.status(400).json({ error: "transfers array is required and must not be empty" });
+      return;
+    }
+    if (transfers.length > 20) {
+      res.status(400).json({ error: "Maximum 20 domains per bulk transfer request" });
+      return;
+    }
+
+    const userId = req.user!.userId;
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+    const results: Array<{
+      domain: string; success: boolean; error?: string;
+      transferId?: string; orderId?: string; invoiceId?: string;
+      invoiceNumber?: string; price?: number;
+    }> = [];
+
+    for (const item of transfers) {
+      const domain = (item.domain ?? "").trim().toLowerCase();
+      const epp = (item.epp ?? "").trim();
+
+      if (!domain || !validateDomainFormat(domain)) {
+        results.push({ domain: domain || "(empty)", success: false, error: "Invalid domain format" });
+        continue;
+      }
+
+      const eppResult = validateEpp(epp);
+      if (!eppResult.valid) {
+        results.push({ domain, success: false, error: eppResult.message });
+        continue;
+      }
+
+      const tld = extractTld(domain);
+      const name = extractName(domain);
+
+      const pricing = await getTransferPricing(tld);
+      if (!pricing) {
+        results.push({ domain, success: false, error: `TLD .${tld} is not supported for transfers` });
+        continue;
+      }
+
+      const transferPrice = Number(pricing.transferPrice);
+
+      try {
+        const [order] = await db.insert(ordersTable).values({
+          clientId: userId,
+          type: "domain",
+          itemName: `${domain} - Domain Transfer`,
+          amount: String(transferPrice),
+          status: "pending",
+          notes: `Bulk domain transfer for ${domain}`,
+        }).returning();
+
+        const invoiceNumber = generateInvoiceNumber();
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+
+        const [invoice] = await db.insert(invoicesTable).values({
+          invoiceNumber,
+          clientId: userId,
+          amount: String(transferPrice),
+          tax: "0",
+          total: String(transferPrice),
+          status: "unpaid",
+          dueDate,
+          items: [{
+            description: `${domain} - Domain Transfer (1 year)`,
+            quantity: 1,
+            unitPrice: transferPrice,
+            total: transferPrice,
+          }],
+        }).returning();
+
+        const [domainEntry] = await db.insert(domainsTable).values({
+          clientId: userId,
+          name,
+          tld: `.${tld}`,
+          registrar: "Transfer Pending",
+          status: "pending_transfer" as any,
+          lockStatus: "unknown",
+          autoRenew: true,
+          nameservers: [],
+        }).onConflictDoNothing().returning();
+
+        const [transfer] = await db.insert(domainTransfersTable).values({
+          clientId: userId,
+          domainName: domain,
+          epp,
+          status: "validating",
+          validationMessage: "Bulk transfer submitted. Our team will process this within 24 hours.",
+          price: String(transferPrice),
+          orderId: order.id,
+          invoiceId: invoice.id,
+        }).returning();
+
+        if (domainEntry && transfer) {
+          await db.update(domainsTable)
+            .set({ transferId: transfer.id, updatedAt: new Date() })
+            .where(eq(domainsTable.id, domainEntry.id));
+        }
+
+        emailDomainTransferInitiated(user.email, {
+          clientName: `${user.firstName} ${user.lastName}`,
+          domain,
+          transferPrice: transferPrice.toFixed(2),
+          invoiceNumber,
+        }).catch(() => {});
+
+        results.push({
+          domain, success: true,
+          transferId: transfer.id,
+          orderId: order.id,
+          invoiceId: invoice.id,
+          invoiceNumber,
+          price: transferPrice,
+        });
+      } catch (err: any) {
+        results.push({ domain, success: false, error: err.message || "Failed to initiate transfer" });
+      }
+    }
+
+    res.json({
+      results,
+      total: transfers.length,
+      succeeded: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+    });
+  } catch (err) {
+    console.error("[BULK TRANSFER ERROR]", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
 // ── Client: Cancel a pending/validating transfer ───────────────────────────────
 router.put("/domains/transfers/:id/cancel", authenticate, async (req: AuthRequest, res) => {
   try {

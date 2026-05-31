@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Globe, Search, XCircle, Loader2, ShoppingCart, RefreshCw, Info,
   Calendar, Building2, Server, CheckCircle2, AlertCircle, Copy, ExternalLink,
-  Layers, ArrowRightLeft, Check, Plus, Trash2, Tag
+  Layers, ArrowRightLeft, Check, Plus, Trash2, Tag, Square, CheckSquare,
+  PackagePlus, KeyRound, CircleX, CircleCheck, ShoppingBag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrency } from '../CurrencyContext';
@@ -196,6 +197,12 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
   const [transferList, setTransferList] = useState<string[]>([]);
   const [transferAdded, setTransferAdded] = useState<Set<string>>(new Set());
 
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [transferEppCodes, setTransferEppCodes] = useState<Record<string, string>>({});
+  const [transferEppErrors, setTransferEppErrors] = useState<Set<string>>(new Set());
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferResults, setTransferResults] = useState<{domain: string; success: boolean; error?: string; invoiceNumber?: string; price?: number}[]>([]);
+
   const cleanName = (s: string) =>
     s.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '').replace(/\s+/g, '-').split('.')[0].replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
 
@@ -328,14 +335,91 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
       return next;
     });
     setBulkSearching(false);
+    // Auto-select all available domains
+    const autoSelect = new Set(
+      settled.filter(s => s.available === true && s.price > 0).map((s) => domains[s.i].domain)
+    );
+    setBulkSelected(autoSelect);
   };
 
-  const addBulkToCart = (r: BulkResult) => {
+  const addBulkToCart = async (r: BulkResult) => {
     if (!r.available || !r.price) return;
-    handleRegisterNow(r.tld ?? '', r.price, r.baseName);
+    const tld = r.tld ?? '';
+    const finalPrice = isPkDomain(tld) ? 4000 : r.price;
+    await addItem({
+      type: 'domain', planId: `domain-${r.domain}`, name: r.domain,
+      billingCycle: isPkDomain(tld) ? 'biennially' : 'yearly',
+      monthlyPrice: finalPrice, quarterlyPrice: null, semiannualPrice: null,
+      yearlyPrice: finalPrice, domainName: r.domain, tld,
+    });
+    setBulkResults(prev => prev.map(p => p.domain === r.domain ? { ...p, added: true } : p));
+    openCart();
+  };
+
+  const selectAllAvailableBulk = () => {
+    const available = bulkResults.filter(r => r.available && r.price && !r.checking).map(r => r.domain);
+    if (bulkSelected.size === available.length) {
+      setBulkSelected(new Set());
+    } else {
+      setBulkSelected(new Set(available));
+    }
+  };
+
+  const addAllSelectedToCart = async () => {
+    const toAdd = bulkResults.filter(r => r.available && r.price && !r.checking && bulkSelected.has(r.domain) && !r.added);
+    if (!toAdd.length) return;
+    for (const r of toAdd) {
+      const tld = r.tld ?? '';
+      const finalPrice = isPkDomain(tld) ? 4000 : r.price!;
+      await addItem({
+        type: 'domain', planId: `domain-${r.domain}`, name: r.domain,
+        billingCycle: isPkDomain(tld) ? 'biennially' : 'yearly',
+        monthlyPrice: finalPrice, quarterlyPrice: null, semiannualPrice: null,
+        yearlyPrice: finalPrice, domainName: r.domain, tld,
+      });
+      setBulkResults(prev => prev.map(p => p.domain === r.domain ? { ...p, added: true } : p));
+    }
+    openCart();
+  };
+
+  const handleBulkTransferAll = async () => {
+    const pending = transferList.filter(d => !transferResults.find(r => r.domain === d && r.success));
+    const missing = new Set(pending.filter(d => !transferEppCodes[d]?.trim() || transferEppCodes[d].trim().length < 8));
+    if (missing.size > 0) {
+      setTransferEppErrors(missing);
+      return;
+    }
+    setTransferEppErrors(new Set());
+
+    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
+    if (!token) {
+      localStorage.setItem('bulk_domain_transfers', JSON.stringify(
+        pending.map(d => ({ domain: d, epp: transferEppCodes[d] }))
+      ));
+      window.location.href = `/client/login?redirect=${encodeURIComponent('/domains#transfer')}`;
+      return;
+    }
+
+    setTransferSubmitting(true);
+    try {
+      const res = await fetch('/api/my/domain-transfers/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ transfers: pending.map(d => ({ domain: d, epp: transferEppCodes[d].trim() })) }),
+      });
+      const data = await res.json();
+      setTransferResults(data.results || []);
+    } catch {
+      setTransferResults(pending.map(d => ({ domain: d, success: false, error: 'Network error. Please try again.' })));
+    } finally {
+      setTransferSubmitting(false);
+    }
   };
 
   const handleTransferParse = () => {
+    setTransferResults([]);
+    setTransferEppCodes({});
+    setTransferEppErrors(new Set());
     const lines = transferInput.split('\n').map(l => l.trim().toLowerCase()).filter(l => l.includes('.') && l.length >= 4);
     setTransferList([...new Set(lines)]);
   };
@@ -557,7 +641,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               {/* Right: action button */}
                               <div className="flex-shrink-0">
                                 {r.available ? (
-                                  <button onClick={() => handleAddToCart(r.tld, r.registrationPrice)} disabled={isAdded} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap ${isAdded ? 'bg-green-500 text-white' : 'border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-700'}`}>
+                                  <button onClick={() => handleRegisterNow(r.tld, r.registrationPrice)} disabled={isAdded} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap ${isAdded ? 'bg-green-500 text-white' : 'border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-700'}`}>
                                     {isAdded ? <><Check size={12} />Added</> : <><ShoppingCart size={12} />Add to cart</>}
                                   </button>
                                 ) : (
@@ -596,32 +680,83 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                 </button>
               </div>
               {bulkResults.length > 0 && (
-                <div className="border-t border-slate-100 divide-y divide-slate-100 max-h-96 overflow-y-auto">
-                  {bulkResults.map((r, i) => {
-                    const p = r.available && r.price ? getPriceDisplay(r.tld ?? '', r.price) : null;
-                    return (
-                      <div key={i} className="px-5 py-3.5 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          {r.checking ? <Loader2 size={14} className="animate-spin text-slate-400 flex-shrink-0" /> : <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.available === true ? 'bg-green-400' : r.available === false ? 'bg-red-400' : 'bg-slate-300'}`} />}
-                          <div>
+                <div className="border-t border-slate-100">
+                  {/* Select All header bar */}
+                  {bulkResults.some(r => r.available && r.price && !r.checking) && (
+                    <div className="px-5 py-3 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
+                      <button onClick={selectAllAvailableBulk} className="flex items-center gap-2 text-xs font-black text-purple-700 hover:text-purple-900 transition-colors">
+                        {bulkSelected.size === bulkResults.filter(r => r.available && r.price && !r.checking).length
+                          ? <><CheckSquare size={14} />Deselect All</>
+                          : <><Square size={14} />Select All Available ({bulkResults.filter(r => r.available && r.price && !r.checking).length})</>
+                        }
+                      </button>
+                      {bulkSelected.size > 0 && (
+                        <span className="text-xs font-bold text-purple-600">{bulkSelected.size} selected</span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+                    {bulkResults.map((r, i) => {
+                      const p = r.available && r.price ? getPriceDisplay(r.tld ?? '', r.price) : null;
+                      const isSelected = bulkSelected.has(r.domain);
+                      const canSelect = r.available === true && !!r.price && !r.checking;
+                      return (
+                        <div key={i} className={`px-5 py-3.5 flex items-center gap-3 transition-colors ${isSelected ? 'bg-purple-50/60' : 'hover:bg-slate-50'}`}>
+                          {/* Checkbox */}
+                          <div className="flex-shrink-0 w-5">
+                            {canSelect ? (
+                              <button onClick={() => setBulkSelected(prev => {
+                                const next = new Set(prev);
+                                if (next.has(r.domain)) next.delete(r.domain); else next.add(r.domain);
+                                return next;
+                              })} className="text-purple-600 hover:text-purple-800 transition-colors">
+                                {isSelected ? <CheckSquare size={16} /> : <Square size={16} className="text-slate-300" />}
+                              </button>
+                            ) : (
+                              r.checking
+                                ? <Loader2 size={14} className="animate-spin text-slate-400" />
+                                : <div className="w-2.5 h-2.5 rounded-full bg-red-300 mt-0.5 mx-auto" />
+                            )}
+                          </div>
+                          {/* Domain info */}
+                          <div className="flex-1 min-w-0">
                             <span className="text-sm font-black text-slate-800">{r.domain}</span>
-                            {!r.checking && <div className={`text-xs font-semibold ${r.available === true ? 'text-green-600' : r.available === false ? 'text-red-500' : 'text-slate-400'}`}>{r.available === true ? 'Available' : r.available === false ? 'Taken' : 'Unknown'}</div>}
+                            {!r.checking && (
+                              <div className={`text-xs font-semibold ${r.available === true ? 'text-green-600' : r.available === false ? 'text-red-500' : 'text-slate-400'}`}>
+                                {r.available === true ? 'Available' : r.available === false ? 'Taken' : 'Unknown'}
+                              </div>
+                            )}
+                          </div>
+                          {/* Price + action */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {p && <span className="text-xs font-black text-slate-700 whitespace-nowrap">{p.label}{p.period}</span>}
+                            {r.available && r.price && !r.checking && (
+                              <button onClick={() => addBulkToCart(r)} disabled={r.added} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs transition-all ${r.added ? 'bg-green-500 text-white' : 'bg-white border border-slate-200 hover:border-purple-400 hover:text-purple-700 text-slate-600'}`}>
+                                {r.added ? <><Check size={11} />Added</> : <><Plus size={11} />Add</>}
+                              </button>
+                            )}
+                            {r.available === false && !r.checking && (
+                              <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(r.domain)}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs bg-slate-100 hover:bg-orange-100 hover:text-orange-600 text-slate-500 transition-all"><RefreshCw size={11} />Transfer</button>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          {p && <span className="text-xs font-black text-slate-700 whitespace-nowrap">{p.label}{p.period}</span>}
-                          {r.available && r.price && !r.checking && (
-                            <button onClick={() => addBulkToCart(r)} disabled={r.added} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-xs transition-all ${r.added ? 'bg-green-500 text-white' : 'border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-700'}`}>
-                              {r.added ? <><Check size={12} />Added</> : <><Plus size={12} />Add</>}
-                            </button>
-                          )}
-                          {r.available === false && !r.checking && (
-                            <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(r.domain)}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs bg-slate-100 hover:bg-orange-100 hover:text-orange-600 text-slate-500 transition-all"><RefreshCw size={11} />Transfer</button>
-                          )}
-                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add All Selected to Cart button */}
+                  {bulkSelected.size > 0 && (
+                    <div className="px-5 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-between gap-4">
+                      <div className="text-white">
+                        <div className="text-sm font-black">{bulkSelected.size} domain{bulkSelected.size > 1 ? 's' : ''} selected</div>
+                        <div className="text-xs text-purple-200 font-medium">All will be added to your cart</div>
                       </div>
-                    );
-                  })}
+                      <button onClick={addAllSelectedToCart} className="flex items-center gap-2 px-5 py-2.5 bg-white text-purple-700 rounded-xl font-black text-sm hover:bg-purple-50 transition-all shadow-lg whitespace-nowrap">
+                        <ShoppingBag size={15} />Add {bulkSelected.size} to Cart
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -644,28 +779,95 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
               </div>
               {transferList.length > 0 && (
                 <div className="border-t border-slate-100">
-                  <div className="px-5 py-3 bg-orange-50">
-                    <span className="text-xs font-black text-orange-700 uppercase tracking-widest">{transferList.length} domain{transferList.length > 1 ? 's' : ''} queued for transfer</span>
+                  {/* Header */}
+                  <div className="px-5 py-3 bg-orange-50 border-b border-orange-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <KeyRound size={14} className="text-orange-600" />
+                      <span className="text-xs font-black text-orange-700 uppercase tracking-widest">{transferList.length} domain{transferList.length > 1 ? 's' : ''} — Enter EPP/Auth codes below</span>
+                    </div>
+                    <span className="text-xs text-orange-500 font-medium">Get codes from your current registrar</span>
                   </div>
-                  <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-                    {transferList.map((domain, i) => (
-                      <div key={i} className="px-5 py-3.5 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <RefreshCw size={14} className="text-orange-500 flex-shrink-0" />
-                          <span className="text-sm font-black text-slate-800">{domain}</span>
+
+                  {/* Domain rows with EPP inputs */}
+                  <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+                    {transferList.map((domain, i) => {
+                      const result = transferResults.find(r => r.domain === domain);
+                      const hasError = transferEppErrors.has(domain);
+                      return (
+                        <div key={i} className={`px-5 py-4 transition-colors ${result?.success ? 'bg-green-50' : result?.error ? 'bg-red-50/40' : ''}`}>
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {result?.success
+                                ? <CircleCheck size={14} className="text-green-500 flex-shrink-0" />
+                                : result?.error
+                                  ? <CircleX size={14} className="text-red-500 flex-shrink-0" />
+                                  : <RefreshCw size={14} className="text-orange-500 flex-shrink-0" />
+                              }
+                              <span className="text-sm font-black text-slate-800 truncate">{domain}</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {result?.success && result.invoiceNumber && (
+                                <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">Invoice {result.invoiceNumber}</span>
+                              )}
+                              {!result?.success && (
+                                <button onClick={() => setTransferList(prev => prev.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all"><Trash2 size={12} /></button>
+                              )}
+                            </div>
+                          </div>
+
+                          {result?.success ? (
+                            <p className="text-xs text-green-700 font-semibold ml-5">✓ Transfer initiated. You'll receive an email confirmation shortly.</p>
+                          ) : result?.error ? (
+                            <p className="text-xs text-red-600 font-semibold ml-5">{result.error}</p>
+                          ) : (
+                            <div className="ml-5">
+                              <input
+                                type="text"
+                                placeholder="EPP/Auth code (min. 8 chars, letters + numbers)"
+                                value={transferEppCodes[domain] ?? ''}
+                                onChange={e => {
+                                  setTransferEppCodes(prev => ({ ...prev, [domain]: e.target.value }));
+                                  if (transferEppErrors.has(domain)) setTransferEppErrors(prev => { const n = new Set(prev); n.delete(domain); return n; });
+                                }}
+                                className={`w-full text-xs font-mono bg-white border rounded-xl px-3 py-2 focus:outline-none transition-colors placeholder:text-slate-400 ${hasError ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-slate-200 focus:border-orange-400'}`}
+                              />
+                              {hasError && <p className="text-xs text-red-500 font-semibold mt-1">EPP code must be at least 8 characters (letters + numbers)</p>}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(domain)}`} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs transition-all ${transferAdded.has(domain) ? 'bg-green-500 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white shadow-md'}`}>
-                            {transferAdded.has(domain) ? <><Check size={12} />Done</> : <><ArrowRightLeft size={12} />Transfer</>}
-                          </button>
-                          <button onClick={() => setTransferList(prev => prev.filter((_, idx) => idx !== i))} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
-                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Transfer All button or Success summary */}
+                  {transferResults.length > 0 && transferResults.every(r => r.success) ? (
+                    <div className="p-5 bg-green-50 border-t border-green-100 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-black text-green-700">All {transferResults.length} transfers initiated!</div>
+                        <div className="text-xs text-green-600 font-medium">Check your email for confirmation. Transfers take 5–7 days.</div>
                       </div>
-                    ))}
-                  </div>
-                  <div className="p-5 bg-slate-50 border-t border-slate-100">
-                    <p className="text-xs text-slate-500 font-medium">💡 You'll need your domain's EPP/Auth code ready. Transfers typically complete in 5–7 days.</p>
-                  </div>
+                      <button onClick={() => window.location.href = '/client/domains'} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all">
+                        <ArrowRightLeft size={13} />View Transfers
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-5 border-t border-slate-100 bg-slate-50">
+                      <div className="flex items-center gap-2 mb-3 text-xs text-slate-500 font-medium">
+                        <Info size={12} className="text-slate-400" />
+                        Get your EPP/auth code from your current registrar's domain settings. Transfers take 5–7 days.
+                      </div>
+                      <button
+                        onClick={handleBulkTransferAll}
+                        disabled={transferSubmitting || transferList.every(d => transferResults.find(r => r.domain === d && r.success))}
+                        className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-orange-500/20"
+                      >
+                        {transferSubmitting
+                          ? <><Loader2 size={16} className="animate-spin" />Processing transfers...</>
+                          : <><ArrowRightLeft size={16} />Transfer All {transferList.filter(d => !transferResults.find(r => r.domain === d && r.success)).length} Domains</>
+                        }
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
