@@ -187,16 +187,16 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
 
   const Logo = () => {
     if (navData.logoImage) {
-      return <img src={navData.logoImage} alt={navData.logo} className="h-14 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoImage} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     if (navData.logoUrl) {
-      return <img src={navData.logoUrl} alt={navData.logo} className="h-14 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoUrl} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
       <img
         src="/logo.png"
         alt="Noehost"
-        className="h-14 w-auto object-contain"
+        className="h-8 w-auto object-contain"
         style={{ transition: 'opacity 0.3s ease' }}
       />
     );
