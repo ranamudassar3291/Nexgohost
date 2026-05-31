@@ -14,7 +14,7 @@ import {
   Mail as MailIcon, ExternalLink, Github, Twitter, Linkedin, 
   Facebook, Instagram, Youtube, Slack, Twitch, 
   Figma, Chrome, Github as GithubIcon, MessageCircle,
-  ShoppingCart
+  ShoppingCart, Workflow
 } from 'lucide-react';
 import { useContent } from '../ContentContext';
 import { useCart } from '../context/CartContext';
@@ -102,6 +102,7 @@ const IconMap: any = {
   Twitch: <Twitch size={18} />,
   Figma: <Figma size={18} />,
   Chrome: <Chrome size={18} />,
+  Workflow: <Workflow size={18} />,
 };
 
 const HOSTING_NAMES = ['shared', 'vps', 'reseller', 'wordpress', 'n8n'];

@@ -1,478 +1,477 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Check, ArrowRight, Shield, Zap, Globe, ChevronDown, ChevronUp,
-  Server, RefreshCw, Lock, Cpu, HardDrive, Activity, GitBranch,
-  Workflow, Bot, Star, Users, Clock, Play, LifeBuoy
+  Check, ArrowRight, ChevronDown, ChevronUp,
+  Shield, Zap, RefreshCw, Globe, Lock,
+  Cpu, GitBranch, Activity, Star, LifeBuoy,
+  MessageSquare, Bot, Workflow, Play
 } from 'lucide-react';
+import { useCurrency } from '../../CurrencyContext';
 
-const PLANS = [
+const PLANS_PKR = [
   {
-    name: 'Starter',
+    name: 'KVM 1',
     badge: '',
     popular: false,
-    monthlyPrice: 9,
-    yearlyPrice: 6,
-    savePercent: 33,
-    description: 'Perfect for individuals and small teams automating workflows.',
-    highlight: 'rgba(99,102,241,0.15)',
-    borderColor: 'border-white/10',
+    savePercent: 63,
+    monthlyPKR: 2499,
+    yearlyPKR: 1499,
+    cpu: '1 vCPU',
+    ram: '4 GB RAM',
+    storage: '50 GB NVMe',
+    bandwidth: '4 TB Bandwidth',
     features: [
-      '2 vCPU Cores',
-      '2 GB RAM',
-      '20 GB NVMe SSD',
-      'Up to 5,000 Executions/mo',
       'n8n Pre-installed',
       'Free SSL Certificate',
-      '1 Custom Domain',
+      'Unlimited Workflows',
+      'Unlimited Executions',
+      'Community Nodes Access',
       'Daily Backups',
-      'Managed Auto-updates',
+      'Managed Updates',
+      'Full Root Access',
     ],
   },
   {
-    name: 'Business',
+    name: 'KVM 2',
     badge: 'MOST POPULAR',
     popular: true,
-    monthlyPrice: 19,
-    yearlyPrice: 12,
-    savePercent: 37,
-    description: 'For growing teams running serious automation at scale.',
-    highlight: 'rgba(99,102,241,0.25)',
-    borderColor: 'border-violet-500/60',
+    savePercent: 62,
+    monthlyPKR: 4999,
+    yearlyPKR: 2999,
+    cpu: '2 vCPU',
+    ram: '8 GB RAM',
+    storage: '100 GB NVMe',
+    bandwidth: '8 TB Bandwidth',
     features: [
-      '4 vCPU Cores',
-      '8 GB RAM',
-      '80 GB NVMe SSD',
-      'Up to 50,000 Executions/mo',
       'n8n Pre-installed',
       'Free SSL Certificate',
-      '5 Custom Domains',
-      'Daily Backups + Restore',
-      'Managed Auto-updates',
-      'Priority Support (24/7)',
-      'Webhook Rate Limit Boost',
+      'Unlimited Workflows',
+      'Unlimited Executions',
+      'Community Nodes Access',
+      'Daily Backups',
+      'Managed Updates',
+      'Full Root Access',
+      'Priority Support 24/7',
+      'Custom Domain Included',
     ],
   },
   {
-    name: 'Enterprise',
+    name: 'KVM 4',
     badge: '',
     popular: false,
-    monthlyPrice: 39,
-    yearlyPrice: 26,
-    savePercent: 33,
-    description: 'Maximum power for large organizations and mission-critical workflows.',
-    highlight: 'rgba(99,102,241,0.15)',
-    borderColor: 'border-white/10',
+    savePercent: 69,
+    monthlyPKR: 9999,
+    yearlyPKR: 5999,
+    cpu: '4 vCPU',
+    ram: '16 GB RAM',
+    storage: '200 GB NVMe',
+    bandwidth: '16 TB Bandwidth',
     features: [
-      '8 vCPU Cores',
-      '16 GB RAM',
-      '200 GB NVMe SSD',
-      'Unlimited Executions',
       'n8n Pre-installed',
       'Free SSL Certificate',
-      'Unlimited Custom Domains',
+      'Unlimited Workflows',
+      'Unlimited Executions',
+      'Community Nodes Access',
       'Hourly Backups + Restore',
-      'Managed Auto-updates',
+      'Managed Updates',
+      'Full Root Access',
       'Dedicated Support Manager',
-      'Webhook Rate Limit Boost',
-      'Custom SMTP Integration',
+      'Custom Domain Included',
       'White-label Ready',
+      'Custom SMTP Integration',
     ],
   },
-];
-
-const FEATURES = [
-  {
-    icon: <Bot size={28} />,
-    color: 'text-violet-400 bg-violet-500/10',
-    title: 'n8n Pre-Installed',
-    desc: 'Your server comes with n8n fully configured and ready to use. No setup required — just login and start building workflows.',
-  },
-  {
-    icon: <Zap size={28} />,
-    color: 'text-amber-400 bg-amber-500/10',
-    title: 'Blazing-Fast NVMe SSD',
-    desc: 'AMD EPYC processors with NVMe SSDs ensure n8n executes your automations at maximum speed with zero lag.',
-  },
-  {
-    icon: <Shield size={28} />,
-    color: 'text-emerald-400 bg-emerald-500/10',
-    title: 'Free SSL + Secure Access',
-    desc: "Let's Encrypt SSL auto-installed. Your n8n instance is secured with HTTPS so webhooks and API calls are always encrypted.",
-  },
-  {
-    icon: <RefreshCw size={28} />,
-    color: 'text-sky-400 bg-sky-500/10',
-    title: 'Managed Updates & Backups',
-    desc: 'We handle n8n updates, OS patches, and daily backups for you. Your workflows are always protected and up-to-date.',
-  },
-  {
-    icon: <Globe size={28} />,
-    color: 'text-pink-400 bg-pink-500/10',
-    title: 'Custom Domain Support',
-    desc: 'Point your own domain to your n8n instance. Run automation at n8n.yourdomain.com with full DNS management.',
-  },
-  {
-    icon: <LifeBuoy size={28} />,
-    color: 'text-orange-400 bg-orange-500/10',
-    title: '24/7 Expert Support',
-    desc: 'Our engineers know n8n inside-out. Get help with workflow errors, webhook configs, and integrations anytime.',
-  },
-];
-
-const WHY_ITEMS = [
-  { icon: <Lock size={20} />, title: 'Your Data Stays Yours', desc: 'Unlike n8n Cloud, self-hosted means your credentials and workflow data never leave your server.' },
-  { icon: <Cpu size={20} />, title: 'No Execution Limits on Enterprise', desc: 'Run as many automations as you need. No throttling, no per-workflow pricing.' },
-  { icon: <GitBranch size={20} />, title: '400+ Integrations', desc: 'Connect Slack, Google Sheets, Airtable, GitHub, Stripe, WhatsApp, and hundreds more.' },
-  { icon: <Activity size={20} />, title: 'Full Admin Control', desc: 'Access n8n\'s full admin panel, environment variables, and custom nodes — your instance, your rules.' },
 ];
 
 const FAQS = [
-  { q: 'What is n8n self-hosted?', a: 'n8n is an open-source workflow automation tool. Self-hosted means you run it on your own server — giving you full data privacy, unlimited customization, and no per-workflow pricing from n8n\'s cloud plans.' },
-  { q: 'Is n8n already installed when I purchase?', a: 'Yes! n8n is pre-installed and configured on your server. You\'ll receive login credentials by email immediately after your order is processed.' },
-  { q: 'Can I connect n8n to any service?', a: 'n8n supports 400+ native integrations including Slack, Gmail, Google Sheets, Airtable, Stripe, WhatsApp, Telegram, GitHub, and many more. You can also build custom nodes.' },
-  { q: 'Do you manage updates?', a: 'Yes. We automatically update n8n and the underlying OS for you. You won\'t need to SSH in or manage packages — we handle everything.' },
-  { q: 'Can I use my own domain?', a: 'Absolutely. You can point any domain or subdomain (like n8n.yourdomain.com) to your server. We\'ll help you configure the DNS and SSL certificate.' },
-  { q: 'Is there a money-back guarantee?', a: 'Yes, all plans come with a 30-day money-back guarantee. If you\'re not satisfied for any reason, we\'ll refund you — no questions asked.' },
+  {
+    q: 'What is self-hosted n8n?',
+    a: 'Self-hosted n8n is the open-source version of n8n that you run on your own server. Unlike n8n Cloud, there are no per-execution charges, no workflow limits, and your data stays on your server — giving you full control and privacy.',
+  },
+  {
+    q: 'Is n8n already installed when I buy?',
+    a: 'Yes. n8n is fully pre-installed and configured on your VPS. You\'ll receive login credentials by email immediately after your order is activated — just open your browser and start building.',
+  },
+  {
+    q: 'Can I connect n8n to any third-party service?',
+    a: 'n8n natively supports 400+ integrations including Slack, Gmail, Google Sheets, WhatsApp, Airtable, Stripe, GitHub, Telegram, and much more. You can also install community nodes for even more integrations.',
+  },
+  {
+    q: 'Do you handle server updates and maintenance?',
+    a: 'Yes. We manage n8n updates, OS patches, and security fixes automatically. You focus on building workflows — we keep the server running smoothly.',
+  },
+  {
+    q: 'Can I use my own domain with n8n?',
+    a: 'Absolutely. You can point any domain or subdomain (e.g. n8n.yourbusiness.com) to your VPS. We\'ll guide you through DNS setup and install a free SSL certificate.',
+  },
+  {
+    q: 'Is there a money-back guarantee?',
+    a: 'Yes — all plans come with a 30-day money-back guarantee. If you\'re not satisfied for any reason, contact support within 30 days for a full refund.',
+  },
 ];
 
 const N8nHosting: React.FC = () => {
-  const [yearly, setYearly] = useState(false);
+  const [yearly, setYearly] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const { convertFromPKR, currency } = useCurrency();
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen text-white" style={{ background: '#000000' }}>
 
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden pt-36 pb-28 bg-[#0d0d1a]">
-        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(ellipse 80% 60% at 50% -20%, rgba(99,102,241,0.18) 0%, transparent 70%)' }} />
-        <div className="absolute top-20 right-0 w-[600px] h-[600px] rounded-full blur-[160px]" style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)' }} />
+      <section className="relative overflow-hidden pt-36 pb-20" style={{ background: '#000000' }}>
+        {/* Subtle grid bg */}
+        <div className="absolute inset-0 opacity-[0.035]"
+          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        {/* Purple glow top-right */}
+        <div className="absolute top-0 right-0 w-[700px] h-[700px] rounded-full blur-[200px] pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 65%)' }} />
 
-        <div className="max-w-7xl mx-auto px-6 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-16">
+        <div className="max-w-[1200px] mx-auto px-6 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
 
-            {/* Left */}
-            <motion.div initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }} className="lg:w-1/2">
-              <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-black px-4 py-2 rounded-full mb-6 uppercase tracking-widest">
-                <Zap size={12} className="fill-violet-400" /> Self-Hosted n8n Automation
-              </div>
-              <h1 className="text-5xl lg:text-6xl font-black text-white leading-[1.05] tracking-tight mb-6">
-                Automate Everything<br />
-                <span className="text-violet-400">Own Your Data.</span>
-              </h1>
-              <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-lg">
-                Run n8n on your own private server. Full control, zero vendor lock-in, and 400+ integrations — pre-installed and managed for you.
+            {/* LEFT */}
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="lg:w-[480px] flex-shrink-0">
+              <p className="text-sm font-semibold mb-5" style={{ color: '#7C3AED' }}>
+                Up to <span className="font-black">69% off</span> n8n self hosting
               </p>
-              <div className="flex flex-wrap gap-4">
-                <a href="#n8n-plans" className="px-8 py-4 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-violet-600/30 flex items-center gap-2 group">
-                  Choose a Plan <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </a>
-                <a href="/contact-us" className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10">
-                  Talk to Sales
-                </a>
-              </div>
-              <div className="flex flex-wrap gap-6 mt-8">
-                {['Free SSL Included', 'n8n Pre-Installed', '30-Day Money Back'].map(f => (
-                  <span key={f} className="flex items-center gap-2 text-xs text-slate-400 font-bold">
-                    <Check size={14} className="text-violet-400" /> {f}
-                  </span>
+              <h1 className="font-black leading-[1.08] tracking-tight mb-7"
+                style={{ fontSize: 'clamp(2.2rem, 5vw, 3.2rem)', color: '#FFFFFF' }}>
+                Self-hosted n8n:<br />No-code AI workflows
+              </h1>
+              <ul className="space-y-3 mb-8">
+                {[
+                  'Unlock unlimited workflows',
+                  'Launch unlimited concurrent executions',
+                  'Access community nodes',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-3 text-[15px]" style={{ color: '#D1D5DB' }}>
+                    <Check size={16} className="flex-shrink-0" style={{ color: '#7C3AED' }} />
+                    {f}
+                  </li>
                 ))}
+              </ul>
+              <div className="flex flex-wrap items-center gap-4">
+                <a href="#n8n-plans"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-bold text-[15px] text-white transition-all hover:opacity-90"
+                  style={{ background: 'linear-gradient(135deg, #7C3AED, #6D28D9)' }}>
+                  Choose your plan
+                </a>
               </div>
+              <p className="flex items-center gap-2 mt-5 text-sm" style={{ color: '#9CA3AF' }}>
+                <Shield size={14} style={{ color: '#9CA3AF' }} />
+                30-day money-back guarantee
+              </p>
             </motion.div>
 
-            {/* Right — n8n dashboard mockup */}
-            <motion.div initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="lg:w-1/2">
-              <div className="bg-white/[0.04] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                {/* Window chrome */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/[0.03]">
-                  <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
-                  <div className="ml-3 flex-1 bg-white/5 rounded-md px-3 py-1 text-xs text-slate-500 font-mono">n8n.yourdomain.com</div>
-                </div>
-                {/* n8n workflow mockup */}
-                <div className="p-5">
-                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">Workflow Editor</div>
-                  {/* Workflow canvas */}
-                  <div className="relative bg-[#0f0f1a] rounded-xl border border-white/5 p-4 h-48 overflow-hidden">
-                    {/* Grid dots */}
-                    <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-                    {/* Nodes */}
-                    <div className="absolute top-6 left-6 bg-violet-600 rounded-lg px-3 py-2 text-[10px] font-black shadow-lg shadow-violet-600/30 flex items-center gap-1.5">
-                      <Workflow size={12} /> Webhook Trigger
-                    </div>
-                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                      <path d="M 140 38 C 180 38, 180 70, 220 70" stroke="rgba(139,92,246,0.5)" strokeWidth="2" fill="none" strokeDasharray="4 3" />
-                      <path d="M 140 38 C 180 38, 180 105, 220 105" stroke="rgba(99,102,241,0.5)" strokeWidth="2" fill="none" strokeDasharray="4 3" />
-                    </svg>
-                    <div className="absolute top-14 left-[220px] bg-sky-600/80 rounded-lg px-3 py-2 text-[10px] font-black flex items-center gap-1.5">
-                      <Bot size={12} /> AI Agent
-                    </div>
-                    <div className="absolute top-24 left-[220px] bg-emerald-600/80 rounded-lg px-3 py-2 text-[10px] font-black flex items-center gap-1.5">
-                      <Globe size={12} /> Slack Notify
-                    </div>
-                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                      <path d="M 310 74 C 350 74, 350 90, 380 90" stroke="rgba(34,197,94,0.5)" strokeWidth="2" fill="none" strokeDasharray="4 3" />
-                      <path d="M 310 109 C 350 109, 350 90, 380 90" stroke="rgba(34,197,94,0.5)" strokeWidth="2" fill="none" strokeDasharray="4 3" />
-                    </svg>
-                    <div className="absolute top-[68px] left-[370px] bg-pink-600/80 rounded-lg px-3 py-2 text-[10px] font-black flex items-center gap-1.5">
-                      <Zap size={12} /> Google Sheets
-                    </div>
-                    {/* Status bar */}
-                    <div className="absolute bottom-3 right-3 flex items-center gap-2 bg-white/5 rounded-full px-3 py-1 border border-white/5">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-[10px] text-emerald-400 font-bold">Running</span>
-                    </div>
+            {/* RIGHT — n8n workflow diagram */}
+            <motion.div initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7, delay: 0.15 }} className="flex-1 flex items-center justify-center">
+              <div className="relative w-full max-w-[520px] h-[340px]">
+                {/* BG card */}
+                <div className="absolute bottom-0 left-4 right-4 h-[200px] rounded-2xl"
+                  style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', border: '1px solid rgba(99,102,241,0.3)' }} />
+
+                {/* n8n logo node (large, center-bottom) */}
+                <motion.div
+                  animate={{ y: [0, -6, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
+                  className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center justify-center rounded-2xl shadow-2xl"
+                  style={{ width: 220, height: 72, background: '#1a1a2e', border: '1.5px solid rgba(99,102,241,0.5)', zIndex: 10 }}>
+                  {/* n8n logo SVG */}
+                  <svg width="80" height="32" viewBox="0 0 80 32" fill="none">
+                    <circle cx="8" cy="16" r="7" fill="none" stroke="#666" strokeWidth="2"/>
+                    <circle cx="8" cy="16" r="3" fill="#666"/>
+                    <line x1="15" y1="16" x2="25" y2="16" stroke="#888" strokeWidth="2"/>
+                    <circle cx="30" cy="16" r="5" fill="none" stroke="#888" strokeWidth="2"/>
+                    <line x1="35" y1="16" x2="45" y2="16" stroke="#888" strokeWidth="2"/>
+                    <circle cx="50" cy="16" r="7" fill="none" stroke="#666" strokeWidth="2"/>
+                    <circle cx="50" cy="16" r="3" fill="#666"/>
+                    <line x1="57" y1="16" x2="67" y2="16" stroke="#888" strokeWidth="2"/>
+                    <circle cx="72" cy="16" r="5" fill="none" stroke="#888" strokeWidth="2"/>
+                  </svg>
+                </motion.div>
+
+                {/* Chat bubble node (top-left) */}
+                <motion.div
+                  animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut', delay: 0.5 }}
+                  className="absolute top-8 left-8 flex items-center justify-center rounded-2xl shadow-xl"
+                  style={{ width: 80, height: 80, background: '#111827', border: '1.5px solid rgba(255,255,255,0.12)', zIndex: 10 }}>
+                  <MessageSquare size={32} style={{ color: '#9CA3AF' }} />
+                </motion.div>
+
+                {/* Zap node (top-left connector) */}
+                <motion.div
+                  animate={{ y: [0, -5, 0] }} transition={{ repeat: Infinity, duration: 3.2, ease: 'easeInOut', delay: 0.2 }}
+                  className="absolute top-[60px] left-[68px] flex items-center justify-center rounded-full shadow-lg"
+                  style={{ width: 36, height: 36, background: '#1e1b4b', border: '1.5px solid rgba(99,102,241,0.5)', zIndex: 20 }}>
+                  <Zap size={16} style={{ color: '#818CF8' }} />
+                </motion.div>
+
+                {/* AI Agent node (top-center) */}
+                <motion.div
+                  animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 3.8, ease: 'easeInOut', delay: 0.3 }}
+                  className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-5 rounded-2xl shadow-2xl"
+                  style={{ height: 72, background: '#1e1b4b', border: '1.5px solid rgba(99,102,241,0.6)', minWidth: 200, zIndex: 15 }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(99,102,241,0.2)' }}>
+                    <Bot size={20} style={{ color: '#818CF8' }} />
                   </div>
-                  {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-3 mt-4">
-                    {[
-                      { label: 'Active Workflows', value: '24', color: 'text-violet-400' },
-                      { label: 'Executions Today', value: '1,847', color: 'text-emerald-400' },
-                      { label: 'Success Rate', value: '99.8%', color: 'text-sky-400' },
-                    ].map(s => (
-                      <div key={s.label} className="bg-white/[0.03] rounded-xl p-3 border border-white/5 text-center">
-                        <div className={`text-lg font-black ${s.color}`}>{s.value}</div>
-                        <div className="text-[10px] text-slate-500 font-bold mt-0.5">{s.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  <span className="font-bold text-white text-[15px]">AI Agent</span>
+                </motion.div>
+
+                {/* Edit/pencil node (top-right) */}
+                <motion.div
+                  animate={{ y: [0, -7, 0] }} transition={{ repeat: Infinity, duration: 3.3, ease: 'easeInOut', delay: 0.7 }}
+                  className="absolute top-4 right-8 flex items-center justify-center rounded-2xl shadow-xl"
+                  style={{ width: 72, height: 72, background: '#1e1b4b', border: '1.5px solid rgba(99,102,241,0.5)', zIndex: 10 }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(129,140,248,0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </motion.div>
+
+                {/* Arrow/cursor (right side) */}
+                <motion.div
+                  animate={{ x: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                  className="absolute top-20 right-2"
+                  style={{ zIndex: 20 }}>
+                  <svg width="32" height="40" viewBox="0 0 32 40" fill="none">
+                    <path d="M4 4L4 32L12 24L18 36L22 34L16 22L28 22L4 4Z" fill="white" stroke="rgba(0,0,0,0.3)" strokeWidth="1"/>
+                  </svg>
+                </motion.div>
+
+                {/* Connecting lines (SVG overlay) */}
+                <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none', zIndex: 5 }}>
+                  {/* Chat to Zap */}
+                  <line x1="108" y1="88" x2="86" y2="96" stroke="rgba(99,102,241,0.4)" strokeWidth="2" strokeDasharray="5 4"/>
+                  {/* AI Agent down to n8n node */}
+                  <line x1="260" y1="76" x2="260" y2="228" stroke="rgba(99,102,241,0.35)" strokeWidth="2" strokeDasharray="5 4"/>
+                  {/* Edit node down */}
+                  <line x1="410" y1="76" x2="350" y2="228" stroke="rgba(99,102,241,0.3)" strokeWidth="2" strokeDasharray="5 4"/>
+                </svg>
               </div>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ── TRUST BAR ── */}
-      <section className="py-8 border-y border-white/5 bg-white/[0.02]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-wrap items-center justify-center gap-10 md:gap-16">
-            {[
-              { val: '99.9%', label: 'Uptime SLA' },
-              { val: '< 500ms', label: 'Setup Time' },
-              { val: '400+', label: 'Integrations' },
-              { val: '24/7', label: 'Support' },
-            ].map(s => (
-              <div key={s.label} className="text-center">
-                <div className="text-2xl font-black text-white">{s.val}</div>
-                <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">{s.label}</div>
+      {/* ── TRUSTPILOT ── */}
+      <section className="py-10 border-y" style={{ background: '#000000', borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="max-w-[1200px] mx-auto px-6 flex flex-wrap items-center justify-center gap-3">
+          <span className="font-semibold text-white text-base">Excellent</span>
+          <div className="flex gap-0.5">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="w-6 h-6 flex items-center justify-center" style={{ background: '#00B67A' }}>
+                <Star size={14} className="fill-white text-white" />
               </div>
             ))}
-            <div className="flex items-center gap-2">
-              <div className="flex">
-                {[1,2,3,4,5].map(i => <Star key={i} size={16} className="text-amber-400 fill-amber-400" />)}
-              </div>
-              <span className="text-sm text-slate-400 font-bold">Excellent on Trustpilot</span>
+          </div>
+          <span className="text-sm underline" style={{ color: '#9CA3AF' }}>68,298 reviews on</span>
+          <div className="flex items-center gap-1.5">
+            <div className="flex gap-0.5">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="w-4 h-4" style={{ background: '#00B67A' }}>
+                  <Star size={10} className="fill-white text-white" />
+                </div>
+              ))}
             </div>
+            <span className="font-black text-sm text-white">Trustpilot</span>
           </div>
         </div>
       </section>
 
-      {/* ── PRICING PLANS ── */}
-      <section id="n8n-plans" className="py-24 bg-[#0a0a0f]">
-        <div className="max-w-7xl mx-auto px-6">
+      {/* ── PRICING ── */}
+      <section id="n8n-plans" className="py-20" style={{ background: '#000000' }}>
+        <div className="max-w-[1200px] mx-auto px-6">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-black px-4 py-2 rounded-full mb-5 uppercase tracking-widest">
-              Pricing
-            </div>
-            <h2 className="text-4xl lg:text-5xl font-black text-white mb-4">
-              Choose Your n8n Plan
+            <h2 className="font-black mb-4" style={{ fontSize: 'clamp(1.8rem, 4vw, 2.6rem)', color: '#FFFFFF' }}>
+              Pick the best VPS plan –<br />self-hosted n8n included
             </h2>
-            <p className="text-slate-400 text-lg max-w-xl mx-auto">
-              All plans include n8n pre-installed, managed updates, free SSL, and daily backups.
-            </p>
 
             {/* Billing toggle */}
             <div className="flex items-center justify-center gap-4 mt-8">
-              <span className={`text-sm font-black ${!yearly ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
               <button
-                onClick={() => setYearly(v => !v)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${yearly ? 'bg-violet-600' : 'bg-white/10'}`}
-              >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${yearly ? 'translate-x-7' : 'translate-x-1'}`} />
+                onClick={() => setYearly(false)}
+                className={`text-sm font-bold px-4 py-2 rounded-lg transition-all ${!yearly ? 'text-white bg-white/10' : 'text-gray-500'}`}>
+                Monthly
               </button>
-              <span className={`text-sm font-black ${yearly ? 'text-white' : 'text-slate-500'}`}>
-                Yearly <span className="text-emerald-400 text-xs ml-1">Save up to 37%</span>
-              </span>
+              <button
+                onClick={() => setYearly(true)}
+                className={`text-sm font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${yearly ? 'text-white bg-white/10' : 'text-gray-500'}`}>
+                Yearly
+                <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.2)', color: '#818CF8' }}>Save up to 69%</span>
+              </button>
             </div>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6 items-stretch">
-            {PLANS.map((plan, i) => (
-              <motion.div
-                key={plan.name}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className={`relative flex flex-col rounded-2xl border ${plan.borderColor} overflow-hidden`}
-                style={{ background: plan.popular ? 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.10) 100%)' : 'rgba(255,255,255,0.03)' }}
-              >
-                {plan.badge && (
-                  <div className="absolute top-0 left-0 right-0 text-center py-1.5 text-[11px] font-black uppercase tracking-widest text-white bg-violet-600">
-                    {plan.badge}
-                  </div>
-                )}
-                <div className={`p-8 flex flex-col flex-1 ${plan.badge ? 'pt-12' : ''}`}>
-                  <h3 className="text-xl font-black text-white mb-1">{plan.name}</h3>
-                  <p className="text-slate-400 text-sm mb-6">{plan.description}</p>
+          <div className="grid md:grid-cols-3 gap-5">
+            {PLANS_PKR.map((plan, i) => {
+              const price = yearly ? plan.yearlyPKR : plan.monthlyPKR;
+              const displayPrice = convertFromPKR(price);
+              const origPrice = convertFromPKR(plan.monthlyPKR);
 
-                  <div className="mb-6">
-                    <div className="flex items-end gap-2">
-                      <span className="text-4xl font-black text-white">
-                        ${yearly ? plan.yearlyPrice : plan.monthlyPrice}
-                      </span>
-                      <span className="text-slate-500 text-sm mb-1">/mo</span>
+              return (
+                <motion.div
+                  key={plan.name}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  className="relative flex flex-col rounded-2xl overflow-hidden"
+                  style={{
+                    background: plan.popular
+                      ? 'linear-gradient(180deg, #1e1b4b 0%, #0f0e1a 100%)'
+                      : '#111111',
+                    border: plan.popular
+                      ? '1.5px solid rgba(99,102,241,0.5)'
+                      : '1px solid rgba(255,255,255,0.08)',
+                  }}>
+
+                  {/* % off badge */}
+                  <div className="absolute top-4 right-4 text-[11px] font-black px-2.5 py-1 rounded-full"
+                    style={{ background: plan.popular ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.08)', color: '#D1D5DB' }}>
+                    {plan.savePercent}% off
+                  </div>
+
+                  {/* MOST POPULAR badge */}
+                  {plan.badge && (
+                    <div className="py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-white"
+                      style={{ background: 'linear-gradient(90deg, #6D28D9, #7C3AED)' }}>
+                      {plan.badge}
                     </div>
-                    {yearly && (
-                      <div className="text-xs text-slate-500 mt-1">
-                        Billed as <span className="text-emerald-400 font-bold">${plan.yearlyPrice * 12}/yr</span>
-                        <span className="ml-2 text-emerald-400 font-black">Save {plan.savePercent}%</span>
+                  )}
+
+                  <div className="p-7 flex flex-col flex-1">
+                    <h3 className="text-lg font-black text-white mb-1">{plan.name}</h3>
+
+                    {/* Specs pills */}
+                    <div className="flex flex-wrap gap-1.5 mb-5">
+                      {[plan.cpu, plan.ram, plan.storage].map(spec => (
+                        <span key={spec} className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.06)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Price */}
+                    <div className="mb-6">
+                      <div className="flex items-end gap-2 mb-1">
+                        <span className="font-black text-white" style={{ fontSize: '2.2rem', lineHeight: 1 }}>
+                          {displayPrice}
+                        </span>
+                        <span className="text-sm pb-1" style={{ color: '#6B7280' }}>/mo</span>
                       </div>
-                    )}
-                    {!yearly && (
-                      <div className="text-xs text-slate-500 mt-1">or ${plan.yearlyPrice}/mo billed yearly</div>
-                    )}
+                      {yearly && (
+                        <p className="text-xs" style={{ color: '#6B7280' }}>
+                          {origPrice}/mo regular price
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => window.location.href = '/client/orders/new'}
+                      className="w-full py-3 rounded-xl font-bold text-[14px] text-white mb-7 transition-all hover:opacity-90"
+                      style={{
+                        background: plan.popular
+                          ? 'linear-gradient(135deg, #7C3AED, #6D28D9)'
+                          : 'rgba(255,255,255,0.08)',
+                        border: plan.popular ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                      }}>
+                      Choose your plan
+                    </button>
+
+                    {/* Features */}
+                    <ul className="space-y-2.5 flex-1">
+                      {plan.features.map(f => (
+                        <li key={f} className="flex items-start gap-2.5 text-[13px]" style={{ color: '#D1D5DB' }}>
+                          <Check size={14} className="flex-shrink-0 mt-0.5" style={{ color: '#7C3AED' }} />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-
-                  <button
-                    onClick={() => window.location.href = '/client/orders/new'}
-                    className={`w-full py-3.5 rounded-xl font-black text-sm transition-all mb-8 ${plan.popular
-                      ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-xl shadow-violet-600/30'
-                      : 'bg-white/8 hover:bg-white/12 text-white border border-white/10'
-                    }`}
-                  >
-                    Get Started <ArrowRight size={14} className="inline ml-1" />
-                  </button>
-
-                  <ul className="space-y-3 flex-1">
-                    {plan.features.map(f => (
-                      <li key={f} className="flex items-start gap-3 text-sm text-slate-300">
-                        <Check size={15} className="text-violet-400 flex-shrink-0 mt-0.5" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
 
-          <p className="text-center text-slate-500 text-sm mt-8">
-            Need a custom solution? <a href="/contact-us" className="text-violet-400 hover:text-violet-300 font-bold">Contact us</a> for a tailored quote.
+          <p className="text-center text-sm mt-8" style={{ color: '#6B7280' }}>
+            Need something custom?{' '}
+            <a href="/contact-us" className="underline hover:text-white transition-colors" style={{ color: '#818CF8' }}>
+              Contact our sales team
+            </a>
           </p>
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
-      <section className="py-24 bg-[#0d0d1a]">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <h2 className="text-4xl font-black text-white mb-4">Everything You Need to Run n8n</h2>
-            <p className="text-slate-400 text-lg max-w-xl mx-auto">Built for automation professionals who need reliability, speed, and full control.</p>
+      {/* ── WHY SELF-HOST n8n ── */}
+      <section className="py-20" style={{ background: '#0a0a0a' }}>
+        <div className="max-w-[1200px] mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
+            <h2 className="font-black mb-3" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)', color: '#FFFFFF' }}>
+              Why self-host n8n?
+            </h2>
+            <p style={{ color: '#9CA3AF', fontSize: 15 }}>Everything you need to automate your business — on your own infrastructure.</p>
           </motion.div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map((f, i) => (
-              <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-                className="bg-white/[0.03] border border-white/8 rounded-2xl p-7 hover:border-violet-500/30 hover:bg-white/[0.05] transition-all group">
-                <div className={`${f.color} w-12 h-12 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { icon: <Workflow size={26} />, color: '#7C3AED', bg: 'rgba(124,58,237,0.12)', title: 'Unlimited Workflows', desc: 'Build as many automated workflows as you need with no restrictions or per-workflow fees.' },
+              { icon: <Activity size={26} />, color: '#06B6D4', bg: 'rgba(6,182,212,0.1)', title: 'Unlimited Executions', desc: 'Run concurrent executions without throttling. Scale your automations as your business grows.' },
+              { icon: <GitBranch size={26} />, color: '#10B981', bg: 'rgba(16,185,129,0.1)', title: '400+ Integrations', desc: 'Connect Slack, Google Sheets, WhatsApp, Airtable, Stripe, GitHub and hundreds more out of the box.' },
+              { icon: <Lock size={26} />, color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', title: 'Full Data Privacy', desc: 'Your credentials and workflow data never leave your server. Complete sovereignty over your data.' },
+              { icon: <RefreshCw size={26} />, color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)', title: 'Managed & Maintained', desc: 'We handle OS updates, n8n upgrades, and daily backups. Zero server management on your end.' },
+              { icon: <LifeBuoy size={26} />, color: '#EC4899', bg: 'rgba(236,72,153,0.1)', title: '24/7 Expert Support', desc: 'Our engineers know n8n inside-out. Get help with workflow errors, webhooks, and custom nodes anytime.' },
+            ].map((f, i) => (
+              <motion.div key={f.title}
+                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.07 }}
+                className="p-6 rounded-2xl transition-all hover:scale-[1.02]"
+                style={{ background: '#111111', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+                  style={{ background: f.bg, color: f.color }}>
                   {f.icon}
                 </div>
-                <h3 className="text-white font-black text-lg mb-2">{f.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
+                <h3 className="font-bold text-white text-[15px] mb-2">{f.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: '#9CA3AF' }}>{f.desc}</p>
               </motion.div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── WHY SELF-HOSTED ── */}
-      <section className="py-24 bg-[#0a0a0f]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex flex-col lg:flex-row items-center gap-16">
-
-            {/* Left text */}
-            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="lg:w-1/2">
-              <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs font-black px-4 py-2 rounded-full mb-5 uppercase tracking-widest">
-                Why Self-Hosted?
-              </div>
-              <h2 className="text-4xl font-black text-white mb-6">
-                Your Workflows.<br />
-                <span className="text-violet-400">Your Rules.</span>
-              </h2>
-              <p className="text-slate-400 text-base leading-relaxed mb-8">
-                n8n Cloud can get expensive fast. With self-hosted, you get unlimited workflows, no per-execution billing, and complete data sovereignty — all on dedicated hardware that's yours.
-              </p>
-              <div className="space-y-5">
-                {WHY_ITEMS.map(item => (
-                  <div key={item.title} className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 flex-shrink-0">
-                      {item.icon}
-                    </div>
-                    <div>
-                      <div className="text-white font-black text-sm mb-1">{item.title}</div>
-                      <div className="text-slate-400 text-sm">{item.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Right — comparison card */}
-            <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="lg:w-1/2">
-              <div className="bg-white/[0.04] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                <div className="grid grid-cols-3 text-center">
-                  <div className="py-4 border-b border-r border-white/10 text-slate-500 text-xs font-black uppercase tracking-widest col-span-1" />
-                  <div className="py-4 border-b border-r border-white/10 text-slate-400 text-xs font-black uppercase tracking-widest">n8n Cloud</div>
-                  <div className="py-4 border-b border-white/10 text-violet-400 text-xs font-black uppercase tracking-widest">Noehost Self-Hosted</div>
-                </div>
-                {[
-                  { label: 'Executions', cloud: 'Limited (pay per)', us: 'Unlimited' },
-                  { label: 'Custom Nodes', cloud: '✗ Restricted', us: '✓ Full Access' },
-                  { label: 'Data Privacy', cloud: 'Hosted by n8n', us: 'Your Server Only' },
-                  { label: 'Monthly Cost', cloud: '$20 – $50+', us: 'From $9/mo' },
-                  { label: 'Environment Vars', cloud: '✗ Limited', us: '✓ Full Control' },
-                  { label: 'White-label', cloud: '✗ Not Available', us: '✓ Enterprise Plan' },
-                ].map((row, i) => (
-                  <div key={row.label} className={`grid grid-cols-3 text-sm ${i % 2 === 0 ? 'bg-white/[0.02]' : ''}`}>
-                    <div className="py-3.5 px-4 text-slate-400 font-bold border-r border-white/5">{row.label}</div>
-                    <div className="py-3.5 px-4 text-center text-slate-500 border-r border-white/5">{row.cloud}</div>
-                    <div className="py-3.5 px-4 text-center text-emerald-400 font-bold">{row.us}</div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
           </div>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ── */}
-      <section className="py-24 bg-[#0d0d1a]">
-        <div className="max-w-7xl mx-auto px-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <h2 className="text-4xl font-black text-white mb-4">Up and Running in Minutes</h2>
-            <p className="text-slate-400 text-lg">No DevOps expertise needed. We handle the hard parts.</p>
+      <section className="py-20" style={{ background: '#000000' }}>
+        <div className="max-w-[1200px] mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
+            <h2 className="font-black mb-3" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)', color: '#FFFFFF' }}>
+              Up and running in minutes
+            </h2>
+            <p style={{ color: '#9CA3AF', fontSize: 15 }}>No DevOps expertise required — we handle everything for you.</p>
           </motion.div>
-          <div className="grid md:grid-cols-4 gap-6">
+
+          <div className="grid md:grid-cols-4 gap-4">
             {[
-              { step: '01', icon: <Server size={28} />, title: 'Choose a Plan', desc: 'Pick the plan that fits your workflow volume and team size.' },
-              { step: '02', icon: <Play size={28} />, title: 'Server Provisioned', desc: 'Your VPS is spun up with n8n pre-installed within minutes.' },
-              { step: '03', icon: <Lock size={28} />, title: 'Secure & Configure', desc: 'SSL installed, domain pointed. Your n8n is ready at your URL.' },
-              { step: '04', icon: <Workflow size={28} />, title: 'Build Workflows', desc: 'Log in and start connecting 400+ apps. Automate everything.' },
+              { num: '1', icon: <Play size={24} />, color: '#7C3AED', title: 'Order your plan', desc: 'Pick the VPS plan that fits your team and workflow volume.' },
+              { num: '2', icon: <Cpu size={24} />, color: '#06B6D4', title: 'Server provisioned', desc: 'Your VPS is spun up with n8n pre-installed within minutes of order.' },
+              { num: '3', icon: <Globe size={24} />, color: '#10B981', title: 'Domain & SSL ready', desc: 'Point your domain and we set up free HTTPS automatically.' },
+              { num: '4', icon: <Workflow size={24} />, color: '#F59E0B', title: 'Build workflows', desc: 'Log in to n8n and start connecting 400+ apps right away.' },
             ].map((s, i) => (
-              <motion.div key={s.step} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
-                className="relative text-center p-7 bg-white/[0.03] border border-white/8 rounded-2xl">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-black px-3 py-1 rounded-full">
-                  Step {s.step}
+              <motion.div key={s.num}
+                initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className="relative text-center p-7 rounded-2xl"
+                style={{ background: '#111111', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black mb-5 mx-auto"
+                  style={{ background: s.color, color: '#fff' }}>
+                  {s.num}
                 </div>
-                <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mx-auto mb-5 mt-3">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 mx-auto"
+                  style={{ background: 'rgba(255,255,255,0.05)', color: s.color }}>
                   {s.icon}
                 </div>
-                <h3 className="text-white font-black mb-2">{s.title}</h3>
-                <p className="text-slate-400 text-sm">{s.desc}</p>
+                <h3 className="font-bold text-white text-[14px] mb-2">{s.title}</h3>
+                <p className="text-xs leading-relaxed" style={{ color: '#9CA3AF' }}>{s.desc}</p>
                 {i < 3 && (
-                  <div className="hidden md:block absolute top-1/2 -right-3 text-slate-600 text-xl">→</div>
+                  <div className="hidden md:block absolute top-10 -right-3 text-gray-600 text-lg font-bold z-10">→</div>
                 )}
               </motion.div>
             ))}
@@ -481,72 +480,79 @@ const N8nHosting: React.FC = () => {
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-24 bg-[#0a0a0f]">
-        <div className="max-w-3xl mx-auto px-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
-            <h2 className="text-4xl font-black text-white mb-4">Frequently Asked Questions</h2>
-            <p className="text-slate-400">Everything you need to know about self-hosted n8n.</p>
+      <section className="py-20" style={{ background: '#0a0a0a' }}>
+        <div className="max-w-[760px] mx-auto px-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
+            <h2 className="font-black mb-3" style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.2rem)', color: '#FFFFFF' }}>
+              Frequently asked questions
+            </h2>
+            <p style={{ color: '#9CA3AF' }}>Everything you need to know about self-hosted n8n on Noehost.</p>
           </motion.div>
-          <div className="space-y-3">
+
+          <div className="space-y-2">
             {FAQS.map((faq, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.05 }}>
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className={`w-full text-left flex items-start justify-between gap-4 p-5 rounded-xl border transition-all ${
-                    openFaq === i
-                      ? 'bg-violet-500/10 border-violet-500/30'
-                      : 'bg-white/[0.03] border-white/8 hover:border-white/15'
-                  }`}
-                >
-                  <span className={`font-black text-sm ${openFaq === i ? 'text-violet-300' : 'text-white'}`}>{faq.q}</span>
+                  className="w-full text-left flex items-center justify-between gap-4 px-5 py-4 rounded-xl transition-all"
+                  style={{
+                    background: openFaq === i ? 'rgba(99,102,241,0.08)' : '#111111',
+                    border: openFaq === i ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                  <span className="font-semibold text-[14px]" style={{ color: openFaq === i ? '#C4B5FD' : '#E5E7EB' }}>
+                    {faq.q}
+                  </span>
                   {openFaq === i
-                    ? <ChevronUp size={18} className="text-violet-400 flex-shrink-0 mt-0.5" />
-                    : <ChevronDown size={18} className="text-slate-500 flex-shrink-0 mt-0.5" />
+                    ? <ChevronUp size={16} style={{ color: '#818CF8', flexShrink: 0 }} />
+                    : <ChevronDown size={16} style={{ color: '#6B7280', flexShrink: 0 }} />
                   }
                 </button>
-                {openFaq === i && (
-                  <div className="px-5 pt-2 pb-5 text-slate-400 text-sm leading-relaxed border-x border-b border-violet-500/30 rounded-b-xl bg-violet-500/5">
-                    {faq.a}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {openFaq === i && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                      style={{ borderLeft: '1px solid rgba(99,102,241,0.3)', borderRight: '1px solid rgba(99,102,241,0.3)', borderBottom: '1px solid rgba(99,102,241,0.3)', borderRadius: '0 0 12px 12px' }}>
+                      <div className="px-5 py-4 text-sm leading-relaxed" style={{ color: '#9CA3AF', background: 'rgba(99,102,241,0.04)' }}>
+                        {faq.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="py-24 bg-[#0d0d1a]">
-        <div className="max-w-4xl mx-auto px-6 text-center">
+      {/* ── BOTTOM CTA ── */}
+      <section className="py-20" style={{ background: '#000000' }}>
+        <div className="max-w-[760px] mx-auto px-6 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="relative rounded-3xl overflow-hidden border border-violet-500/20 p-12"
-              style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.10) 100%)' }}>
-              <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'radial-gradient(ellipse 60% 60% at 50% 0%, rgba(139,92,246,0.15) 0%, transparent 70%)' }} />
-              <div className="relative z-10">
-                <div className="inline-flex items-center gap-2 bg-violet-500/15 border border-violet-500/30 text-violet-300 text-xs font-black px-4 py-2 rounded-full mb-6 uppercase tracking-widest">
-                  <Zap size={12} /> Start Automating Today
-                </div>
-                <h2 className="text-4xl lg:text-5xl font-black text-white mb-5">
-                  Ready to Own<br />Your Automation Stack?
-                </h2>
-                <p className="text-slate-400 text-lg mb-8 max-w-xl mx-auto">
-                  Join hundreds of teams running n8n on Noehost. Get started in minutes with a 30-day money-back guarantee.
-                </p>
-                <div className="flex flex-wrap gap-4 justify-center">
-                  <a href="#n8n-plans" className="px-8 py-4 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-black text-sm transition-all shadow-xl shadow-violet-600/30 flex items-center gap-2 group">
-                    Get Started Now <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </a>
-                  <a href="/contact-us" className="px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl font-black text-sm transition-all border border-white/10">
-                    Talk to an Expert
-                  </a>
-                </div>
-                <div className="flex flex-wrap gap-6 justify-center mt-8">
-                  {['30-Day Money-Back', 'No Setup Fees', 'Cancel Anytime'].map(f => (
-                    <span key={f} className="flex items-center gap-2 text-xs text-slate-400 font-bold">
-                      <Check size={14} className="text-violet-400" /> {f}
-                    </span>
-                  ))}
-                </div>
+            <div className="rounded-2xl p-12" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #12112a 100%)', border: '1px solid rgba(99,102,241,0.3)' }}>
+              <p className="text-sm font-semibold mb-3" style={{ color: '#818CF8' }}>
+                Up to <span className="font-black">69% off</span> n8n self hosting
+              </p>
+              <h2 className="font-black mb-4" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', color: '#FFFFFF' }}>
+                Start automating everything today
+              </h2>
+              <p className="mb-8 text-sm" style={{ color: '#9CA3AF' }}>
+                Join thousands of teams running n8n on their own infrastructure. Get started in minutes with a 30-day money-back guarantee.
+              </p>
+              <a href="#n8n-plans"
+                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold text-[15px] text-white transition-all hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #7C3AED, #6D28D9)' }}>
+                Choose your plan <ArrowRight size={16} />
+              </a>
+              <div className="flex flex-wrap gap-6 justify-center mt-7">
+                {['30-Day Money-Back', 'n8n Pre-Installed', 'Cancel Anytime'].map(f => (
+                  <span key={f} className="flex items-center gap-2 text-xs" style={{ color: '#9CA3AF' }}>
+                    <Shield size={13} style={{ color: '#818CF8' }} /> {f}
+                  </span>
+                ))}
               </div>
             </div>
           </motion.div>
