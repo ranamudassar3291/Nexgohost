@@ -112,8 +112,9 @@ export default function ClientLogin() {
       else {
         login(data.token);
         const params = new URLSearchParams(window.location.search);
-        const redirectTo = params.get("redirect");
-        setLocation(redirectTo || "/client/dashboard");
+        const redirectTo = params.get("redirect") || params.get("next");
+        const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
+        setLocation(redirectTo || (hasPendingCart ? "/client/orders/new" : "/client/dashboard"));
       }
     } catch (err: any) {
       let raw: any = {};
@@ -135,7 +136,9 @@ export default function ClientLogin() {
       const data = await apiFetch("/api/auth/2fa/verify", tempToken, { method: "POST", body: JSON.stringify({ totp }) });
       login(data.token);
       const params = new URLSearchParams(window.location.search);
-      setLocation(params.get("redirect") || "/client/dashboard");
+      const r2fa = params.get("redirect") || params.get("next");
+      const hasPendingCart2fa = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
+      setLocation(r2fa || (hasPendingCart2fa ? "/client/orders/new" : "/client/dashboard"));
     } catch (err: any) { setError(err.message || "Invalid code. Please try again."); }
     finally { setLoading(false); }
   };
@@ -147,7 +150,9 @@ export default function ClientLogin() {
       const loginData = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
       login(loginData.token);
       const params2 = new URLSearchParams(window.location.search);
-      setLocation(params2.get("redirect") || "/client/dashboard");
+      const rVerify = params2.get("redirect") || params2.get("next");
+      const hasPendingCartVerify = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
+      setLocation(rVerify || (hasPendingCartVerify ? "/client/orders/new" : "/client/dashboard"));
     } catch (err: any) { setError(err.message || "Invalid code. Please try again."); }
     finally { setLoading(false); }
   };

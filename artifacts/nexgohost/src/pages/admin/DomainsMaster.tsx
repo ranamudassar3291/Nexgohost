@@ -1,9 +1,10 @@
-import { Globe, Grid3X3, ArrowLeftRight, Server } from "lucide-react";
+import { Globe, Grid3X3, ArrowLeftRight, Server, Layers } from "lucide-react";
 import { MasterPage } from "@/components/layout/MasterPage";
 import AdminDomains from "./Domains";
 import DomainExtensions from "./DomainExtensions";
 import AdminDomainTransfers from "./DomainTransfers";
 import DomainRegistrars from "./DomainRegistrars";
+import DomainBundles from "./DomainBundles";
 
 export default function DomainsMaster() {
   return (
@@ -40,6 +41,13 @@ export default function DomainsMaster() {
           icon: Server,
           desc: "Connect and manage domain registrar accounts",
           component: DomainRegistrars,
+        },
+        {
+          id: "bundles",
+          label: "Bundle Manager",
+          icon: Layers,
+          desc: "Configure which TLDs are bundled together in domain search suggestions",
+          component: DomainBundles,
         },
       ]}
     />

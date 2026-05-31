@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Globe, Search, XCircle, Loader2, ShoppingCart, RefreshCw, Info,
   Calendar, Building2, Server, CheckCircle2, AlertCircle, Copy, ExternalLink,
@@ -181,7 +181,12 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
   const [error, setError] = useState('');
   const [addedDomains, setAddedDomains] = useState<Set<string>>(new Set());
   const [whoisDomain, setWhoisDomain] = useState<string | null>(null);
+  const [bundleConfig, setBundleConfig] = useState<Record<string, string[]>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch('/api/domain-bundles').then(r => r.json()).then(d => setBundleConfig(d)).catch(() => {});
+  }, []);
 
   const [bulkInput, setBulkInput] = useState('');
   const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
@@ -236,11 +241,25 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     openCart();
   };
 
+  const POPULAR_TLDS = ['.com', '.net', '.org', '.pk', '.store', '.io', '.co', '.online', '.com.pk', '.net.pk'];
   const available = results?.filter(r => r.available) ?? [];
   const taken = results?.filter(r => !r.available) ?? [];
   const primaryAvail = available[0];
-  const bundleAlts = available.slice(1, 4);
-  const otherDomains = results ? [...available.slice(1), ...taken] : [];
+  // Use admin-configured bundles if available, fall back to first 3 available TLDs
+  const configuredBundle = primaryAvail ? (bundleConfig[primaryAvail.tld] ?? []) : [];
+  const bundleAlts = configuredBundle.length > 0
+    ? configuredBundle
+        .map(tld => results?.find(r => r.tld === tld))
+        .filter((r): r is TldResult => !!r)
+        .slice(0, 3)
+    : available.filter(r => r.tld !== primaryAvail?.tld).slice(0, 3);
+  // "Other recommended" = only popular TLDs (excluding primary), max 5
+  const otherDomains = results
+    ? POPULAR_TLDS
+        .map(tld => results.find(r => r.tld === tld))
+        .filter((r): r is TldResult => !!r && r.tld !== primaryAvail?.tld)
+        .slice(0, 5)
+    : [];
 
   const handleBulkSearch = async () => {
     const lines = bulkInput.split('\n').map(l => l.trim()).filter(Boolean);

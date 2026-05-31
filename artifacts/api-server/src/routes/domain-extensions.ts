@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { domainExtensionsTable } from "@workspace/db/schema";
+import { domainExtensionsTable, settingsTable } from "@workspace/db/schema";
 import { authenticate, requireAdmin } from "../lib/auth.js";
 import { asc, eq } from "drizzle-orm";
 
@@ -110,6 +110,50 @@ router.delete("/admin/domain-extensions/:id", authenticate, requireAdmin, async 
   const { id } = req.params;
   await db.delete(domainExtensionsTable).where(eq(domainExtensionsTable.id, id));
   res.json({ success: true });
+});
+
+// ── Domain Bundle Manager ──────────────────────────────────────────────────────
+const BUNDLE_KEY = "domain_bundles_v1";
+
+const DEFAULT_BUNDLES: Record<string, string[]> = {
+  ".com":    [".net", ".org", ".store", ".io"],
+  ".net":    [".com", ".org", ".io"],
+  ".org":    [".com", ".net"],
+  ".pk":     [".com.pk", ".net.pk", ".com"],
+  ".com.pk": [".pk", ".net.pk"],
+};
+
+async function getBundles(): Promise<Record<string, string[]>> {
+  const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, BUNDLE_KEY)).limit(1);
+  if (!row) return DEFAULT_BUNDLES;
+  try { return JSON.parse(row.value as string); } catch { return DEFAULT_BUNDLES; }
+}
+
+// GET /api/domain-bundles — public
+router.get("/domain-bundles", async (_req, res) => {
+  res.json(await getBundles());
+});
+
+// GET /api/admin/domain-bundles — admin
+router.get("/admin/domain-bundles", authenticate, requireAdmin, async (_req, res) => {
+  res.json(await getBundles());
+});
+
+// PUT /api/admin/domain-bundles — admin save
+router.put("/admin/domain-bundles", authenticate, requireAdmin, async (req, res) => {
+  const bundles = req.body as Record<string, string[]>;
+  if (!bundles || typeof bundles !== "object") {
+    res.status(400).json({ error: "Invalid bundle config" });
+    return;
+  }
+  const [existing] = await db.select().from(settingsTable).where(eq(settingsTable.key, BUNDLE_KEY)).limit(1);
+  const value = JSON.stringify(bundles);
+  if (existing) {
+    await db.update(settingsTable).set({ value } as any).where(eq(settingsTable.key, BUNDLE_KEY));
+  } else {
+    await db.insert(settingsTable).values({ key: BUNDLE_KEY, value } as any);
+  }
+  res.json({ success: true, bundles });
 });
 
 export default router;

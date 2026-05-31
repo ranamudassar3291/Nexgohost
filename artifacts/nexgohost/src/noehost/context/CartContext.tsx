@@ -33,7 +33,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 const STORAGE_KEY = 'noehost_website_cart';
 
 export function getToken(): string | null {
-  return localStorage.getItem('noehost_token');
+  return localStorage.getItem('noehost_token') || localStorage.getItem('token');
 }
 
 async function apiFetch(method: string, path: string, body?: any) {

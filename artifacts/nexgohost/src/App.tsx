@@ -238,14 +238,15 @@ function OrderBySlug() {
 
 function ClientOrdersNewRedirect() {
   const params = new URLSearchParams(window.location.search);
-  const pid = params.get("pid") ?? params.get("plan_id") ?? "";
-  const gid = params.get("gid") ?? "";
+  const pid   = params.get("pid")    ?? params.get("plan_id") ?? "";
+  const gid   = params.get("gid")    ?? "";
   const vpsId = params.get("vps_id") ?? "";
 
-  if (pid) return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
-  if (gid) return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
+  if (pid)   return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
+  if (gid)   return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
   if (vpsId) return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
-  return <Redirect to="/client/orders/new" />;
+  // No params — render the full order wizard (no redirect loop)
+  return <CheckoutLayout allowGuest><NewOrder /></CheckoutLayout>;
 }
 
 // /cart — redirect to unified checkout
@@ -632,10 +633,10 @@ function RouterRoot() {
         <ClientPage><GrowthSuite /></ClientPage>
       </Route>
       <Route path="/client/domain-search">
-        <Redirect to="/client/domains?tab=order" />
+        <ClientPage><DomainSearch /></ClientPage>
       </Route>
       <Route path="/client/register-domain">
-        <Redirect to="/client/domains?tab=order" />
+        <ClientPage><DomainSearch /></ClientPage>
       </Route>
       <Route path="/client/domains/transfer">
         <ClientPage><DomainTransfer /></ClientPage>
