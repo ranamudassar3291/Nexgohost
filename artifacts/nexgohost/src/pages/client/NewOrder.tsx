@@ -683,12 +683,30 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const isDirectLink   = !!(initialGroupId || initialPackageId);
   const isVpsDirectLink = !!initialVpsPlanId;
 
+  // ── URL-based domain pre-selection ─────────────────────────────────────────
+  // When user searches a domain on the public website and clicks "Register Now",
+  // they land here with ?service=domain. The domain payload is saved in
+  // localStorage under DOMAIN_KEY by DomainChecker before navigating here.
+  const _urlParams  = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const _urlService = _urlParams.get("service") as ServiceType | null;
+  const _preloadedDomain = loadDomain();
+  const _isDomainPreload = _urlService === "domain" && !!_preloadedDomain;
+
   // ── Wizard state ──────────────────────────────────────────────────────────
   // When coming from /order/add/:id → jump straight to domain step (2)
   // When coming from /order/group/:id → start at plan step (1)
   // When coming from /order/vps/:id → jump to VPS configure step (2)
-  const [step,    setStep]    = useState<0|1|2|3>(isVpsDirectLink ? 2 : initialPackageId ? 2 : isDirectLink ? 1 : 0);
-  const [service, setService] = useState<ServiceType | null>(isVpsDirectLink ? "vps" : isDirectLink ? "hosting" : null);
+  // When coming from public domain search → jump straight to review step (3)
+  const [step,    setStep]    = useState<0|1|2|3>(
+    _isDomainPreload    ? 3 :
+    _urlService === "domain" ? 2 :
+    isVpsDirectLink     ? 2 :
+    initialPackageId    ? 2 :
+    isDirectLink        ? 1 : 0
+  );
+  const [service, setService] = useState<ServiceType | null>(
+    _urlService ?? (isVpsDirectLink ? "vps" : isDirectLink ? "hosting" : null)
+  );
 
   // While waiting for /order/add/:id plan to load, show spinner
   const [directLinkReady, setDirectLinkReady] = useState(!initialPackageId);
@@ -706,8 +724,8 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [freeDomainClaimed, setFreeDomainClaimed] = useState(false);
 
   // Domain
-  const [domainMode,  setDomainMode]  = useState<DomainMode>(null);
-  const [domainQ,     setDomainQ]     = useState("");
+  const [domainMode,  setDomainMode]  = useState<DomainMode>(_preloadedDomain?.mode ?? null);
+  const [domainQ,     setDomainQ]     = useState(_preloadedDomain?.fullName ?? "");
   const [domChecking, setDomChecking] = useState(false);
   const [domResults,  setDomResults]  = useState<TldResult[] | null>(null);
   const [domTypedTld, setDomTypedTld] = useState<string | null>(null);
@@ -718,7 +736,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const [txValidating,    setTxValidating]    = useState(false);
   const [txValidationErr, setTxValidationErr] = useState("");
   const [domainNs,        setDomainNs]        = useState(["ns1.noehost.com", "ns2.noehost.com"]);
-  const [cartDomain,  setCartDomainRaw] = useState<CartDomain | null>(loadDomain);
+  const [cartDomain,  setCartDomainRaw] = useState<CartDomain | null>(_preloadedDomain ?? loadDomain());
 
   // Force-free domain: if plan has freeDomainEnabled AND cycle is yearly AND mode is register
   // the domain is ALWAYS free — no TLD restriction applied
@@ -2365,23 +2383,31 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
     return (
       <motion.div key="s2" {...fade}>
-        <button onClick={() => { setStep(1); setDomainMode(null); setDomResults(null); }}
-          className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
-          <ArrowLeft size={13}/> Back to plan
-        </button>
+        {service !== "domain" && (
+          <button onClick={() => { setStep(1); setDomainMode(null); setDomResults(null); }}
+            className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
+            <ArrowLeft size={13}/> Back to plan
+          </button>
+        )}
 
-        {/* Plan confirmation */}
-        <div className="flex items-center gap-3 p-3.5 mb-7 bg-green-50 border border-green-200 rounded-xl max-w-lg">
-          <CheckCircle2 size={17} className="text-green-500 shrink-0"/>
-          <div>
-            <p className="text-[13px] font-semibold text-green-800">{selectedPlan?.name} · {CYCLE_LABELS[selectedCycle]} plan added</p>
-            <p className="text-[12px] text-green-600">Now set up your domain.</p>
+        {/* Plan confirmation — only show when a hosting plan is selected */}
+        {selectedPlan && (
+          <div className="flex items-center gap-3 p-3.5 mb-7 bg-green-50 border border-green-200 rounded-xl max-w-lg">
+            <CheckCircle2 size={17} className="text-green-500 shrink-0"/>
+            <div>
+              <p className="text-[13px] font-semibold text-green-800">{selectedPlan?.name} · {CYCLE_LABELS[selectedCycle]} plan added</p>
+              <p className="text-[12px] text-green-600">Now set up your domain.</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="text-center mb-7">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1.5">Domain Setup</h2>
-          <p className="text-[14px] text-gray-500">Choose how to connect a domain to your hosting plan.</p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1.5">
+            {service === "domain" ? "Search Your Domain" : "Domain Setup"}
+          </h2>
+          <p className="text-[14px] text-gray-500">
+            {service === "domain" ? "Find and register your perfect domain name." : "Choose how to connect a domain to your hosting plan."}
+          </p>
         </div>
 
         {/* Option cards — free domain-aware */}
@@ -2676,7 +2702,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
           )}
         </AnimatePresence>
 
-        {!domainMode && (
+        {!domainMode && service !== "domain" && (
           <div className="text-center mt-4">
             <button
               onClick={() => { setDomainMode("existing"); setCartDomain(null); setStep(3); }}
@@ -2704,7 +2730,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     return (
       <motion.div key="s3" {...fade}>
         <button
-          onClick={() => isDomainOnly ? setStep(1) : setStep(2)}
+          onClick={() => setStep(2)}
           className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-700 mb-6 font-medium transition-colors">
           <ArrowLeft size={13}/> {isDomainOnly ? "Back to domain search" : "Back to domain setup"}
         </button>

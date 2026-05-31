@@ -746,6 +746,24 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_txn_user ON reseller_transactions(user_id, created_at DESC)`);
     console.log("[MIGRATIONS] reseller_transactions table ready");
 
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS website_cart_sessions (
+        id             SERIAL PRIMARY KEY,
+        session_token  VARCHAR(255) NOT NULL UNIQUE,
+        domain_name    VARCHAR(255) NOT NULL,
+        tld            VARCHAR(50)  NOT NULL,
+        full_domain    VARCHAR(320) NOT NULL,
+        price          NUMERIC(10,2) NOT NULL DEFAULT 0,
+        duration_years INT NOT NULL DEFAULT 1,
+        action_type    VARCHAR(50)  NOT NULL DEFAULT 'register',
+        user_id        TEXT,
+        created_at     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wcs_token ON website_cart_sessions(session_token)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wcs_created ON website_cart_sessions(created_at DESC)`);
+    console.log("[MIGRATIONS] website_cart_sessions table ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

@@ -227,6 +227,9 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     finally { setSearching(false); }
   };
 
+  const DOMAIN_ORDER_KEY = 'order_wizard_domain';
+  const DOMAIN_SESSION_KEY = 'noehost_domain_session';
+
   const handleAddToCart = async (tld: string, price: number, baseName?: string) => {
     const name = baseName ?? searched;
     const domainFull = `${name}${tld}`;
@@ -239,6 +242,42 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     });
     setAddedDomains(prev => new Set([...prev, domainFull]));
     openCart();
+  };
+
+  const handleRegisterNow = async (tld: string, price: number, baseName?: string) => {
+    const name = baseName ?? searched;
+    const domainFull = `${name}${tld}`;
+    const finalPrice = isPkDomain(tld) ? 4000 : price;
+
+    const domainPayload = {
+      fullName: domainFull,
+      price: finalPrice,
+      originalPrice: finalPrice,
+      mode: 'register',
+    };
+    localStorage.setItem(DOMAIN_ORDER_KEY, JSON.stringify(domainPayload));
+
+    let sessionToken = localStorage.getItem(DOMAIN_SESSION_KEY);
+    if (!sessionToken) {
+      sessionToken = crypto.randomUUID();
+      localStorage.setItem(DOMAIN_SESSION_KEY, sessionToken);
+    }
+
+    fetch('/api/guest/domain-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionToken,
+        domainName: name,
+        tld,
+        fullDomain: domainFull,
+        price: finalPrice,
+        durationYears: isPkDomain(tld) ? 2 : 1,
+        actionType: 'register',
+      }),
+    }).catch(() => {});
+
+    window.location.href = '/client/orders/new?service=domain';
   };
 
   const POPULAR_TLDS = ['.com', '.net', '.org', '.pk', '.store', '.io', '.co', '.online', '.com.pk', '.net.pk'];
@@ -403,11 +442,17 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                           </p>
 
                           <button
+                            onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
+                            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 transition-all"
+                          >
+                            <Zap size={15} /> Register Now →
+                          </button>
+                          <button
                             onClick={() => handleAddToCart(primaryAvail.tld, primaryAvail.registrationPrice)}
                             disabled={addedDomains.has(`${searched}${primaryAvail.tld}`)}
-                            className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm transition-all ${addedDomains.has(`${searched}${primaryAvail.tld}`) ? 'bg-green-500 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20'}`}
+                            className={`flex items-center justify-center gap-2 w-full py-2 rounded-xl font-semibold text-sm transition-all border mt-2 ${addedDomains.has(`${searched}${primaryAvail.tld}`) ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-purple-200 hover:border-purple-400 text-purple-600 hover:bg-purple-50'}`}
                           >
-                            {addedDomains.has(`${searched}${primaryAvail.tld}`) ? <><Check size={15} /> Added to Cart</> : <><ShoppingCart size={15} /> Add to Cart</>}
+                            {addedDomains.has(`${searched}${primaryAvail.tld}`) ? <><Check size={13} /> Added to Cart</> : <><ShoppingCart size={13} /> Add to Cart</>}
                           </button>
 
                           <p className="mt-3 text-[11px] text-slate-400 font-medium leading-snug">

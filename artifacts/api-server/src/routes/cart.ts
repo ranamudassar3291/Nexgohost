@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { cartItemsTable, guestCartItemsTable } from "@workspace/db/schema";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -287,6 +288,60 @@ router.post("/cart/merge-guest", authenticate, async (req: AuthRequest, res) => 
       .where(eq(guestCartItemsTable.guestSessionToken, guestToken));
 
     return res.json({ merged });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Domain Cart Session Routes ───────────────────────────────────────────────
+// Persists public-site domain searches so the checkout wizard can pre-populate.
+
+// POST /guest/domain-session — save domain selected on public website
+router.post("/guest/domain-session", async (req, res) => {
+  try {
+    const { sessionToken, domainName, tld, fullDomain, price, durationYears, actionType } = req.body;
+    if (!sessionToken || !domainName || !tld) {
+      return res.status(400).json({ error: "sessionToken, domainName, tld are required" });
+    }
+    const full = fullDomain || `${domainName}${tld}`;
+    await db.execute(sql`
+      INSERT INTO website_cart_sessions (session_token, domain_name, tld, full_domain, price, duration_years, action_type)
+      VALUES (${sessionToken}, ${domainName}, ${tld}, ${full}, ${price ?? 0}, ${durationYears ?? 1}, ${actionType ?? 'register'})
+      ON CONFLICT (session_token) DO UPDATE SET
+        domain_name    = EXCLUDED.domain_name,
+        tld            = EXCLUDED.tld,
+        full_domain    = EXCLUDED.full_domain,
+        price          = EXCLUDED.price,
+        duration_years = EXCLUDED.duration_years,
+        action_type    = EXCLUDED.action_type,
+        created_at     = NOW()
+    `);
+    return res.json({ ok: true, sessionToken });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /guest/domain-session/:token — retrieve saved domain session
+router.get("/guest/domain-session/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const rows = await db.execute(sql`
+      SELECT * FROM website_cart_sessions WHERE session_token = ${token} ORDER BY created_at DESC LIMIT 1
+    `);
+    if (!rows.rows || rows.rows.length === 0) return res.status(404).json({ error: "Session not found" });
+    return res.json(rows.rows[0]);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /guest/domain-session/:token — clear session after use
+router.delete("/guest/domain-session/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    await db.execute(sql`DELETE FROM website_cart_sessions WHERE session_token = ${token}`);
+    return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
