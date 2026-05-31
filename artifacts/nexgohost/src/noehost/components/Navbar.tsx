@@ -120,10 +120,13 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hostingOpen, setHostingOpen] = useState(false);
   const [mobileHostingOpen, setMobileHostingOpen] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
+  const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
   const [domainsOpen, setDomainsOpen] = useState(false);
   const [mobileDomainsOpen, setMobileDomainsOpen] = useState(false);
   const { itemCount, openCart } = useCart();
   const hostingRef = useRef<HTMLDivElement>(null);
+  const servicesRef = useRef<HTMLDivElement>(null);
   const domainsRef = useRef<HTMLDivElement>(null);
   const { content } = useContent();
   const location = useLocation();
@@ -139,6 +142,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
     const handleClickOutside = (e: MouseEvent) => {
       if (hostingRef.current && !hostingRef.current.contains(e.target as Node)) {
         setHostingOpen(false);
+      }
+      if (servicesRef.current && !servicesRef.current.contains(e.target as Node)) {
+        setServicesOpen(false);
       }
       if (domainsRef.current && !domainsRef.current.contains(e.target as Node)) {
         setDomainsOpen(false);
@@ -312,6 +318,57 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                 )}
               </div>
             )}
+
+            {/* Services Dropdown */}
+            <div ref={servicesRef} className="relative">
+              <button
+                onClick={() => setServicesOpen(o => !o)}
+                className={`flex items-center gap-2 font-black text-xs transition-all py-2 uppercase tracking-widest group ${isScrolled ? 'text-slate-600 hover:text-slate-900' : 'text-slate-300 hover:text-white'}`}
+              >
+                <span className="text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Mail size={18} />
+                </span>
+                Services
+                <ChevronDown size={14} className={`transition-transform duration-200 ${servicesOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {servicesOpen && (
+                <div
+                  className="absolute top-full left-0 mt-3 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                  style={{ minWidth: '320px', background: '#131318', border: '1px solid rgba(103,61,230,0.3)' }}
+                >
+                  <div className="px-5 pt-5 pb-2">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Business Services</span>
+                  </div>
+                  <div className="px-2 pb-3">
+                    <Link
+                      to="/business-email"
+                      onClick={() => setServicesOpen(false)}
+                      className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
+                        <Mail size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">Business Email</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                            NEW
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium leading-snug">Professional email with your custom domain</p>
+                      </div>
+                    </Link>
+                  </div>
+                  <div className="px-5 py-3.5 flex items-center justify-between" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(16,185,129,0.04)' }}>
+                    <span className="text-xs text-slate-500 font-medium">More services coming soon</span>
+                    <Link to="/contact-us" onClick={() => setServicesOpen(false)} className="text-xs font-black text-emerald-400 hover:underline">
+                      Contact sales →
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Domains Dropdown */}
             <div ref={domainsRef} className="relative">
@@ -509,6 +566,40 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
               )}
             </div>
           )}
+
+          {/* Mobile Services Group */}
+          <div>
+            <button
+              onClick={() => setMobileServicesOpen(o => !o)}
+              className="flex items-center gap-4 group w-full"
+            >
+              <div className="p-3 rounded-xl bg-white/5 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                <Mail size={18} />
+              </div>
+              <span className="text-sm font-black text-slate-200 group-hover:text-emerald-400 transition-colors uppercase tracking-widest flex-1 text-left">Services</span>
+              <ChevronDown size={16} className={`text-slate-500 transition-transform duration-200 ${mobileServicesOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileServicesOpen && (
+              <div className="mt-3 flex flex-col gap-1">
+                <Link
+                  to="/business-email"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
+                >
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
+                    <Mail size={16} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">Business Email</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">NEW</span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">Professional email with your custom domain</p>
+                  </div>
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Mobile Domains Group */}
           <div>
