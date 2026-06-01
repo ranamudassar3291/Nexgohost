@@ -78,7 +78,7 @@ function getModel(knowledgeContext: string) {
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
   const genai = new GoogleGenerativeAI(apiKey);
   return genai.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.0-flash-lite",
     systemInstruction: `${BASE_SYSTEM}\n\n${knowledgeContext}`,
   });
 }
