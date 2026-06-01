@@ -5,7 +5,7 @@ import KnowledgeBase from "./KnowledgeBase";
 import Announcements from "./Announcements";
 import AdminMigrations from "./Migrations";
 import CancellationRequests from "./CancellationRequests";
-import AdminLiveSupport from "./AdminLiveSupport";
+import AdminLiveChat from "./AdminLiveChat";
 
 export default function SupportMaster() {
   return (
@@ -27,7 +27,7 @@ export default function SupportMaster() {
           label: "Live Support",
           icon: MessageCircle,
           desc: "Real-time AI chat sessions & human takeover",
-          component: AdminLiveSupport,
+          component: AdminLiveChat,
         },
         {
           id: "knowledge-base",

@@ -2,7 +2,7 @@ import React from 'react';
 import Navbar from '../Navbar';
 import TopBar from '../TopBar';
 import Footer from '../Footer';
-import ChatBot from '../ChatBot';
+import LiveChatWidget from '@/components/LiveChatWidget';
 
 interface HostingPageLayoutProps {
   user: any;
@@ -21,7 +21,7 @@ const HostingPageLayout: React.FC<HostingPageLayoutProps> = ({ user, setUser, ch
         {children}
       </main>
       <Footer />
-      <ChatBot />
+      <LiveChatWidget autoPopup source="website" />
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className="fixed bottom-28 right-8 w-12 h-12 bg-slate-900/10 hover:bg-slate-900/20 backdrop-blur-md rounded-full flex items-center justify-center text-slate-600 transition-all z-[100]"
