@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
-import { requireAdmin } from "../lib/auth-middleware.js";
+import { authenticate, requireAdmin } from "../lib/auth.js";
 import { sendEmail } from "../lib/email.js";
 
 const router = Router();
@@ -151,7 +151,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-router.post("/admin/launch-broadcast", requireAdmin, async (req, res) => {
+router.post("/admin/launch-broadcast", authenticate, requireAdmin, async (req, res) => {
   try {
     const allUsers = await db
       .select({ id: usersTable.id, email: usersTable.email, firstName: usersTable.firstName })
