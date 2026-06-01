@@ -816,6 +816,7 @@ async function runStartupMigrations() {
       "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency_symbol TEXT DEFAULT 'Rs.'",
       "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency_rate NUMERIC(12,6) DEFAULT 1",
       "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS base_currency_amount NUMERIC(10,2)",
+      "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS credit_applied NUMERIC(10,2) DEFAULT 0",
     ];
     for (const stmt of invoiceCols) {
       await db.execute(sql.raw(stmt));

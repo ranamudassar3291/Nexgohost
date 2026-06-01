@@ -208,10 +208,14 @@ export default function InvoiceDetail() {
     if (!invoice) return;
     setPayingWithCredits(true);
     try {
-      await apiFetch(`/api/my/invoices/${id}/pay-with-credits`, { method: "POST" });
+      const result = await apiFetch(`/api/my/invoices/${id}/pay-with-credits`, { method: "POST" });
       qc.invalidateQueries({ queryKey: ["invoice", id] });
       qc.invalidateQueries({ queryKey: ["my-credits"] });
-      toast({ title: "Paid with credits!", description: "Your invoice has been paid from your account credit balance." });
+      if (result?.status === "paid") {
+        toast({ title: "Invoice paid!", description: "Your invoice has been fully paid from your account credit balance." });
+      } else {
+        toast({ title: "Credits applied!", description: "Your available credit has been applied. Please pay the remaining balance." });
+      }
     } catch (err: any) {
       toast({ title: "Payment failed", description: err.message, variant: "destructive" });
     } finally {
@@ -294,7 +298,9 @@ export default function InvoiceDetail() {
   const isUnpaid = ["unpaid", "overdue"].includes(invoice.status);
   const canPay = isUnpaid;
 
-  // Credit deduction shown when invoice is unpaid and user has credits
+  // Credit already stored on invoice (from a previous partial apply)
+  const alreadyApplied = Number((invoice as any).creditApplied ?? 0);
+  // Additional credit that can still be applied from the wallet
   const creditApplicable = canPay && creditBalance > 0;
   const creditApplied = creditApplicable ? Math.min(creditBalance, Number(invoice.total)) : 0;
   const amountAfterCredit = Number(invoice.total) - creditApplied;
@@ -451,9 +457,15 @@ export default function InvoiceDetail() {
                   <span className="text-slate-700 font-medium">{invFmt(Number(invoice.tax))}</span>
                 </div>
               )}
+              {alreadyApplied > 0 && (
+                <div className="flex justify-between text-sm text-emerald-600">
+                  <span className="font-medium">Credit Already Applied</span>
+                  <span className="font-medium">− {invFmt(alreadyApplied)}</span>
+                </div>
+              )}
               {creditApplicable && (
                 <div className="flex justify-between text-sm text-emerald-600">
-                  <span className="font-medium">Account Credit Applied</span>
+                  <span className="font-medium">Account Credit to Apply</span>
                   <span className="font-medium">− {invFmt(creditApplied)}</span>
                 </div>
               )}
@@ -469,7 +481,7 @@ export default function InvoiceDetail() {
             </div>
             {creditApplicable && (
               <p className="text-[10px] text-emerald-600 text-right mt-1.5">
-                * {invFmt(creditApplied)} account credit will be applied at checkout
+                * {invFmt(creditApplied)} account credit will be applied — balance reduces to {invFmt(amountAfterCredit)}
               </p>
             )}
           </div>
@@ -524,14 +536,18 @@ export default function InvoiceDetail() {
                       {payingWithCredits ? <Loader2 size={20} className="animate-spin text-emerald-600" /> : <Wallet size={20} className="text-emerald-600" />}
                     </div>
                     <div className="text-left flex-1">
-                      <p className="text-sm font-bold text-slate-800">Pay with Wallet Balance</p>
+                      <p className="text-sm font-bold text-slate-800">
+                        {creditBalance >= Number(invoice.total) ? "Pay with Wallet Balance" : "Apply Wallet Credit"}
+                      </p>
                       <p className="text-xs text-emerald-600 font-semibold mt-0.5">
-                        {formatPrice(creditBalance)} available
-                        {creditBalance >= Number(invoice.total) ? " · Covers full amount" : ` · Saves ${invFmt(creditApplied)}`}
+                        {formatPrice(creditBalance)} available ·{" "}
+                        {creditBalance >= Number(invoice.total)
+                          ? "Covers full amount — invoice closed"
+                          : `Reduces balance to ${invFmt(amountAfterCredit)}`}
                       </p>
                     </div>
                     <div className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg shrink-0">
-                      {payingWithCredits ? "Processing…" : "Pay Now"}
+                      {payingWithCredits ? "Processing…" : creditBalance >= Number(invoice.total) ? "Pay Now" : "Apply Credit"}
                     </div>
                   </button>
                 </div>

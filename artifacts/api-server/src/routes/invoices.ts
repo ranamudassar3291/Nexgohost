@@ -146,6 +146,7 @@ function formatInvoice(i: any, clientName?: string) {
     currencyCode: i.currencyCode ?? i.currency_code ?? "PKR",
     currencySymbol: i.currencySymbol ?? i.currency_symbol ?? "Rs.",
     currencyRate: Number(i.currencyRate ?? i.currency_rate ?? 1),
+    creditApplied: Number(i.creditApplied ?? i.credit_applied ?? 0),
     items,
     createdAt: toISO(i.createdAt ?? i.created_at) ?? new Date().toISOString(),
   };
@@ -662,16 +663,16 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
     const balance = parseFloat(user.creditBalance ?? "0");
-    if (balance < invoiceTotal) {
-      res.status(400).json({
-        error: `Insufficient credits. Your balance is Rs. ${balance.toFixed(2)} but invoice total is Rs. ${invoiceTotal.toFixed(2)}.`,
-        creditBalance: balance,
-      }); return;
+    if (balance <= 0) {
+      res.status(400).json({ error: "You have no account credits to apply.", creditBalance: 0 }); return;
     }
 
-    const newBalance = parseFloat((balance - invoiceTotal).toFixed(2));
+    // Apply as much credit as available (partial or full)
+    const toApply = parseFloat(Math.min(balance, invoiceTotal).toFixed(2));
+    const newBalance = parseFloat((balance - toApply).toFixed(2));
+    const fullyPaid = toApply >= invoiceTotal;
 
-    // Deduct credits
+    // Deduct credits from wallet
     await db.update(usersTable)
       .set({ creditBalance: String(newBalance), updatedAt: new Date() })
       .where(eq(usersTable.id, userId));
@@ -679,26 +680,45 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
     // Record credit transaction
     await db.insert(creditTransactionsTable).values({
       userId,
-      amount: String(invoiceTotal),
+      amount: String(toApply),
       type: "invoice_payment",
-      description: `Payment for invoice ${invoice.invoiceNumber}`,
+      description: `${fullyPaid ? "Full" : "Partial"} credit payment for invoice ${invoice.invoiceNumber}`,
       invoiceId: invoice.id,
       performedBy: userId,
     });
 
-    // Mark invoice paid
-    const [updated] = await db.update(invoicesTable)
-      .set({
-        status: "paid",
-        paidDate: new Date(),
-        paymentRef: `CREDIT-${Date.now()}`,
-        paymentNotes: "Paid with account credits",
-        updatedAt: new Date(),
-      })
-      .where(eq(invoicesTable.id, invoice.id))
-      .returning();
+    let updated: any;
+    if (fullyPaid) {
+      // Mark invoice as fully paid
+      const payRef = `CREDIT-${Date.now()}`;
+      const res2 = await db.execute(sql`
+        UPDATE invoices
+        SET status = 'paid',
+            paid_date = NOW(),
+            payment_ref = ${payRef},
+            payment_notes = 'Paid with account credits',
+            credit_applied = COALESCE(credit_applied, 0) + ${toApply},
+            updated_at = NOW()
+        WHERE id = ${invoice.id}
+        RETURNING *
+      `);
+      updated = (res2 as any).rows?.[0] ?? invoice;
+    } else {
+      // Partial: reduce invoice total by the credit applied, keep unpaid
+      const newTotal = parseFloat((invoiceTotal - toApply).toFixed(2));
+      const res2 = await db.execute(sql`
+        UPDATE invoices
+        SET total = ${newTotal},
+            credit_applied = COALESCE(credit_applied, 0) + ${toApply},
+            payment_notes = CONCAT(COALESCE(payment_notes, ''), ${` | Rs. ${toApply.toFixed(2)} credit applied`}),
+            updated_at = NOW()
+        WHERE id = ${invoice.id}
+        RETURNING *
+      `);
+      updated = (res2 as any).rows?.[0] ?? invoice;
+    }
 
-    console.log(`[CREDITS] Invoice ${invoice.invoiceNumber} paid with credits by ${userId}. New balance: Rs. ${newBalance}`);
+    console.log(`[CREDITS] Invoice ${invoice.invoiceNumber} — applied Rs. ${toApply} credit by ${userId}. Fully paid: ${fullyPaid}. New wallet: Rs. ${newBalance}`);
 
     // Provision hosting or process renewal if applicable
     try {
