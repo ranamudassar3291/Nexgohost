@@ -162,6 +162,7 @@ const CLIENT_SIDEBAR_GROUPS = [
       { name: "Security",     href: "/client/security",  icon: ShieldCheck, accent: "#F59E0B" },
       { name: "Team Access",  href: "/client/team",      icon: Users2      },
       { name: "Support",      href: "/client/tickets",   icon: Ticket      },
+      { name: "Help Center",  href: "/help",             icon: BookOpen    },
     ],
   },
   {
