@@ -39,6 +39,7 @@ const ALLOWED_ORIGINS = [
   /^https?:\/\/(client|cart|admin|www)\.noehost\.com$/,
   /^https?:\/\/noehost\.com$/,
   /\.replit\.dev$/,
+  /\.replit\.app$/,
   /\.repl\.co$/,
   /\.sisko\.replit\.dev$/,
 ];
