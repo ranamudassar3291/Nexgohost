@@ -1174,11 +1174,11 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
     }).returning();
 
     // Create domain record so it appears immediately in client's domain list
+    const regDate = new Date();
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + registrationYears);
+    const cleanName = domain.replace(/^\./, "").replace(/\..+$/, "").toLowerCase();
     try {
-      const regDate = new Date();
-      const expiryDate = new Date();
-      expiryDate.setFullYear(expiryDate.getFullYear() + registrationYears);
-      const cleanName = domain.replace(/^\./, "").replace(/\..+$/, "").toLowerCase();
       await db.insert(domainsTable).values({
         clientId: req.user!.userId,
         name: cleanName,
@@ -1191,10 +1191,9 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       });
     } catch { /* non-fatal — domain may already exist */ }
 
-    // Domain registration email — reuse the SAME expiryDate that was saved to the DB
-    // (setFullYear is the canonical calculation; no independent recalculation that could drift)
+    // Domain registration email
     const fmtDate = (d: Date) => d.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
-    const expiryFormatted = fmtDate(expiryDate); // expiryDate from line above (setFullYear used)
+    const expiryFormatted = fmtDate(expiryDate);
     const regFormatted   = fmtDate(regDate);
     emailDomainRegistered(user.email, {
       clientName: `${user.firstName} ${user.lastName}`,
