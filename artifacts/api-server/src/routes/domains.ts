@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { decryptField } from "../lib/fieldCrypto.js";
 import { db } from "@workspace/db";
+import { logClientActivity } from "../lib/client-activity.js";
 import { domainsTable, domainPricingTable, domainExtensionsTable, usersTable, ordersTable, invoicesTable, affiliatesTable, affiliateReferralsTable, affiliateCommissionsTable, dnsRecordsTable, promoCodesTable } from "@workspace/db/schema";
 import { eq, sql, and, asc, desc, inArray, ilike, or, count } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -401,6 +402,12 @@ router.post("/domains/register", authenticate, async (req: AuthRequest, res) => 
         }
       } catch { /* non-fatal */ }
     })();
+
+    logClientActivity(
+      user.id, user.email, "domain_registered",
+      `Registered domain ${cleanName}${cleanTld} for ${effectivePeriod} year${effectivePeriod > 1 ? "s" : ""}`,
+      req,
+    ).catch(() => {});
 
     res.status(201).json({
       domain: formatDomain(domain, clientName),

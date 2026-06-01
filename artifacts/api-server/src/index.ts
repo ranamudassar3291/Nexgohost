@@ -1067,6 +1067,27 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_domain_cart_user ON domain_cart_items(user_id)`);
     console.log("[MIGRATIONS] domain_cart_items table ready");
 
+    // activity_logs — extend schema with user_email + description columns
+    const activityLogCols = [
+      "ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS user_email TEXT",
+      "ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS description TEXT",
+    ];
+    for (const stmt of activityLogCols) {
+      await db.execute(sql.raw(stmt));
+    }
+    // Safely add new action type enum values (PG 12+ supports IF NOT EXISTS)
+    const newActivityTypes = [
+      "order_placed", "domain_registered", "domain_transferred", "domain_renewed",
+      "invoice_paid", "ticket_opened", "account_registered",
+      "password_reset_requested", "support_ticket_created",
+    ];
+    for (const val of newActivityTypes) {
+      await db.execute(sql.raw(
+        `DO $$ BEGIN ALTER TYPE activity_type ADD VALUE IF NOT EXISTS '${val}'; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
+      ));
+    }
+    console.log("[MIGRATIONS] activity_logs extended schema ready");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

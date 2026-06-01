@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sendWhatsAppAlert, sendToClientPhone } from "../lib/whatsapp.js";
+import { logClientActivity } from "../lib/client-activity.js";
 import {
   ordersTable, usersTable, hostingPlansTable, hostingServicesTable,
   invoicesTable, serversTable, domainsTable,
@@ -140,6 +141,12 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
     }).returning();
 
     res.status(201).json(formatOrder(order, `${user.firstName} ${user.lastName}`));
+
+    logClientActivity(
+      user.id, user.email, "order_placed",
+      `Placed order for "${itemName}" (${type}) — Order #${order.id.slice(0, 8).toUpperCase()}`,
+      req,
+    ).catch(() => {});
 
     // WhatsApp alert to admin (non-blocking)
     const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;

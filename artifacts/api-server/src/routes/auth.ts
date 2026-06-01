@@ -139,6 +139,7 @@ router.post("/auth/register", async (req, res) => {
       }
     }
 
+    logActivity(user.id, "account_registered" as any, req, "success", undefined, user.email, `New client account registered`).catch(() => {});
     const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.status(201).json({ token, requiresVerification: verificationRequired, user: formatUser(user) });
 
@@ -205,11 +206,24 @@ router.post("/auth/resend-verification", authenticate, async (req: AuthRequest, 
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-async function logActivity(userId: string, action: typeof activityLogsTable.$inferInsert["action"], req: any, status: "success" | "failed" = "success", note?: string) {
+async function logActivity(
+  userId: string,
+  action: typeof activityLogsTable.$inferInsert["action"],
+  req: any,
+  status: "success" | "failed" = "success",
+  note?: string,
+  userEmail?: string,
+  description?: string,
+) {
   try {
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || null;
     const userAgent = req.headers["user-agent"] || null;
-    await db.insert(activityLogsTable).values({ userId, action, ip, userAgent, status, note: note || null });
+    await db.insert(activityLogsTable).values({
+      userId, action, ip, userAgent, status,
+      note: note || null,
+      userEmail: userEmail ?? null,
+      description: description ?? null,
+    });
   } catch { /* non-fatal */ }
 }
 
@@ -254,7 +268,7 @@ router.post("/auth/login", async (req, res) => {
 
     const valid = await comparePassword(password, user.passwordHash);
     if (!valid) {
-      logActivity(user.id, "login_failed", req, "failed", "Invalid password").catch(() => {});
+      logActivity(user.id, "login_failed", req, "failed", "Invalid password", user.email, "Login attempt failed — invalid password").catch(() => {});
       // Admins: log for audit trail but never trigger IP block (prevents panel lockout)
       // Non-admins: full brute-force protection (3 attempts → 30-min block)
       await recordFailedAttempt(ip, req, email, { skipBlock: isAdmin }).catch(() => {});
@@ -269,7 +283,7 @@ router.post("/auth/login", async (req, res) => {
       }
       const valid2FA = await _otpVerify(totp, user.twoFactorSecret!);
       if (!valid2FA) {
-        logActivity(user.id, "login_failed", req, "failed", "Invalid 2FA code").catch(() => {});
+        logActivity(user.id, "login_failed", req, "failed", "Invalid 2FA code", user.email, "Login attempt failed — invalid 2FA code").catch(() => {});
         res.status(401).json({ error: "Unauthorized", message: "Invalid authenticator code" }); return;
       }
     }
@@ -287,7 +301,7 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    logActivity(user.id, "login_success", req, "success").catch(() => {});
+    logActivity(user.id, "login_success", req, "success", undefined, user.email, `Successful login from ${(req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown IP"}`).catch(() => {});
     const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.json({ token, requiresVerification: false, user: formatUser(user) });
   } catch (err) {
@@ -768,6 +782,7 @@ router.post("/auth/forgot-password", async (req, res) => {
     console.error(`[AUTH] Failed to send reset email: ${emailErr.message}`);
   }
 
+  logActivity(user.id, "password_reset_requested" as any, req, "success", undefined, user.email, "Password reset email requested").catch(() => {});
   return res.json({ message: "If an account with that email exists, a reset link has been sent." });
 });
 

@@ -49,6 +49,7 @@ import SystemMaster from "@/pages/admin/SystemMaster";
 import IpUnblocker from "@/pages/admin/IpUnblocker";
 import WebsiteMaster from "@/pages/admin/WebsiteMaster";
 import CommandCenter from "@/pages/admin/CommandCenter";
+import ActivityLogs from "@/pages/admin/ActivityLogs";
 import SeoEngine from "@/pages/admin/SeoEngine";
 import SalesFunnel from "@/pages/admin/SalesFunnel";
 import AbuseDashboard from "@/pages/admin/AbuseDashboard";
@@ -430,6 +431,9 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/command-center">
         <AdminPage><CommandCenter /></AdminPage>
+      </Route>
+      <Route path="/admin/activity-logs">
+        <AdminPage><ActivityLogs /></AdminPage>
       </Route>
       <Route path="/admin/seo-engine">
         <AdminPage><SeoEngine /></AdminPage>
