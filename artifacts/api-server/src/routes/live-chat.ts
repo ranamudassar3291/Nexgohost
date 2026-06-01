@@ -8,6 +8,17 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { authenticate, requireAdmin, verifyToken, type AuthRequest } from "../lib/auth.js";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadDir = "/tmp/noe-chat-uploads";
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`),
+});
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -504,6 +515,24 @@ router.get("/chat/session/:id/messages", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// ── POST /chat/upload ─────────────────────────────────────────────────────────
+router.post("/chat/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file" });
+    const publicUrl = `/api/chat/files/${req.file.filename}`;
+    res.json({ url: publicUrl, name: req.file.originalname, type: req.file.mimetype, size: req.file.size });
+  } catch (err) {
+    res.status(500).json({ error: "Upload failed" });
+  }
+});
+
+// ── GET /chat/files/:filename ─────────────────────────────────────────────────
+router.get("/chat/files/:filename", (req, res) => {
+  const filePath = path.join(uploadDir, req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Not found" });
+  res.sendFile(filePath);
 });
 
 // ── POST /chat/handover/:id ────────────────────────────────────────────────────
