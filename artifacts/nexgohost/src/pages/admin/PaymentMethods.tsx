@@ -15,7 +15,7 @@ interface PaymentMethod {
 
 const TYPES = [
   { value: "safepay",       label: "Safepay",         icon: "🔐" },
-  { value: "jazzcash",      label: "JazzCash",        icon: "📱" },
+  { value: "jazzcash",      label: "EasyPaisa",       icon: "💚" },
   { value: "easypaisa",     label: "EasyPaisa",       icon: "💚" },
   { value: "bank_transfer", label: "Bank Transfer",   icon: "🏦" },
   { value: "paypal",        label: "PayPal",          icon: "🅿️" },
@@ -35,7 +35,7 @@ const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder:
     { key: "webhookSecret",    label: "Webhook Shared Secret", placeholder: "Enter your webhook secret", secret: true, hint: "From Safepay Dashboard → Developers → Webhooks → Shared Secret" },
   ],
   jazzcash: [
-    { key: "mobileNumber",  label: "JazzCash Mobile Number",  placeholder: "03XX-XXXXXXX" },
+    { key: "mobileNumber",  label: "EasyPaisa Mobile Number",  placeholder: "03XX-XXXXXXX" },
     { key: "accountTitle",  label: "Account Title",            placeholder: "Your Name" },
     { key: "merchantId",    label: "Merchant ID (optional)",   placeholder: "For API verification", secret: true },
   ],
@@ -212,7 +212,7 @@ export default function PaymentMethods() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">Display Name *</label>
-                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. JazzCash Mobile" required />
+                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. EasyPaisa Mobile" required />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground/80">Gateway Type *</label>
@@ -230,7 +230,7 @@ export default function PaymentMethods() {
 
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground/80">Description (shown to clients)</label>
-                <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Pay via JazzCash mobile wallet" />
+                <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Pay via EasyPaisa mobile wallet" />
               </div>
 
               {currentFields.length > 0 && (
