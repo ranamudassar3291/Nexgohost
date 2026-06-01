@@ -463,25 +463,17 @@ export default function InvoiceDetail() {
                   <span className="font-medium">− {invFmt(alreadyApplied)}</span>
                 </div>
               )}
-              {creditApplicable && (
-                <div className="flex justify-between text-sm text-emerald-600">
-                  <span className="font-medium">Account Credit to Apply</span>
-                  <span className="font-medium">− {invFmt(creditApplied)}</span>
-                </div>
-              )}
             </div>
             <div
               className="mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white"
               style={{ background: BRAND }}
             >
               <span className="text-sm font-bold uppercase tracking-wide">Total Due</span>
-              <span className="text-lg font-black">
-                {creditApplicable ? invFmt(amountAfterCredit) : invFmt(Number(invoice.total))}
-              </span>
+              <span className="text-lg font-black">{invFmt(Number(invoice.total))}</span>
             </div>
             {creditApplicable && (
               <p className="text-[10px] text-emerald-600 text-right mt-1.5">
-                * {invFmt(creditApplied)} account credit will be applied — balance reduces to {invFmt(amountAfterCredit)}
+                💳 {invFmt(creditApplied)} wallet credit available — click "Apply Credit" below to reduce to {invFmt(amountAfterCredit)}
               </p>
             )}
           </div>
@@ -542,8 +534,8 @@ export default function InvoiceDetail() {
                       <p className="text-xs text-emerald-600 font-semibold mt-0.5">
                         {formatPrice(creditBalance)} available ·{" "}
                         {creditBalance >= Number(invoice.total)
-                          ? "Covers full amount — invoice closed"
-                          : `Reduces balance to ${invFmt(amountAfterCredit)}`}
+                          ? "Covers full amount — invoice will be closed"
+                          : `Invoice reduces to ${invFmt(amountAfterCredit)} after applying`}
                       </p>
                     </div>
                     <div className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg shrink-0">

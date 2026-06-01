@@ -671,52 +671,55 @@ router.post("/my/invoices/:id/pay-with-credits", authenticate, async (req: AuthR
     const toApply = parseFloat(Math.min(balance, invoiceTotal).toFixed(2));
     const newBalance = parseFloat((balance - toApply).toFixed(2));
     const fullyPaid = toApply >= invoiceTotal;
+    const payRef = fullyPaid ? `CREDIT-${Date.now()}` : null;
+    const newTotal = fullyPaid ? 0 : parseFloat((invoiceTotal - toApply).toFixed(2));
+    const noteText = ` | Rs. ${toApply.toFixed(2)} credit applied`;
 
-    // Deduct credits from wallet
-    await db.update(usersTable)
-      .set({ creditBalance: String(newBalance), updatedAt: new Date() })
-      .where(eq(usersTable.id, userId));
+    // All credit operations in a single transaction — atomic (no partial failures)
+    let updated: any = invoice;
+    await db.transaction(async (tx) => {
+      // 1. Deduct credits from wallet
+      await tx.update(usersTable)
+        .set({ creditBalance: String(newBalance), updatedAt: new Date() })
+        .where(eq(usersTable.id, userId));
 
-    // Record credit transaction
-    await db.insert(creditTransactionsTable).values({
-      userId,
-      amount: String(toApply),
-      type: "invoice_payment",
-      description: `${fullyPaid ? "Full" : "Partial"} credit payment for invoice ${invoice.invoiceNumber}`,
-      invoiceId: invoice.id,
-      performedBy: userId,
+      // 2. Record credit transaction
+      await tx.insert(creditTransactionsTable).values({
+        userId,
+        amount: String(toApply),
+        type: "invoice_payment",
+        description: `${fullyPaid ? "Full" : "Partial"} credit payment for invoice ${invoice.invoiceNumber}`,
+        invoiceId: invoice.id,
+        performedBy: userId,
+      });
+
+      // 3. Update invoice
+      if (fullyPaid) {
+        const rows = await tx.execute(sql`
+          UPDATE invoices
+          SET status = 'paid',
+              paid_date = NOW(),
+              payment_ref = ${payRef},
+              payment_notes = 'Paid with account credits',
+              credit_applied = COALESCE(credit_applied, 0) + ${toApply},
+              updated_at = NOW()
+          WHERE id = ${invoice.id}
+          RETURNING *
+        `);
+        updated = (rows as any).rows?.[0] ?? invoice;
+      } else {
+        const rows = await tx.execute(sql`
+          UPDATE invoices
+          SET total = ${newTotal},
+              credit_applied = COALESCE(credit_applied, 0) + ${toApply},
+              payment_notes = COALESCE(payment_notes, '') || ${noteText},
+              updated_at = NOW()
+          WHERE id = ${invoice.id}
+          RETURNING *
+        `);
+        updated = (rows as any).rows?.[0] ?? invoice;
+      }
     });
-
-    let updated: any;
-    if (fullyPaid) {
-      // Mark invoice as fully paid
-      const payRef = `CREDIT-${Date.now()}`;
-      const res2 = await db.execute(sql`
-        UPDATE invoices
-        SET status = 'paid',
-            paid_date = NOW(),
-            payment_ref = ${payRef},
-            payment_notes = 'Paid with account credits',
-            credit_applied = COALESCE(credit_applied, 0) + ${toApply},
-            updated_at = NOW()
-        WHERE id = ${invoice.id}
-        RETURNING *
-      `);
-      updated = (res2 as any).rows?.[0] ?? invoice;
-    } else {
-      // Partial: reduce invoice total by the credit applied, keep unpaid
-      const newTotal = parseFloat((invoiceTotal - toApply).toFixed(2));
-      const res2 = await db.execute(sql`
-        UPDATE invoices
-        SET total = ${newTotal},
-            credit_applied = COALESCE(credit_applied, 0) + ${toApply},
-            payment_notes = CONCAT(COALESCE(payment_notes, ''), ${` | Rs. ${toApply.toFixed(2)} credit applied`}),
-            updated_at = NOW()
-        WHERE id = ${invoice.id}
-        RETURNING *
-      `);
-      updated = (res2 as any).rows?.[0] ?? invoice;
-    }
 
     console.log(`[CREDITS] Invoice ${invoice.invoiceNumber} — applied Rs. ${toApply} credit by ${userId}. Fully paid: ${fullyPaid}. New wallet: Rs. ${newBalance}`);
 
