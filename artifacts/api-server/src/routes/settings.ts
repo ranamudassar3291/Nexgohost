@@ -69,10 +69,10 @@ router.get("/admin/settings", authenticate, requireAdmin, async (_req, res) => {
       smtp_from_name:  map["smtp_from_name"]   ?? "",
       smtp_encryption: map["smtp_encryption"]  ?? "tls",
       smtp_configured: !!(map["smtp_host"] && map["smtp_user"]),
-      google_client_id:       map["google_client_id"]       || process.env.GOOGLE_CLIENT_ID || "",
-      google_client_secret:   (map["google_client_secret"] || process.env.GOOGLE_CLIENT_SECRET) ? "••••••••" : "",
+      google_client_id:       map["google_client_id"] != null ? map["google_client_id"] : (process.env.GOOGLE_CLIENT_ID ?? ""),
+      google_client_secret:   (map["google_client_secret"] != null ? map["google_client_secret"] : process.env.GOOGLE_CLIENT_SECRET) ? "••••••••" : "",
       google_allowed_domains: map["google_allowed_domains"]  ?? "",
-      google_configured:      !!(( map["google_client_id"] || process.env.GOOGLE_CLIENT_ID) && (map["google_client_secret"] || process.env.GOOGLE_CLIENT_SECRET)),
+      google_configured:      !!((map["google_client_id"] != null ? map["google_client_id"] : process.env.GOOGLE_CLIENT_ID) && (map["google_client_secret"] != null ? map["google_client_secret"] : process.env.GOOGLE_CLIENT_SECRET)),
       email_verification_enabled: map["email_verification_enabled"] === undefined ? true : map["email_verification_enabled"] === "true",
       wallet_min_deposit: Number(map["wallet_min_deposit"] ?? "270"),
       wallet_max_deposit: Number(map["wallet_max_deposit"] ?? "100000"),
@@ -83,7 +83,7 @@ router.get("/admin/settings", authenticate, requireAdmin, async (_req, res) => {
   }
 });
 
-// PUT /api/admin/settings — upsert email config
+// PUT /api/admin/settings — upsert email + google + misc config
 router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
@@ -117,17 +117,95 @@ router.put("/admin/settings", authenticate, requireAdmin, async (req: AuthReques
     for (const pair of pairs) {
       await db
         .insert(settingsTable)
-        .values({ key: pair.key, value: pair.value })
+        .values({ key: pair.key, value: pair.value, updatedAt: new Date() })
         .onConflictDoUpdate({ target: settingsTable.key, set: { value: pair.value, updatedAt: new Date() } });
     }
 
     const { clearSmtpCache } = await import("../lib/email.js");
     clearSmtpCache();
 
-    res.json({ success: true, message: "Email settings saved" });
+    res.json({ success: true, message: "Settings saved" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to save settings" });
+  }
+});
+
+// POST /api/admin/settings/save — generic bulk upsert for any key-value pairs
+// Accepts: { key: string, value: string }[] OR Record<string,string>
+// Handles encrypted fields automatically using ENCRYPTED_SETTING_KEYS
+router.post("/admin/settings/save", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+
+    // Support both array format [{key,value}] and object format {key: value}
+    let entries: { key: string; value: unknown }[] = [];
+    if (Array.isArray(body)) {
+      entries = body.filter(e => typeof e.key === "string");
+    } else {
+      entries = Object.entries(body).map(([key, value]) => ({ key, value }));
+    }
+
+    if (entries.length === 0) {
+      res.status(400).json({ error: "No settings provided" });
+      return;
+    }
+
+    // Block internal-only keys from being overwritten via generic save
+    const BLOCKED_KEYS = new Set(["system_api_key", "currency_last_refresh"]);
+
+    let saved = 0;
+    let skipped = 0;
+    for (const { key, value } of entries) {
+      if (BLOCKED_KEYS.has(key)) { skipped++; continue; }
+
+      const strValue = value === null || value === undefined ? "" : String(value);
+
+      // Skip masked placeholder — don't overwrite existing secret with "••••••••"
+      if (strValue === "••••••••" || strValue.startsWith("••••")) { skipped++; continue; }
+
+      const finalValue = ENCRYPTED_SETTING_KEYS.has(key) ? encryptField(strValue) : strValue;
+
+      await db
+        .insert(settingsTable)
+        .values({ key, value: finalValue, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: settingsTable.key, set: { value: finalValue, updatedAt: new Date() } });
+      saved++;
+    }
+
+    // Clear caches for email / branding related keys
+    if (entries.some(e => String(e.key).startsWith("smtp_") || e.key === "mailer_type")) {
+      const { clearSmtpCache } = await import("../lib/email.js");
+      clearSmtpCache();
+    }
+    if (entries.some(e => String(e.key).startsWith("brand_") || String(e.key).startsWith("site_"))) {
+      const { clearBrandingCache } = await import("../lib/email.js");
+      clearBrandingCache();
+    }
+
+    res.json({ success: true, saved, skipped, message: `${saved} setting(s) saved` });
+  } catch (err) {
+    console.error("[settings/save]", err);
+    res.status(500).json({ error: "Failed to save settings" });
+  }
+});
+
+// GET /api/admin/settings/all — return raw key-value dump of all settings (secrets masked)
+router.get("/admin/settings/all", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.select().from(settingsTable).orderBy(settingsTable.key);
+    const result: Record<string, string> = {};
+    for (const r of rows) {
+      if (!r.key) continue;
+      // Mask encrypted fields
+      result[r.key] = ENCRYPTED_SETTING_KEYS.has(r.key) && r.value
+        ? "••••••••"
+        : (r.value ?? "");
+    }
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load settings" });
   }
 });
 

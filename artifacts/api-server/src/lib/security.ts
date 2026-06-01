@@ -264,8 +264,8 @@ export async function getSecuritySetting(key: string): Promise<string | null> {
 
 export async function setSecuritySetting(key: string, value: string): Promise<void> {
   await db.insert(settingsTable)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
+    .values({ key, value, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: settingsTable.key, set: { value, updatedAt: new Date() } });
 }
 
 export interface SecurityConfig {
