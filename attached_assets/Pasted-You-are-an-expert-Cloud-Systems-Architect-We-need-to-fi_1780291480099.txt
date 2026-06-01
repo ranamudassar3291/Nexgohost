@@ -1,0 +1,48 @@
+You are an expert Cloud Systems Architect. We need to fix the "VPS Not Found" error visible in image_b0999d.png and implement a professional "Server API Module Management" system in the Admin Panel.
+
+This will allow the Administrator to add Virtualizor/Cloud nodes, configure API credentials, and link VPS packages to specific servers for automated provisioning.
+
+---
+### 1. ADMIN MODULE: SERVER & API MANAGEMENT
+- Path: `/admin/servers`
+- Create a new symmetrical management page in the Admin Panel.
+- **Feature A: Add New Server Node**
+  * Modal/Form Inputs: Server Name, Provider Type (Dropdown: Virtualizor, Vultr, Hetzner), Master IP Address, API Key, and API Password/Hash.
+  * Persistence: Save these credentials into a new table `server_nodes`.
+- **Feature B: Package-to-Server Mapping**
+  * Update the VPS Package Creator. Add a dropdown field: "Deploy on Server Node". This links a VPS hosting plan directly to one of the active API providers created in Feature A.
+
+---
+### 2. FIXING THE "VPS NOT FOUND" ERROR (image_b0999d.png)
+- Refactor the Route: `GET /client/vps/:id` (or the path in image_b0999d.png).
+- Logic Overhaul: 
+  1. The controller must first find the local database record in `vps_server_orders`.
+  2. If the local record exists but the `vps_reference_id` (from the API) is missing, do NOT show "Not Found". Instead, show a "Pending Provisioning" state with a refresh trigger.
+  3. If the record exists, fetch the connected `server_nodes` API credentials and fire a background status check to the Virtualizor API to get real-time Power Status (Online/Offline), IP, and OS details.
+
+---
+### 3. THE HOSTINGER-STYLE VPS CONTROL PANEL (Refined)
+Once the record is found, replace the error screen with a high-end management interface:
+- **Visual Identity:** Pristine white cards (#ffffff), light gray backdrop (#fafafa), purple accent (#7C3AED).
+- **Core Widgets:**
+  * Status Badge: Dynamic (Running / Stopped / Suspended).
+  * Credentials Card: Display Username (`root`), IP Address (with Copy button), and a "Show Password" toggle for the root password.
+  * Action Toolbar: Robust horizontal buttons for [🔄 Reboot], [⏹️ Stop], [⚡ Start], and [⚙️ Reinstall OS].
+  * Details Sidebar: Plan Name, Disk Usage, Monthly Bandwidth, and Next Renewal Date.
+
+---
+### 4. UPDATED DATABASE SCHEMA (Safe Migrations)
+Ensure these tables are present and linked:
+```sql
+CREATE TABLE IF NOT EXISTS server_nodes (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    provider_type VARCHAR(50), -- e.g., 'virtualizor'
+    api_ip VARCHAR(100),
+    api_key TEXT,
+    api_pass TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE vps_server_orders ADD COLUMN IF NOT EXISTS server_node_id INT REFERENCES server_nodes(id);
+ALTER TABLE vps_server_orders ADD COLUMN IF NOT EXISTS vps_reference_id VARCHAR(255); -- ID from Virtualizor/Cloud

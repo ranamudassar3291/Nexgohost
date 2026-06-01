@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { motion } from "framer-motion";
-import { Server, ArrowLeft, Plus, X, Loader2, Cpu, MemoryStick, HardDrive, Wifi, Save } from "lucide-react";
+import { Server, ArrowLeft, Plus, X, Loader2, Cpu, MemoryStick, HardDrive, Wifi, Save, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,7 @@ function apiFetch(url: string, opts?: RequestInit) {
 
 interface OsTemplate { id: string; name: string; version: string; iconUrl: string | null; isActive: boolean; }
 interface VpsLocation { id: string; countryName: string; countryCode: string; flagIcon: string | null; isActive: boolean; }
+interface ApiNode { id: number; name: string; provider_type: string; api_ip: string; }
 
 const DEFAULT_FEATURES = [
   "Full Root Access",
@@ -42,6 +43,7 @@ export default function AddVpsPlan() {
     virtualization: "KVM",
     saveAmount: "",
     isActive: true, sortOrder: "0",
+    serverNodeId: "",
   });
   const [features, setFeatures] = useState<string[]>(["Full Root Access", "DDoS Protection", "Dedicated IP"]);
   const [newFeature, setNewFeature] = useState("");
@@ -58,6 +60,11 @@ export default function AddVpsPlan() {
     queryKey: ["admin-vps-locations"],
     queryFn: () => apiFetch("/api/admin/vps-locations").then(r => r.json()),
   });
+  const { data: apiNodesData } = useQuery<{ nodes: ApiNode[] }>({
+    queryKey: ["vps-api-nodes-list"],
+    queryFn: () => apiFetch("/api/admin/vps/api-nodes/public-list").then(r => r.json()),
+  });
+  const apiNodes = apiNodesData?.nodes ?? [];
 
   useEffect(() => {
     if (!isEdit) return;
@@ -75,6 +82,7 @@ export default function AddVpsPlan() {
       setFeatures(Array.isArray(data.features) ? data.features : []);
       setSelectedOsIds(Array.isArray(data.osTemplateIds) ? data.osTemplateIds : []);
       setSelectedLocIds(Array.isArray(data.locationIds) ? data.locationIds : []);
+      if (data.serverNodeId) setForm(f => ({ ...f, serverNodeId: String(data.serverNodeId) }));
     }).finally(() => setFetching(false));
   }, [id, isEdit]);
 
@@ -114,6 +122,7 @@ export default function AddVpsPlan() {
         saveAmount: form.saveAmount ? parseFloat(form.saveAmount) : null,
         isActive: form.isActive,
         sortOrder: parseInt(form.sortOrder) || 0,
+        serverNodeId: form.serverNodeId ? parseInt(form.serverNodeId) : null,
       };
       const url = isEdit ? `/api/admin/vps-plans/${id}` : "/api/admin/vps-plans";
       const method = isEdit ? "PUT" : "POST";
@@ -207,6 +216,28 @@ export default function AddVpsPlan() {
               <option value="Hyper-V">Hyper-V</option>
             </select>
           </div>
+        </div>
+
+        {/* Deploy-on Server Node */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+          <h2 className="font-semibold text-gray-800 text-[15px] flex items-center gap-2">
+            <Zap size={14} style={{ color: P }} /> Deploy on Server Node
+          </h2>
+          <p className="text-[12px] text-gray-400">Link this plan to a provisioning API node. When an order is activated, the system will use that node's credentials.</p>
+          <select value={form.serverNodeId} onChange={set("serverNodeId")}
+            className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-[13px] font-medium focus:outline-none">
+            <option value="">— No node assigned (manual provisioning) —</option>
+            {apiNodes.map(node => (
+              <option key={node.id} value={node.id}>
+                {node.name} · {node.provider_type} · {node.api_ip}
+              </option>
+            ))}
+          </select>
+          {apiNodes.length === 0 && (
+            <p className="text-[11.5px] text-amber-500 font-medium">
+              No active API nodes configured. Go to Admin → Infrastructure → VPS API Nodes to add one.
+            </p>
+          )}
         </div>
 
         {/* Features */}

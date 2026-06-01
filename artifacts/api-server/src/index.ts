@@ -1031,6 +1031,24 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_vps_orders_status ON vps_server_orders(server_status)`);
     console.log("[MIGRATIONS] vps_server_orders table ready");
 
+    // ── VPS API Provider Nodes (Virtualizor / Vultr / Hetzner) ───────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS vps_api_nodes (
+        id            SERIAL PRIMARY KEY,
+        name          VARCHAR(255) NOT NULL,
+        provider_type VARCHAR(50)  NOT NULL DEFAULT 'virtualizor',
+        api_ip        VARCHAR(100) NOT NULL,
+        api_key       TEXT,
+        api_pass      TEXT,
+        api_hash      TEXT,
+        is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+        notes         TEXT,
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`ALTER TABLE vps_server_orders ADD COLUMN IF NOT EXISTS server_node_id INT REFERENCES vps_api_nodes(id) ON DELETE SET NULL`);
+    console.log("[MIGRATIONS] vps_api_nodes + server_node_id ready");
+
     // ── Safe Migration: domain cart session table ─────────────────────────────
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS domain_cart_items (

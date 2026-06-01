@@ -1,8 +1,9 @@
-import { Server, Boxes, Layers, LayoutGrid, MapPin } from "lucide-react";
+import { Server, Boxes, Layers, LayoutGrid, MapPin, Zap } from "lucide-react";
 import { MasterPage } from "@/components/layout/MasterPage";
 import Servers from "./Servers";
 import TwentyIAdmin from "./TwentyIAdmin";
 import ServerNodes from "./ServerNodes";
+import VpsApiNodes from "./VpsApiNodes";
 import Modules from "./Modules";
 import VpsLocations from "./VpsLocations";
 
@@ -27,6 +28,13 @@ export default function ServersMaster() {
           icon: Boxes,
           desc: "Full 20i reseller control — StackUsers, sites, tickets",
           component: TwentyIAdmin,
+        },
+        {
+          id: "vps-api-nodes",
+          label: "VPS API Nodes",
+          icon: Zap,
+          desc: "Virtualizor / Vultr / Hetzner API providers for automated provisioning",
+          component: VpsApiNodes,
         },
         {
           id: "server-nodes",

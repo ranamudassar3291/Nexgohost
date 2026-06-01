@@ -256,14 +256,70 @@ export default function VpsManagePage() {
     </div>
   );
 
+  // ── Provisioning pending state (order exists but no IP / vps_reference_id yet) ──
+  if (order && (order.serverStatus === "provisioning" || !order.ipAddress)) return (
+    <div className="min-h-screen bg-[#fafafa]">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
+        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center gap-4">
+          <button onClick={() => navigate("/client/dashboard")} className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors text-sm font-medium">
+            <ArrowLeft size={16} /> Dashboard
+          </button>
+          <div className="w-px h-4 bg-gray-100" />
+          <span className="text-sm font-black text-gray-900">{order.packageName ?? `VPS #${order.id}`}</span>
+          <StatusBadge status="provisioning" />
+        </div>
+      </header>
+      <main className="max-w-5xl mx-auto px-6 py-16 flex flex-col items-center text-center gap-6">
+        <div className="w-20 h-20 rounded-3xl flex items-center justify-center" style={{ background: `${BRAND}10` }}>
+          <Loader2 size={36} className="animate-spin" style={{ color: BRAND }} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-gray-900 mb-2">Your VPS is being configured</h2>
+          <p className="text-gray-500 font-medium max-w-md mx-auto text-sm leading-relaxed">
+            Our team is provisioning your server. An IP address and credentials will appear here once setup is complete — typically within a few minutes.
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-6 w-full max-w-sm text-left space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-medium">Plan</span>
+            <span className="font-bold text-gray-800">{order.packageName ?? "VPS"}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-medium">Location</span>
+            <span className="font-bold text-gray-800">{order.selectedLocation ?? "Pending"}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-medium">OS</span>
+            <span className="font-bold text-gray-800">{order.operatingSystem ?? "Pending"}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-medium">Specs</span>
+            <span className="font-bold text-gray-800">{order.cpuCores} vCPU · {order.ramGb} GB RAM · {order.storageGb} GB SSD</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400 font-medium">Order ID</span>
+            <span className="font-mono text-xs text-gray-500 font-bold">#{order.id}</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-300 font-medium">This page refreshes automatically every 15 seconds.</p>
+        <button onClick={() => fetchOrder()}
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-gray-100 bg-white text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+          <RefreshCw size={14} /> Check Now
+        </button>
+      </main>
+    </div>
+  );
+
   if (error || !order) return (
     <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
-      <div className="text-center">
-        <AlertCircle size={36} className="text-red-400 mx-auto mb-3" />
-        <p className="text-gray-700 font-bold mb-1">Server Not Found</p>
-        <p className="text-gray-400 text-sm mb-4">{error || "This VPS order does not exist."}</p>
-        <button onClick={() => navigate("/client/dashboard")} className="px-6 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200 transition-colors">
-          Go to Dashboard
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-[0_8px_32px_rgba(0,0,0,0.06)] p-10 max-w-sm text-center">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+          <AlertCircle size={24} className="text-red-400" />
+        </div>
+        <p className="text-gray-900 font-black text-lg mb-1">VPS Not Found</p>
+        <p className="text-gray-400 text-sm mb-6 font-medium">{error || "This VPS order does not exist or you don't have access to it."}</p>
+        <button onClick={() => navigate("/client/dashboard")} className="w-full px-6 py-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-100 transition-colors">
+          ← Back to Dashboard
         </button>
       </div>
     </div>

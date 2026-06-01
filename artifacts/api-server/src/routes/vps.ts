@@ -889,6 +889,80 @@ router.post("/admin/vps/ip-pool/:id/release", authenticate, requireAdmin, async 
 // ── Expose releaseIpToPool for use in terminate/cancel routes ─────────────────
 export { releaseIpToPool };
 
+// ── Admin: VPS API Nodes CRUD (Virtualizor / Vultr / Hetzner) ────────────────
+
+router.get("/admin/vps/api-nodes", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`SELECT * FROM vps_api_nodes ORDER BY is_active DESC, id`);
+    // Mask credential fields for security — send masked versions
+    const nodes = (rows.rows as any[]).map(n => ({
+      ...n,
+      api_key:  n.api_key  ? `${String(n.api_key).slice(0, 6)}••••` : null,
+      api_pass: n.api_pass ? "••••••••" : null,
+      api_hash: n.api_hash ? "••••••••" : null,
+    }));
+    res.json({ nodes });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/admin/vps/api-nodes", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { name, provider_type, api_ip, api_key, api_pass, api_hash, is_active, notes } = req.body;
+    if (!name?.trim() || !api_ip?.trim()) { res.status(400).json({ error: "name and api_ip are required" }); return; }
+    const row = await db.execute(sql`
+      INSERT INTO vps_api_nodes (name, provider_type, api_ip, api_key, api_pass, api_hash, is_active, notes)
+      VALUES (${name.trim()}, ${provider_type ?? "virtualizor"}, ${api_ip.trim()},
+              ${api_key || null}, ${api_pass || null}, ${api_hash || null},
+              ${is_active !== false}, ${notes || null})
+      RETURNING id, name, provider_type, api_ip, is_active, notes, created_at
+    `);
+    console.log(`[VPS-NODES] Admin added API node: ${name} (${provider_type})`);
+    res.status(201).json({ success: true, node: row.rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.put("/admin/vps/api-nodes/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, provider_type, api_ip, api_key, api_pass, api_hash, is_active, notes } = req.body;
+    // Only update credential fields if a non-masked value is provided
+    const isMasked = (v: string | null | undefined) => !v || v.includes("••");
+    await db.execute(sql`
+      UPDATE vps_api_nodes SET
+        name          = COALESCE(${name ?? null}, name),
+        provider_type = COALESCE(${provider_type ?? null}, provider_type),
+        api_ip        = COALESCE(${api_ip ?? null}, api_ip),
+        api_key       = CASE WHEN ${!isMasked(api_key)} THEN ${api_key || null} ELSE api_key END,
+        api_pass      = CASE WHEN ${!isMasked(api_pass)} THEN ${api_pass || null} ELSE api_pass END,
+        api_hash      = CASE WHEN ${!isMasked(api_hash)} THEN ${api_hash || null} ELSE api_hash END,
+        is_active     = ${is_active !== undefined ? is_active : sql`is_active`},
+        notes         = COALESCE(${notes ?? null}, notes)
+      WHERE id = ${id}
+    `);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete("/admin/vps/api-nodes/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const inUse = await db.execute(sql`SELECT COUNT(*) AS c FROM vps_server_orders WHERE server_node_id = ${id}`);
+    if (parseInt((inUse.rows[0] as any).c) > 0) {
+      res.status(409).json({ error: "Node is linked to active VPS orders. Reassign them first." }); return;
+    }
+    await db.execute(sql`DELETE FROM vps_api_nodes WHERE id = ${id}`);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Public-safe list for plan builder (names + ids only, no credentials)
+router.get("/admin/vps/api-nodes/public-list", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`SELECT id, name, provider_type, api_ip, is_active FROM vps_api_nodes WHERE is_active = TRUE ORDER BY name`);
+    res.json({ nodes: rows.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 /** Simulate realistic stats seeded by order id */
 function simulateOrderStats(id: number, status: string): object {
   if (status !== "active") {
@@ -1055,6 +1129,7 @@ router.get("/my/vps-orders/:orderId", authenticate, async (req: AuthRequest, res
       billingCycle:     order.billing_cycle,
       renewalPrice:     order.renewal_price,
       vpsReferenceId:   order.vps_reference_id,
+      serverNodeId:     order.server_node_id,
       serverStatus:     order.server_status,
       cpuCores:         order.cpu_cores ?? 1,
       ramGb:            order.ram_gb ?? 1,
