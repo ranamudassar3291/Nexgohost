@@ -728,6 +728,167 @@ systemctl enable fail2ban && systemctl start fail2ban
 echo "Server hardened at $(date)" >> /var/log/provision.log`;
 }
 
+// ── IP Pool: Network Allocation Adapter ──────────────────────────────────────
+
+interface PoolIpRecord {
+  id: number;
+  ip_address: string;
+  gateway: string | null;
+  netmask: string | null;
+  dns_servers: string | null;
+  display_location: string;
+}
+
+/**
+ * Atomically allocate an IP from vps_ips_pool for the given location.
+ * Uses FOR UPDATE SKIP LOCKED for concurrent-safe allocation.
+ * Falls back to any available IP if the requested location is exhausted.
+ */
+async function allocateIpFromPool(
+  orderId: number,
+  location?: string | null,
+): Promise<PoolIpRecord | null> {
+  // Try matching location first, then any available
+  const queries = location
+    ? [
+        sql`SELECT * FROM vps_ips_pool WHERE is_allocated = FALSE AND LOWER(display_location) = LOWER(${location}) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+        sql`SELECT * FROM vps_ips_pool WHERE is_allocated = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+      ]
+    : [sql`SELECT * FROM vps_ips_pool WHERE is_allocated = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED`];
+
+  for (const q of queries) {
+    const rows = await db.execute(q);
+    if (rows.rows.length > 0) {
+      const ip = rows.rows[0] as any;
+      await db.execute(sql`
+        UPDATE vps_ips_pool
+        SET is_allocated = TRUE, order_id = ${orderId}
+        WHERE id = ${ip.id}
+      `);
+      console.log(`[IP-POOL] Allocated ${ip.ip_address} (${ip.display_location}) → order #${orderId}`);
+      return ip as PoolIpRecord;
+    }
+  }
+  return null;
+}
+
+/**
+ * Release an allocated IP back to the pool when an order is terminated.
+ */
+async function releaseIpToPool(orderId: number): Promise<void> {
+  await db.execute(sql`
+    UPDATE vps_ips_pool SET is_allocated = FALSE, order_id = NULL
+    WHERE order_id = ${orderId}
+  `);
+  console.log(`[IP-POOL] Released IP for order #${orderId}`);
+}
+
+// ── Admin: IP Pool CRUD ───────────────────────────────────────────────────────
+
+/** GET /admin/vps/ip-pool — list all IPs with stats */
+router.get("/admin/vps/ip-pool", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT p.*, o.package_name, u.email AS user_email
+      FROM vps_ips_pool p
+      LEFT JOIN vps_server_orders o ON o.id = p.order_id
+      LEFT JOIN users u ON u.id = o.user_id
+      ORDER BY p.display_location, p.is_allocated DESC, p.id
+    `);
+    const stats = await db.execute(sql`
+      SELECT
+        COUNT(*)                            AS total,
+        COUNT(*) FILTER (WHERE is_allocated = FALSE) AS available,
+        COUNT(*) FILTER (WHERE is_allocated = TRUE)  AS allocated,
+        COUNT(DISTINCT display_location)    AS locations
+      FROM vps_ips_pool
+    `);
+    res.json({ ips: rows.rows, stats: stats.rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+/** POST /admin/vps/ip-pool — add single IP */
+router.post("/admin/vps/ip-pool", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { ipAddress, gateway, netmask, dnsServers, displayLocation, notes } = req.body;
+    if (!ipAddress?.trim()) { res.status(400).json({ error: "ipAddress is required" }); return; }
+    const row = await db.execute(sql`
+      INSERT INTO vps_ips_pool (ip_address, gateway, netmask, dns_servers, display_location, notes)
+      VALUES (
+        ${ipAddress.trim()},
+        ${gateway ?? null},
+        ${netmask ?? "255.255.255.0"},
+        ${dnsServers ?? "8.8.8.8,8.8.4.4"},
+        ${displayLocation ?? "Germany"},
+        ${notes ?? null}
+      )
+      ON CONFLICT (ip_address) DO NOTHING
+      RETURNING *
+    `);
+    if (!row.rows.length) { res.status(409).json({ error: "IP address already exists in pool" }); return; }
+    console.log(`[IP-POOL] Admin added IP ${ipAddress} (${displayLocation})`);
+    res.status(201).json({ success: true, ip: row.rows[0] });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+/** POST /admin/vps/ip-pool/bulk — paste multiple IPs (csv lines: ip,gateway,netmask,dns,location) */
+router.post("/admin/vps/ip-pool/bulk", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { lines, defaultLocation } = req.body as { lines: string; defaultLocation?: string };
+    if (!lines?.trim()) { res.status(400).json({ error: "lines is required" }); return; }
+    const rows = lines.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    let inserted = 0, skipped = 0;
+    for (const row of rows) {
+      const parts = row.split(",").map((p: string) => p.trim());
+      const [ip, gateway, netmask, dns, loc] = parts;
+      if (!ip) continue;
+      const result = await db.execute(sql`
+        INSERT INTO vps_ips_pool (ip_address, gateway, netmask, dns_servers, display_location)
+        VALUES (
+          ${ip},
+          ${gateway ?? null},
+          ${netmask ?? "255.255.255.0"},
+          ${dns ?? "8.8.8.8,8.8.4.4"},
+          ${loc ?? defaultLocation ?? "Germany"}
+        )
+        ON CONFLICT (ip_address) DO NOTHING
+      `);
+      if ((result as any).rowCount > 0) inserted++; else skipped++;
+    }
+    console.log(`[IP-POOL] Bulk import: ${inserted} inserted, ${skipped} skipped`);
+    res.json({ success: true, inserted, skipped });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+/** DELETE /admin/vps/ip-pool/:id — remove unallocated IP */
+router.delete("/admin/vps/ip-pool/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const check = await db.execute(sql`SELECT is_allocated FROM vps_ips_pool WHERE id = ${id}`);
+    if (!check.rows.length) { res.status(404).json({ error: "IP not found" }); return; }
+    if ((check.rows[0] as any).is_allocated) {
+      res.status(409).json({ error: "Cannot delete an allocated IP. Release it first." }); return;
+    }
+    await db.execute(sql`DELETE FROM vps_ips_pool WHERE id = ${id}`);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+/** POST /admin/vps/ip-pool/:id/release — force-release an IP back to the pool */
+router.post("/admin/vps/ip-pool/:id/release", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.execute(sql`
+      UPDATE vps_ips_pool SET is_allocated = FALSE, order_id = NULL WHERE id = ${id}
+    `);
+    console.log(`[IP-POOL] Admin force-released pool IP id=${id}`);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Expose releaseIpToPool for use in terminate/cancel routes ─────────────────
+export { releaseIpToPool };
+
 /** Simulate realistic stats seeded by order id */
 function simulateOrderStats(id: number, status: string): object {
   if (status !== "active") {
@@ -747,10 +908,15 @@ function simulateOrderStats(id: number, status: string): object {
 }
 
 // ── Admin: Activate / Provision a VPS Server Order ───────────────────────────
+// IP resolution order:
+//   1. Admin supplies explicit ipAddress → use as override (e.g. Anycast/external)
+//   2. Pool has an available IP matching selectedLocation → auto-allocate
+//   3. Pool fallback: any available IP regardless of location
+//   4. Pool empty → create order in 'provisioning' state, admin must add IPs
 router.post("/admin/vps/activate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const {
-      userId, packageName, ipAddress, selectedLocation,
+      userId, packageName, ipAddress: manualIp, selectedLocation,
       operatingSystem, billingCycle, renewalPrice,
       cpuCores, ramGb, storageGb, vpsReferenceId, notes,
     } = req.body;
@@ -762,6 +928,7 @@ router.post("/admin/vps/activate", authenticate, requireAdmin, async (req: AuthR
     const nextDue = new Date();
     nextDue.setMonth(nextDue.getMonth() + (billingCycle === "yearly" ? 12 : 1));
 
+    // Step 1: Create the order row (status: provisioning, no IP yet)
     const result = await db.execute(sql`
       INSERT INTO vps_server_orders
         (user_id, package_name, ip_address, root_password, selected_location,
@@ -769,25 +936,64 @@ router.post("/admin/vps/activate", authenticate, requireAdmin, async (req: AuthR
          server_status, cloud_init_script, cpu_cores, ram_gb, storage_gb,
          next_due_date, notes)
       VALUES
-        (${userId}, ${packageName ?? null}, ${ipAddress ?? null}, ${password},
+        (${userId}, ${packageName ?? null}, NULL, ${password},
          ${selectedLocation ?? null}, ${operatingSystem ?? null},
          ${billingCycle ?? "monthly"}, ${renewalPrice ? String(renewalPrice) : null},
-         ${vpsReferenceId ?? null}, 'active', ${cloudInitScript},
+         ${vpsReferenceId ?? null}, 'provisioning', ${cloudInitScript},
          ${cpuCores ?? 1}, ${ramGb ?? 1}, ${storageGb ?? 20},
          ${nextDue.toISOString()}, ${notes ?? null})
       RETURNING id, root_password, server_status
     `);
-
     const row = result.rows[0] as any;
-    console.log(`[VPS-ORDERS] Activated order #${row.id} for user ${userId} | OS: ${operatingSystem} | IP: ${ipAddress}`);
+    const orderId: number = row.id;
+
+    // Step 2: Resolve IP — manual override → pool allocation → no IP
+    let assignedIp: string | null = manualIp?.trim() || null;
+    let networkConfig: PoolIpRecord | null = null;
+    let poolEmpty = false;
+
+    if (assignedIp) {
+      // Manual override: update order with the provided IP and mark active
+      await db.execute(sql`
+        UPDATE vps_server_orders
+        SET ip_address = ${assignedIp}, server_status = 'active'
+        WHERE id = ${orderId}
+      `);
+    } else {
+      // Auto-allocate from pool (location-preferring with any-location fallback)
+      networkConfig = await allocateIpFromPool(orderId, selectedLocation);
+      if (networkConfig) {
+        assignedIp = networkConfig.ip_address;
+        await db.execute(sql`
+          UPDATE vps_server_orders
+          SET ip_address = ${assignedIp}, server_status = 'active'
+          WHERE id = ${orderId}
+        `);
+      } else {
+        poolEmpty = true;
+        console.warn(`[VPS-ORDERS] Pool empty — order #${orderId} created in 'provisioning' state`);
+      }
+    }
+
+    console.log(`[VPS-ORDERS] Order #${orderId} | user=${userId} | OS=${operatingSystem} | IP=${assignedIp ?? "PENDING"} | location=${selectedLocation ?? "any"}`);
 
     res.status(201).json({
       success: true,
-      orderId: row.id,
+      orderId,
       rootPassword: row.root_password,
-      status: row.server_status,
+      status: poolEmpty ? "provisioning" : "active",
+      assignedIp,
+      networkConfig: networkConfig ? {
+        gateway: networkConfig.gateway,
+        netmask: networkConfig.netmask,
+        dns: networkConfig.dns_servers,
+        location: networkConfig.display_location,
+      } : null,
       cloudInitScript,
-      message: `VPS provisioned. root@${ipAddress ?? "TBD"} password: [shown once]`,
+      poolEmpty,
+      message: poolEmpty
+        ? `⚠️ Order #${orderId} created but no IPs available in pool. Add IPs via Admin → VPS → IP Pool, then assign manually.`
+        : `✅ VPS provisioned. root@${assignedIp} | Password issued. Cloud-init script injected for ${operatingSystem ?? "base OS"}.`,
     });
   } catch (err: any) {
     console.error("[VPS-ORDERS] activate error:", err);

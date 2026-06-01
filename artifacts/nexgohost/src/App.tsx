@@ -35,6 +35,7 @@ import AddInvoice from "@/pages/admin/AddInvoice";
 import AdminTicketDetail from "@/pages/admin/TicketDetail";
 import AddVpsPlan from "@/pages/admin/AddVpsPlan";
 import VpsOsTemplates from "@/pages/admin/VpsOsTemplates";
+import VpsIpPool from "@/pages/admin/VpsIpPool";
 import KbArticleEditor from "@/pages/admin/KbArticleEditor";
 // Master pages — each groups related features into tabs
 import DomainsMaster from "@/pages/admin/DomainsMaster";
@@ -372,6 +373,11 @@ function RouterRoot() {
       </Route>
       <Route path="/admin/knowledge-base/new">
         <AdminPage><KbArticleEditor /></AdminPage>
+      </Route>
+
+      {/* VPS IP Pool Manager */}
+      <Route path="/admin/vps/ip-pool">
+        <AdminPage><VpsIpPool /></AdminPage>
       </Route>
 
       {/* VPS add/edit/os-templates — standalone forms */}

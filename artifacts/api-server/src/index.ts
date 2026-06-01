@@ -985,6 +985,25 @@ async function runStartupMigrations() {
     await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     console.log("[MIGRATIONS] admin_email_packages schema self-healed");
 
+    // ── VPS IP Pool (network allocation adapter) ──────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS vps_ips_pool (
+        id               SERIAL PRIMARY KEY,
+        ip_address       VARCHAR(100) NOT NULL UNIQUE,
+        gateway          VARCHAR(100),
+        netmask          VARCHAR(100) DEFAULT '255.255.255.0',
+        dns_servers      VARCHAR(255) DEFAULT '8.8.8.8,8.8.4.4',
+        display_location VARCHAR(100) DEFAULT 'Germany',
+        is_allocated     BOOLEAN NOT NULL DEFAULT FALSE,
+        order_id         INTEGER DEFAULT NULL,
+        notes            TEXT,
+        created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_vps_ips_pool_location ON vps_ips_pool(display_location, is_allocated)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_vps_ips_pool_order ON vps_ips_pool(order_id)`);
+    console.log("[MIGRATIONS] vps_ips_pool table ready");
+
     // ── VPS Server Orders (standalone provisioning orders) ────────────────────
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS vps_server_orders (
