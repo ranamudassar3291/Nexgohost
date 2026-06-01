@@ -805,17 +805,9 @@ function RouterRoot() {
       {/* ── OAuth callback — public ── */}
       <Route path="/google-callback" component={GoogleCallback} />
 
-      {/* Root: show homepage to guests, redirect logged-in users to dashboard */}
+      {/* Root: always show public homepage — authenticated users can still browse it */}
       <Route path="/">
-        {isLoading ? (
-          <div className="min-h-screen bg-background flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-          </div>
-        ) : user ? (
-          <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
-        ) : (
-          <Homepage />
-        )}
+        <Homepage />
       </Route>
 
       {/* Custom pages created from Admin → Page Manager */}

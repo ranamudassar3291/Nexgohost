@@ -469,7 +469,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           {user ? (
             <div className="flex items-center gap-2">
               <a
-                href={user.role === 'admin' ? '/admin/noe' : '/client/'}
+                href={user.role === 'admin' ? '/admin/dashboard' : '/client/dashboard'}
                 className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-sm transition-all"
               >
                 {user.role === 'admin' ? <Shield size={15} /> : <LayoutDashboard size={15} />}
@@ -709,7 +709,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           {user ? (
             <div className="flex flex-col gap-4">
               <a
-                href={user.role === 'admin' ? '/admin/noe' : '/client/'}
+                href={user.role === 'admin' ? '/admin/dashboard' : '/client/dashboard'}
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-3 py-5 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20"
               >
