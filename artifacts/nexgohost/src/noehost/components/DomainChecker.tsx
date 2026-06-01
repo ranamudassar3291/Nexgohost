@@ -251,40 +251,18 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     openCart();
   };
 
-  const handleRegisterNow = async (tld: string, price: number, baseName?: string) => {
+  const handleRegisterNow = (tld: string, price: number, baseName?: string) => {
     const name = baseName ?? searched;
     const domainFull = `${name}${tld}`;
     const finalPrice = isPkDomain(tld) ? 4000 : price;
-
-    const domainPayload = {
-      fullName: domainFull,
-      price: finalPrice,
-      originalPrice: finalPrice,
-      mode: 'register',
-    };
-    localStorage.setItem(DOMAIN_ORDER_KEY, JSON.stringify(domainPayload));
-
-    let sessionToken = localStorage.getItem(DOMAIN_SESSION_KEY);
-    if (!sessionToken) {
-      sessionToken = crypto.randomUUID();
-      localStorage.setItem(DOMAIN_SESSION_KEY, sessionToken);
-    }
-
-    fetch('/api/guest/domain-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionToken,
-        domainName: name,
-        tld,
-        fullDomain: domainFull,
-        price: finalPrice,
-        durationYears: isPkDomain(tld) ? 2 : 1,
-        actionType: 'register',
-      }),
-    }).catch(() => {});
-
-    window.location.href = '/client/orders/new?service=domain';
+    const period = isPkDomain(tld) ? 2 : 1;
+    const params = new URLSearchParams({
+      domain: domainFull,
+      action: 'register',
+      period: String(period),
+      price: String(finalPrice),
+    });
+    window.location.href = `/order/domain?${params.toString()}`;
   };
 
   const POPULAR_TLDS = ['.com', '.net', '.org', '.pk', '.store', '.io', '.co', '.online', '.com.pk', '.net.pk'];
@@ -526,10 +504,10 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                           </p>
 
                           <button
-                            onClick={() => handleAddToCart(primaryAvail.tld, primaryAvail.registrationPrice)}
+                            onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
                             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 transition-all"
                           >
-                            <ShoppingCart size={15} /> Add to Cart →
+                            <Globe size={15} /> Register Now →
                           </button>
 
                           <p className="mt-3 text-[11px] text-slate-400 font-medium leading-snug">
@@ -561,16 +539,10 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               </p>
 
                               <button
-                                onClick={async () => {
-                                  await handleAddToCart(primaryAvail.tld, primaryAvail.registrationPrice);
-                                  for (const b of bundleAlts) {
-                                    await handleAddToCart(b.tld, b.registrationPrice);
-                                  }
-                                  openCart();
-                                }}
+                                onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
                                 className="flex items-center justify-center gap-2 w-full py-3 bg-white hover:bg-slate-100 border-2 border-purple-200 hover:border-purple-400 text-purple-700 rounded-xl font-black text-sm transition-all"
                               >
-                                <ShoppingCart size={15} /> Add Bundle to Cart
+                                <Globe size={15} /> Register Bundle →
                               </button>
 
                               <p className="mt-3 text-[11px] text-slate-400 font-medium leading-snug">
@@ -611,7 +583,6 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                       <div className="divide-y divide-slate-100">
                         {otherDomains.map((r, i) => {
                           const domainFull = `${searched}${r.tld}`;
-                          const isAdded = addedDomains.has(domainFull);
                           const sp = getSavePct(r.tld, r.registrationPrice);
                           const p = getPriceDisplay(r.tld, r.registrationPrice);
                           return (
@@ -644,8 +615,8 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               {/* Right: action button */}
                               <div className="flex-shrink-0">
                                 {r.available ? (
-                                  <button onClick={() => handleAddToCart(r.tld, r.registrationPrice)} disabled={isAdded} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap ${isAdded ? 'bg-green-500 text-white' : 'border-2 border-purple-300 hover:border-purple-500 hover:bg-purple-50 text-purple-700'}`}>
-                                    {isAdded ? <><Check size={12} />Added</> : <><ShoppingCart size={12} />Add to cart</>}
+                                  <button onClick={() => handleRegisterNow(r.tld, r.registrationPrice)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap bg-purple-600 hover:bg-purple-700 text-white shadow-sm">
+                                    <Globe size={12} />Register
                                   </button>
                                 ) : (
                                   <div className="flex gap-1.5">
