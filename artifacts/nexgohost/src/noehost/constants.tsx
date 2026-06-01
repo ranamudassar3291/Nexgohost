@@ -102,7 +102,7 @@ export const TESTIMONIALS: Testimonial[] = [
     date: '6 days ago'
   },
   {
-    author: 'Usman Haider',
+    author: 'Muhammad Mudassar',
     role: 'Full Stack Developer',
     content: 'The support team at Noehost is incredible. I had a complex Node.js configuration issue and they jumped on a call to help me resolve it within minutes. Truly professional service.',
     stars: 5,

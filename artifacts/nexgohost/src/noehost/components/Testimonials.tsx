@@ -6,30 +6,32 @@ import { useContent } from '../ContentContext';
 const Testimonials: React.FC = () => {
   const { content } = useContent();
 
-  const testimonialsData = content?.testimonials || {
-    title: 'Trusted by Thousands',
-    description: "Don't just take our word for it. Here's what our amazing community has to say about Noehost.",
-    items: [
-      {
-        name: "Sarah Jenkins",
-        role: "E-commerce Founder",
-        content: "Noehost transformed our online store's performance. Our page load times dropped by 60%, and our conversion rate has never been higher. Their support is truly 24/7.",
-        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80"
-      },
-      {
-        name: "Michael Chen",
-        role: "Web Agency Owner",
-        content: "The reseller hosting plan is a game-changer. I can manage all my client sites from one dashboard with white-labeling that looks professional. Best decision for my agency.",
-        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80"
-      },
-      {
-        name: "David Rodriguez",
-        role: "Full Stack Developer",
-        content: "As a developer, I appreciate the NVMe storage and the freedom of the environment. Deployment is a breeze, and the uptime is rock-solid. Highly recommended.",
-        avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80"
-      }
-    ],
-    partners: ["Cloudflare", "cPanel", "LiteSpeed", "Softaculous", "Intel", "AMD"]
+  const defaultItems = [
+    {
+      name: "Muhammad Arslan",
+      role: "E-commerce Founder",
+      content: "Noehost transformed our online store's performance. Our page load times dropped by 60%, and our conversion rate has never been higher. Their support is truly 24/7.",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      name: "Muhammad Arslan",
+      role: "Web Agency Owner",
+      content: "The reseller hosting plan is a game-changer. I can manage all my client sites from one dashboard with white-labeling that looks professional. Best decision for my agency.",
+      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80"
+    },
+    {
+      name: "Muhammad Mudassar",
+      role: "Full Stack Developer",
+      content: "As a developer, I appreciate the NVMe storage and the freedom of the environment. Deployment is a breeze, and the uptime is rock-solid. Highly recommended.",
+      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80"
+    }
+  ];
+
+  const testimonialsData = {
+    title: content?.testimonials?.title || 'Trusted by Thousands',
+    description: content?.testimonials?.description || "Don't just take our word for it. Here's what our amazing community has to say about Noehost.",
+    items: content?.testimonials?.items || defaultItems,
+    partners: content?.testimonials?.partners || ["Cloudflare", "cPanel", "LiteSpeed", "Softaculous", "Intel", "AMD"]
   };
 
   return (
@@ -72,10 +74,19 @@ const Testimonials: React.FC = () => {
         </div>
 
         <div className="pt-8 border-t border-white/10">
-          <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6">Powering our infrastructure with the best</p>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-14 opacity-40 hover:opacity-80 transition-all duration-500 grayscale hover:grayscale-0">
-            {testimonialsData.partners.map((p: string, i: number) => (
-              <span key={i} className="text-lg md:text-xl font-black text-slate-400 hover:text-primary transition-colors cursor-default">{p}</span>
+          <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-8">Powering our infrastructure with the best</p>
+          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10">
+            {/* Cloudflare — highlighted with official orange branding */}
+            <div className="flex items-center gap-2 px-5 py-3 rounded-xl bg-[#F6821F]/10 border border-[#F6821F]/30 hover:bg-[#F6821F]/20 transition-all group">
+              <img src="https://www.cloudflare.com/favicon.ico" alt="Cloudflare" className="w-5 h-5" />
+              <span className="text-base font-black text-[#F6821F] group-hover:text-[#F6821F]">Cloudflare</span>
+              <span className="text-[9px] font-black text-[#F6821F]/70 uppercase tracking-widest bg-[#F6821F]/10 px-2 py-0.5 rounded-full">Security</span>
+            </div>
+            {/* Other partners */}
+            {["cPanel", "LiteSpeed", "Softaculous", "Intel", "AMD"].map((p, i) => (
+              <div key={i} className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all">
+                <span className="text-base font-black text-slate-300">{p}</span>
+              </div>
             ))}
           </div>
         </div>
