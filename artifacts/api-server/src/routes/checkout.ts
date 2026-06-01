@@ -62,7 +62,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
       : [`ns1.${new URL(getAppUrl()).hostname}`, `ns2.${new URL(getAppUrl()).hostname}`];
 
     // ── Validation ───────────────────────────────────────────────────────────
-    if (!packageId && !domain) {
+    const vpsPlanIdCheck = req.body.vpsPlanId;
+    if (!packageId && !domain && !vpsPlanIdCheck) {
       res.status(400).json({ error: "Either packageId or domain is required" });
       return;
     }

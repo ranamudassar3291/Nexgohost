@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation } from 'wouter';
 import {
-  ArrowLeft, Check, ChevronRight, Shield, Server,
+  ArrowLeft, Check, Shield, Server,
   HardDrive, Cpu, Wifi, Lock, Eye, EyeOff,
-  RefreshCw, AlertCircle, Loader2, CheckCircle, ShoppingCart, Zap, Star
+  RefreshCw, AlertCircle, Loader2, CheckCircle, ShoppingCart, Zap, Star,
+  Tag, Wallet, CreditCard, ChevronRight, Globe, Gift
 } from 'lucide-react';
 import { useCurrency } from '@/context/CurrencyProvider';
 
-// ── OS brand config ─────────────────────────────────────────────────────────
 const OS_META: Record<string, { color: string; letter: string }> = {
   Ubuntu:           { color: '#E95420', letter: 'U' },
   Debian:           { color: '#D70A53', letter: 'D' },
@@ -36,6 +36,7 @@ const CYCLE_MONTHS: Record<string, number> = {
 const CYCLE_LABELS: Record<string, string> = {
   monthly: '1 Month', quarterly: '3 Months', semiannual: '6 Months', yearly: '1 Year', biennial: '2 Years'
 };
+const VPS_CONFIG_KEY = 'pending_vps_order';
 
 interface VpsPlan {
   id: string; name: string; description?: string;
@@ -46,11 +47,10 @@ interface VpsPlan {
 }
 interface OsTemplate { id: string; name: string; version: string; imageId?: string; iconUrl?: string; }
 interface Location { id: string; countryName: string; countryCode: string; city?: string; networkSpeed?: string; latencyMs?: number; }
+interface PaymentMethod { id: string; name: string; type: string; description?: string; instructions?: string; publicSettings?: any; }
 
-// ── OS Icon ────────────────────────────────────────────────────────────────
 function OsIcon({ name, size = 40 }: { name: string; size?: number }) {
   const meta = OS_META[name] ?? { color: '#6B7280', letter: name[0] };
-
   if (name === 'Ubuntu') return (
     <div style={{ width: size, height: size, background: meta.color, borderRadius: size * 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none">
@@ -64,7 +64,6 @@ function OsIcon({ name, size = 40 }: { name: string; size?: number }) {
       </svg>
     </div>
   );
-
   if (name === 'Windows Server') return (
     <div style={{ width: size, height: size, background: meta.color, borderRadius: size * 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: size * 0.2 }}>
       <svg viewBox="0 0 24 24" fill="white">
@@ -72,21 +71,11 @@ function OsIcon({ name, size = 40 }: { name: string; size?: number }) {
       </svg>
     </div>
   );
-
   if (name === 'n8n') return (
     <div style={{ width: size, height: size, background: 'linear-gradient(135deg, #EA4B71, #c0392b)', borderRadius: size * 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <span style={{ color: '#fff', fontWeight: 900, fontSize: size * 0.44, fontFamily: 'monospace', letterSpacing: '-1px' }}>n8n</span>
     </div>
   );
-
-  if (name === 'Debian') return (
-    <div style={{ width: size, height: size, background: meta.color, borderRadius: size * 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <svg width={size * 0.65} height={size * 0.65} viewBox="0 0 24 24" fill="white">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-1-5.5c-1.93 0-3.5-1.57-3.5-3.5S9.07 7.5 11 7.5c.96 0 1.82.4 2.45 1.04L12.3 9.68C11.98 9.26 11.52 9 11 9c-1.1 0-2 .9-2 2s.9 2 2 2c.52 0 .98-.26 1.3-.68l1.15 1.14C12.82 14.1 11.96 14.5 11 14.5z"/>
-      </svg>
-    </div>
-  );
-
   return (
     <div style={{ width: size, height: size, background: meta.color, borderRadius: size * 0.25, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <span style={{ color: '#fff', fontWeight: 800, fontSize: size * 0.42, fontFamily: 'monospace' }}>{meta.letter}</span>
@@ -94,7 +83,6 @@ function OsIcon({ name, size = 40 }: { name: string; size?: number }) {
   );
 }
 
-// ── Password Strength ──────────────────────────────────────────────────────
 function passwordStrength(p: string): { label: string; color: string; pct: number } {
   if (!p) return { label: '', color: '#E5E7EB', pct: 0 };
   let score = 0;
@@ -109,7 +97,6 @@ function passwordStrength(p: string): { label: string; color: string; pct: numbe
   return { label: 'Strong', color: '#10B981', pct: 100 };
 }
 
-// ── Section Heading ────────────────────────────────────────────────────────
 function SectionNum({ n, label }: { n: number; label: string }) {
   return (
     <div className="flex items-center gap-3 mb-5">
@@ -119,7 +106,6 @@ function SectionNum({ n, label }: { n: number; label: string }) {
   );
 }
 
-// ── Main Component ─────────────────────────────────────────────────────────
 export default function VpsOrderPage() {
   const { planId: initialPlanId } = useParams<{ planId: string }>();
   const [, setLocation] = useLocation();
@@ -132,34 +118,49 @@ export default function VpsOrderPage() {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
 
-  const [selectedOs, setSelectedOs]               = useState<OsTemplate | null>(null);
-  const [selectedLocation, setSelectedLocation]   = useState<Location | null>(null);
-  const [hostname, setHostname]                   = useState('');
-  const [rootPassword, setRootPassword]           = useState('');
-  const [showPassword, setShowPassword]           = useState(false);
-  const [dailyBackup, setDailyBackup]             = useState(false);
-  const [billingCycle, setBillingCycle]           = useState<string>('monthly');
+  const [selectedOs, setSelectedOs]             = useState<OsTemplate | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [hostname, setHostname]                 = useState('');
+  const [rootPassword, setRootPassword]         = useState('');
+  const [showPassword, setShowPassword]         = useState(false);
+  const [dailyBackup, setDailyBackup]           = useState(false);
+  const [billingCycle, setBillingCycle]         = useState<string>('monthly');
 
-  const [ordering, setOrdering]         = useState(false);
-  const [orderError, setOrderError]     = useState('');
-  const [success, setSuccess]           = useState(false);
-  const [invoiceId, setInvoiceId]       = useState('');
+  const [step, setStep]                 = useState<'configure' | 'review'>('configure');
   const [formErrors, setFormErrors]     = useState<Record<string, string>>({});
-  const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // ── Load ─────────────────────────────────────────────────────────────────
+  const [paymentMethods, setPaymentMethods]     = useState<PaymentMethod[]>([]);
+  const [creditBalance, setCreditBalance]       = useState(0);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string>('');
+  const [applyCredits, setApplyCredits]         = useState(false);
+  const [promoCode, setPromoCode]               = useState('');
+  const [promoDiscount, setPromoDiscount]       = useState(0);
+  const [promoError, setPromoError]             = useState('');
+  const [promoLoading, setPromoLoading]         = useState(false);
+
+  const [ordering, setOrdering]   = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [success, setSuccess]     = useState(false);
+  const [invoiceId, setInvoiceId] = useState('');
+
+  const isLoggedIn = !!(localStorage.getItem('token') || localStorage.getItem('noehost_token'));
+
+  // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
       fetch('/api/vps-plans').then(r => r.json()),
       fetch('/api/vps-os-templates').then(r => r.json()),
       fetch('/api/vps-locations').then(r => r.json()),
     ]).then(([plans, os, locs]) => {
-      const sorted = (plans as VpsPlan[]).sort((a, b) => (a.price - b.price));
+      const sorted = (plans as VpsPlan[]).sort((a, b) => a.price - b.price);
       setAllPlans(sorted);
-      const activePlan = sorted.find(p => p.id === initialPlanId) ?? sorted[0] ?? null;
+
+      const savedRaw = localStorage.getItem(VPS_CONFIG_KEY);
+      const saved = savedRaw ? (() => { try { return JSON.parse(savedRaw); } catch { return null; } })() : null;
+
+      const activePlan = sorted.find(p => p.id === (saved?.planId ?? initialPlanId)) ?? sorted[0] ?? null;
       setPlan(activePlan);
 
-      // Deduplicate OS by name+version
       const seen = new Set<string>();
       const unique = (os as OsTemplate[]).filter(t => {
         const k = `${t.name}|||${t.version}`;
@@ -167,39 +168,87 @@ export default function VpsOrderPage() {
         seen.add(k); return true;
       });
       setOsTemplates(unique);
-      const defaultOs = unique.find(t => t.name === 'Ubuntu' && t.version.includes('22')) ?? unique[0] ?? null;
-      setSelectedOs(defaultOs);
 
       const withCity = (locs as Location[]).filter(l => l.city && l.city.trim());
       const allLocs = withCity.length > 0 ? withCity : (locs as Location[]);
       setLocations(allLocs);
-      const sorted2 = [...allLocs].sort((a, b) => (a.latencyMs ?? 999) - (b.latencyMs ?? 999));
-      setSelectedLocation(sorted2[0] ?? null);
+
+      // Restore from saved config
+      if (saved) {
+        if (saved.osId) {
+          const restoredOs = unique.find(t => t.id === saved.osId) ?? null;
+          if (restoredOs) setSelectedOs(restoredOs);
+          else {
+            const defOs = unique.find(t => t.name === 'Ubuntu' && t.version.includes('22')) ?? unique[0] ?? null;
+            setSelectedOs(defOs);
+          }
+        } else {
+          const defOs = unique.find(t => t.name === 'Ubuntu' && t.version.includes('22')) ?? unique[0] ?? null;
+          setSelectedOs(defOs);
+        }
+        if (saved.locationId) {
+          const restoredLoc = allLocs.find(l => l.id === saved.locationId) ?? null;
+          setSelectedLocation(restoredLoc ?? getDefaultLocation(allLocs));
+        } else {
+          setSelectedLocation(getDefaultLocation(allLocs));
+        }
+        if (saved.hostname) setHostname(saved.hostname);
+        if (saved.rootPassword) setRootPassword(saved.rootPassword);
+        if (saved.dailyBackup !== undefined) setDailyBackup(saved.dailyBackup);
+        if (saved.billingCycle) setBillingCycle(saved.billingCycle);
+        if (saved.step === 'review' && isLoggedIn) setStep('review');
+      } else {
+        const defOs = unique.find(t => t.name === 'Ubuntu' && t.version.includes('22')) ?? unique[0] ?? null;
+        setSelectedOs(defOs);
+        setSelectedLocation(getDefaultLocation(allLocs));
+      }
 
       setLoading(false);
     }).catch(() => { setError('Failed to load plan details'); setLoading(false); });
   }, [initialPlanId]);
 
-  // Update hostname when plan changes
+  function getDefaultLocation(locs: Location[]): Location | null {
+    const germany = locs.find(l => l.countryCode === 'DE' || l.countryName.toLowerCase().includes('germany'));
+    return germany ?? locs[0] ?? null;
+  }
+
+  // ── Update hostname when plan changes ─────────────────────────────────────
   useEffect(() => {
-    if (plan) {
+    if (plan && !hostname) {
       const slug = plan.name.toLowerCase().replace(/\s+/g, '-');
       setHostname(`${slug}-server`);
     }
   }, [plan?.id]);
 
-  // ── Restore pending config ────────────────────────────────────────────────
+  // ── Auto-save config to localStorage on every change ──────────────────────
   useEffect(() => {
-    const saved = localStorage.getItem('pending_vps_order');
-    if (saved) {
-      try {
-        const cfg = JSON.parse(saved);
-        if (cfg.hostname) setHostname(cfg.hostname);
-        if (cfg.dailyBackup) setDailyBackup(cfg.dailyBackup);
-        if (cfg.billingCycle) setBillingCycle(cfg.billingCycle);
-      } catch {}
-    }
-  }, []);
+    if (!plan) return;
+    const config = {
+      planId: plan.id,
+      osId: selectedOs?.id,
+      locationId: selectedLocation?.id,
+      hostname,
+      rootPassword,
+      dailyBackup,
+      billingCycle,
+      step,
+    };
+    localStorage.setItem(VPS_CONFIG_KEY, JSON.stringify(config));
+  }, [plan?.id, selectedOs?.id, selectedLocation?.id, hostname, rootPassword, dailyBackup, billingCycle, step]);
+
+  // ── Load payment methods + credit balance (when on review step) ───────────
+  useEffect(() => {
+    if (step !== 'review' || !isLoggedIn) return;
+    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
+    Promise.all([
+      fetch('/api/payment-methods', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('/api/my/profile', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+    ]).then(([methods, profile]) => {
+      setPaymentMethods(Array.isArray(methods) ? methods : []);
+      const bal = parseFloat(profile?.creditBalance ?? profile?.user?.creditBalance ?? '0');
+      setCreditBalance(isNaN(bal) ? 0 : bal);
+    }).catch(() => {});
+  }, [step, isLoggedIn]);
 
   // ── Price calculations ────────────────────────────────────────────────────
   const getCycleMonthlyPrice = (p: VpsPlan | null): number => {
@@ -215,9 +264,12 @@ export default function VpsOrderPage() {
   const backupMonthly    = dailyBackup ? BACKUP_PRICE_PKR : 0;
   const totalMonthly     = monthlyPrice + backupMonthly;
   const cycleMonths      = CYCLE_MONTHS[billingCycle] ?? 1;
-  const totalCycleAmount = totalMonthly * cycleMonths;
+  const subtotal         = totalMonthly * cycleMonths;
   const savePercent      = billingCycle !== 'monthly' && plan && monthlyPrice < plan.price
     ? Math.max(0, Math.round((1 - monthlyPrice / plan.price) * 100)) : 0;
+  const totalAfterPromo  = Math.max(0, subtotal - promoDiscount);
+  const creditDeducted   = applyCredits ? Math.min(creditBalance, totalAfterPromo) : 0;
+  const finalAmount      = Math.max(0, totalAfterPromo - creditDeducted);
 
   const availableCycles = (['monthly', 'quarterly', 'semiannual', 'yearly', 'biennial'] as const).filter(c => {
     if (c === 'monthly') return true;
@@ -229,31 +281,60 @@ export default function VpsOrderPage() {
     return false;
   });
 
-  // ── Submit ────────────────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  // ── Validate configure step ────────────────────────────────────────────────
+  function validateConfigure(): boolean {
     const errors: Record<string, string> = {};
     if (!selectedOs) errors.os = 'Please select an operating system';
     if (!selectedLocation) errors.location = 'Please select a data center location';
     if (!hostname.trim()) errors.hostname = 'Hostname is required';
     if (!rootPassword || rootPassword.length < 8) errors.rootPassword = 'Password must be at least 8 characters';
-    if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
-    setFormErrors({});
-    setOrderError('');
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
 
-    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
-    const config = {
-      planId: plan?.id, osId: selectedOs!.id, osName: `${selectedOs!.name} ${selectedOs!.version}`,
-      locationId: selectedLocation!.id, locationName: `${selectedLocation!.countryName}${selectedLocation!.city ? ' — ' + selectedLocation!.city : ''}`,
-      hostname: hostname.trim(), dailyBackup, billingCycle,
-    };
-
-    if (!token) {
-      localStorage.setItem('pending_vps_order', JSON.stringify(config));
-      window.location.href = `/client/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+  // ── Checkout Now click ─────────────────────────────────────────────────────
+  const handleCheckoutNow = () => {
+    if (!validateConfigure()) return;
+    if (!isLoggedIn) {
+      // Save with step='review' so after login we jump straight to review
+      const config = {
+        planId: plan?.id, osId: selectedOs?.id, locationId: selectedLocation?.id,
+        hostname, rootPassword, dailyBackup, billingCycle, step: 'review',
+      };
+      localStorage.setItem(VPS_CONFIG_KEY, JSON.stringify(config));
+      const returnUrl = window.location.pathname;
+      window.location.href = `/client/login?redirect=${encodeURIComponent(returnUrl)}`;
       return;
     }
+    setStep('review');
+  };
 
+  // ── Apply promo ────────────────────────────────────────────────────────────
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
+      const res = await fetch('/api/validate-promo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: promoCode.trim().toUpperCase(), amount: subtotal }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setPromoError(data.error ?? 'Invalid promo code'); setPromoDiscount(0); }
+      else { setPromoDiscount(data.discount ?? 0); setPromoError(''); }
+    } catch { setPromoError('Could not validate promo code'); }
+    setPromoLoading(false);
+  };
+
+  // ── Place order ────────────────────────────────────────────────────────────
+  const handlePlaceOrder = async () => {
+    const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
+    if (!token) { setLocation('/client/login'); return; }
+    if (!selectedPaymentId && finalAmount > 0) { setOrderError('Please select a payment method'); return; }
     setOrdering(true);
+    setOrderError('');
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -261,31 +342,35 @@ export default function VpsOrderPage() {
         body: JSON.stringify({
           vpsPlanId: plan?.id,
           vpsOsTemplate: `${selectedOs!.name} ${selectedOs!.version}`,
-          vpsLocation: config.locationName,
+          vpsLocation: `${selectedLocation!.countryName}${selectedLocation!.city ? ' — ' + selectedLocation!.city : ''}`,
           vpsHostname: hostname.trim(),
           vpsRootPassword: rootPassword,
           vpsImageId: selectedOs!.imageId ?? null,
           vpsWeeklyBackups: dailyBackup,
-          billingCycle,
           vpsBackupAddon: dailyBackup,
+          billingCycle,
+          promoCode: promoCode.trim().toUpperCase() || undefined,
+          applyCredits: applyCredits || selectedPaymentId === 'credits',
+          paymentMethodId: selectedPaymentId === 'credits' ? 'credits' : (selectedPaymentId || undefined),
         }),
       });
       const data = await res.json();
       if (!res.ok) { setOrderError(data.error ?? 'Order failed. Please try again.'); setOrdering(false); return; }
-      localStorage.removeItem('pending_vps_order');
+      localStorage.removeItem(VPS_CONFIG_KEY);
       setSuccess(true);
       setInvoiceId(data.invoiceId);
-    } catch {
-      setOrderError('Network error. Please try again.');
-      setOrdering(false);
-    }
+    } catch { setOrderError('Network error. Please try again.'); setOrdering(false); }
   };
 
   // ── OS Groups ─────────────────────────────────────────────────────────────
-  const appOS    = osTemplates.filter(t => ['n8n'].includes(t.name));
+  const appOS     = osTemplates.filter(t => ['n8n'].includes(t.name));
   const windowsOS = osTemplates.filter(t => t.name === 'Windows Server');
-  const otherOS  = osTemplates.filter(t => t.name === 'FreeBSD');
-  const linuxOS  = osTemplates.filter(t => !['Windows Server', 'FreeBSD', 'n8n'].includes(t.name));
+  const otherOS   = osTemplates.filter(t => t.name === 'FreeBSD');
+  const linuxOS   = osTemplates.filter(t => !['Windows Server', 'FreeBSD', 'n8n'].includes(t.name));
+
+  function isGermany(loc: Location) {
+    return loc.countryCode === 'DE' || loc.countryName.toLowerCase().includes('germany');
+  }
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
@@ -338,64 +423,312 @@ export default function VpsOrderPage() {
     </div>
   );
 
-  // ── Main ──────────────────────────────────────────────────────────────────
+  // ── REVIEW STEP ───────────────────────────────────────────────────────────
+  if (step === 'review') return (
+    <div className="min-h-screen" style={{ background: '#F7F8FA' }}>
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <button onClick={() => setStep('configure')} className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-semibold transition-colors">
+            <ArrowLeft size={15}/> Back to Configure
+          </button>
+          <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+            <div className="w-5 h-5 rounded-md bg-indigo-600 flex items-center justify-center">
+              <Server size={11} className="text-white"/>
+            </div>
+            Review & Pay
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+            <Shield size={13} className="text-emerald-500"/> Secure Checkout
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
+
+          {/* Left: Payment options */}
+          <div className="space-y-4">
+
+            {/* Order Summary */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <h3 className="font-black text-gray-900 text-base mb-4 flex items-center gap-2">
+                <CheckCircle size={16} className="text-indigo-600"/> Order Summary
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 p-3 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <Server size={18} className="text-indigo-600 mt-0.5 flex-shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-900 text-sm">{plan?.name} — Cloud VPS</div>
+                    <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-2">
+                      <span>{plan?.cpuCores} vCPU</span>
+                      <span>·</span>
+                      <span>{plan?.ramGb} GB RAM</span>
+                      <span>·</span>
+                      <span>{plan?.storageGb} GB NVMe</span>
+                    </div>
+                  </div>
+                  <span className="font-black text-indigo-700 text-sm whitespace-nowrap">{formatPrice(monthlyPrice)}/mo</span>
+                </div>
+                {selectedOs && (
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <OsIcon name={selectedOs.name} size={24}/>
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-700 font-medium">{selectedOs.name} {selectedOs.version}</span>
+                    </div>
+                  </div>
+                )}
+                {selectedLocation && (
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <span className="text-xl leading-none">{FLAGS[selectedLocation.countryCode] ?? '🌐'}</span>
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-700 font-medium">
+                        {selectedLocation.countryName}{selectedLocation.city ? ` — ${selectedLocation.city}` : ''}
+                      </span>
+                      {isGermany(selectedLocation) && (
+                        <span className="ml-2 text-[10px] font-black px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">Recommended</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {hostname && (
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <Server size={16} className="text-gray-400 flex-shrink-0"/>
+                    <span className="text-sm text-gray-600 font-medium">{hostname}</span>
+                  </div>
+                )}
+                {dailyBackup && (
+                  <div className="flex items-center gap-3 px-3 py-2">
+                    <RefreshCw size={16} className="text-indigo-500 flex-shrink-0"/>
+                    <span className="text-sm text-indigo-600 font-medium">Daily Automatic Backups (+{formatPrice(BACKUP_PRICE_PKR)}/mo)</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100">
+                  <span className="text-sm text-gray-500">Billing</span>
+                  <span className="text-sm font-bold text-gray-800">{CYCLE_LABELS[billingCycle]}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Promo Code */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <h3 className="font-black text-gray-900 text-base mb-4 flex items-center gap-2">
+                <Gift size={16} className="text-indigo-600"/> Promo Code
+              </h3>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoDiscount(0); setPromoError(''); }}
+                    placeholder="Enter promo code"
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white hover:border-gray-300 transition-all uppercase"
+                  />
+                </div>
+                <button onClick={handleApplyPromo} disabled={promoLoading || !promoCode.trim()}
+                  className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap">
+                  {promoLoading ? <Loader2 size={14} className="animate-spin"/> : 'Apply'}
+                </button>
+              </div>
+              {promoError && <p className="text-xs text-red-500 mt-2 flex items-center gap-1"><AlertCircle size={11}/> {promoError}</p>}
+              {promoDiscount > 0 && <p className="text-xs text-emerald-600 mt-2 flex items-center gap-1"><Check size={11}/> Promo applied! You save {formatPrice(promoDiscount)}</p>}
+            </div>
+
+            {/* Wallet Credits */}
+            {creditBalance > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <h3 className="font-black text-gray-900 text-base mb-4 flex items-center gap-2">
+                  <Wallet size={16} className="text-indigo-600"/> Account Credits
+                </h3>
+                <button onClick={() => setApplyCredits(!applyCredits)}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
+                    applyCredits ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200 bg-white'
+                  }`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${applyCredits ? 'bg-indigo-600' : 'bg-gray-100'}`}>
+                    <Wallet size={18} className={applyCredits ? 'text-white' : 'text-gray-500'}/>
+                  </div>
+                  <div className="flex-1">
+                    <div className={`font-bold text-sm ${applyCredits ? 'text-indigo-900' : 'text-gray-800'}`}>
+                      Use Account Credits
+                    </div>
+                    <div className="text-xs text-gray-400">Balance: {formatPrice(creditBalance)}</div>
+                  </div>
+                  <div>
+                    {applyCredits && creditDeducted > 0 && (
+                      <div className="text-sm font-black text-indigo-700">−{formatPrice(creditDeducted)}</div>
+                    )}
+                    <div className={`w-10 h-5 rounded-full transition-all flex items-center mt-1 ml-auto ${applyCredits ? 'bg-indigo-600 justify-end' : 'bg-gray-200 justify-start'}`}>
+                      <div className="w-4 h-4 bg-white rounded-full shadow mx-0.5"/>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* Payment Methods */}
+            {finalAmount > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <h3 className="font-black text-gray-900 text-base mb-4 flex items-center gap-2">
+                  <CreditCard size={16} className="text-indigo-600"/> Payment Method
+                </h3>
+                {paymentMethods.length === 0 ? (
+                  <div className="text-center py-6 text-gray-400 text-sm">
+                    <Loader2 size={20} className="animate-spin mx-auto mb-2"/>
+                    Loading payment methods…
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {paymentMethods.map(pm => {
+                      const sel = selectedPaymentId === pm.id;
+                      return (
+                        <button key={pm.id} onClick={() => setSelectedPaymentId(pm.id)}
+                          className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${
+                            sel ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200 bg-white'
+                          }`}>
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${sel ? 'bg-indigo-600' : 'bg-gray-100'}`}>
+                            <CreditCard size={18} className={sel ? 'text-white' : 'text-gray-500'}/>
+                          </div>
+                          <div className="flex-1">
+                            <div className={`font-bold text-sm ${sel ? 'text-indigo-900' : 'text-gray-800'}`}>{pm.name}</div>
+                            {pm.description && <div className="text-xs text-gray-400">{pm.description}</div>}
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${sel ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'}`}>
+                            {sel && <div className="w-2 h-2 bg-white rounded-full"/>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {orderError && (
+                  <div className="mt-3 flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0"/>
+                    <span>{orderError}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {finalAmount === 0 && creditBalance > 0 && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+                <CheckCircle size={20} className="text-emerald-600 mx-auto mb-1"/>
+                <p className="text-sm font-bold text-emerald-800">Fully covered by your credits!</p>
+                <p className="text-xs text-emerald-600">No additional payment needed.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Price summary + Place Order */}
+          <div className="lg:sticky lg:top-20 space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+                <h3 className="font-black text-gray-900 text-sm mb-3">Price Summary</h3>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{plan?.name} × {cycleMonths}mo</span>
+                    <span className="font-bold text-gray-800">{formatPrice(monthlyPrice * cycleMonths)}</span>
+                  </div>
+                  {savePercent > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-emerald-600 font-medium">Plan discount ({savePercent}%)</span>
+                      <span className="font-bold text-emerald-600">−{formatPrice((plan!.price - monthlyPrice) * cycleMonths)}</span>
+                    </div>
+                  )}
+                  {dailyBackup && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Daily Backups × {cycleMonths}mo</span>
+                      <span className="font-bold text-gray-800">{formatPrice(BACKUP_PRICE_PKR * cycleMonths)}</span>
+                    </div>
+                  )}
+                  {promoDiscount > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-emerald-600 font-medium">Promo ({promoCode})</span>
+                      <span className="font-bold text-emerald-600">−{formatPrice(promoDiscount)}</span>
+                    </div>
+                  )}
+                  {creditDeducted > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-indigo-600 font-medium">Credits applied</span>
+                      <span className="font-bold text-indigo-600">−{formatPrice(creditDeducted)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-gray-200 pt-3 flex items-center justify-between">
+                    <span className="font-black text-gray-900">Total Due</span>
+                    <div className="text-right">
+                      <div className="font-black text-indigo-700 text-xl">{formatPrice(finalAmount)}</div>
+                      {billingCycle !== 'monthly' && (
+                        <div className="text-xs text-gray-400">{formatPrice(totalMonthly)}/mo</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-3">
+                <button onClick={handlePlaceOrder} disabled={ordering}
+                  className="w-full py-4 rounded-xl font-black text-sm text-white transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60"
+                  style={{
+                    background: ordering ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                    boxShadow: ordering ? 'none' : '0 4px 20px rgba(99,102,241,0.4)',
+                  }}>
+                  {ordering
+                    ? <><Loader2 size={16} className="animate-spin"/> Processing…</>
+                    : <><ShoppingCart size={15}/> Place Order — {formatPrice(finalAmount)}</>
+                  }
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { icon: <Shield size={12}/>, text: '30-day refund', color: '#10B981' },
+                    { icon: <Check size={12}/>, text: '99.9% uptime', color: '#3B82F6' },
+                    { icon: <Zap size={12}/>, text: 'Instant deploy', color: '#F59E0B' },
+                    { icon: <Lock size={12}/>, text: 'Free DDoS', color: '#8B5CF6' },
+                  ].map(({ icon, text, color }) => (
+                    <div key={text} className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                      <span style={{ color }}>{icon}</span> {text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── CONFIGURE STEP (Main) ─────────────────────────────────────────────────
   return (
     <div className="min-h-screen" style={{ background: '#F7F8FA' }}>
 
-      {/* ── Sticky Header ─────────────────────────────────────────────────── */}
+      {/* ── Sticky Header ────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setLocation('/vps-hosting')}
-              className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-semibold transition-colors">
-              <ArrowLeft size={15}/> VPS Plans
-            </button>
-            <div className="h-4 w-px bg-gray-200 hidden sm:block"/>
-            <div className="hidden sm:flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md bg-indigo-600 flex items-center justify-center">
-                <Server size={11} className="text-white"/>
-              </div>
-              <span className="font-bold text-gray-800 text-sm">Configure {plan?.name}</span>
+          <button onClick={() => setLocation('/vps-hosting')}
+            className="flex items-center gap-1.5 text-gray-500 hover:text-gray-800 text-sm font-semibold transition-colors">
+            <ArrowLeft size={15}/> VPS Plans
+          </button>
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="w-5 h-5 rounded-md bg-indigo-600 flex items-center justify-center">
+              <Server size={11} className="text-white"/>
             </div>
+            <span className="font-bold text-gray-800 text-sm">Configure {plan?.name}</span>
           </div>
-
-          {/* Step indicators */}
-          <div className="flex items-center gap-1 text-xs font-semibold">
-            <div className="flex items-center gap-1.5 text-indigo-600">
-              <span className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[10px] font-black">1</span>
-              <span className="hidden sm:inline">Configure</span>
-            </div>
-            <ChevronRight size={12} className="text-gray-300 mx-0.5"/>
-            <div className="flex items-center gap-1.5 text-gray-400">
-              <span className="w-5 h-5 bg-gray-200 text-gray-400 rounded-full flex items-center justify-center text-[10px] font-black">2</span>
-              <span className="hidden sm:inline">Pay</span>
-            </div>
-            <ChevronRight size={12} className="text-gray-300 mx-0.5"/>
-            <div className="flex items-center gap-1.5 text-gray-400">
-              <span className="w-5 h-5 bg-gray-200 text-gray-400 rounded-full flex items-center justify-center text-[10px] font-black">3</span>
-              <span className="hidden sm:inline">Done</span>
-            </div>
-          </div>
-
           <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
             <Shield size={13} className="text-emerald-500"/>
             <span className="hidden sm:inline">Secure Checkout</span>
           </div>
         </div>
-        {/* Progress bar */}
-        <div className="h-0.5 bg-gray-100">
-          <div className="h-full bg-indigo-600" style={{ width: '33%' }}/>
-        </div>
       </div>
 
-      {/* ── Main layout ───────────────────────────────────────────────────── */}
+      {/* ── Main layout ──────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
 
-          {/* ── LEFT COLUMN ───────────────────────────────────────────────── */}
+          {/* ── LEFT COLUMN ────────────────────────────────────────────── */}
           <div className="space-y-4">
 
-            {/* ── 1. Choose Plan ──────────────────────────────────────────── */}
+            {/* 1. Choose Plan */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <SectionNum n={1} label="Choose Your Plan" />
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -435,7 +768,7 @@ export default function VpsOrderPage() {
                         {[
                           { icon: <Cpu size={11}/>, text: `${p.cpuCores} vCPU Cores` },
                           { icon: <HardDrive size={11}/>, text: `${p.ramGb} GB RAM` },
-                          { icon: <HardDrive size={11}/>, text: `${p.storageGb} GB NVMe` },
+                          { icon: <Server size={11}/>, text: `${p.storageGb} GB NVMe` },
                           { icon: <Wifi size={11}/>, text: p.bandwidthTb ? `${p.bandwidthTb} TB BW` : 'Unmetered' },
                         ].map(({ icon, text }) => (
                           <div key={text} className={`flex items-center gap-2 text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-600'}`}>
@@ -449,17 +782,14 @@ export default function VpsOrderPage() {
               </div>
             </div>
 
-            {/* ── 2. Operating System ──────────────────────────────────────── */}
+            {/* 2. Operating System */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <SectionNum n={2} label="Select Operating System" />
-
               {formErrors.os && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
                   <AlertCircle size={14}/> {formErrors.os}
                 </div>
               )}
-
-              {/* Linux */}
               {linuxOS.length > 0 && (
                 <div className="mb-5">
                   <div className="flex items-center gap-2 mb-3">
@@ -490,12 +820,10 @@ export default function VpsOrderPage() {
                   </div>
                 </div>
               )}
-
-              {/* Windows */}
-              {windowsOS.length > 0 && (
+              {[...windowsOS, ...otherOS].length > 0 && (
                 <div className="mb-5">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">Windows Server</span>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">Other</span>
                     <div className="flex-1 h-px bg-gray-100"/>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -522,8 +850,6 @@ export default function VpsOrderPage() {
                   </div>
                 </div>
               )}
-
-              {/* Applications (n8n) */}
               {appOS.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
@@ -561,37 +887,50 @@ export default function VpsOrderPage() {
               )}
             </div>
 
-            {/* ── 3. Data Center Location ──────────────────────────────────── */}
+            {/* 3. Data Center Location */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <SectionNum n={3} label="Data Center Location" />
-              <p className="text-xs text-gray-400 -mt-3 mb-5">Choose a region closest to your target audience for best latency</p>
-
+              <p className="text-xs text-gray-400 -mt-3 mb-5">Choose a region closest to your target audience for best performance</p>
               {formErrors.location && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
                   <AlertCircle size={14}/> {formErrors.location}
                 </div>
               )}
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {locations.map(loc => {
+                {/* Sort: Germany first, then rest */}
+                {[...locations].sort((a, b) => {
+                  if (isGermany(a) && !isGermany(b)) return -1;
+                  if (!isGermany(a) && isGermany(b)) return 1;
+                  return 0;
+                }).map(loc => {
                   const sel = selectedLocation?.id === loc.id;
                   const flag = FLAGS[loc.countryCode] ?? '🌐';
+                  const germany = isGermany(loc);
                   return (
                     <button key={loc.id} onClick={() => { setSelectedLocation(loc); setFormErrors(p => ({ ...p, location: '' })); }}
                       className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${
-                        sel ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-gray-200 hover:border-indigo-200 bg-white hover:bg-gray-50'
+                        sel
+                          ? germany ? 'border-indigo-500 bg-indigo-50 shadow-md' : 'border-indigo-500 bg-indigo-50 shadow-sm'
+                          : germany ? 'border-indigo-200 hover:border-indigo-400 bg-indigo-50/30' : 'border-gray-200 hover:border-indigo-200 bg-white hover:bg-gray-50'
                       }`}>
                       <span className="text-2xl flex-shrink-0 leading-none">{flag}</span>
                       <div className="flex-1 min-w-0">
-                        <div className={`font-bold text-sm ${sel ? 'text-indigo-900' : 'text-gray-800'}`}>
-                          {loc.countryName}{loc.city ? ` — ${loc.city}` : ''}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className={`font-bold text-sm ${sel ? 'text-indigo-900' : 'text-gray-800'}`}>
+                            {loc.countryName}{loc.city ? ` — ${loc.city}` : ''}
+                          </div>
+                          {germany && (
+                            <span className="text-[10px] font-black px-1.5 py-0.5 bg-indigo-600 text-white rounded-full flex items-center gap-0.5">
+                              <Star size={8} fill="white"/> Recommended
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs text-gray-400">{loc.networkSpeed ?? '1 Gbps'}</span>
+                          <span className="text-xs text-gray-400">{loc.networkSpeed ?? '10 Gbps'}</span>
                           {loc.latencyMs && (
                             <>
                               <span className="text-gray-300">·</span>
-                              <span className={`text-xs font-semibold ${loc.latencyMs < 20 ? 'text-emerald-600' : loc.latencyMs < 60 ? 'text-amber-600' : 'text-red-500'}`}>
+                              <span className={`text-xs font-semibold ${germany ? 'text-indigo-600' : loc.latencyMs < 20 ? 'text-emerald-600' : loc.latencyMs < 60 ? 'text-amber-600' : 'text-red-500'}`}>
                                 ~{loc.latencyMs}ms
                               </span>
                             </>
@@ -609,13 +948,11 @@ export default function VpsOrderPage() {
               </div>
             </div>
 
-            {/* ── 4. Server Details ────────────────────────────────────────── */}
+            {/* 4. Server Details */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <SectionNum n={4} label="Server Details" />
               <p className="text-xs text-gray-400 -mt-3 mb-5">Set a hostname and root password for your server</p>
-
               <div className="space-y-4">
-                {/* Hostname */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1.5">
                     Hostname <span className="text-gray-400 font-normal text-xs">e.g. myserver.example.com</span>
@@ -632,8 +969,6 @@ export default function VpsOrderPage() {
                   </div>
                   {formErrors.hostname && <p className="text-xs text-red-500 mt-1">{formErrors.hostname}</p>}
                 </div>
-
-                {/* Root Password */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1.5">Root Password</label>
                   <div className="relative">
@@ -670,7 +1005,7 @@ export default function VpsOrderPage() {
               </div>
             </div>
 
-            {/* ── 5. Add-ons ───────────────────────────────────────────────── */}
+            {/* 5. Add-ons */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
               <SectionNum n={5} label="Add-ons" />
               <button onClick={() => setDailyBackup(!dailyBackup)}
@@ -700,21 +1035,17 @@ export default function VpsOrderPage() {
 
           </div>
 
-          {/* ── RIGHT SIDEBAR ────────────────────────────────────────────────── */}
-          <div className="lg:sticky lg:top-20" ref={sidebarRef}>
+          {/* ── RIGHT SIDEBAR ──────────────────────────────────────────── */}
+          <div className="lg:sticky lg:top-20">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 
-              {/* Sidebar header */}
-              <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid #F3F4F6' }}>
+              <div className="px-5 pt-5 pb-4 border-b border-gray-100">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center">
                     <Server size={13} className="text-indigo-600"/>
                   </div>
-                  <div>
-                    <h3 className="font-black text-gray-900 text-sm">{plan?.name} — Cloud VPS</h3>
-                  </div>
+                  <h3 className="font-black text-gray-900 text-sm">{plan?.name} — Cloud VPS</h3>
                 </div>
-                {/* Specs pills */}
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {plan && [
                     `${plan.cpuCores} vCPU`,
@@ -734,38 +1065,27 @@ export default function VpsOrderPage() {
                   <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2.5">Billing Period</p>
                   <div className="space-y-2">
                     {availableCycles.map(cycle => {
-                      const cycleM = getCycleMonthlyPrice({ ...plan!, } as VpsPlan);
                       let cmprice = plan?.price ?? 0;
                       if (cycle === 'quarterly' && plan?.quarterlyPrice) cmprice = plan.quarterlyPrice / 3;
                       else if (cycle === 'semiannual' && plan?.semiannualPrice) cmprice = plan.semiannualPrice / 6;
                       else if (cycle === 'yearly' && plan?.yearlyPrice) cmprice = plan.yearlyPrice / 12;
                       else if (cycle === 'biennial' && (plan as any)?.biennialPrice) cmprice = (plan as any).biennialPrice / 24;
-
                       const sp = cycle !== 'monthly' && plan?.price && cmprice < plan.price
                         ? Math.round((1 - cmprice / plan.price) * 100) : 0;
-                      const isSelected = billingCycle === cycle;
-
+                      const isSel = billingCycle === cycle;
                       return (
                         <button key={cycle} onClick={() => setBillingCycle(cycle)}
                           className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border-2 transition-all ${
-                            isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300 bg-white'
+                            isSel ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300 bg-white'
                           }`}>
                           <div className="flex items-center gap-2">
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                              isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'
-                            }`}>
-                              {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full"/>}
+                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${isSel ? 'border-indigo-600 bg-indigo-600' : 'border-gray-300'}`}>
+                              {isSel && <div className="w-1.5 h-1.5 bg-white rounded-full"/>}
                             </div>
-                            <span className={`text-sm font-bold ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
-                              {CYCLE_LABELS[cycle]}
-                            </span>
-                            {sp > 0 && (
-                              <span className="text-[10px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
-                                Save {sp}%
-                              </span>
-                            )}
+                            <span className={`text-sm font-bold ${isSel ? 'text-indigo-900' : 'text-gray-700'}`}>{CYCLE_LABELS[cycle]}</span>
+                            {sp > 0 && <span className="text-[10px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Save {sp}%</span>}
                           </div>
-                          <span className={`text-sm font-black ${isSelected ? 'text-indigo-700' : 'text-gray-600'}`}>
+                          <span className={`text-sm font-black ${isSel ? 'text-indigo-700' : 'text-gray-600'}`}>
                             {formatPrice(cmprice)}<span className="text-xs font-normal text-gray-400">/mo</span>
                           </span>
                         </button>
@@ -797,7 +1117,7 @@ export default function VpsOrderPage() {
                     <div className="border-t border-gray-200 pt-3 flex items-center justify-between">
                       <span className="font-black text-gray-900">Total Due</span>
                       <div className="text-right">
-                        <div className="font-black text-indigo-700 text-xl">{formatPrice(totalCycleAmount)}</div>
+                        <div className="font-black text-indigo-700 text-xl">{formatPrice(subtotal)}</div>
                         {billingCycle !== 'monthly' && (
                           <div className="text-xs text-gray-400">{formatPrice(totalMonthly)}/mo</div>
                         )}
@@ -806,25 +1126,11 @@ export default function VpsOrderPage() {
                   </div>
                 </div>
 
-                {/* Error */}
-                {orderError && (
-                  <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
-                    <AlertCircle size={14} className="mt-0.5 flex-shrink-0"/>
-                    <span>{orderError}</span>
-                  </div>
-                )}
-
-                {/* CTA */}
-                <button onClick={handleSubmit} disabled={ordering}
-                  className="w-full py-4 rounded-xl font-black text-sm text-white transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60"
-                  style={{
-                    background: ordering ? '#a5b4fc' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                    boxShadow: ordering ? 'none' : '0 4px 20px rgba(99,102,241,0.4)',
-                  }}>
-                  {ordering
-                    ? <><Loader2 size={16} className="animate-spin"/> Processing…</>
-                    : <><ShoppingCart size={15}/> Add to Cart — {formatPrice(totalCycleAmount)}</>
-                  }
+                {/* Checkout Now CTA */}
+                <button onClick={handleCheckoutNow}
+                  className="w-full py-4 rounded-xl font-black text-sm text-white transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', boxShadow: '0 4px 20px rgba(99,102,241,0.4)' }}>
+                  <ShoppingCart size={15}/> Checkout Now — {formatPrice(subtotal)}
                 </button>
 
                 {/* Trust badges */}
@@ -857,6 +1163,9 @@ export default function VpsOrderPage() {
                         <span className="text-xs text-gray-600 font-medium">
                           {selectedLocation.countryName}{selectedLocation.city ? ` — ${selectedLocation.city}` : ''}
                         </span>
+                        {isGermany(selectedLocation) && (
+                          <span className="text-[10px] font-black px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">Recommended</span>
+                        )}
                       </div>
                     )}
                     {hostname && (
@@ -873,7 +1182,6 @@ export default function VpsOrderPage() {
                     )}
                   </div>
                 )}
-
               </div>
             </div>
           </div>
