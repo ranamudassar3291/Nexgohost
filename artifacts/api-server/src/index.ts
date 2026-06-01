@@ -1,7 +1,4 @@
 import app from "./app";
-import express from "express";
-import path from "path";
-import fs from "fs";
 import { decryptField } from "./lib/fieldCrypto.js";
 import { refreshExchangeRates } from "./routes/currencies.js";
 import { runAllCronTasks, runTwentyiHealthCheck } from "./lib/cron.js";
@@ -1072,20 +1069,6 @@ async function runStartupMigrations() {
 
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
-  }
-}
-
-// In production: serve the built React frontend from the same process
-if (process.env.NODE_ENV === "production") {
-  const frontendDist = path.join(__dirname, "../../nexgohost/dist/public");
-  if (fs.existsSync(frontendDist)) {
-    app.use(express.static(frontendDist, { index: false }));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(frontendDist, "index.html"));
-    });
-    console.log(`[STATIC] Serving frontend from ${frontendDist}`);
-  } else {
-    console.warn("[STATIC] Frontend dist not found at", frontendDist);
   }
 }
 
