@@ -9,9 +9,11 @@ import { authenticate } from "../lib/auth.js";
 const router = Router();
 
 function getClient(): OpenAI | null {
-  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  if (!baseURL || !apiKey) return null;
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
+    || "https://generativelanguage.googleapis.com/v1beta/openai/";
+  const apiKey  = process.env.GEMINI_API_KEY
+    || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!apiKey) return null;
   return new OpenAI({ baseURL, apiKey });
 }
 
@@ -51,8 +53,8 @@ router.post("/ai/chat", authenticate, async (req, res) => {
     }
 
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 300,
+      model: process.env.AI_MODEL || "gemini-2.0-flash",
+      max_tokens: 300,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         ...messages.slice(-10),

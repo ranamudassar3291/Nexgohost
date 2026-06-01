@@ -43,12 +43,18 @@ import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
 
-// ─── OpenAI ──────────────────────────────────────────────────────────────────
+// ─── AI Client (Gemini via OpenAI-compatible API) ────────────────────────────
 function getAI(): OpenAI | null {
-  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-  const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  if (!baseURL || !apiKey) return null;
+  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
+    || "https://generativelanguage.googleapis.com/v1beta/openai/";
+  const apiKey  = process.env.GEMINI_API_KEY
+    || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!apiKey) return null;
   return new OpenAI({ baseURL, apiKey });
+}
+
+function getAIModel(): string {
+  return process.env.AI_MODEL || "gemini-2.0-flash";
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -696,8 +702,8 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
     } else {
       try {
         const completion = await ai.chat.completions.create({
-          model: "gpt-4o-mini",
-          max_completion_tokens: 600,
+          model: getAIModel(),
+          max_tokens: 600,
           messages: [
             { role: "system", content: systemPrompt },
             ...aiMessages,

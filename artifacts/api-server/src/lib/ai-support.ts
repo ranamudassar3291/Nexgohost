@@ -8,10 +8,12 @@ let _client: OpenAI | null = null;
 
 function getClient(): OpenAI {
   if (!_client) {
-    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
-    const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-    if (!baseURL || !apiKey) {
-      throw new Error("AI_INTEGRATIONS_OPENAI_BASE_URL / AI_INTEGRATIONS_OPENAI_API_KEY not configured");
+    const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
+      || "https://generativelanguage.googleapis.com/v1beta/openai/";
+    const apiKey  = process.env.GEMINI_API_KEY
+      || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY not configured");
     }
     _client = new OpenAI({ baseURL, apiKey });
   }
@@ -39,8 +41,8 @@ export async function generateAiSupportReply(
   try {
     const openai = getClient();
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      max_completion_tokens: 500,
+      model: process.env.AI_MODEL || "gemini-2.0-flash",
+      max_tokens: 500,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
