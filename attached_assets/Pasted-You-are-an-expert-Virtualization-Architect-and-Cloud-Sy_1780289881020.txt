@@ -1,0 +1,56 @@
+You are an expert Virtualization Architect and Cloud Systems Engineer. We have successfully created the package configuration engine and public interface on `/vps-hosting`. 
+
+Your task is to implement the full automated orchestration backend (via Virtualizor API or Cloud VPS API Providers like Vultr/Hetzner), link the precise OS script injections, and build a world-class, Hostinger-style user virtualization management interface under a brand new standalone route `/vps-manage/:order_id`.
+
+Maintain our strict design system: Deeply professional, immaculate solid white surfaces (#ffffff), crisp narrow borders (border-gray-100), sleek uniform background canvas (#fafafa), and distinct active purple (#7C3AED) for control actions.
+
+---
+### 1. SAFE AUTOMATED PROVISIONING ENGINE (Backend Core)
+- Path: `/api/vps/activate`
+- Process Workflow: When the Admin triggers the 'Activate' sequence on an order state, the backend must instantly initiate a REST API payload dispatch to our virtualization node.
+- Mapping Parameters:
+  * Username: Hardcoded to `root` securely.
+  * Password: Autogenerate a secure 16-character alphanumeric string dynamically.
+  * Datacenter Location: Map the exact geographical zone selected by the user during checkout (e.g., Germany, US, UK).
+  * Operating System & Script Blueprint: Based on the selected image tier (e.g., Ubuntu 24.04, Windows Server, or Pre-installed n8n Stack), inject the matching cloud-init / deployment bash script automatically to provision the target application stack during boot time.
+
+---
+### 2. HOSTINGER-STYLE "VPS MANAGEMENT DASHBOARD" (Frontend Client View)
+- Path: `/vps-manage/:order_id`
+- CRITICAL RULE: This must be a completely dedicated viewport layout. Do not combine or mix this with standard web hosting or shared panel logic.
+- Section A (The Server Identity Overview Grid):
+  * Render modular white cards displaying: Live Server Status Badge (Active Green / Stopped Red), IP Address (With a clean 1-click copy button), Active OS Badge, and Root Login Credentials toggle tracker.
+- Section B (Hostinger-Style Action Operations Bar):
+  * Build a horizontal high-end flex cluster of instant infrastructure actions:
+    1. **[🔄 Restart Server]** - Triggers a soft reboot command via API.
+    2. **[⏹️ Stop Server]** - Safely powers down the instance state.
+    3. **[⚡ Start Server]** - Fires a cold-boot sequence.
+    4. **[⚙️ Rebuild / OS Reinstall]** - Opens a confirmation prompt allowing the client to swipe clear the VPS and re-deploy any base OS image or app template (like n8n/Windows) from scratch.
+- Section C (Resource Utilization Analytics Graphs):
+  * Place real-time light visual indicator graphs tracking: CPU Overhead (%), RAM Consumption, and Disk Storage Volume metrics.
+
+---
+### 3. THE ENTERPRISE RENEWAL & BILLING ARCHITECTURE
+- Ensure the billing state registers separate operational pricing properties based on user commitment lines:
+  * Monthly Plan Target: Core base processing price.
+  * Yearly Plan Target: Multiplied renewal factor featuring localized discounted calculations (e.g., Save 45% annual retention).
+- Display a prominent, elegant purple button inside the `/vps-manage/:order_id` layout labeled **"[💳 Renew Server Subscription]"** that seamlessly fetches the active invoice structure and pushes it into the core checkout system gateway without data degradation.
+
+---
+### 4. RELATIONAL DATABASE INTEGRATION (Safe Schema Upgrades)
+Ensure the PostgreSQL migration runs conditionally to protect all active datasets:
+```sql
+CREATE TABLE IF NOT EXISTS vps_server_orders (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    package_name VARCHAR(255),
+    ip_address VARCHAR(100),
+    root_password VARCHAR(255),
+    selected_location VARCHAR(100),
+    operating_system VARCHAR(100),
+    billing_cycle VARCHAR(50) DEFAULT 'monthly',
+    renewal_price DECIMAL(10,2),
+    vps_reference_id VARCHAR(255), -- Remote API instance identifier
+    server_status VARCHAR(50) DEFAULT 'provisioning',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

@@ -985,6 +985,33 @@ async function runStartupMigrations() {
     await db.execute(sql`ALTER TABLE admin_email_packages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()`);
     console.log("[MIGRATIONS] admin_email_packages schema self-healed");
 
+    // ── VPS Server Orders (standalone provisioning orders) ────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS vps_server_orders (
+        id                SERIAL PRIMARY KEY,
+        user_id           TEXT REFERENCES users(id) ON DELETE SET NULL,
+        package_name      VARCHAR(255),
+        ip_address        VARCHAR(100),
+        root_password     VARCHAR(255),
+        selected_location VARCHAR(100),
+        operating_system  VARCHAR(100),
+        billing_cycle     VARCHAR(50)  DEFAULT 'monthly',
+        renewal_price     DECIMAL(10,2),
+        vps_reference_id  VARCHAR(255),
+        server_status     VARCHAR(50)  DEFAULT 'provisioning',
+        cloud_init_script TEXT,
+        cpu_cores         INTEGER      DEFAULT 1,
+        ram_gb            INTEGER      DEFAULT 1,
+        storage_gb        INTEGER      DEFAULT 20,
+        next_due_date     TIMESTAMP,
+        notes             TEXT,
+        created_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_vps_orders_user ON vps_server_orders(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_vps_orders_status ON vps_server_orders(server_status)`);
+    console.log("[MIGRATIONS] vps_server_orders table ready");
+
     // ── Safe Migration: domain cart session table ─────────────────────────────
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS domain_cart_items (

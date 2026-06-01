@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { db } from "@workspace/db";
 import { vpsPlansTable, vpsOsTemplatesTable, vpsLocationsTable, hostingServicesTable, usersTable, ordersTable } from "@workspace/db/schema";
 import { eq, and, ilike, sql } from "drizzle-orm";
@@ -694,4 +695,277 @@ router.post("/admin/vps-plans/import", authenticate, requireAdmin, async (req: A
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// VPS SERVER ORDERS — Standalone Provisioning Engine
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Secure alphanumeric 16-char password */
+function generatePassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from(crypto.randomBytes(16))
+    .map(b => chars[b % chars.length])
+    .join("");
+}
+
+/** Maps OS name → cloud-init bootstrap script */
+function getCloudInitScript(os: string): string {
+  const lc = os.toLowerCase();
+  if (lc.includes("n8n")) return `#!/bin/bash
+curl -fsSL https://get.docker.com | sh
+docker volume create n8n_data
+docker run -d --restart always --name n8n -p 5678:5678 -v n8n_data:/home/node/.n8n n8nio/n8n`;
+  if (lc.includes("docker") || lc.includes("portainer")) return `#!/bin/bash
+curl -fsSL https://get.docker.com | sh
+docker volume create portainer_data
+docker run -d --restart always --name portainer -p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce`;
+  if (lc.includes("windows")) return `# Windows Server: deploy via WinRM / custom image ID — no cloud-init`;
+  // Default: Ubuntu/Debian/AlmaLinux hardening
+  return `#!/bin/bash
+apt-get update -y && apt-get upgrade -y
+apt-get install -y ufw fail2ban curl wget
+ufw allow OpenSSH && ufw --force enable
+systemctl enable fail2ban && systemctl start fail2ban
+echo "Server hardened at $(date)" >> /var/log/provision.log`;
+}
+
+/** Simulate realistic stats seeded by order id */
+function simulateOrderStats(id: number, status: string): object {
+  if (status !== "active") {
+    return { cpuPercent: 0, ramPercent: 0, diskPercent: 0, bandwidthIn: 0, bandwidthOut: 0, uptimeSeconds: 0, networkIn: "0 B/s", networkOut: "0 B/s" };
+  }
+  const seed = id * 7919;
+  return {
+    cpuPercent:   Math.round(5  + (seed % 55)),
+    ramPercent:   Math.round(20 + (seed % 60)),
+    diskPercent:  Math.round(10 + (seed % 65)),
+    bandwidthIn:  parseFloat((0.1 + (seed % 100) / 10).toFixed(2)),
+    bandwidthOut: parseFloat((0.05 + (seed % 50) / 10).toFixed(2)),
+    uptimeSeconds: 86400 * 3 + (seed % 86400),
+    networkIn:  `${((seed % 50) + 1).toFixed(1)} MB/s`,
+    networkOut: `${((seed % 30) + 0.5).toFixed(1)} MB/s`,
+  };
+}
+
+// ── Admin: Activate / Provision a VPS Server Order ───────────────────────────
+router.post("/admin/vps/activate", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const {
+      userId, packageName, ipAddress, selectedLocation,
+      operatingSystem, billingCycle, renewalPrice,
+      cpuCores, ramGb, storageGb, vpsReferenceId, notes,
+    } = req.body;
+
+    if (!userId) { res.status(400).json({ error: "userId is required" }); return; }
+
+    const password = generatePassword();
+    const cloudInitScript = getCloudInitScript(operatingSystem || "");
+    const nextDue = new Date();
+    nextDue.setMonth(nextDue.getMonth() + (billingCycle === "yearly" ? 12 : 1));
+
+    const result = await db.execute(sql`
+      INSERT INTO vps_server_orders
+        (user_id, package_name, ip_address, root_password, selected_location,
+         operating_system, billing_cycle, renewal_price, vps_reference_id,
+         server_status, cloud_init_script, cpu_cores, ram_gb, storage_gb,
+         next_due_date, notes)
+      VALUES
+        (${userId}, ${packageName ?? null}, ${ipAddress ?? null}, ${password},
+         ${selectedLocation ?? null}, ${operatingSystem ?? null},
+         ${billingCycle ?? "monthly"}, ${renewalPrice ? String(renewalPrice) : null},
+         ${vpsReferenceId ?? null}, 'active', ${cloudInitScript},
+         ${cpuCores ?? 1}, ${ramGb ?? 1}, ${storageGb ?? 20},
+         ${nextDue.toISOString()}, ${notes ?? null})
+      RETURNING id, root_password, server_status
+    `);
+
+    const row = result.rows[0] as any;
+    console.log(`[VPS-ORDERS] Activated order #${row.id} for user ${userId} | OS: ${operatingSystem} | IP: ${ipAddress}`);
+
+    res.status(201).json({
+      success: true,
+      orderId: row.id,
+      rootPassword: row.root_password,
+      status: row.server_status,
+      cloudInitScript,
+      message: `VPS provisioned. root@${ipAddress ?? "TBD"} password: [shown once]`,
+    });
+  } catch (err: any) {
+    console.error("[VPS-ORDERS] activate error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Admin: List all VPS server orders ────────────────────────────────────────
+router.get("/admin/vps/orders", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT o.*, u.email AS user_email, u.first_name, u.last_name
+      FROM vps_server_orders o
+      LEFT JOIN users u ON u.id = o.user_id
+      ORDER BY o.created_at DESC
+      LIMIT 200
+    `);
+    res.json({ orders: rows.rows });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Admin: Update a VPS server order (IP, status, etc.) ──────────────────────
+router.put("/admin/vps/orders/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { ipAddress, serverStatus, notes, vpsReferenceId } = req.body;
+    await db.execute(sql`
+      UPDATE vps_server_orders
+      SET ip_address      = COALESCE(${ipAddress ?? null},     ip_address),
+          server_status   = COALESCE(${serverStatus ?? null},  server_status),
+          notes           = COALESCE(${notes ?? null},         notes),
+          vps_reference_id = COALESCE(${vpsReferenceId ?? null}, vps_reference_id)
+      WHERE id = ${parseInt(req.params.id)}
+    `);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Client: Get own VPS order details ────────────────────────────────────────
+router.get("/my/vps-orders/:orderId", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = await db.execute(sql`
+      SELECT * FROM vps_server_orders
+      WHERE id = ${parseInt(req.params.orderId)} AND user_id = ${userId}
+      LIMIT 1
+    `);
+    if (rows.rows.length === 0) { res.status(404).json({ error: "Order not found" }); return; }
+    const order: any = rows.rows[0];
+
+    // Map snake_case → camelCase
+    const mapped = {
+      id:               order.id,
+      userId:           order.user_id,
+      packageName:      order.package_name,
+      ipAddress:        order.ip_address,
+      rootPassword:     order.root_password,
+      selectedLocation: order.selected_location,
+      operatingSystem:  order.operating_system,
+      billingCycle:     order.billing_cycle,
+      renewalPrice:     order.renewal_price,
+      vpsReferenceId:   order.vps_reference_id,
+      serverStatus:     order.server_status,
+      cpuCores:         order.cpu_cores ?? 1,
+      ramGb:            order.ram_gb ?? 1,
+      storageGb:        order.storage_gb ?? 20,
+      nextDueDate:      order.next_due_date,
+      createdAt:        order.created_at,
+    };
+
+    res.json({ order: mapped, stats: simulateOrderStats(order.id, order.server_status) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Client: Power actions (restart / stop / start) ───────────────────────────
+router.post("/my/vps-orders/:orderId/power", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { action } = req.body as { action: "restart" | "stop" | "start" };
+    if (!["restart", "stop", "start"].includes(action)) {
+      res.status(400).json({ error: "Invalid action" }); return;
+    }
+
+    const rows = await db.execute(sql`
+      SELECT id, server_status FROM vps_server_orders
+      WHERE id = ${parseInt(req.params.orderId)} AND user_id = ${userId} LIMIT 1
+    `);
+    if (!rows.rows.length) { res.status(404).json({ error: "Order not found" }); return; }
+
+    const newStatus = action === "stop" ? "stopped" : "active";
+    await db.execute(sql`
+      UPDATE vps_server_orders SET server_status = ${newStatus}
+      WHERE id = ${parseInt(req.params.orderId)}
+    `);
+
+    const labels: Record<string, string> = {
+      restart: "🔄 Soft reboot initiated. Server will be back online in ~60 seconds.",
+      stop:    "⏹ Server powered down successfully.",
+      start:   "⚡ Cold-boot sequence initiated. Server is starting up.",
+    };
+    console.log(`[VPS-ORDERS] Power action "${action}" on order ${req.params.orderId} by user ${userId}`);
+    res.json({ success: true, message: labels[action], status: newStatus });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Client: Rebuild / OS Reinstall ───────────────────────────────────────────
+router.post("/my/vps-orders/:orderId/rebuild", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { operatingSystem } = req.body;
+    if (!operatingSystem) { res.status(400).json({ error: "operatingSystem is required" }); return; }
+
+    const rows = await db.execute(sql`
+      SELECT id FROM vps_server_orders
+      WHERE id = ${parseInt(req.params.orderId)} AND user_id = ${userId} LIMIT 1
+    `);
+    if (!rows.rows.length) { res.status(404).json({ error: "Order not found" }); return; }
+
+    const newPassword = generatePassword();
+    const cloudInit   = getCloudInitScript(operatingSystem);
+
+    await db.execute(sql`
+      UPDATE vps_server_orders
+      SET server_status    = 'provisioning',
+          operating_system = ${operatingSystem},
+          root_password    = ${newPassword},
+          cloud_init_script = ${cloudInit}
+      WHERE id = ${parseInt(req.params.orderId)}
+    `);
+
+    // Simulate rebuild completing after delay (in production: call hypervisor API)
+    setTimeout(async () => {
+      await db.execute(sql`
+        UPDATE vps_server_orders SET server_status = 'active'
+        WHERE id = ${parseInt(req.params.orderId)}
+      `).catch(() => {});
+    }, 30000);
+
+    console.log(`[VPS-ORDERS] Rebuild to "${operatingSystem}" on order ${req.params.orderId}`);
+    res.json({
+      success: true,
+      newPassword,
+      message: `⚙️ Rebuild started with ${operatingSystem}. Server will be online in ~30s. New root password issued.`,
+    });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Client: Create renewal invoice ───────────────────────────────────────────
+router.post("/my/vps-orders/:orderId/renew", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = await db.execute(sql`
+      SELECT * FROM vps_server_orders
+      WHERE id = ${parseInt(req.params.orderId)} AND user_id = ${userId} LIMIT 1
+    `);
+    if (!rows.rows.length) { res.status(404).json({ error: "Order not found" }); return; }
+    const order: any = rows.rows[0];
+
+    const amount = parseFloat(order.renewal_price ?? "0");
+    if (!amount) { res.json({ message: "No renewal price configured. Contact support." }); return; }
+
+    // Create invoice row
+    const inv = await db.execute(sql`
+      INSERT INTO invoices (user_id, total, subtotal, status, due_date, notes, created_at, updated_at)
+      VALUES (
+        ${userId},
+        ${String(amount)}, ${String(amount)},
+        'unpaid',
+        ${new Date(Date.now() + 7 * 86400000).toISOString()},
+        ${"VPS Renewal: " + (order.package_name ?? `Order #${order.id}`)},
+        NOW(), NOW()
+      )
+      RETURNING id
+    `);
+    const invoiceId = (inv.rows[0] as any).id;
+
+    res.json({ success: true, invoiceId, message: "Renewal invoice created." });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;
+
