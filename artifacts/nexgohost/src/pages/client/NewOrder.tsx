@@ -115,7 +115,7 @@ const DOMAIN_KEY = "order_wizard_domain";
 
 const STEP_LABELS = ["Service", "Plan & Billing", "Domain Setup", "Review & Pay"];
 
-function tok() { return localStorage.getItem("token") ?? ""; }
+function tok() { return localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""; }
 
 function apiFetch(url: string, opts?: RequestInit) {
   return fetch(url, {
@@ -761,7 +761,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // ── Guest auth state ─────────────────────────────────────────────────────
   const { login: authLogin } = useAuth();
   const qc = useQueryClient();
-  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token"));
+  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token") || localStorage.getItem("noehost_token") || "");
   const [authMode,      setAuthMode]      = useState<"login" | "register">("login");
   const [authEmail,     setAuthEmail]     = useState("");
   const [authPassword,  setAuthPassword]  = useState("");

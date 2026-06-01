@@ -16,7 +16,7 @@ interface ServerRecord { id: string; name: string; type: string; status: string;
 interface Plan { id: string; name: string; monthlyPrice: number; yearlyPrice: number; }
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, {
     ...opts,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers },

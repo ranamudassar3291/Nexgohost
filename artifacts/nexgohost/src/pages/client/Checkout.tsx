@@ -45,7 +45,7 @@ function PayIcon({ type }: { type: string }) {
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
@@ -94,7 +94,7 @@ export default function Checkout() {
   const [addons, setAddons] = useState<Record<string, boolean>>({ privacy: false, email: false, ssl: false });
 
   // ── Guest auth state ─────────────────────────────────────────────────────
-  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token"));
+  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token") || localStorage.getItem("noehost_token") || "");
   const [authMode,      setAuthMode]      = useState<"login" | "register" | "verify">("login");
   const [authEmail,     setAuthEmail]     = useState("");
   const [authPassword,  setAuthPassword]  = useState("");
@@ -230,7 +230,7 @@ export default function Checkout() {
 
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods-checkout"],
-    queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+    queryFn: () => fetch("/api/payment-methods", { headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}` } })
       .then(r => r.ok ? r.json() : []),
     enabled: isLoggedIn,
   });
@@ -277,7 +277,7 @@ export default function Checkout() {
 
   useEffect(() => {
     if (!packageId) return;
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     if (!token) return;
     const domain = sessionStorage.getItem("domain_search") || localStorage.getItem("order_wizard_domain") || undefined;
     fetch("/api/client/cart-session", {
@@ -322,7 +322,7 @@ export default function Checkout() {
     setCheckingDomain(true); setDomainAvail(null);
     try {
       const res = await fetch(`/api/domains/availability?domain=${encodeURIComponent(parts[0])}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}` },
       });
       const data = await res.json();
       if (Array.isArray(data?.results)) {
@@ -389,7 +389,7 @@ export default function Checkout() {
       localStorage.removeItem("order_wizard_domain");
 
       if (cartSessionIdRef.current) {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
         fetch(`/api/client/cart-session/${cartSessionIdRef.current}/complete`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

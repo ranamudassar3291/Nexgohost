@@ -30,7 +30,7 @@ interface AdCredits {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function authHeaders() {
-  const t = localStorage.getItem("token");
+  const t = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
 }
 function timeAgo(iso: string) {
@@ -553,7 +553,7 @@ function KeywordTrackerTab() {
 
   const { data: keywords = [], isLoading } = useQuery<KwRow[]>({
     queryKey: ["my-keywords"],
-    queryFn: () => fetch("/api/my/keywords", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }).then(r => r.json()),
+    queryFn: () => fetch("/api/my/keywords", { headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}` } }).then(r => r.json()),
     staleTime: 30_000,
   });
 
@@ -561,7 +561,7 @@ function KeywordTrackerTab() {
     mutationFn: async (body: { keyword: string; domain: string }) => {
       const r = await fetch("/api/my/keywords", {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const j = await r.json();
@@ -574,7 +574,7 @@ function KeywordTrackerTab() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/my/keywords/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      await fetch(`/api/my/keywords/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}` } });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["my-keywords"] }),
   });
@@ -582,7 +582,7 @@ function KeywordTrackerTab() {
   const checkMut = useMutation({
     mutationFn: async (id: number) => {
       setChecking(id);
-      const r = await fetch(`/api/my/keywords/${id}/check`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const r = await fetch(`/api/my/keywords/${id}/check`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}` } });
       return r.json();
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-keywords"] }); setChecking(null); },

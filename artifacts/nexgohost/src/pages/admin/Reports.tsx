@@ -6,7 +6,7 @@ import {
 import { useCurrency } from "@/context/CurrencyProvider";
 
 async function apiFetch(url: string) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error("Request failed");
   return res.json();

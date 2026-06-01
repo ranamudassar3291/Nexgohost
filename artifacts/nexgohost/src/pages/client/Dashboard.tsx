@@ -48,7 +48,7 @@ interface SetupProgress {
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
 async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
   if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "Request failed"); }
   return res.json();
@@ -152,7 +152,7 @@ function IpUnblockBanner() {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [detectedIp, setDetectedIp] = useState("");
   const [resultIp, setResultIp]     = useState("");
-  const token   = localStorage.getItem("token");
+  const token   = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
   useEffect(() => {
@@ -252,7 +252,7 @@ function IpUnblockBanner() {
 
 /* ─── Site Health Panel ───────────────────────────────────────────── */
 function SiteHealthPanel() {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
   const { data: health, isLoading: healthLoading, refetch, isFetching } = useQuery<SiteHealthData>({
@@ -420,7 +420,7 @@ function SiteHealthPanel() {
 
 /* ─── Usage Bar (inline in service tile) ────────────────────────── */
 function ServiceUsageBar({ serviceId }: { serviceId: string }) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const { data: usage } = useQuery<UsageData>({
     queryKey: ["hosting-usage", serviceId],
     queryFn: () => fetch(`/api/client/hosting/${serviceId}/usage`, {

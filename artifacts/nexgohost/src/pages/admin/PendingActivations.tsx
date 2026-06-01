@@ -16,7 +16,7 @@ const BRAND = "#6B46C1";
 const BRAND_GRADIENT = "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 60%, #8B5CF6 100%)";
 
 async function apiFetch(url: string, opts: RequestInit = {}) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, {
     ...opts,
     headers: {

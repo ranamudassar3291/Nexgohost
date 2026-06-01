@@ -46,7 +46,7 @@ export default function AddInvoice() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     fetch("/api/admin/clients?limit=200", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => setClients(d.clients || []));
   }, []);
@@ -75,7 +75,7 @@ export default function AddInvoice() {
     if (items.some(i => !i.description.trim())) { toast({ title: "Error", description: "All items need a description", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch("/api/admin/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

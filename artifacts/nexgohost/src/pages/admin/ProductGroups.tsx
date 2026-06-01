@@ -13,7 +13,7 @@ interface ProductGroup {
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
   if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
   return res.json();

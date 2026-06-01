@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 const BRAND = "#6B46C1";
 
 async function apiFetch(url: string, opts: RequestInit = {}) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, {
     ...opts,
     headers: {
@@ -177,7 +177,7 @@ function AiModuleCreatorModal({
     setResult(null);
     setError(null);
 
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     try {
       const res = await fetch("/api/admin/domain-registrars/ai-generate", {
         method: "POST",
@@ -488,7 +488,7 @@ function ZipUploadModal({
     setError(null);
     setConflict(null);
 
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     const formData = new FormData();
     formData.append("module", f);
 

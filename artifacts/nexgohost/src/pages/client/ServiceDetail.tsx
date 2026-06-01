@@ -25,7 +25,7 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 const API = "";
 
 function authFetch(url: string, opts: RequestInit = {}) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const fullUrl = url.startsWith("/api") ? url : `/api${url}`;
   return fetch(fullUrl, {
     ...opts,
@@ -1247,7 +1247,7 @@ function SectionFiles({ service }: { service: Service }) {
     form.append("file", file);
     form.append("dir", currentPath);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch(`/api/client/hosting/${service.id}/files/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -2357,7 +2357,7 @@ const ACTION_MAP: Record<string, { label: string; color: string; icon: React.Ele
     color: "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/30",
     icon: ShieldCheck,
     action: (svc) => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       fetch(`/api/client/hosting/${svc.id}/fix-permissions`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` },
       }).then(() => { /* toast handled by parent */ }).catch(() => {});
@@ -2368,7 +2368,7 @@ const ACTION_MAP: Record<string, { label: string; color: string; icon: React.Ele
     color: "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-blue-500/30",
     icon: Zap,
     action: (svc) => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       fetch(`/api/client/hosting/${svc.id}/cache`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ edge: true, object: true }),
@@ -2483,7 +2483,7 @@ function SectionAiSupport({ service }: { service: Service | null }) {
   const [ticketing, setTicketing]   = useState(false);
   const [ticketResult, setTicketResult] = useState<{ ticketNumber: string } | null>(null);
 
-  const token = () => localStorage.getItem("token") ?? "";
+  const token = () => localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

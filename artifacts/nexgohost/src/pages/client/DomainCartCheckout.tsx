@@ -55,7 +55,7 @@ export default function DomainCartCheckout() {
 
   const [items, setItems] = useState<CartItem[]>([]);
   const [eppCodes, setEppCodes] = useState<Record<string, string>>({});
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token") || localStorage.getItem("noehost_token") || "");
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
   const [applyCredits, setApplyCredits] = useState(false);
   const [placing, setPlacing] = useState(false);

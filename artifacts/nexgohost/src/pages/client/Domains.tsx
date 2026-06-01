@@ -452,7 +452,7 @@ export default function ClientDomains() {
 
     for (const item of cart) {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
         const cleanedNs = orderNameservers.map(n => n.trim()).filter(Boolean);
         const nameserversToSend = cleanedNs.length >= 2 ? cleanedNs : ["ns1.noehost.com", "ns2.noehost.com"];
         const body: Record<string, unknown> = { domain: item.name, tld: item.tld, period: item.period, nameservers: nameserversToSend };
@@ -2110,7 +2110,7 @@ function DnsModal({ domain, onClose, onSaved }: {
     }
     setSaving(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch(`/api/domains/${domain.id}/nameservers`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

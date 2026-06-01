@@ -16,7 +16,7 @@ export default function Webmail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const branding = useBranding();
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [autoLaunched, setAutoLaunched] = useState(false);

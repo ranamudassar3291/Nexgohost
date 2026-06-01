@@ -15,7 +15,7 @@ import {
 let _activeServerId: string | null = null;
 
 async function apiFetch(url: string, opts: RequestInit = {}) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   let finalUrl = url;
   if (_activeServerId && url.includes("/admin/twenty-i/") && !url.includes("serverId=")) {
     const sep = url.includes("?") ? "&" : "?";

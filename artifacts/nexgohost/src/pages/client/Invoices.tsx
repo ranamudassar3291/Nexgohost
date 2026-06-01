@@ -40,7 +40,7 @@ interface HostingService {
 }
 
 function localApiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } })
     .then(res => { if (!res.ok) return res.json().then(d => { throw new Error(d.error || "Request failed"); }); return res.json(); });
 }

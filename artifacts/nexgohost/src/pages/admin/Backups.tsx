@@ -10,7 +10,7 @@ const BRAND = "linear-gradient(135deg, #6B46C1 0%, #7C5DE2 60%, #8B5CF6 100%)";
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 const apiFetch = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return fetch(path, {
     ...opts,
     headers: {

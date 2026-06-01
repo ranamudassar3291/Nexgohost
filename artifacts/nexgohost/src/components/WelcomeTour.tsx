@@ -192,7 +192,7 @@ export function useWelcomeTour() {
 
   useEffect(() => {
     const seen = localStorage.getItem(TOUR_KEY);
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     if (!seen && token) {
       // Small delay so the dashboard renders first
       const t = setTimeout(() => setShow(true), 1200);

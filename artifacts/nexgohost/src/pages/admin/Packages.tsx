@@ -18,14 +18,14 @@ interface HostingPlan {
 }
 
 async function fetchPlans(): Promise<HostingPlan[]> {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch("/api/admin/packages", { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error("Failed to fetch packages");
   return res.json();
 }
 
 async function fetchGroups(): Promise<ProductGroup[]> {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch("/api/admin/product-groups", { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) return [];
   return res.json();
@@ -54,7 +54,7 @@ export default function Packages() {
 
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch(`/api/admin/packages/${id}/toggle`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error("Failed to toggle");
       return res.json();
@@ -65,7 +65,7 @@ export default function Packages() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch(`/api/admin/packages/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error("Failed to delete");
     },

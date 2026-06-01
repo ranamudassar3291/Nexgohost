@@ -174,7 +174,7 @@ export default function ClientMigrations() {
   const [whmFetched, setWhmFetched] = useState(false);
   const [selectedWhmAccount, setSelectedWhmAccount] = useState<WhmAccount | null>(null);
 
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
 
   const fetchMigrations = useCallback(async () => {
     try {

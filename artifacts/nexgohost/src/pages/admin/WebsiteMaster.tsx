@@ -382,7 +382,7 @@ function PricingTab() {
 
 function DomainPricingTab() {
   const { user } = useAuth();
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
   const [extensions, setExtensions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);

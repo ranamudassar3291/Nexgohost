@@ -22,7 +22,7 @@ const VIP_TIERS = {
 } as const;
 
 function authHeaders() {
-  const t = localStorage.getItem("token");
+  const t = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
 }
 

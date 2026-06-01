@@ -28,7 +28,7 @@ export default function EditClient() {
   const [savingCredit, setSavingCredit] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     Promise.all([
       fetch(`/api/admin/clients/${id}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
       fetch(`/api/admin/users/${id}/credits`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
@@ -68,7 +68,7 @@ export default function EditClient() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch(`/api/admin/clients/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -88,7 +88,7 @@ export default function EditClient() {
   const handleCanMigrateToggle = async (newValue: boolean) => {
     setSavingMigrate(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       const res = await fetch(`/api/admin/clients/${id}/can-migrate`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -111,7 +111,7 @@ export default function EditClient() {
     if (isNaN(amt) || amt <= 0) { toast({ title: "Error", description: "Enter a valid positive amount", variant: "destructive" }); return; }
     setSavingCredit(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       let body: Record<string, unknown>;
       if (creditAction === "set") {
         const current = parseFloat(creditBalance ?? "0");

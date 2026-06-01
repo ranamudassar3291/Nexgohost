@@ -22,7 +22,7 @@ const ROLE_META: Record<string, { label: string; color: string; desc: string }> 
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 function authHeaders() {
-  const t = localStorage.getItem("token");
+  const t = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
 }
 function timeAgo(iso: string) {

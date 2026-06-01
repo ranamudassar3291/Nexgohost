@@ -28,7 +28,7 @@ interface PromoCode {
   createdAt: string;
 }
 
-const token = () => localStorage.getItem("token") ?? "";
+const token = () => localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
 const authH = () => ({ Authorization: `Bearer ${token()}`, "Content-Type": "application/json" });
 
 async function fetchCodes(): Promise<PromoCode[]> {

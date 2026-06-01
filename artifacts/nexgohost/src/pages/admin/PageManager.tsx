@@ -1033,7 +1033,7 @@ function AddPageModal({
 
 // ─── Main PageManager ──────────────────────────────────────────────────────────
 export default function PageManager() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
   const [pages, setPages] = useState<PageDef[]>(BASE_PAGES);
   const [activePage, setActivePage] = useState<string>(BASE_PAGES[0].id);
   const [showAddModal, setShowAddModal] = useState(false);

@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       setToken(null);
       localStorage.removeItem("token");
+      localStorage.removeItem("noehost_token");
     }
   }, [error]);
 

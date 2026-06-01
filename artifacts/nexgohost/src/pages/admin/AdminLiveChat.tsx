@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
 
 const STATUS_META: Record<string, { label: string; color: string; icon: typeof Bot }> = {
   ai:       { label: "AI Active",     color: "bg-blue-500/15 text-blue-500 border-blue-500/30",   icon: Bot       },

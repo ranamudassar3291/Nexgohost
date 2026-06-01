@@ -20,7 +20,7 @@ interface HostingService { id: string; status: string; }
 interface DomainItem { id: string; name: string; tld: string; status: string; }
 
 async function apiFetch(url: string) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error("Request failed");
   return res.json();
@@ -128,7 +128,7 @@ export default function Cart() {
   const { formatPrice } = useCurrency();
 
   const total = items.reduce((sum, item) => sum + getItemPrice(item), 0);
-  const isLoggedIn = !!localStorage.getItem("token");
+  const isLoggedIn = !!localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
 
   const { data: services = [] } = useQuery<HostingService[]>({
     queryKey: ["client-services-cart"],

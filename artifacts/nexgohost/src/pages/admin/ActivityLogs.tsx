@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
 
 const ACTION_META: Record<string, { label: string; color: string; icon: typeof LogIn }> = {
   login_success:          { label: "Login",           color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: LogIn      },

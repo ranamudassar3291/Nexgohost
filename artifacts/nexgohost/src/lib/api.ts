@@ -1,11 +1,15 @@
 /**
  * Shared API fetch utility.
- * Always returns JSON. Guards against "Unexpected token '<'" errors when
- * the server returns an HTML error page instead of JSON.
+ * Reads auth token from `token` (primary) or `noehost_token` (fallback).
+ * On 401 Unauthorized → clears tokens and redirects to admin login.
  */
 
 function getToken(): string {
-  return localStorage.getItem("token") || "";
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("noehost_token") ||
+    ""
+  );
 }
 
 async function safeJson(res: Response): Promise<any> {
@@ -31,6 +35,18 @@ export async function apiFetch(url: string, opts?: RequestInit): Promise<any> {
       ...opts?.headers,
     },
   });
+
+  if (res.status === 401) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("noehost_token");
+    const adminSlug = import.meta.env.VITE_ADMIN_SLUG || "noe";
+    const currentPath = window.location.pathname;
+    if (currentPath.startsWith("/admin")) {
+      window.location.href = `/admin/${adminSlug}`;
+    }
+    throw new Error("Session expired. Please log in again.");
+  }
+
   const data = await safeJson(res);
   if (!res.ok) throw new Error(data.message || data.error || `Request failed (${res.status})`);
   return data;

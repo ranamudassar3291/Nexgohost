@@ -23,7 +23,7 @@ interface Transaction {
 }
 
 async function apiFetch(url: string) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Request failed"); }
   return res.json();

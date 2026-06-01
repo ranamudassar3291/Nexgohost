@@ -22,7 +22,7 @@ interface ClientFull {
 }
 
 async function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const res = await fetch(url, { ...opts, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers } });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || data.error || "Request failed");
@@ -762,7 +762,7 @@ export default function AdminClientDetail() {
     setImpersonating(true);
     try {
       const result = await apiFetch(`/api/auth/impersonate/${id}`, { method: "POST" });
-      const previousToken = localStorage.getItem("token");
+      const previousToken = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
       localStorage.setItem("admin_token_backup", previousToken || "");
       localStorage.setItem("token", result.token);
       window.open("/", "_blank");

@@ -10,7 +10,7 @@ import { useCurrency } from "@/context/CurrencyProvider";
 const P = "#6B46C1";
 
 function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token") ?? "";
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return fetch(url, {
     ...opts,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opts?.headers ?? {}) },

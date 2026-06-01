@@ -54,7 +54,7 @@ const PERMISSION_META: Record<AdminPermission, { label: string; description: str
 };
 
 function apiFetch(url: string, opts?: RequestInit) {
-  const token = localStorage.getItem("token") ?? "";
+  const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   return fetch(url, {
     ...opts,
     headers: {

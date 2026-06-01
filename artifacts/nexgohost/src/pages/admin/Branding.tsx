@@ -22,7 +22,7 @@ interface BrandingSettings {
 }
 
 export default function Branding() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
   const queryClient = useQueryClient();
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
