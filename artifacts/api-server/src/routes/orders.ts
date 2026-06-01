@@ -9,6 +9,7 @@ import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
 import { emailDomainRegistered } from "../lib/email.js";
+import { processInvoicePaid } from "../lib/activateInvoice.js";
 
 const router = Router();
 
@@ -585,22 +586,27 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
       }
     }
 
-    // Mark invoice as paid
+    // Ensure invoice exists
     let invoiceId = order.invoiceId;
     if (!invoiceId) {
       const invoice = await createInvoiceForOrder(order, clientName);
       invoiceId = invoice.id;
     }
-    await db.update(invoicesTable).set({ status: "paid", paidDate: new Date(), updatedAt: new Date() })
-      .where(eq(invoicesTable.id, invoiceId!));
 
-    // Update order
+    // Update order status
     const [updated] = await db.update(ordersTable).set({
       status: "approved",
       paymentStatus: "paid",
       invoiceId,
       updatedAt: new Date(),
     }).where(eq(ordersTable.id, order.id)).returning();
+
+    // Auto-run full invoice-paid pipeline: marks paid, sets due dates,
+    // updates service nextDueDate, sends paid email + service-activated email,
+    // credits affiliate commissions — all automatic
+    processInvoicePaid(invoiceId!, `MANUAL-${Date.now()}`, "Activated by admin").catch(e =>
+      console.error("[ACTIVATE] processInvoicePaid error (non-fatal):", e),
+    );
 
     // Fetch the service + server for response
     const service = serviceId
@@ -633,15 +639,34 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
   }
 });
 
-// Admin: cancel order
+// Admin: cancel order — also auto-cancels linked unpaid invoice
 router.post("/admin/orders/:id/cancel", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const [order] = await db.select().from(ordersTable)
+      .where(eq(ordersTable.id, req.params.id)).limit(1);
+    if (!order) { res.status(404).json({ error: "Not found" }); return; }
+
     const [updated] = await db.update(ordersTable)
       .set({ status: "cancelled", updatedAt: new Date() })
-      .where(eq(ordersTable.id, req.params.id)).returning();
-    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+      .where(eq(ordersTable.id, order.id)).returning();
+
+    // Auto-cancel the linked invoice if it hasn't been paid yet
+    if (order.invoiceId) {
+      await db.update(invoicesTable)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(and(
+          eq(invoicesTable.id, order.invoiceId),
+          or(
+            eq(invoicesTable.status, "unpaid"),
+            eq(invoicesTable.status, "pending"),
+            eq(invoicesTable.status, "draft"),
+          ),
+        ));
+      console.log(`[ORDER CANCEL] Invoice ${order.invoiceId} auto-cancelled with order ${order.id}`);
+    }
+
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.clientId)).limit(1);
-    res.json(formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""));
+    res.json({ ...formatOrder(updated, user ? `${user.firstName} ${user.lastName}` : ""), invoiceCancelled: !!order.invoiceId });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
