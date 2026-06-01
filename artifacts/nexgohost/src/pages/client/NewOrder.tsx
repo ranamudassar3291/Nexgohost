@@ -1305,8 +1305,34 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
           ))}
         </div>
 
-        {/* VPS Hosting Group — click to expand plans */}
-        <VpsGroupSection onSelectVps={() => { setService("vps"); setStep(1); }} />
+        {/* VPS Hosting — redirect to dedicated VPS page */}
+        <div className="max-w-4xl mx-auto mt-6">
+          <button
+            onClick={() => setLocation("/vps-hosting")}
+            className="w-full text-left rounded-2xl bg-white transition-all duration-200 focus:outline-none"
+            style={{ border: `1px dashed ${P}`, padding: "18px 24px" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderStyle = "solid"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 24px rgba(112,26,254,0.10)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderStyle = "dashed"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(112,26,254,0.08)" }}>
+                  <Cpu size={20} strokeWidth={1.7} style={{ color: P }} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[15px] font-bold text-gray-900">VPS Hosting</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ background: P }}>NEW</span>
+                  </div>
+                  <p className="text-[12px] text-gray-500 mt-0.5">Dedicated virtual servers — full root access, NVMe storage, multiple OS templates</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-[12px] font-bold shrink-0" style={{ color: P }}>
+                View Plans <ChevronRight size={13} strokeWidth={2.5}/>
+              </div>
+            </div>
+          </button>
+        </div>
 
         <div className="flex flex-wrap justify-center gap-4 mt-8 text-[12px] text-gray-400">
           <span className="flex items-center gap-1.5"><Lock size={11}/> Secure Checkout</span>
@@ -3289,7 +3315,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
 
   return (
     <div className={showSidebar ? "pb-24 lg:pb-0" : ""}>
-      <StepBar active={step} labels={service === "vps" ? ["Service", "Choose Plan", "Configure", "Review & Pay"] : undefined}/>
+      <StepBar active={step}/>
 
       <div className={showSidebar ? "lg:grid lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_300px] lg:gap-8 lg:items-start" : ""}>
 
@@ -3300,9 +3326,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             {step === 1 && service === "hosting"  && renderStep1Hosting()}
             {step === 1 && service === "domain"   && renderStep1Domain()}
             {step === 1 && service === "transfer" && renderStep1Transfer()}
-            {step === 1 && service === "vps"      && renderStep1Vps()}
-            {step === 2 && service === "vps"      && renderStep2Vps()}
-            {step === 2 && service !== "vps"      && renderStep2()}
+            {step === 2 && renderStep2()}
             {step === 3                           && renderStep3()}
           </AnimatePresence>
         </div>
@@ -3324,15 +3348,6 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             canContinue={canContinue()}
             onContinue={handleSidebarContinue}
             loading={orderMutation.isPending}
-            vpsPlan={service === "vps" ? selectedVpsPlan : null}
-            vpsCycle={vpsSelectedCycle}
-            vpsPrice={_vpsPrice}
-            onRmVps={() => setSelectedVpsPlan(null)}
-            vpsOsName={step >= 2 && selectedOsTemplate ? `${selectedOsTemplate.name} ${selectedOsTemplate.version}` : undefined}
-            vpsLocationName={step >= 2 && selectedLocation ? `${selectedLocation.flagIcon ?? ""} ${selectedLocation.countryName}` : undefined}
-            vpsHostnameVal={step >= 2 && vpsHostname.trim() ? vpsHostname.trim() : undefined}
-            vpsAutoRenew={step >= 2 ? vpsAutoRenew : undefined}
-            vpsWeeklyBackups={step >= 2 ? vpsWeeklyBackups : undefined}
           />
         )}
       </div>
@@ -3349,9 +3364,6 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
           canContinue={canContinue()}
           onContinue={handleSidebarContinue}
           loading={orderMutation.isPending}
-          vpsPlan={service === "vps" ? selectedVpsPlan : null}
-          vpsCycle={vpsSelectedCycle}
-          vpsPrice={_vpsPrice}
         />
       )}
     </div>
