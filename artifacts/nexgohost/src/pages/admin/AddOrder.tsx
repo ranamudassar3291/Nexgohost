@@ -21,6 +21,10 @@ interface HostingPackage {
   module: string; modulePlanId: string | null; modulePlanName: string | null;
   diskSpace: string; bandwidth: string;
 }
+interface TldExtension {
+  id: string; extension: string; registerPrice: string; renewalPrice: string; transferPrice: string;
+  isActive: boolean;
+}
 
 async function apiFetch(url: string, opts?: RequestInit) {
   const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
@@ -77,6 +81,8 @@ export default function AddOrder() {
   const queryClient = useQueryClient();
 
   const [packages, setPackages] = useState<HostingPackage[]>([]);
+  const [tldExtensions, setTldExtensions] = useState<TldExtension[]>([]);
+  const [selectedTldObj, setSelectedTldObj] = useState<TldExtension | null>(null);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -123,6 +129,7 @@ export default function AddOrder() {
 
   useEffect(() => {
     apiFetch("/api/admin/packages").then(d => setPackages(d || [])).catch(() => {});
+    apiFetch("/api/domain-extensions").then(d => setTldExtensions((d || []).filter((t: TldExtension) => t.isActive))).catch(() => {});
   }, []);
 
   // Load initial 5 clients
@@ -203,7 +210,6 @@ export default function AddOrder() {
   const handleTypeChange = (t: string) => {
     setForm(f => {
       const next = { ...f, type: t, itemId: "", itemName: "", amount: "" };
-      // Domain → auto yearly
       if (t === "domain") {
         next.billingCycle = "yearly";
         next.dueDate = addMonthsToToday(12);
@@ -215,6 +221,16 @@ export default function AddOrder() {
       return next;
     });
     setSelectedPackage(null);
+    setSelectedTldObj(null);
+  };
+
+  const handleTldSelect = (ext: string) => {
+    const tld = tldExtensions.find(t => t.extension === ext) ?? null;
+    setSelectedTldObj(tld);
+    if (tld) {
+      const price = parseFloat(tld.registerPrice) || 0;
+      setForm(f => ({ ...f, amount: String(price) }));
+    }
   };
 
   const handlePackageChange = (pkgId: string) => {
@@ -603,6 +619,30 @@ export default function AddOrder() {
                 )}
               </AnimatePresence>
               {errors.domain && <p className="text-xs text-destructive">{errors.domain}</p>}
+            </div>
+          )}
+
+          {/* TLD selector — domain type only */}
+          {form.type === "domain" && tldExtensions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground/80">TLD Extension & Price Auto-fill</label>
+              <select
+                value={selectedTldObj?.extension ?? ""}
+                onChange={e => handleTldSelect(e.target.value)}
+                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">— Select TLD to auto-fill price —</option>
+                {tldExtensions.map(t => (
+                  <option key={t.id} value={t.extension}>
+                    {t.extension} — Register: {Number(t.registerPrice).toLocaleString()} / Renew: {Number(t.renewalPrice).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+              {selectedTldObj && (
+                <p className="text-[11px] text-emerald-600 flex items-center gap-1.5">
+                  <CheckCircle2 size={10} /> Price auto-filled: {Number(selectedTldObj.registerPrice).toLocaleString()} (register) · {Number(selectedTldObj.renewalPrice).toLocaleString()} (renewal)
+                </p>
+              )}
             </div>
           )}
 

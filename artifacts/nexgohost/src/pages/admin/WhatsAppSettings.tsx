@@ -131,10 +131,21 @@ export default function WhatsAppSettings() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Disconnect WhatsApp? You'll need to scan a QR code again to reconnect.")) return;
+    if (!confirm("Disconnect WhatsApp? Session will be preserved — you can reconnect without scanning QR again.")) return;
     try {
       await apiFetch("/api/admin/whatsapp/disconnect", { method: "POST" });
-      toast({ title: "Disconnected" });
+      toast({ title: "Disconnected", description: "Session saved — reconnect to resume." });
+      queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleChangeAccount = async () => {
+    if (!confirm("Change WhatsApp account? This will clear the current session. You will need to scan a new QR code.")) return;
+    try {
+      await apiFetch("/api/admin/whatsapp/clear-session", { method: "POST" });
+      toast({ title: "Session cleared", description: "Scan a new QR code to link a different account." });
       queryClient.invalidateQueries({ queryKey: ["admin-wa-status"] });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -325,8 +336,11 @@ export default function WhatsAppSettings() {
                   {testing ? <RefreshCw size={14} className="animate-spin mr-2" /> : <Send size={14} className="mr-2" />}
                   Send Test Message
                 </Button>
-                <Button onClick={handleDisconnect} variant="destructive" className="rounded-xl">
+                <Button onClick={handleDisconnect} variant="outline" className="rounded-xl border-amber-500/40 text-amber-500 hover:bg-amber-500/10">
                   <WifiOff size={14} className="mr-2" /> Disconnect
+                </Button>
+                <Button onClick={handleChangeAccount} variant="destructive" className="rounded-xl">
+                  <RefreshCw size={14} className="mr-2" /> Change Account
                 </Button>
               </>
             )}

@@ -11,6 +11,7 @@ import {
   getWaState,
   connectWhatsApp,
   disconnectWhatsApp,
+  clearWhatsAppSession,
   sendWhatsAppAlert,
   sendToClientPhone,
   getAdminPhone,
@@ -42,6 +43,13 @@ router.post("/admin/whatsapp/disconnect", authenticate, requireAdmin, async (_re
   try {
     await disconnectWhatsApp();
     res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/admin/whatsapp/clear-session", authenticate, requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    await clearWhatsAppSession();
+    res.json({ success: true, message: "Session cleared — scan QR again to re-link" });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 

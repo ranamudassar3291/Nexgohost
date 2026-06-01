@@ -315,6 +315,7 @@ function RouterRoot() {
       <Route path="/client/register"><Redirect to="/register" /></Route>
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />
+      <Route path="/forget-password"  component={ForgotPassword}  />
       <Route path="/reset-password"   component={ResetPassword}   />
       <Route path="/vps"              component={VpsHosting}      />
       {/* /order root → unified checkout */}

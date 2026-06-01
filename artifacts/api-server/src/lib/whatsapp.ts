@@ -475,11 +475,22 @@ export async function connectWhatsApp() {
 export async function disconnectWhatsApp() {
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (sock) {
-    try { await sock.logout(); } catch { sock.end(); }
+    try { sock.end(); } catch { /* ignore */ }
     sock = null;
   }
   state = { status: "disconnected", qrDataUrl: null, qrRaw: null, connectedAt: null, phone: null, error: null };
-  console.log("[WA] Disconnected and session cleared");
+  console.log("[WA] Disconnected (session files preserved — will auto-reconnect on next init)");
+}
+
+export async function clearWhatsAppSession() {
+  await disconnectWhatsApp();
+  const { rmSync, readdirSync } = await import("fs");
+  try {
+    const files = readdirSync(SESSION_DIR);
+    for (const f of files) rmSync(path.join(SESSION_DIR, f), { recursive: true, force: true });
+    console.log("[WA] Session files cleared — fresh QR will be required");
+  } catch { /* dir may not exist */ }
+  state = { status: "disconnected", qrDataUrl: null, qrRaw: null, connectedAt: null, phone: null, error: null };
 }
 
 // ── Send alert to admin ───────────────────────────────────────────────────────
