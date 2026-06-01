@@ -1,0 +1,36 @@
+You are an expert Full-Stack Engineer. We need to implement a comprehensive "Client Activity Logging System" (Audit Trail) across the application so the administrator can monitor all client actions in real-time from the Admin Dashboard.
+
+---
+### 1. DATABASE SCHEMA UPDATE (PostgreSQL / Prisma / Mongoose)
+Create a new database table or model named `ActivityLog` with the following schema fields:
+- `id`: Unique identifier (Primary Key)
+- `userId`: Foreign key linking to the `users` table (nullable for guest/anonymous actions)
+- `userEmail`: String (to quickly see who did it without complex deep joins)
+- `action`: String (e.g., "LOGIN_SUCCESS", "LOGIN_FAILED", "ORDER_PLACED", "DOMAIN_SEARCH", "PASSWORD_CHANGED", "PROFILE_UPDATED")
+- `description`: Text (e.g., "Logged in from IP 192.168.1.1", "Placed an order for Premium VPS Plan - Order #1042")
+- `ipAddress`: String
+- `userAgent`: Text (Browser and OS details)
+- `createdAt`: Timestamp (defaults to current time)
+
+---
+### 2. BACKEND MIDDLEWARE / HELPER FUNCTION
+Create a global helper utility function on the backend called `logClientActivity(userId, email, action, description, req)`.
+- Inside this utility, extract the client's IP address (`req.ip` or proxy headers) and user agent (`req.headers['user-agent']`).
+- Asynchronously save this log node to the `ActivityLog` table.
+
+---
+### 3. HOOKING INTO EXISTING CONTROLLERS (Crucial Core Actions)
+Inject this helper function into our active controller pipelines:
+- **Auth Controller:** Log successful logins, failed attempts, and logouts.
+- **Order / Billing Controller:** Log when a user initiates a checkout flow or creates an active invoice/order.
+- **Domain Controller:** Log when a logged-in user successfully completes a domain purchase or registration request.
+- **Settings Controller:** Log when a user updates their profile, resets password, or modifies configuration variables.
+
+---
+### 4. ADMIN VIEWPORT UI LINKAGE
+- Create a secure API route at `/api/admin/activity-logs` that supports pagination and returns records sorted by `createdAt` in descending order (latest logs first).
+- Inside the Admin Dashboard UI, add a new sidebar navigation tab named **"Activity Logs"**.
+- Render a clean, responsive data table displaying: **Timestamp, User/Client Email, Action Type, Detailed Description, and IP Address**.
+- Style the Action Type columns using badge components (e.g., Green for Success/Orders, Red for Failures, Blue for Updates).
+
+Build out the database schema migrations, seed the global backend controller hooks safely, and design the automated dashboard tracking interface block now.

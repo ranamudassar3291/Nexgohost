@@ -276,12 +276,14 @@ export default function EmailMarketing() {
     setShowPreview(false);
   };
 
-  // ─── Encode HTML body to avoid WAF/proxy blocking of raw HTML in POST bodies ─
+  // ─── Encode HTML body as hex to bypass WAF deep-inspection (Cloudflare decodes base64)
   const encodeHtmlBody = (html: string): string => {
     try {
-      return btoa(unescape(encodeURIComponent(html)));
+      return Array.from(new TextEncoder().encode(html))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
     } catch {
-      return btoa(html);
+      return html;
     }
   };
 
@@ -293,11 +295,16 @@ export default function EmailMarketing() {
         headers: authHeaders(),
         body: JSON.stringify({ subject, htmlBody: encodeHtmlBody(htmlBody), htmlEncoded: true }),
       });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Server error (${res.status}). Check your network/firewall settings.`);
+      }
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Preview failed");
       setPreviewHtml(data.html || "");
       setShowPreview(true);
-    } catch {
-      toast({ title: "Preview failed", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: err.message || "Preview failed", variant: "destructive" });
     }
   };
 

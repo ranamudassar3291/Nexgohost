@@ -213,12 +213,15 @@ router.get("/admin/email-marketing/abandonments", authenticate, requireAdmin, as
   }
 });
 
-// ─── Decode HTML body sent as base64 from frontend (bypasses WAF on raw HTML) ─
+// ─── Decode HTML body sent as hex from frontend (bypasses WAF — hex has no HTML patterns) ─
 function decodeHtmlBody(htmlBody: string, htmlEncoded?: boolean): string {
   if (!htmlEncoded) return htmlBody;
   try {
-    return decodeURIComponent(escape(Buffer.from(htmlBody, "base64").toString("binary")));
+    // Hex decode: each pair of hex chars = one byte
+    const bytes = Buffer.from(htmlBody, "hex");
+    return bytes.toString("utf-8");
   } catch {
+    // Fallback: try legacy base64 (backwards compat)
     try {
       return Buffer.from(htmlBody, "base64").toString("utf-8");
     } catch {
