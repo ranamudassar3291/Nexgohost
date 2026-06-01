@@ -1,4 +1,7 @@
 import app from "./app";
+import express from "express";
+import path from "path";
+import fs from "fs";
 import { decryptField } from "./lib/fieldCrypto.js";
 import { refreshExchangeRates } from "./routes/currencies.js";
 import { runAllCronTasks, runTwentyiHealthCheck } from "./lib/cron.js";
@@ -1072,6 +1075,20 @@ async function runStartupMigrations() {
   }
 }
 
+// In production: serve the built React frontend from the same process
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = path.join(__dirname, "../../nexgohost/dist/public");
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist, { index: false }));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(frontendDist, "index.html"));
+    });
+    console.log(`[STATIC] Serving frontend from ${frontendDist}`);
+  } else {
+    console.warn("[STATIC] Frontend dist not found at", frontendDist);
+  }
+}
+
 const rawPort = process.env["PORT"] || "8080";
 
 const port = Number(rawPort);
@@ -1080,7 +1097,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, async () => {
+app.listen(port, "0.0.0.0", async () => {
   console.log(`Server listening on port ${port}`);
 
   // Run DB startup migrations (idempotent — safe to run on every start)
