@@ -548,13 +548,13 @@ export default function LiveChatWidget({ autoPopup = false, source = "website" }
                     {/* ── Input area ── */}
                     {sessionStatus !== "closed" && (
                       <div className="bg-white border-t border-gray-100 px-2.5 py-2 flex-shrink-0">
-                        {hasHandover && sessionStatus === "ai" && (
+                        {sessionStatus === "ai" && (
                           <button
                             onClick={handleHandover}
-                            className="w-full flex items-center justify-center gap-1 text-[11px] text-[#6940e0] bg-[#6940e0]/5 hover:bg-[#6940e0]/10 border border-[#6940e0]/20 rounded-xl px-2 py-1.5 mb-2 transition-colors font-semibold"
+                            className="w-full flex items-center justify-center gap-1.5 text-[11px] text-[#6940e0] bg-[#6940e0]/6 hover:bg-[#6940e0]/12 border border-[#6940e0]/25 rounded-xl px-2 py-1.5 mb-2 transition-all font-semibold group"
                           >
-                            <UserCheck className="w-3 h-3" />
-                            Talk to Human Agent
+                            <UserCheck className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                            Insaan se baat karein (Talk to Agent)
                           </button>
                         )}
                         <div className="flex items-end gap-1.5">

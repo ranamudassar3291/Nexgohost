@@ -206,6 +206,22 @@ export function AppLayout({ children, role }: LayoutProps) {
   });
 
   const showLowBalanceAlert = role === "admin" && priceGuardData?.hasRegistrar && priceGuardData?.lowBalance;
+
+  // ── Pending live-chat handover count (admin only) ──
+  const { data: handoverData } = useQuery<{ stats: { handover: number } }>({
+    queryKey: ["admin-handover-count"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/live-chat/sessions?status=handover", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return { stats: { handover: 0 } };
+      return res.json();
+    },
+    enabled: role === "admin" && !!token,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+  const handoverCount = handoverData?.stats?.handover ?? 0;
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -352,7 +368,14 @@ export function AppLayout({ children, role }: LayoutProps) {
 
                       <span className="text-[13px] font-medium flex-1 leading-none">{link.name}</span>
 
-                      {active && (
+                      {/* Handover badge on Support nav item */}
+                      {link.href === "/admin/support" && handoverCount > 0 && (
+                        <span className="ml-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-black leading-none animate-pulse">
+                          {handoverCount > 9 ? "9+" : handoverCount}
+                        </span>
+                      )}
+
+                      {active && !( link.href === "/admin/support" && handoverCount > 0 ) && (
                         <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#7C5DE2" }} />
                       )}
                     </div>

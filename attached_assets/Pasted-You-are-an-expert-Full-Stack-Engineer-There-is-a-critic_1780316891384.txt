@@ -1,0 +1,22 @@
+You are an expert Full-Stack Engineer. There is a critical bug in the Admin Panel: when the administrator updates any system settings, provider configurations, captcha keys (Turnstile), or OAuth client details, the data does not persist or save inside the database. It completely disappears on reload. We need to build/fix the robust settings storage engine now.
+
+### 1. DATABASE SCHEMA VERIFICATION (PostgreSQL / Prisma / Mongoose)
+- Ensure there is a robust `SystemSetting` or `Config` table schema available. It should ideally be a Key-Value pair schema or a single document block:
+  * `key`: String (Unique, e.g., "GOOGLE_CLIENT_ID", "TURNSTILE_SITE_KEY", "EMAIL_TEMPLATES")
+  * `value`: Text / JSON (To hold the raw configuration data safely)
+- If the table doesn't exist, create it immediately.
+
+### 2. BACKEND API ROUTE MANAGEMENT (`/api/admin/settings/save` or active endpoint)
+- Locate the POST/PUT backend handler responsible for catching configuration save requests.
+- Implement an **Upsert Logic** loop: For each key-value pair arriving in `req.body`, check if that configuration key already exists in the database.
+  * If it exists: Update the row value.
+  * If it does not exist: Insert a new row configuration entry.
+- Ensure proper body parsing middleware (`express.json()`) is verified so incoming text strings don't drop silently.
+- Wrap the execution block inside a transaction with full try/catch boundaries. Return a clear `200 OK` JSON success message back to the client upon database save completion.
+
+### 3. FRONTEND CONTROLLER INTEGRATION
+- Look at our settings forms (like Google OAuth page shown in image_404962.png and Turnstile page in image_0dfa42.png).
+- Inspect the "Save Configuration" button click handshakes. Ensure they are explicitly firing an asynchronous `fetch` or `axios.post` payload to our backend save endpoint.
+- On mount (`useEffect`), the frontend form input states MUST trigger a GET request to fetch existing values from the database and populate the inputs instantly instead of leaving fields empty or pulling from temporary environment scopes.
+
+Scan the settings router pipeline now, force full database record updates on save, and push the persistence patch.
