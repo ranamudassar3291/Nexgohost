@@ -66,10 +66,13 @@ export default function ClientLogin() {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error");
     if (err) {
+      const googleErrDetail = params.get("google_error");
       const msgs: Record<string, string> = {
         google_not_configured: "Google Sign-In is not yet configured. Please use email and password.",
         google_denied: "Google sign-in was cancelled.",
-        google_failed: "Google sign-in failed. Please try again.",
+        google_failed: googleErrDetail
+          ? `Google sign-in failed: ${googleErrDetail}`
+          : "Google sign-in failed. Please try again.",
         google_domain_not_allowed: "Your Google account domain is not permitted. Please contact support.",
         account_suspended: "Your account has been suspended. Please contact support.",
       };

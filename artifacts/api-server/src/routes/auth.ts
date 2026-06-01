@@ -593,7 +593,9 @@ router.get("/auth/google/callback", async (req, res) => {
 
     const tokenData = await tokenResp.json() as any;
     if (!tokenResp.ok || !tokenData.access_token) {
-      throw new Error(tokenData.error_description || tokenData.error || "Token exchange failed");
+      const errDetail = tokenData.error_description || tokenData.error || "Token exchange failed";
+      console.error("[AUTH] Google token exchange failed:", JSON.stringify(tokenData));
+      throw new Error(errDetail);
     }
 
     const userInfoResp = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
@@ -633,7 +635,8 @@ router.get("/auth/google/callback", async (req, res) => {
   } catch (err: any) {
     console.error("[AUTH] Google callback error:", err.message);
     await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "error", ipAddress: ip, userAgent: ua, details: err.message });
-    res.redirect(`${frontendBase}/client/login?error=google_failed`);
+    const detail = encodeURIComponent(err.message || "Unknown error");
+    res.redirect(`${frontendBase}/client/login?error=google_failed&google_error=${detail}`);
   }
 });
 
