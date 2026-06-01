@@ -54,7 +54,7 @@ async function checkRdap(domain: string): Promise<{ available: boolean; via: str
   try {
     const res = await fetch(url, {
       headers: { Accept: "application/rdap+json, application/json" },
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(3500),
     });
 
     if (res.status === 404) return { available: true, via: "rdap" };
@@ -79,11 +79,10 @@ async function checkCloudflare(domain: string): Promise<{ available: boolean; vi
   try {
     const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, {
       headers: { Accept: "application/dns-json" },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
     const data = await res.json();
-    // NXDOMAIN (3) = likely available; resolved A records (0 + answers) = taken
     if (data.Status === 3) return { available: true, via: "cloudflare-dns" };
     if (data.Status === 0 && data.Answer?.length > 0) return { available: false, via: "cloudflare-dns" };
     return null;
@@ -95,25 +94,42 @@ async function checkCloudflare(domain: string): Promise<{ available: boolean; vi
 async function checkGoogleDns(domain: string): Promise<{ available: boolean; via: string } | null> {
   try {
     const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`, {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.Status === 3) return { available: true, via: "google-dns" };
     if (data.Status === 0 && data.Answer?.length > 0) return { available: false, via: "google-dns" };
-    // Also check SOA record as secondary signal
-    const soaRes = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=SOA`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (soaRes.ok) {
-      const soaData = await soaRes.json();
-      if (soaData.Status === 3) return { available: true, via: "google-dns-soa" };
-      if (soaData.Status === 0 && soaData.Answer?.length > 0) return { available: false, via: "google-dns-soa" };
-    }
     return null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Race all 3 sources in parallel — return the first confident result.
+ * Falls back to "unknown" only if all 3 fail within timeout.
+ */
+async function checkDomainAvailability(domain: string): Promise<{ available: boolean; via: string } | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let pending = 3;
+
+    const tryResolve = (result: { available: boolean; via: string } | null) => {
+      pending--;
+      if (!settled && result !== null) {
+        settled = true;
+        resolve(result);
+      } else if (pending === 0 && !settled) {
+        settled = true;
+        resolve(null);
+      }
+    };
+
+    checkRdap(domain).then(tryResolve).catch(() => tryResolve(null));
+    checkCloudflare(domain).then(tryResolve).catch(() => tryResolve(null));
+    checkGoogleDns(domain).then(tryResolve).catch(() => tryResolve(null));
+  });
 }
 
 // POST /api/domain-search
@@ -154,10 +170,8 @@ router.post("/domain-search", authenticate, async (req: AuthRequest, res) => {
         const fullDomain = `${baseName}.${ext}`;
         const priceRow = priceMap.get(ext);
 
-        // Try RDAP first, then Cloudflare DNS, then Google DNS
-        let check = await checkRdap(fullDomain);
-        if (!check) check = await checkCloudflare(fullDomain);
-        if (!check) check = await checkGoogleDns(fullDomain);
+        // Race RDAP + Cloudflare DNS + Google DNS in parallel — fastest wins
+        const check = await checkDomainAvailability(fullDomain);
 
         const available = check?.available ?? null;
         const fullRow = priceMap.get(ext) as any;
@@ -304,9 +318,7 @@ router.get("/domain/search", async (req, res) => {
         const fullDomain = `${baseName}.${ext}`;
         const priceRow = priceMap.get(ext);
 
-        let check = await checkRdap(fullDomain);
-        if (!check) check = await checkCloudflare(fullDomain);
-        if (!check) check = await checkGoogleDns(fullDomain);
+        const check = await checkDomainAvailability(fullDomain);
 
         const available = check?.available ?? null;
         const regPrice = priceRow ? parseFloat(priceRow.registerPrice as string) : null;
