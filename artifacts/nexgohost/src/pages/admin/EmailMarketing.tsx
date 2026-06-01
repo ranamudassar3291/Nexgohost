@@ -276,13 +276,22 @@ export default function EmailMarketing() {
     setShowPreview(false);
   };
 
+  // ─── Encode HTML body to avoid WAF/proxy blocking of raw HTML in POST bodies ─
+  const encodeHtmlBody = (html: string): string => {
+    try {
+      return btoa(unescape(encodeURIComponent(html)));
+    } catch {
+      return btoa(html);
+    }
+  };
+
   // ─── Preview ──────────────────────────────────────────────────────────────
   const handlePreview = async () => {
     try {
       const res = await fetch(`${API}/admin/email-marketing/preview`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ subject, htmlBody }),
+        body: JSON.stringify({ subject, htmlBody: encodeHtmlBody(htmlBody), htmlEncoded: true }),
       });
       const data = await res.json();
       setPreviewHtml(data.html || "");
@@ -315,12 +324,22 @@ export default function EmailMarketing() {
         body: JSON.stringify({
           name: campaignName || subject,
           subject,
-          htmlBody,
+          htmlBody: encodeHtmlBody(htmlBody),
+          htmlEncoded: true,
           recipientType,
           recipientIds: recipientType === "selected" ? Array.from(selectedClients) : [],
         }),
       });
-      const data = await res.json();
+
+      let data: any;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server returned non-JSON response (status ${res.status}). Please try again.`);
+      }
+
       if (!res.ok) throw new Error(data.error || "Failed to send");
 
       toast({ title: `Campaign sent to ${data.totalRecipients} recipient(s)!` });

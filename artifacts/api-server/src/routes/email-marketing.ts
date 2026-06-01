@@ -213,10 +213,25 @@ router.get("/admin/email-marketing/abandonments", authenticate, requireAdmin, as
   }
 });
 
+// ─── Decode HTML body sent as base64 from frontend (bypasses WAF on raw HTML) ─
+function decodeHtmlBody(htmlBody: string, htmlEncoded?: boolean): string {
+  if (!htmlEncoded) return htmlBody;
+  try {
+    return decodeURIComponent(escape(Buffer.from(htmlBody, "base64").toString("binary")));
+  } catch {
+    try {
+      return Buffer.from(htmlBody, "base64").toString("utf-8");
+    } catch {
+      return htmlBody;
+    }
+  }
+}
+
 // ─── Admin: Preview template ──────────────────────────────────────────────────
 router.post("/admin/email-marketing/preview", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { subject, htmlBody, recipientId } = req.body;
+    const { subject, htmlBody: rawHtmlBody, htmlEncoded, recipientId } = req.body;
+    const htmlBody = decodeHtmlBody(rawHtmlBody, htmlEncoded);
 
     let vars: Record<string, string> = {
       client_name: "John Doe",
@@ -242,13 +257,15 @@ router.post("/admin/email-marketing/preview", authenticate, requireAdmin, async 
 // ─── Admin: Send campaign ─────────────────────────────────────────────────────
 router.post("/admin/email-marketing/send", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { name, subject, htmlBody, recipientType, recipientIds } = req.body as {
+    const { name, subject, htmlBody: rawHtmlBody, htmlEncoded, recipientType, recipientIds } = req.body as {
       name: string;
       subject: string;
       htmlBody: string;
+      htmlEncoded?: boolean;
       recipientType: "all" | "selected";
       recipientIds?: string[];
     };
+    const htmlBody = decodeHtmlBody(rawHtmlBody, htmlEncoded);
 
     if (!subject || !htmlBody) {
       return res.status(400).json({ error: "Subject and HTML body are required" });
