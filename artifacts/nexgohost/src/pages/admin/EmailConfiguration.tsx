@@ -122,6 +122,14 @@ export default function EmailConfiguration() {
         }),
       });
       setConnectResult({ success: true, message: result.message });
+      // Auto-save settings after successful test so users don't have to click Save separately
+      try {
+        await apiFetch("/api/admin/settings", { method: "PUT", body: JSON.stringify(cfg) });
+        qc.invalidateQueries({ queryKey: ["admin-settings-email"] });
+        toast({ title: "✅ Settings saved automatically", description: "SMTP verified and saved successfully." });
+      } catch {
+        toast({ title: "Connection verified", description: "Test passed — click Save Configuration to apply.", variant: "default" });
+      }
     } catch (err: any) {
       setConnectResult({ success: false, message: err.message });
     } finally {
