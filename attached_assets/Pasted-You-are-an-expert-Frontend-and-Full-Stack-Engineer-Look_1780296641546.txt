@@ -1,0 +1,65 @@
+You are an expert Frontend and Full-Stack Engineer. Look at the Email Marketing dashboard layout in image_41ae1c.png. 
+
+Your task is to inject a brand new default template option into the "Template" dropdown menu select component, populate its underlying static data content, and make it smoothly hook into the "Email Body (HTML)" editing grid.
+
+---
+### 1. ADD NEW DROPDOWN OPTION (Frontend Update)
+Inside the select options component shown in image_41ae1c.png, add this new line option right under the active layout list:
+- Label/Display: "🚀 Platform Launch Announcement"
+- Value key identifier: "platform_launch_announcement"
+
+---
+### 2. CORE HTML BODY TEMPLATE CODE MAPPING
+When the administrator selects "🚀 Platform Launch Announcement" from the dropdown list, ensure the "Email Body (HTML)" textarea context seamlessly pre-fills with this exact, responsive corporate HTML layout template script (using our template tags where required):
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #fafafa; margin: 0; padding: 0; color: #333333; }
+        .email-container { max-width: 600px; margin: 30px auto; background-color: #ffffff; border: 1px solid #eeeeee; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+        .header { background-color: #7C3AED; padding: 30px; text-align: center; color: #ffffff; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .content { padding: 40px 30px; line-height: 1.6; font-size: 16px; }
+        .services-grid { background-color: #fafafa; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #f0f0f0; }
+        .services-grid ul { margin: 0; padding-left: 20px; }
+        .services-grid li { margin-bottom: 8px; font-weight: 500; }
+        .cta-button { display: inline-block; background-color: #7C3AED; color: #ffffff !important; text-decoration: none; padding: 14px 30px; font-weight: 600; border-radius: 8px; margin: 20px 0; text-align: center; }
+        .footer { background-color: #fafafa; padding: 20px; text-align: center; font-size: 13px; color: #777777; border-top: 1px solid #eeeeee; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>🚀 Exciting News: We Are Officially LIVE!</h1>
+        </div>
+        <div class="content">
+            <p><strong>Assalam-o-Alaikum {client_name}!</strong></p>
+            <p>Humein yeh batate hue bohot khushi ho rahi hai ke <strong>{company_name}</strong> ki brand new, high-speed premium website officially launch ho chuki hai! 🎉</p>
+            <p>Ab aap niche di gayi tamam premium cloud services ko directly online order aur manage kar sakte hain:</p>
+            <div class="services-grid">
+                <ul>
+                    <li>📧 Enterprise Business Email Hosting (NoeMail)</li>
+                    <li>🌐 Instant Domain Registration & Automated Routing</li>
+                    <li>⚡ Premium High-Performance Cloud VPS Plans</li>
+                </ul>
+            </div>
+            <p>Aap hamare premium client hain, isliye aapka opinion hamare liye sabse zyada matter karta hai. Please puri website ko check karein, speed testing dekhein, aur humein apna keemti <strong>Feedback</strong> zaroor dein ke aapko naya interface kaisa laga.</p>
+            <div style="text-align: center;">
+                <a href="[https://www.noehost.com](https://www.noehost.com)" class="cta-button" target="_blank">Visit Website Now 🌐</a>
+            </div>
+            <p>Agar aapko website par koi bug mile ya koi suggestions hon, toh hamesha ki tarah hum aapki help ke liye haazir hain!</p>
+            <br>
+            <p style="margin-bottom: 5px;">Best regards,</p>
+            <p style="margin-top: 0; font-weight: bold; color: #7C3AED; font-size: 18px;">Muhammad Arsalan</p>
+            <p style="margin-top: -10px; font-size: 14px; color: #777777;">Founder, Noehost 👑</p>
+        </div>
+        <div class="footer">
+            <p>© 2026 {company_name}. All rights reserved.</p>
+            <p>To unsubscribe from these updates, <a href="{unsubscribe_url}">click here</a>.</p>
+        </div>
+    </div>
+</body>
+</html>
