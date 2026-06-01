@@ -1,0 +1,65 @@
+You are an elite UX/UI Designer and Senior Full-Stack Engineer. Your task is to refactor the route `/domain-reseller` into a world-class, international-grade Domain Reseller Program page inspired by major industry giants like ResellerClub, Spaceship, and Namecheap.
+
+Maintain our premium brand style guide: Strict clean layout, solid white surfaces (#ffffff), crisp subtle borders (border-gray-100), running over an ultra-light uniform canvas (#fafafa), with our signature purple (#7C3AED) for primary active badges and CTAs.
+
+---
+### 1. PAGE HERO & CORE PROP VALUE
+- Refactor the main hero area to state: "Launch Your Own Domain & Hosting Business Globally."
+- Add a clear subtext: "Automated API access, white-label storefronts, and premium WHMCS/Blesta integrations with zero infrastructure overhead."
+
+---
+### 2. THE SLAB/PRICING TIERS COMPONENT (International Slab Engine)
+Render a modern horizontal comparisons tier grid detailing how the reseller program scales based on volume and funds. Do not use plain text; build high-density visual cards:
+
+* Tier 1: "Starter Reseller"
+  - Minimum Deposit / Funds Requirement: PKR 15,000 (or $50) Initial Account Fund
+  - Target Monthly Volume: 1 - 10 Domains
+  - Pricing Benefit: Baseline Reseller Pricing (e.g., .com at $11.50)
+  - Features: Free API Access, WHMCS Module, White-label Branding.
+
+* Tier 2: "Professional Reseller" (Marked with a "Most Popular" Purple Badge)
+  - Minimum Deposit / Funds Requirement: PKR 75,000 (or $250) Initial Account Fund
+  - Target Monthly Volume: 11 - 50 Domains
+  - Pricing Benefit: Mid-Tier Discounted Pricing (e.g., .com at $10.25)
+  - Features: All Starter Features + Dedicated API Support Manager.
+
+* Tier 3: "Enterprise/Wholesale Reseller"
+  - Minimum Deposit / Funds Requirement: PKR 150,000+ (or $500+) Initial Account Fund
+  - Target Monthly Volume: 51+ Domains/mo
+  - Pricing Benefit: Core Wholesale Cost Pricing (e.g., .com at $9.10)
+  - Features: VIP API Router Priority, Custom TLD Promotions, Free Billing Software License.
+
+---
+### 3. THE MULTI-STEP ENTERPRISE RESELLER APPLICATION FORM
+When a client clicks "Apply for Reseller Account", open a beautiful multi-step questionnaire modal or a smooth layout section capturing these comprehensive international details:
+
+- Step 1: Business Identity & Reach
+  * Legal Business Name / Trading Name (Input field)
+  * Corporate Website URL (Optional input field)
+  * Primary Target Country / Market (Dropdown selector)
+- Step 2: Operational Volume & Forecast (Crucial for compliance)
+  * Estimated Monthly Domain Registrations (Dropdown: [1-10], [11-50], [51-200], [200+])
+  * Current Domain Registrar/Provider (Input: e.g., GoDaddy, Namecheap, None)
+  * Which Billing Automation Platform will you use? (Checkboxes: WHMCS, Blesta, Custom API, Custom Storefront)
+- Step 3: Planned Account Tier Commitment
+  * Choose Your Commitment Tier (Radio group selector corresponding to Starter, Pro, Enterprise slabs)
+  * Initial Fund Deposit Confirmation (Checkbox: "I understand that I need to deposit the initial slab funds into my wallet balance to unlock my API pricing tier.")
+
+---
+### 4. TECHNICAL BACKEND INTEGRATION SPECIFICATION
+- Data Collection: Route all submitted reseller applications to a new secure Express endpoint: `POST /api/resellers/apply`.
+- Database Table: Create a safe PostgreSQL relational schema migration block:
+```sql
+CREATE TABLE IF NOT EXISTS reseller_applications (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    business_name VARCHAR(255),
+    website_url VARCHAR(255),
+    target_market VARCHAR(100),
+    monthly_volume VARCHAR(50),
+    current_registrar VARCHAR(100),
+    billing_software VARCHAR(100),
+    selected_tier VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'pending_review',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
