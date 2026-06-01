@@ -18,6 +18,7 @@ import { routesByRole } from "@/config/routes";
 import type { LucideIcon } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import LiveChatWidget from "@/components/LiveChatWidget";
+import { AiChatWidget } from "@/components/AiChatWidget";
 import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { useQuery } from "@tanstack/react-query";
 
@@ -743,7 +744,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         )}
       </main>
 
-      {isClient && <LiveChatWidget source="dashboard" autoPopup={false} />}
+      {isClient && <AiChatWidget />}
       {isClient && <FeedbackWidget />}
 
       {/* ── Contextual Help Drawer ── */}

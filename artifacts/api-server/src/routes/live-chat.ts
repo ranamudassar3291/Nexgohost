@@ -8,6 +8,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { authenticate, requireAdmin, verifyToken, type AuthRequest } from "../lib/auth.js";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
+import { createNotification } from "../lib/notifications.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -426,12 +427,20 @@ router.post("/chat/message", async (req, res) => {
     const history = await getMessages(sessionId);
     const trimmed = history.slice(0, -1).slice(-30);
 
-    const chatHistory = trimmed
-      .filter((m: any) => m.role === "user" || m.role === "assistant")
-      .map((m: any) => ({
-        role: m.role === "user" ? "user" : "model",
-        parts: [{ text: m.content as string }],
-      }));
+    // Build alternating user/model history — Gemini requires strict alternation
+    const rawHistory = trimmed.filter((m: any) => m.role === "user" || m.role === "assistant");
+    const chatHistory: { role: "user" | "model"; parts: { text: string }[] }[] = [];
+    let lastRole: string | null = null;
+    for (const m of rawHistory) {
+      const role = m.role === "user" ? "user" : "model";
+      if (role === lastRole) continue; // skip consecutive same-role messages
+      chatHistory.push({ role, parts: [{ text: String(m.content ?? "") }] });
+      lastRole = role;
+    }
+    // History must start with "user" message for Gemini
+    while (chatHistory.length > 0 && chatHistory[0].role !== "user") {
+      chatHistory.shift();
+    }
 
     let reply = FALLBACK;
     let failedAttempts = Number(session?.failed_attempts ?? 0);
@@ -444,7 +453,7 @@ router.post("/chat/message", async (req, res) => {
         : BASE_SYSTEM;
       const ai = getAI();
       const chat = ai.chats.create({
-        model: "gemini-2.0-flash-lite",
+        model: process.env.AI_MODEL || "gemini-2.0-flash",
         history: chatHistory,
         config: { systemInstruction, maxOutputTokens: 512, temperature: 0.7 },
       });
@@ -492,7 +501,11 @@ router.post("/chat/message", async (req, res) => {
       `);
       const sName = clientName || clientEmail || sessionId;
       sendWhatsAppAlert("other",
-        `🚨 *Live Chat Handover — Noehost*\n\nClient: ${sName}\nSession: ${sessionId}\nReason: AI failed 3 consecutive attempts\n\nPlease open Admin → Support → Live Support`
+        `🚨 *Live Chat Handover — Noehost*\n\nClient: ${sName}\nSession: ${sessionId}\nReason: AI failed 3 consecutive attempts\n\nPlease open Admin → Support → Live Chat`
+      ).catch(() => {});
+      createNotification("1", "system", "Live Chat Needs Agent",
+        `AI could not resolve issue for ${sName}. Session: ${sessionId}`,
+        "/admin/support",
       ).catch(() => {});
     }
 
@@ -548,7 +561,11 @@ router.post("/chat/handover/:id", async (req, res) => {
       "✅ Aapki request receive ho gayi. Ek support agent jald hi aapke saath connect hoga. Neeche chat continue kar sakte hain."
     );
     sendWhatsAppAlert("other",
-      `🚨 *Live Chat Handover — Noehost*\n\nClient: ${clientName || "Guest"}\nEmail: ${clientEmail || "N/A"}\nSession: ${id}\n\nClient ne human agent request kiya.\n\nAdmin Panel → Support → Live Support`
+      `🚨 *Live Chat Handover — Noehost*\n\nClient: ${clientName || "Guest"}\nEmail: ${clientEmail || "N/A"}\nSession: ${id}\n\nClient ne human agent request kiya.\n\nAdmin Panel → Support → Live Chat`
+    ).catch(() => {});
+    createNotification("1", "system", "Live Chat — Agent Requested",
+      `${clientName || "Guest"} (${clientEmail || "N/A"}) ne human agent request kiya.`,
+      "/admin/support",
     ).catch(() => {});
     res.json({ success: true, status: "handover" });
   } catch (err) {
