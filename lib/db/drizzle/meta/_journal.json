@@ -15,6 +15,13 @@
       "when": 1780250448300,
       "tag": "0001_clever_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780309959199,
+      "tag": "0002_yellow_iron_monger",
+      "breakpoints": true
     }
   ]
 }
