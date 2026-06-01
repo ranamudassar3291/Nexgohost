@@ -3,7 +3,7 @@
  */
 
 import { Router } from "express";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { authenticate, requireAdmin, verifyToken, type AuthRequest } from "../lib/auth.js";
@@ -289,18 +289,10 @@ async function buildKnowledgeContext(): Promise<string> {
   return _knowledgeCache;
 }
 
-function getModel(extraContext: string) {
+function getAI() {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
-  const genai = new GoogleGenerativeAI(apiKey);
-  const systemInstruction = extraContext
-    ? `${BASE_SYSTEM}\n\n=== LIVE DB DATA ===\n${extraContext}`
-    : BASE_SYSTEM;
-  return genai.getGenerativeModel({
-    model: "gemini-2.0-flash-lite",
-    systemInstruction,
-    generationConfig: { maxOutputTokens: 512, temperature: 0.7 },
-  });
+  return new GoogleGenAI({ apiKey });
 }
 
 // ── DB helpers ────────────────────────────────────────────────────────────────
@@ -423,9 +415,9 @@ router.post("/chat/message", async (req, res) => {
     const history = await getMessages(sessionId);
     const trimmed = history.slice(0, -1).slice(-30);
 
-    const geminiHistory = trimmed
-      .filter(m => m.role === "user" || m.role === "assistant")
-      .map(m => ({
+    const chatHistory = trimmed
+      .filter((m: any) => m.role === "user" || m.role === "assistant")
+      .map((m: any) => ({
         role: m.role === "user" ? "user" : "model",
         parts: [{ text: m.content as string }],
       }));
@@ -436,10 +428,17 @@ router.post("/chat/message", async (req, res) => {
     const tryGemini = async (retryMs = 0): Promise<string | null> => {
       if (retryMs > 0) await new Promise(r => setTimeout(r, retryMs));
       const extraCtx = await buildKnowledgeContext();
-      const model = getModel(extraCtx);
-      const chat = model.startChat({ history: geminiHistory });
-      const result = await chat.sendMessage(message.trim());
-      return result.response.text() || null;
+      const systemInstruction = extraCtx
+        ? `${BASE_SYSTEM}\n\n=== LIVE DB DATA ===\n${extraCtx}`
+        : BASE_SYSTEM;
+      const ai = getAI();
+      const chat = ai.chats.create({
+        model: "gemini-2.0-flash-lite",
+        history: chatHistory,
+        config: { systemInstruction, maxOutputTokens: 512, temperature: 0.7 },
+      });
+      const response = await chat.sendMessage({ message: message.trim() });
+      return response.text || null;
     };
 
     try {
