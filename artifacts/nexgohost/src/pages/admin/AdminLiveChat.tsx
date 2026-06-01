@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("noehost_token") || "" : null;
+const getToken = () => localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
 
 const STATUS_META: Record<string, { label: string; color: string; icon: typeof Bot }> = {
   ai:       { label: "AI Active",     color: "bg-blue-500/15 text-blue-500 border-blue-500/30",   icon: Bot       },
@@ -108,7 +108,7 @@ export default function AdminLiveChat() {
       if (statusFilter !== "all") p.set("status", statusFilter);
       if (search) p.set("search", search);
       const res = await fetch(`/api/admin/live-chat/sessions?${p}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -121,7 +121,7 @@ export default function AdminLiveChat() {
     queryKey: ["admin-live-chat-detail", selectedId],
     queryFn: async () => {
       const res = await fetch(`/api/admin/live-chat/sessions/${selectedId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -135,7 +135,7 @@ export default function AdminLiveChat() {
     mutationFn: async (msg: string) => {
       const res = await fetch(`/api/admin/live-chat/sessions/${selectedId}/reply`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ message: msg }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -153,7 +153,7 @@ export default function AdminLiveChat() {
     mutationFn: async (status: string) => {
       const res = await fetch(`/api/admin/live-chat/sessions/${selectedId}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed");

@@ -577,14 +577,18 @@ router.post("/chat/handover/:id", async (req, res) => {
 
 router.get("/admin/live-chat/sessions", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { status } = req.query;
+    const { status, search } = req.query;
+    const statusFilter = status && status !== "all" ? String(status) : null;
+    const searchStr = search ? `%${String(search).toLowerCase()}%` : null;
     const rows = (await db.execute(sql`
       SELECT
         s.*,
         (SELECT content FROM chat_messages WHERE session_id = s.session_id ORDER BY created_at DESC LIMIT 1) as last_message,
         (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.session_id) as message_count
       FROM chat_sessions s
-      ${status ? sql`WHERE s.status = ${String(status)}` : sql``}
+      WHERE
+        (${statusFilter} IS NULL OR s.status = ${statusFilter})
+        AND (${searchStr} IS NULL OR LOWER(s.client_name) LIKE ${searchStr} OR LOWER(s.client_email) LIKE ${searchStr})
       ORDER BY s.updated_at DESC
       LIMIT 100
     `)).rows;

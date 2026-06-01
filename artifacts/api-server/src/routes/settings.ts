@@ -248,7 +248,12 @@ router.post("/admin/settings/smtp/verify", authenticate, requireAdmin, async (re
     const raw = err.message || String(err);
     let hint = "";
     if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH/.test(raw)) {
-      hint = ` — Cannot reach ${host}:${port}. Check the SMTP host/port and ensure the server allows connections.`;
+      const is20i = /stackcp|stackmail|20i/i.test(host);
+      if (is20i) {
+        hint = ` — StackCP/20i SMTP is blocked from this server's IP. Use a relay instead: Brevo (smtp-relay.brevo.com:587), Gmail (smtp.gmail.com:587), or Mailgun.`;
+      } else {
+        hint = ` — Cannot reach ${host}:${port}. Verify the SMTP host/port or use Brevo/Gmail SMTP.`;
+      }
     } else if (/535|Authentication|Invalid login|auth/i.test(raw)) {
       hint = " — Login failed. Double-check your SMTP username and password.";
     } else if (/ETIMEDOUT|timeout/i.test(raw)) {
