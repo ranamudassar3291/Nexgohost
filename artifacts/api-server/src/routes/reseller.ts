@@ -27,9 +27,13 @@ router.get("/reseller/pricing", async (_req, res) => {
 // ── Public: Apply for reseller program (auth required) ────────────────────────
 router.post("/reseller/apply", authenticate, async (req, res) => {
   try {
-    const { businessName, monthlyVolume } = req.body as {
-      businessName?: string;
-      monthlyVolume?: string;
+    const {
+      businessName, websiteUrl, targetMarket, monthlyVolume,
+      currentRegistrar, billingSoftware, selectedTier,
+    } = req.body as {
+      businessName?: string; websiteUrl?: string; targetMarket?: string;
+      monthlyVolume?: string; currentRegistrar?: string;
+      billingSoftware?: string; selectedTier?: string;
     };
     if (!businessName?.trim()) {
       res.status(400).json({ error: "Business name is required" });
@@ -37,6 +41,7 @@ router.post("/reseller/apply", authenticate, async (req, res) => {
     }
     const userId = req.user!.userId;
 
+    // Check for existing profile
     const existing = await db.execute(sql`
       SELECT id, status FROM reseller_profiles WHERE user_id = ${userId} LIMIT 1
     `);
@@ -45,10 +50,27 @@ router.post("/reseller/apply", authenticate, async (req, res) => {
       return;
     }
 
+    // Derive tier number from selectedTier string
+    const tierNum = selectedTier === "enterprise" ? 3 : selectedTier === "professional" ? 2 : 1;
+
+    // Save full application
+    await db.execute(sql`
+      INSERT INTO reseller_applications
+        (user_id, business_name, website_url, target_market, monthly_volume,
+         current_registrar, billing_software, selected_tier, status)
+      VALUES
+        (${userId}, ${businessName.trim()}, ${websiteUrl ?? ""},
+         ${targetMarket ?? ""}, ${monthlyVolume ?? ""},
+         ${currentRegistrar ?? ""}, ${billingSoftware ?? ""},
+         ${selectedTier ?? "starter"}, 'pending_review')
+    `);
+
+    // Create reseller profile
     await db.execute(sql`
       INSERT INTO reseller_profiles (user_id, business_name, monthly_volume, status, discount_slab_tier)
-      VALUES (${userId}, ${businessName.trim()}, ${monthlyVolume ?? ""}, 'pending', 1)
+      VALUES (${userId}, ${businessName.trim()}, ${monthlyVolume ?? ""}, 'pending', ${tierNum})
     `);
+
     res.json({ success: true, status: "pending" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

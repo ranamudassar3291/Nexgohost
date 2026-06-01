@@ -683,6 +683,26 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_profiles_status ON reseller_profiles(status)`);
     console.log("[MIGRATIONS] reseller_profiles table ready");
 
+    // ── Reseller Applications (extended multi-step form) ──────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS reseller_applications (
+        id                SERIAL PRIMARY KEY,
+        user_id           TEXT REFERENCES users(id) ON DELETE SET NULL,
+        business_name     VARCHAR(255),
+        website_url       VARCHAR(255),
+        target_market     VARCHAR(100),
+        monthly_volume    VARCHAR(50),
+        current_registrar VARCHAR(100),
+        billing_software  VARCHAR(255),
+        selected_tier     VARCHAR(50),
+        status            VARCHAR(50) NOT NULL DEFAULT 'pending_review',
+        created_at        TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_apps_user ON reseller_applications(user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_reseller_apps_status ON reseller_applications(status, created_at DESC)`);
+    console.log("[MIGRATIONS] reseller_applications table ready");
+
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS reseller_funds (
         id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
