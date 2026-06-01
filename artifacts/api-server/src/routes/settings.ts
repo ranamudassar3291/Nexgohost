@@ -245,8 +245,18 @@ router.post("/admin/settings/smtp/verify", authenticate, requireAdmin, async (re
 
     res.json({ success: true, message: `SMTP connected successfully to ${host}:${port}` });
   } catch (err: any) {
-    const msg = err.message || String(err);
-    res.status(400).json({ success: false, message: `SMTP connection failed: ${msg}` });
+    const raw = err.message || String(err);
+    let hint = "";
+    if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH/.test(raw)) {
+      hint = ` — Cannot reach ${host}:${port}. Check the SMTP host/port and ensure the server allows connections.`;
+    } else if (/535|Authentication|Invalid login|auth/i.test(raw)) {
+      hint = " — Login failed. Double-check your SMTP username and password.";
+    } else if (/ETIMEDOUT|timeout/i.test(raw)) {
+      hint = " — Connection timed out. The server may be unreachable or port may be blocked.";
+    } else if (/ECONNRESET|SSL|TLS|certificate/i.test(raw)) {
+      hint = " — SSL/TLS error. Try switching encryption type (SSL/TLS/None) or check your port.";
+    }
+    res.status(400).json({ success: false, message: `${raw}${hint}` });
   }
 });
 
