@@ -93,15 +93,13 @@ const ChatBot: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Poll when human
+  // Poll — fast (5s) when human/handover, slow (30s) when ai to catch admin close
   useEffect(() => {
-    if (sessionStatus === 'human' || sessionStatus === 'handover') {
-      pollTimerRef.current = setInterval(() => pollMessages(), 5000);
-    } else {
-      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
-    }
+    if (!sessionId) return;
+    const interval = (sessionStatus === 'human' || sessionStatus === 'handover') ? 5000 : 30000;
+    pollTimerRef.current = setInterval(() => pollMessages(), interval);
     return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current); };
-  }, [sessionStatus]);
+  }, [sessionStatus, sessionId]);
 
   const initSession = async () => {
     try {
@@ -429,7 +427,7 @@ const ChatBot: React.FC = () => {
             </div>
 
             {/* Handover CTA */}
-            {!handoverSent && messages.length > 1 && sessionStatus === 'ai' && (
+            {!handoverSent && messages.length > 4 && sessionStatus === 'ai' && (
               <div className="px-4 pt-2 bg-white border-t border-slate-100 flex-shrink-0">
                 <button onClick={requestHandover}
                   className="w-full text-xs font-bold text-slate-600 border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700 rounded-xl py-2 transition-all flex items-center justify-center gap-2">
