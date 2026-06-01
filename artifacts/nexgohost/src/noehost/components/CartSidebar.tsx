@@ -62,7 +62,7 @@ const CartSidebar: React.FC = () => {
       const returnPath = transferItems.length > 0
         ? '/client/domains/transfer'
         : items.some(i => i.type === 'domain')
-          ? '/client/domains/search'
+          ? '/client/domain-search'
           : '/client/orders/new';
       navigate(`/client/login?redirect=${encodeURIComponent(returnPath)}`);
       return;
@@ -104,7 +104,7 @@ const CartSidebar: React.FC = () => {
     const hostingItems = otherItems.filter(i => i.type !== 'domain');
 
     if (domainOnlyItems.length > 0 && hostingItems.length === 0) {
-      navigate('/client/domains/search');
+      navigate('/client/domain-search');
     } else {
       navigate('/client/orders/new');
     }

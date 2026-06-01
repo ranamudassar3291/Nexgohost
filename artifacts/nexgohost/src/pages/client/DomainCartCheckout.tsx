@@ -110,7 +110,7 @@ export default function DomainCartCheckout() {
       const next = prev.filter(c => c.domain !== domain);
       if (next.length === 0) {
         localStorage.removeItem(DOMAIN_CART_KEY);
-        setLocation("/client/domains/search");
+        setLocation("/client/domain-search");
       } else {
         localStorage.setItem(DOMAIN_CART_KEY, JSON.stringify(next));
       }
@@ -308,7 +308,7 @@ export default function DomainCartCheckout() {
               <ShoppingCart size={15} className="text-primary" />
               <h2 className="font-semibold text-foreground text-sm">Your Order ({items.length} domain{items.length > 1 ? "s" : ""})</h2>
             </div>
-            <button onClick={() => setLocation("/client/domains/search")}
+            <button onClick={() => setLocation("/client/domain-search")}
               className="text-xs text-primary hover:underline flex items-center gap-1">
               <RefreshCw size={11} /> Edit Cart
             </button>

@@ -92,6 +92,7 @@ import VpsOrderPage from "@/pages/client/VpsOrderPage";
 import NoEmailManage from "@/pages/client/NoEmailManage";
 import EmailHostingCheckout from "@/pages/client/EmailHostingCheckout";
 import DomainOrder from "@/pages/client/DomainOrder";
+import DomainCartCheckout from "@/pages/client/DomainCartCheckout";
 import EmailDnsSetup from "@/pages/client/EmailDnsSetup";
 import ClientEmailOrders from "@/pages/client/ClientEmailOrders";
 import HelpCenter from "@/pages/client/HelpCenter";
@@ -573,6 +574,9 @@ function RouterRoot() {
       </Route>
       <Route path="/order/domain">
         <DomainOrder />
+      </Route>
+      <Route path="/checkout/domains">
+        <DomainCartCheckout />
       </Route>
       <Route path="/checkout/email-hosting">
         <EmailHostingCheckout />

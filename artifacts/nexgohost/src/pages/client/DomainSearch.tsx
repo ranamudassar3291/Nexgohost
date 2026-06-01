@@ -202,16 +202,24 @@ export default function DomainSearch() {
   }
 
   function addToCart(r: SearchResult, action: "register" | "transfer" = "register") {
-    const { price, period: p } = getPrice(r, r.domain, isPk(r.domain) ? 2 : period);
+    const { price, period: p, original } = getPrice(r, r.domain, isPk(r.domain) ? 2 : period);
     if (!price) return;
-    // Direct to /order/domain — no cart, no localStorage
-    const qs = new URLSearchParams({
+    const item: CartItem = {
       domain: r.domain,
+      period: p,
+      price,
+      originalPrice: original,
+      isFreeWithHosting: r.isFreeWithHosting,
       action,
-      period: String(p),
-      price: String(price),
+    };
+    setCart(prev => {
+      const already = prev.find(c => c.domain === r.domain);
+      const next = already ? prev : [...prev, item];
+      localStorage.setItem(DOMAIN_CART_KEY, JSON.stringify(next));
+      return next;
     });
-    setLocation(`/order/domain?${qs.toString()}`);
+    setCartOpen(true);
+    toast({ title: "Added to cart!", description: `${r.domain} has been added to your cart.` });
   }
 
   function goTransfer(domain: string) {
