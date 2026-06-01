@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ShoppingCart, ArrowLeft, Loader2, CheckCircle,
-  FileText, Zap, DollarSign, Calendar, User, Package,
-  Globe,
+  ShoppingCart, ArrowLeft, Loader2, CheckCircle, FileText, Zap,
+  DollarSign, Calendar, User, Package, Globe, Search, Plus,
+  X, UserPlus, CheckCircle2, AlertCircle, Clock, Eye, EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,10 @@ import { useCurrency } from "@/context/CurrencyProvider";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-interface Client { id: string; firstName: string; lastName: string; email: string; }
+interface Client {
+  id: string; firstName: string; lastName: string;
+  email: string; phone?: string; company?: string;
+}
 interface HostingPackage {
   id: string; name: string; price: number; yearlyPrice: number | null;
   module: string; modulePlanId: string | null; modulePlanName: string | null;
@@ -51,12 +54,21 @@ function formatDisplayDate(iso: string): string {
 }
 
 const MODULE_BADGES: Record<string, { label: string; color: string; icon: string }> = {
-  cpanel:      { label: "cPanel/WHM", color: "bg-orange-500/10 border-orange-500/20 text-orange-400",   icon: "⚡" },
-  "20i":       { label: "20i",        color: "bg-blue-500/10 border-blue-500/20 text-blue-400",         icon: "🔵" },
-  directadmin: { label: "DirectAdmin",color: "bg-amber-500/10 border-amber-500/20 text-amber-400",     icon: "🟠" },
-  plesk:       { label: "Plesk",      color: "bg-purple-500/10 border-purple-500/20 text-purple-400",   icon: "🟣" },
-  none:        { label: "None",       color: "bg-secondary/50 border-border text-muted-foreground",     icon: "—" },
+  cpanel:      { label: "cPanel/WHM", color: "bg-orange-500/10 border-orange-500/20 text-orange-400", icon: "⚡" },
+  "20i":       { label: "20i",        color: "bg-blue-500/10 border-blue-500/20 text-blue-400",       icon: "🔵" },
+  directadmin: { label: "DirectAdmin",color: "bg-amber-500/10 border-amber-500/20 text-amber-400",   icon: "🟠" },
+  plesk:       { label: "Plesk",      color: "bg-purple-500/10 border-purple-500/20 text-purple-400", icon: "🟣" },
+  none:        { label: "None",       color: "bg-secondary/50 border-border text-muted-foreground",   icon: "—"  },
 };
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function AddOrder() {
   const [, setLocation] = useLocation();
@@ -64,10 +76,30 @@ export default function AddOrder() {
   const { formatPrice } = useCurrency();
   const queryClient = useQueryClient();
 
-  const [clients, setClients] = useState<Client[]>([]);
   const [packages, setPackages] = useState<HostingPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Client search state
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientResults, setClientResults] = useState<Client[]>([]);
+  const [clientSearchLoading, setClientSearchLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientDropOpen, setClientDropOpen] = useState(false);
+  const clientRef = useRef<HTMLDivElement>(null);
+  const debouncedSearch = useDebounce(clientSearch, 300);
+
+  // Add client modal state
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [addClientForm, setAddClientForm] = useState({ firstName: "", lastName: "", email: "", phone: "", password: "", company: "" });
+  const [addClientLoading, setAddClientLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+
+  // Domain check state
+  const [domainCheckStatus, setDomainCheckStatus] = useState<"idle" | "checking" | "available" | "taken" | "registered">("idle");
+  const debouncedDomain = useDebounce("", 600);
+  const [domainInput, setDomainInput] = useState("");
+  const debouncedDomainInput = useDebounce(domainInput, 600);
 
   const [form, setForm] = useState({
     clientId: "",
@@ -77,7 +109,7 @@ export default function AddOrder() {
     domain: "",
     amount: "",
     billingCycle: "monthly",
-    dueDate: (() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d.toISOString().split("T")[0]; })(),
+    dueDate: addMonthsToToday(1),
     paymentStatus: "unpaid",
     moduleType: "none",
     modulePlanId: "",
@@ -90,9 +122,100 @@ export default function AddOrder() {
   const [result, setResult] = useState<{ order: any; invoice: any } | null>(null);
 
   useEffect(() => {
-    apiFetch("/api/admin/clients?limit=200").then(d => setClients(d.clients || [])).catch(() => {});
     apiFetch("/api/admin/packages").then(d => setPackages(d || [])).catch(() => {});
   }, []);
+
+  // Load initial 5 clients
+  useEffect(() => {
+    setClientSearchLoading(true);
+    apiFetch("/api/admin/clients?limit=5")
+      .then(d => setClientResults(d.clients || []))
+      .catch(() => {})
+      .finally(() => setClientSearchLoading(false));
+  }, []);
+
+  // Client search debounced
+  useEffect(() => {
+    setClientSearchLoading(true);
+    const q = debouncedSearch ? `?search=${encodeURIComponent(debouncedSearch)}&limit=8` : "?limit=5";
+    apiFetch(`/api/admin/clients${q}`)
+      .then(d => setClientResults(d.clients || []))
+      .catch(() => {})
+      .finally(() => setClientSearchLoading(false));
+  }, [debouncedSearch]);
+
+  // Domain DB check — searches our system to see if domain already exists
+  useEffect(() => {
+    const domain = debouncedDomainInput.trim();
+    if (!domain || !domain.includes(".")) { setDomainCheckStatus("idle"); return; }
+    setDomainCheckStatus("checking");
+    apiFetch(`/api/admin/domains?search=${encodeURIComponent(domain)}&limit=10`)
+      .then((res: any) => {
+        const list: any[] = res.data || [];
+        // Match exact domain (name+tld or full domain)
+        const found = list.find((d: any) => {
+          const full = ((d.name || "") + (d.tld || "")).toLowerCase().replace(/^\./, "");
+          const full2 = (d.domainName || d.domain || "").toLowerCase();
+          return full === domain.toLowerCase() || full2 === domain.toLowerCase();
+        });
+        setDomainCheckStatus(found ? "registered" : "available");
+      })
+      .catch(() => setDomainCheckStatus("idle"));
+  }, [debouncedDomainInput]);
+
+  // Close client dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (clientRef.current && !clientRef.current.contains(e.target as Node)) {
+        setClientDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleSelectClient = (c: Client) => {
+    setSelectedClient(c);
+    setForm(f => ({ ...f, clientId: c.id }));
+    setClientSearch("");
+    setClientDropOpen(false);
+    setErrors(e => ({ ...e, clientId: "" }));
+  };
+
+  const handleClearClient = () => {
+    setSelectedClient(null);
+    setForm(f => ({ ...f, clientId: "" }));
+    setClientSearch("");
+    setClientDropOpen(true);
+  };
+
+  const handleDomainInput = (val: string) => {
+    setDomainInput(val);
+    setForm(f => {
+      const next = { ...f, domain: val };
+      // Auto-fill item name from domain
+      if (f.type === "domain" && val.trim()) next.itemName = `Domain — ${val.trim()}`;
+      return next;
+    });
+    setErrors(e => ({ ...e, domain: "" }));
+  };
+
+  const handleTypeChange = (t: string) => {
+    setForm(f => {
+      const next = { ...f, type: t, itemId: "", itemName: "", amount: "" };
+      // Domain → auto yearly
+      if (t === "domain") {
+        next.billingCycle = "yearly";
+        next.dueDate = addMonthsToToday(12);
+        if (f.domain) next.itemName = `Domain — ${f.domain}`;
+      } else if (t === "hosting") {
+        next.billingCycle = "monthly";
+        next.dueDate = addMonthsToToday(1);
+      }
+      return next;
+    });
+    setSelectedPackage(null);
+  };
 
   const handlePackageChange = (pkgId: string) => {
     const pkg = packages.find(p => p.id === pkgId);
@@ -117,11 +240,13 @@ export default function AddOrder() {
 
   const handleBillingCycleChange = (cycle: string) => {
     setForm(f => {
-      const nextForm = { ...f, billingCycle: cycle };
+      const next = { ...f, billingCycle: cycle };
       if (selectedPackage) {
-        nextForm.amount = String(cycle === "yearly" && selectedPackage.yearlyPrice ? selectedPackage.yearlyPrice : selectedPackage.price);
+        next.amount = String(cycle === "yearly" && selectedPackage.yearlyPrice ? selectedPackage.yearlyPrice : selectedPackage.price);
       }
-      return nextForm;
+      // Auto-update due date
+      next.dueDate = addMonthsToToday(cycle === "yearly" ? 12 : 1);
+      return next;
     });
   };
 
@@ -130,11 +255,41 @@ export default function AddOrder() {
     setErrors(err => ({ ...err, [field]: "" }));
   };
 
+  const handleAddClient = async () => {
+    const { firstName, lastName, email, password } = addClientForm;
+    if (!firstName || !lastName || !email || !password) {
+      toast({ title: "All required fields must be filled", variant: "destructive" }); return;
+    }
+    setAddClientLoading(true);
+    try {
+      const data = await apiFetch("/api/admin/clients", {
+        method: "POST",
+        body: JSON.stringify(addClientForm),
+      });
+      const newClient: Client = {
+        id: data.id || data.client?.id,
+        firstName, lastName, email,
+        phone: addClientForm.phone,
+        company: addClientForm.company,
+      };
+      setClientResults(r => [newClient, ...r]);
+      handleSelectClient(newClient);
+      setShowAddClient(false);
+      setAddClientForm({ firstName: "", lastName: "", email: "", phone: "", password: "", company: "" });
+      toast({ title: "Client added", description: `${firstName} ${lastName} has been created.` });
+    } catch (err: any) {
+      toast({ title: "Failed to add client", description: err.message, variant: "destructive" });
+    } finally {
+      setAddClientLoading(false);
+    }
+  };
+
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.clientId) e.clientId = "Client is required";
     if (!form.itemName.trim()) e.itemName = "Item name is required";
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) < 0) e.amount = "Valid amount is required";
+    if (form.type === "domain" && !form.domain.trim()) e.domain = "Domain name is required";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -182,7 +337,6 @@ export default function AddOrder() {
             </div>
             <h2 className="text-2xl font-display font-bold text-foreground">Order Created!</h2>
             <p className="text-muted-foreground">Order for <strong>{result.order?.itemName}</strong> has been saved successfully.</p>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left mt-4">
               <div className="bg-secondary/50 border border-border rounded-xl p-4 space-y-1">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Order</p>
@@ -203,7 +357,6 @@ export default function AddOrder() {
                 </div>
               )}
             </div>
-
             <div className="flex gap-3 justify-center pt-2">
               <Button onClick={() => setLocation("/admin/orders")} className="bg-primary hover:bg-primary/90">
                 <ShoppingCart size={16} className="mr-2" /> View Orders
@@ -213,7 +366,11 @@ export default function AddOrder() {
                   <FileText size={16} className="mr-2" /> View Invoices
                 </Button>
               )}
-              <Button variant="outline" onClick={() => { setResult(null); setForm(f => ({ ...f, itemId: "", itemName: "", amount: "", notes: "" })); setSelectedPackage(null); }}>
+              <Button variant="outline" onClick={() => {
+                setResult(null);
+                setForm(f => ({ ...f, itemId: "", itemName: "", amount: "", notes: "" }));
+                setSelectedPackage(null);
+              }}>
                 Create Another
               </Button>
             </div>
@@ -238,33 +395,118 @@ export default function AddOrder() {
       </div>
 
       <div className="max-w-2xl space-y-5">
-        {/* Client & Type */}
+
+        {/* ── Section 1: Client & Order Type ── */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-3 pb-4 border-b border-border/50">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <User size={20} className="text-primary" />
             </div>
-            <div>
+            <div className="flex-1">
               <h2 className="font-semibold text-foreground">Client & Order Type</h2>
               <p className="text-xs text-muted-foreground">Who this order is for and what type it is</p>
             </div>
           </div>
 
+          {/* Client Search */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground/80">Client *</label>
-            <select value={form.clientId} onChange={set("clientId")}
-              className={`w-full h-10 rounded-xl border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${errors.clientId ? "border-destructive" : "border-input"}`}>
-              <option value="">Select a client…</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} — {c.email}</option>)}
-            </select>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground/80">Client *</label>
+              <button type="button" onClick={() => setShowAddClient(true)}
+                className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-semibold transition-colors">
+                <UserPlus size={13} /> Add New Client
+              </button>
+            </div>
+
+            {selectedClient ? (
+              /* Selected client pill */
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-black text-primary">
+                    {selectedClient.firstName[0]}{selectedClient.lastName[0]}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {selectedClient.firstName} {selectedClient.lastName}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{selectedClient.email}
+                    {selectedClient.phone && <span className="ml-2 text-muted-foreground/70">· {selectedClient.phone}</span>}
+                  </p>
+                </div>
+                <button type="button" onClick={handleClearClient}
+                  className="w-6 h-6 rounded-full hover:bg-destructive/10 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              /* Search box + dropdown */
+              <div className="relative" ref={clientRef}>
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={clientSearch}
+                  onChange={e => { setClientSearch(e.target.value); setClientDropOpen(true); }}
+                  onFocus={() => setClientDropOpen(true)}
+                  placeholder="Search by name, email or phone…"
+                  className={`pl-9 ${errors.clientId ? "border-destructive" : ""}`}
+                />
+                {clientSearchLoading && (
+                  <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+                )}
+
+                <AnimatePresence>
+                  {clientDropOpen && (
+                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                      className="absolute z-50 top-full mt-1.5 left-0 right-0 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+                      {clientResults.length === 0 && !clientSearchLoading && (
+                        <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                          {clientSearch ? "No clients found" : "No clients yet"}
+                        </div>
+                      )}
+                      {!clientSearch && clientResults.length > 0 && (
+                        <div className="px-3 py-1.5 border-b border-border/50">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Recent Clients</span>
+                        </div>
+                      )}
+                      {clientResults.map(c => (
+                        <button key={c.id} type="button" onClick={() => handleSelectClient(c)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/60 transition-colors text-left">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-black text-primary">
+                              {c.firstName[0]}{c.lastName[0]}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {c.firstName} {c.lastName}
+                              {c.company && <span className="ml-1.5 text-xs text-muted-foreground font-normal">({c.company})</span>}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {c.email}{c.phone && ` · ${c.phone}`}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                      <div className="px-3 py-2 border-t border-border/50">
+                        <button type="button" onClick={() => { setShowAddClient(true); setClientDropOpen(false); }}
+                          className="w-full flex items-center gap-2 py-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+                          <Plus size={13} /> Add new client
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
             {errors.clientId && <p className="text-xs text-destructive">{errors.clientId}</p>}
           </div>
 
+          {/* Order Type */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground/80">Order Type</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {["hosting", "domain", "upgrade", "renewal"].map(t => (
-                <button key={t} type="button" onClick={() => setForm(f => ({ ...f, type: t, itemId: "", itemName: "", amount: "" }))}
+                <button key={t} type="button" onClick={() => handleTypeChange(t)}
                   className={`px-3 py-2.5 rounded-xl border text-sm font-medium capitalize transition-all ${form.type === t ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
                   {t}
                 </button>
@@ -273,7 +515,7 @@ export default function AddOrder() {
           </div>
         </div>
 
-        {/* Package / Item Selection */}
+        {/* ── Section 2: Package / Item ── */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-3 pb-4 border-b border-border/50">
             <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
@@ -305,7 +547,7 @@ export default function AddOrder() {
             </div>
           )}
 
-          {/* Module info from package */}
+          {/* Module info badge */}
           <AnimatePresence>
             {selectedPackage && form.moduleType !== "none" && (
               <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -326,7 +568,7 @@ export default function AddOrder() {
             )}
           </AnimatePresence>
 
-          {/* Domain field for domain orders or optional for hosting */}
+          {/* Domain field */}
           {(form.type === "domain" || form.type === "hosting") && (
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground/80">
@@ -334,20 +576,55 @@ export default function AddOrder() {
               </label>
               <div className="relative">
                 <Globe size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input value={form.domain} onChange={set("domain")} placeholder="example.com" className="pl-9" />
+                <Input
+                  value={domainInput}
+                  onChange={e => handleDomainInput(e.target.value)}
+                  placeholder="example.com"
+                  className={`pl-9 pr-10 ${errors.domain ? "border-destructive" : domainCheckStatus === "registered" ? "border-amber-500/60" : domainCheckStatus === "available" ? "border-emerald-500/60" : ""}`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {domainCheckStatus === "checking" && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
+                  {domainCheckStatus === "available" && <CheckCircle2 size={14} className="text-emerald-500" />}
+                  {domainCheckStatus === "registered" && <AlertCircle size={14} className="text-amber-500" />}
+                </div>
               </div>
+              <AnimatePresence>
+                {domainCheckStatus === "registered" && (
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="text-xs text-amber-600 flex items-center gap-1.5">
+                    <AlertCircle size={11} /> Already registered in your system
+                  </motion.p>
+                )}
+                {domainCheckStatus === "available" && (
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="text-xs text-emerald-600 flex items-center gap-1.5">
+                    <CheckCircle2 size={11} /> Not in your system — looks new
+                  </motion.p>
+                )}
+              </AnimatePresence>
+              {errors.domain && <p className="text-xs text-destructive">{errors.domain}</p>}
             </div>
           )}
 
+          {/* Item Name — auto-filled */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground/80">Item Name *</label>
-            <Input value={form.itemName} onChange={set("itemName")} placeholder="e.g. Business Hosting Plan"
-              className={errors.itemName ? "border-destructive" : ""} />
+            <Input
+              value={form.itemName}
+              onChange={set("itemName")}
+              placeholder={form.type === "domain" ? "Domain — example.com" : form.type === "hosting" ? "e.g. Business Hosting Plan" : "Item name…"}
+              className={errors.itemName ? "border-destructive" : ""}
+            />
             {errors.itemName && <p className="text-xs text-destructive">{errors.itemName}</p>}
+            {(selectedPackage || (form.type === "domain" && form.domain)) && (
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <CheckCircle2 size={10} className="text-primary" /> Auto-filled from {form.type === "domain" ? "domain name" : "selected package"}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Billing & Pricing */}
+        {/* ── Section 3: Billing & Pricing ── */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-3 pb-4 border-b border-border/50">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
@@ -360,11 +637,17 @@ export default function AddOrder() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground/80">Billing Cycle</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground/80">Billing Cycle</label>
+              {form.type === "domain" && (
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Auto-set to Yearly for domains</span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {["monthly", "yearly"].map(cycle => (
                 <button key={cycle} type="button" onClick={() => handleBillingCycleChange(cycle)}
-                  className={`py-2.5 rounded-xl border text-sm font-medium capitalize transition-all ${form.billingCycle === cycle ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                  disabled={form.type === "domain"}
+                  className={`py-2.5 rounded-xl border text-sm font-medium capitalize transition-all disabled:opacity-60 disabled:cursor-not-allowed ${form.billingCycle === cycle ? "bg-primary/10 border-primary/40 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
                   {cycle}
                   {selectedPackage && (
                     <span className="ml-2 text-xs opacity-70">
@@ -394,7 +677,7 @@ export default function AddOrder() {
           </div>
         </div>
 
-        {/* Schedule & Notes */}
+        {/* ── Section 4: Schedule & Notes ── */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-3 pb-4 border-b border-border/50">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
@@ -429,16 +712,14 @@ export default function AddOrder() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground/80">Initial Status</label>
-              <select value={form.status} onChange={set("status")}
-                className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground/80">Initial Status</label>
+            <select value={form.status} onChange={set("status")}
+              className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
           </div>
 
           <div className="space-y-1.5">
@@ -449,18 +730,15 @@ export default function AddOrder() {
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/* ── Save Actions ── */}
         <div className="bg-card border border-border rounded-2xl p-6 space-y-3">
           <h2 className="font-semibold text-foreground mb-4">Save Order</h2>
-
-          {/* Approve & Generate Invoice (primary action) */}
           <Button type="button" onClick={() => handleSave(true, true)} disabled={loading}
             className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20">
             {loading ? <Loader2 size={18} className="animate-spin mr-2" /> : <CheckCircle size={18} className="mr-2" />}
             Approve Order & Generate Invoice
           </Button>
           <p className="text-xs text-center text-muted-foreground">Activates service + generates invoice{form.paymentStatus === "paid" ? " (marked paid)" : " (unpaid)"}</p>
-
           <div className="grid grid-cols-2 gap-3 pt-2">
             <Button type="button" variant="outline" onClick={() => handleSave(false, true)} disabled={loading} className="h-11">
               {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : <FileText size={16} className="mr-2" />}
@@ -471,12 +749,88 @@ export default function AddOrder() {
               Save Order Only
             </Button>
           </div>
-
           <Button type="button" variant="ghost" onClick={() => setLocation("/admin/orders")} className="w-full text-muted-foreground">
             Cancel
           </Button>
         </div>
       </div>
+
+      {/* ── Add Client Modal ── */}
+      <AnimatePresence>
+        {showAddClient && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={e => { if (e.target === e.currentTarget) setShowAddClient(false); }}>
+            <motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-5">
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <UserPlus size={18} className="text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground">Add New Client</h3>
+                    <p className="text-xs text-muted-foreground">Create client and add to this order</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowAddClient(false)}
+                  className="w-8 h-8 rounded-xl hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground/70">First Name *</label>
+                  <Input value={addClientForm.firstName} onChange={e => setAddClientForm(f => ({ ...f, firstName: e.target.value }))} placeholder="John" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground/70">Last Name *</label>
+                  <Input value={addClientForm.lastName} onChange={e => setAddClientForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Doe" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground/70">Email *</label>
+                <Input type="email" value={addClientForm.email} onChange={e => setAddClientForm(f => ({ ...f, email: e.target.value }))} placeholder="john@example.com" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground/70">Password *</label>
+                <div className="relative">
+                  <Input type={showPass ? "text" : "password"} value={addClientForm.password}
+                    onChange={e => setAddClientForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="Min 8 characters" className="pr-10" />
+                  <button type="button" onClick={() => setShowPass(s => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground/70">Phone</label>
+                  <Input value={addClientForm.phone} onChange={e => setAddClientForm(f => ({ ...f, phone: e.target.value }))} placeholder="+92 300 0000000" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground/70">Company</label>
+                  <Input value={addClientForm.company} onChange={e => setAddClientForm(f => ({ ...f, company: e.target.value }))} placeholder="Optional" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button onClick={handleAddClient} disabled={addClientLoading} className="flex-1 bg-primary hover:bg-primary/90">
+                  {addClientLoading ? <Loader2 size={14} className="animate-spin mr-2" /> : <UserPlus size={14} className="mr-2" />}
+                  {addClientLoading ? "Creating…" : "Create & Select Client"}
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddClient(false)} className="flex-1">Cancel</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
