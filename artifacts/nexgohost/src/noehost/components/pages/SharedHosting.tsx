@@ -294,14 +294,16 @@ const SharedHosting: React.FC = () => {
               <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">Pricing Plans</div>
               <h2 className="text-4xl font-black text-gray-900 mb-3">{pg.plansTitle || 'Simple, Transparent Pricing'}</h2>
               <p className="text-gray-500 font-medium">{pg.plansSubtitle || 'No hidden fees. Cancel anytime.'}</p>
-              <div className="flex items-center justify-center gap-4 mt-6">
-                <span className={`text-sm font-black ${!yearly ? 'text-gray-900' : 'text-gray-400'}`}>Monthly</span>
-                <button onClick={() => setYearly(y => !y)} className={`w-12 h-6 rounded-full transition-all relative ${yearly ? 'bg-primary' : 'bg-gray-300'}`}>
-                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${yearly ? 'left-7' : 'left-1'}`} />
-                </button>
-                <span className={`text-sm font-black ${yearly ? 'text-gray-900' : 'text-gray-400'}`}>
-                  Annual <span className="text-emerald-500 ml-1">Save 33%</span>
-                </span>
+              <div className="flex items-center justify-center mt-6">
+                <div className="inline-flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                  <button onClick={() => setYearly(false)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${!yearly ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-700'}`}>
+                    Monthly
+                  </button>
+                  <button onClick={() => setYearly(true)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 ${yearly ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-700'}`}>
+                    Annual
+                    <span className="bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none">Save 33%</span>
+                  </button>
+                </div>
               </div>
             </div>
 

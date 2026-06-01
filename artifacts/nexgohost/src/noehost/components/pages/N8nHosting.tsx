@@ -326,22 +326,18 @@ const N8nHosting: React.FC = () => {
             </h2>
 
             {/* Billing toggle */}
-            <div className="flex items-center justify-center gap-4 mt-8">
-              <button
-                onClick={() => setYearly(false)}
-                className={`text-sm font-bold px-4 py-2 rounded-lg transition-all ${!yearly ? 'text-white bg-white/10' : 'text-gray-500'}`}>
-                Monthly
-              </button>
-              <button
-                onClick={() => setYearly(true)}
-                className={`text-sm font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${yearly ? 'text-white bg-white/10' : 'text-gray-500'}`}>
-                Yearly
-                {maxSavePercent > 0 && (
-                  <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.2)', color: '#818CF8' }}>
-                    Save up to {maxSavePercent}%
-                  </span>
-                )}
-              </button>
+            <div className="flex items-center justify-center mt-8">
+              <div className="inline-flex items-center bg-white/8 border border-white/10 rounded-xl p-1 gap-1">
+                <button onClick={() => setYearly(false)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${!yearly ? 'bg-white text-gray-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+                  Monthly
+                </button>
+                <button onClick={() => setYearly(true)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 ${yearly ? 'bg-white text-gray-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+                  Annual
+                  {maxSavePercent > 0 && (
+                    <span className="bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none">Save {maxSavePercent}%</span>
+                  )}
+                </button>
+              </div>
             </div>
           </motion.div>
 

@@ -198,12 +198,16 @@ const VPSHosting: React.FC = () => {
               <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary-300 text-xs font-black px-4 py-2 rounded-full mb-4 uppercase tracking-widest">VPS Plans</div>
               <h2 className="text-4xl font-black text-white mb-3">{pg.plansTitle || 'Choose Your Power'}</h2>
               <p className="text-slate-400 font-medium">{pg.plansDesc || 'All plans include 10 Gbps uplink, DDoS protection & instant provisioning.'}</p>
-              <div className="flex items-center justify-center gap-4 mt-6">
-                <span className={`text-sm font-black ${!yearly ? 'text-white' : 'text-slate-500'}`}>Monthly</span>
-                <button onClick={() => setYearly(y => !y)} className={`w-12 h-6 rounded-full transition-all relative ${yearly ? 'bg-primary' : 'bg-white/10'}`}>
-                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${yearly ? 'left-7' : 'left-1'}`} />
-                </button>
-                <span className={`text-sm font-black ${yearly ? 'text-white' : 'text-slate-500'}`}>Annual <span className="text-emerald-400 ml-1">Save 50%</span></span>
+              <div className="flex items-center justify-center mt-6">
+                <div className="inline-flex items-center bg-white/8 border border-white/10 rounded-xl p-1 gap-1">
+                  <button onClick={() => setYearly(false)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${!yearly ? 'bg-white text-gray-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+                    Monthly
+                  </button>
+                  <button onClick={() => setYearly(true)} className={`px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 ${yearly ? 'bg-white text-gray-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}>
+                    Annual
+                    <span className="bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none">Save 50%</span>
+                  </button>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
