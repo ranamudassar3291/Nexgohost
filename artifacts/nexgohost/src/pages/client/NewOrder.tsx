@@ -761,7 +761,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // ── Guest auth state ─────────────────────────────────────────────────────
   const { login: authLogin } = useAuth();
   const qc = useQueryClient();
-  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token") || localStorage.getItem("noehost_token") || "");
+  const [isLoggedIn,    setIsLoggedIn]    = useState(!!(localStorage.getItem("token") || localStorage.getItem("noehost_token")));
   const [authMode,      setAuthMode]      = useState<"login" | "register">("login");
   const [authEmail,     setAuthEmail]     = useState("");
   const [authPassword,  setAuthPassword]  = useState("");
