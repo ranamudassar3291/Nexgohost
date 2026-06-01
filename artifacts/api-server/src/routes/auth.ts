@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
 import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { decryptField } from "../lib/fieldCrypto.js";
 import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail } from "../lib/email.js";
 import { sendToClientPhone } from "../lib/whatsapp.js";
 import { getSecurityConfig, verifyCaptcha, recordFailedAttempt, isIpBlockedInDb, getClientIp } from "../lib/security.js";
@@ -414,7 +415,11 @@ interface GoogleSettings {
   allowedDomains: string[];
 }
 
-async function getGoogleSettings(): Promise<GoogleSettings> {
+interface GoogleSettingsWithSiteUrl extends GoogleSettings {
+  siteUrl: string;
+}
+
+async function getGoogleSettings(): Promise<GoogleSettingsWithSiteUrl> {
   try {
     const rows = await db.select().from(settingsTable);
     const map: Record<string, string> = {};
@@ -423,13 +428,23 @@ async function getGoogleSettings(): Promise<GoogleSettings> {
     const allowedDomains = rawDomains
       ? rawDomains.split(",").map(d => d.trim().toLowerCase()).filter(Boolean)
       : [];
+    const rawSecret = map["google_client_secret"] || "";
+    const clientSecret = rawSecret
+      ? decryptField(rawSecret)
+      : (process.env.GOOGLE_CLIENT_SECRET || "");
     return {
       clientId: map["google_client_id"] || process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: map["google_client_secret"] || process.env.GOOGLE_CLIENT_SECRET || "",
+      clientSecret,
       allowedDomains,
+      siteUrl: (map["brand_website"] || process.env.FRONTEND_URL || "").replace(/\/$/, ""),
     };
   } catch {
-    return { clientId: process.env.GOOGLE_CLIENT_ID || "", clientSecret: process.env.GOOGLE_CLIENT_SECRET || "", allowedDomains: [] };
+    return {
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      allowedDomains: [],
+      siteUrl: process.env.FRONTEND_URL || "",
+    };
   }
 }
 
@@ -450,10 +465,15 @@ async function isEmailVerificationEnabled(): Promise<boolean> {
   }
 }
 
-function buildCallbackUrl(req: any): string {
+function buildFrontendBase(req: any, siteUrl?: string): string {
+  if (siteUrl) return siteUrl;
   const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"] || process.env.REPLIT_DOMAINS || "localhost:8080";
-  return `${proto}://${host}/api/auth/google/callback`;
+  const host = req.headers["x-forwarded-host"] || req.headers["host"] || process.env.REPLIT_DOMAINS || "";
+  return `${proto}://${host}`;
+}
+
+function buildCallbackUrl(req: any, siteUrl?: string): string {
+  return `${buildFrontendBase(req, siteUrl)}/api/auth/google/callback`;
 }
 
 async function findOrCreateGoogleUser(googleUser: { sub: string; email: string; name: string; given_name?: string; family_name?: string }) {
@@ -510,17 +530,13 @@ router.get("/auth/google/config", async (_req, res) => {
 
 // GET /api/auth/google/start — initiate server-side OAuth code flow
 router.get("/auth/google/start", async (req, res) => {
-  const { clientId, clientSecret } = await getGoogleSettings();
+  const { clientId, clientSecret, siteUrl } = await getGoogleSettings();
+  const frontendBase = buildFrontendBase(req, siteUrl);
   if (!clientId || !clientSecret) {
-    const frontendBase = (() => {
-      const proto = req.headers["x-forwarded-proto"] || "https";
-      const host = req.headers["x-forwarded-host"] || req.headers["host"] || "";
-      return `${proto}://${host}`;
-    })();
     res.redirect(`${frontendBase}/client/login?error=google_not_configured`);
     return;
   }
-  const callbackUrl = buildCallbackUrl(req);
+  const callbackUrl = buildCallbackUrl(req, siteUrl);
   const state = crypto.randomUUID();
   const params = new URLSearchParams({
     client_id: clientId,
@@ -538,11 +554,12 @@ router.get("/auth/google/start", async (req, res) => {
 router.get("/auth/google/callback", async (req, res) => {
   const ip = req.headers["x-forwarded-for"]?.toString() || req.socket.remoteAddress || "";
   const ua = req.headers["user-agent"] || "";
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"] || "";
-  const frontendBase = `${proto}://${host}`;
 
   const { code, error } = req.query as Record<string, string>;
+
+  // Load settings first so we always redirect to the correct frontend domain
+  const { clientId, clientSecret, allowedDomains, siteUrl } = await getGoogleSettings();
+  const frontendBase = buildFrontendBase(req, siteUrl);
 
   if (error) {
     await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "denied", ipAddress: ip, userAgent: ua, details: error });
@@ -556,13 +573,12 @@ router.get("/auth/google/callback", async (req, res) => {
   }
 
   try {
-    const { clientId, clientSecret, allowedDomains } = await getGoogleSettings();
     if (!clientId || !clientSecret) {
       res.redirect(`${frontendBase}/client/login?error=google_not_configured`);
       return;
     }
 
-    const callbackUrl = buildCallbackUrl(req);
+    const callbackUrl = buildCallbackUrl(req, siteUrl);
     const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
