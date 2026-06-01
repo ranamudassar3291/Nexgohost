@@ -1,0 +1,30 @@
+You are an expert Full-Stack Engineer. We need to create an automated email broadcast system inside the Admin Dashboard so the admin can notify all registered clients about the official platform launch with one click. 
+
+The system must automatically handle the HTML email template generation and execution natively on the backend.
+
+---
+### 1. THE AUTOMATED BACKEND ROUTE & TEMPLATE (`/api/admin/launch-broadcast`)
+- Create a secure POST route for admin broadcasting.
+- Inside this controller, bake in the pre-compiled professional HTML template natively:
+  * Subject: "🚀 Noehost is Officially LIVE: Upgrade Your Digital Infrastructure Now!"
+  * Body Styling: Premium corporate look featuring deep purple (#7C3AED) headers, solid white surfaces (#ffffff), crisp narrow grids, and a centralized call-to-action button pointing directly to 'https://www.noehost.com'.
+  * Text Content: Match our official Urdu/English blend launch message perfectly ("Assalam-o-Alaikum! Humein yeh batate hue bohot khushi ho rahi hai ke Noehost ki brand new, high-speed premium website officially launch ho chuki hai!...").
+  * Sign-off: "Muhammad Arsalan - Founder, Noehost 👑".
+
+---
+### 2. BROADCAST EXECUTION & RATE-LIMITING LOOP
+- When the endpoint is triggered by the administrator:
+  1. Fetch all active user emails from the local PostgreSQL `users` table.
+  2. Map through the email addresses array asynchronously.
+  3. Send the HTML payload via our active backend SMTP transporter mechanism (Nodemailer or active mail setup).
+  4. Implement a micro-delay of 200ms between each email block sequence to prevent server connection choking or spam flags on external mail filters (like Gmail/Outlook).
+
+---
+### 3. ADMIN USER INTERFACE LINKAGE
+- Locate the main Admin Overview or Settings viewport dashboard layout.
+- Render a beautiful, standalone card interface component matching our clean layout style guide.
+- Inside this card, place a distinct active purple button labeled: **"🚀 Broadcast Official Launch Email to All Clients"**.
+- Add a confirmation window dialog before dispatch ("Are you sure you want to send the launch email notification to all users?").
+- Display a real-time loading state or success notification toast once the background array queue finishes executing successfully.
+
+Wrap the whole integration module securely inside clean try/catch handlers. If any individual email node transaction fails, catch the error quietly and proceed to the next record in line so the complete loop never breaks. Build and deploy this entire automated loop environment across the codebase now.

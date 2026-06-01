@@ -70,6 +70,7 @@ import pagesRouter from "./pages.js";
 import abuseRouter from "./abuse.js";
 import resellerRouter from "./reseller.js";
 import noEmailRouter from "./noemail.js";
+import launchBroadcastRouter from "./launch-broadcast.js";
 
 const router: IRouter = Router();
 
@@ -148,5 +149,6 @@ router.use(pagesRouter);
 router.use(abuseRouter);
 router.use(resellerRouter);
 router.use(noEmailRouter);
+router.use(launchBroadcastRouter);
 
 export default router;

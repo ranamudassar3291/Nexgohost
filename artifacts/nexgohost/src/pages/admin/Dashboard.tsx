@@ -1,5 +1,5 @@
 import { useGetAdminDashboard } from "@workspace/api-client-react";
-import { Users, Server, Globe, DollarSign, Activity, Ticket as TicketIcon, ShieldAlert, AlertCircle, Mail, PauseCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, UserPlus, ShoppingCart, MessageCircle } from "lucide-react";
+import { Users, Server, Globe, DollarSign, Activity, Ticket as TicketIcon, ShieldAlert, AlertCircle, Mail, PauseCircle, RefreshCw, CheckCircle, XCircle, TrendingUp, UserPlus, ShoppingCart, MessageCircle, Send, Rocket } from "lucide-react";
 import { format } from "date-fns";
 import { AreaChart, Area, Tooltip, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useState } from "react";
@@ -64,6 +64,113 @@ function WaLiveLog() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function LaunchBroadcastCard() {
+  const { toast } = useToast();
+  const [state, setState] = useState<"idle" | "confirm" | "sending" | "done">("idle");
+  const [result, setResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
+
+  async function handleBroadcast() {
+    setState("sending");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/launch-broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Broadcast failed");
+      setResult({ sent: data.sent, failed: data.failed, total: data.total });
+      setState("done");
+      toast({ title: "✅ Broadcast Complete!", description: `${data.sent} emails sent successfully.` });
+    } catch (err: any) {
+      setState("idle");
+      toast({ title: "Broadcast Failed", description: err.message, variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="bg-card border border-purple-500/20 rounded-2xl overflow-hidden shadow-xl shadow-purple-500/5">
+      <div className="px-6 py-4 border-b border-border bg-gradient-to-r from-purple-500/8 to-violet-500/5 flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-purple-500/10">
+          <Rocket size={16} className="text-purple-500" />
+        </div>
+        <div>
+          <h3 className="font-bold text-foreground text-sm">Launch Broadcast</h3>
+          <p className="text-xs text-muted-foreground">Send official launch email to all registered clients</p>
+        </div>
+      </div>
+
+      <div className="px-6 py-5">
+        {state === "done" && result ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-green-500/10">
+                <CheckCircle size={18} className="text-green-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-foreground text-sm">Broadcast Complete!</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  <span className="text-green-600 font-medium">{result.sent} sent</span>
+                  {result.failed > 0 && <span className="text-red-500 font-medium"> · {result.failed} failed</span>}
+                  <span> out of {result.total} clients</span>
+                </p>
+              </div>
+            </div>
+            <button onClick={() => { setState("idle"); setResult(null); }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg border border-border hover:bg-secondary">
+              Reset
+            </button>
+          </div>
+        ) : state === "confirm" ? (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-amber-500/8 border border-amber-500/20 rounded-xl">
+              <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">Confirm Broadcast</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  This will send the official Noehost launch email to <strong>all registered clients</strong>. Each email is sent with a 200ms delay to avoid spam filters. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleBroadcast}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-purple-500/25">
+                <Send size={14} /> Yes, Send to All Clients
+              </button>
+              <button onClick={() => setState("idle")}
+                className="px-4 py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:bg-secondary transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : state === "sending" ? (
+          <div className="flex items-center gap-4 py-2">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full border-2 border-purple-500/20 border-t-purple-500 animate-spin" />
+              <Send size={14} className="text-purple-500 absolute inset-0 m-auto" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-sm">Sending launch emails…</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Processing with 200ms delay per email — please wait</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Notify all clients about the official Noehost platform launch with a professional bilingual email.
+            </p>
+            <button onClick={() => setState("confirm")}
+              className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-purple-500/25 whitespace-nowrap">
+              <Rocket size={14} />
+              🚀 Broadcast Launch Email
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -311,6 +418,9 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Launch Broadcast */}
+      <LaunchBroadcastCard />
 
       {/* WhatsApp Live Alert Log */}
       <WaLiveLog />
