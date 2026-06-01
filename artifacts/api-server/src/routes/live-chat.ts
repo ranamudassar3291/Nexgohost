@@ -264,7 +264,37 @@ RULES:
 
 ${NOEHOST_KNOWLEDGE}`;
 
-const FALLBACK = "Sorry, abhi AI temporary issue hai. Aap 'Talk to Human Agent' button use kar sakte hain ya support@noehost.com pe email kar sakte hain.";
+const FALLBACK = "Abhi AI temporarily unavailable hai. Aap **Talk to Human Agent** button use karein ya 📧 support@noehost.com pe email karein. WhatsApp: +92 315 1711821";
+
+// Simple keyword-based responses for when Gemini quota is exhausted
+function keywordFallback(msg: string): string | null {
+  const m = msg.toLowerCase();
+  if (/cpanel|control panel|hosting panel/.test(m))
+    return "cPanel access ke liye apna client area open karein → Hosting → cPanel Login. Ya seedha link: `https://your-domain.com:2083`";
+  if (/ssl|https|certificate/.test(m))
+    return "SSL install karne ke liye: Client Area → Hosting → SSL tab → Let's Encrypt Install button click karein. Free automatic SSL install ho jaata hai.";
+  if (/domain.*transfer|transfer.*domain/.test(m))
+    return "Domain transfer ke liye EPP/Auth code apne current registrar se lein, phir humari Domains page pe Transfer Domain option use karein. Process 5-7 din leta hai.";
+  if (/invoice|billing|payment|pay/.test(m))
+    return "Invoice aur billing ke liye: Client Area → Finance section. PayFast/bank transfer se pay kar sakte hain. Koi specific invoice chahiye to support@noehost.com pe email karein.";
+  if (/password|reset.*pass|forgot/.test(m))
+    return "Password reset ke liye: login page pe 'Forgot Password' option use karein. Email ayega jisme reset link hoga.";
+  if (/wordpress|wp|install.*wp/.test(m))
+    return "WordPress install karne ke liye: Client Area → Hosting → WordPress tab → Install WordPress button. 1-click install hai, bas domain aur admin details bhar dein.";
+  if (/email.*account|create.*email|mail/.test(m))
+    return "Email account banane ke liye: Client Area → Hosting → Email tab → Create Email Account. Format: name@yourdomain.com";
+  if (/backup|restore/.test(m))
+    return "Backup ke liye: Client Area → Hosting → Backups tab. Manual backup create kar sakte hain ya scheduled backup set kar sakte hain.";
+  if (/dns|nameserver|ns1|ns2|a record|cname/.test(m))
+    return "DNS management ke liye: Client Area → Hosting → Domains & DNS tab. A, CNAME, MX, TXT records add/edit kar sakte hain.";
+  if (/suspend|block|disabled|access.*denied/.test(m))
+    return "Agar account suspend hua hai, support@noehost.com pe email karein ya WhatsApp: +92 315 1711821. Reference number aur domain name zaroor mention karein.";
+  if (/plan|upgrade|price|cost|pricing/.test(m))
+    return "Hosting plans dekhne ke liye: noehost.com/shared-hosting. Upgrade ke liye Client Area → Services → Upgrade button.";
+  if (/hello|hi|salam|assalam/.test(m))
+    return "Salam! 👋 Noehost Support mein aapka swagat hai. Kisi bhi hosting, domain, billing ya technical masle mein madad ke liye likh saktay hain.";
+  return null;
+}
 
 // ── Knowledge context from DB (dynamic plans etc.) ───────────────────────────
 let _knowledgeCache = "";
@@ -445,15 +475,20 @@ router.post("/chat/message", async (req, res) => {
     let reply = FALLBACK;
     let failedAttempts = Number(session?.failed_attempts ?? 0);
 
-    const tryGemini = async (retryMs = 0): Promise<string | null> => {
-      if (retryMs > 0) await new Promise(r => setTimeout(r, retryMs));
+    // Models to try in order — fallback chain if quota exceeded on primary
+    const MODEL_CHAIN = (process.env.AI_MODEL
+      ? [process.env.AI_MODEL]
+      : ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+    );
+
+    const tryModel = async (model: string): Promise<string | null> => {
       const extraCtx = await buildKnowledgeContext();
       const systemInstruction = extraCtx
         ? `${BASE_SYSTEM}\n\n=== LIVE DB DATA ===\n${extraCtx}`
         : BASE_SYSTEM;
       const ai = getAI();
       const chat = ai.chats.create({
-        model: process.env.AI_MODEL || "gemini-2.0-flash",
+        model,
         history: chatHistory,
         config: { systemInstruction, maxOutputTokens: 512, temperature: 0.7 },
       });
@@ -463,31 +498,40 @@ router.post("/chat/message", async (req, res) => {
 
     try {
       let text: string | null = null;
-      try {
-        text = await tryGemini();
-      } catch (e: any) {
-        const is429 = e?.message?.includes("429") || e?.status === 429;
-        if (is429) {
-          const match = e?.message?.match(/retry in (\d+)s/) || e?.message?.match(/retryDelay["\s:]+(\d+)s/);
-          const waitMs = match ? Math.min(parseInt(match[1]) * 1000, 6000) : 3000;
-          console.log(`[LIVE-CHAT] 429 — retrying after ${waitMs}ms`);
-          text = await tryGemini(waitMs);
-        } else {
-          throw e;
+      let lastErr: any = null;
+      for (const model of MODEL_CHAIN) {
+        try {
+          text = await tryModel(model);
+          if (text) { console.log(`[LIVE-CHAT] AI reply via ${model}`); break; }
+        } catch (e: any) {
+          lastErr = e;
+          const is429 = e?.message?.includes("429") || e?.status === 429;
+          const is404 = e?.message?.includes("404") || e?.message?.includes("not found") || e?.message?.includes("models/");
+          if (is429 || is404) {
+            console.warn(`[LIVE-CHAT] ${model} failed (${is429 ? "quota" : "not found"}), trying next model…`);
+            continue; // try next model in chain
+          }
+          throw e; // non-recoverable error
         }
       }
-      reply = text || FALLBACK;
+      if (!text && lastErr) throw lastErr;
+      reply = text || keywordFallback(message) || FALLBACK;
       await db.execute(sql`
         UPDATE chat_sessions SET failed_attempts = 0, updated_at = NOW()
         WHERE session_id = ${sessionId}
       `);
     } catch (geminiErr: any) {
-      console.error("[LIVE-CHAT] Gemini error:", geminiErr?.message?.slice(0, 150));
-      failedAttempts += 1;
-      await db.execute(sql`
-        UPDATE chat_sessions SET failed_attempts = ${failedAttempts}, updated_at = NOW()
-        WHERE session_id = ${sessionId}
-      `);
+      console.error("[LIVE-CHAT] Gemini error (all models failed):", geminiErr?.message?.slice(0, 150));
+      // Try keyword fallback before giving up
+      const kw = keywordFallback(message);
+      if (kw) { reply = kw; }
+      else {
+        failedAttempts += 1;
+        await db.execute(sql`
+          UPDATE chat_sessions SET failed_attempts = ${failedAttempts}, updated_at = NOW()
+          WHERE session_id = ${sessionId}
+        `);
+      }
     }
 
     await saveMessage(sessionId, "assistant", reply);
@@ -580,18 +624,45 @@ router.get("/admin/live-chat/sessions", authenticate, requireAdmin, async (req: 
     const { status, search } = req.query;
     const statusFilter = status && status !== "all" ? String(status) : null;
     const searchStr = search ? `%${String(search).toLowerCase()}%` : null;
-    const rows = (await db.execute(sql`
-      SELECT
-        s.*,
-        (SELECT content FROM chat_messages WHERE session_id = s.session_id ORDER BY created_at DESC LIMIT 1) as last_message,
-        (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.session_id) as message_count
-      FROM chat_sessions s
-      WHERE
-        (${statusFilter} IS NULL OR s.status = ${statusFilter})
-        AND (${searchStr} IS NULL OR LOWER(s.client_name) LIKE ${searchStr} OR LOWER(s.client_email) LIKE ${searchStr})
-      ORDER BY s.updated_at DESC
-      LIMIT 100
-    `)).rows;
+
+    let rows: any[];
+    if (statusFilter && searchStr) {
+      rows = (await db.execute(sql`
+        SELECT s.*,
+          (SELECT content FROM chat_messages WHERE session_id = s.session_id ORDER BY created_at DESC LIMIT 1) as last_message,
+          (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.session_id) as message_count
+        FROM chat_sessions s
+        WHERE s.status = ${statusFilter}
+          AND (LOWER(s.client_name) LIKE ${searchStr} OR LOWER(s.client_email) LIKE ${searchStr})
+        ORDER BY s.updated_at DESC LIMIT 100
+      `)).rows;
+    } else if (statusFilter) {
+      rows = (await db.execute(sql`
+        SELECT s.*,
+          (SELECT content FROM chat_messages WHERE session_id = s.session_id ORDER BY created_at DESC LIMIT 1) as last_message,
+          (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.session_id) as message_count
+        FROM chat_sessions s
+        WHERE s.status = ${statusFilter}
+        ORDER BY s.updated_at DESC LIMIT 100
+      `)).rows;
+    } else if (searchStr) {
+      rows = (await db.execute(sql`
+        SELECT s.*,
+          (SELECT content FROM chat_messages WHERE session_id = s.session_id ORDER BY created_at DESC LIMIT 1) as last_message,
+          (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.session_id) as message_count
+        FROM chat_sessions s
+        WHERE LOWER(s.client_name) LIKE ${searchStr} OR LOWER(s.client_email) LIKE ${searchStr}
+        ORDER BY s.updated_at DESC LIMIT 100
+      `)).rows;
+    } else {
+      rows = (await db.execute(sql`
+        SELECT s.*,
+          (SELECT content FROM chat_messages WHERE session_id = s.session_id ORDER BY created_at DESC LIMIT 1) as last_message,
+          (SELECT COUNT(*) FROM chat_messages WHERE session_id = s.session_id) as message_count
+        FROM chat_sessions s
+        ORDER BY s.updated_at DESC LIMIT 100
+      `)).rows;
+    }
 
     const stats = (await db.execute(sql`
       SELECT
