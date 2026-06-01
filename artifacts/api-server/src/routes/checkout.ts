@@ -1224,9 +1224,9 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       order: { id: order.id, domain: fullDomain, amount: finalAmount, status: order.status },
       invoice: { id: invoice.id, invoiceNumber, amount: finalAmount, status: invoice.status, dueDate: invoice.dueDate?.toISOString() },
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+  } catch (err: any) {
+    console.error("[DOMAIN CHECKOUT ERROR]", err?.message || err, err?.stack?.split("\n").slice(0, 3).join(" | "));
+    res.status(500).json({ error: err?.message || "Server error" });
   }
 }
 

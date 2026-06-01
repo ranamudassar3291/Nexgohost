@@ -49,18 +49,24 @@ function layout(content: string): string {
             <p style="margin:0 0 12px;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#166534">
               &#128640; Need help? We reply within minutes!
             </p>
-            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto">
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 12px">
               <tr>
-                <td style="padding-right:10px">
-                  <a href="https://wa.me/{{whatsapp_number}}?text=Hello%20{{company_name}}%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
-                     style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
-                    &#128222; Contact Support on WhatsApp
+                <td style="padding-right:8px">
+                  <a href="https://wa.me/923151711821?text=Hello%20{{company_name}}%20Support%2C%20I%20have%20a%20query%20regarding%20my%20service."
+                     style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 20px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
+                    &#128222; WhatsApp Support
+                  </a>
+                </td>
+                <td style="padding-right:8px">
+                  <a href="{{support_url}}"
+                     style="display:inline-block;background:{{brand_color}};color:#ffffff;text-decoration:none;padding:11px 20px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
+                    &#127915; Open a Ticket
                   </a>
                 </td>
                 <td>
-                  <a href="{{support_url}}"
-                     style="display:inline-block;background:{{brand_color}};color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-size:14px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif">
-                    &#127915; Open a Ticket
+                  <a href="{{website_url}}/client/domains"
+                     style="display:inline-block;background:#ffffff;color:{{brand_color}};text-decoration:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;border:2px solid {{brand_color}}">
+                    &#127760; Manage Domains
                   </a>
                 </td>
               </tr>
@@ -827,6 +833,31 @@ ${btnOutline("Go to WP Admin", "{{wp_admin_url}}")}
                   <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#701AFE;letter-spacing:1px;text-transform:uppercase">🚀 Earn Even More</p>
                   <p style="margin:0 0 14px;font-size:15px;font-weight:700;color:#FFFFFF">Share your link more to earn more!</p>
                   <p style="margin:0;font-size:13px;color:#9B8EC4">Every referral you make brings you closer to bigger rewards. Keep sharing and watch your earnings grow.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ── SUPPORT BUTTONS ── -->
+        <tr>
+          <td style="background:#0D1F14;border-top:2px solid #25D366;padding:20px 40px;text-align:center">
+            <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#34D399;font-family:Inter,Arial,sans-serif">
+              &#128640; Need help? We reply within minutes!
+            </p>
+            <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto">
+              <tr>
+                <td style="padding-right:8px">
+                  <a href="https://wa.me/923151711821?text=Hello%20Noehost%20Support%2C%20I%20have%20a%20query%20regarding%20my%20affiliate%20account."
+                     style="display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;padding:11px 18px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,Arial,sans-serif">
+                    &#128222; WhatsApp Support
+                  </a>
+                </td>
+                <td>
+                  <a href="https://noehost.com/client/domains"
+                     style="display:inline-block;background:#701AFE;color:#ffffff;text-decoration:none;padding:11px 18px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,Arial,sans-serif">
+                    &#127760; Manage Domains
+                  </a>
                 </td>
               </tr>
             </table>
