@@ -342,53 +342,40 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     }
   };
 
-  const addAllSelectedToCart = async () => {
-    const toAdd = bulkResults.filter(r => r.available && r.price && !r.checking && bulkSelected.has(r.domain) && !r.added);
+  const addAllSelectedToCart = () => {
+    const toAdd = bulkResults.filter(r => r.available && r.price && !r.checking && bulkSelected.has(r.domain));
     if (!toAdd.length) return;
-    for (const r of toAdd) {
+    const cartItems = toAdd.map(r => {
       const tld = r.tld ?? '';
       const finalPrice = isPkDomain(tld) ? 4000 : r.price!;
-      await addItem({
-        type: 'domain', planId: `domain-${r.domain}`, name: r.domain,
-        billingCycle: isPkDomain(tld) ? 'biennially' : 'yearly',
-        monthlyPrice: finalPrice, quarterlyPrice: null, semiannualPrice: null,
-        yearlyPrice: finalPrice, domainName: r.domain, tld,
-      });
-      setBulkResults(prev => prev.map(p => p.domain === r.domain ? { ...p, added: true } : p));
-    }
-    openCart();
+      const period = isPkDomain(tld) ? 2 : 1;
+      return { domain: r.domain, period, price: finalPrice, originalPrice: null, isFreeWithHosting: false, action: 'register' as const };
+    });
+    localStorage.setItem('noehost_domain_cart_v1', JSON.stringify(cartItems));
+    window.location.href = '/checkout/domains';
   };
 
-  const handleBulkTransferAll = async () => {
+  const handleBulkTransferAll = () => {
     const pending = transferList.filter(d => !transferResults.find(r => r.domain === d && r.success));
     const missing = new Set(pending.filter(d => !transferEppCodes[d]?.trim() || transferEppCodes[d].trim().length < 8));
-    if (missing.size > 0) {
-      setTransferEppErrors(missing);
-      return;
-    }
+    if (missing.size > 0) { setTransferEppErrors(missing); return; }
     setTransferEppErrors(new Set());
 
+    // Save EPP codes for checkout page to read
     localStorage.setItem('noehost_transfer_epps', JSON.stringify(transferEppCodes));
 
-    setTransferSubmitting(true);
-    for (const domain of pending) {
-      const tld = '.' + domain.split('.').slice(1).join('.');
-      await addItem({
-        type: 'domain_transfer' as any,
-        planId: `transfer-${domain}`,
-        name: `Transfer: ${domain}`,
-        billingCycle: 'yearly',
-        monthlyPrice: 0,
-        quarterlyPrice: null,
-        semiannualPrice: null,
-        yearlyPrice: 0,
-        domainName: domain,
-        tld,
-        eppCode: transferEppCodes[domain]?.trim(),
-      });
-    }
-    setTransferSubmitting(false);
-    openCart();
+    // Build domain cart items (price=0 — transfer pricing shown at checkout)
+    const cartItems = pending.map(domain => ({
+      domain,
+      period: 1,
+      price: 0,
+      originalPrice: null,
+      isFreeWithHosting: false,
+      action: 'transfer' as const,
+      eppCode: transferEppCodes[domain]?.trim(),
+    }));
+    localStorage.setItem('noehost_domain_cart_v1', JSON.stringify(cartItems));
+    window.location.href = '/checkout/domains';
   };
 
   const handleTransferParse = () => {
@@ -724,10 +711,10 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                     <div className="px-5 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-between gap-4">
                       <div className="text-white">
                         <div className="text-sm font-black">{bulkSelected.size} domain{bulkSelected.size > 1 ? 's' : ''} selected</div>
-                        <div className="text-xs text-purple-200 font-medium">All will be added to your cart</div>
+                        <div className="text-xs text-purple-200 font-medium">Proceed to checkout to register all at once</div>
                       </div>
                       <button onClick={addAllSelectedToCart} className="flex items-center gap-2 px-5 py-2.5 bg-white text-purple-700 rounded-xl font-black text-sm hover:bg-purple-50 transition-all shadow-lg whitespace-nowrap">
-                        <ShoppingBag size={15} />Add {bulkSelected.size} to Cart
+                        <Globe size={15} />Register {bulkSelected.size} Domain{bulkSelected.size > 1 ? 's' : ''} →
                       </button>
                     </div>
                   )}

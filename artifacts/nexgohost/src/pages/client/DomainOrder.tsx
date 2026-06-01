@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { Globe, ArrowRightLeft, ShieldCheck, ChevronRight, Loader2, Check, AlertCircle, KeyRound, Wallet, CreditCard, ArrowLeft } from "lucide-react";
+import { Globe, ArrowRightLeft, ShieldCheck, ChevronRight, Loader2, Check, AlertCircle, KeyRound, Wallet, CreditCard, ArrowLeft, Tag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
@@ -51,10 +51,31 @@ export default function DomainOrder() {
   // Transfer EPP
   const [eppCode, setEppCode] = useState("");
 
+  // Promo code
+  const [promoInput, setPromoInput]   = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError]   = useState<string | null>(null);
+  const [promoData, setPromoData]     = useState<{ code: string; discountAmount: number; finalAmount: number; discountPercent: number; discountType: string; fixedAmount: number | null } | null>(null);
+
+  const finalPrice = promoData ? promoData.finalAmount : price;
+
+  async function applyPromo() {
+    if (!promoInput.trim()) return;
+    setPromoLoading(true); setPromoError(null);
+    try {
+      const tld = domain.includes(".") ? domain.slice(domain.indexOf(".")) : "";
+      const res = await fetch(`/api/promo-codes/validate?code=${encodeURIComponent(promoInput.trim().toUpperCase())}&amount=${price}&serviceType=domain&tld=${encodeURIComponent(tld)}`);
+      const data = await res.json();
+      if (!res.ok) { setPromoError(data.error || "Invalid promo code"); return; }
+      setPromoData({ code: data.code, discountAmount: data.discountAmount, finalAmount: data.finalAmount, discountPercent: data.discountPercent, discountType: data.discountType, fixedAmount: data.fixedAmount });
+    } catch { setPromoError("Could not validate promo code. Try again."); }
+    finally { setPromoLoading(false); }
+  }
+
   // Order
   const [placing, setPlacing]   = useState(false);
   const [orderErr, setOrderErr] = useState<string | null>(null);
-  const [success, setSuccess]   = useState<{ orderId: string; invoiceId: string } | null>(null);
+  const [success, setSuccess]   = useState<{ orderId: string; invoiceId: string; promoCode?: string; discount?: number } | null>(null);
 
   const isLoggedIn = !!user;
 
@@ -136,9 +157,10 @@ export default function DomainOrder() {
         applyCredits: selectedPm === "credits",
       };
       if (action === "transfer") payload.eppCode = eppCode.trim();
+      if (promoData) payload.promoCode = promoData.code;
 
       const data = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(payload) });
-      setSuccess({ orderId: data.orderId, invoiceId: data.invoiceId });
+      setSuccess({ orderId: data.orderId, invoiceId: data.invoiceId, promoCode: promoData?.code, discount: promoData?.discountAmount });
       refetchCredits();
     } catch (err: any) {
       setOrderErr(err.message || "Order failed. Please try again.");
@@ -164,12 +186,26 @@ export default function DomainOrder() {
         </div>
         <div className="bg-card border border-border rounded-2xl p-5 text-left space-y-3">
           <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Domain</span>
+            <span className="font-mono font-semibold text-foreground text-xs">{domain}</span>
+          </div>
+          <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Order ID</span>
             <span className="font-mono text-foreground text-xs">{success.orderId}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Invoice ID</span>
+            <span className="text-muted-foreground">Invoice</span>
             <span className="font-mono text-foreground text-xs">{success.invoiceId}</span>
+          </div>
+          {success.promoCode && success.discount && (
+            <div className="flex justify-between text-sm border-t border-border pt-2">
+              <span className="text-green-600 flex items-center gap-1.5"><Tag size={12} /> Promo: {success.promoCode}</span>
+              <span className="text-green-600 font-semibold">− {formatPrice(success.discount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm border-t border-border pt-2 font-bold">
+            <span className="text-foreground">Amount Paid</span>
+            <span className="text-foreground">{formatPrice(finalPrice)}</span>
           </div>
           {action === "transfer" && (
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-xs text-amber-600">
@@ -276,6 +312,41 @@ export default function DomainOrder() {
             </div>
           )}
 
+          {/* Promo Code */}
+          <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+            <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+              <Tag size={15} className="text-primary" /> Promo Code
+            </h3>
+            {promoData ? (
+              <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+                  <Tag size={13} />
+                  <span>{promoData.code}</span>
+                  <span className="text-green-500 text-xs">
+                    {promoData.discountType === "fixed"
+                      ? `− ${formatPrice(promoData.discountAmount)}`
+                      : `${promoData.discountPercent}% off`}
+                  </span>
+                </div>
+                <button onClick={() => { setPromoData(null); setPromoInput(""); }} className="text-green-700 hover:text-green-900 transition-colors"><X size={15} /></button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter promo code"
+                  value={promoInput}
+                  onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError(null); }}
+                  onKeyDown={e => e.key === "Enter" && applyPromo()}
+                  className="h-10 text-sm font-mono uppercase focus-visible:ring-0 focus-visible:border-primary"
+                />
+                <Button size="sm" variant="outline" className="h-10 px-4 text-xs font-semibold shrink-0" onClick={applyPromo} disabled={promoLoading || !promoInput.trim()}>
+                  {promoLoading ? <Loader2 size={13} className="animate-spin" /> : "Apply"}
+                </Button>
+              </div>
+            )}
+            {promoError && <p className="text-xs text-destructive flex items-center gap-1.5"><AlertCircle size={11} />{promoError}</p>}
+          </div>
+
           {/* Payment */}
           <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
             <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
@@ -327,9 +398,15 @@ export default function DomainOrder() {
                 <span className="text-muted-foreground">{action === "transfer" ? "Transfer fee" : "Registration"}</span>
                 <span className="font-medium">{formatPrice(price)}</span>
               </div>
+              {promoData && (
+                <div className="flex justify-between text-green-600">
+                  <span className="flex items-center gap-1.5"><Tag size={11} /> Promo discount</span>
+                  <span className="font-semibold">− {formatPrice(promoData.discountAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-border pt-2 mt-2">
                 <span className="font-semibold text-foreground">Total</span>
-                <span className="font-bold text-foreground text-base">{formatPrice(price)}</span>
+                <span className="font-bold text-foreground text-base">{formatPrice(finalPrice)}</span>
               </div>
             </div>
 

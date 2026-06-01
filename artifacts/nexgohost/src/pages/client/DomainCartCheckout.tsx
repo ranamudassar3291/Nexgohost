@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Globe, ArrowRightLeft, ShoppingCart, Trash2, ChevronRight,
   CheckCircle2, Loader2, AlertCircle, CreditCard, Lock, RefreshCw,
-  KeyRound,
+  KeyRound, Tag, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,12 @@ export default function DomainCartCheckout() {
   const [success, setSuccess] = useState(false);
   const [successInvoiceId, setSuccessInvoiceId] = useState<string | null>(null);
 
+  // Promo code
+  const [promoInput, setPromoInput]     = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError]     = useState<string | null>(null);
+  const [promoData, setPromoData]       = useState<{ code: string; discountAmount: number; finalAmount: number; discountPercent: number; discountType: string; fixedAmount: number | null } | null>(null);
+
   // Auth form
   const [authTab, setAuthTab] = useState<AuthTab>("login");
   const [authEmail, setAuthEmail] = useState("");
@@ -101,9 +107,23 @@ export default function DomainCartCheckout() {
     staleTime: 60_000,
   });
 
-  const total = items.reduce((s, c) => s + c.price, 0);
+  const rawTotal = items.reduce((s, c) => s + c.price, 0);
+  const promoDiscount = promoData ? Math.min(promoData.discountAmount, rawTotal) : 0;
+  const total = Math.max(0, rawTotal - promoDiscount);
   const walletDeducted = applyCredits && creditBalance > 0 ? Math.min(creditBalance, total) : 0;
   const remaining = Math.max(0, total - walletDeducted);
+
+  async function applyPromo() {
+    if (!promoInput.trim()) return;
+    setPromoLoading(true); setPromoError(null);
+    try {
+      const res = await fetch(`/api/promo-codes/validate?code=${encodeURIComponent(promoInput.trim().toUpperCase())}&amount=${rawTotal}&serviceType=domain`);
+      const data = await res.json();
+      if (!res.ok) { setPromoError(data.error || "Invalid promo code"); return; }
+      setPromoData({ code: data.code, discountAmount: data.discountAmount, finalAmount: data.finalAmount, discountPercent: data.discountPercent, discountType: data.discountType, fixedAmount: data.fixedAmount });
+    } catch { setPromoError("Could not validate promo code. Try again."); }
+    finally { setPromoLoading(false); }
+  }
 
   function removeItem(domain: string) {
     setItems(prev => {
@@ -200,6 +220,7 @@ export default function DomainCartCheckout() {
         } else {
           body.registerDomain = true;
         }
+        if (promoData) body.promoCode = promoData.code;
 
         const result = await apiFetch("/api/checkout", {
           method: "POST",
@@ -353,6 +374,12 @@ export default function DomainCartCheckout() {
           </div>
           {/* Totals */}
           <div className="px-5 py-4 border-t border-border bg-muted/30 space-y-2">
+            {promoData && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-green-600 flex items-center gap-1.5"><Tag size={11} /> Promo: {promoData.code}</span>
+                <span className="text-green-600 font-semibold">− {formatPrice(promoDiscount)}</span>
+              </div>
+            )}
             {applyCredits && walletDeducted > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Wallet Credit Applied</span>
@@ -364,6 +391,43 @@ export default function DomainCartCheckout() {
               <span className="text-xl font-bold text-foreground">{formatPrice(applyCredits ? remaining : total)}</span>
             </div>
           </div>
+        </div>
+
+        {/* Promo Code section */}
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+          <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+            <Tag size={15} className="text-primary" /> Promo Code
+          </h3>
+          {promoData ? (
+            <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+                <Tag size={13} />
+                <span>{promoData.code}</span>
+                <span className="text-green-500 text-xs">
+                  {promoData.discountType === "fixed"
+                    ? `− ${formatPrice(promoData.discountAmount)}`
+                    : `${promoData.discountPercent}% off`}
+                </span>
+              </div>
+              <button onClick={() => { setPromoData(null); setPromoInput(""); }} className="text-green-700 hover:text-green-900 transition-colors"><X size={15} /></button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Enter promo code"
+                value={promoInput}
+                onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromoError(null); }}
+                onKeyDown={e => e.key === "Enter" && applyPromo()}
+                className="flex-1 h-10 px-3 text-sm font-mono uppercase bg-background border border-input rounded-xl focus:outline-none focus:border-primary"
+              />
+              <button onClick={applyPromo} disabled={promoLoading || !promoInput.trim()}
+                className="h-10 px-4 text-xs font-semibold rounded-xl border border-input bg-background hover:bg-muted transition-all disabled:opacity-50">
+                {promoLoading ? <Loader2 size={13} className="animate-spin" /> : "Apply"}
+              </button>
+            </div>
+          )}
+          {promoError && <p className="text-xs text-destructive flex items-center gap-1.5"><AlertCircle size={11} />{promoError}</p>}
         </div>
 
         {/* Payment section — only shown when logged in */}
