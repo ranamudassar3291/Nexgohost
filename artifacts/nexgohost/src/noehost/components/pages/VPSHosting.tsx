@@ -206,8 +206,8 @@ const VPSHosting: React.FC = () => {
                 <span className={`text-sm font-black ${yearly ? 'text-white' : 'text-slate-500'}`}>Annual <span className="text-emerald-400 ml-1">Save 50%</span></span>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {plans.map((plan: any, i: number) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {plans.slice(0, 3).map((plan: any, i: number) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} whileHover={{ y: -6 }}
                   className={`relative rounded-2xl p-6 transition-all ${plan.popular ? 'bg-primary border-2 border-primary shadow-2xl shadow-primary/30' : 'bg-white/5 border border-white/10 hover:border-primary/30'}`}>
                   {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-white rounded-full text-xs font-black text-primary">Most Popular</div>}

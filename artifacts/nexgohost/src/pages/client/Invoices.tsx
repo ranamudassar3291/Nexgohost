@@ -58,7 +58,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   refund_pending:  { label: "Refund Pending", color: "bg-amber-50 text-amber-700 border-amber-200",       icon: RefreshCcw },
 };
 const METHOD_LABELS: Record<string, string> = {
-  safepay: "Safepay", jazzcash: "JazzCash", easypaisa: "Easypaisa",
+  safepay: "Safepay", easypaisa: "Easypaisa",
   bank_transfer: "Bank Transfer", manual: "Manual", crypto: "Crypto",
   stripe: "Stripe", paypal: "PayPal",
 };

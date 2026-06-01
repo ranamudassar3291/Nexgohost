@@ -60,8 +60,6 @@ function publicSettings(type: string, settings: Record<string, unknown>) {
         iban: settings.iban,
         swiftCode: settings.swiftCode,
       };
-    case "jazzcash":
-      return { accountTitle: settings.accountTitle, mobileNumber: settings.mobileNumber };
     case "easypaisa":
       return { accountTitle: settings.accountTitle, mobileNumber: settings.mobileNumber };
     case "paypal":
@@ -125,7 +123,7 @@ router.post("/admin/payment-methods", authenticate, requireAdmin, async (req: Au
       return;
     }
 
-    const validTypes = ["stripe", "paypal", "jazzcash", "easypaisa", "bank_transfer", "crypto", "manual", "safepay"];
+    const validTypes = ["stripe", "paypal", "easypaisa", "bank_transfer", "crypto", "manual", "safepay"];
     if (!validTypes.includes(type)) {
       res.status(400).json({ error: `type must be one of: ${validTypes.join(", ")}` });
       return;

@@ -15,7 +15,6 @@ interface PaymentMethod {
 
 const TYPES = [
   { value: "safepay",       label: "Safepay",         icon: "🔐" },
-  { value: "jazzcash",      label: "EasyPaisa",       icon: "💚" },
   { value: "easypaisa",     label: "EasyPaisa",       icon: "💚" },
   { value: "bank_transfer", label: "Bank Transfer",   icon: "🏦" },
   { value: "paypal",        label: "PayPal",          icon: "🅿️" },
@@ -33,11 +32,6 @@ const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder:
     { key: "livePublicKey",    label: "Live Client Key",     placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Dashboard → Developers → API Keys → Client/Merchant Key (starts with sec_ or pub_)" },
     { key: "liveSecretKey",    label: "Live Secret Key",     placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Dashboard → Developers → API Keys → Secret Key (sent as X-SFPY-SECRET-KEY header)" },
     { key: "webhookSecret",    label: "Webhook Shared Secret", placeholder: "Enter your webhook secret", secret: true, hint: "From Safepay Dashboard → Developers → Webhooks → Shared Secret" },
-  ],
-  jazzcash: [
-    { key: "mobileNumber",  label: "EasyPaisa Mobile Number",  placeholder: "03XX-XXXXXXX" },
-    { key: "accountTitle",  label: "Account Title",            placeholder: "Your Name" },
-    { key: "merchantId",    label: "Merchant ID (optional)",   placeholder: "For API verification", secret: true },
   ],
   easypaisa: [
     { key: "mobileNumber",  label: "EasyPaisa Mobile Number", placeholder: "03XX-XXXXXXX" },
@@ -69,7 +63,7 @@ const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder:
   ],
 };
 
-const EMPTY_FORM = { name: "", type: "jazzcash", description: "", isSandbox: false };
+const EMPTY_FORM = { name: "", type: "easypaisa", description: "", isSandbox: false };
 
 export default function PaymentMethods() {
   const { toast } = useToast();

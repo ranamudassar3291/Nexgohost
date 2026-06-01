@@ -991,7 +991,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
     }).catch(console.warn);
 
     // "Payment Under Review" email — only for manual payment gateways
-    const MANUAL_TYPES = ["bank_transfer", "jazzcash", "easypaisa", "manual", "paypal", "crypto"];
+    const MANUAL_TYPES = ["bank_transfer", "easypaisa", "manual", "paypal", "crypto"];
     if (selectedPaymentMethod && MANUAL_TYPES.includes(selectedPaymentMethod.type)) {
       emailPaymentUnderReview(user.email, {
         clientName: `${user.firstName} ${user.lastName}`,
@@ -1207,7 +1207,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
     }, { clientId: user.id, referenceId: order.id }).catch(console.warn);
 
     // "Payment Under Review" — only for manual payment methods
-    const DOMAIN_MANUAL_TYPES = ["bank_transfer", "jazzcash", "easypaisa", "manual", "paypal", "crypto"];
+    const DOMAIN_MANUAL_TYPES = ["bank_transfer", "easypaisa", "manual", "paypal", "crypto"];
     if (selectedDomainPm && DOMAIN_MANUAL_TYPES.includes(selectedDomainPm.type)) {
       emailPaymentUnderReview(user.email, {
         clientName: `${user.firstName} ${user.lastName}`,

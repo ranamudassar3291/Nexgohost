@@ -728,63 +728,9 @@ export default function VpsOrderPage() {
           {/* ── LEFT COLUMN ────────────────────────────────────────────── */}
           <div className="space-y-4">
 
-            {/* 1. Choose Plan */}
+            {/* 1. Operating System */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <SectionNum n={1} label="Choose Your Plan" />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {allPlans.map((p, i) => {
-                  const isSelected = plan?.id === p.id;
-                  const isPopular  = i === 1;
-                  const yearlyM    = p.yearlyPrice ? p.yearlyPrice / 12 : null;
-                  const savePct    = yearlyM ? Math.round((1 - yearlyM / p.price) * 100) : 0;
-                  return (
-                    <button key={p.id} onClick={() => setPlan(p)}
-                      className={`relative flex flex-col p-4 rounded-xl border-2 text-left transition-all ${
-                        isSelected
-                          ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100'
-                          : 'border-gray-200 hover:border-indigo-200 bg-white hover:bg-gray-50'
-                      }`}>
-                      {isPopular && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full">
-                          <Star size={9} fill="white"/> MOST POPULAR
-                        </div>
-                      )}
-                      {isSelected && (
-                        <div className="absolute top-2.5 right-2.5 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
-                          <Check size={10} className="text-white"/>
-                        </div>
-                      )}
-                      <div className={`text-xs font-black uppercase tracking-wider mb-2 ${isSelected ? 'text-indigo-500' : 'text-gray-400'}`}>
-                        {p.name}
-                      </div>
-                      <div className={`text-2xl font-black mb-0.5 ${isSelected ? 'text-indigo-900' : 'text-gray-900'}`}>
-                        {formatPrice(p.price)}
-                        <span className="text-sm font-semibold text-gray-400">/mo</span>
-                      </div>
-                      {savePct > 0 && (
-                        <div className="text-[10px] font-bold text-emerald-600 mb-3">Save {savePct}% yearly</div>
-                      )}
-                      <div className="mt-2 space-y-1.5 border-t border-gray-100 pt-3">
-                        {[
-                          { icon: <Cpu size={11}/>, text: `${p.cpuCores} vCPU Cores` },
-                          { icon: <HardDrive size={11}/>, text: `${p.ramGb} GB RAM` },
-                          { icon: <Server size={11}/>, text: `${p.storageGb} GB NVMe` },
-                          { icon: <Wifi size={11}/>, text: p.bandwidthTb ? `${p.bandwidthTb} TB BW` : 'Unmetered' },
-                        ].map(({ icon, text }) => (
-                          <div key={text} className={`flex items-center gap-2 text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-600'}`}>
-                            <span className={isSelected ? 'text-indigo-400' : 'text-gray-400'}>{icon}</span> {text}
-                          </div>
-                        ))}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 2. Operating System */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <SectionNum n={2} label="Select Operating System" />
+              <SectionNum n={1} label="Select Operating System" />
               {formErrors.os && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
                   <AlertCircle size={14}/> {formErrors.os}
@@ -889,7 +835,7 @@ export default function VpsOrderPage() {
 
             {/* 3. Data Center Location */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <SectionNum n={3} label="Data Center Location" />
+              <SectionNum n={2} label="Data Center Location" />
               <p className="text-xs text-gray-400 -mt-3 mb-5">Choose a region closest to your target audience for best performance</p>
               {formErrors.location && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
@@ -950,7 +896,7 @@ export default function VpsOrderPage() {
 
             {/* 4. Server Details */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <SectionNum n={4} label="Server Details" />
+              <SectionNum n={3} label="Server Details" />
               <p className="text-xs text-gray-400 -mt-3 mb-5">Set a hostname and root password for your server</p>
               <div className="space-y-4">
                 <div>
@@ -1007,7 +953,7 @@ export default function VpsOrderPage() {
 
             {/* 5. Add-ons */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-              <SectionNum n={5} label="Add-ons" />
+              <SectionNum n={4} label="Add-ons" />
               <button onClick={() => setDailyBackup(!dailyBackup)}
                 className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
                   dailyBackup ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200 bg-white'
