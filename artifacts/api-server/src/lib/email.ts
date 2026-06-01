@@ -1488,3 +1488,177 @@ export async function emailDomainTransferRejected(
     `If you have questions, please contact our support team.`,
   );
 }
+
+// ─── VPS Order Placed (Awaiting Payment) ─────────────────────────────────────
+export async function emailVpsOrderPlaced(
+  to: string,
+  vars: {
+    clientName: string;
+    invoiceNumber: string;
+    invoiceId: string;
+    planName: string;
+    osTemplate: string;
+    location: string;
+    hostname: string;
+    billingCycle: string;
+    amount: string;
+    paymentMethod: string;
+    dueDate: string;
+  },
+  meta?: { clientId?: string; referenceId?: string },
+): Promise<{ sent: boolean; message: string }> {
+  const b = await getBrandingVars();
+  const invoiceUrl = `${getClientUrl()}/invoices/${vars.invoiceId}`;
+  const year = new Date().getFullYear();
+  const cycleLabel: Record<string,string> = { monthly:"1 Month", quarterly:"3 Months", semiannual:"6 Months", yearly:"1 Year", biennial:"2 Years" };
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:'Segoe UI',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.08)">
+  <tr><td style="background:linear-gradient(135deg,#4F46E5 0%,#701AFE 100%);padding:36px 44px;text-align:center">
+    <div style="font-size:36px;margin-bottom:10px">🖥️</div>
+    <h1 style="margin:0;font-size:24px;font-weight:800;color:#fff">VPS Order Received!</h1>
+    <p style="margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.8)">${b.company_name} — Order Confirmation</p>
+  </td></tr>
+  <tr><td style="padding:36px 44px">
+    <p style="margin:0 0 8px;font-size:15px;color:#374151">Dear <strong>${vars.clientName}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.7">Thank you for your VPS order! We've received your request and created invoice <strong>${vars.invoiceNumber}</strong>. Your server will be provisioned within <strong>24 hours</strong> after payment confirmation.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9ff;border:1px solid #e8e8f5;border-radius:12px;overflow:hidden;margin:0 0 24px">
+      <tr><td style="padding:12px 20px;background:#4F46E5;color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Order Details</td></tr>
+      <tr><td style="padding:16px 20px">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280;width:45%">Plan</td><td style="padding:6px 0;font-size:13px;font-weight:700;color:#111827;text-align:right">${vars.planName}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">OS Template</td><td style="padding:6px 0;font-size:13px;color:#374151;text-align:right">${vars.osTemplate}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Data Center</td><td style="padding:6px 0;font-size:13px;color:#374151;text-align:right">${vars.location}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Hostname</td><td style="padding:6px 0;font-size:13px;font-family:monospace;color:#4F46E5;text-align:right">${vars.hostname || "Auto-assigned"}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Billing Cycle</td><td style="padding:6px 0;font-size:13px;color:#374151;text-align:right">${cycleLabel[vars.billingCycle] ?? vars.billingCycle}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Invoice #</td><td style="padding:6px 0;font-size:13px;font-weight:600;color:#374151;text-align:right">${vars.invoiceNumber}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Payment Via</td><td style="padding:6px 0;font-size:13px;color:#374151;text-align:right">${vars.paymentMethod}</td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Due Date</td><td style="padding:6px 0;font-size:13px;color:#dc2626;font-weight:600;text-align:right">${vars.dueDate}</td></tr>
+          <tr><td style="padding:12px 0 6px;border-top:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#374151">Total Amount</td><td style="padding:12px 0 6px;border-top:1px solid #e5e7eb;font-size:18px;font-weight:800;color:#4F46E5;text-align:right">${vars.amount}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px 20px;margin:0 0 24px">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#166534">⏰ What happens next?</p>
+      <p style="margin:0;font-size:13px;color:#15803d;line-height:1.7">1. Complete payment via ${vars.paymentMethod}<br>2. Our team verifies your payment within 1–24 hours<br>3. Server is provisioned — you'll get login details by email<br>4. Access your VPS from your client portal</p>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 24px">
+      <a href="${invoiceUrl}" style="display:inline-block;background:linear-gradient(135deg,#4F46E5,#701AFE);color:#fff;text-decoration:none;padding:14px 40px;border-radius:50px;font-size:15px;font-weight:700">Pay Invoice Now →</a>
+    </td></tr></table>
+  </td></tr>
+  <tr><td style="background:#1a1a2e;padding:20px 44px;text-align:center">
+    <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.4)">© ${year} ${b.company_name}. All rights reserved. | <a href="${b.support_url}" style="color:rgba(255,255,255,0.5);text-decoration:none">Support</a></p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+  return sendEmail({ to, subject: `🖥️ VPS Order Confirmed — Invoice ${vars.invoiceNumber} | ${b.company_name}`, html, emailType: "vps-order-placed", clientId: meta?.clientId, referenceId: meta?.referenceId });
+}
+
+// ─── Service Renewal Reminders (Hostinger-style 4-stage) ─────────────────────
+// stage: "30d" | "7d" | "3d" | "last_chance"
+export async function emailServiceRenewalReminder(
+  to: string,
+  vars: {
+    clientName: string;
+    serviceName: string;
+    serviceType: string; // "hosting" | "vps" | "domain"
+    domainOrIp: string;
+    dueDate: string;
+    amount: string;
+    invoiceId: string;
+    invoiceNumber: string;
+    stage: "30d" | "7d" | "3d" | "last_chance";
+  },
+  meta?: { clientId?: string; referenceId?: string },
+): Promise<{ sent: boolean; message: string }> {
+  const b = await getBrandingVars();
+  const payUrl = `${getClientUrl()}/invoices/${vars.invoiceId}`;
+  const year = new Date().getFullYear();
+
+  const stageConfig = {
+    "30d": {
+      emoji: "📅", badge: "30 DAYS REMAINING", badgeColor: "#3B82F6",
+      headline: "Your service renews next month",
+      body: `This is a friendly heads-up that your <strong>${vars.serviceName}</strong> service is due for renewal in <strong>30 days</strong> on <strong>${vars.dueDate}</strong>. Plan ahead and renew early to avoid any interruption.`,
+      urgency: "early-bird",
+      ctaText: "Renew Early →",
+      ctaColor: "#3B82F6",
+    },
+    "7d": {
+      emoji: "⏰", badge: "7 DAYS LEFT", badgeColor: "#F59E0B",
+      headline: "Time to renew — 1 week left!",
+      body: `Your <strong>${vars.serviceName}</strong> service expires in <strong>7 days</strong> on <strong>${vars.dueDate}</strong>. Renew now to keep your service running without interruption.`,
+      urgency: "moderate",
+      ctaText: "Renew Now →",
+      ctaColor: "#F59E0B",
+    },
+    "3d": {
+      emoji: "🚨", badge: "URGENT — 3 DAYS", badgeColor: "#EF4444",
+      headline: "Only 3 days left — act now!",
+      body: `Your <strong>${vars.serviceName}</strong> service is expiring in <strong>3 days</strong> on <strong>${vars.dueDate}</strong>. If you don't renew before then, your service will be automatically suspended and you may lose access to your data.`,
+      urgency: "urgent",
+      ctaText: "Renew Immediately →",
+      ctaColor: "#EF4444",
+    },
+    "last_chance": {
+      emoji: "💀", badge: "LAST CHANCE — DUE TODAY", badgeColor: "#7C3AED",
+      headline: "Final notice — service suspends tonight",
+      body: `Your <strong>${vars.serviceName}</strong> service invoice is due <strong>TODAY</strong>. If payment is not received, your service will be <strong>automatically suspended at midnight</strong>. Once suspended, you will lose access to your service until the invoice is paid.`,
+      urgency: "critical",
+      ctaText: "Pay Now — Don't Lose Access →",
+      ctaColor: "#7C3AED",
+    },
+  };
+
+  const cfg = stageConfig[vars.stage];
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:'Segoe UI',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:32px 16px"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.08)">
+  <tr><td style="background:linear-gradient(135deg,#1e1b4b 0%,${cfg.ctaColor} 100%);padding:36px 44px;text-align:center">
+    <div style="font-size:44px;margin-bottom:10px">${cfg.emoji}</div>
+    <span style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.3)">${cfg.badge}</span>
+    <h1 style="margin:12px 0 4px;font-size:22px;font-weight:800;color:#fff;line-height:1.3">${cfg.headline}</h1>
+    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75)">${b.company_name} — Renewal Notice</p>
+  </td></tr>
+  <tr><td style="padding:32px 44px">
+    <p style="margin:0 0 8px;font-size:15px;color:#374151">Dear <strong>${vars.clientName}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.7">${cfg.body}</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9ff;border:2px solid ${cfg.ctaColor}30;border-radius:12px;overflow:hidden;margin:0 0 24px">
+      <tr><td style="padding:14px 20px;background:${cfg.ctaColor}15;border-bottom:1px solid ${cfg.ctaColor}20">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="font-size:12px;font-weight:700;color:${cfg.ctaColor};text-transform:uppercase;letter-spacing:0.5px">Invoice Details</td>
+            <td style="text-align:right;font-size:12px;color:#6b7280">${vars.invoiceNumber}</td>
+          </tr>
+        </table>
+      </td></tr>
+      <tr><td style="padding:16px 20px">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="padding:5px 0;font-size:13px;color:#6b7280;width:45%">Service</td><td style="padding:5px 0;font-size:13px;font-weight:600;color:#111827;text-align:right">${vars.serviceName}</td></tr>
+          <tr><td style="padding:5px 0;font-size:13px;color:#6b7280">${vars.serviceType === "domain" ? "Domain" : "Domain / IP"}</td><td style="padding:5px 0;font-size:13px;color:#374151;text-align:right">${vars.domainOrIp}</td></tr>
+          <tr><td style="padding:5px 0;font-size:13px;color:#6b7280">Due Date</td><td style="padding:5px 0;font-size:13px;font-weight:700;color:#dc2626;text-align:right">${vars.dueDate}</td></tr>
+          <tr><td style="padding:12px 0 5px;border-top:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#374151">Amount Due</td><td style="padding:12px 0 5px;border-top:1px solid #e5e7eb;font-size:20px;font-weight:800;color:${cfg.ctaColor};text-align:right">${vars.amount}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+    ${vars.stage === "last_chance" ? `<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:10px;padding:14px 20px;margin:0 0 24px;text-align:center"><p style="margin:0;font-size:14px;font-weight:700;color:#dc2626">⚠️ Service suspends automatically at midnight tonight if unpaid</p></div>` : ""}
+    <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0 24px">
+      <a href="${payUrl}" style="display:inline-block;background:${cfg.ctaColor};color:#fff;text-decoration:none;padding:15px 44px;border-radius:50px;font-size:15px;font-weight:800">${cfg.ctaText}</a>
+    </td></tr></table>
+    <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center">Questions? Contact us at <a href="${b.support_url}" style="color:${cfg.ctaColor}">${b.support_email || "support@noehost.com"}</a></p>
+  </td></tr>
+  <tr><td style="background:#1a1a2e;padding:20px 44px;text-align:center">
+    <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.4)">© ${year} ${b.company_name}. All rights reserved.</p>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+
+  const subjects: Record<string, string> = {
+    "30d": `📅 ${vars.serviceName} renews in 30 days — ${vars.dueDate}`,
+    "7d":  `⏰ 7 days left to renew ${vars.serviceName} — ${vars.amount} due`,
+    "3d":  `🚨 Urgent: ${vars.serviceName} expires in 3 days — renew now`,
+    "last_chance": `💀 LAST CHANCE: ${vars.serviceName} suspends tonight — Pay ${vars.amount}`,
+  };
+
+  return sendEmail({ to, subject: subjects[vars.stage], html, emailType: `service-renewal-${vars.stage}`, clientId: meta?.clientId, referenceId: meta?.referenceId });
+}

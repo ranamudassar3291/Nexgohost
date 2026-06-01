@@ -12,7 +12,7 @@ import {
 import { eq, sql, and, gt } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { getSecurityConfig, verifyCaptcha } from "../lib/security.js";
-import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated, emailPaymentUnderReview } from "../lib/email.js";
+import { emailInvoiceCreated, emailOrderCreated, emailDomainRegistered, emailDomainTransferInitiated, emailPaymentUnderReview, emailVpsOrderPlaced } from "../lib/email.js";
 import { generateInvoicePdf } from "../lib/invoicePdf.js";
 import { createNotification } from "../lib/notifications.js";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
@@ -463,6 +463,27 @@ async function handleCheckout(req: AuthRequest, res: any) {
       }
 
       try { await createNotification(req.user!.userId, "order_placed", `VPS order placed: ${vpsPlan.name}`, `/client/invoices/${invoice.id}`); } catch {}
+
+      // Send VPS order confirmation email
+      try {
+        const pmName = selectedPaymentMethod ? selectedPaymentMethod.name : (paymentMethodId === "credits" ? "Account Credits" : "Manual Payment");
+        const dueDateStr = dueDate.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+        const amountStr = `Rs. ${finalVpsAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        await emailVpsOrderPlaced(user.email, {
+          clientName: user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email,
+          invoiceNumber,
+          invoiceId: invoice.id,
+          planName: vpsPlan.name,
+          osTemplate: vpsOsTemplate ?? "To be selected",
+          location: vpsLocation ?? "To be selected",
+          hostname: vpsHostname ?? "",
+          billingCycle: cycle,
+          amount: amountStr,
+          paymentMethod: pmName,
+          dueDate: dueDateStr,
+        }, { clientId: req.user!.userId, referenceId: invoice.id });
+      } catch { /* non-fatal */ }
+
       res.json({ orderId: order.id, invoiceId: invoice.id });
       return;
     }

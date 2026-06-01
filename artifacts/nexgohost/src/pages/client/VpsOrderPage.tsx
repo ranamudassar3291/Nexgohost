@@ -340,7 +340,7 @@ export default function VpsOrderPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          vpsPlanId: plan?.id,
+          vpsPlanId: plan?.id ?? initialPlanId,
           vpsOsTemplate: `${selectedOs!.name} ${selectedOs!.version}`,
           vpsLocation: `${selectedLocation!.countryName}${selectedLocation!.city ? ' — ' + selectedLocation!.city : ''}`,
           vpsHostname: hostname.trim(),

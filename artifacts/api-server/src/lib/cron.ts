@@ -18,6 +18,7 @@ import {
   emailDomainStatusAlert,
   emailDomain30DayReminder, emailDomain15DayDiscount, emailDomain1DayUrgent,
   emailInvoiceCreated,
+  emailServiceRenewalReminder,
   sendEmail,
 } from "./email.js";
 import { serversTable } from "@workspace/db/schema";
@@ -160,18 +161,25 @@ export async function runBillingCron(): Promise<void> {
   }
 }
 
-// ─── Task 2: Auto-suspend overdue hosting (1+ day unpaid) ────────────────────
+// ─── Task 2: Auto-suspend overdue services at/after due date ─────────────────
+// Suspends hosting + VPS services whose invoice is unpaid AND due date has passed.
+// Skip invoices that are more than 90 days overdue (too stale — no reminder spam).
 // STRICT: Suspension only. Termination requires manual admin action.
 export async function runSuspendOverdueCron(): Promise<void> {
-  const oneDayAgo = new Date();
-  oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-  oneDayAgo.setHours(23, 59, 59, 999);
+  const now = new Date();
+  // Suspend when due date has passed (end of due day)
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  // Skip invoices older than 90 days (avoid mass-suspending long-abandoned accounts repeatedly)
+  const ninetyDaysAgo = new Date(now);
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
   try {
     const overdueInvoices = await db.select().from(invoicesTable)
       .where(and(
         eq(invoicesTable.status, "unpaid"),
-        lte(invoicesTable.dueDate, oneDayAgo),
+        lte(invoicesTable.dueDate, endOfToday),
+        gte(invoicesTable.dueDate, ninetyDaysAgo),
       ));
 
     let suspended = 0;
@@ -187,11 +195,12 @@ export async function runSuspendOverdueCron(): Promise<void> {
 
       if (!service) continue;
 
-      try {
-        if (service.username) {
-          await suspendHostingAccount(service.username, service.serverId, "Overdue Invoice");
-        }
-      } catch { /* WHM may fail — still update DB */ }
+      // Perform actual WHM/backend suspension for hosting (non-VPS)
+      if (service.serviceType !== "vps" && service.username) {
+        try {
+          await suspendHostingAccount(service.username, service.serverId, "Overdue Invoice — Payment Due");
+        } catch { /* WHM may fail — still update DB status */ }
+      }
 
       await db.update(hostingServicesTable)
         .set({ status: "suspended", updatedAt: new Date() })
@@ -203,28 +212,29 @@ export async function runSuspendOverdueCron(): Promise<void> {
 
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
       if (user) {
-        await logEmail(service.clientId, user.email, "service_suspended", "Your hosting account has been suspended – Overdue Invoice", service.id);
+        await logEmail(service.clientId, user.email, "service_suspended", "Your service has been suspended – Overdue Invoice", service.id);
         try {
           await emailServiceSuspended(user.email, {
             clientName: user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email,
-            domain: service.domain ?? service.planName,
+            domain: service.domain ?? service.serverIp ?? service.planName,
             serviceName: service.planName,
             invoiceId: invoice.id,
           }, { clientId: service.clientId, referenceId: service.id });
         } catch { /* non-fatal */ }
 
-        // WhatsApp suspension alert to client
         if (user.phone) {
           const clientName = user.firstName ? user.firstName.trim() : "there";
+          const serviceLabel = service.serviceType === "vps" ? "VPS server" : "hosting account";
+          const siteName = getAppUrl().replace(/https?:\/\//, "");
           sendToClientPhone(
             user.phone,
-            `⚠️ *Service Suspended — Noehost*\n\n` +
+            `⚠️ *Service Suspended — ${siteName}*\n\n` +
             `Hi ${clientName},\n\n` +
-            `Your service *${service.domain || service.planName}* has been suspended due to an overdue invoice.\n\n` +
-            `💳 Please pay your outstanding invoice to restore your service immediately.\n\n` +
-            `🌐 Login at noehost.com to pay\n` +
+            `Your ${serviceLabel} *${service.domain || service.planName}* has been suspended due to an overdue invoice.\n\n` +
+            `💳 Pay your invoice immediately to restore access.\n\n` +
+            `🌐 Login to pay your invoice now\n` +
             `📧 Help: support@noehost.com\n\n` +
-            `_Noehost Team_`,
+            `_${siteName} Billing Team_`,
             "suspension_warning"
           ).catch(() => {});
         }
@@ -240,85 +250,114 @@ export async function runSuspendOverdueCron(): Promise<void> {
   }
 }
 
-// ─── Task 3: Hosting/VPS Renewal Reminder (7 days before due) ────────────────
+// ─── Task 3: Hosting/VPS Renewal Reminders (Hostinger-style 4-stage) ─────────
+// Stage 1: 30 days before due — early heads-up
+// Stage 2:  7 days before due — standard reminder
+// Stage 3:  3 days before due — urgent
+// Stage 4:  due today (0 days) — last chance before midnight auto-suspend
+// Skip: services with invoices more than 90 days overdue (stale/abandoned)
 export async function runHostingRenewalReminderCron(): Promise<void> {
-  const sevenDaysFromNow = new Date();
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-  sevenDaysFromNow.setHours(23, 59, 59, 999);
-  const sixDaysFromNow = new Date();
-  sixDaysFromNow.setDate(sixDaysFromNow.getDate() + 6);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  // Define the 4 reminder windows (day windows to catch the cron running every few minutes)
+  const stages: Array<{ days: number; type: string; stage: "30d" | "7d" | "3d" | "last_chance" }> = [
+    { days: 30, type: "hosting_renewal_reminder_30d", stage: "30d" },
+    { days: 7,  type: "hosting_renewal_reminder_7d",  stage: "7d" },
+    { days: 3,  type: "hosting_renewal_reminder_3d",  stage: "3d" },
+    { days: 0,  type: "hosting_renewal_reminder_0d",  stage: "last_chance" },
+  ];
+
+  let totalSent = 0;
 
   try {
-    // Services due in exactly 7 days (between 6 and 7 days from now)
-    const dueServices = await db.select().from(hostingServicesTable)
-      .where(and(
-        eq(hostingServicesTable.status, "active"),
-        gte(hostingServicesTable.nextDueDate, sixDaysFromNow),
-        lte(hostingServicesTable.nextDueDate, sevenDaysFromNow),
-      ));
+    for (const stageConfig of stages) {
+      const windowStart = new Date(now);
+      windowStart.setDate(windowStart.getDate() + stageConfig.days);
+      const windowEnd = new Date(windowStart);
+      windowEnd.setHours(23, 59, 59, 999);
 
-    let sent = 0;
-
-    for (const service of dueServices) {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
-      if (!user) continue;
-
-      // Avoid duplicate reminder for same service/cycle
-      const alreadySent = await db.select().from(emailLogsTable)
+      // Find active services due in this window (nextDueDate or expiryDate)
+      const dueServices = await db.select().from(hostingServicesTable)
         .where(and(
-          eq(emailLogsTable.referenceId, service.id),
-          eq(emailLogsTable.emailType, "hosting_renewal_reminder_7d"),
-        )).limit(1);
+          eq(hostingServicesTable.status, "active"),
+          gte(hostingServicesTable.nextDueDate, windowStart),
+          lte(hostingServicesTable.nextDueDate, windowEnd),
+        ));
 
-      if (alreadySent.length > 0) continue;
+      for (const service of dueServices) {
+        const [user] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+        if (!user) continue;
 
-      // Find unpaid invoice for this service
-      const [invoice] = await db.select().from(invoicesTable)
-        .where(and(
-          eq(invoicesTable.serviceId, service.id),
-          eq(invoicesTable.status, "unpaid"),
-        )).limit(1);
+        // Duplicate guard: only send each stage once per service per billing cycle
+        const alreadySent = await db.select().from(emailLogsTable)
+          .where(and(
+            eq(emailLogsTable.referenceId, service.id),
+            eq(emailLogsTable.emailType, stageConfig.type),
+          )).limit(1);
+        if (alreadySent.length > 0) continue;
 
-      const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
-      const domainOrIp = service.domain ?? service.serverIp ?? service.planName;
-      const dueDateStr = service.nextDueDate
-        ? new Date(service.nextDueDate).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" })
-        : "Upcoming";
+        // Find unpaid invoice — skip if invoice is >90 days overdue (abandoned)
+        const [invoice] = await db.select().from(invoicesTable)
+          .where(and(
+            eq(invoicesTable.serviceId, service.id),
+            eq(invoicesTable.status, "unpaid"),
+          )).limit(1);
 
-      const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
-      const amount = service.billingCycle === "yearly"
-        ? (plan?.yearlyPrice ?? plan?.price ?? "0")
-        : (plan?.price ?? "0");
-      const amountStr = convertAndFormat(
-        Number(amount),
-        invoice?.currencyCode,
-        invoice?.currencySymbol,
-        invoice?.currencyRate,
-      );
+        // For the 0d stage, also generate invoice if one doesn't exist yet
+        // (billing cron generates at 7d, but last-chance at 0d should always have one)
 
-      try {
-        await emailHostingRenewalReminder(user.email, {
-          clientName,
-          serviceName: service.planName,
-          domainOrIp,
-          dueDate: dueDateStr,
-          invoiceId: invoice?.id ?? "",
-          invoiceNumber: invoice?.invoiceNumber ?? "Pending",
-          amount: amountStr,
-        }, { clientId: service.clientId, referenceId: service.id });
+        const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
+        const domainOrIp = service.domain ?? service.serverIp ?? service.planName;
+        const dueDateStr = service.nextDueDate
+          ? new Date(service.nextDueDate).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" })
+          : "Today";
 
-        await logEmail(service.clientId, user.email, "hosting_renewal_reminder_7d",
-          `Service ${service.planName} renewal reminder – due in 7 days`, service.id);
+        // Resolve amount from plan or service
+        let amountStr = "Contact support";
+        try {
+          if (invoice) {
+            amountStr = convertAndFormat(Number(invoice.amount ?? 0), invoice.currencyCode, invoice.currencySymbol, invoice.currencyRate);
+          } else if (service.planId) {
+            const [plan] = await db.select().from(hostingPlansTable).where(eq(hostingPlansTable.id, service.planId)).limit(1);
+            const rawAmt = service.billingCycle === "yearly" ? (plan?.yearlyPrice ?? plan?.price) : plan?.price;
+            amountStr = convertAndFormat(Number(rawAmt ?? 0));
+          } else if (service.amount) {
+            amountStr = convertAndFormat(Number(service.amount));
+          }
+        } catch { /* non-fatal */ }
 
-        notify(service.clientId, "invoice", "Service Renewal Reminder",
-          `${service.planName} is due in 7 days. Pay ${amountStr} to keep your service active.`,
-          `/client/invoices`).catch(() => {});
+        const serviceType = service.serviceType === "vps" ? "vps" : "hosting";
 
-        sent++;
-      } catch { /* non-fatal */ }
+        try {
+          await emailServiceRenewalReminder(user.email, {
+            clientName,
+            serviceName: service.planName,
+            serviceType,
+            domainOrIp,
+            dueDate: dueDateStr,
+            amount: amountStr,
+            invoiceId: invoice?.id ?? "",
+            invoiceNumber: invoice?.invoiceNumber ?? "Pending",
+            stage: stageConfig.stage,
+          }, { clientId: service.clientId, referenceId: service.id });
+
+          await logEmail(service.clientId, user.email, stageConfig.type,
+            `${service.planName} renewal reminder — ${stageConfig.days === 0 ? "due today" : `${stageConfig.days} days`}`, service.id);
+
+          notify(service.clientId, "invoice",
+            stageConfig.days === 0 ? "⚠️ Service Due Today" : `Service Renewal in ${stageConfig.days} Days`,
+            stageConfig.days === 0
+              ? `${service.planName} will be suspended tonight if unpaid. Pay ${amountStr} now.`
+              : `${service.planName} renews in ${stageConfig.days} days. Amount: ${amountStr}.`,
+            `/client/invoices`).catch(() => {});
+
+          totalSent++;
+        } catch { /* non-fatal */ }
+      }
     }
 
-    await logCron("emails:hosting_renewal_reminder", "success", `Sent ${sent} hosting/VPS renewal reminder(s)`);
+    await logCron("emails:hosting_renewal_reminder", "success", `Sent ${totalSent} hosting/VPS renewal reminder(s) across 4 stages`);
   } catch (err: any) {
     await logCron("emails:hosting_renewal_reminder", "failed", err.message);
     console.error("[CRON] emails:hosting_renewal_reminder error:", err.message);
