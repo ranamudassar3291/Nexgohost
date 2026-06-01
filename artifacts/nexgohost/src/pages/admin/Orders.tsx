@@ -33,7 +33,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
   });
   const data = await res.json();
   if (!res.ok) {
-    const err = new Error(data.error || "Request failed") as any;
+    const err = new Error(data.message || data.error || "Request failed") as any;
     err.data = data;
     throw err;
   }

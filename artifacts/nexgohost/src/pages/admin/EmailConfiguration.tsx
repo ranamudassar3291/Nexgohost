@@ -17,7 +17,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers },
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) throw new Error(data.message || data.error || "Request failed");
   return data;
 }
 
@@ -66,7 +66,6 @@ export default function EmailConfiguration() {
   const { data: settingsData } = useQuery<EmailSettings>({
     queryKey: ["admin-settings-email"],
     queryFn: () => apiFetch("/api/admin/settings"),
-    onSuccess: (d) => { if (!form) setForm(d); },
   });
 
   const { data: logsData, refetch: refetchLogs, isFetching: logsLoading } = useQuery<EmailLog[]>({
