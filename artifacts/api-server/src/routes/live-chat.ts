@@ -16,22 +16,70 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { authenticate, requireAdmin, verifyToken, type AuthRequest } from "../lib/auth.js";
-import { getClientIp } from "../lib/security.js";
 import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 
 const router = Router();
 
-const SYSTEM_INSTRUCTION = `You are NoeBot, the official premium AI Support Assistant for Noehost (noehost.com). Respond in a highly professional, polite, and helpful blend of Roman Urdu and English. Your focus is web hosting, premium Cloud VPS, domain registrations, and business email (NoeMail). Keep answers concise, accurate, and guide the user on how to navigate the platform or place an order if needed. If after 2 failed attempts you still cannot resolve the user's issue, politely suggest they click the "Talk to Human Agent" button. Never break character.`;
+const BASE_SYSTEM = `You are NoeBot, the official premium AI Support Assistant for Noehost (noehost.com).
+Respond in a highly professional, polite, and helpful blend of Roman Urdu and English.
+Your focus is web hosting, premium Cloud VPS, domain registrations, and business email (NoeMail).
+Keep answers concise, accurate, and guide the user on how to navigate the platform or place an order.
+If you cannot resolve the user's issue after 2 attempts, politely suggest they click "Talk to Human Agent".
+Never break character. Always refer to the knowledge context below when answering pricing or feature questions.`;
 
-const FALLBACK = "Our agents are currently processing multiple requests. Please try sending your message again in a few moments.";
+const FALLBACK = "Maafi chahta hoon, abhi kuch technical masla hai. Kripya thodi der baad dobara try karein.";
 
-function getModel() {
+// ── Knowledge context cache (refreshes every 5 min) ───────────────────────────
+let _knowledgeCache = "";
+let _knowledgeAt = 0;
+
+async function buildKnowledgeContext(): Promise<string> {
+  if (_knowledgeCache && Date.now() - _knowledgeAt < 5 * 60 * 1000) {
+    return _knowledgeCache;
+  }
+  const parts: string[] = ["=== Noehost Knowledge ==="];
+  try {
+    const plans = (await db.execute(sql`
+      SELECT name, price, billing_cycle FROM hosting_plans LIMIT 12
+    `)).rows as any[];
+    if (plans.length) {
+      parts.push("Plans: " + plans.map((p: any) => `${p.name} Rs.${p.price}/${p.billing_cycle ?? "mo"}`).join(", "));
+    }
+  } catch { /* non-fatal */ }
+
+  try {
+    const articles = (await db.execute(sql`
+      SELECT title FROM kb_articles WHERE is_published = true ORDER BY views DESC LIMIT 8
+    `)).rows as any[];
+    if (articles.length) {
+      parts.push("KB Topics: " + articles.map((a: any) => a.title).join(", "));
+    }
+  } catch { /* non-fatal */ }
+
+  try {
+    const docs = (await db.execute(sql`
+      SELECT title, content FROM ai_training_docs WHERE is_active = true ORDER BY created_at DESC LIMIT 5
+    `)).rows as any[];
+    if (docs.length) {
+      parts.push("Support Docs:");
+      for (const d of docs as any[]) {
+        parts.push(`• ${d.title}: ${String(d.content ?? "").slice(0, 150)}`);
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  _knowledgeCache = parts.join("\n");
+  _knowledgeAt = Date.now();
+  return _knowledgeCache;
+}
+
+function getModel(knowledgeContext: string) {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
   const genai = new GoogleGenerativeAI(apiKey);
   return genai.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    systemInstruction: SYSTEM_INSTRUCTION,
+    model: "gemini-2.0-flash",
+    systemInstruction: `${BASE_SYSTEM}\n\n${knowledgeContext}`,
   });
 }
 
@@ -53,8 +101,8 @@ async function getOrCreateSession(sessionId: string, opts: {
       ${sessionId},
       ${opts.userId ?? null},
       ${opts.clientName ?? "Guest"},
-      ${opts.clientEmail ?? null},
-      ${opts.clientPhone ?? null},
+      ${opts.clientEmail ?? ""},
+      ${opts.clientPhone ?? ""},
       ${opts.source ?? "website"},
       'ai',
       0,
@@ -133,8 +181,8 @@ router.post("/chat/message", async (req, res) => {
     // Ensure session exists
     await getOrCreateSession(sessionId, {
       clientName: clientName || "Guest",
-      clientEmail: clientEmail || null,
-      clientPhone: clientPhone || null,
+      clientEmail: clientEmail || "",
+      clientPhone: clientPhone || "",
       source: "website",
     });
 
@@ -170,18 +218,39 @@ router.post("/chat/message", async (req, res) => {
     let reply = FALLBACK;
     let failedAttempts = Number(session?.failed_attempts ?? 0);
 
-    try {
-      const model = getModel();
+    const tryGemini = async (retryMs = 0): Promise<string | null> => {
+      if (retryMs > 0) await new Promise(r => setTimeout(r, retryMs));
+      const knowledgeCtx = await buildKnowledgeContext();
+      const model = getModel(knowledgeCtx);
       const chat = model.startChat({ history: geminiHistory });
       const result = await chat.sendMessage(message.trim());
-      reply = result.response.text() || FALLBACK;
+      return result.response.text() || null;
+    };
+
+    try {
+      let text: string | null = null;
+      try {
+        text = await tryGemini();
+      } catch (e: any) {
+        const is429 = e?.message?.includes("429") || e?.status === 429;
+        if (is429) {
+          // Extract retry delay from error or default 5s
+          const match = e?.message?.match(/retryDelay["\s:]+(\d+)s/) || e?.message?.match(/retry in (\d+)/i);
+          const waitMs = match ? Math.min(parseInt(match[1]) * 1000, 8000) : 5000;
+          console.log(`[LIVE-CHAT] 429 rate limit — retrying after ${waitMs}ms`);
+          text = await tryGemini(waitMs);
+        } else {
+          throw e;
+        }
+      }
+      reply = text || FALLBACK;
       // Reset failed attempts on success
       await db.execute(sql`
         UPDATE chat_sessions SET failed_attempts = 0, updated_at = NOW()
         WHERE session_id = ${sessionId}
       `);
     } catch (geminiErr: any) {
-      console.error("[LIVE-CHAT] Gemini error:", geminiErr?.message);
+      console.error("[LIVE-CHAT] Gemini error:", geminiErr?.message?.slice(0, 200));
       failedAttempts += 1;
       await db.execute(sql`
         UPDATE chat_sessions SET failed_attempts = ${failedAttempts}, updated_at = NOW()
