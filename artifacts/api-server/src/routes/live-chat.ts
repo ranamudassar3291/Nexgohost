@@ -480,7 +480,7 @@ router.post("/chat/message", async (req, res) => {
         WHERE session_id = ${sessionId}
       `);
       const sName = clientName || clientEmail || sessionId;
-      sendWhatsAppAlert("handover_request",
+      sendWhatsAppAlert("other",
         `🚨 *Live Chat Handover — Noehost*\n\nClient: ${sName}\nSession: ${sessionId}\nReason: AI failed 3 consecutive attempts\n\nPlease open Admin → Support → Live Support`
       ).catch(() => {});
     }
@@ -518,7 +518,7 @@ router.post("/chat/handover/:id", async (req, res) => {
     await saveMessage(id, "assistant",
       "✅ Aapki request receive ho gayi. Ek support agent jald hi aapke saath connect hoga. Neeche chat continue kar sakte hain."
     );
-    sendWhatsAppAlert("handover_request",
+    sendWhatsAppAlert("other",
       `🚨 *Live Chat Handover — Noehost*\n\nClient: ${clientName || "Guest"}\nEmail: ${clientEmail || "N/A"}\nSession: ${id}\n\nClient ne human agent request kiya.\n\nAdmin Panel → Support → Live Support`
     ).catch(() => {});
     res.json({ success: true, status: "handover" });

@@ -645,7 +645,7 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
         "",
         "Open Admin → Support → Live Support to take over.",
       ].join("\n");
-      sendWhatsAppAlert("live_support_request", waMsg).catch(() => {});
+      sendWhatsAppAlert("other", waMsg).catch(() => {});
 
       return res.json({ reply: handoverReply, status: "handover", autoHandover: true, webSearched: false });
     }
@@ -700,19 +700,30 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
       reply = "My AI engine is currently unavailable. For immediate assistance please contact **support@noehost.com** or click **Talk to Human Agent** below — a real person will help you right away.";
       webSearched = false;
     } else {
-      try {
-        const completion = await ai.chat.completions.create({
-          model: getAIModel(),
-          max_tokens: 600,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...aiMessages,
-          ],
-        });
-        reply = completion.choices[0]?.message?.content?.trim()
-          ?? "I couldn't generate a response. Please try again or contact our support team.";
-      } catch (aiErr: any) {
-        console.error("[AI SUPPORT AI ERROR]", aiErr.message);
+      let lastErr: any;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 4000));
+          const completion = await ai.chat.completions.create({
+            model: getAIModel(),
+            max_tokens: 600,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...aiMessages,
+            ],
+          });
+          reply = completion.choices[0]?.message?.content?.trim()
+            ?? "I couldn't generate a response. Please try again or contact our support team.";
+          lastErr = null;
+          break;
+        } catch (aiErr: any) {
+          lastErr = aiErr;
+          const is429 = aiErr.status === 429 || aiErr.message?.includes("429");
+          console.error(`[AI SUPPORT AI ERROR] attempt ${attempt + 1}:`, aiErr.message);
+          if (!is429) break; // only retry on rate limit
+        }
+      }
+      if (lastErr) {
         reply = "I ran into a technical hiccup. [ACTION: create_ticket] and a human agent will help you immediately.";
         await bumpFailedAttempts(sessionId);
       }
@@ -761,7 +772,7 @@ router.post("/ai/support/message", async (req: AuthRequest, res) => {
         "Please check Admin → Support → Live Support to take over.",
       ].join("\n");
 
-      sendWhatsAppAlert("ai_handover", waMsg).catch(() => {});
+      sendWhatsAppAlert("other", waMsg).catch(() => {});
       reply += "\n\n🙋 I've notified a human agent — they'll join this chat shortly. You can also click **Talk to Human** below.";
     }
 
@@ -867,7 +878,7 @@ router.post("/ai/support/handover/:id", async (req, res) => {
       "Please open Admin → Support → Live Support to take over this chat.",
     ].join("\n");
 
-    sendWhatsAppAlert("live_support_request", waMsg).catch(() => {});
+    sendWhatsAppAlert("other", waMsg).catch(() => {});
     res.json({ success: true, status: "handover" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
