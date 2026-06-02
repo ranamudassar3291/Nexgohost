@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { sendWhatsAppAlert, sendToClientPhone } from "../lib/whatsapp.js";
+import { sendWhatsAppAlert, sendToClientPhone, getPaymentInfo } from "../lib/whatsapp.js";
 import { invoicesTable, transactionsTable, usersTable, ordersTable, creditTransactionsTable, domainsTable, hostingServicesTable, affiliateCommissionsTable, affiliatesTable, hostingPlansTable } from "@workspace/db/schema";
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
@@ -354,6 +354,26 @@ router.post("/admin/invoices", authenticate, requireAdmin, async (req: AuthReque
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
     res.status(201).json(formatInvoice(invoice, user ? `${user.firstName} ${user.lastName}` : ""));
+
+    // WhatsApp notification to client (non-blocking)
+    if (user?.phone) {
+      const payInfo = await getPaymentInfo().catch(() => "");
+      const dueDateStr = new Date(dueDate).toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
+      const amtDisplay = `Rs. ${Number(total).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`;
+      const payLine = payInfo ? `\n\n💳 *Payment Instructions:*\n${payInfo}` : "";
+      sendToClientPhone(
+        user.phone,
+        `🧾 *New Invoice — Noehost*\n\n` +
+        `Hi ${user.firstName || "there"},\n\n` +
+        `A new invoice *${invoiceNumber}* has been created for your account.\n\n` +
+        `💰 Amount: *${amtDisplay}*\n` +
+        `📅 Due Date: ${dueDateStr}` +
+        payLine +
+        `\n\n📱 Pay now: noehost.com/dashboard/invoices\n\n` +
+        `_Noehost Billing Team_`,
+        "new_order"
+      ).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

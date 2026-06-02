@@ -549,6 +549,18 @@ export async function sendToClientPhone(rawPhone: string, message: string, event
   }
 }
 
+// ── Payment info helper — reads configurable bank/payment details from DB ─────
+export async function getPaymentInfo(): Promise<string> {
+  try {
+    const { settingsTable } = await import("@workspace/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const [row] = await db.select().from(settingsTable)
+      .where(eq(settingsTable.key, "payment_whatsapp_info")).limit(1);
+    if (row?.value?.trim()) return row.value.trim();
+  } catch { /* non-fatal */ }
+  return "";
+}
+
 // ── Auto-reconnect on server start (if session exists) ───────────────────────
 export async function initWhatsApp() {
   ensureSessionDir();

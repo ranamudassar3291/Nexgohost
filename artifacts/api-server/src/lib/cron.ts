@@ -24,7 +24,7 @@ import {
 import { serversTable } from "@workspace/db/schema";
 import { twentyiListSites, runWithCtx, twentyiTestConnection, getOutboundIp } from "./twenty-i.js";
 import { decryptField } from "./fieldCrypto.js";
-import { sendWhatsAppAlert, sendToClientPhone, formatPKPhone } from "./whatsapp.js";
+import { sendWhatsAppAlert, sendToClientPhone, formatPKPhone, getPaymentInfo } from "./whatsapp.js";
 
 async function notify(userId: string, type: "invoice" | "domain" | "system", title: string, message: string, link?: string) {
   try {
@@ -136,7 +136,7 @@ export async function runBillingCron(): Promise<void> {
       await logEmail(service.clientId, user.email, "invoice_generated", `Invoice ${invoiceNumber} – Service Renewal`, service.id);
       notify(service.clientId, "invoice", "Invoice Generated", `Invoice ${invoiceNumber} for ${service.planName} renewal — Rs. ${amount}`, `/client/invoices`).catch(() => {});
 
-      // ── Send invoice-created email immediately ─────────────────────────────
+      // ── Send invoice-created email + WhatsApp immediately ─────────────────
       if (newInvoice) {
         const clientName = user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email;
         const dueDateStr = dueDate.toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" });
@@ -149,6 +149,26 @@ export async function runBillingCron(): Promise<void> {
             dueDate: dueDateStr,
           }, { clientId: service.clientId, referenceId: newInvoice.id });
         } catch { /* non-fatal — email failure should not abort invoice creation */ }
+
+        // WhatsApp invoice notification to client (non-blocking)
+        if (user.phone) {
+          const payInfo = await getPaymentInfo().catch(() => "");
+          const siteName = getAppUrl().replace(/https?:\/\//, "");
+          const amtFormatted = `Rs. ${Number(amount).toLocaleString("en-PK", { minimumFractionDigits: 2 })}`;
+          const payLine = payInfo ? `\n\n💳 *Payment Instructions:*\n${payInfo}` : "";
+          sendToClientPhone(
+            user.phone,
+            `🧾 *New Invoice — ${siteName}*\n\n` +
+            `Hi ${user.firstName || "there"},\n\n` +
+            `Invoice *${invoiceNumber}* has been generated for your *${service.planName}* renewal.\n\n` +
+            `💰 Amount: *${amtFormatted}*\n` +
+            `📅 Due Date: ${dueDateStr}` +
+            payLine +
+            `\n\n📱 Login to pay: noehost.com/dashboard/invoices\n\n` +
+            `_${siteName} Billing Team_`,
+            "new_order"
+          ).catch(() => {});
+        }
       }
 
       invoicesCreated++;
@@ -352,6 +372,28 @@ export async function runHostingRenewalReminderCron(): Promise<void> {
               : `${service.planName} renews in ${stageConfig.days} days. Amount: ${amountStr}.`,
             `/client/invoices`).catch(() => {});
 
+          // WhatsApp renewal reminder (non-blocking)
+          if (user.phone) {
+            const payInfo = await getPaymentInfo().catch(() => "");
+            const siteName = getAppUrl().replace(/https?:\/\//, "");
+            const urgencyEmoji = stageConfig.days === 0 ? "🚨" : stageConfig.days <= 3 ? "⚠️" : "⏰";
+            const urgencyLabel = stageConfig.days === 0 ? "DUE TODAY — Last Chance" : `due in ${stageConfig.days} days`;
+            const payLine = payInfo ? `\n\n💳 *How to Pay:*\n${payInfo}` : "";
+            sendToClientPhone(
+              user.phone,
+              `${urgencyEmoji} *Service Renewal Reminder — ${siteName}*\n\n` +
+              `Hi ${user.firstName || "there"},\n\n` +
+              `Your *${service.planName}* (${domainOrIp}) is *${urgencyLabel}*.\n\n` +
+              `💰 Amount: *${amountStr}*\n` +
+              `📅 Due: ${dueDateStr}\n` +
+              (invoice?.invoiceNumber ? `🧾 Invoice: ${invoice.invoiceNumber}` : "") +
+              payLine +
+              `\n\n📱 Pay now: noehost.com/dashboard/invoices\n\n` +
+              `_${siteName} Billing Team_`,
+              "client_notification"
+            ).catch(() => {});
+          }
+
           totalSent++;
         } catch { /* non-fatal */ }
       }
@@ -437,6 +479,27 @@ export async function runDomainRenewalCron(): Promise<void> {
       const { raw: renewalPriceRaw, formatted: renewalPriceStr } = await getDomainRenewalPriceStr(domain.tld, domain.clientId);
 
       try {
+        // WhatsApp domain renewal reminder (non-blocking, sent for every milestone)
+        if (user.phone) {
+          const payInfo = await getPaymentInfo().catch(() => "");
+          const siteName = getAppUrl().replace(/https?:\/\//, "");
+          const urgEmoji = daysRemaining <= 1 ? "🚨" : daysRemaining <= 15 ? "⚠️" : "⏰";
+          const urgLabel = daysRemaining <= 1 ? "EXPIRES TODAY" : `expires in ${daysRemaining} days`;
+          const payLine = payInfo ? `\n\n💳 *How to Renew:*\n${payInfo}` : "";
+          sendToClientPhone(
+            user.phone,
+            `${urgEmoji} *Domain Renewal Reminder — ${siteName}*\n\n` +
+            `Hi ${user.firstName || "there"},\n\n` +
+            `Your domain *${domainFqdn}* *${urgLabel}*.\n\n` +
+            `📅 Expiry: ${expiryStr}\n` +
+            `💰 Renewal Price: ${renewalPriceStr}` +
+            payLine +
+            `\n\n🌐 Renew now: ${renewUrl}\n\n` +
+            `_${siteName} Domains Team_`,
+            "client_notification"
+          ).catch(() => {});
+        }
+
         if (emailType === "domain_expiring_30d") {
           // ── Step 1: 30-Day "Don't Lose Your Identity" ────────────────────────
           await emailDomain30DayReminder(user.email, { clientName, domainName: domainFqdn, expiryDate: expiryStr, renewalPrice: renewalPriceStr, renewUrl },

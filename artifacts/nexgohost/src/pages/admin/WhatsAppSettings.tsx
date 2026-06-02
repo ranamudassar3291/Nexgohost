@@ -5,7 +5,9 @@ import {
   CheckCircle, AlertCircle, Send, Zap, Phone, Bell,
   Clock, ShoppingCart, Ticket, CreditCard, Terminal,
   UserSearch, Ban, RotateCcw, Trash2, BarChart3, Package,
+  Save, Globe, Info,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,6 +77,8 @@ export default function WhatsAppSettings() {
   const queryClient = useQueryClient();
   const [phone, setPhone] = useState("");
   const [phoneSaving, setPhoneSaving] = useState(false);
+  const [paymentInfo, setPaymentInfo] = useState("");
+  const [paymentInfoSaving, setPaymentInfoSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [connectingSeconds, setConnectingSeconds] = useState(0);
@@ -96,6 +100,27 @@ export default function WhatsAppSettings() {
   useEffect(() => {
     if (waStatus?.adminPhone && !phone) setPhone(waStatus.adminPhone);
   }, [waStatus?.adminPhone]);
+
+  // Load payment info on mount
+  useEffect(() => {
+    apiFetch("/api/admin/settings/all").then((data: any) => {
+      const pi = data?.payment_whatsapp_info ?? data?.["payment_whatsapp_info"] ?? "";
+      if (pi) setPaymentInfo(pi);
+    }).catch(() => {});
+  }, []);
+
+  const handleSavePaymentInfo = async () => {
+    setPaymentInfoSaving(true);
+    try {
+      await apiFetch("/api/admin/settings/save", {
+        method: "POST",
+        body: JSON.stringify({ pairs: [{ key: "payment_whatsapp_info", value: paymentInfo }] }),
+      });
+      toast({ title: "Payment info saved", description: "Will be included in all order and renewal WhatsApp messages." });
+    } catch (err: any) {
+      toast({ title: "Error saving", description: err.message, variant: "destructive" });
+    } finally { setPaymentInfoSaving(false); }
+  };
 
   // Track how long we've been in "connecting" state
   useEffect(() => {
@@ -352,6 +377,35 @@ export default function WhatsAppSettings() {
         </div>
       </div>
 
+      {/* Payment Info for WhatsApp Messages */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold text-foreground mb-1 flex items-center gap-2">
+          <CreditCard size={15} style={{ color: BRAND }} /> Payment Instructions (included in WhatsApp messages)
+        </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          This text is automatically appended to all order, invoice, and renewal WhatsApp messages sent to clients.
+          Add your bank account, JazzCash, Easypaisa, or any payment details here.
+        </p>
+        <div className="space-y-3">
+          <Textarea
+            value={paymentInfo}
+            onChange={e => setPaymentInfo(e.target.value)}
+            placeholder={`Example:\n\nBank: HBL\nAccount Title: Noehost Services\nAccount No: 1234567890\n\nJazzCash: 0300-1234567\nEasypaisa: 0300-1234567\n\nPlease send screenshot of payment to our WhatsApp.`}
+            rows={7}
+            className="rounded-xl font-mono text-xs resize-none"
+          />
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-violet-950/10 border border-violet-500/15">
+            <Info size={13} className="text-violet-400 mt-0.5 shrink-0" />
+            <p className="text-[11px] text-muted-foreground">
+              When a client places an order, gets a renewal reminder, or an invoice is generated — this payment info is automatically appended to their WhatsApp message. Leave blank to omit.
+            </p>
+          </div>
+          <Button onClick={handleSavePaymentInfo} disabled={paymentInfoSaving} className="rounded-xl" style={{ background: BRAND }}>
+            {paymentInfoSaving ? <><RefreshCw size={14} className="animate-spin mr-2" /> Saving…</> : <><Save size={14} className="mr-2" /> Save Payment Info</>}
+          </Button>
+        </div>
+      </div>
+
       {/* Notification triggers */}
       <div className="bg-card border border-border rounded-2xl p-5">
         <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -360,8 +414,9 @@ export default function WhatsAppSettings() {
         <p className="text-xs text-muted-foreground mb-3">Admin alerts go to your WhatsApp. Client alerts go directly to the client's registered phone.</p>
         <div className="grid sm:grid-cols-2 gap-3">
           {[
-            { icon: ShoppingCart, label: "New Order → Admin", desc: "Notifies you instantly with client name, service, and amount", color: "violet" },
-            { icon: Package, label: "New Order → Client", desc: "Confirms the order to the client with order ID and service details", color: "violet" },
+            { icon: ShoppingCart, label: "New Invoice → Client", desc: "When billing cron generates a renewal invoice — sent to client with payment info", color: "violet" },
+            { icon: Package, label: "Renewal Reminder → Client", desc: "At 30, 7, 3 days and due-day before hosting/VPS renewal — includes payment instructions", color: "violet" },
+            { icon: Globe, label: "Domain Expiry → Client", desc: "At 30, 15, 1 day before domain expiry — includes renewal price and payment info", color: "violet" },
             { icon: Ticket, label: "New Support Ticket → Admin", desc: "Ticket subject, priority, and client name sent to you", color: "violet" },
             { icon: CreditCard, label: "Payment Proof → Admin", desc: "Invoice ID + transaction reference when client submits proof", color: "violet" },
             { icon: CreditCard, label: "Invoice Paid → Client", desc: "Payment confirmation sent to client's phone once invoice is marked paid", color: "emerald" },
