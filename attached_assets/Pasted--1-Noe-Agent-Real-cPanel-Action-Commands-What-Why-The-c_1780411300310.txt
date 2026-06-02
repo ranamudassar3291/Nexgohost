@@ -1,0 +1,37 @@
+#1 - Noe Agent — Real cPanel Action Commands
+What & Why
+The current fix_issue command only generates text advice via Gemini AI — it does NOT actually execute anything on cPanel. Admin needs to be able to say "xyz.com ka SSL install karo" or "ali ka WordPress 404 fix karo" via WhatsApp and have the agent actually perform the action using cPanel APIs.
+
+Add 7 new real-action intents to the Noe Agent that directly call existing cPanel library functions, turning the bot from an advisory tool into a real remote admin panel.
+
+Done looks like
+Admin says "ssl install karo xyz.com" → Agent calls cpanelInstallSSL(), replies with success/fail + SSL status
+Admin says "wordpress 404 fix karo ali@xyz.com" → Agent rewrites .htaccess via cPanel Fileman UAPI with correct WordPress rewrite rules → replies confirmation
+Admin says "xyz.com ka password reset karo NewPass123" → Agent calls cpanelChangePassword() → sends new password to client via WhatsApp → confirms to admin
+Admin says "xyz.com site check karo" → Agent does HTTP GET to site → replies with status code, response time, up/down
+Admin says "xyz.com ka backup lo" → Agent calls cpanelFullBackup() → confirms backup started
+Admin says "ali@xyz.com ka disk usage" → Agent calls cPanel Quota UAPI → replies with used/total MB and percentage
+Admin says "invoice 55 paid mark karo" → Agent calls processInvoicePaid() → activates service if pending → confirms
+Enhanced fix_issue now detects issue type keywords (ssl/404/wordpress/disk/password) and auto-routes to the correct real-action command instead of just giving text advice
+Out of scope
+DNS record management (future task)
+Email account create/delete via WhatsApp (future task)
+Support ticket reply via WhatsApp (future task)
+Any new frontend UI changes
+Steps
+Add 7 new intents to detectIntent() — Add ssl_install, wp_fix_404, reset_password, site_check, create_backup, disk_usage, mark_paid to both the Gemini system prompt and the keyword fallback matcher. Add Urdu/Roman-Urdu keywords (ssl lagao, backup lo, disk dekho, paid karo, password badlo, site check).
+Implement cmdSslInstall(domain) — Find service by domain → get server config → call cpanelInstallSSL() → update DB sslStatus → return success/fail message with details.
+Implement cmdWpFix404(identifier) — Find service by email/domain → get server config → use cpanelSaveFile() (Fileman UAPI) to write correct WordPress .htaccess (standard WP permalink rules) to public_html/.htaccess → return confirmation.
+Implement cmdResetPassword(identifier, newPassword?) — Find service → call cpanelChangePassword() with auto-generated secure password if none given → send new credentials to client WhatsApp → return confirmation to admin.
+Implement cmdSiteCheck(domain) — HTTP GET to https://domain with 10s timeout → return status code, response time ms, up/down, redirect chain summary.
+Implement cmdCreateBackup(identifier) — Find service → call cpanelFullBackup() → return confirmation with timestamp.
+Implement cmdDiskUsage(identifier) — Find service → call cPanel Quota::get_quota_info UAPI → return used/total/percent with visual bar (e.g. ████░░ 67%).
+Implement cmdMarkPaid(invoiceId, txnRef?) — Look up invoice by ID or "latest unpaid" for email → call processInvoicePaid() → return activation status + service credentials if provisioned.
+Upgrade cmdFixIssue() — Before falling back to Gemini text advice, check issue keywords: if ssl/certificate → route to cmdSslInstall, if 404/wordpress/htaccess → route to cmdWpFix404, if password → route to cmdResetPassword, if disk/space/full → route to cmdDiskUsage, if backup → route to cmdCreateBackup. Only use Gemini advice for unrecognized issue types.
+Wire all intents into executeIntent() switch — Add cases for all 7 new intents with multi-turn collection for missing params (e.g. ask for domain if not provided).
+Relevant files
+artifacts/api-server/src/lib/noe-agent.ts
+artifacts/api-server/src/lib/cpanel.ts:283-340,543-560,683-795,1537-1560,1814-1845
+artifacts/api-server/src/lib/provision.ts
+artifacts/api-server/src/lib/activateInvoice.ts
+artifacts/api-server/src/lib/whatsapp.ts
