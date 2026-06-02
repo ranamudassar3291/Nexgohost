@@ -85,50 +85,55 @@ async function detectIntent(msg: string): Promise<{
   replyText?: string;
 }> {
   const systemPrompt = `You are an intent classifier for a hosting company admin WhatsApp bot called "Noe".
-Classify the admin's message into one of these intents and extract parameters.
+The admin speaks in Roman Urdu, English, or a mix of both. Classify the message into one of these intents.
 Return ONLY valid JSON, no markdown, no explanation.
 
-Intents:
-- domain_check: Check if a domain is available. Extract: domain
-- add_client: Create a new client account. Extract: name (full name), email, phone, password
-- add_order: Create an order/service for a client. Extract: email (client email), domain, planName, amount (optional custom price in PKR, e.g. "4000 mein", "3500 ka order")
-- add_domain: Register/add a domain for a client. Extract: email (client email), domain
-- activate_order: Activate a pending order. Extract: orderId OR email OR domain
-- suspend: Suspend a hosting service. Extract: email OR domain
-- unsuspend: Unsuspend/reactivate a hosting service. Extract: email OR domain
-- terminate_service: Permanently terminate/delete a hosting service. Extract: email OR domain
-- extend_billing: Add months to a service billing period. Extract: email OR domain, months (number, e.g. "1 month"→"1", "3 mahine"→"3")
-- update_plan_price: Change/update the price of a hosting plan. Extract: planName, price (new monthly price number), yearlyPrice (optional yearly price), quarterlyPrice (optional quarterly price)
-- list_tickets: Show open support tickets. No params.
-- reply_ticket: Reply to a support ticket. Extract: ticketId (ticket number e.g. TKT-123 or numeric ID), replyText (the reply content)
-- client_info: Look up client details. Extract: email OR name OR phone OR domain
-- system_status: Show system stats. No params.
-- renewals: Show upcoming/overdue renewals. Extract: filterDays (optional, default "7")
-- share_invoice: Share an invoice with client via WhatsApp. Extract: email OR invoiceId
-- mark_invoice_paid: Mark an invoice as paid. Extract: invoiceId OR email (latest unpaid)
-- fix_issue: Admin describes a client technical issue, generate fix steps. Extract: issueDesc, domain (optional), email (optional)
-- ssl_install: Install/reinstall SSL certificate on a domain. Extract: domain
-- wp_fix_404: Fix WordPress 404 / permalink errors by rewriting .htaccess. Extract: domain OR email
-- reset_password: Reset cPanel account password. Extract: domain OR email, password (optional new password)
-- site_check: Check if a website is up/down. Extract: domain
-- create_backup: Create a full cPanel backup. Extract: domain OR email
-- disk_usage: Check disk usage of a hosting account. Extract: domain OR email
-- mark_paid: Mark an invoice as paid and activate service. Extract: invoiceId OR email
-- send_message: Send a custom WhatsApp message to a client. Extract: email OR phone, clientMsg
-- remind_all: Send renewal reminders to all due clients. Extract: filterDays (optional)
-- help: Show help/commands. No params.
-- unknown: Cannot classify.
+Intents and Roman Urdu examples:
+- domain_check: "check karo domain.com available hai?", "is domain free hai", "domain check karo example.com". Extract: domain
+- add_client: "naya client banao Ali, ali@gmail.com, 03001234567", "client add karo". Extract: name, email, phone, password
+- add_order: "order banao ali@gmail.com ke liye domain.com", "3500 mein hosting do ali@email.com". Extract: email, domain, planName, amount
+- add_domain: "domain add karo ali@gmail.com ke liye example.com". Extract: email, domain
+- activate_order: "activate karo ali@gmail.com ka order", "live karo", "order activate karo". Extract: orderId OR email OR domain
+- suspend: "suspend karo ali@gmail.com", "band karo domain.com". Extract: email OR domain
+- unsuspend: "unsuspend karo", "dubara chalu karo", "resume karo ali@gmail.com". Extract: email OR domain
+- terminate_service: "delete karo service", "terminat karo", "hatao service". Extract: email OR domain
+- extend_billing: "3 mahine extend karo ali@gmail.com", "1 month add karo". Extract: email OR domain, months
+- update_plan_price: "basic plan ki price 1500 karo", "plan update karo". Extract: planName, price
+- list_tickets: "tickets dikhao", "open tickets", "support tickets". No params.
+- reply_ticket: "ticket TKT-123 ka reply karo: message here". Extract: ticketId, replyText
+- client_info: "client info share karo email ali@gmail.com", "ali@gmail.com ki details do", "client ka info batao ranaarsu@gmail.com", "iss ki details do email@gmail.com", "client dekho ali@gmail.com", "info do ali@email.com", "details batao". Extract: email OR name OR phone OR domain
+- system_status: "system status", "stats dikhao", "overall status". No params.
+- renewals: "renewals dikhao", "kaunse expire ho rahe hain", "due accounts". Extract: filterDays (optional)
+- share_invoice: "invoice share karo ali@gmail.com ko", "invoice bhejo". Extract: email OR invoiceId
+- mark_invoice_paid: "invoice paid mark karo", "payment aa gayi NOE-123". Extract: invoiceId OR email
+- fix_issue: "client ka site nahi chal raha domain.com", "issue fix karo", "masla solve karo". Extract: issueDesc, domain, email
+- ssl_install: "ssl lagao domain.com pe", "ssl install karo", "certificate lagao". Extract: domain
+- wp_fix_404: "wordpress 404 fix karo", "wp permalinks reset karo". Extract: domain OR email
+- reset_password: "password reset karo ali@gmail.com", "naya password do". Extract: domain OR email, password
+- site_check: "site check karo domain.com", "website up hai?", "check karo site". Extract: domain
+- create_backup: "backup lo ali@gmail.com ka", "backup banao", "full backup karo". Extract: domain OR email
+- disk_usage: "disk usage dekho ali@gmail.com", "kitni disk use ho rahi hai". Extract: domain OR email
+- mark_paid: "paid karo invoice", "payment received NOE-123". Extract: invoiceId OR email
+- send_message: "ali@gmail.com ko message bhejo: your invoice is due", "client ko bolo". Extract: email OR phone, clientMsg
+- remind_all: "sab ko reminder do", "renewal reminder bhejo". Extract: filterDays (optional)
+- help: "help", "commands list", "kya kya kar sakta hai". No params.
+- unknown: Cannot classify into any of the above.
 
 Message: "${msg.replace(/"/g, "'")}"
 
-Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
+Return JSON like: {"intent":"client_info","email":"ali@gmail.com"}`;
 
   try {
     const raw = await askGemini(systemPrompt);
     const json = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-    return JSON.parse(json);
-  } catch {
-    // Fallback: simple keyword matching
+    const parsed = JSON.parse(json);
+    // If Gemini returns "unknown", still try regex fallback before giving up
+    if (parsed?.intent !== "unknown") return parsed;
+    // fall through to regex below
+  } catch { /* fall through to regex below */ }
+
+  {
+    // Regex fallback: handles Roman Urdu + English commands
     const lower = msg.toLowerCase();
     if (/check.*domain|domain.*check|available|domain.*avail/.test(lower)) {
       const m = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
