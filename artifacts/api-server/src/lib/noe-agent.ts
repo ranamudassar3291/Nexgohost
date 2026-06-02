@@ -25,6 +25,7 @@ import { hashPassword } from "./auth.js";
 import { provisionHostingService } from "./provision.js";
 import { processInvoicePaid } from "./activateInvoice.js";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
+import { cpanelTerminate } from "./cpanel.js";
 import {
   emailOrderCreated, emailHostingCreated, emailWelcome,
   emailServiceSuspended, emailGeneric,
@@ -378,7 +379,7 @@ async function cmdAddOrder(data: { email?: string; domain?: string; planName?: s
     `🧾 Invoice: *${invNumber}*`,
     domain ? `🌐 Domain: *${domain}*` : "",
     `📦 Plan: *${itemName}*`,
-    `💰 Amount: *PKR ${amount.toLocaleString()}*`,
+    `💰 Amount: *PKR ${amount.toLocaleString()}*${customAmount && customAmount > 0 ? " _(Custom Price)_" : ""}`,
     `📅 Due Date: ${dueDate.toLocaleDateString("en-PK")}`,
     ``,
     `📧 Order email sent!`,
@@ -896,6 +897,75 @@ Format your response EXACTLY as:
 const pendingTerminations = new Map<string, { serviceId: string; domain: string; ts: number }>();
 
 async function cmdTerminateService(identifier: string, adminJid: string, confirmed = false): Promise<string> {
+  const key = adminJid;
+
+  if (confirmed) {
+    // Step 2 — confirmation received; resolve stored pending entry
+    const pending = pendingTerminations.get(key);
+    if (!pending || Date.now() - pending.ts > 5 * 60 * 1000) {
+      pendingTerminations.delete(key);
+      return `❌ Termination confirm timeout ho gaya. Dobara *terminate [domain/email]* likho.`;
+    }
+    pendingTerminations.delete(key);
+
+    const [targetService] = await db.select().from(hostingServicesTable)
+      .where(eq(hostingServicesTable.id, pending.serviceId)).limit(1);
+    if (!targetService) return `❌ Service nahi mila.`;
+
+    // Get server config for cpanelTerminate
+    let terminated = false;
+    if (targetService.username && targetService.serverId) {
+      try {
+        const [serverRec] = await db.select().from(serversTable)
+          .where(eq(serversTable.id, targetService.serverId)).limit(1);
+        if (serverRec?.hostname && serverRec.apiToken) {
+          await cpanelTerminate(
+            { hostname: serverRec.hostname, port: Number(serverRec.port ?? 2087), username: serverRec.username ?? "root", apiToken: serverRec.apiToken },
+            targetService.username,
+          );
+          terminated = true;
+        }
+      } catch (e: any) {
+        console.warn("[NOE] cpanelTerminate warn:", e.message);
+      }
+    }
+
+    await db.update(hostingServicesTable)
+      .set({ status: "terminated", updatedAt: new Date() })
+      .where(eq(hostingServicesTable.id, pending.serviceId));
+
+    const [client] = await db.select().from(usersTable)
+      .where(eq(usersTable.id, targetService.clientId)).limit(1);
+
+    if (client?.phone) {
+      sendToClientPhone(client.phone,
+        `🗑️ *Service Terminated — Noehost*\n\n` +
+        `Hi *${client.firstName},*\n\n` +
+        `Your service *${pending.domain}* has been *terminated*.\n\n` +
+        `All data has been removed. For a new service:\n` +
+        `🔗 noehost.com/client/orders/new\n\n` +
+        `📞 Questions? Reply here or email support@noehost.com\n` +
+        `_Noehost Team_`, "client_notification"
+      ).catch(() => {});
+    }
+    if (client?.email) {
+      emailServiceSuspended(client.email, {
+        clientName: `${client.firstName} ${client.lastName ?? ""}`.trim(),
+        domain: pending.domain,
+        reason: "Service terminated by administrator",
+      }).catch(() => {});
+    }
+
+    return [
+      `🗑️ *Service Terminated!*\n`,
+      `🌐 Domain: *${pending.domain}*`,
+      `👤 Client: ${client ? client.email : targetService.clientId}`,
+      terminated ? `✅ cPanel account removed from server.` : `⚠️ Server removal failed — DB marked terminated.`,
+      client?.phone ? `📲 Client notified via WhatsApp + email.` : `⚠️ No phone — notification skipped.`,
+    ].join("\n");
+  }
+
+  // Step 1 — request confirmation
   let service = await findService(identifier);
   if (!service) {
     const c = await findClient(identifier);
@@ -903,67 +973,19 @@ async function cmdTerminateService(identifier: string, adminJid: string, confirm
   }
   if (!service) return `❌ *${identifier}* ka koi service nahi mila.`;
 
-  const key = adminJid;
-  const pending = pendingTerminations.get(key);
-
-  if (!confirmed) {
-    // Step 1 — ask for confirmation
-    pendingTerminations.set(key, { serviceId: service.id, domain: service.domain || service.planName || service.id, ts: Date.now() });
-    return [
-      `⚠️ *Termination Confirmation Required*\n`,
-      `🌐 Service: *${service.domain || service.planName}*`,
-      `📌 Status: ${service.status}`,
-      `🆔 Service ID: ${service.id.slice(0, 8)}…`,
-      ``,
-      `⚠️ Ye action *PERMANENT* hai! Service ka cPanel delete ho jayega.`,
-      ``,
-      `Confirm karne ke liye likho:`,
-      `*terminate confirm*`,
-      ``,
-      `⏳ 5 minute mein expire ho jaye ga.`,
-    ].join("\n");
-  }
-
-  // Step 2 — confirmed
-  if (!pending || Date.now() - pending.ts > 5 * 60 * 1000) {
-    pendingTerminations.delete(key);
-    return `❌ Termination confirm timeout ho gaya. Dobara *terminate [domain/email]* likho.`;
-  }
-  pendingTerminations.delete(key);
-
-  const targetService = await db.select().from(hostingServicesTable)
-    .where(eq(hostingServicesTable.id, pending.serviceId)).limit(1).then((r: any[]) => r[0]);
-  if (!targetService) return `❌ Service nahi mila.`;
-
-  try {
-    const { suspendHostingAccount: terminate } = await import("./provision.js");
-    if (targetService.username) await terminate(targetService.username, targetService.serverId, "Terminated by Noe Agent");
-  } catch (e: any) { console.warn("[NOE] terminate warn:", e.message); }
-
-  await db.update(hostingServicesTable)
-    .set({ status: "terminated", updatedAt: new Date() })
-    .where(eq(hostingServicesTable.id, pending.serviceId));
-
-  const [client] = await db.select().from(usersTable)
-    .where(eq(usersTable.id, targetService.clientId)).limit(1);
-
-  if (client?.phone) {
-    sendToClientPhone(client.phone,
-      `🗑️ *Service Terminated — Noehost*\n\n` +
-      `Hi *${client.firstName},*\n\n` +
-      `Your service *${pending.domain}* has been *terminated*.\n\n` +
-      `All data has been removed. For a new service:\n` +
-      `🔗 noehost.com/client/orders/new\n\n` +
-      `📞 Questions? Reply here or email support@noehost.com\n` +
-      `_Noehost Team_`, "client_notification"
-    ).catch(() => {});
-  }
-
+  pendingTerminations.set(key, { serviceId: service.id, domain: service.domain || service.planName || service.id, ts: Date.now() });
   return [
-    `🗑️ *Service Terminated!*\n`,
-    `🌐 Domain: *${pending.domain}*`,
-    `👤 Client: ${client ? client.email : targetService.clientId}`,
-    client?.phone ? `📲 Client notified via WhatsApp.` : `⚠️ No phone — notification skipped.`,
+    `⚠️ *Termination Confirmation Required*\n`,
+    `🌐 Service: *${service.domain || service.planName}*`,
+    `📌 Status: ${service.status}`,
+    `🆔 Service ID: ${service.id.slice(0, 8)}…`,
+    ``,
+    `⚠️ Ye action *PERMANENT* hai! Service ka cPanel account delete ho jayega.`,
+    ``,
+    `Confirm karne ke liye likho:`,
+    `*terminate confirm*`,
+    ``,
+    `⏳ 5 minute mein expire ho jaye ga.`,
   ].join("\n");
 }
 
@@ -1062,8 +1084,8 @@ async function cmdListTickets(): Promise<string> {
     clientId: ticketsTable.clientId,
     createdAt: ticketsTable.createdAt,
   }).from(ticketsTable)
-    .where(or(eq(ticketsTable.status, "open"), eq(ticketsTable.status, "waiting")))
-    .orderBy(desc(ticketsTable.createdAt)).limit(15);
+    .where(or(eq(ticketsTable.status, "open"), eq(ticketsTable.status, "pending")))
+    .orderBy(desc(ticketsTable.createdAt)).limit(10);
 
   if (!tickets.length) return `✅ *No open tickets right now!* 🎉`;
 
@@ -1113,17 +1135,32 @@ async function cmdReplyTicket(data: { ticketId?: string; replyText?: string }): 
   const [client] = await db.select().from(usersTable)
     .where(eq(usersTable.id, ticket.clientId)).limit(1);
 
+  // Polish reply using Gemini for professional support language
+  let polishedReply = data.replyText;
+  try {
+    const polishPrompt = `You are a professional hosting support agent at Noehost.
+Polish the following admin reply into professional, friendly English-Urdu mixed support language.
+Keep it concise. Use appropriate emojis. Preserve all technical details.
+Original reply: "${data.replyText}"
+Return ONLY the polished reply text, nothing else.`;
+    polishedReply = await askGemini(polishPrompt);
+  } catch { /* keep original if Gemini fails */ }
+
+  // Insert admin reply — satisfying NOT NULL constraints on senderId and senderName
   await db.insert(ticketMessagesTable).values({
     ticketId: ticket.id,
-    senderId: null,
+    senderId: "noe-agent",
+    senderName: "Support Team",
     senderRole: "admin",
-    message: data.replyText,
-  } as any);
+    message: polishedReply,
+  });
 
   await db.update(ticketsTable).set({
-    status: "answered",
+    status: "answered" as any,
     updatedAt: new Date(),
-  } as any).where(eq(ticketsTable.id, ticket.id));
+  }).where(eq(ticketsTable.id, ticket.id));
+
+  const dashUrl = process.env.CLIENT_AREA_URL ?? "https://noehost.com/dashboard";
 
   // Notify client via WhatsApp + email
   if (client?.phone) {
@@ -1134,9 +1171,9 @@ async function cmdReplyTicket(data: { ticketId?: string; replyText?: string }): 
       `━━━━━━━━━━━━━━━━━━\n` +
       `📋 *Subject:* ${ticket.subject}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `💬 *Reply:*\n${data.replyText}\n` +
+      `💬 *Reply:*\n${polishedReply}\n` +
       `━━━━━━━━━━━━━━━━━━\n\n` +
-      `🔗 Ticket view: ${process.env.CLIENT_AREA_URL ?? "https://noehost.com/dashboard"}/tickets/${ticket.id}\n\n` +
+      `🔗 View: ${dashUrl}/tickets/${ticket.id}\n\n` +
       `📞 Koi aur sawaal ho to reply karein!\n` +
       `_Noehost Team 🚀_`, "client_notification"
     ).catch(() => {});
@@ -1146,7 +1183,7 @@ async function cmdReplyTicket(data: { ticketId?: string; replyText?: string }): 
     emailGeneric(client.email,
       `Reply to your ticket: ${ticket.subject}`,
       client.firstName || "Client",
-      `Your ticket *${ticket.ticketNumber}* has been replied to:\n\n${data.replyText}`,
+      `Your ticket *${ticket.ticketNumber}* has been replied to:\n\n${polishedReply}`,
     ).catch(() => {});
   }
 
@@ -1155,7 +1192,7 @@ async function cmdReplyTicket(data: { ticketId?: string; replyText?: string }): 
     `🎫 Ticket: *${ticket.ticketNumber}*`,
     `📋 Subject: ${ticket.subject}`,
     `👤 Client: ${client ? `${client.firstName} (${client.email})` : "Unknown"}`,
-    `💬 Reply: ${data.replyText.slice(0, 100)}${data.replyText.length > 100 ? "…" : ""}`,
+    `💬 Reply: ${polishedReply.slice(0, 120)}${polishedReply.length > 120 ? "…" : ""}`,
     client?.phone ? `📲 Client notified via WhatsApp + email.` : `⚠️ No phone — WhatsApp not sent.`,
   ].join("\n");
 }

@@ -146,14 +146,16 @@ router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
 
     // WhatsApp alert (non-blocking)
     const adminUrl = process.env.ADMIN_PANEL_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}`;
+    const msgPreview = message ? String(message).slice(0, 200) + (String(message).length > 200 ? "…" : "") : "";
     sendWhatsAppAlert("new_ticket",
       `🎫 *New Support Ticket — Noehost*\n\n` +
-      `👤 Client: ${user.firstName} ${user.lastName}\n` +
+      `👤 Client: *${user.firstName} ${user.lastName}*\n` +
       `📧 Email: ${user.email}\n` +
-      `🏷️ Subject: ${subject}\n` +
+      `🏷️ Subject: *${subject}*\n` +
       `⚡ Priority: ${(priority || "medium").toUpperCase()}\n` +
       `🏢 Dept: ${department || "General"}\n` +
       `🎫 Ticket: *${ticket.ticketNumber}*\n\n` +
+      (msgPreview ? `💬 *Message Preview:*\n_${msgPreview}_\n\n` : "") +
       `🔗 View: ${adminUrl}/admin/tickets/${ticket.id}\n\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `💬 *Quick Reply via Noe AI:*\n` +
