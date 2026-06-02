@@ -521,7 +521,9 @@ export async function connectWhatsApp() {
     const botSentIds = new Set<string>();
 
     sock.ev.on("messages.upsert", async ({ messages: msgs, type }: any) => {
-      if (type !== "notify") return;
+      // "notify" = incoming from others; "append" = sent from admin's own phone (same number as bot)
+      // We must handle BOTH so admin self-chat commands work
+      if (type !== "notify" && type !== "append") return;
 
       const adminPhone = await getAdminPhone();
       if (!adminPhone) return;
@@ -538,39 +540,40 @@ export async function connectWhatsApp() {
           continue;
         }
 
-        // Allow both:
-        //  • fromMe: false — another phone/person messaging the admin number
-        //  • fromMe: true  — admin typing on their own phone (self-chat / same number)
+        // Extract text from any message type
         const text = (
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
+          msg.message?.ephemeralMessage?.message?.conversation ||
+          msg.message?.ephemeralMessage?.message?.extendedTextMessage?.text ||
           ""
         ).trim();
 
         if (!text) continue;
 
-        console.log(`[NOE-AGENT] Admin message (fromMe=${msg.key.fromMe}): ${text.slice(0, 80)}`);
+        // Skip automated system alerts the bot itself sends (prevent re-processing)
+        if (text.includes("🤖 *Noe Assistant*") || text.includes("NoePanel") || text.includes("Auto-check runs")) continue;
+
+        console.log(`[NOE-AGENT] Admin msg (type=${type} fromMe=${msg.key.fromMe}): ${text.slice(0, 80)}`);
 
         // Mark as read
         try { await sock.readMessages([msg.key]); } catch { /* non-fatal */ }
 
         try {
-          // Use legacy ! commands for backward compat, else use Noe AI Agent
           let reply: string | null = null;
           if (text.startsWith("!")) {
             reply = await handleAdminCommand(text);
           }
-          // All messages (with or without !) go through Noe Agent
           if (!reply || !text.startsWith("!")) {
             const { noeAgent } = await import("./noe-agent.js");
             reply = await noeAgent(text, adminJid, sock);
           }
           if (reply && sock) {
-            const sent = await sock.sendMessage(adminJid, { text: reply });
-            // Track sent ID to avoid echo loop
+            // Prefix every reply with bot identity so admin can distinguish bot replies
+            const fullReply = `🤖 *Noe Assistant*\n${reply}`;
+            const sent = await sock.sendMessage(adminJid, { text: fullReply });
             if (sent?.key?.id) {
               botSentIds.add(sent.key.id);
-              // Auto-clean after 30s in case the event never fires
               setTimeout(() => botSentIds.delete(sent!.key.id!), 30_000);
             }
           }
@@ -579,7 +582,7 @@ export async function connectWhatsApp() {
           try {
             if (sock) {
               const errSent = await sock.sendMessage(adminJid, {
-                text: `❌ *Noe Error:* ${err.message}\n\nType *help* for available commands.`,
+                text: `🤖 *Noe Assistant*\n❌ Error: ${err.message}\n\nType *help* for commands.`,
               });
               if (errSent?.key?.id) {
                 botSentIds.add(errSent.key.id);
