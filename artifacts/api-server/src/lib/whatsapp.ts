@@ -33,6 +33,7 @@ export interface WaState {
   connectedAt: Date | null;
   phone: string | null;
   error: string | null;
+  sessionInDb: boolean;
 }
 
 let state: WaState = {
@@ -42,6 +43,7 @@ let state: WaState = {
   connectedAt: null,
   phone: null,
   error: null,
+  sessionInDb: false,
 };
 
 let sock: any = null;
@@ -51,6 +53,66 @@ const SESSION_DIR = path.join(process.cwd(), "whatsapp-session");
 
 function ensureSessionDir() {
   if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true });
+}
+
+// ── DB Session Persistence ────────────────────────────────────────────────────
+async function persistSessionToDb(): Promise<void> {
+  try {
+    const { readdirSync, readFileSync } = await import("fs");
+    ensureSessionDir();
+    const files = readdirSync(SESSION_DIR);
+    const data: Record<string, any> = {};
+    for (const f of files) {
+      try {
+        const raw = readFileSync(path.join(SESSION_DIR, f), "utf8");
+        data[f] = JSON.parse(raw);
+      } catch { /* skip non-JSON or unreadable files */ }
+    }
+    if (Object.keys(data).length === 0) return;
+    await db.execute(sql`
+      INSERT INTO wa_sessions (id, data, updated_at)
+      VALUES ('default', ${JSON.stringify(data)}::jsonb, NOW())
+      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+    `);
+    state = { ...state, sessionInDb: true };
+    console.log(`[WA] Session persisted to DB (${Object.keys(data).length} files)`);
+  } catch (err: any) {
+    console.warn("[WA] Could not persist session to DB:", err.message);
+  }
+}
+
+async function hydrateSessionFromDb(): Promise<boolean> {
+  try {
+    const result = await db.execute(sql`SELECT data FROM wa_sessions WHERE id = 'default' LIMIT 1`);
+    const row = (result as any).rows?.[0];
+    if (!row?.data || typeof row.data !== "object") return false;
+    const { writeFileSync } = await import("fs");
+    ensureSessionDir();
+    let count = 0;
+    for (const [filename, content] of Object.entries(row.data as Record<string, any>)) {
+      try {
+        writeFileSync(path.join(SESSION_DIR, filename), JSON.stringify(content));
+        count++;
+      } catch { /* skip individual file errors */ }
+    }
+    if (count === 0) return false;
+    state = { ...state, sessionInDb: true };
+    console.log(`[WA] Session hydrated from DB → ${count} files written to disk ✓`);
+    return true;
+  } catch (err: any) {
+    console.warn("[WA] Could not hydrate session from DB:", err.message);
+    return false;
+  }
+}
+
+async function clearDbSession(): Promise<void> {
+  try {
+    await db.execute(sql`DELETE FROM wa_sessions WHERE id = 'default'`);
+    state = { ...state, sessionInDb: false };
+    console.log("[WA] DB session cleared");
+  } catch (err: any) {
+    console.warn("[WA] Could not clear DB session:", err.message);
+  }
 }
 
 export function getWaState(): WaState {
@@ -370,7 +432,16 @@ export async function connectWhatsApp() {
     const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } =
       await import("@whiskeysockets/baileys");
 
-    const { state: authState, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+    // Hydrate disk from DB (DB is source of truth on fresh containers)
+    await hydrateSessionFromDb();
+
+    const { state: authState, saveCreds: rawSaveCreds } = await useMultiFileAuthState(SESSION_DIR);
+
+    // Wrap saveCreds to persist to DB on every credential update
+    const saveCreds = async () => {
+      await rawSaveCreds();
+      await persistSessionToDb();
+    };
     const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1023561584] as [number, number, number] }));
 
     sock = makeWASocket({
@@ -404,13 +475,27 @@ export async function connectWhatsApp() {
 
       if (connection === "close") {
         const code = (lastDisconnect?.error as any)?.output?.statusCode;
-        const shouldReconnect = code !== DisconnectReason.loggedOut;
+        const isLoggedOut = code === DisconnectReason.loggedOut;
 
-        console.log("[WA] Connection closed, code:", code, "reconnect:", shouldReconnect);
+        console.log("[WA] Connection closed, code:", code, "loggedOut:", isLoggedOut);
         sock = null;
         state = { ...state, status: "disconnected", phone: null, connectedAt: null };
 
-        if (shouldReconnect) {
+        if (isLoggedOut) {
+          // Do NOT clear session automatically — admin must disconnect manually
+          // Session preserved in DB; send alert so admin knows to reconnect
+          console.warn("[WA] Logged out by WhatsApp — session preserved in DB. Admin must reconnect from panel.");
+          // Non-blocking email alert (best effort)
+          import("./email.js").then(({ emailGeneric }) => {
+            emailGeneric(
+              "admin@noehost.com",
+              "⚠️ WhatsApp Session Logged Out",
+              `Your WhatsApp bot was remotely logged out at ${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}.\n\nPlease go to Admin → WhatsApp Settings and reconnect by scanning the QR code.\n\nYour previous session data has been preserved in the database.`,
+              {},
+            ).catch(() => {});
+          }).catch(() => {});
+        } else {
+          // Transient disconnect — auto-reconnect
           if (reconnectTimer) clearTimeout(reconnectTimer);
           reconnectTimer = setTimeout(() => {
             console.log("[WA] Auto-reconnecting…");
@@ -423,6 +508,8 @@ export async function connectWhatsApp() {
         const phone = sock?.user?.id?.split(":")?.[0] ?? "unknown";
         state = { ...state, status: "connected", qrDataUrl: null, qrRaw: null, connectedAt: new Date(), phone, error: null };
         console.log(`[WA] Connected as +${phone}`);
+        // Immediately persist fresh session to DB on successful connect
+        await persistSessionToDb();
       }
     });
 
@@ -498,13 +585,16 @@ export async function disconnectWhatsApp() {
 
 export async function clearWhatsAppSession() {
   await disconnectWhatsApp();
+  // Clear DB session first
+  await clearDbSession();
+  // Clear disk session files
   const { rmSync, readdirSync } = await import("fs");
   try {
     const files = readdirSync(SESSION_DIR);
     for (const f of files) rmSync(path.join(SESSION_DIR, f), { recursive: true, force: true });
     console.log("[WA] Session files cleared — fresh QR will be required");
   } catch { /* dir may not exist */ }
-  state = { status: "disconnected", qrDataUrl: null, qrRaw: null, connectedAt: null, phone: null, error: null };
+  state = { status: "disconnected", qrDataUrl: null, qrRaw: null, connectedAt: null, phone: null, error: null, sessionInDb: false };
 }
 
 // ── Send alert to admin ───────────────────────────────────────────────────────
@@ -578,9 +668,31 @@ export async function getPaymentInfo(): Promise<string> {
 // ── Auto-reconnect on server start (if session exists) ───────────────────────
 export async function initWhatsApp() {
   ensureSessionDir();
-  const credFile = path.join(SESSION_DIR, "creds.json");
-  if (existsSync(credFile)) {
-    console.log("[WA] Found existing session — auto-connecting…");
+
+  // Check DB first — source of truth on fresh containers
+  let hasSession = false;
+  try {
+    const result = await db.execute(sql`SELECT id FROM wa_sessions WHERE id = 'default' LIMIT 1`);
+    const rows = (result as any).rows ?? [];
+    if (rows.length > 0) {
+      hasSession = true;
+      state = { ...state, sessionInDb: true };
+      console.log("[WA] Found session in DB — auto-connecting…");
+    }
+  } catch (err: any) {
+    console.warn("[WA] DB session check failed (table may not exist yet):", err.message);
+  }
+
+  // Fallback: check disk creds.json
+  if (!hasSession) {
+    const credFile = path.join(SESSION_DIR, "creds.json");
+    if (existsSync(credFile)) {
+      hasSession = true;
+      console.log("[WA] Found session on disk — auto-connecting…");
+    }
+  }
+
+  if (hasSession) {
     connectWhatsApp().catch(err => console.error("[WA] Auto-connect failed:", err.message));
   } else {
     console.log("[WA] No session found — waiting for admin to connect via QR");

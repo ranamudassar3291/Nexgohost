@@ -35,6 +35,7 @@ interface WaStatus {
   phone: string | null;
   error: string | null;
   adminPhone: string | null;
+  sessionInDb?: boolean;
 }
 
 interface WaLog {
@@ -246,11 +247,21 @@ export default function WhatsAppSettings() {
              status === "error" ? `Error: ${waStatus?.error}` :
              "Not Connected"}
           </span>
-          {isConnected && waStatus?.connectedAt && (
-            <span className="text-xs text-muted-foreground ml-auto">
-              Since {format(new Date(waStatus.connectedAt), "dd MMM, h:mm a")}
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {waStatus?.sessionInDb && (
+              <span className="flex items-center gap-1 text-xs bg-emerald-950/40 text-emerald-400 border border-emerald-800/50 rounded-full px-2 py-0.5 font-medium">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7c0-1.657 3.582-3 8-3s8 1.343 8 3M4 7v5c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 7c0 1.657 3.582 3 8 3s8-1.343 8-3" />
+                </svg>
+                Session: DB Saved ✓
+              </span>
+            )}
+            {isConnected && waStatus?.connectedAt && (
+              <span className="text-xs text-muted-foreground">
+                Since {format(new Date(waStatus.connectedAt), "dd MMM, h:mm a")}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="p-5 space-y-5">

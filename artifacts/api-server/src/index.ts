@@ -482,6 +482,16 @@ async function runStartupMigrations() {
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_wa_client_notif_user ON whatsapp_client_notifications(user_id, sent_at DESC)`);
     console.log("[MIGRATIONS] whatsapp_client_notifications table ready");
 
+    // ── WhatsApp Session Persistence ──────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS wa_sessions (
+        id         TEXT PRIMARY KEY,
+        data       JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    console.log("[MIGRATIONS] wa_sessions table ready");
+
     // ── Abuse & Spam Handling System ─────────────────────────────────────────
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS abuse_reports (
