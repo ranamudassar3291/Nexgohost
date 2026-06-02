@@ -145,7 +145,12 @@ Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
     if (/suspend/.test(lower)) return { intent: "suspend" };
     if (/unsuspend|reactivat|resume/.test(lower)) return { intent: "unsuspend" };
     if (/mark.*paid|paid.*mark|invoice.*paid/.test(lower)) return { intent: "mark_invoice_paid" };
-    if (/info|details|client ka|client ki/.test(lower)) return { intent: "client_info" };
+    if (/info|details|client ka|client ki|client info|info.*share|share.*info/.test(lower)) {
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const phoneM = msg.match(/(?:92|0)?3\d{9}/);
+      const domainM = msg.match(/\b([a-zA-Z0-9-]+\.[a-zA-Z]{2,})\b/);
+      return { intent: "client_info", email: emailM?.[0], phone: phoneM?.[0], domain: domainM?.[1] };
+    }
     if (/status|system|stats/.test(lower)) return { intent: "system_status" };
     if (/renewal|due|expire/.test(lower)) return { intent: "renewals" };
     if (/invoice.*share|share.*invoice|invoice.*send/.test(lower)) return { intent: "share_invoice" };

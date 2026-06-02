@@ -516,6 +516,10 @@ export async function connectWhatsApp() {
     sock.ev.on("creds.update", saveCreds);
 
     // ── Incoming message handler — Noe AI Admin Agent ────────────────────────
+    // Track message IDs that the bot itself sent — prevents echo loops when
+    // admin uses their own number (fromMe: true messages from self-chat)
+    const botSentIds = new Set<string>();
+
     sock.ev.on("messages.upsert", async ({ messages: msgs, type }: any) => {
       if (type !== "notify") return;
 
@@ -524,10 +528,19 @@ export async function connectWhatsApp() {
       const adminJid = `${adminPhone.replace(/\D/g, "")}@s.whatsapp.net`;
 
       for (const msg of msgs) {
-        // Only process messages from the admin (not fromMe = our own sends)
-        if (msg.key.fromMe) continue;
+        // Only care about messages in the admin's JID (self-chat or incoming)
         if (msg.key.remoteJid !== adminJid) continue;
 
+        // Skip echo: messages that the bot itself sent as replies
+        const msgId = msg.key.id ?? "";
+        if (botSentIds.has(msgId)) {
+          botSentIds.delete(msgId);
+          continue;
+        }
+
+        // Allow both:
+        //  • fromMe: false — another phone/person messaging the admin number
+        //  • fromMe: true  — admin typing on their own phone (self-chat / same number)
         const text = (
           msg.message?.conversation ||
           msg.message?.extendedTextMessage?.text ||
@@ -536,7 +549,7 @@ export async function connectWhatsApp() {
 
         if (!text) continue;
 
-        console.log(`[NOE-AGENT] Admin message: ${text.slice(0, 80)}`);
+        console.log(`[NOE-AGENT] Admin message (fromMe=${msg.key.fromMe}): ${text.slice(0, 80)}`);
 
         // Mark as read
         try { await sock.readMessages([msg.key]); } catch { /* non-fatal */ }
@@ -553,14 +566,26 @@ export async function connectWhatsApp() {
             reply = await noeAgent(text, adminJid, sock);
           }
           if (reply && sock) {
-            await sock.sendMessage(adminJid, { text: reply });
+            const sent = await sock.sendMessage(adminJid, { text: reply });
+            // Track sent ID to avoid echo loop
+            if (sent?.key?.id) {
+              botSentIds.add(sent.key.id);
+              // Auto-clean after 30s in case the event never fires
+              setTimeout(() => botSentIds.delete(sent!.key.id!), 30_000);
+            }
           }
         } catch (err: any) {
           console.error("[NOE-AGENT] Handler error:", err.message);
           try {
-            if (sock) await sock.sendMessage(adminJid, {
-              text: `❌ *Noe Error:* ${err.message}\n\nType *help* for available commands.`,
-            });
+            if (sock) {
+              const errSent = await sock.sendMessage(adminJid, {
+                text: `❌ *Noe Error:* ${err.message}\n\nType *help* for available commands.`,
+              });
+              if (errSent?.key?.id) {
+                botSentIds.add(errSent.key.id);
+                setTimeout(() => botSentIds.delete(errSent!.key.id!), 30_000);
+              }
+            }
           } catch { /* ignore */ }
         }
       }
@@ -695,6 +720,8 @@ export async function initWhatsApp() {
   if (hasSession) {
     connectWhatsApp().catch(err => console.error("[WA] Auto-connect failed:", err.message));
   } else {
-    console.log("[WA] No session found — waiting for admin to connect via QR");
+    // No saved session — still start connecting so QR is ready immediately
+    console.log("[WA] No session found — auto-starting QR generation…");
+    connectWhatsApp().catch(err => console.error("[WA] QR init failed:", err.message));
   }
 }
