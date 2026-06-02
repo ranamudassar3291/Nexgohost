@@ -1650,23 +1650,42 @@ export async function runAllCronTasks(): Promise<void> {
     runAbuseEnforcementCron = abuseRoute.runAbuseEnforcementCron;
   } catch { /* non-fatal */ }
 
+  // Run in sequential batches to avoid DB connection pool exhaustion
+  // Batch 1: Billing & status updates (high priority, DB-heavy)
   await Promise.allSettled([
-    runBillingCron(),
     runMarkOverdueCron(),
+    runBillingCron(),
+  ]);
+
+  // Batch 2: Service lifecycle (suspensions, terminations, unsuspensions)
+  await Promise.allSettled([
     runSuspendOverdueCron(),
     runAutoTerminateCron(),
     runUnsuspendRestoredCron(),
-    runHostingRenewalReminderCron(),
-    runDomainRenewalCron(),
-    runInvoiceRemindersCron(),
     runVpsPowerOffCron(),
+  ]);
+
+  // Batch 3: Email reminders & notifications
+  await Promise.allSettled([
+    runHostingRenewalReminderCron(),
+    runInvoiceRemindersCron(),
+    runSuspensionWarningCron(),
+  ]);
+
+  // Batch 4: Domain & cart tasks
+  await Promise.allSettled([
+    runDomainRenewalCron(),
+    runDomainLifecycleCron(),
+    runCartAbandonmentCron(),
+  ]);
+
+  // Batch 5: External integrations & backups (last, slowest)
+  await Promise.allSettled([
     runDailyBackupCron(),
     runGoogleDriveBackupCron(),
-    runCartAbandonmentCron(),
-    runDomainLifecycleCron(),
     runTwentyiStatusSyncCron(),
-    runSuspensionWarningCron(),
     runAbuseEnforcementCron ? runAbuseEnforcementCron() : Promise.resolve(),
   ]);
+
   console.log("[CRON] All tasks completed.");
 }
