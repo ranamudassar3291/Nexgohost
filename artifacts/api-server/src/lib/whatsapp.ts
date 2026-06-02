@@ -55,54 +55,84 @@ function ensureSessionDir() {
   if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true });
 }
 
-// ── DB Session Persistence ────────────────────────────────────────────────────
-async function persistSessionToDb(): Promise<void> {
-  try {
-    const { readdirSync, readFileSync } = await import("fs");
-    ensureSessionDir();
-    const files = readdirSync(SESSION_DIR);
-    const data: Record<string, any> = {};
-    for (const f of files) {
-      try {
-        const raw = readFileSync(path.join(SESSION_DIR, f), "utf8");
-        data[f] = JSON.parse(raw);
-      } catch { /* skip non-JSON or unreadable files */ }
-    }
-    if (Object.keys(data).length === 0) return;
-    await db.execute(sql`
-      INSERT INTO wa_sessions (id, data, updated_at)
-      VALUES ('default', ${JSON.stringify(data)}::jsonb, NOW())
-      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
-    `);
-    state = { ...state, sessionInDb: true };
-    console.log(`[WA] Session persisted to DB (${Object.keys(data).length} files)`);
-  } catch (err: any) {
-    console.warn("[WA] Could not persist session to DB:", err.message);
-  }
-}
+// ── Pure DB-based auth state (no disk dependency) ────────────────────────────
+// Replaces useMultiFileAuthState — reads/writes creds + signal keys directly
+// from PostgreSQL. Works across container restarts and ephemeral environments.
+async function useDbAuthState() {
+  const { initAuthCreds, BufferJSON, proto } = await import("@whiskeysockets/baileys");
 
-async function hydrateSessionFromDb(): Promise<boolean> {
+  // Load existing session from DB
+  let creds: any = null;
+  const keysInMemory: Record<string, any> = {};
+  let hasSession = false;
+
   try {
     const result = await db.execute(sql`SELECT data FROM wa_sessions WHERE id = 'default' LIMIT 1`);
     const row = (result as any).rows?.[0];
-    if (!row?.data || typeof row.data !== "object") return false;
-    const { writeFileSync } = await import("fs");
-    ensureSessionDir();
-    let count = 0;
-    for (const [filename, content] of Object.entries(row.data as Record<string, any>)) {
-      try {
-        writeFileSync(path.join(SESSION_DIR, filename), JSON.stringify(content));
-        count++;
-      } catch { /* skip individual file errors */ }
+    if (row?.data) {
+      const stored = typeof row.data === "string" ? JSON.parse(row.data) : row.data;
+      if (stored.creds) {
+        creds = JSON.parse(JSON.stringify(stored.creds), BufferJSON.reviver);
+        hasSession = true;
+      }
+      if (stored.keys && typeof stored.keys === "object") {
+        for (const [k, v] of Object.entries(stored.keys as Record<string, any>)) {
+          keysInMemory[k] = JSON.parse(JSON.stringify(v), BufferJSON.reviver);
+        }
+      }
+      console.log(`[WA] Session loaded from DB ✓ (${Object.keys(keysInMemory).length} keys)`);
     }
-    if (count === 0) return false;
-    state = { ...state, sessionInDb: true };
-    console.log(`[WA] Session hydrated from DB → ${count} files written to disk ✓`);
-    return true;
   } catch (err: any) {
-    console.warn("[WA] Could not hydrate session from DB:", err.message);
-    return false;
+    console.warn("[WA] DB session load failed:", err.message);
   }
+
+  if (!creds) creds = initAuthCreds();
+
+  const saveToDb = async () => {
+    try {
+      const payload = {
+        creds: JSON.parse(JSON.stringify(creds, BufferJSON.replacer)),
+        keys: JSON.parse(JSON.stringify(keysInMemory, BufferJSON.replacer)),
+      };
+      await db.execute(sql`
+        INSERT INTO wa_sessions (id, data, updated_at)
+        VALUES ('default', ${JSON.stringify(payload)}::jsonb, NOW())
+        ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+      `);
+      state = { ...state, sessionInDb: true };
+      console.log("[WA] ✓ Session saved to DB");
+    } catch (err: any) {
+      console.error("[WA] ✗ Session DB save failed:", err.message);
+    }
+  };
+
+  return {
+    hasSession,
+    state: {
+      creds,
+      keys: {
+        get: (type: string, ids: string[]) => {
+          const data: Record<string, any> = {};
+          for (const id of ids) {
+            const val = keysInMemory[`${type}:${id}`];
+            if (val != null) data[id] = val;
+          }
+          return data;
+        },
+        set: async (data: Record<string, Record<string, any>>) => {
+          for (const [type, map] of Object.entries(data)) {
+            for (const [id, value] of Object.entries(map ?? {})) {
+              const k = `${type}:${id}`;
+              if (value != null) keysInMemory[k] = value;
+              else delete keysInMemory[k];
+            }
+          }
+          await saveToDb();
+        },
+      },
+    },
+    saveCreds: saveToDb,
+  };
 }
 
 async function clearDbSession(): Promise<void> {
@@ -429,19 +459,15 @@ export async function connectWhatsApp() {
   console.log("[WA] Initializing connection…");
 
   try {
-    const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } =
+    const { default: makeWASocket, DisconnectReason, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } =
       await import("@whiskeysockets/baileys");
 
-    // Hydrate disk from DB (DB is source of truth on fresh containers)
-    await hydrateSessionFromDb();
+    // Pure DB auth state — no disk files, works on ephemeral containers
+    const { hasSession: dbHasSession, state: authState, saveCreds } = await useDbAuthState();
+    if (dbHasSession) {
+      console.log("[WA] Resuming session from DB — no QR needed");
+    }
 
-    const { state: authState, saveCreds: rawSaveCreds } = await useMultiFileAuthState(SESSION_DIR);
-
-    // Wrap saveCreds to persist to DB on every credential update
-    const saveCreds = async () => {
-      await rawSaveCreds();
-      await persistSessionToDb();
-    };
     const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1023561584] as [number, number, number] }));
 
     sock = makeWASocket({
@@ -697,34 +723,8 @@ export async function getPaymentInfo(): Promise<string> {
 export async function initWhatsApp() {
   ensureSessionDir();
 
-  // Check DB first — source of truth on fresh containers
-  let hasSession = false;
-  try {
-    const result = await db.execute(sql`SELECT id FROM wa_sessions WHERE id = 'default' LIMIT 1`);
-    const rows = (result as any).rows ?? [];
-    if (rows.length > 0) {
-      hasSession = true;
-      state = { ...state, sessionInDb: true };
-      console.log("[WA] Found session in DB — auto-connecting…");
-    }
-  } catch (err: any) {
-    console.warn("[WA] DB session check failed (table may not exist yet):", err.message);
-  }
-
-  // Fallback: check disk creds.json
-  if (!hasSession) {
-    const credFile = path.join(SESSION_DIR, "creds.json");
-    if (existsSync(credFile)) {
-      hasSession = true;
-      console.log("[WA] Found session on disk — auto-connecting…");
-    }
-  }
-
-  if (hasSession) {
-    connectWhatsApp().catch(err => console.error("[WA] Auto-connect failed:", err.message));
-  } else {
-    // No saved session — still start connecting so QR is ready immediately
-    console.log("[WA] No session found — auto-starting QR generation…");
-    connectWhatsApp().catch(err => console.error("[WA] QR init failed:", err.message));
-  }
+  // Always auto-start — useDbAuthState handles loading from DB or fresh QR
+  // DB is the only source of truth (no disk dependency)
+  console.log("[WA] Auto-starting WhatsApp connection…");
+  connectWhatsApp().catch(err => console.error("[WA] Auto-connect failed:", err.message));
 }
