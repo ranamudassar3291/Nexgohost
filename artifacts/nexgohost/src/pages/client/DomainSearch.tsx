@@ -226,7 +226,7 @@ export default function DomainSearch() {
     const token = localStorage.getItem("token") || localStorage.getItem("noehost_token");
     if (!token) {
       const returnPath = `/client/domains/transfer?domain=${encodeURIComponent(domain)}`;
-      setLocation(`/client/login?redirect=${encodeURIComponent(returnPath)}`);
+      setLocation(`/login?redirect=${encodeURIComponent(returnPath)}`);
       return;
     }
     setLocation(`/client/domains/transfer?domain=${encodeURIComponent(domain)}`);

@@ -26,7 +26,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
     );
   }
 
-  if (!user && !allowGuest) return <Redirect to="/client/login"/>;
+  if (!user && !allowGuest) return <Redirect to="/login"/>;
 
   return (
     <div className="min-h-screen bg-[#F8F9FB]" style={{ fontFamily: "'Inter', 'Public Sans', sans-serif" }}>
@@ -34,7 +34,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
           {/* Logo */}
-          <Link href={user ? "/client/dashboard" : "/"} className="flex items-center gap-2.5 no-underline">
+          <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2.5 no-underline">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-white text-[15px] shadow-lg"
               style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
               N
@@ -55,7 +55,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
             {!user && allowGuest && (
               <>
                 <span className="text-gray-300">|</span>
-                <Link href={`/client/login?next=${encodeURIComponent(currentPath + window.location.search)}`} className="font-semibold text-[#6B46C1] hover:underline no-underline">Sign in</Link>
+                <Link href={`/login?next=${encodeURIComponent(currentPath + window.location.search)}`} className="font-semibold text-[#6B46C1] hover:underline no-underline">Sign in</Link>
               </>
             )}
           </div>

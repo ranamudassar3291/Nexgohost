@@ -469,7 +469,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           {user ? (
             <div className="flex items-center gap-2">
               <a
-                href={user.role === 'admin' ? '/admin/dashboard' : '/client/dashboard'}
+                href={user.role === 'admin' ? '/admin/dashboard' : '/dashboard'}
                 className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-sm transition-all"
               >
                 {user.role === 'admin' ? <Shield size={15} /> : <LayoutDashboard size={15} />}
@@ -485,7 +485,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           ) : (
             <>
               <a
-                href="/client/login"
+                href="/login"
                 className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
               >
                 Log In
@@ -709,7 +709,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           {user ? (
             <div className="flex flex-col gap-4">
               <a
-                href={user.role === 'admin' ? '/admin/dashboard' : '/client/dashboard'}
+                href={user.role === 'admin' ? '/admin/dashboard' : '/dashboard'}
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-center gap-3 py-5 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20"
               >
@@ -725,7 +725,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
           ) : (
             <div className="flex flex-col gap-4">
               <a
-                href="/client/login"
+                href="/login"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-sm font-black text-slate-200 text-center py-5 border border-white/10 rounded-2xl uppercase tracking-widest hover:bg-white/5 transition-all"
               >

@@ -83,7 +83,7 @@ export default function ClientLogin() {
   if (user) {
     const params = new URLSearchParams(window.location.search);
     const redirectTo = params.get("redirect");
-    return <Redirect to={redirectTo || (user.role === "admin" ? "/admin/dashboard" : "/client/dashboard")} />;
+    return <Redirect to={redirectTo || (user.role === "admin" ? "/admin/dashboard" : "/dashboard")} />;
   }
 
   const startCountdown = () => {
@@ -117,7 +117,7 @@ export default function ClientLogin() {
         const params = new URLSearchParams(window.location.search);
         const redirectTo = params.get("redirect") || params.get("next");
         const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
-        setLocation(redirectTo || (hasPendingCart ? "/client/orders/new" : "/client/dashboard"));
+        setLocation(redirectTo || (hasPendingCart ? "/client/orders/new" : "/dashboard"));
       }
     } catch (err: any) {
       let raw: any = {};
@@ -141,7 +141,7 @@ export default function ClientLogin() {
       const params = new URLSearchParams(window.location.search);
       const r2fa = params.get("redirect") || params.get("next");
       const hasPendingCart2fa = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
-      setLocation(r2fa || (hasPendingCart2fa ? "/client/orders/new" : "/client/dashboard"));
+      setLocation(r2fa || (hasPendingCart2fa ? "/client/orders/new" : "/dashboard"));
     } catch (err: any) { setError(err.message || "Invalid code. Please try again."); }
     finally { setLoading(false); }
   };
@@ -155,7 +155,7 @@ export default function ClientLogin() {
       const params2 = new URLSearchParams(window.location.search);
       const rVerify = params2.get("redirect") || params2.get("next");
       const hasPendingCartVerify = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
-      setLocation(rVerify || (hasPendingCartVerify ? "/client/orders/new" : "/client/dashboard"));
+      setLocation(rVerify || (hasPendingCartVerify ? "/client/orders/new" : "/dashboard"));
     } catch (err: any) { setError(err.message || "Invalid code. Please try again."); }
     finally { setLoading(false); }
   };

@@ -27,21 +27,21 @@ export default function GoogleCallback() {
     if (error) {
       setStatus("error");
       setMessage(ERROR_MESSAGES[error] || "Sign-in failed. Please try again.");
-      setTimeout(() => setLocation("/client/login"), 3500);
+      setTimeout(() => setLocation("/login"), 3500);
       return;
     }
 
     if (!token) {
       setStatus("error");
       setMessage("No authentication token received. Redirecting to login...");
-      setTimeout(() => setLocation("/client/login"), 2500);
+      setTimeout(() => setLocation("/login"), 2500);
       return;
     }
 
     setStatus("success");
     setMessage(`Welcome${firstName ? `, ${firstName}` : ""}! Signing you in...`);
     login(token);
-    setTimeout(() => setLocation("/client/dashboard"), 1200);
+    setTimeout(() => setLocation("/dashboard"), 1200);
   }, []);
 
   return (

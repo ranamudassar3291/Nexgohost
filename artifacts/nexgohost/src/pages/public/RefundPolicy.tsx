@@ -104,7 +104,7 @@ export default function RefundPolicy() {
           <span>·</span>
           <Link href="/legal/privacy" className="text-violet-600 hover:underline">Privacy Policy</Link>
           <span>·</span>
-          <Link href="/client/login" className="text-violet-600 hover:underline">Back to Login</Link>
+          <Link href="/login" className="text-violet-600 hover:underline">Back to Login</Link>
         </div>
       </div>
     </div>

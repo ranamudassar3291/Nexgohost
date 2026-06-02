@@ -249,7 +249,7 @@ const AppRoutes: React.FC<{ user: any; setUser: (u: any) => void }> = ({ user, s
         <Route path="/admin/*" element={<AdminCMSProtected user={user} setUser={setUser} />} />
 
         {/* Removed routes — redirect to nexgohost */}
-        <Route path="/login" element={<Navigate to="/client/login" replace />} />
+        <Route path="/login" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<Navigate to="/register" replace />} />
         <Route path="/cart" element={<Navigate to="/client/cart" replace />} />
         <Route path="/checkout" element={<Navigate to="/client/checkout" replace />} />

@@ -94,7 +94,7 @@ export default function ForgotPassword() {
                 </form>
 
                 <div className="mt-5 text-center">
-                  <a href="/client/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#6B46C1] transition-colors">
+                  <a href="/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#6B46C1] transition-colors">
                     <ArrowLeft size={14} /> Back to login
                   </a>
                 </div>
@@ -122,7 +122,7 @@ export default function ForgotPassword() {
                   Try a different email
                 </button>
                 <div className="mt-4">
-                  <a href="/client/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#6B46C1] transition-colors">
+                  <a href="/login" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#6B46C1] transition-colors">
                     <ArrowLeft size={14} /> Back to login
                   </a>
                 </div>

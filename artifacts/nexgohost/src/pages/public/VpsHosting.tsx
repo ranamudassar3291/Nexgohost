@@ -135,7 +135,7 @@ export default function VpsHosting() {
                   View Plans <ArrowRight size={16} className="inline ml-1.5"/>
                 </button>
               </a>
-              <Link href="/client/login">
+              <Link href="/login">
                 <button className="px-8 py-4 rounded-2xl text-[15px] font-semibold text-white transition-all"
                   style={{ background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.2)" }}>
                   Login to Dashboard

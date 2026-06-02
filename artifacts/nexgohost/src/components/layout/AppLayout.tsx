@@ -144,7 +144,7 @@ const CLIENT_SIDEBAR_GROUPS = [
   {
     label: "Main",
     items: [
-      { name: "Dashboard",  href: "/client/dashboard", icon: LayoutDashboard },
+      { name: "Dashboard",  href: "/dashboard", icon: LayoutDashboard },
       { name: "Orders",     href: "/client/orders",    icon: ShoppingCart    },
       { name: "Billing",    href: "/client/billing",   icon: Receipt         },
     ],

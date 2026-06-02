@@ -273,7 +273,7 @@ export default function Register() {
       } else {
         login(data.token);
         const nextUrl = new URLSearchParams(window.location.search).get("next");
-        setLocation(nextUrl || "/client/dashboard");
+        setLocation(nextUrl || "/dashboard");
       }
     } catch (err: any) {
       setFormError(err.message || "Registration failed. Please try again.");
@@ -289,7 +289,7 @@ export default function Register() {
       toast({ title: "Email verified!", description: "Welcome to Noehost." });
       const nextUrl = new URLSearchParams(window.location.search).get("next") || new URLSearchParams(window.location.search).get("redirect");
       const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
-      setLocation(nextUrl || (hasPendingCart ? "/client/orders/new" : "/client/dashboard"));
+      setLocation(nextUrl || (hasPendingCart ? "/client/orders/new" : "/dashboard"));
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }
@@ -504,7 +504,7 @@ export default function Register() {
 
               <p className="mt-5 text-center text-sm text-gray-500">
                 Already have an account?{" "}
-                <a href="/client/login" className="font-semibold hover:underline" style={{ color: BRAND }}>Sign in</a>
+                <a href="/login" className="font-semibold hover:underline" style={{ color: BRAND }}>Sign in</a>
               </p>
             </motion.div>
           )}

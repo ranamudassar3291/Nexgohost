@@ -303,7 +303,7 @@ export default function VpsOrderPage() {
       };
       localStorage.setItem(VPS_CONFIG_KEY, JSON.stringify(config));
       const returnUrl = window.location.pathname;
-      window.location.href = `/client/login?redirect=${encodeURIComponent(returnUrl)}`;
+      window.location.href = `/login?redirect=${encodeURIComponent(returnUrl)}`;
       return;
     }
     setStep('review');
@@ -331,7 +331,7 @@ export default function VpsOrderPage() {
   // ── Place order ────────────────────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
-    if (!token) { setLocation('/client/login'); return; }
+    if (!token) { setLocation('/login'); return; }
     if (!selectedPaymentId && finalAmount > 0) { setOrderError('Please select a payment method'); return; }
     setOrdering(true);
     setOrderError('');
@@ -414,7 +414,7 @@ export default function VpsOrderPage() {
               View Invoice
             </button>
           )}
-          <button onClick={() => setLocation('/client/dashboard')}
+          <button onClick={() => setLocation('/dashboard')}
             className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors">
             Go to Dashboard
           </button>

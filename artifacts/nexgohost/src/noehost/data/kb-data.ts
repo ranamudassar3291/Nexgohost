@@ -40,7 +40,7 @@ export const KB_CATEGORIES: KbCategory[] = [
             content: `<h2>Accessing Your Noehost Client Area</h2>
 <p>The Noehost client area is your central hub for managing all your hosting services, domains, invoices, and support tickets.</p>
 <h3>Step 1 — Go to the login page</h3>
-<p>Navigate to <code>noehost.com/client/login</code> in your browser.</p>
+<p>Navigate to <code>noehost.com/login</code> in your browser.</p>
 <h3>Step 2 — Enter your credentials</h3>
 <p>Enter the email address and password you used when registering your account.</p>
 <h3>Step 3 — Dashboard overview</h3>

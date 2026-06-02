@@ -240,7 +240,7 @@ export default function VpsManagePage() {
       <div className="text-center">
         <Lock size={36} className="text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500 font-medium">Please log in to manage your server.</p>
-        <button onClick={() => navigate("/client/login")} className="mt-4 px-6 py-2.5 rounded-xl text-white text-sm font-bold" style={{ background: BRAND }}>
+        <button onClick={() => navigate("/login")} className="mt-4 px-6 py-2.5 rounded-xl text-white text-sm font-bold" style={{ background: BRAND }}>
           Sign In
         </button>
       </div>
@@ -261,7 +261,7 @@ export default function VpsManagePage() {
     <div className="min-h-screen bg-[#fafafa]">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center gap-4">
-          <button onClick={() => navigate("/client/dashboard")} className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors text-sm font-medium">
+          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors text-sm font-medium">
             <ArrowLeft size={16} /> Dashboard
           </button>
           <div className="w-px h-4 bg-gray-100" />
@@ -318,7 +318,7 @@ export default function VpsManagePage() {
         </div>
         <p className="text-gray-900 font-black text-lg mb-1">VPS Not Found</p>
         <p className="text-gray-400 text-sm mb-6 font-medium">{error || "This VPS order does not exist or you don't have access to it."}</p>
-        <button onClick={() => navigate("/client/dashboard")} className="w-full px-6 py-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-100 transition-colors">
+        <button onClick={() => navigate("/dashboard")} className="w-full px-6 py-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-100 transition-colors">
           ← Back to Dashboard
         </button>
       </div>
@@ -335,7 +335,7 @@ export default function VpsManagePage() {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-[0_1px_6px_rgba(0,0,0,0.03)]">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate("/client/dashboard")} className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors text-sm font-medium">
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors text-sm font-medium">
               <ArrowLeft size={16} /> Dashboard
             </button>
             <div className="w-px h-4 bg-gray-100" />

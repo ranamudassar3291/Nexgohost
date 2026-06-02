@@ -20,7 +20,7 @@ const ClientDashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
   const location = useLocation();
 
   useEffect(() => {
-    fetch('/api/client/dashboard')
+    fetch('/api/dashboard')
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch dashboard data');
         return res.json();
@@ -356,7 +356,7 @@ const ClientDashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
         body: JSON.stringify({ subject, message }),
       });
       // Refresh data
-      const res = await fetch('/api/client/dashboard');
+      const res = await fetch('/api/dashboard');
       const d = await res.json();
       setData(d);
       setSubject('');

@@ -64,7 +64,7 @@ const CartSidebar: React.FC = () => {
         : items.some(i => i.type === 'domain')
           ? '/client/domain-search'
           : '/client/orders/new';
-      navigate(`/client/login?redirect=${encodeURIComponent(returnPath)}`);
+      navigate(`/login?redirect=${encodeURIComponent(returnPath)}`);
       return;
     }
 

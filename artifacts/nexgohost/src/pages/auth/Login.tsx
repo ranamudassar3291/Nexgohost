@@ -50,7 +50,7 @@ export default function Login() {
       } else {
         login(data.token);
         toast({ title: "Welcome back!", description: "Successfully logged in." });
-        setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard"));
+        setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));
       }
     } catch (err: any) {
       let raw: any = {};
@@ -79,7 +79,7 @@ export default function Login() {
       });
       login(data.token);
       toast({ title: "Welcome back!" });
-      setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard"));
+      setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));
     } catch (err: any) {
       toast({ title: "Invalid code", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }
@@ -93,7 +93,7 @@ export default function Login() {
       const data = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
       login(data.token);
       toast({ title: "Email verified", description: "You are now signed in." });
-      setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/client/dashboard"));
+      setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }

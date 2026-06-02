@@ -37,7 +37,7 @@ export default function AdminLogin() {
       .catch(() => setGoogleEnabled(false));
   }, []);
 
-  if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />;
+  if (user) return <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/dashboard"} />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,7 +155,7 @@ export default function AdminLogin() {
             <p className="text-xs text-muted-foreground/60 italic">Admin access only. Unauthorized access attempts are logged.</p>
             <p className="text-sm text-muted-foreground">
               Not an admin?{" "}
-              <a href="/client/login" className="text-primary font-medium hover:underline underline-offset-4 decoration-primary/50 inline-flex items-center gap-1">
+              <a href="/login" className="text-primary font-medium hover:underline underline-offset-4 decoration-primary/50 inline-flex items-center gap-1">
                 <User size={13} /> Go to Client Portal
               </a>
             </p>

@@ -1013,7 +1013,7 @@ router.post("/admin/email-templates/:id/test", authenticate, requireAdmin, async
       cancel_date:       "31 January 2026",
       termination_date:  "31 January 2026",
       dns_url:           "https://noehost.com/client/domains",
-      dashboard_url:     "https://noehost.com/client/dashboard",
+      dashboard_url:     "https://noehost.com/dashboard",
       refund_date:       "15 January 2026",
       payment_method:    "JazzCash (****4242)",
       // Reseller

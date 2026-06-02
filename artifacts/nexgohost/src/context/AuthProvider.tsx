@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("token");
     localStorage.removeItem("noehost_token");
     queryClient.clear();
-    setLocation(role === "admin" ? "/admin/login" : "/client/login");
+    setLocation(role === "admin" ? "/admin/login" : "/login");
   };
 
   return (

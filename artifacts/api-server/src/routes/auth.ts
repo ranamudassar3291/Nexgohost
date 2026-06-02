@@ -547,7 +547,7 @@ router.get("/auth/google/start", async (req, res) => {
   const { clientId, clientSecret, siteUrl } = await getGoogleSettings();
   const frontendBase = buildFrontendBase(req, siteUrl);
   if (!clientId || !clientSecret) {
-    res.redirect(`${frontendBase}/client/login?error=google_not_configured`);
+    res.redirect(`${frontendBase}/login?error=google_not_configured`);
     return;
   }
   const callbackUrl = buildCallbackUrl(req, siteUrl);
@@ -577,18 +577,18 @@ router.get("/auth/google/callback", async (req, res) => {
 
   if (error) {
     await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "denied", ipAddress: ip, userAgent: ua, details: error });
-    res.redirect(`${frontendBase}/client/login?error=google_denied`);
+    res.redirect(`${frontendBase}/login?error=google_denied`);
     return;
   }
 
   if (!code) {
-    res.redirect(`${frontendBase}/client/login?error=google_no_code`);
+    res.redirect(`${frontendBase}/login?error=google_no_code`);
     return;
   }
 
   try {
     if (!clientId || !clientSecret) {
-      res.redirect(`${frontendBase}/client/login?error=google_not_configured`);
+      res.redirect(`${frontendBase}/login?error=google_not_configured`);
       return;
     }
 
@@ -622,7 +622,7 @@ router.get("/auth/google/callback", async (req, res) => {
       const domain = userInfo.email.split("@")[1]?.toLowerCase() || "";
       if (!allowedDomains.includes(domain)) {
         await logAuthEvent({ email: userInfo.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: `Domain not allowed: ${domain}` });
-        res.redirect(`${frontendBase}/client/login?error=google_domain_not_allowed`);
+        res.redirect(`${frontendBase}/login?error=google_domain_not_allowed`);
         return;
       }
     }
@@ -639,7 +639,7 @@ router.get("/auth/google/callback", async (req, res) => {
 
     if (user.status === "suspended") {
       await logAuthEvent({ userId: user.id, email: user.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: "Account suspended" });
-      res.redirect(`${frontendBase}/client/login?error=account_suspended`);
+      res.redirect(`${frontendBase}/login?error=account_suspended`);
       return;
     }
 
@@ -650,7 +650,7 @@ router.get("/auth/google/callback", async (req, res) => {
     console.error("[AUTH] Google callback error:", err.message);
     await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "error", ipAddress: ip, userAgent: ua, details: err.message });
     const detail = encodeURIComponent(err.message || "Unknown error");
-    res.redirect(`${frontendBase}/client/login?error=google_failed&google_error=${detail}`);
+    res.redirect(`${frontendBase}/login?error=google_failed&google_error=${detail}`);
   }
 });
 

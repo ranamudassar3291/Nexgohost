@@ -146,7 +146,7 @@ function ClientPage({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
   if (isLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" /></div>;
-  if (!user) return <Redirect to="/client/login" />;
+  if (!user) return <Redirect to="/login" />;
   if (user.role !== "client") return <Forbidden requiredRole="client" attemptedPath={location} />;
   return <AppLayout role="client">{children}</AppLayout>;
 }
@@ -161,9 +161,9 @@ function HelpPage({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <a href="/client/login" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
+          <a href="/login" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
           <div className="flex gap-3">
-            <a href="/client/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
+            <a href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
             <a href="/client/orders/new" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
           </div>
         </div>
@@ -311,7 +311,7 @@ function RouterRoot() {
       {/* ── Auth pages ── */}
       <Route path="/admin/noe"        component={AdminLogin}      />
       <Route path="/admin/login"><Redirect to="/admin/noe" /></Route>
-      <Route path="/client/login"     component={ClientLogin}     />
+      <Route path="/login"     component={ClientLogin}     />
       <Route path="/client/register"><Redirect to="/register" /></Route>
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />
@@ -323,9 +323,9 @@ function RouterRoot() {
 
       <Route path="/login">
         {!isLoading && user ? (
-          <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/client/dashboard"} />
+          <Redirect to={user.role === "admin" ? "/admin/dashboard" : "/dashboard"} />
         ) : (
-          <Redirect to="/client/login" />
+          <Redirect to="/login" />
         )}
       </Route>
 
@@ -572,7 +572,7 @@ function RouterRoot() {
       </Route>
 
       {/* ── Client routes (each individually guarded) ── */}
-      <Route path="/client/dashboard">
+      <Route path="/dashboard">
         <ClientPage><ClientDashboard /></ClientPage>
       </Route>
       <Route path="/client/vps/:id">

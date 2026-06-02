@@ -104,7 +104,7 @@ export default function RegisterDomain() {
   });
 
   useEffect(() => {
-    if (!claimToken) navigate("/client/dashboard");
+    if (!claimToken) navigate("/dashboard");
   }, [claimToken]);
 
   async function handleSearch(e?: React.FormEvent) {
@@ -176,7 +176,7 @@ export default function RegisterDomain() {
         <p className="text-muted-foreground text-sm">
           {(infoError as any)?.message ?? "This hosting plan doesn't have a free domain available, or it's already been claimed."}
         </p>
-        <Button onClick={() => navigate("/client/dashboard")} variant="outline" className="gap-2">
+        <Button onClick={() => navigate("/dashboard")} variant="outline" className="gap-2">
           <ArrowLeft size={14} /> Back to Dashboard
         </Button>
       </div>
@@ -210,7 +210,7 @@ export default function RegisterDomain() {
                 className="gap-2 text-white" style={{ background: BRAND, border: "none" }}>
                 <Globe size={14} /> Manage Domains
               </Button>
-              <Button onClick={() => navigate("/client/dashboard")} variant="outline"
+              <Button onClick={() => navigate("/dashboard")} variant="outline"
                 className="gap-2 border-purple-500/30 text-purple-300 hover:bg-purple-500/10">
                 <ArrowLeft size={14} /> Dashboard
               </Button>
@@ -291,7 +291,7 @@ export default function RegisterDomain() {
       </form>
 
       {/* Back */}
-      <button onClick={() => navigate("/client/dashboard")}
+      <button onClick={() => navigate("/dashboard")}
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft size={13} /> Back to Dashboard
       </button>

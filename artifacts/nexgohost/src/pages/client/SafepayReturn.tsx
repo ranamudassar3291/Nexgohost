@@ -84,7 +84,7 @@ export default function SafepayReturn() {
   }
 
   const goToInvoice = () => setLocation(`/client/invoices/${invoiceId}`);
-  const goToDashboard = () => setLocation("/client/dashboard");
+  const goToDashboard = () => setLocation("/dashboard");
 
   // ─── ACTIVATING: stepper ──────────────────────────────────────────────────
   if (phase === "activating") {

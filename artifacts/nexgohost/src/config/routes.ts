@@ -83,7 +83,7 @@ export const adminRoutes: RouteDefinition[] = [
 
 // ─── Client Routes ────────────────────────────────────────────────────────────
 export const clientRoutes: RouteDefinition[] = [
-  { path: "/client/dashboard",   label: "Dashboard",   icon: LayoutDashboard, inNav: true  },
+  { path: "/dashboard",   label: "Dashboard",   icon: LayoutDashboard, inNav: true  },
   { path: "/client/hosting",     label: "My Hosting",  icon: Server,          inNav: true  },
   { path: "/client/domains",       label: "My Domains",    icon: Globe,    inNav: true  },
   { path: "/client/domain-search", label: "Domain Search", icon: Search,   inNav: false },
@@ -114,5 +114,5 @@ export const routesByRole: Record<"admin" | "client", RouteDefinition[]> = {
 // Default landing per role (used by guards and root redirect)
 export const dashboardByRole: Record<"admin" | "client", string> = {
   admin: "/admin/dashboard",
-  client: "/client/dashboard",
+  client: "/dashboard",
 };

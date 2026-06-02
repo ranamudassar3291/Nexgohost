@@ -169,7 +169,7 @@ export default function ResetPassword() {
                   Your password has been reset successfully. You can now sign in with your new password.
                 </p>
                 <a
-                  href="/client/login"
+                  href="/login"
                   className="inline-flex items-center justify-center w-full h-11 rounded-xl bg-[#6B46C1] hover:bg-[#4338CA] text-white text-sm font-semibold transition-colors gap-2 shadow-md shadow-[#6B46C1]/25"
                 >
                   Sign in to your account

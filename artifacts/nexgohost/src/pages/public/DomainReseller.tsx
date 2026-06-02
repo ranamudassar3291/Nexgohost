@@ -152,7 +152,7 @@ export default function DomainReseller() {
   };
 
   const openApply = () => {
-    if (!user) { navigate("/client/login?next=/domain-reseller"); return; }
+    if (!user) { navigate("/login?next=/domain-reseller"); return; }
     setStep(1); setApplyStatus("idle"); setApplyMsg("");
     setShowApply(true);
   };

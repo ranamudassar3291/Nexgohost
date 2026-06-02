@@ -128,7 +128,7 @@ Order: noehost.com/client/orders/new
 7. Account activated within minutes
 
 ## HOW TO LOGIN
-- Client Portal: noehost.com/client/login
+- Client Portal: noehost.com/login
 - Admin: noehost.com/admin/noe (admin only)
 - Forgot password: Click "Forgot Password" on login page
 

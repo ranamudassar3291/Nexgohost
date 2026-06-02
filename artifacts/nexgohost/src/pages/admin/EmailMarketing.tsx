@@ -68,7 +68,7 @@ const TEMPLATES = [
 </table>
 <p>Explore our hosting plans, domain registration, and much more at your dashboard.</p>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/dashboard" style="display:inline-block;background:linear-gradient(135deg,#6B46C1,#7C5DE2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Go to Dashboard →</a>
+  <a href="https://noehost.com/dashboard" style="display:inline-block;background:linear-gradient(135deg,#6B46C1,#7C5DE2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Go to Dashboard →</a>
 </p>`,
   },
   {

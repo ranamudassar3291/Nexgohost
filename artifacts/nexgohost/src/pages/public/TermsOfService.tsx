@@ -121,7 +121,7 @@ export default function TermsOfService() {
           <span>·</span>
           <Link href="/legal/refund" className="text-violet-600 hover:underline">Refund Policy</Link>
           <span>·</span>
-          <Link href="/client/login" className="text-violet-600 hover:underline">Back to Login</Link>
+          <Link href="/login" className="text-violet-600 hover:underline">Back to Login</Link>
         </div>
       </div>
     </div>
