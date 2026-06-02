@@ -534,8 +534,8 @@ export async function connectWhatsApp() {
         const phone = sock?.user?.id?.split(":")?.[0] ?? "unknown";
         state = { ...state, status: "connected", qrDataUrl: null, qrRaw: null, connectedAt: new Date(), phone, error: null };
         console.log(`[WA] Connected as +${phone}`);
-        // Immediately persist fresh session to DB on successful connect
-        await persistSessionToDb();
+        // Persist fresh session to DB on successful connect
+        await saveCreds();
       }
     });
 
