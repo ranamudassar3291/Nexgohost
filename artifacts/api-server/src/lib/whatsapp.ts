@@ -428,7 +428,7 @@ export async function connectWhatsApp() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // ── Incoming message handler — Admin Command Engine ──────────────────────
+    // ── Incoming message handler — Noe AI Admin Agent ────────────────────────
     sock.ev.on("messages.upsert", async ({ messages: msgs, type }: any) => {
       if (type !== "notify") return;
 
@@ -437,7 +437,7 @@ export async function connectWhatsApp() {
       const adminJid = `${adminPhone.replace(/\D/g, "")}@s.whatsapp.net`;
 
       for (const msg of msgs) {
-        // Only process messages sent TO us (not fromMe), from the admin's JID
+        // Only process messages from the admin (not fromMe = our own sends)
         if (msg.key.fromMe) continue;
         if (msg.key.remoteJid !== adminJid) continue;
 
@@ -447,19 +447,33 @@ export async function connectWhatsApp() {
           ""
         ).trim();
 
-        if (!text.startsWith("!")) continue;
+        if (!text) continue;
 
-        console.log(`[WA-CMD] Admin command received: ${text}`);
+        console.log(`[NOE-AGENT] Admin message: ${text.slice(0, 80)}`);
+
+        // Mark as read
+        try { await sock.readMessages([msg.key]); } catch { /* non-fatal */ }
 
         try {
-          const reply = await handleAdminCommand(text);
+          // Use legacy ! commands for backward compat, else use Noe AI Agent
+          let reply: string | null = null;
+          if (text.startsWith("!")) {
+            reply = await handleAdminCommand(text);
+          }
+          // All messages (with or without !) go through Noe Agent
+          if (!reply || !text.startsWith("!")) {
+            const { noeAgent } = await import("./noe-agent.js");
+            reply = await noeAgent(text, adminJid, sock);
+          }
           if (reply && sock) {
             await sock.sendMessage(adminJid, { text: reply });
           }
         } catch (err: any) {
-          console.error("[WA-CMD] Handler error:", err.message);
+          console.error("[NOE-AGENT] Handler error:", err.message);
           try {
-            if (sock) await sock.sendMessage(adminJid, { text: `❌ Error: ${err.message}` });
+            if (sock) await sock.sendMessage(adminJid, {
+              text: `❌ *Noe Error:* ${err.message}\n\nType *help* for available commands.`,
+            });
           } catch { /* ignore */ }
         }
       }
