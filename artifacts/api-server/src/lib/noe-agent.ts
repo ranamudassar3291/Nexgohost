@@ -95,7 +95,7 @@ Intents:
 - unsuspend: Unsuspend/reactivate a hosting service. Extract: email OR domain
 - terminate_service: Permanently terminate/delete a hosting service. Extract: email OR domain
 - extend_billing: Add months to a service billing period. Extract: email OR domain, months (number, e.g. "1 month"→"1", "3 mahine"→"3")
-- update_plan_price: Change/update the price of a hosting plan. Extract: planName, price (new price number), yearlyPrice (optional)
+- update_plan_price: Change/update the price of a hosting plan. Extract: planName, price (new monthly price number), yearlyPrice (optional yearly price), quarterlyPrice (optional quarterly price)
 - list_tickets: Show open support tickets. No params.
 - reply_ticket: Reply to a support ticket. Extract: ticketId (ticket number e.g. TKT-123 or numeric ID), replyText (the reply content)
 - client_info: Look up client details. Extract: email OR name OR phone OR domain
@@ -125,7 +125,6 @@ Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
       return { intent: "domain_check", domain: m?.[1] };
     }
     if (/add.*client|new.*client|create.*client|client.*add/.test(lower)) return { intent: "add_client" };
-    if (/order.*add|add.*order|new.*order|create.*order/.test(lower)) return { intent: "add_order" };
     if (/add.*domain|register.*domain|domain.*add/.test(lower)) return { intent: "add_domain" };
     if (/terminat|delete.*service|service.*delete|band karo|hatao/.test(lower)) return { intent: "terminate_service" };
     if (/extend|month.*add|add.*month|mahine.*add|add.*mahine|renew.*extend/.test(lower)) return { intent: "extend_billing" };
@@ -143,6 +142,18 @@ Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
     if (/remind.*all|all.*remind|bulk.*remind/.test(lower)) return { intent: "remind_all" };
     if (/fix|issue|problem|error|masla|solve/.test(lower)) return { intent: "fix_issue" };
     if (/message|msg.*send|send.*msg|client.*ko.*bolo/.test(lower)) return { intent: "send_message" };
+    if (/order.*add|add.*order|new.*order|create.*order/.test(lower)) {
+      // Heuristic extraction for add_order in fallback path
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const domainM = msg.match(/\b([a-zA-Z0-9-]+\.(com|net|org|pk|io|co))\b/);
+      const amountM = msg.match(/(\d[\d,]*)\s*(mein|mein?|rs|pkr|rupee|rupees|ka order)?/i);
+      return {
+        intent: "add_order",
+        email: emailM?.[0],
+        domain: domainM?.[1],
+        amount: amountM ? amountM[1].replace(/,/g, "") : undefined,
+      };
+    }
     if (/help|commands/.test(lower)) return { intent: "help" };
     return { intent: "unknown" };
   }
@@ -1037,7 +1048,7 @@ async function cmdExtendBilling(data: { email?: string; domain?: string; months?
 }
 
 // ── CMD: Update plan price ─────────────────────────────────────────────────────
-async function cmdUpdatePlanPrice(data: { planName?: string; price?: string; yearlyPrice?: string }): Promise<string> {
+async function cmdUpdatePlanPrice(data: { planName?: string; price?: string; yearlyPrice?: string; quarterlyPrice?: string }): Promise<string> {
   if (!data.planName) return "❌ Plan name batao. Example: *plan price update Business Pro 4000*";
   if (!data.price) return "❌ New price batao (PKR). Example: *plan price update Business Pro 4000*";
 
@@ -1056,18 +1067,24 @@ async function cmdUpdatePlanPrice(data: { planName?: string; price?: string; yea
     if (!isNaN(yp) && yp > 0) updateData.yearlyPrice = String(yp);
   }
 
+  if (data.quarterlyPrice) {
+    const qp = parseFloat(data.quarterlyPrice.replace(/[^0-9.]/g, ""));
+    if (!isNaN(qp) && qp > 0) updateData.quarterlyPrice = String(qp);
+  }
+
   await db.update(hostingPlansTable).set(updateData)
     .where(eq(hostingPlansTable.id, plan.id));
 
-  const yearlyLine = updateData.yearlyPrice
-    ? `\n💰 Yearly Price: *PKR ${Number(updateData.yearlyPrice).toLocaleString()}*`
-    : "";
+  const extraLines: string[] = [];
+  if (updateData.yearlyPrice) extraLines.push(`💰 Yearly Price: *PKR ${Number(updateData.yearlyPrice).toLocaleString()}*`);
+  if (updateData.quarterlyPrice) extraLines.push(`💰 Quarterly Price: *PKR ${Number(updateData.quarterlyPrice).toLocaleString()}*`);
 
   return [
     `✅ *Plan Price Updated!*\n`,
     `📦 Plan: *${plan.name}*`,
     `💰 Old Monthly Price: *PKR ${Number(plan.price).toLocaleString()}*`,
-    `💰 New Monthly Price: *PKR ${newPrice.toLocaleString()}*` + yearlyLine,
+    `💰 New Monthly Price: *PKR ${newPrice.toLocaleString()}*`,
+    ...extraLines,
     ``,
     `⚡ New orders will use the updated price immediately.`,
   ].join("\n");
@@ -1410,7 +1427,10 @@ export async function noeAgent(msg: string, adminJid: string, sock: any): Promis
   if (lower === "status" || lower === "!status") return cmdSystemStatus();
   if (lower === "help" || lower === "!help" || lower === "commands") return cmdHelp();
   if (lower === "tickets" || lower === "ticket list" || lower === "open tickets") return cmdListTickets();
-  if (lower === "terminate confirm" || lower === "confirm terminate") {
+
+  // Affirmation when a pending termination is waiting — "haan", "yes", "confirm" etc.
+  const isAffirmation = /^(haan|han|yes|y|confirm|terminate confirm|confirm terminate|ok|okay|ha|theek hai|done|karo)$/i.test(lower);
+  if (isAffirmation && pendingTerminations.has(adminJid)) {
     return executeIntent("terminate_confirm", {}, adminJid, sock);
   }
 
