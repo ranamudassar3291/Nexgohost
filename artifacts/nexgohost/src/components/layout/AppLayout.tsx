@@ -295,7 +295,7 @@ export function AppLayout({ children, role }: LayoutProps) {
         {logoUrl ? (
           <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: "100%", filter: "brightness(0) invert(1)" }} referrerPolicy="no-referrer" />
         ) : (
-          <img src="/noehost-logo.png" alt="Noehost" style={{ height: 34, width: "auto", objectFit: "contain" }} />
+          <img src="/logo.png" alt="Noehost" style={{ height: 34, width: "auto", objectFit: "contain" }} />
         )}
       </div>
 
@@ -454,7 +454,7 @@ export function AppLayout({ children, role }: LayoutProps) {
           </div>
         ) : (
           <div className="flex items-center px-2 py-1.5 rounded-xl" style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)" }}>
-            <img src="/noehost-logo.png" alt="Noehost" style={{ height: 32, width: "auto", objectFit: "contain" }} />
+            <img src="/logo.png" alt="Noehost" style={{ height: 32, width: "auto", objectFit: "contain" }} />
           </div>
         )}
       </div>
@@ -566,10 +566,10 @@ export function AppLayout({ children, role }: LayoutProps) {
           {logoUrl ? (
             <img src={logoUrl} alt={siteName} className="brand-logo-img" style={{ maxHeight: 38, width: "auto", maxWidth: 180, ...(isClient ? { filter: "brightness(0) invert(1)" } : {}) }} referrerPolicy="no-referrer" />
           ) : isClient ? (
-            <img src="/noehost-logo.png" alt="Noehost" style={{ height: 32, width: "auto", objectFit: "contain" }} />
+            <img src="/logo.png" alt="Noehost" style={{ height: 32, width: "auto", objectFit: "contain" }} />
           ) : (
             <div className="flex items-center px-2 py-1 rounded-xl" style={{ background: "linear-gradient(135deg,#1e1b4b,#312e81)" }}>
-              <img src="/noehost-logo.png" alt="Noehost" style={{ height: 28, width: "auto", objectFit: "contain" }} />
+              <img src="/logo.png" alt="Noehost" style={{ height: 28, width: "auto", objectFit: "contain" }} />
             </div>
           )}
         </div>

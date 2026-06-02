@@ -111,7 +111,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
               <Shield size={18} className="text-white" />
             </div>
             <div>
-              <div className="text-white font-black text-sm tracking-tight">NEOHOST</div>
+              <div className="text-white font-black text-sm tracking-tight">NOEHOST</div>
               <div className="text-[9px] font-bold tracking-widest uppercase" style={{ color: '#673de6' }}>CMS PANEL</div>
             </div>
           </Link>
@@ -802,7 +802,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
   };
 
   const NavigationManager = () => {
-    const [data, setData] = useState(content?.navbar || { logo: 'NEOHOST', links: [] });
+    const [data, setData] = useState(content?.navbar || { logo: 'NOEHOST', links: [] });
     const [saving, setSaving] = useState(false);
     useEffect(() => { if (content?.navbar) setData(content.navbar); }, [content]);
     const save = async () => { setSaving(true); try { await updateContent('navbar', data); } catch { alert('Failed'); } finally { setSaving(false); } };
@@ -822,7 +822,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
         <PageCard title="Branding" onSave={save} saving={saving}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <Field label="Logo Text (Fallback)"><Input value={data.logo} onChange={(e: any) => setData({ ...data, logo: e.target.value })} placeholder="NEOHOST" /></Field>
+              <Field label="Logo Text (Fallback)"><Input value={data.logo} onChange={(e: any) => setData({ ...data, logo: e.target.value })} placeholder="NOEHOST" /></Field>
               <Field label="Logo Image URL"><Input value={data.logoUrl} onChange={(e: any) => setData({ ...data, logoUrl: e.target.value })} placeholder="https://..." /></Field>
               <Field label="Upload Logo">
                 <input type="file" accept="image/*" onChange={handleLogoUpload}
@@ -834,7 +834,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
               {data.logoImage || data.logoUrl ? (
                 <img src={data.logoImage || data.logoUrl} alt="Logo Preview" className="max-h-14 object-contain" />
               ) : (
-                <span className="text-2xl font-black text-white tracking-tighter">{data.logo || 'NEOHOST'}</span>
+                <img src="/logo.png" alt="Noehost" className="max-h-10 object-contain" />
               )}
             </div>
           </div>
@@ -1141,7 +1141,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, setUser }) => {
         <button onClick={() => setSidebarOpen(true)} className="p-2 text-slate-400 hover:text-white transition-colors">
           <Menu size={22} />
         </button>
-        <span className="text-white font-black text-sm tracking-tight">NEOHOST CMS</span>
+        <span className="text-white font-black text-sm tracking-tight">NOEHOST CMS</span>
         <Link to="/" className="p-2 text-slate-400 hover:text-white transition-colors"><Globe size={18} /></Link>
       </header>
 

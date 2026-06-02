@@ -58,18 +58,18 @@ const Footer: React.FC = () => {
   const Logo = () => {
     const navData = content?.navbar;
     if (navData?.logoImage) {
-      return <img src={navData.logoImage} alt={navData.logo} className="h-8 w-auto object-contain" />;
+      return <img src={navData.logoImage} alt={navData.logo || 'Noehost'} className="h-8 w-auto object-contain" />;
     }
     if (navData?.logoUrl) {
-      return <img src={navData.logoUrl} alt={navData.logo} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
+      return <img src={navData.logoUrl} alt={navData.logo || 'Noehost'} className="h-8 w-auto object-contain" referrerPolicy="no-referrer" />;
     }
     return (
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">
-          <Server size={20} />
-        </div>
-        <span className="text-xl font-black tracking-tighter text-white">{navData?.logo || 'NEOHOST'}</span>
-      </div>
+      <img
+        src="/logo.png"
+        alt="Noehost"
+        className="h-8 w-auto object-contain"
+        style={{ transition: 'opacity 0.3s ease' }}
+      />
     );
   };
 

@@ -56,11 +56,8 @@ const ClientDashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-secondary text-white transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
       <div className="flex flex-col h-full">
         <div className="p-6 flex items-center justify-between">
-          <Link to="/" className="text-2xl font-black tracking-tighter text-white flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Server size={18} />
-            </div>
-            NEOHOST
+          <Link to="/" className="flex items-center flex-shrink-0">
+            <img src="/logo.png" alt="Noehost" className="h-8 w-auto object-contain" />
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400">
             <X size={24} />
@@ -451,7 +448,9 @@ const ClientDashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
       
       {/* Mobile Header */}
       <header className="lg:hidden bg-secondary text-white p-4 flex items-center justify-between sticky top-0 z-40">
-        <Link to="/" className="text-xl font-black tracking-tighter">NEOHOST</Link>
+        <Link to="/" className="flex items-center">
+          <img src="/logo.png" alt="Noehost" className="h-7 w-auto object-contain" />
+        </Link>
         <button onClick={() => setSidebarOpen(true)} className="p-2">
           <Menu size={24} />
         </button>
