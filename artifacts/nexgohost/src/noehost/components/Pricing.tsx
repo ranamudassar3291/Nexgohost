@@ -113,13 +113,23 @@ const Pricing: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto mt-4">
-          {plans.map((plan: any, i: number) => (
+          {isLoading && [0, 1, 2].map((i) => (
+            <div key={`sk-${i}`} className="relative flex flex-col p-6 rounded-2xl border border-slate-200 bg-white animate-pulse">
+              <div className="h-6 bg-slate-200 rounded-lg w-2/3 mb-4" />
+              <div className="h-10 bg-slate-200 rounded-lg w-1/2 mb-2" />
+              <div className="h-4 bg-slate-100 rounded w-3/4 mb-6" />
+              <div className="h-12 bg-slate-200 rounded-2xl mb-6" />
+              <div className="space-y-3">
+                {[1,2,3,4].map(j => <div key={j} className="h-4 bg-slate-100 rounded w-full" />)}
+              </div>
+            </div>
+          ))}
+          {!isLoading && plans.map((plan: any, i: number) => (
             <motion.div
-              key={i}
+              key={plan.name || i}
               initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.4 }}
               whileHover={{ y: -4 }}
               className={`relative flex flex-col p-6 rounded-2xl border transition-all duration-300 ${
                 plan.popular
