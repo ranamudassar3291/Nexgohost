@@ -9,8 +9,9 @@ import {
 import { eq, sql, desc, ilike, or, and, inArray } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { provisionHostingService } from "../lib/provision.js";
-import { emailDomainRegistered } from "../lib/email.js";
+import { emailDomainRegistered, emailOrderCreated, emailHostingCreated } from "../lib/email.js";
 import { processInvoicePaid } from "../lib/activateInvoice.js";
+import { getPaymentInfo } from "../lib/whatsapp.js";
 
 const router = Router();
 
@@ -161,21 +162,47 @@ router.post("/orders", authenticate, async (req: AuthRequest, res) => {
       `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
     ).catch(() => {});
 
-    // WhatsApp confirmation to client (non-blocking)
+    // Professional WhatsApp + email to client (non-blocking)
+    const clientName = user.firstName ? user.firstName.trim() : "there";
+    const orderId = order.id.slice(0, 8).toUpperCase();
+    const amountFmt = Number(amount) > 0 ? `PKR ${Number(amount).toLocaleString()}` : "Free / Custom";
+    const typeLabel = type === "hosting" ? "🌐 Web Hosting" : type === "domain" ? "🔤 Domain" : type === "vps" ? "💻 VPS Server" : type === "reseller" ? "🏢 Reseller Hosting" : "📦 " + type;
+    const orderDate = new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi", dateStyle: "medium", timeStyle: "short" });
+    const dashUrl = process.env.CLIENT_AREA_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}/dashboard`;
+
+    // Email order confirmation to client
+    emailOrderCreated(user.email, {
+      clientName: `${user.firstName} ${user.lastName ?? ""}`.trim(),
+      serviceName: itemName,
+      domain: (req.body as any).domain || "",
+      orderId,
+    }).catch(() => {});
+
+    // WhatsApp to client with payment info
     if (user.phone) {
-      const clientName = user.firstName ? user.firstName.trim() : "there";
-      sendToClientPhone(
-        user.phone,
-        `🎉 *Order Received — Noehost*\n\n` +
-        `Hi ${clientName}!\n\n` +
-        `Your order *#${order.id.slice(0, 8).toUpperCase()}* has been received successfully!\n\n` +
-        `📦 Service: ${itemName}\n` +
-        `💰 Amount: PKR ${Number(amount).toLocaleString()}\n\n` +
-        `Our team is processing your order and will activate your service shortly.\n\n` +
-        `📧 Questions? support@noehost.com\n\n` +
-        `_Noehost Team_ 🚀`,
-        "client_notification"
-      ).catch(() => {});
+      getPaymentInfo().then(payInfo => {
+        const paySection = payInfo ? `\n\n💳 *Payment Details:*\n${payInfo}` : "";
+        sendToClientPhone(
+          user.phone!,
+          `🎉 *Order Confirmed — Noehost!*\n\n` +
+          `Hi *${clientName}!*\n\n` +
+          `━━━━━━━━━━━━━━━━━━\n` +
+          `📋 *Order Summary*\n` +
+          `━━━━━━━━━━━━━━━━━━\n` +
+          `🆔 Order ID: *#${orderId}*\n` +
+          `${typeLabel}\n` +
+          `📦 Service: *${itemName}*\n` +
+          `💰 Amount: *${amountFmt}*\n` +
+          `📅 Date: ${orderDate}\n` +
+          `━━━━━━━━━━━━━━━━━━\n` +
+          `${paySection}\n\n` +
+          `✅ Our team will activate your service shortly after payment confirmation.\n\n` +
+          `🔗 Track your order:\n${dashUrl}/orders\n\n` +
+          `📞 Need help? Reply here or email us at support@noehost.com\n\n` +
+          `_Thank you for choosing Noehost! 🚀_`,
+          "client_notification"
+        ).catch(() => {});
+      }).catch(() => {});
     }
 
   } catch (err) {
@@ -640,6 +667,72 @@ router.post("/admin/orders/:id/activate", authenticate, requireAdmin, async (req
       } : null,
       invoicePaid: true,
     });
+
+    // ── WhatsApp + Email to client after hosting activation ───────────────────
+    if (user?.phone && service && order.type === "hosting") {
+      (async () => {
+        try {
+          const cpanelUrl = service.cpanelUrl || `https://${service.domain ?? serverRecord?.hostname ?? ""}:2083`;
+          const webmailUrl = service.webmailUrl || `https://${service.domain ?? serverRecord?.hostname ?? ""}:2096`;
+          const cpUser = service.username || "(see welcome email)";
+          const cpPass = provisionResult?.credentials?.password || "(use password you set at order)";
+          const ns1 = serverRecord?.ns1 || "ns1.noehost.com";
+          const ns2 = serverRecord?.ns2 || "ns2.noehost.com";
+          const domain = service.domain || order.domain || order.itemName || "";
+          const activationDate = new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi", dateStyle: "medium", timeStyle: "short" });
+          const firstName = user.firstName?.trim() || "there";
+          const dashUrl = process.env.CLIENT_AREA_URL ?? `https://${process.env.REPLIT_DEV_DOMAIN ?? "noehost.com"}/dashboard`;
+          const serviceLink = `${dashUrl}/hosting/${service.id}`;
+
+          const msg =
+            `🚀 *Service Activated — Noehost!*\n\n` +
+            `Hi *${firstName}!*\n\n` +
+            `Your hosting service is now *LIVE*! 🎉\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🌐 *Hosting Details*\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📌 Plan: *${service.planName || order.itemName}*\n` +
+            `🔗 Domain: *${domain}*\n` +
+            `📅 Activated: ${activationDate}\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🖥️ *cPanel Login*\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🔗 URL: ${cpanelUrl}\n` +
+            `👤 Username: *${cpUser}*\n` +
+            `🔑 Password: *${cpPass}*\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📧 *Webmail Login*\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🔗 URL: ${webmailUrl}\n` +
+            `(Same username & password)\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🌍 *Nameservers (Point your domain here)*\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `NS1: *${ns1}*\n` +
+            `NS2: *${ns2}*\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `🔧 Manage your hosting panel:\n${serviceLink}\n\n` +
+            `📞 Need help? Reply here anytime!\n\n` +
+            `_Noehost Team — We're here for you 24/7_ 🌟`;
+
+          await sendToClientPhone(user.phone, msg, "client_notification");
+
+          // Also send welcome email with cPanel details (if not already sent by processInvoicePaid)
+          if (cpUser !== "(see welcome email)" && service.cpanelUrl) {
+            emailHostingCreated(user.email, {
+              clientName: clientName || firstName,
+              domain,
+              username: cpUser,
+              password: cpPass !== "(use password you set at order)" ? cpPass : undefined,
+              cpanelUrl,
+              ns1,
+              ns2,
+              webmailUrl,
+            }, { clientId: user.id, referenceId: service.id }).catch(() => {});
+          }
+        } catch (e) { /* non-fatal */ }
+      })();
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
