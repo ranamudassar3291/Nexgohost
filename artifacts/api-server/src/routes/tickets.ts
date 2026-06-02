@@ -153,8 +153,12 @@ router.post("/tickets", authenticate, async (req: AuthRequest, res) => {
       `🏷️ Subject: ${subject}\n` +
       `⚡ Priority: ${(priority || "medium").toUpperCase()}\n` +
       `🏢 Dept: ${department || "General"}\n` +
-      `🎫 Ticket: ${ticket.ticketNumber}\n\n` +
-      `🔗 View Ticket:\n${adminUrl}/admin/tickets/${ticket.id}\n\n` +
+      `🎫 Ticket: *${ticket.ticketNumber}*\n\n` +
+      `🔗 View: ${adminUrl}/admin/tickets/${ticket.id}\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `💬 *Quick Reply via Noe AI:*\n` +
+      `_reply ticket ${ticket.ticketNumber} [your message]_\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
       `_${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}_`
     ).catch(() => {});
 

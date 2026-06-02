@@ -18,7 +18,7 @@ import { db } from "@workspace/db";
 import {
   usersTable, hostingServicesTable, invoicesTable,
   ordersTable, hostingPlansTable, domainsTable, serversTable,
-  settingsTable,
+  settingsTable, ticketsTable, ticketMessagesTable,
 } from "@workspace/db/schema";
 import { eq, ilike, or, and, sql, desc, lte, gte, inArray } from "drizzle-orm";
 import { hashPassword } from "./auth.js";
@@ -74,6 +74,11 @@ async function detectIntent(msg: string): Promise<{
   clientMsg?: string;
   invoiceId?: string;
   filterDays?: string;
+  amount?: string;
+  months?: string;
+  price?: string;
+  ticketId?: string;
+  replyText?: string;
 }> {
   const systemPrompt = `You are an intent classifier for a hosting company admin WhatsApp bot called "Noe".
 Classify the admin's message into one of these intents and extract parameters.
@@ -82,17 +87,24 @@ Return ONLY valid JSON, no markdown, no explanation.
 Intents:
 - domain_check: Check if a domain is available. Extract: domain
 - add_client: Create a new client account. Extract: name (full name), email, phone, password
-- add_order: Create an order/service for a client. Extract: email (client email), domain, planName
+- add_order: Create an order/service for a client. Extract: email (client email), domain, planName, amount (optional custom price in PKR, e.g. "4000 mein", "3500 ka order")
 - add_domain: Register/add a domain for a client. Extract: email (client email), domain
 - activate_order: Activate a pending order. Extract: orderId OR email OR domain
-- suspend: Suspend a hosting service. Extract: email OR domain, optionally notify (true/false)
+- suspend: Suspend a hosting service. Extract: email OR domain
 - unsuspend: Unsuspend/reactivate a hosting service. Extract: email OR domain
+- terminate_service: Permanently terminate/delete a hosting service. Extract: email OR domain
+- extend_billing: Add months to a service billing period. Extract: email OR domain, months (number, e.g. "1 month"→"1", "3 mahine"→"3")
+- update_plan_price: Change/update the price of a hosting plan. Extract: planName, price (new price number), yearlyPrice (optional)
+- list_tickets: Show open support tickets. No params.
+- reply_ticket: Reply to a support ticket. Extract: ticketId (ticket number e.g. TKT-123 or numeric ID), replyText (the reply content)
 - client_info: Look up client details. Extract: email OR name OR phone OR domain
 - system_status: Show system stats. No params.
 - renewals: Show upcoming/overdue renewals. Extract: filterDays (optional, default "7")
 - share_invoice: Share an invoice with client via WhatsApp. Extract: email OR invoiceId
+- mark_invoice_paid: Mark an invoice as paid. Extract: invoiceId OR email (latest unpaid)
 - fix_issue: Admin describes a client technical issue, generate fix steps. Extract: issueDesc, domain (optional), email (optional)
 - send_message: Send a custom WhatsApp message to a client. Extract: email OR phone, clientMsg
+- remind_all: Send renewal reminders to all due clients. Extract: filterDays (optional)
 - help: Show help/commands. No params.
 - unknown: Cannot classify.
 
@@ -114,13 +126,20 @@ Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
     if (/add.*client|new.*client|create.*client|client.*add/.test(lower)) return { intent: "add_client" };
     if (/order.*add|add.*order|new.*order|create.*order/.test(lower)) return { intent: "add_order" };
     if (/add.*domain|register.*domain|domain.*add/.test(lower)) return { intent: "add_domain" };
+    if (/terminat|delete.*service|service.*delete|band karo|hatao/.test(lower)) return { intent: "terminate_service" };
+    if (/extend|month.*add|add.*month|mahine.*add|add.*mahine|renew.*extend/.test(lower)) return { intent: "extend_billing" };
+    if (/plan.*price|price.*update|price.*change|update.*price|price.*karo|plan.*update/.test(lower)) return { intent: "update_plan_price" };
+    if (/tickets|ticket.*list|open.*ticket|ticket.*dikhao/.test(lower)) return { intent: "list_tickets" };
+    if (/ticket.*reply|reply.*ticket|ticket.*ka.*reply/.test(lower)) return { intent: "reply_ticket" };
     if (/activat|live karo|activate/.test(lower)) return { intent: "activate_order" };
     if (/suspend/.test(lower)) return { intent: "suspend" };
     if (/unsuspend|reactivat|resume/.test(lower)) return { intent: "unsuspend" };
+    if (/mark.*paid|paid.*mark|invoice.*paid/.test(lower)) return { intent: "mark_invoice_paid" };
     if (/info|details|client ka|client ki/.test(lower)) return { intent: "client_info" };
     if (/status|system|stats/.test(lower)) return { intent: "system_status" };
     if (/renewal|due|expire/.test(lower)) return { intent: "renewals" };
     if (/invoice.*share|share.*invoice|invoice.*send/.test(lower)) return { intent: "share_invoice" };
+    if (/remind.*all|all.*remind|bulk.*remind/.test(lower)) return { intent: "remind_all" };
     if (/fix|issue|problem|error|masla|solve/.test(lower)) return { intent: "fix_issue" };
     if (/message|msg.*send|send.*msg|client.*ko.*bolo/.test(lower)) return { intent: "send_message" };
     if (/help|commands/.test(lower)) return { intent: "help" };
@@ -272,8 +291,9 @@ async function cmdAddClient(data: { name?: string; email?: string; phone?: strin
 }
 
 // ── CMD: Add order (domain + hosting) ────────────────────────────────────────
-async function cmdAddOrder(data: { email?: string; domain?: string; planName?: string }): Promise<string> {
+async function cmdAddOrder(data: { email?: string; domain?: string; planName?: string; amount?: string }): Promise<string> {
   const { email, domain, planName } = data;
+  const customAmount = data.amount ? parseFloat(data.amount.replace(/[^0-9.]/g, "")) : null;
   if (!email) return "❌ Client email batao.";
 
   const client = await findClient(email);
@@ -292,7 +312,7 @@ async function cmdAddOrder(data: { email?: string; domain?: string; planName?: s
     plan = p;
   }
 
-  const amount = plan ? Number(plan.price) : 0;
+  const amount = customAmount && customAmount > 0 ? customAmount : (plan ? Number(plan.price) : 0);
   const itemName = plan?.name ?? planName ?? "Hosting Package";
 
   const [order] = await db.insert(ordersTable).values({
@@ -872,6 +892,274 @@ Format your response EXACTLY as:
   }
 }
 
+// ── CMD: Terminate service (2-step confirm) ───────────────────────────────────
+const pendingTerminations = new Map<string, { serviceId: string; domain: string; ts: number }>();
+
+async function cmdTerminateService(identifier: string, adminJid: string, confirmed = false): Promise<string> {
+  let service = await findService(identifier);
+  if (!service) {
+    const c = await findClient(identifier);
+    if (c) service = await findServiceByEmail(c.email);
+  }
+  if (!service) return `❌ *${identifier}* ka koi service nahi mila.`;
+
+  const key = adminJid;
+  const pending = pendingTerminations.get(key);
+
+  if (!confirmed) {
+    // Step 1 — ask for confirmation
+    pendingTerminations.set(key, { serviceId: service.id, domain: service.domain || service.planName || service.id, ts: Date.now() });
+    return [
+      `⚠️ *Termination Confirmation Required*\n`,
+      `🌐 Service: *${service.domain || service.planName}*`,
+      `📌 Status: ${service.status}`,
+      `🆔 Service ID: ${service.id.slice(0, 8)}…`,
+      ``,
+      `⚠️ Ye action *PERMANENT* hai! Service ka cPanel delete ho jayega.`,
+      ``,
+      `Confirm karne ke liye likho:`,
+      `*terminate confirm*`,
+      ``,
+      `⏳ 5 minute mein expire ho jaye ga.`,
+    ].join("\n");
+  }
+
+  // Step 2 — confirmed
+  if (!pending || Date.now() - pending.ts > 5 * 60 * 1000) {
+    pendingTerminations.delete(key);
+    return `❌ Termination confirm timeout ho gaya. Dobara *terminate [domain/email]* likho.`;
+  }
+  pendingTerminations.delete(key);
+
+  const targetService = await db.select().from(hostingServicesTable)
+    .where(eq(hostingServicesTable.id, pending.serviceId)).limit(1).then((r: any[]) => r[0]);
+  if (!targetService) return `❌ Service nahi mila.`;
+
+  try {
+    const { suspendHostingAccount: terminate } = await import("./provision.js");
+    if (targetService.username) await terminate(targetService.username, targetService.serverId, "Terminated by Noe Agent");
+  } catch (e: any) { console.warn("[NOE] terminate warn:", e.message); }
+
+  await db.update(hostingServicesTable)
+    .set({ status: "terminated", updatedAt: new Date() })
+    .where(eq(hostingServicesTable.id, pending.serviceId));
+
+  const [client] = await db.select().from(usersTable)
+    .where(eq(usersTable.id, targetService.clientId)).limit(1);
+
+  if (client?.phone) {
+    sendToClientPhone(client.phone,
+      `🗑️ *Service Terminated — Noehost*\n\n` +
+      `Hi *${client.firstName},*\n\n` +
+      `Your service *${pending.domain}* has been *terminated*.\n\n` +
+      `All data has been removed. For a new service:\n` +
+      `🔗 noehost.com/client/orders/new\n\n` +
+      `📞 Questions? Reply here or email support@noehost.com\n` +
+      `_Noehost Team_`, "client_notification"
+    ).catch(() => {});
+  }
+
+  return [
+    `🗑️ *Service Terminated!*\n`,
+    `🌐 Domain: *${pending.domain}*`,
+    `👤 Client: ${client ? client.email : targetService.clientId}`,
+    client?.phone ? `📲 Client notified via WhatsApp.` : `⚠️ No phone — notification skipped.`,
+  ].join("\n");
+}
+
+// ── CMD: Extend billing period ────────────────────────────────────────────────
+async function cmdExtendBilling(data: { email?: string; domain?: string; months?: string }): Promise<string> {
+  const identifier = data.email || data.domain || "";
+  if (!identifier) return "❌ Client email ya domain batao.";
+
+  let service = await findService(identifier);
+  if (!service) {
+    const c = await findClient(identifier);
+    if (c) service = await findServiceByEmail(c.email);
+  }
+  if (!service) return `❌ *${identifier}* ka koi service nahi mila.`;
+
+  const months = parseInt(data.months || "1") || 1;
+  if (months < 1 || months > 24) return `❌ Months 1 se 24 ke darmiyan hone chahiye. Tumne diya: *${data.months}*`;
+
+  const current = service.nextDueDate ? new Date(service.nextDueDate) : new Date();
+  const extended = new Date(current);
+  extended.setMonth(extended.getMonth() + months);
+
+  await db.update(hostingServicesTable)
+    .set({ nextDueDate: extended, updatedAt: new Date() })
+    .where(eq(hostingServicesTable.id, service.id));
+
+  const [client] = await db.select().from(usersTable)
+    .where(eq(usersTable.id, service.clientId)).limit(1);
+
+  if (client?.phone) {
+    sendToClientPhone(client.phone,
+      `✅ *Billing Extended — Noehost*\n\n` +
+      `Hi *${client.firstName}!*\n\n` +
+      `Your service *${service.domain || service.planName}* billing has been extended by *${months} month${months > 1 ? "s" : ""}*.\n\n` +
+      `📅 New Due Date: *${extended.toLocaleDateString("en-PK")}*\n\n` +
+      `_Noehost Team 🚀_`, "client_notification"
+    ).catch(() => {});
+  }
+
+  return [
+    `✅ *Billing Extended!*\n`,
+    `🌐 Service: *${service.domain || service.planName}*`,
+    `👤 Client: ${client ? client.email : service.clientId}`,
+    `📅 Old Due Date: *${current.toLocaleDateString("en-PK")}*`,
+    `📅 New Due Date: *${extended.toLocaleDateString("en-PK")}*`,
+    `⏰ Extended by: *${months} month${months > 1 ? "s" : ""}*`,
+    client?.phone ? `📲 Client notified via WhatsApp.` : `⚠️ No phone — notification skipped.`,
+  ].join("\n");
+}
+
+// ── CMD: Update plan price ─────────────────────────────────────────────────────
+async function cmdUpdatePlanPrice(data: { planName?: string; price?: string; yearlyPrice?: string }): Promise<string> {
+  if (!data.planName) return "❌ Plan name batao. Example: *plan price update Business Pro 4000*";
+  if (!data.price) return "❌ New price batao (PKR). Example: *plan price update Business Pro 4000*";
+
+  const newPrice = parseFloat(data.price.replace(/[^0-9.]/g, ""));
+  if (isNaN(newPrice) || newPrice <= 0) return `❌ Invalid price: *${data.price}*. Sirf number batao.`;
+
+  const [plan] = await db.select().from(hostingPlansTable)
+    .where(ilike(hostingPlansTable.name, `%${data.planName.trim()}%`)).limit(1);
+
+  if (!plan) return `❌ Plan *${data.planName}* nahi mila. *status* type karo for plan list.`;
+
+  const updateData: any = { price: String(newPrice), updatedAt: new Date() };
+
+  if (data.yearlyPrice) {
+    const yp = parseFloat(data.yearlyPrice.replace(/[^0-9.]/g, ""));
+    if (!isNaN(yp) && yp > 0) updateData.yearlyPrice = String(yp);
+  }
+
+  await db.update(hostingPlansTable).set(updateData)
+    .where(eq(hostingPlansTable.id, plan.id));
+
+  const yearlyLine = updateData.yearlyPrice
+    ? `\n💰 Yearly Price: *PKR ${Number(updateData.yearlyPrice).toLocaleString()}*`
+    : "";
+
+  return [
+    `✅ *Plan Price Updated!*\n`,
+    `📦 Plan: *${plan.name}*`,
+    `💰 Old Monthly Price: *PKR ${Number(plan.price).toLocaleString()}*`,
+    `💰 New Monthly Price: *PKR ${newPrice.toLocaleString()}*` + yearlyLine,
+    ``,
+    `⚡ New orders will use the updated price immediately.`,
+  ].join("\n");
+}
+
+// ── CMD: List open tickets ─────────────────────────────────────────────────────
+async function cmdListTickets(): Promise<string> {
+  const tickets = await db.select({
+    id: ticketsTable.id,
+    ticketNumber: ticketsTable.ticketNumber,
+    subject: ticketsTable.subject,
+    status: ticketsTable.status,
+    priority: ticketsTable.priority,
+    clientId: ticketsTable.clientId,
+    createdAt: ticketsTable.createdAt,
+  }).from(ticketsTable)
+    .where(or(eq(ticketsTable.status, "open"), eq(ticketsTable.status, "waiting")))
+    .orderBy(desc(ticketsTable.createdAt)).limit(15);
+
+  if (!tickets.length) return `✅ *No open tickets right now!* 🎉`;
+
+  const clientIds = [...new Set(tickets.map((t: any) => t.clientId).filter(Boolean))];
+  const clients = clientIds.length
+    ? await db.select({ id: usersTable.id, firstName: usersTable.firstName, email: usersTable.email })
+        .from(usersTable).where(inArray(usersTable.id, clientIds))
+    : [];
+  const cmap = Object.fromEntries(clients.map((c: any) => [c.id, c]));
+
+  const priorityIcon: Record<string, string> = {
+    critical: "🔴", high: "🟠", medium: "🟡", low: "🟢",
+  };
+
+  const lines = [`🎫 *Open Support Tickets (${tickets.length})*\n`];
+  for (const t of tickets) {
+    const c = cmap[t.clientId || ""];
+    const icon = priorityIcon[t.priority || "medium"] ?? "🟡";
+    const age = t.createdAt
+      ? `${Math.floor((Date.now() - new Date(t.createdAt).getTime()) / 3600000)}h ago`
+      : "";
+    lines.push(
+      `${icon} *${t.ticketNumber}* — ${t.subject?.slice(0, 40)}`,
+      `   👤 ${c ? `${c.firstName} (${c.email})` : "Unknown"} — ${t.status} — ${age}`,
+    );
+  }
+
+  lines.push(`\n📝 Reply karne ke liye: *reply ticket TKT-123 [message]*`);
+  return lines.join("\n");
+}
+
+// ── CMD: Reply to ticket ───────────────────────────────────────────────────────
+async function cmdReplyTicket(data: { ticketId?: string; replyText?: string }): Promise<string> {
+  if (!data.ticketId) return "❌ Ticket number batao. Example: *reply ticket TKT-123 message text*";
+  if (!data.replyText) return "❌ Reply text batao.";
+
+  const ticketNum = data.ticketId.trim().replace(/^#/, "");
+
+  const [ticket] = await db.select().from(ticketsTable)
+    .where(or(
+      ilike(ticketsTable.ticketNumber, `%${ticketNum}%`),
+      eq(ticketsTable.id, ticketNum),
+    )).limit(1);
+
+  if (!ticket) return `❌ Ticket *${data.ticketId}* nahi mila.`;
+
+  const [client] = await db.select().from(usersTable)
+    .where(eq(usersTable.id, ticket.clientId)).limit(1);
+
+  await db.insert(ticketMessagesTable).values({
+    ticketId: ticket.id,
+    senderId: null,
+    senderRole: "admin",
+    message: data.replyText,
+  } as any);
+
+  await db.update(ticketsTable).set({
+    status: "answered",
+    updatedAt: new Date(),
+  } as any).where(eq(ticketsTable.id, ticket.id));
+
+  // Notify client via WhatsApp + email
+  if (client?.phone) {
+    sendToClientPhone(client.phone,
+      `📨 *Ticket Reply — Noehost*\n\n` +
+      `Hi *${client.firstName}!*\n\n` +
+      `Aapki ticket *${ticket.ticketNumber}* ka jawab aa gaya hai!\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📋 *Subject:* ${ticket.subject}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `💬 *Reply:*\n${data.replyText}\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `🔗 Ticket view: ${process.env.CLIENT_AREA_URL ?? "https://noehost.com/dashboard"}/tickets/${ticket.id}\n\n` +
+      `📞 Koi aur sawaal ho to reply karein!\n` +
+      `_Noehost Team 🚀_`, "client_notification"
+    ).catch(() => {});
+  }
+
+  if (client?.email) {
+    emailGeneric(client.email,
+      `Reply to your ticket: ${ticket.subject}`,
+      client.firstName || "Client",
+      `Your ticket *${ticket.ticketNumber}* has been replied to:\n\n${data.replyText}`,
+    ).catch(() => {});
+  }
+
+  return [
+    `✅ *Ticket Replied!*\n`,
+    `🎫 Ticket: *${ticket.ticketNumber}*`,
+    `📋 Subject: ${ticket.subject}`,
+    `👤 Client: ${client ? `${client.firstName} (${client.email})` : "Unknown"}`,
+    `💬 Reply: ${data.replyText.slice(0, 100)}${data.replyText.length > 100 ? "…" : ""}`,
+    client?.phone ? `📲 Client notified via WhatsApp + email.` : `⚠️ No phone — WhatsApp not sent.`,
+  ].join("\n");
+}
+
 // ── CMD: Suspend ──────────────────────────────────────────────────────────────
 async function cmdSuspend(identifier: string, notifyClient = true): Promise<string> {
   let service = await findService(identifier);
@@ -1033,12 +1321,20 @@ function cmdHelp(): string {
     ``,
     `📦 *Orders*`,
     `  • _order add ali@email.com kalahost.com Business Pro_`,
+    `  • _order add ali@email.com site.com 3500 mein_ (custom price)`,
     `  • _activate order #ORDER-ID_`,
     `  • _activate ali@email.com_`,
     ``,
     `🔧 *Services*`,
     `  • _suspend kalahost.com_`,
     `  • _unsuspend ali@email.com_`,
+    `  • _terminate kalahost.com_ (2-step confirm)`,
+    `  • _terminate confirm_ (confirm termination)`,
+    `  • _extend billing ali@email.com 3 months_`,
+    ``,
+    `💰 *Plans*`,
+    `  • _update plan price Business Pro 4000_`,
+    `  • _Business Pro ki price 4000 kar do_`,
     ``,
     `🧾 *Invoices*`,
     `  • _share invoice ali@email.com_`,
@@ -1048,6 +1344,10 @@ function cmdHelp(): string {
     `  • _renewals_ (next 7 days)`,
     `  • _renewals 30 days_`,
     `  • _remind all 7d_`,
+    ``,
+    `🎫 *Tickets*`,
+    `  • _tickets_ (show open tickets)`,
+    `  • _reply ticket TKT-123 Your issue is fixed!_`,
     ``,
     `🔧 *AI Issue Fixer*`,
     `  • _fix issue email nahi aa raha kalahost.com_`,
@@ -1072,6 +1372,10 @@ export async function noeAgent(msg: string, adminJid: string, sock: any): Promis
   const lower = trimmed.toLowerCase();
   if (lower === "status" || lower === "!status") return cmdSystemStatus();
   if (lower === "help" || lower === "!help" || lower === "commands") return cmdHelp();
+  if (lower === "tickets" || lower === "ticket list" || lower === "open tickets") return cmdListTickets();
+  if (lower === "terminate confirm" || lower === "confirm terminate") {
+    return executeIntent("terminate_confirm", {}, adminJid, sock);
+  }
 
   // Check for ongoing conversation step
   const existingConv = getConv(adminJid);
@@ -1094,6 +1398,11 @@ export async function noeAgent(msg: string, adminJid: string, sock: any): Promis
         planName: "📦 Plan name batao (ya 'basic' for cheapest):",
         message: "💬 Client ko kya message bhejein?",
         issueDesc: "🔧 Issue describe karo:",
+        months: "⏰ Kitne months extend karne hain? (1-24):",
+        price: "💰 New price (PKR) batao:",
+        ticketId: "🎫 Ticket number batao (e.g. TKT-123):",
+        replyText: "💬 Ticket ka reply likho:",
+        clientMsg: "💬 Client ko kya message bhejein?",
       };
       return prompts[nextField] || `${nextField} batao:`;
     }
@@ -1173,6 +1482,58 @@ async function executeIntent(intent: string, params: Record<string, string>, adm
 
       case "unsuspend":
         return await cmdUnsuspend(params.email || params.domain || params.name || "");
+
+      case "terminate_service": {
+        const id = params.email || params.domain || params.name || "";
+        if (!id) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "🌐 Kis service ko terminate karna hai? Domain ya email batao:";
+        }
+        return await cmdTerminateService(id, adminJid, false);
+      }
+
+      case "terminate_confirm":
+        return await cmdTerminateService("", adminJid, true);
+
+      case "extend_billing": {
+        const id = params.email || params.domain || "";
+        if (!id) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "🌐 Kis service ki billing extend karni hai? Domain ya email batao:";
+        }
+        if (!params.months) {
+          setConv(adminJid, { intent, collected: { ...params, domain: id }, missing: ["months"], ts: Date.now() });
+          return "⏰ Kitne months extend karne hain? (1-24):";
+        }
+        return await cmdExtendBilling(params);
+      }
+
+      case "update_plan_price": {
+        if (!params.planName) {
+          setConv(adminJid, { intent, collected: params, missing: ["planName"], ts: Date.now() });
+          return "📦 Kaun se plan ki price update karni hai? Plan name batao:";
+        }
+        if (!params.price) {
+          setConv(adminJid, { intent, collected: params, missing: ["price"], ts: Date.now() });
+          return `💰 *${params.planName}* ki new monthly price batao (PKR):`;
+        }
+        return await cmdUpdatePlanPrice(params);
+      }
+
+      case "list_tickets":
+        return await cmdListTickets();
+
+      case "reply_ticket": {
+        if (!params.ticketId) {
+          setConv(adminJid, { intent, collected: params, missing: ["ticketId"], ts: Date.now() });
+          return "🎫 Ticket number batao (e.g. TKT-123):";
+        }
+        if (!params.replyText) {
+          setConv(adminJid, { intent, collected: params, missing: ["replyText"], ts: Date.now() });
+          return `💬 Ticket *${params.ticketId}* ka reply likho:`;
+        }
+        return await cmdReplyTicket(params);
+      }
 
       case "client_info":
         if (!params.email && !params.name && !params.phone && !params.domain) {
