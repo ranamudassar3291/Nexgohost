@@ -5,7 +5,7 @@ import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateRe
 import { eq, sql, and, gt } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { decryptField } from "../lib/fieldCrypto.js";
-import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail } from "../lib/email.js";
+import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail, emailLoginAlert } from "../lib/email.js";
 import { sendToClientPhone } from "../lib/whatsapp.js";
 import { getSecurityConfig, verifyCaptcha, recordFailedAttempt, isIpBlockedInDb, getClientIp } from "../lib/security.js";
 import crypto from "node:crypto";
@@ -115,6 +115,13 @@ router.post("/auth/register", async (req, res) => {
         console.log(`[AUTH] Verification email to ${email}: sent=${emailResult.sent} msg=${emailResult.message}`);
       } catch (emailErr: any) {
         console.error(`[AUTH] ❌ Failed to send verification email to ${email}:`, emailErr.message);
+      }
+      // Also send same verification code via WhatsApp to phone if provided
+      if (phone) {
+        sendToClientPhone(phone,
+          `🔐 *Your verification code is: ${code}*\n\nEnter this code on the website to verify your account.\nExpires in 10 minutes.\n\n_Do not share this code with anyone._`,
+          "verification"
+        ).catch(() => {});
       }
     }
 
@@ -308,9 +315,32 @@ router.post("/auth/login", async (req, res) => {
       return;
     }
 
-    logActivity(user.id, "login_success", req, "success", undefined, user.email, `Successful login from ${(req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown IP"}`).catch(() => {});
+    const loginIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || "Unknown";
+    logActivity(user.id, "login_success", req, "success", undefined, user.email, `Successful login from ${loginIp}`).catch(() => {});
     const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.json({ token, requiresVerification: false, user: formatUser(user) });
+
+    // Login alert email — non-blocking, only for clients
+    if (user.role === "client") {
+      const now = new Date();
+      const ua = req.headers["user-agent"] || "Unknown device";
+      const deviceStr = (() => {
+        if (ua.includes("Mobile")) return ua.includes("iPhone") ? "iPhone / Safari" : ua.includes("Android") ? "Android / Chrome" : "Mobile Browser";
+        if (ua.includes("Windows")) return "Windows / " + (ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : ua.includes("Edge") ? "Edge" : "Browser");
+        if (ua.includes("Mac")) return "Mac / " + (ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : ua.includes("Safari") ? "Safari" : "Browser");
+        if (ua.includes("Linux")) return "Linux / " + (ua.includes("Chrome") ? "Chrome" : "Browser");
+        return ua.slice(0, 60);
+      })();
+      const loginDate = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const loginTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) + " PKT";
+      emailLoginAlert(user.email, {
+        clientName: `${user.firstName} ${user.lastName || ""}`.trim(),
+        ip: loginIp,
+        device: deviceStr,
+        loginTime,
+        loginDate,
+      }, { clientId: user.id }).catch(() => {});
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error", message: "Login failed" });

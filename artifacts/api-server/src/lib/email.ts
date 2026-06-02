@@ -1662,3 +1662,87 @@ export async function emailServiceRenewalReminder(
 
   return sendEmail({ to, subject: subjects[vars.stage], html, emailType: `service-renewal-${vars.stage}`, clientId: meta?.clientId, referenceId: meta?.referenceId });
 }
+
+export async function emailLoginAlert(
+  to: string,
+  vars: { clientName: string; ip: string; device: string; location?: string; loginTime: string; loginDate: string; dashboardUrl?: string },
+  meta?: { clientId?: string },
+) {
+  const b = await getBrandingVars();
+  const dashUrl = vars.dashboardUrl || `${getClientUrl()}/dashboard`;
+  const year = new Date().getFullYear();
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:32px 0"><tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px">
+
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6B46C1 0%,#7C3AED 100%);padding:32px 44px;border-radius:16px 16px 0 0;text-align:center">
+    ${b.logo_url ? `<img src="${b.logo_url}" alt="${b.company_name}" style="max-height:40px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto">` : `<div style="font-size:28px;font-weight:800;color:#fff;margin-bottom:4px">${b.company_name}</div>`}
+    <p style="margin:0;color:rgba(255,255,255,0.85);font-size:14px">Security Notification</p>
+  </td></tr>
+
+  <!-- Body -->
+  <tr><td style="background:#ffffff;padding:36px 44px">
+    <h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">New Sign-in Detected</h2>
+    <p style="margin:0 0 24px;color:#6B7280;font-size:15px">Hi <strong style="color:#111827">${vars.clientName}</strong>, we noticed a new login to your account.</p>
+
+    <!-- Info Card -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;margin-bottom:24px">
+      <tr><td style="padding:0">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E5E7EB">
+              <span style="display:block;font-size:11px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Date & Time</span>
+              <span style="font-size:14px;font-weight:600;color:#111827">${vars.loginDate} at ${vars.loginTime}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E5E7EB">
+              <span style="display:block;font-size:11px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">IP Address</span>
+              <span style="font-size:14px;font-weight:600;color:#111827">${vars.ip}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E5E7EB">
+              <span style="display:block;font-size:11px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Device / Browser</span>
+              <span style="font-size:14px;font-weight:600;color:#111827">${vars.device}</span>
+            </td>
+          </tr>
+          ${vars.location ? `<tr><td style="padding:14px 20px">
+            <span style="display:block;font-size:11px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Location</span>
+            <span style="font-size:14px;font-weight:600;color:#111827">${vars.location}</span>
+          </td></tr>` : ""}
+        </table>
+      </td></tr>
+    </table>
+
+    <p style="margin:0 0 20px;color:#6B7280;font-size:14px;line-height:1.6">
+      If this was you, no action is needed. If you don't recognize this sign-in, please <strong>change your password immediately</strong> and contact support.
+    </p>
+
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 8px"><tr>
+      <td style="background:linear-gradient(135deg,#6B46C1,#7C3AED);border-radius:10px;padding:0">
+        <a href="${dashUrl}/account" style="display:inline-block;padding:13px 28px;color:#fff;font-size:14px;font-weight:700;text-decoration:none;border-radius:10px">Secure My Account →</a>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#F9FAFB;border-top:1px solid #E5E7EB;padding:20px 44px;border-radius:0 0 16px 16px;text-align:center">
+    <p style="margin:0;font-size:12px;color:#9CA3AF">© ${year} ${b.company_name}. This is an automated security alert.</p>
+    <p style="margin:4px 0 0;font-size:12px;color:#9CA3AF">If you did not request this, contact <a href="mailto:${b.support_email}" style="color:#6B46C1;text-decoration:none">${b.support_email}</a></p>
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>`;
+
+  return sendEmail({
+    to,
+    subject: `🔐 New sign-in to your ${b.company_name} account`,
+    html,
+    emailType: "login-alert",
+    clientId: meta?.clientId,
+  });
+}
